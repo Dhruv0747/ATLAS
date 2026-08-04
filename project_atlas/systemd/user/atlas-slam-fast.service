@@ -1,0 +1,15 @@
+[Unit]
+Description=Project ATLAS SLAM Toolbox mapping with frequent indoor map updates
+Wants=atlas-lidar.service atlas-frame-bridge.service atlas-laser-tf.service rover-base-telemetry.service
+After=atlas-lidar.service atlas-frame-bridge.service atlas-laser-tf.service rover-base-telemetry.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec /opt/ros/humble/lib/slam_toolbox/async_slam_toolbox_node --ros-args -r __node:=slam_toolbox -p use_sim_time:=false -p odom_frame:=odom -p map_frame:=map -p base_frame:=base_link -p scan_topic:=/scan -p mode:=mapping -p min_laser_range:=0.20 -p max_laser_range:=8.0 -p minimum_travel_distance:=0.10 -p minimum_travel_heading:=0.20 -p map_update_interval:=1.0 -p scan_queue_size:=50 -p transform_timeout:=1.5 -p tf_buffer_duration:=30.0'
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=12
+KillMode=control-group
+
+[Install]
+WantedBy=default.target

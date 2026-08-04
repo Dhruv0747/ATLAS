@@ -1,0 +1,17 @@
+[Unit]
+Description=Project ATLAS Yahboom base (LB dead-man remote enabled)
+
+[Service]
+Type=notify
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && source /home/jetson/project_atlas_ws/install/setup.bash && exec python3 /home/jetson/project_atlas/scripts/yahboom_base.py'
+Restart=on-failure
+RestartSec=3
+WatchdogSec=5
+TimeoutStopSec=5
+KillMode=control-group
+SendSIGKILL=yes
+NotifyAccess=main
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target
