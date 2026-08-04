@@ -53,3 +53,15 @@ These duplicate/inconsistent parentage and orientation choices must be resolved 
 
 Steps 1-4 require explicit confirmation that all four wheels are clear of the ground. Ground navigation tests require a clear test area and an operator at the physical emergency stop.
 
+## Lifted-wheel encoder test results
+
+The operator confirmed all four wheels were lifted and clear. Each motor was commanded independently for 0.50 seconds at +60 PWM, stopped, and then tested at -60 PWM. The normal base telemetry service was stopped only while the test owned `/dev/yahboom` and was automatically restarted afterward. Final motor command was verified as zero.
+
+| Commanded motor | Forward encoder delta | Reverse encoder delta | Assessment |
+|---|---:|---:|---|
+| M1 | `(2792, 0, 0, 0)` | `(-2774, 0, 0, 0)` | M1 encoder is responsive and directionally consistent |
+| M2 | `(350, 2, 0, 0)` | `(-260, -1, 0, 0)` | M1 change is residual coast; M2 count is effectively inactive |
+| M3 | `(0, 0, 0, 0)` | `(0, 0, 0, 0)` | No encoder response |
+| M4 | `(0, 0, -1, 1)` | `(0, 0, 1, 0)` | Only single-count noise; no usable encoder response |
+
+M1 produced closely matched forward/reverse magnitudes, confirming the board protocol and M1 decoder work. M2-M4 cannot currently support odometry. Before implementing encoder-derived odometry, inspect the physical encoder power/signal wiring, connector mapping, motor/encoder compatibility and controller input channels for those three wheels. Software scaling cannot repair absent counts.

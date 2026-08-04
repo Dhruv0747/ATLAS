@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Short individual Yahboom motor test. Use only with every wheel lifted."""
 import time
+import sys
 from Rosmaster_Lib import Rosmaster
 
-PWM = 90
-RUN_SECONDS = 0.35
+PWM = int(sys.argv[1]) if len(sys.argv) > 1 else 60
+if not -70 <= PWM <= 70 or PWM == 0:
+    raise SystemExit('PWM must be between -70 and 70, excluding zero')
+RUN_SECONDS = 0.50
 
 bot = Rosmaster(car_type=5, com="/dev/yahboom")
 bot.create_receive_threading()
