@@ -4,10 +4,13 @@ import time
 import sys
 from Rosmaster_Lib import Rosmaster
 
-PWM = int(sys.argv[1]) if len(sys.argv) > 1 else 60
+PWM = int(sys.argv[1]) if len(sys.argv) > 1 else 50
 if not -70 <= PWM <= 70 or PWM == 0:
     raise SystemExit('PWM must be between -70 and 70, excluding zero')
-RUN_SECONDS = 0.50
+RUN_SECONDS = float(sys.argv[2]) if len(sys.argv) > 2 else 0.50
+REST_SECONDS = float(sys.argv[3]) if len(sys.argv) > 3 else 0.50
+if not 0.2 <= RUN_SECONDS <= 2.0 or not 0.2 <= REST_SECONDS <= 5.0:
+    raise SystemExit('run/rest seconds outside safe test range')
 
 bot = Rosmaster(car_type=5, com="/dev/yahboom")
 bot.create_receive_threading()
@@ -27,7 +30,7 @@ try:
         bot.set_motor(*pwm)
         time.sleep(RUN_SECONDS)
         bot.set_motor(0, 0, 0, 0)
-        time.sleep(0.5)
+        time.sleep(REST_SECONDS)
         after = bot.get_motor_encoder()
         delta = tuple(after[channel] - before[channel] for channel in range(4))
         print(f"M{index+1} STOP after={after} delta={delta}", flush=True)
