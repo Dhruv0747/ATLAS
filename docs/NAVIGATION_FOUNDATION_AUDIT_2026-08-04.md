@@ -90,3 +90,16 @@ After further operator hardware work, the complete forward/reverse test passed o
 | M4 | `+3011` | `-4666` |
 
 All signs reverse correctly and each commanded motor primarily changes its corresponding encoder channel. Small residual changes on the preceding channel are consistent with coast during the stop/read interval. Final motor speed was zero and the normal base service was active. The encoder hardware blocker is resolved; counts-per-revolution and loaded-wheel calibration remain necessary before encoder-derived odometry.
+
+### Final permanent-installation acceptance test
+
+After all four motors were permanently installed and the operator reconfirmed that every wheel was lifted, the complete acceptance test passed at 50 PWM for 1.0 second in both directions:
+
+| Motor | Forward delta | Reverse delta | Result |
+|---|---:|---:|---|
+| M1 | `+4455` | `-4580` | Pass |
+| M2 | `+5532` | `-5496` | Pass |
+| M3 | `+4805` | `-5024` | Pass |
+| M4 | `+4396` | `-4336` | Pass |
+
+All four channels are strong, directionally correct and isolated. Small counts seen on the previously tested channel during the next motor interval are coast-down, not cross-wiring. The final motor command was `0.0` and `rover-base-telemetry.service` was active after testing. Permanent motor/encoder installation is accepted for the next calibration phase.
