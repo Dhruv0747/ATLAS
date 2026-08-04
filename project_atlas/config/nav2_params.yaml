@@ -86,7 +86,7 @@ controller_server:
       # Exploration frontiers can begin close to the rover.  A 5 cm goal
       # tolerance prevents a nearby valid frontier from being declared reached
       # before the rover makes any physical progress.
-      xy_goal_tolerance: 0.05
+      xy_goal_tolerance: 0.10
       yaw_goal_tolerance: 3.14
 
     FollowPath:
@@ -218,7 +218,10 @@ planner_server:
       # Smac 2D uses the costmap's exact rectangular footprint and does not
       # falsely reject ATLAS's free start pose as Hybrid A* did.
       plugin: "nav2_smac_planner/SmacPlanner2D"
-      tolerance: 0.15
+      # Frontier centroids lie on the known/unknown boundary. Permit the
+      # planner to finish at the nearest safe cell outside the 28 cm inflation
+      # band instead of rejecting an otherwise useful exploration route.
+      tolerance: 0.30
       allow_unknown: true
       downsample_costmap: false
       downsampling_factor: 1
