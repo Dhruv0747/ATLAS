@@ -43,6 +43,13 @@ REAR_STEER_GAIN      = 1.0  # 1.0 = full opposite rear steering
 BAT_MIN_V = 10.5
 BAT_MAX_V = 12.6
 
+# Verified ATLAS wheel geometry and provisional per-channel calibration.
+# Physical order is the controller order: M1 FR, M2 FL, M3 BR, M4 BL.
+WHEEL_CIRCUMFERENCE_M = 0.392699
+ENCODER_COUNTS_PER_REV = (1506.0, 5579.0, 6157.0, 6494.0)
+# Normal forward drive commands M1/M4 positive and M2/M3 negative.
+ENCODER_FORWARD_SIGN = (1.0, -1.0, -1.0, 1.0)
+
 
 def systemd_notify(message: str) -> None:
     """Send a readiness/watchdog message without requiring python3-systemd."""
@@ -79,6 +86,10 @@ class YahboomBase(Node):
         self._front_target_angle = FRONT_STEER_CENTER
         self._rear_target_angle = REAR_STEER_CENTER
         self._last_enc = None
+        self._enc_origin = None
+        self._enc_rate_anchor = None
+        self._enc_rate_anchor_t = time.monotonic()
+        self._wheel_cps = [0.0, 0.0, 0.0, 0.0]
         self._last_enc_t = time.monotonic()
         self._last_enc_change_t = time.monotonic()
         self._encoder_stale = True
@@ -111,6 +122,10 @@ class YahboomBase(Node):
             self.create_publisher(Int32, '/yahboom/encoder/m3', 10),
             self.create_publisher(Int32, '/yahboom/encoder/m4', 10),
         ]
+        wheel_names = ('front_right', 'front_left', 'back_right', 'back_left')
+        self._wheel_rpm_pubs = [self.create_publisher(Float32, f'/yahboom/wheel/{name}/rpm', 10) for name in wheel_names]
+        self._wheel_mps_pubs = [self.create_publisher(Float32, f'/yahboom/wheel/{name}/speed_mps', 10) for name in wheel_names]
+        self._wheel_distance_pubs = [self.create_publisher(Float32, f'/yahboom/wheel/{name}/distance_m', 10) for name in wheel_names]
         self._pub_fl = self.create_publisher(Float32, '/motor/front_left', 10)
         self._pub_fr = self.create_publisher(Float32, '/motor/front_right', 10)
         self._pub_rl = self.create_publisher(Float32, '/motor/rear_left', 10)
@@ -214,6 +229,19 @@ class YahboomBase(Node):
         self._pub_heading.publish(Float32(data=float((yaw_deg + 360.0) % 360.0)))
 
         enc = self.bot.get_motor_encoder()
+        if self._enc_origin is None:
+            self._enc_origin = tuple(enc)
+        if self._enc_rate_anchor is None:
+            self._enc_rate_anchor = tuple(enc)
+            self._enc_rate_anchor_t = now
+        elif now - self._enc_rate_anchor_t >= 0.5:
+            rate_dt = max(0.001, now - self._enc_rate_anchor_t)
+            self._wheel_cps = [
+                (float(enc[i]) - float(self._enc_rate_anchor[i])) / rate_dt
+                for i in range(4)
+            ]
+            self._enc_rate_anchor = tuple(enc)
+            self._enc_rate_anchor_t = now
         for pub, val in zip(self._enc_pubs, enc):
             pub.publish(Int32(data=int(val)))
 
@@ -225,6 +253,17 @@ class YahboomBase(Node):
             enc_delta = [enc[i] - self._last_enc[i] for i in range(4)]
             speeds = [enc_delta[i] / dt for i in range(4)]
             enc_changed = any(abs(v) > 2 for v in enc_delta)
+        for i in range(4):
+            # Use a half-second count window.  The board reports encoder data
+            # in bursts, so a single 100 ms delta produces misleading spikes.
+            signed_cps = float(self._wheel_cps[i]) * ENCODER_FORWARD_SIGN[i]
+            rpm = signed_cps * 60.0 / ENCODER_COUNTS_PER_REV[i]
+            speed_mps = signed_cps * WHEEL_CIRCUMFERENCE_M / ENCODER_COUNTS_PER_REV[i]
+            signed_counts = (float(enc[i]) - float(self._enc_origin[i])) * ENCODER_FORWARD_SIGN[i]
+            distance_m = signed_counts * WHEEL_CIRCUMFERENCE_M / ENCODER_COUNTS_PER_REV[i]
+            self._wheel_rpm_pubs[i].publish(Float32(data=rpm))
+            self._wheel_mps_pubs[i].publish(Float32(data=speed_mps))
+            self._wheel_distance_pubs[i].publish(Float32(data=distance_m))
         if enc_changed:
             self._last_enc_change_t = now
             self._encoder_stale = False

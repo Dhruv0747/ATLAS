@@ -104,6 +104,12 @@ class DashNode(Node):
         S(Int32, '/yahboom/encoder/m2', lambda m: DATA.set(enc_m2=m.data), 10)
         S(Int32, '/yahboom/encoder/m3', lambda m: DATA.set(enc_m3=m.data), 10)
         S(Int32, '/yahboom/encoder/m4', lambda m: DATA.set(enc_m4=m.data), 10)
+        wheel_keys = ('fr', 'fl', 'br', 'bl')
+        wheel_names = ('front_right', 'front_left', 'back_right', 'back_left')
+        for key, name in zip(wheel_keys, wheel_names):
+            S(Float32, f'/yahboom/wheel/{name}/rpm', lambda m, k=key: DATA.set(**{f'{k}_rpm':m.data}), 10)
+            S(Float32, f'/yahboom/wheel/{name}/speed_mps', lambda m, k=key: DATA.set(**{f'{k}_mps':m.data}), 10)
+            S(Float32, f'/yahboom/wheel/{name}/distance_m', lambda m, k=key: DATA.set(**{f'{k}_distance':m.data}), 10)
         # Steering
         S(Float32, '/steering/angle',    lambda m: DATA.set(steering=m.data), 10)
         S(Float32, '/servo/angle',       lambda m: DATA.set(steering=m.data), 10)
@@ -1992,21 +1998,26 @@ def draw_live_sensor_detail(rect, name, info):
         # The motor controller exposes four independent channels.  Show all
         # four together instead of sending this sensor through the generic
         # one-value detail template.
-        motors=[('FRONT RIGHT','M1',DATA.get('fr',0),DATA.get('enc_m1','--'),'enc_m1'),
-                ('FRONT LEFT','M2',DATA.get('fl',0),DATA.get('enc_m2','--'),'enc_m2'),
-                ('BACK RIGHT','M3',DATA.get('rr',0),DATA.get('enc_m3','--'),'enc_m3'),
-                ('BACK LEFT','M4',DATA.get('rl',0),DATA.get('enc_m4','--'),'enc_m4')]
+        motors=[('FRONT RIGHT','M1','fr',DATA.get('enc_m1','--'),'enc_m1'),
+                ('FRONT LEFT','M2','fl',DATA.get('enc_m2','--'),'enc_m2'),
+                ('BACK RIGHT','M3','br',DATA.get('enc_m3','--'),'enc_m3'),
+                ('BACK LEFT','M4','bl',DATA.get('enc_m4','--'),'enc_m4')]
         gap=12; left=rect.x+34; top=rect.y+105
         card_w=(rect.w-68-gap)//2; card_h=max(105,(rect.h-145-gap)//2)
-        for index,(position,channel,rate,count,key) in enumerate(motors):
+        for index,(position,channel,wheel_key,count,key) in enumerate(motors):
             col=index%2; row=index//2
             tile=pygame.Rect(left+col*(card_w+gap),top+row*(card_h+gap),card_w,card_h)
             is_live=fresh(key,4.0); tile_color=GREEN if is_live else RED
             pygame.draw.rect(screen,(9,23,34),tile,border_radius=9)
             pygame.draw.rect(screen,tile_color,tile,2,border_radius=9)
             hud_label(f'{position} / {channel}',tile.x+16,tile.y+13,ACCENT,F17,tile.w-32)
-            touch_value('ENCODER COUNT',str(count),tile.x+16,tile.y+43,WHITE,tile.w//2-20)
-            touch_value('COUNT RATE',f'{float(rate or 0):+.0f}/s',tile.x+tile.w//2,tile.y+43,tile_color,tile.w//2-16)
+            rpm=float(DATA.get(f'{wheel_key}_rpm',0) or 0)
+            mps=float(DATA.get(f'{wheel_key}_mps',0) or 0)
+            distance=float(DATA.get(f'{wheel_key}_distance',0) or 0)
+            moving=abs(rpm)>=0.5
+            touch_value('STATE','MOVING' if moving else 'STOPPED',tile.x+16,tile.y+42,GREEN if moving else DIM,tile.w//2-20)
+            touch_value('SPEED',f'{abs(rpm):.1f} RPM',tile.x+tile.w//2,tile.y+42,tile_color,tile.w//2-16)
+            hud_label(f'{abs(mps):.3f} m/s   distance {distance:+.3f} m   raw {count}',tile.x+16,tile.bottom-24,DIM,F10,tile.w-32)
         hud_label('Physical map: M1 front-right | M2 front-left | M3 back-right | M4 back-left',
                   rect.x+34,rect.bottom-30,DIM,F13,rect.w-68)
     else:
