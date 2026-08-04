@@ -3,7 +3,9 @@
 # Values are encoder counts per one wheel revolution.
 # M1 is a powered visual estimate; M2-M4 are manual forward/back measurements.
 encoder_calibration:
-  wheel_diameter_m: 0.0  # Measure tyre diameter before metric odometry is enabled.
+  wheel_diameter_m: 0.125
+  wheel_circumference_m: 0.392699
+  wheel_source: https://www.amrobotics.in/products/125mm-heavy-duty-high-density-rc-rubber-wheel-with-flange-for-6mm-shaft-motors
   motors:
     m1:
       position: front_right
