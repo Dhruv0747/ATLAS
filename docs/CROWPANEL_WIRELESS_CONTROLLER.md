@@ -4,6 +4,19 @@
 
 ATLAS will replace its broken 11-inch display with a removable, camera-equipped 10.1-inch CrowPanel Advanced ESP32-P4 HMI. The panel is a wireless user interface, not a replacement for the Jetson or the rover safety controller.
 
+## Fully wireless operation
+
+- The finished controller must require no data cable during normal operation.
+- The CrowPanel will run from its own rechargeable battery; USB is used only for charging, initial programming and wired recovery.
+- Wi-Fi credentials and a unique ATLAS pairing identity will be stored securely during commissioning.
+- At power-on, the panel must automatically join the ATLAS control network, discover the Jetson gateway, authenticate, synchronize current state and open the dashboard without operator setup.
+- The interface must clearly show `CONNECTING`, `ONLINE`, `DEGRADED` or `OFFLINE` and the measured link quality/latency.
+- After a temporary outage it must reconnect automatically and resynchronize telemetry, but it must not resume an interrupted motion command.
+- The panel must enter read-only/offline mode and command zero velocity whenever its heartbeat is lost.
+- A local setup screen will allow authorized replacement of Wi-Fi credentials without reflashing firmware.
+
+For dependable use away from the home router, ATLAS should provide a dedicated WPA2/WPA3 control access point. If the Jetson's primary Wi-Fi interface must remain connected to another network, use a separate supported USB Wi-Fi adapter for the private controller link. Tailscale remains useful for the Jetson but is not the primary CrowPanel transport.
+
 ## Responsibilities
 
 The CrowPanel will provide:
@@ -55,9 +68,10 @@ The Jetson will remain the authority for:
 5. Record the factory firmware version and save available vendor examples.
 6. Test touchscreen, camera, microphone, speakers, Wi-Fi, Bluetooth, microSD and battery charging.
 7. Join the ATLAS Wi-Fi network and measure stable range and latency.
-8. Begin with a read-only telemetry page; do not enable motion commands first.
-9. Add watchdog-protected manual control only after telemetry and disconnect behavior pass.
-10. Design the enclosure, battery, physical joysticks, dead-man trigger and separate emergency-stop hardware after electrical validation.
+8. Power-cycle both devices and verify automatic discovery, authentication, dashboard restoration and reconnect after a forced Wi-Fi interruption.
+9. Begin with a read-only telemetry page; do not enable motion commands first.
+10. Add watchdog-protected manual control only after telemetry and disconnect behavior pass.
+11. Design the enclosure, battery, physical joysticks, dead-man trigger and separate emergency-stop hardware after electrical validation.
 
 ## Initial software phases
 
@@ -68,4 +82,3 @@ The Jetson will remain the authority for:
 5. Watchdog-protected manual drive controls
 6. Mapping, navigation and mission controls
 7. Local camera, voice, logging and OTA functions
-
