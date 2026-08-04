@@ -1887,7 +1887,10 @@ def draw_touch_middle(y, h):
     thermal_live = fresh('thermal_json', 8.0) and len(pixels) == 64 and bool(thermal.get('ok'))
     inside = float(thermal.get('avg_c', 0.0) or 0.0) if thermal_live else None
     outside = DATA.get('outside_temperature', None)
-    grid_x, grid_y, cell = x+20, y+58, 18
+    # Left: inside AMG8833 heatmap. Right: outside BME680 measurements.
+    # The compact overview intentionally keeps each value on its own line;
+    # tapping either side opens the full two-graph environment page.
+    grid_x, grid_y, cell = x+18, y+54, 12
     thermal_rect = pygame.Rect(grid_x, grid_y, cell*8, cell*8)
     if thermal_live:
         mn = float(thermal.get('min_c', min(pixels)) or 0.0)
@@ -1901,27 +1904,50 @@ def draw_touch_middle(y, h):
                 if idx == hot_i:
                     pygame.draw.rect(screen, WHITE, box, 2)
         pygame.draw.rect(screen, GREEN, thermal_rect, 2)
-        hud_label(f'MIN {mn:.1f} C', x+180, y+58, ACCENT, F13, 125)
-        hud_label(f'MAX {mx:.1f} C', x+315, y+58, ORANGE, F13, 155)
-        hud_label(f'AVG {inside:.1f} C', x+180, y+88, WHITE, F17, 290)
+        hud_label(f'AVG {inside:.1f} C', x+18, y+158, WHITE, F13, 112)
+        hud_label(f'{mn:.1f} - {mx:.1f} C', x+18, y+179, DIM, F10, 112)
     else:
         pygame.draw.rect(screen, (18,24,34), thermal_rect)
         pygame.draw.rect(screen, RED, thermal_rect, 2)
-        hud_label('8x8 OFFLINE', x+180, y+68, RED, F17, 280)
-    hud_label('AMG8833 - TAP GRID FOR FULL VIEW', x+20, y+210, GREEN if thermal_live else RED, F10, 300)
+        hud_label('8x8 OFFLINE', x+18, y+158, RED, F13, 112)
+    hud_label('AMG8833 INSIDE', x+18, y+37, GREEN if thermal_live else RED, F10, 112)
     TOUCH_AREAS['sensor:thermal']=(thermal_rect,False)
     outside_live = outside is not None and fresh('outside_temperature',9)
     iaq = DATA.get('outside_iaq', None)
     quality = str(DATA.get('outside_air_quality', 'WARMING'))
     qcolor = GREEN if quality in ('EXCELLENT','GOOD') else (YELLOW if quality == 'MODERATE' else ORANGE)
-    touch_value('BME680 OUTSIDE', f'{outside:.1f} C' if outside_live else 'SENSOR FAULT', x+180, y+122, GREEN if outside_live else RED, 290)
-    touch_value('HUMIDITY', f'{DATA.get("outside_humidity",0):.0f} %' if fresh('outside_humidity',9) else '--', x+180, y+168, WHITE if fresh('outside_humidity',9) else RED, 105)
-    touch_value('PRESSURE', f'{DATA.get("outside_pressure",0):.0f} hPa' if fresh('outside_pressure',9) else '--', x+292, y+168, WHITE, 105)
-    touch_value('IAQ EST.', f'{iaq:.0f} {quality}' if iaq is not None and fresh('outside_iaq',9) else 'WARMING', x+404, y+168, qcolor, 76)
+    bx = x + 136
+    hud_label('BME680 OUTSIDE', bx, y+37, GREEN if outside_live else RED, F10, 340)
+    touch_value('TEMPERATURE', f'{outside:.1f} C' if outside_live else 'FAULT', bx, y+53, GREEN if outside_live else RED, 155)
+    touch_value('HUMIDITY', f'{DATA.get("outside_humidity",0):.0f} %' if fresh('outside_humidity',9) else '--', bx+165, y+53, WHITE if fresh('outside_humidity',9) else RED, 150)
+    touch_value('PRESSURE', f'{DATA.get("outside_pressure",0):.0f} hPa' if fresh('outside_pressure',9) else '--', bx, y+105, WHITE, 155)
+    touch_value('IAQ ESTIMATE', f'{iaq:.0f} {quality}' if iaq is not None and fresh('outside_iaq',9) else 'WARMING', bx+165, y+105, qcolor, 150)
     eco2 = DATA.get('outside_eco2', None)
-    hud_label('eCO2 EST. --' if eco2 is None else f'eCO2 EST. {eco2:.0f} ppm', x+180, y+218, DIM, F10, 175)
-    hud_label(f'VOC GAS {DATA.get("outside_gas",0)/1000:.1f} kohm', x+355, y+218, DIM, F10, 125)
-    TOUCH_AREAS['sensor:ambient']=(pygame.Rect(x+170,y+112,315,125),False)
+    hud_label('eCO2 EST. --' if eco2 is None else f'eCO2 EST. {eco2:.0f} ppm', bx, y+159, DIM, F10, 155)
+    hud_label(f'VOC {DATA.get("outside_gas",0)/1000:.1f} kohm', bx+165, y+159, DIM, F10, 150)
+
+    # A small dual trend: orange is inside AMG8833 average, cyan is outside
+    # BME680 ambient temperature. Full labelled graphs open when tapped.
+    chart = pygame.Rect(x+136, y+188, 340, 39)
+    pygame.draw.rect(screen, (5,11,19), chart)
+    pygame.draw.rect(screen, BORDER, chart, 1)
+    inside_hist = [row[3] for row in THERMAL_HISTORY[-60:]]
+    outside_hist = [value for _, value in AMBIENT_HISTORY[-60:]]
+    combined = [v for v in inside_hist + outside_hist if 5.0 <= v <= 60.0]
+    if combined:
+        low, high = min(combined)-0.3, max(combined)+0.3
+        if high-low < 1.0: high = low+1.0
+        def mini_points(values):
+            return [(chart.x+4+int(i*(chart.w-8)/max(1,len(values)-1)),
+                     max(chart.y+4, min(chart.bottom-4,
+                         chart.bottom-4-int((v-low)*(chart.h-8)/(high-low)))))
+                    for i,v in enumerate(values)]
+        for values,color in ((inside_hist,ORANGE),(outside_hist,ACCENT)):
+            points=mini_points(values)
+            if len(points)>1: pygame.draw.lines(screen,color,False,points,2)
+    hud_label('INSIDE', chart.x+5, chart.y+3, ORANGE, F10, 55)
+    hud_label('OUTSIDE', chart.x+64, chart.y+3, ACCENT, F10, 65)
+    TOUCH_AREAS['sensor:ambient']=(pygame.Rect(bx,y+34,340,196),False)
     x += widths[2]+gap
     # Network
     r = pygame.Rect(x, y, widths[3], h); touch_card(r, 'NETWORK + JETSON LOAD', ACCENT)
@@ -1982,7 +2008,9 @@ def draw_live_sensor_detail(rect, name, info):
     hud_label('LIVE TELEMETRY', rect.x+34, rect.y+58, color, F17, 260)
     hud_label('Updates automatically from ROS 2; no refresh button required', rect.x+300, rect.y+61, DIM, F13, rect.w-350)
 
-    if name == 'lidar':
+    if name in ('ambient', 'thermal'):
+        draw_environment_panel(rect.x+34, rect.y+92, rect.w-68, rect.h-128)
+    elif name == 'lidar':
         plot = pygame.Rect(rect.x+34, rect.y+105, int(rect.w*.60), rect.h-180)
         pygame.draw.rect(screen, (3,14,22), plot, border_radius=10); pygame.draw.rect(screen, BORDER, plot, 1, border_radius=10)
         cx, cy = plot.centerx, plot.bottom-46; radius = min(plot.w//2-50, plot.h-80)
