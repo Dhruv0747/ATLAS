@@ -1,0 +1,12 @@
+[Unit]
+Description=Project ATLAS BME680 environmental air-quality publisher
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /home/jetson/project_atlas/venv/bin/python /home/jetson/project_atlas/scripts/bme680_environment_node.py'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

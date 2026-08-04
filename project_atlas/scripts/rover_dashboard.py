@@ -31,6 +31,15 @@ AMBIENT_HISTORY_MAX = 180
 POWER_IDLE_BASELINE = None
 def fresh(k, max_age=2.0): return DATA.age(k) < max_age
 
+def air_quality_label(iaq):
+    value = float(iaq)
+    if value <= 50: return 'EXCELLENT'
+    if value <= 100: return 'GOOD'
+    if value <= 150: return 'MODERATE'
+    if value <= 200: return 'POOR'
+    if value <= 300: return 'UNHEALTHY'
+    return 'HAZARDOUS'
+
 # -- Object detection (YOLOv8n background thread) --------------------------
 ENABLE_YOLO = True
 AI_ACTIVE = True
@@ -145,6 +154,11 @@ class DashNode(Node):
         S(String, '/thermal/amg8833/json', self._thermal, 10)
         S(Float32, '/environment/outside_temperature_c', self._ambient_temperature, 10)
         S(Float32, '/environment/outside_humidity_pct', lambda m: DATA.set(outside_humidity=m.data), 10)
+        S(Float32, '/environment/pressure_hpa', lambda m: DATA.set(outside_pressure=m.data), 10)
+        S(Float32, '/environment/gas_resistance_ohm', lambda m: DATA.set(outside_gas=m.data), 10)
+        S(Float32, '/environment/iaq', lambda m: DATA.set(outside_iaq=m.data, outside_air_quality=air_quality_label(m.data)), 10)
+        S(Float32, '/environment/eco2_ppm', lambda m: DATA.set(outside_eco2=m.data), 10)
+        S(String, '/environment/bme680/json', lambda m: DATA.set(bme680_json=m.data), 10)
         S(String, '/environment/outside_status', lambda m: DATA.set(outside_status=m.data), 10)
         S(Float32, '/ultrasonic/front_mm', lambda m: DATA.set(us_front=m.data), 10)
         S(Float32, '/ultrasonic/left_mm',  lambda m: DATA.set(us_left=m.data), 10)
@@ -1897,9 +1911,17 @@ def draw_touch_middle(y, h):
     hud_label('AMG8833 - TAP GRID FOR FULL VIEW', x+20, y+210, GREEN if thermal_live else RED, F10, 300)
     TOUCH_AREAS['sensor:thermal']=(thermal_rect,False)
     outside_live = outside is not None and fresh('outside_temperature',9)
-    touch_value('OUTSIDE BME680', f'{outside:.1f} C' if outside_live else 'SENSOR FAULT', x+180, y+128, GREEN if outside_live else RED, 290)
-    touch_value('HUMIDITY', f'{DATA.get("outside_humidity",0):.0f} %' if fresh('outside_humidity',9) else '--', x+180, y+180, WHITE if fresh('outside_humidity',9) else RED, 140)
-    touch_value('AIR QUALITY', str(DATA.get('outside_air_quality','--')), x+330, y+180, DIM, 140)
+    iaq = DATA.get('outside_iaq', None)
+    quality = str(DATA.get('outside_air_quality', 'WARMING'))
+    qcolor = GREEN if quality in ('EXCELLENT','GOOD') else (YELLOW if quality == 'MODERATE' else ORANGE)
+    touch_value('BME680 OUTSIDE', f'{outside:.1f} C' if outside_live else 'SENSOR FAULT', x+180, y+122, GREEN if outside_live else RED, 290)
+    touch_value('HUMIDITY', f'{DATA.get("outside_humidity",0):.0f} %' if fresh('outside_humidity',9) else '--', x+180, y+168, WHITE if fresh('outside_humidity',9) else RED, 105)
+    touch_value('PRESSURE', f'{DATA.get("outside_pressure",0):.0f} hPa' if fresh('outside_pressure',9) else '--', x+292, y+168, WHITE, 105)
+    touch_value('IAQ EST.', f'{iaq:.0f} {quality}' if iaq is not None and fresh('outside_iaq',9) else 'WARMING', x+404, y+168, qcolor, 76)
+    eco2 = DATA.get('outside_eco2', None)
+    hud_label('eCO2 EST. --' if eco2 is None else f'eCO2 EST. {eco2:.0f} ppm', x+180, y+218, DIM, F10, 175)
+    hud_label(f'VOC GAS {DATA.get("outside_gas",0)/1000:.1f} kohm', x+355, y+218, DIM, F10, 125)
+    TOUCH_AREAS['sensor:ambient']=(pygame.Rect(x+170,y+112,315,125),False)
     x += widths[2]+gap
     # Network
     r = pygame.Rect(x, y, widths[3], h); touch_card(r, 'NETWORK + JETSON LOAD', ACCENT)
