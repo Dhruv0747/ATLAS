@@ -1,7 +1,7 @@
 [Unit]
 Description=Project ATLAS SLAM Toolbox mapping with frequent indoor map updates
-Wants=atlas-lidar.service atlas-frame-bridge.service atlas-laser-tf.service rover-base-telemetry.service
-After=atlas-lidar.service atlas-frame-bridge.service atlas-laser-tf.service rover-base-telemetry.service
+Wants=atlas-scan-filter.service atlas-frame-bridge.service atlas-laser-tf.service rover-base-telemetry.service
+After=atlas-scan-filter.service atlas-frame-bridge.service atlas-laser-tf.service rover-base-telemetry.service
 
 [Service]
 Type=simple

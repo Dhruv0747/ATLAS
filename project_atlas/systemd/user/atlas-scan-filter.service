@@ -1,0 +1,14 @@
+[Unit]
+Description=Project ATLAS LiDAR chassis self-filter
+Wants=atlas-lidar.service
+After=atlas-lidar.service
+Before=atlas-slam-fast.service atlas-nav2.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_scan_self_filter.py'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

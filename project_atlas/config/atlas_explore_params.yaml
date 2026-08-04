@@ -11,7 +11,9 @@
     orientation_scale: 0.0
     gain_scale: 1.0
     transform_tolerance: 0.5
-    min_frontier_size: 0.35
+    # Accept short doorway/frontier segments in tight indoor maps. This changes
+    # only frontier discovery; Nav2 still enforces the full rover footprint.
+    min_frontier_size: 0.10
     # A goal closer than this is already inside Nav2's practical arrival area.
     # Skip it and select a meaningful frontier farther into unknown space.
-    min_goal_distance: 0.25
+    min_goal_distance: 0.15

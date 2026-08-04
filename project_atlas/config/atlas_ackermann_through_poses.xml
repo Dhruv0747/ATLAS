@@ -1,17 +1,14 @@
-<!--
-  Project ATLAS car-like navigation tree.
-
-  The rover cannot rotate in place, so the standard Spin recovery is excluded.
-  Navigation replans at 2 Hz. Recovery clears both costmaps, briefly waits for
-  moving obstacles. Reverse is excluded because ATLAS has no rear range sensor.
--->
+<!-- Project ATLAS multi-pose tree: no spin and no blind reverse. -->
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <RecoveryNode number_of_retries="6" name="NavigateRecovery">
       <PipelineSequence name="NavigateWithReplanning">
-        <RateController hz="2.0">
-          <RecoveryNode number_of_retries="1" name="ComputePathToPose">
-            <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+        <RateController hz="0.5">
+          <RecoveryNode number_of_retries="1" name="ComputePathThroughPoses">
+            <ReactiveSequence>
+              <RemovePassedGoals input_goals="{goals}" output_goals="{goals}" radius="0.3"/>
+              <ComputePathThroughPoses goals="{goals}" path="{path}" planner_id="GridBased"/>
+            </ReactiveSequence>
             <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
           </RecoveryNode>
         </RateController>
