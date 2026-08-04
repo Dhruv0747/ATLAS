@@ -1988,6 +1988,27 @@ def draw_live_sensor_detail(rect, name, info):
         else:
             touch_value('DETECTION','NO MOVING TARGET',side_x,rect.y+220,YELLOW,rect.right-side_x-25)
         hud_label(str(DATA.get('radar','waiting for UART frames'))[:80],side_x,rect.y+515,DIM,F10,rect.right-side_x-25)
+    elif name == 'encoder_fl':
+        # The motor controller exposes four independent channels.  Show all
+        # four together instead of sending this sensor through the generic
+        # one-value detail template.
+        motors=[('FRONT RIGHT','M1',DATA.get('fr',0),DATA.get('enc_m1','--'),'enc_m1'),
+                ('FRONT LEFT','M2',DATA.get('fl',0),DATA.get('enc_m2','--'),'enc_m2'),
+                ('BACK RIGHT','M3',DATA.get('rr',0),DATA.get('enc_m3','--'),'enc_m3'),
+                ('BACK LEFT','M4',DATA.get('rl',0),DATA.get('enc_m4','--'),'enc_m4')]
+        gap=12; left=rect.x+34; top=rect.y+105
+        card_w=(rect.w-68-gap)//2; card_h=max(105,(rect.h-145-gap)//2)
+        for index,(position,channel,rate,count,key) in enumerate(motors):
+            col=index%2; row=index//2
+            tile=pygame.Rect(left+col*(card_w+gap),top+row*(card_h+gap),card_w,card_h)
+            is_live=fresh(key,4.0); tile_color=GREEN if is_live else RED
+            pygame.draw.rect(screen,(9,23,34),tile,border_radius=9)
+            pygame.draw.rect(screen,tile_color,tile,2,border_radius=9)
+            hud_label(f'{position} / {channel}',tile.x+16,tile.y+13,ACCENT,F17,tile.w-32)
+            touch_value('ENCODER COUNT',str(count),tile.x+16,tile.y+43,WHITE,tile.w//2-20)
+            touch_value('COUNT RATE',f'{float(rate or 0):+.0f}/s',tile.x+tile.w//2,tile.y+43,tile_color,tile.w//2-16)
+        hud_label('Physical map: M1 front-right | M2 front-left | M3 back-right | M4 back-left',
+                  rect.x+34,rect.bottom-30,DIM,F13,rect.w-68)
     else:
         # All other sensors still receive a useful live status view.
         card=pygame.Rect(rect.x+34,rect.y+110,rect.w-68,270)
@@ -2038,18 +2059,22 @@ def draw_touch_tab_page():
                 ('FRONT LEFT / M2',DATA.get('fl',0),DATA.get('enc_m2','--')),
                 ('BACK RIGHT / M3',DATA.get('rr',0),DATA.get('enc_m3','--')),
                 ('BACK LEFT / M4',DATA.get('rl',0),DATA.get('enc_m4','--'))]
+        gap=12; left=rect.x+34; top=rect.y+105
+        side_w=440 if rect.w>=1400 else 0
+        grid_w=rect.w-68-side_w-(gap if side_w else 0)
+        card_w=(grid_w-gap)//2; card_h=max(105,(rect.h-125-gap)//2)
         for i,(name,power,encoder) in enumerate(values):
-            bx=rect.x+34+(i%2)*430; by=rect.y+125+(i//2)*170
-            tile=pygame.Rect(bx,by,400,145); pygame.draw.rect(screen,(9,23,34),tile,border_radius=9); pygame.draw.rect(screen,BORDER,tile,1,border_radius=9)
+            bx=left+(i%2)*(card_w+gap); by=top+(i//2)*(card_h+gap)
+            tile=pygame.Rect(bx,by,card_w,card_h); pygame.draw.rect(screen,(9,23,34),tile,border_radius=9); pygame.draw.rect(screen,BORDER,tile,1,border_radius=9)
             screen.blit(F17.render(name,True,ACCENT),(bx+18,by+15))
-            touch_value('COMMAND',f'{float(power or 0):+.1f}',bx+18,by+55,GREEN if fresh('enc_m1',5) else RED)
-            touch_value('ENCODER',str(encoder),bx+190,by+55,WHITE)
-        sx=rect.x+930
-        touch_value('DRIVE MODE',str(DATA.get('steer_mode','MANUAL')),sx,rect.y+130,ACCENT)
-        touch_value('ODOMETRY',f"X {DATA.get('pos_x',0) or 0:+.2f}  Y {DATA.get('pos_y',0) or 0:+.2f}",sx,rect.y+205)
-        touch_value('HEADING',f"{DATA.get('heading',0) or 0:.1f} deg",sx,rect.y+280)
-        hud_label('Touch driving is safety-locked. Use remote or web drive controls.',sx,rect.y+360,YELLOW,F13,rect.w-970)
-        touch_button('estop',pygame.Rect(sx,rect.y+420,420,82),'E-STOP',RED)
+            touch_value('COUNT RATE',f'{float(power or 0):+.0f}/s',bx+18,by+53,GREEN if fresh('enc_m1',5) else RED,card_w//2-24)
+            touch_value('ENCODER',str(encoder),bx+card_w//2,by+53,WHITE,card_w//2-18)
+        if side_w:
+            sx=left+grid_w+gap
+            touch_value('DRIVE MODE',str(DATA.get('steer_mode','MANUAL')),sx,rect.y+130,ACCENT)
+            touch_value('ODOMETRY',f"X {DATA.get('pos_x',0) or 0:+.2f}  Y {DATA.get('pos_y',0) or 0:+.2f}",sx,rect.y+205)
+            touch_value('HEADING',f"{DATA.get('heading',0) or 0:.1f} deg",sx,rect.y+280)
+            hud_label('Touch driving is safety-locked. Use remote or web drive controls.',sx,rect.y+360,YELLOW,F13,side_w-20)
     elif ACTIVE_TAB=='MAP':
         screen.blit(F30.render('MAPPING & AUTONOMY',True,WHITE),(rect.x+34,rect.y+65))
         touch_value('MISSION',str(DATA.get('mission_status','STOPPED'))[:60],rect.x+35,rect.y+125,ACCENT,700)
