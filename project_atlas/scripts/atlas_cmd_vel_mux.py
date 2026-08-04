@@ -35,8 +35,10 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("foxglove_max_linear", 0.20)
         self.declare_parameter("foxglove_max_angular", 0.45)
         self.declare_parameter("foxglove_steering_expo", 2.0)
-        self.declare_parameter("auto_front_stop_m", 0.20)
-        self.declare_parameter("auto_side_stop_m", 0.12)
+        self.declare_parameter("auto_front_stop_m", 0.30)
+        self.declare_parameter("auto_side_stop_m", 0.18)
+        self.declare_parameter("auto_reaction_time_s", 1.0)
+        self.declare_parameter("auto_stop_margin_m", 0.15)
         self.declare_parameter("ultrasonic_timeout", 1.0)
 
         manual_timeout = float(self.get_parameter("manual_timeout").value)
@@ -55,6 +57,12 @@ class AtlasCmdVelMux(Node):
         )
         self.auto_side_stop_m = float(
             self.get_parameter("auto_side_stop_m").value
+        )
+        self.auto_reaction_time_s = float(
+            self.get_parameter("auto_reaction_time_s").value
+        )
+        self.auto_stop_margin_m = float(
+            self.get_parameter("auto_stop_margin_m").value
         )
         self.ultrasonic_timeout = float(
             self.get_parameter("ultrasonic_timeout").value
@@ -177,14 +185,23 @@ class AtlasCmdVelMux(Node):
             name: stamp > 0.0 and now - stamp <= self.ultrasonic_timeout
             for name, stamp in self.ultrasonic_rx.items()
         }
+        # Account for the distance travelled while ROS, the motor controller,
+        # and the drivetrain react. The fixed floor protects low-speed motion;
+        # the dynamic term grows automatically if autonomy is later made faster.
+        front_stop_m = max(
+            self.auto_front_stop_m,
+            abs(command.linear.x) * self.auto_reaction_time_s
+            + self.auto_stop_margin_m,
+        )
         if (
             command.linear.x > 0.0
             and fresh["front"]
-            and self.ultrasonic["front"] < self.auto_front_stop_m
+            and self.ultrasonic["front"] < front_stop_m
         ):
             return (
                 "AUTONOMY BLOCKED: FRONT "
-                f"{self.ultrasonic['front']:.2f} m"
+                f"{self.ultrasonic['front']:.2f} m "
+                f"(stop {front_stop_m:.2f} m)"
             )
         if (
             command.angular.z > 0.05

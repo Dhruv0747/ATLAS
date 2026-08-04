@@ -16,4 +16,5 @@
     min_frontier_size: 0.10
     # A goal closer than this is already inside Nav2's practical arrival area.
     # Skip it and select a meaningful frontier farther into unknown space.
-    min_goal_distance: 0.15
+    # Do not churn through tiny goals within ATLAS's own maneuvering envelope.
+    min_goal_distance: 0.30
