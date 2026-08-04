@@ -69,3 +69,7 @@ M1 produced closely matched forward/reverse magnitudes, confirming the board pro
 ### Operator-observed motor confirmation
 
 A second forward observation test used 50 PWM, a 1.0-second pulse per motor and a 2.0-second stopped gap in the order M1, M2, M3, M4. The operator visually confirmed that all four physical motors moved. Encoder deltas were M1 `+4160`, M2 `0`, M3 `-1` and M4 `0`. This isolates the defect to encoder sensing/wiring/controller inputs rather than motor power outputs. No further motor test is required until the M2-M4 encoder hardware paths have been inspected.
+
+### Cold-boot confirmation
+
+After a complete physical power cycle, all counters restarted at zero and the ordered 50 PWM/1.0-second test was repeated. Deltas were M1 `+4408`, M2 `0`, M3 `0` and M4 `+1`. The normal service restarted active and final motor speed was zero. Rebooting does not restore M2-M4 feedback; stale software state and accumulated counters are ruled out.
