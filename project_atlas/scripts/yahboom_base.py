@@ -46,6 +46,7 @@ BAT_MAX_V = 12.6
 # Verified ATLAS wheel geometry and provisional per-channel calibration.
 # Physical order is the controller order: M1 FR, M2 FL, M3 BR, M4 BL.
 WHEEL_CIRCUMFERENCE_M = 0.392699
+WHEELBASE_M = 0.367
 ENCODER_COUNTS_PER_REV = (6077.0, 5579.0, 6157.0, 6494.0)
 # Normal forward drive commands M1/M4 positive and M2/M3 negative.
 ENCODER_FORWARD_SIGN = (1.0, -1.0, -1.0, 1.0)
@@ -90,6 +91,7 @@ class YahboomBase(Node):
         self._enc_rate_anchor = None
         self._enc_rate_anchor_t = time.monotonic()
         self._wheel_cps = [0.0, 0.0, 0.0, 0.0]
+        self._wheel_mps = [0.0, 0.0, 0.0, 0.0]
         self._last_enc_t = time.monotonic()
         self._last_enc_change_t = time.monotonic()
         self._encoder_stale = True
@@ -259,6 +261,7 @@ class YahboomBase(Node):
             signed_cps = float(self._wheel_cps[i]) * ENCODER_FORWARD_SIGN[i]
             rpm = signed_cps * 60.0 / ENCODER_COUNTS_PER_REV[i]
             speed_mps = signed_cps * WHEEL_CIRCUMFERENCE_M / ENCODER_COUNTS_PER_REV[i]
+            self._wheel_mps[i] = speed_mps
             signed_counts = (float(enc[i]) - float(self._enc_origin[i])) * ENCODER_FORWARD_SIGN[i]
             distance_m = signed_counts * WHEEL_CIRCUMFERENCE_M / ENCODER_COUNTS_PER_REV[i]
             self._wheel_rpm_pubs[i].publish(Float32(data=rpm))
@@ -295,14 +298,17 @@ class YahboomBase(Node):
         )
         encoder_recent = now - self._last_enc_change_t <= 0.50
         if cmd_active and encoder_recent:
-            # This controller's reported speed is badly under-scaled (and has
-            # an inverted sign on some firmware).  Use the ROS command scale
-            # only while its physical encoder feedback confirms wheel motion.
-            # Thus no command alone can create imaginary travel.
-            vx = float(self._last_vx) * CMD_ODOM_VX_SCALE
+            # Real wheel odometry. Physical order is FR, FL, BR, BL. Average
+            # the independently calibrated wheel speeds so one slipping wheel
+            # cannot dominate the position estimate.
+            vx = sum(self._wheel_mps) / 4.0
             vy = 0.0
-            vz = float(self._last_vz) * CMD_ODOM_WZ_SCALE
-            source = 'command_encoder_confirmed'
+            front_delta = math.radians(FRONT_STEER_CENTER - self._front_target_angle)
+            rear_delta = math.radians(REAR_STEER_CENTER - self._rear_target_angle)
+            # General bicycle relation for front and rear steering. With
+            # ATLAS counter-steering, the two tangent terms add.
+            vz = vx * (math.tan(front_delta) - math.tan(rear_delta)) / WHEELBASE_M
+            source = 'wheel_encoder_4ws'
         else:
             vx = 0.0
             vy = 0.0
