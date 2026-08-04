@@ -77,3 +77,16 @@ After a complete physical power cycle, all counters restarted at zero and the or
 ### M2 motor/encoder replacement
 
 After the operator replaced M2, an isolated 50 PWM/1.0-second test produced M2 delta `+5466`; the reverse test produced `-5404`. Other encoder channels remained unchanged. The replacement restored healthy, directionally consistent M2 encoder feedback. M1 and M2 are now usable; M3 and M4 still require replacement or encoder-path repair.
+
+### All four encoder channels restored
+
+After further operator hardware work, the complete forward/reverse test passed on every channel at 50 PWM for 1.0 second:
+
+| Motor | Forward delta | Reverse delta |
+|---|---:|---:|
+| M1 | `+4122` | `-4407` |
+| M2 | `+5647` | `-5562` |
+| M3 | `+4931` | `-5316` |
+| M4 | `+3011` | `-4666` |
+
+All signs reverse correctly and each commanded motor primarily changes its corresponding encoder channel. Small residual changes on the preceding channel are consistent with coast during the stop/read interval. Final motor speed was zero and the normal base service was active. The encoder hardware blocker is resolved; counts-per-revolution and loaded-wheel calibration remain necessary before encoder-derived odometry.
