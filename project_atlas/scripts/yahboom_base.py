@@ -46,7 +46,7 @@ BAT_MAX_V = 12.6
 # Verified ATLAS wheel geometry and provisional per-channel calibration.
 # Physical order is the controller order: M1 FR, M2 FL, M3 BR, M4 BL.
 WHEEL_CIRCUMFERENCE_M = 0.392699
-ENCODER_COUNTS_PER_REV = (1506.0, 5579.0, 6157.0, 6494.0)
+ENCODER_COUNTS_PER_REV = (6077.0, 5579.0, 6157.0, 6494.0)
 # Normal forward drive commands M1/M4 positive and M2/M3 negative.
 ENCODER_FORWARD_SIGN = (1.0, -1.0, -1.0, 1.0)
 

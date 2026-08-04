@@ -9,9 +9,9 @@ encoder_calibration:
   motors:
     m1:
       position: front_right
-      counts_per_revolution: 1506
+      counts_per_revolution: 6077
       confidence: provisional
-      method: powered_2s_4518_counts_approximately_3_revolutions
+      method: inferred_from_m2_m3_m4_average_after_equal_speed_visual_test
     m2:
       position: front_left
       counts_per_revolution: 5579
