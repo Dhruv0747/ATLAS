@@ -1,0 +1,27 @@
+# Project ATLAS encoder calibration
+# Wheels were lifted. Physical mapping was visually verified on 2026-08-04.
+# Values are encoder counts per one wheel revolution.
+# M1 is a powered visual estimate; M2-M4 are manual forward/back measurements.
+encoder_calibration:
+  wheel_diameter_m: 0.0  # Measure tyre diameter before metric odometry is enabled.
+  motors:
+    m1:
+      position: front_right
+      counts_per_revolution: 1506
+      confidence: provisional
+      method: powered_2s_4518_counts_approximately_3_revolutions
+    m2:
+      position: front_left
+      counts_per_revolution: 5579
+      confidence: provisional
+      method: manual_average
+    m3:
+      position: back_right
+      counts_per_revolution: 6157
+      confidence: provisional
+      method: manual_average
+    m4:
+      position: back_left
+      counts_per_revolution: 6494
+      confidence: provisional
+      method: manual_forward_trial

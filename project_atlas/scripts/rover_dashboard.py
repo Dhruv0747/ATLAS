@@ -2034,10 +2034,10 @@ def draw_touch_tab_page():
             TOUCH_AREAS['sensor:'+name]=(tile,False)
     elif ACTIVE_TAB=='DRIVE':
         screen.blit(F30.render('DRIVE TELEMETRY',True,WHITE),(rect.x+34,rect.y+65))
-        values=[('FRONT LEFT',DATA.get('fl',0),DATA.get('enc_m1','--')),
-                ('FRONT RIGHT',DATA.get('fr',0),DATA.get('enc_m2','--')),
-                ('REAR LEFT',DATA.get('rl',0),DATA.get('enc_m3','--')),
-                ('REAR RIGHT',DATA.get('rr',0),DATA.get('enc_m4','--'))]
+        values=[('FRONT RIGHT / M1',DATA.get('fr',0),DATA.get('enc_m1','--')),
+                ('FRONT LEFT / M2',DATA.get('fl',0),DATA.get('enc_m2','--')),
+                ('BACK RIGHT / M3',DATA.get('rr',0),DATA.get('enc_m3','--')),
+                ('BACK LEFT / M4',DATA.get('rl',0),DATA.get('enc_m4','--'))]
         for i,(name,power,encoder) in enumerate(values):
             bx=rect.x+34+(i%2)*430; by=rect.y+125+(i//2)*170
             tile=pygame.Rect(bx,by,400,145); pygame.draw.rect(screen,(9,23,34),tile,border_radius=9); pygame.draw.rect(screen,BORDER,tile,1,border_radius=9)

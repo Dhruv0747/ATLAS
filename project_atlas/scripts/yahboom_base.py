@@ -231,7 +231,11 @@ class YahboomBase(Node):
         self._last_enc = enc
         self._last_enc_t = now
 
-        fl, fr, rl, rr = [float(v) for v in speeds]
+        # Verified physical motor mapping (2026-08-04):
+        # M1=front-right, M2=front-left, M3=back-right, M4=back-left.
+        # Keep ROS wheel topics physical-position based even though the
+        # controller exposes channels in a different order.
+        fr, fl, rr, rl = [float(v) for v in speeds]
         self._pub_fl.publish(Float32(data=fl))
         self._pub_fr.publish(Float32(data=fr))
         self._pub_rl.publish(Float32(data=rl))
