@@ -1,0 +1,71 @@
+# CrowPanel wireless controller plan
+
+## Decision
+
+ATLAS will replace its broken 11-inch display with a removable, camera-equipped 10.1-inch CrowPanel Advanced ESP32-P4 HMI. The panel is a wireless user interface, not a replacement for the Jetson or the rover safety controller.
+
+## Responsibilities
+
+The CrowPanel will provide:
+
+- Touch and optional physical-joystick manual driving
+- Camera pan/tilt and AI controls
+- Mapping, navigation-goal, map-save and return-home controls
+- Rover camera view with a lightweight AI overlay
+- LiDAR, RD-03D radar and ultrasonic awareness views
+- AMG8833 8x8 thermal view and environmental graphs
+- BMS, power, GPS, cellular, CPU, GPU, RAM and temperature telemetry
+- Encoder, odometry, IMU, service-health, fault and filtered-log views
+- Voice input, audible alerts, microSD logging and OTA firmware updates
+- Local camera functions such as operator recognition, QR setup and video communication
+
+The Jetson will remain the authority for:
+
+- Motor control and command multiplexing
+- Emergency-stop and obstacle-safety enforcement
+- ROS 2, SLAM, localization, Nav2 and mission execution
+- AI inference using the rover IMX708 camera
+- Hardware drivers, diagnostics and autonomous recovery
+
+## Safety requirements
+
+- Wireless motion commands must use `/cmd_vel_teleop` through the existing command mux.
+- A 250-500 ms command watchdog must stop the rover after link or command loss.
+- Touch driving must require a held dead-man control.
+- Dangerous commands must require hold-to-confirm.
+- The physical rover emergency stop must remain independent of Wi-Fi and the CrowPanel.
+- The panel must never write directly to the motor controller or bypass the Jetson supervisor.
+- Maintenance access must be authenticated and limited to approved operations; no unauthenticated shell or back door is permitted.
+- ATLAS must continue its safe core operation when the panel is powered off or disconnected.
+
+## CrowPanel features to retain
+
+- 1024x600 IPS capacitive touchscreen
+- ESP32-P4 processing and wireless companion module
+- Wi-Fi, Bluetooth, USB, UART, I2C and GPIO
+- Camera, microphone, audio output and backlight control
+- microSD storage and battery charging support
+
+## Installation-day checklist
+
+1. Photograph the package label, panel PCB, camera module and every supplied cable.
+2. Confirm the exact model number, camera sensor, voltage requirements and connector orientation.
+3. Do not connect power until polarity and voltage are verified.
+4. Bench-power the panel separately from the rover and confirm its factory demonstration.
+5. Record the factory firmware version and save available vendor examples.
+6. Test touchscreen, camera, microphone, speakers, Wi-Fi, Bluetooth, microSD and battery charging.
+7. Join the ATLAS Wi-Fi network and measure stable range and latency.
+8. Begin with a read-only telemetry page; do not enable motion commands first.
+9. Add watchdog-protected manual control only after telemetry and disconnect behavior pass.
+10. Design the enclosure, battery, physical joysticks, dead-man trigger and separate emergency-stop hardware after electrical validation.
+
+## Initial software phases
+
+1. Hardware validation and reproducible firmware build
+2. Secure Jetson telemetry gateway and connection indicator
+3. Overview, sensor, camera and diagnostic pages
+4. Camera/gimbal and non-motion controls
+5. Watchdog-protected manual drive controls
+6. Mapping, navigation and mission controls
+7. Local camera, voice, logging and OTA functions
+
