@@ -73,3 +73,7 @@ A second forward observation test used 50 PWM, a 1.0-second pulse per motor and 
 ### Cold-boot confirmation
 
 After a complete physical power cycle, all counters restarted at zero and the ordered 50 PWM/1.0-second test was repeated. Deltas were M1 `+4408`, M2 `0`, M3 `0` and M4 `+1`. The normal service restarted active and final motor speed was zero. Rebooting does not restore M2-M4 feedback; stale software state and accumulated counters are ruled out.
+
+### M2 motor/encoder replacement
+
+After the operator replaced M2, an isolated 50 PWM/1.0-second test produced M2 delta `+5466`; the reverse test produced `-5404`. Other encoder channels remained unchanged. The replacement restored healthy, directionally consistent M2 encoder feedback. M1 and M2 are now usable; M3 and M4 still require replacement or encoder-path repair.
