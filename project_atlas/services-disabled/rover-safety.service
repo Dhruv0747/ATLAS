@@ -1,0 +1,12 @@
+[Unit]
+Description=ATLAS Safety Supervisor (e-stop + watchdog)
+After=network.target
+
+[Service]
+Environment="ROS_DOMAIN_ID=0"
+ExecStart=/bin/bash -c "source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/safety_supervisor.py"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

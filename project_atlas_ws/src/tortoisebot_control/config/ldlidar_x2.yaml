@@ -1,0 +1,13 @@
+ldlidar_stl_ros2_node:
+  ros__parameters:
+    product_name: "LD-14"
+    topic_name: "scan"
+    port_name: "/dev/ttyUSB0"
+    frame_id: "laser_frame"
+    port_baudrate: 128000
+    angle_compensate: true
+    scan_angle: 360.0
+    scan_frequency: 12.0
+    enable_angle_crop_func: false
+    angle_crop_min: 0.0
+    angle_crop_max: 0.0

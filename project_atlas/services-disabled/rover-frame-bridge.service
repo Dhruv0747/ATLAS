@@ -1,0 +1,12 @@
+[Unit]
+Description=Rover TF bridge base_link to base_footprint
+After=default.target
+
+[Service]
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && exec ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 base_link base_footprint'
+Restart=on-failure
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

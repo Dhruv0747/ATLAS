@@ -1,0 +1,14 @@
+[Unit]
+Description=Rover 24GHz Radar Node (RD03D)
+After=network.target
+
+[Service]
+ExecStartPre=/bin/sleep 15
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/rd03d_node.py'
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/tmp/rover-radar.log
+StandardError=append:/tmp/rover-radar.log
+
+[Install]
+WantedBy=default.target

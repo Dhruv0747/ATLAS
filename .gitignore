@@ -1,0 +1,44 @@
+# ROS 2 generated output
+build/
+install/
+log/
+
+# Python/runtime output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+venv*/
+.venv/
+
+# Models and generated binaries
+*.engine
+*.onnx
+*.pt
+*.plan
+*.log
+
+# Credentials and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*authorized_keys*
+
+# ATLAS working backups and one-off patch tools
+*.bak
+*.bak[0-9]*
+*.bak-*
+*.before-*
+*.before_*
+*.pre-*
+*.pre_*
+patch_*.py
+fix_*.py
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+

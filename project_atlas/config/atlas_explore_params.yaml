@@ -1,0 +1,17 @@
+/**:
+  ros__parameters:
+    robot_base_frame: base_link
+    return_to_init: false
+    costmap_topic: /map
+    costmap_updates_topic: /map_updates
+    visualize: true
+    planner_frequency: 0.50
+    progress_timeout: 30.0
+    potential_scale: 3.0
+    orientation_scale: 0.0
+    gain_scale: 1.0
+    transform_tolerance: 0.5
+    min_frontier_size: 0.35
+    # A goal closer than this is already inside Nav2's practical arrival area.
+    # Skip it and select a meaningful frontier farther into unknown space.
+    min_goal_distance: 0.25

@@ -1,0 +1,14 @@
+[Unit]
+Description=Rover Drive Motors (PCA9685) - needs 12V ON
+After=network.target
+
+[Service]
+ExecStartPre=/bin/sleep 15
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/motor_diff_node.py'
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/tmp/rover-motors.log
+StandardError=append:/tmp/rover-motors.log
+
+[Install]
+WantedBy=default.target

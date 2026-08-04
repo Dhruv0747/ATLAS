@@ -1,0 +1,14 @@
+[Unit]
+Description=Rover IMU (BNO08x)
+After=network.target
+
+[Service]
+ExecStartPre=/bin/sleep 15
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/bno08x_node.py'
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/tmp/rover-imu.log
+StandardError=append:/tmp/rover-imu.log
+
+[Install]
+WantedBy=default.target

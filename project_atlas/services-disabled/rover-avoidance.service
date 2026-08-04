@@ -1,0 +1,14 @@
+[Unit]
+Description=Rover Radar Obstacle Avoidance (cmd_vel relay + safety)
+After=network.target
+
+[Service]
+ExecStartPre=/bin/sleep 20
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/radar_avoidance.py'
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/tmp/rover-avoidance.log
+StandardError=append:/tmp/rover-avoidance.log
+
+[Install]
+WantedBy=default.target

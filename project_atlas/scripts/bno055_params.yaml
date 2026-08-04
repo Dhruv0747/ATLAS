@@ -1,0 +1,8 @@
+bno055:
+  ros__parameters:
+    ros_topic_prefix: "imu/"
+    connection_type: "i2c"
+    i2c_bus: 1
+    i2c_address: 0x28
+    frame_id: "imu_link"
+    operation_mode: 12

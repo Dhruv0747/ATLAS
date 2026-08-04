@@ -1,0 +1,12 @@
+[Unit]
+Description=Rover Camera Node (libcamera ROS2)
+After=network.target
+
+[Service]
+ExecStartPre=/bin/sleep 6
+ExecStart=/home/dhruv/camera_start.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

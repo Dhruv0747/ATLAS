@@ -1,0 +1,14 @@
+[Unit]
+Description=Rover Yahboom Base Driver
+After=network.target
+
+[Service]
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/yahboom_base.py'
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=5
+KillMode=mixed
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=Rover TOF Sensor Node
+After=network.target
+
+[Service]
+ExecStartPre=/bin/sleep 15
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/tof_center_node.py'
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/tmp/rover-tof.log
+StandardError=append:/tmp/rover-tof.log
+
+[Install]
+WantedBy=default.target

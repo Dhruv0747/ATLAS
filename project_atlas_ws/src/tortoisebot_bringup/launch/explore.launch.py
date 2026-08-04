@@ -1,0 +1,27 @@
+import os
+from launch import LaunchDescription
+from launch_ros.actions import Node
+
+def generate_launch_description():
+    return LaunchDescription([
+        Node(
+            package="explore_lite",
+            executable="explore",
+            name="explore",
+            output="screen",
+            parameters=[{
+                "use_sim_time": False,
+                "robot_base_frame": "base_footprint",
+                "costmap_topic": "map",
+                "costmap_updates_topic": "map_updates",
+                "visualize": True,
+                "planner_frequency": 0.33,
+                "progress_timeout": 30.0,
+                "potential_scale": 3.0,
+                "orientation_scale": 0.0,
+                "gain_scale": 1.0,
+                "transform_tolerance": 0.5,
+                "min_frontier_size": 0.25,
+            }]
+        ),
+    ])

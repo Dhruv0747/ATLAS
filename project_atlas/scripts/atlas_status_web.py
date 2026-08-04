@@ -1,0 +1,943 @@
+#!/usr/bin/env python3
+import html
+import ipaddress
+import os
+import json
+import math
+import subprocess
+import threading
+import time
+
+import cv2
+import numpy as np
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs
+
+import rclpy
+from rclpy.qos import qos_profile_sensor_data
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import NavSatFix, LaserScan, CompressedImage, Image, Joy
+from std_msgs.msg import Bool, Float32, String, Int32
+
+PORT = 8088
+COCO_LABELS = ['person','bicycle','car','motorcycle','airplane','bus','train','truck','boat','traffic light','fire hydrant','stop sign','parking meter','bench','bird','cat','dog','horse','sheep','cow','elephant','bear','zebra','giraffe','backpack','umbrella','handbag','tie','suitcase','frisbee','skis','snowboard','sports ball','kite','baseball bat','baseball glove','skateboard','surfboard','tennis racket','bottle','wine glass','cup','fork','knife','spoon','bowl','banana','apple','sandwich','orange','broccoli','carrot','hot dog','pizza','donut','cake','chair','couch','potted plant','bed','dining table','toilet','tv','laptop','mouse','remote','keyboard','cell phone','microwave','oven','toaster','sink','refrigerator','book','clock','vase','scissors','teddy bear','hair drier','toothbrush']
+AI_MODES = {"eco", "object", "face", "gesture", "color", "line", "follow"}
+MANIFEST_JSON = """{
+  "name": "Project ATLAS Rover",
+  "short_name": "ATLAS",
+  "description": "Project ATLAS rover command center",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#020711",
+  "theme_color": "#00d7ff",
+  "icons": [
+    {"src": "/logo.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/logo.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}"""
+SERVICES = ["rover-base", "rover-teleop", "rover-ultrasonic-arduino", "rover-cellular", "rover-ups", "rover-daly-bms", "rover-atlas-supervisor", "rover-status-web"]
+TODO = [
+    ("GPS/NavIC", "Move GNSS antenna outside metal body; validate satellites later."),
+    ("Encoder odom", "Calibrate Yahboom encoder ticks to real wheel distance."),
+    ("Autonomy", "Finish robust Nav2 goal success and return-home behavior."),
+    ("Radar Foxglove", "Publish radar targets as MarkerArray or PointCloud2."),
+    ("Wiring polish", "Add labels, fuse notes, strain relief, final photos."),
+]
+
+
+def run(cmd, timeout=2):
+    try:
+        return subprocess.check_output(cmd, text=True, timeout=timeout, stderr=subprocess.STDOUT).strip()
+    except Exception:
+        return ""
+
+
+def run_quiet(cmd, timeout=2):
+    try:
+        subprocess.check_call(cmd, timeout=timeout, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True, "ok"
+    except Exception as exc:
+        return False, str(exc)
+
+
+class AtlasRosNode:
+    def __init__(self):
+        self.ready = False
+        self.data = {}
+        self.lock = threading.Lock()
+        self.node = None
+        self.pub = None
+        self.pan_pub = None
+        self.tilt_pub = None
+        self.ai_pub = None
+        self.pan_us = 1500
+        self.tilt_us = 1500
+        self.last_drive_command = 0.0
+        self.drive_active = False
+        self.last_raw_camera_encode = 0.0
+        self.last_compressed_camera = 0.0
+        self.last_scan_summary = 0.0
+        self.last_motion_check = 0.0
+        self.prev_motion_gray = None
+        self.yolo_ready = os.path.exists(
+            "/home/jetson/project_atlas/scripts/yolov8n_fp16.engine"
+        )
+        self.ai_mode = "eco"
+        self.ai_model = None
+        self.ai_input_name = None
+        self.last_ai_check = 0.0
+        self.ai_detections = []
+        self._set("ai_mode", self.ai_mode)
+        self._set("ai_status", "YOLO ready, off in Eco Mode" if self.yolo_ready else "YOLO model missing")
+        self._set("companion_state", "STANDBY")
+        self._set("companion_mode", "LOCAL SAFETY")
+        self._set("companion_transcript", "Waiting for the ATLAS voice service")
+        self._set("companion_intent", "None")
+        self._set("companion_action", "No action selected")
+        self._set("companion_response", "Voice firmware and ROS bridge are being prepared")
+        self._set("companion_confirmation", "NOT REQUIRED")
+        self._set("companion_rgb", "BLUE")
+        self._set("companion_cloud", "NOT CONNECTED")
+        threading.Thread(target=self._spin, daemon=True).start()
+
+    def _set(self, key, value):
+        with self.lock:
+            self.data[key] = {"value": value, "ts": time.time()}
+
+    def _spin(self):
+        try:
+            rclpy.init(args=None)
+            self.node = rclpy.create_node("atlas_web_control")
+            self.pub = self.node.create_publisher(Twist, "/cmd_vel_web", 10)
+            self.pan_pub = self.node.create_publisher(
+                Int32, "/camera/bottom_servo_cmd_us", 10
+            )
+            self.tilt_pub = self.node.create_publisher(
+                Int32, "/camera/second_servo_cmd_us", 10
+            )
+            self.ai_pub = self.node.create_publisher(
+                Bool, "/atlas/ai_enabled", 10
+            )
+            n = self.node
+            n.create_subscription(Float32, "/ultrasonic/front_mm", lambda m: self._set("us_front", m.data), 10)
+            n.create_subscription(Float32, "/ultrasonic/left_mm", lambda m: self._set("us_left", m.data), 10)
+            n.create_subscription(Float32, "/ultrasonic/right_mm", lambda m: self._set("us_right", m.data), 10)
+            n.create_subscription(String, "/ultrasonic/status", lambda m: self._set("us_status", m.data), 10)
+            n.create_subscription(String, "/radar/targets", lambda m: self._set("radar", m.data), 10)
+            n.create_subscription(Float32, "/radar/target_count", lambda m: self._set("radar_count", m.data), 10)
+            n.create_subscription(Float32, "/radar/nearest_distance", lambda m: self._set("radar_dist", m.data), 10)
+            n.create_subscription(Float32, "/radar/nearest_x", lambda m: self._set("radar_x", m.data), 10)
+            n.create_subscription(Float32, "/radar/nearest_y", lambda m: self._set("radar_y", m.data), 10)
+            n.create_subscription(Float32, "/radar/nearest_speed", lambda m: self._set("radar_speed", m.data), 10)
+            n.create_subscription(String, "/radar/zone", lambda m: self._set("radar_zone", m.data), 10)
+            n.create_subscription(String, "/thermal/amg8833/status", lambda m: self._set("thermal_status", m.data), 10)
+            n.create_subscription(String, "/thermal/amg8833/json", lambda m: self._set("thermal_json", m.data), 10)
+            n.create_subscription(
+                Float32,
+                "/environment/outside_temperature_c",
+                lambda m: self._set("outside_temperature", m.data),
+                10,
+            )
+            n.create_subscription(
+                Float32,
+                "/environment/outside_humidity_pct",
+                lambda m: self._set("outside_humidity", m.data),
+                10,
+            )
+            n.create_subscription(
+                String,
+                "/environment/outside_status",
+                lambda m: self._set("outside_status", m.data),
+                10,
+            )
+            n.create_subscription(Float32, "/battery/voltage", lambda m: self._set("bat_voltage", m.data), 10)
+            n.create_subscription(Float32, "/battery/current", lambda m: self._set("bat_current", m.data), 10)
+            n.create_subscription(Float32, "/battery/percent", lambda m: self._set("bat_percent", m.data), 10)
+            n.create_subscription(String, "/bms/status", lambda m: self._set("bms_status", m.data), 10)
+            n.create_subscription(String, "/bms/json", lambda m: self._set("bms_json", m.data), 10)
+            n.create_subscription(Float32, "/bms/voltage", lambda m: self._set("bms_voltage", m.data), 10)
+            n.create_subscription(Float32, "/bms/current", lambda m: self._set("bms_current", m.data), 10)
+            n.create_subscription(Float32, "/bms/percent", lambda m: self._set("bms_percent", m.data), 10)
+            n.create_subscription(Float32, "/bms/power", lambda m: self._set("bms_power", m.data), 10)
+            n.create_subscription(Float32, "/bms/cell1_voltage", lambda m: self._set("bms_cell1", m.data), 10)
+            n.create_subscription(Float32, "/bms/cell2_voltage", lambda m: self._set("bms_cell2", m.data), 10)
+            n.create_subscription(Float32, "/bms/cell3_voltage", lambda m: self._set("bms_cell3", m.data), 10)
+            n.create_subscription(Float32, "/bms/cell4_voltage", lambda m: self._set("bms_cell4", m.data), 10)
+            n.create_subscription(Float32, "/cellular/hat_voltage", lambda m: self._set("hat_voltage", m.data), 10)
+            n.create_subscription(Float32, "/cellular/hat_current", lambda m: self._set("hat_current", m.data), 10)
+            n.create_subscription(Float32, "/cellular/hat_power", lambda m: self._set("hat_power", m.data), 10)
+            n.create_subscription(String, "/cellular/hat_status", lambda m: self._set("hat_status", m.data), 10)
+            n.create_subscription(String, "/ups/status", lambda m: self._set("ups_status", m.data), 10)
+            n.create_subscription(Float32, "/ups/battery_voltage", lambda m: self._set("ups_bat_voltage", m.data), 10)
+            n.create_subscription(Float32, "/ups/battery_current", lambda m: self._set("ups_bat_current", m.data), 10)
+            n.create_subscription(Float32, "/ups/battery_power", lambda m: self._set("ups_bat_power", m.data), 10)
+            n.create_subscription(Float32, "/ups/battery_percent", lambda m: self._set("ups_bat_percent", m.data), 10)
+            n.create_subscription(Float32, "/ups/vbus_voltage", lambda m: self._set("ups_vbus_voltage", m.data), 10)
+            n.create_subscription(Float32, "/ups/vbus_current", lambda m: self._set("ups_vbus_current", m.data), 10)
+            n.create_subscription(Float32, "/ups/cell1_voltage", lambda m: self._set("ups_cell1", m.data), 10)
+            n.create_subscription(Float32, "/ups/cell2_voltage", lambda m: self._set("ups_cell2", m.data), 10)
+            n.create_subscription(Float32, "/ups/cell3_voltage", lambda m: self._set("ups_cell3", m.data), 10)
+            n.create_subscription(Float32, "/ups/cell4_voltage", lambda m: self._set("ups_cell4", m.data), 10)
+            n.create_subscription(Float32, "/cellular/signal_percent", lambda m: self._set("cell_signal", m.data), 10)
+            n.create_subscription(String, "/cellular/access_tech", lambda m: self._set("cell_tech", m.data), 10)
+            n.create_subscription(String, "/cellular/operator", lambda m: self._set("cell_operator", m.data), 10)
+            n.create_subscription(Float32, "/gps/satellites", lambda m: self._set("gps_sats", m.data), 10)
+            n.create_subscription(Float32, "/gps/hdop", lambda m: self._set("gps_hdop", m.data), 10)
+            n.create_subscription(String, "/gps/constellations", lambda m: self._set("gps_const", m.data), 10)
+            n.create_subscription(Float32, "/imu/heading", lambda m: self._set("imu_heading", m.data), 10)
+            n.create_subscription(Float32, "/imu/roll", lambda m: self._set("imu_roll", m.data), 10)
+            n.create_subscription(Float32, "/imu/pitch", lambda m: self._set("imu_pitch", m.data), 10)
+            n.create_subscription(Float32, "/imu/yaw", lambda m: self._set("imu_yaw", m.data), 10)
+            n.create_subscription(Float32, "/motor_speed", lambda m: self._set("motor_speed", m.data), 10)
+            n.create_subscription(Int32, "/yahboom/encoder/m1", lambda m: self._set("enc_m1", m.data), 10)
+            n.create_subscription(Int32, "/yahboom/encoder/m2", lambda m: self._set("enc_m2", m.data), 10)
+            n.create_subscription(Int32, "/yahboom/encoder/m3", lambda m: self._set("enc_m3", m.data), 10)
+            n.create_subscription(Int32, "/yahboom/encoder/m4", lambda m: self._set("enc_m4", m.data), 10)
+            n.create_subscription(LaserScan, "/scan", self._scan_cb, qos_profile_sensor_data)
+            n.create_subscription(CompressedImage, "/camera/image_raw/compressed", self._camera_cb, qos_profile_sensor_data)
+            n.create_subscription(Image, "/camera/image_raw", self._raw_camera_cb, qos_profile_sensor_data)
+            n.create_subscription(Float32, "/steering/front_angle_deg", lambda m: self._set("front_steer", m.data), 10)
+            n.create_subscription(Float32, "/steering/rear_angle_deg", lambda m: self._set("rear_steer", m.data), 10)
+            n.create_subscription(String, "/steering/mode", lambda m: self._set("steer_mode", m.data), 10)
+            n.create_subscription(NavSatFix, "/gps/fix", lambda m: self._set("gps_fix", {"status": m.status.status, "lat": m.latitude, "lon": m.longitude}), 10)
+            n.create_subscription(Odometry, "/odom", self._odom_cb, 10)
+            n.create_subscription(Twist, "/cmd_vel", lambda m: self._set("cmd_vel", {"lin": m.linear.x, "ang": m.angular.z}), 10)
+            n.create_subscription(String, "/atlas/health", lambda m: self._set("atlas_health", m.data), 10)
+            n.create_subscription(String, "/atlas/readiness", lambda m: self._set("atlas_readiness", m.data), 10)
+            n.create_subscription(String, "/atlas/sensor_freshness", lambda m: self._set("atlas_freshness", m.data), 10)
+            n.create_subscription(String, "/voice/vc02/status", lambda m: self._set("voice_status", m.data), 10)
+            n.create_subscription(String, "/voice/vc02/event", lambda m: self._set("voice_event", m.data), 10)
+            n.create_subscription(String, "/voice/vc02/raw", lambda m: self._set("voice_raw", m.data), 10)
+            n.create_subscription(Bool, "/voice/vc02/enabled", lambda m: self._set("voice_enabled", m.data), 10)
+            n.create_subscription(String, "/atlas/voice/state", lambda m: self._set("companion_state", m.data), 10)
+            n.create_subscription(String, "/atlas/voice/mode", lambda m: self._set("companion_mode", m.data), 10)
+            n.create_subscription(String, "/atlas/voice/transcript", lambda m: self._set("companion_transcript", m.data), 10)
+            n.create_subscription(String, "/atlas/voice/intent", lambda m: self._set("companion_intent", m.data), 10)
+            n.create_subscription(String, "/atlas/voice/action", lambda m: self._set("companion_action", m.data), 10)
+            n.create_subscription(String, "/atlas/voice/response", lambda m: self._set("companion_response", m.data), 10)
+            n.create_subscription(String, "/atlas/voice/confirmation", lambda m: self._set("companion_confirmation", m.data), 10)
+            n.create_subscription(String, "/atlas/voice/rgb", lambda m: self._set("companion_rgb", m.data), 10)
+            n.create_subscription(String, "/atlas/voice/cloud", lambda m: self._set("companion_cloud", m.data), 10)
+            n.create_subscription(Joy, "/joy", lambda m: self._set("joy", {
+                "axes": len(m.axes), "buttons": len(m.buttons)
+            }), 10)
+            n.create_subscription(
+                Int32,
+                "/camera/bottom_servo_us",
+                lambda m: setattr(self, "pan_us", int(m.data)),
+                10,
+            )
+            n.create_subscription(
+                Int32,
+                "/camera/second_servo_us",
+                lambda m: setattr(self, "tilt_us", int(m.data)),
+                10,
+            )
+            n.create_timer(0.1, self._drive_watchdog)
+            self.ready = True
+            rclpy.spin(n)
+        except Exception as exc:
+            self._set("web_error", str(exc))
+            self.ready = False
+
+    def _odom_cb(self, msg):
+        self._set("odom", {
+            "x": msg.pose.pose.position.x,
+            "y": msg.pose.pose.position.y,
+            "vx": msg.twist.twist.linear.x,
+            "wz": msg.twist.twist.angular.z,
+        })
+
+    def _scan_cb(self, msg):
+        now = time.time()
+        if now - self.last_scan_summary < 0.50:
+            return
+        self.last_scan_summary = now
+        finite = [r for r in msg.ranges if r == r and msg.range_min <= r <= msg.range_max and r != float("inf")]
+        nearest = min(finite) if finite else 0.0
+        self._set("lidar", {
+            "points": len(finite),
+            "total": len(msg.ranges),
+            "nearest_m": nearest,
+            "range_max": msg.range_max,
+            "frame": msg.header.frame_id,
+        })
+
+    def _camera_cb(self, msg):
+        now = time.time()
+        if now - self.last_compressed_camera < 0.05:
+            return
+        self.last_compressed_camera = now
+        frame_bytes = bytes(msg.data)
+        motion_text = "motion waiting"
+        if now - self.last_motion_check >= 0.90:
+            self.last_motion_check = now
+            try:
+                jpg = np.frombuffer(frame_bytes, dtype=np.uint8)
+                gray = cv2.imdecode(jpg, cv2.IMREAD_GRAYSCALE)
+                if gray is not None:
+                    small = cv2.resize(gray, (96, 72))
+                    small = cv2.GaussianBlur(small, (5, 5), 0)
+                    if self.prev_motion_gray is not None:
+                        diff = cv2.absdiff(self.prev_motion_gray, small)
+                        changed = float((diff > 22).mean() * 100.0)
+                        motion_text = "MOTION" if changed >= 2.5 else "quiet"
+                        self._set("motion_percent", round(changed, 1))
+                        self._set("motion_state", motion_text)
+                    self.prev_motion_gray = small
+            except Exception as exc:
+                self._set("motion_error", str(exc))
+        self._run_object_ai(frame_bytes)
+        if self.ai_mode == "object":
+            ai_status = self.data.get("ai_status", {}).get("value", "Object detection armed")
+        elif self.ai_mode == "eco":
+            ai_status = "YOLO ready, off in Eco Mode" if self.yolo_ready else "YOLO model missing"
+        else:
+            ai_status = f"{self.ai_mode.title()} mode staged; safe preview only"
+        with self.lock:
+            self.data["camera_frame"] = {"value": frame_bytes, "ts": time.time()}
+            self.data["camera_info"] = {"value": {"bytes": len(frame_bytes), "source": "compressed", "motion": motion_text, "ai": ai_status}, "ts": time.time()}
+            self.data["ai_status"] = {"value": ai_status, "ts": time.time()}
+    def _raw_camera_cb(self, msg):
+        now = time.time()
+        if now - self.last_compressed_camera < 2.0:
+            return
+        if now - self.last_raw_camera_encode < 0.33:
+            return
+        self.last_raw_camera_encode = now
+        try:
+            channels = 4 if msg.encoding in ("bgra8", "rgba8") else 3
+            if msg.encoding in ("mono8", "8UC1"):
+                arr = np.frombuffer(msg.data, dtype=np.uint8).reshape((msg.height, msg.width))
+                frame = cv2.cvtColor(arr, cv2.COLOR_GRAY2BGR)
+            else:
+                arr = np.frombuffer(msg.data, dtype=np.uint8).reshape((msg.height, msg.width, channels))
+                if msg.encoding == "rgb8":
+                    frame = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+                elif msg.encoding == "rgba8":
+                    frame = cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
+                elif msg.encoding == "bgra8":
+                    frame = cv2.cvtColor(arr, cv2.COLOR_BGRA2BGR)
+                else:
+                    frame = arr[:, :, :3]
+            ok, enc = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
+            if not ok:
+                return
+            jpg = enc.tobytes()
+            with self.lock:
+                self.data["camera_frame"] = {"value": jpg, "ts": time.time()}
+                self.data["camera_info"] = {"value": {"bytes": len(jpg), "source": "raw", "encoding": msg.encoding}, "ts": time.time()}
+        except Exception as exc:
+            self._set("camera_error", str(exc))
+
+    def set_ai_mode(self, mode):
+        mode = (mode or "eco").strip().lower()
+        if mode not in AI_MODES:
+            return False, "unknown AI mode"
+        self.ai_mode = mode
+        if self.ai_pub is not None:
+            self.ai_pub.publish(Bool(data=mode != "eco"))
+        self._set("ai_mode", mode)
+        if mode == "object":
+            msg = "Object detection armed" if self.yolo_ready else "YOLO model missing"
+        elif mode == "eco":
+            self.ai_model = None
+            self.ai_detections = []
+            self._set("ai_objects", "[]")
+            msg = "Eco mode: AI object detection off"
+        else:
+            msg = f"{mode.title()} mode staged; safe preview only"
+        self._set("ai_status", msg)
+        return True, msg
+
+    def _drive_watchdog(self):
+        if self.drive_active and time.monotonic() - self.last_drive_command > 0.35:
+            self.publish(0.0, 0.0)
+            self.drive_active = False
+            self._set("web_drive", "WATCHDOG STOP")
+
+    def camera_move(self, axis, direction):
+        direction = max(-1, min(1, int(direction)))
+        if axis == "pan" and self.pan_pub is not None:
+            self.pan_us = max(1100, min(1900, self.pan_us + direction * 40))
+            self.pan_pub.publish(Int32(data=self.pan_us))
+            return True, f"pan {self.pan_us}us"
+        if axis == "tilt" and self.tilt_pub is not None:
+            self.tilt_us = max(1100, min(1900, self.tilt_us + direction * 50))
+            self.tilt_pub.publish(Int32(data=self.tilt_us))
+            return True, f"tilt {self.tilt_us}us"
+        if axis == "center" and self.pan_pub is not None and self.tilt_pub is not None:
+            self.pan_us = self.tilt_us = 1500
+            self.pan_pub.publish(Int32(data=1500))
+            self.tilt_pub.publish(Int32(data=1500))
+            return True, "camera centred"
+        return False, "camera publisher unavailable"
+
+    def _load_ai_model(self):
+        if self.ai_model is not None:
+            return True
+        try:
+            from trt_yolo_detector import TensorRTYOLO
+            self.ai_model = TensorRTYOLO(
+                "/home/jetson/project_atlas/scripts/yolov8n_fp16.engine",
+                confidence=0.35,
+            )
+            return True
+        except Exception as exc:
+            self._set("ai_status", f"YOLO load error: {exc}")
+            return False
+
+    def _run_object_ai(self, frame_bytes):
+        now = time.time()
+        if self.ai_mode != "object" or now - self.last_ai_check < 3.0:
+            return
+        self.last_ai_check = now
+        if not self.yolo_ready or not self._load_ai_model():
+            return
+        try:
+            jpg = np.frombuffer(frame_bytes, dtype=np.uint8)
+            frame = cv2.imdecode(jpg, cv2.IMREAD_COLOR)
+            if frame is None:
+                return
+            raw = self.ai_model.infer(frame)
+            if not raw:
+                raw = self.ai_model.infer(cv2.rotate(frame, cv2.ROTATE_180))
+            dets = []
+            for _x1, _y1, _x2, _y2, cls, conf in raw[:8]:
+                dets.append({
+                    "label": COCO_LABELS[cls] if cls < len(COCO_LABELS) else str(cls),
+                    "conf": round(float(conf), 2),
+                })
+            self.ai_detections = dets
+            if dets:
+                txt = ", ".join(f"{d['label']} {d['conf']:.2f}" for d in dets[:4])
+                self._set("ai_status", "OBJECT " + txt)
+            else:
+                self._set("ai_status", "OBJECT no object")
+            self._set("ai_objects", json.dumps(dets, separators=(",", ":")))
+        except Exception as exc:
+            self._set("ai_status", f"OBJECT error: {exc}")
+
+    def publish(self, linear=0.0, angular=0.0):
+        if not self.ready or self.pub is None:
+            return False
+        msg = Twist()
+        msg.linear.x = float(linear)
+        msg.angular.z = float(angular)
+        self.pub.publish(msg)
+        if linear or angular:
+            self.last_drive_command = time.monotonic()
+            self.drive_active = True
+            self._set("web_drive", f"{linear:.2f},{angular:.2f}")
+        else:
+            self.drive_active = False
+            self._set("web_drive", "STOP")
+        return True
+
+    def snapshot(self):
+        with self.lock:
+            out = {}
+            now = time.time()
+            for k, v in self.data.items():
+                if k == "camera_frame":
+                    continue
+                out[k] = {"value": v["value"], "age": round(now - v["ts"], 1)}
+            out["web_control_ready"] = {"value": self.ready, "age": 0}
+            return out
+
+    def camera_frame(self):
+        with self.lock:
+            item = self.data.get("camera_frame")
+            return item["value"] if item else None
+
+
+ROS = AtlasRosNode()
+
+
+def network_status():
+    info = {"wifi_ip": "--", "cell_ip": "--", "tailscale_ip": "--", "route": "--", "ssh": "--"}
+    for line in run(["ip", "-4", "-br", "addr"]).splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        iface, state, ip = parts[0], parts[1], parts[2].split("/")[0]
+        if iface in ("wlan0", "wlP1p1s0") and state == "UP":
+            info["wifi_ip"] = ip
+        elif iface == "wwan0" or iface.startswith("enx"):
+            info["cell_ip"] = ip
+        elif iface == "tailscale0":
+            info["tailscale_ip"] = ip
+    route = run(["ip", "route", "show", "default"])
+    if " dev wwan0 " in route or " dev enx" in route:
+        info["route"] = "5G/cellular"
+    elif " dev wlan0 " in route or " dev wlP1p1s0 " in route:
+        info["route"] = "Wi-Fi"
+    peers = []
+    for line in run(["ss", "-tn", "state", "established"]).splitlines():
+        if ":22 " not in line:
+            continue
+        parts = line.split()
+        if len(parts) >= 4:
+            peer = parts[-1].rsplit(":", 1)[0].strip("[]")
+            if peer and peer not in peers:
+                peers.append(peer)
+    if peers:
+        peer = peers[-1]
+        info["ssh"] = ("Wi-Fi LAN: " if peer.startswith("192.168.1.") else "Tailscale/5G: " if peer.startswith("100.") else "") + peer
+    return info
+
+
+def services():
+    return {name: (run(["systemctl", "--user", "is-active", name], timeout=1) or "unknown") for name in SERVICES}
+
+
+def system_status():
+    cpu = run(["bash", "-lc", "top -bn1 | awk '/Cpu\\(s\\)/ {printf \"%.1f\", 100-$8}'"], timeout=2)
+    mem_line = run(["bash", "-lc", "free -m | awk '/Mem:/ {printf \"%s %s %.0f\", $3, $2, ($3/$2)*100}'"], timeout=2)
+    ram = "--"
+    ram_percent = None
+    if mem_line:
+        parts = mem_line.split()
+        if len(parts) == 3:
+            used, total, percent = parts
+            ram = f"{used} MB / {total} MB ({percent}%)"
+            try:
+                ram_percent = float(percent)
+            except ValueError:
+                ram_percent = None
+    temp = run(["bash", "-lc", "cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null"], timeout=1)
+    if temp.isdigit():
+        temp = f"{int(temp) / 1000:.0f} C"
+    return {
+        "cpu_percent": cpu or "--",
+        "ram": ram,
+        "ram_percent": ram_percent,
+        "temp": temp or "--",
+        "voice_usb": os.path.exists("/dev/ttyACM2"),
+        "openai_configured": os.path.exists("/home/jetson/.config/project-atlas/openai.env"),
+    }
+
+
+def snapshot():
+    return {
+        "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "network": network_status(),
+        "system": system_status(),
+        "services": services(),
+        "ros": ROS.snapshot(),
+        "todo": TODO,
+    }
+
+
+def radar_snapshot():
+    keys = (
+        "radar",
+        "radar_count",
+        "radar_dist",
+        "radar_x",
+        "radar_y",
+        "radar_speed",
+        "radar_zone",
+    )
+    now = time.time()
+    with ROS.lock:
+        return {
+            key: {
+                "value": ROS.data[key]["value"],
+                "age": round(now - ROS.data[key]["ts"], 3),
+            }
+            for key in keys
+            if key in ROS.data
+        }
+
+
+def stop_rover():
+    ok = ROS.publish(0.0, 0.0)
+    return "published" if ok else "publisher not ready"
+
+
+def drive_pulse(linear, angular):
+    linear = max(-0.75, min(0.75, float(linear)))
+    angular = max(-1.6, min(1.6, float(angular)))
+    if not ROS.ready:
+        return "publisher not ready"
+    ROS.publish(linear, angular)
+    return f"published linear={linear:.2f} angular={angular:.2f}"
+
+
+def clean_json(value):
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: clean_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [clean_json(v) for v in value]
+    return value
+
+def json_response(handler, status, payload):
+    body = json.dumps(clean_json(payload), indent=2, allow_nan=False).encode()
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+    handler.send_header("Pragma", "no-cache")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+class Handler(BaseHTTPRequestHandler):
+    def client_allowed(self):
+        try:
+            address = ipaddress.ip_address(self.client_address[0])
+            return (
+                address.is_loopback
+                or address.is_private
+                or address in ipaddress.ip_network("100.64.0.0/10")
+            )
+        except ValueError:
+            return False
+
+    def do_GET(self):
+        if not self.client_allowed():
+            self.send_error(403)
+            return
+        if self.path.startswith("/api/radar"):
+            json_response(self, 200, {"radar": radar_snapshot()})
+            return
+        if self.path.startswith("/api/status"):
+            json_response(self, 200, snapshot())
+            return
+        if self.path.startswith("/logo.png"):
+            path = "/home/jetson/project_atlas/scripts/atlas_rover_logo_preferred.png"
+            try:
+                with open(path, "rb") as f:
+                    body = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception:
+                self.send_error(404)
+            return
+        if self.path.startswith("/manifest.webmanifest"):
+            body = MANIFEST_JSON.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/manifest+json")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/camera.jpg"):
+            frame = ROS.camera_frame()
+            if frame:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(frame)))
+                self.end_headers()
+                self.wfile.write(frame)
+            else:
+                self.send_error(404)
+            return
+        if self.path.startswith("/camera.mjpg"):
+            self.send_response(200)
+            self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            for _ in range(600):
+                try:
+                    frame = ROS.camera_frame()
+                    if frame:
+                        self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(frame)).encode() + b"\r\n\r\n" + frame + b"\r\n")
+                        self.wfile.flush()
+                    time.sleep(0.05)
+                except (BrokenPipeError, ConnectionResetError, TimeoutError):
+                    break
+            return
+        body = render_control_page().encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        if not self.client_allowed():
+            self.send_error(403)
+            return
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        form = parse_qs(self.rfile.read(length).decode())
+        action = form.get("action", [""])[0]
+        if action == "stop":
+            json_response(self, 200, {"ok": True, "message": "Drive stopped", "detail": stop_rover()})
+        elif action == "e_stop":
+            json_response(self, 200, {"ok": True, "message": "EMERGENCY STOP ACTIVE", "detail": stop_rover()})
+        elif action == "drive":
+            out = drive_pulse(form.get("linear", ["0"])[0], form.get("angular", ["0"])[0])
+            json_response(self, 200, {"ok": True, "message": "Short safe drive pulse sent", "detail": out})
+        elif action == "ai_mode":
+            ok, msg = ROS.set_ai_mode(form.get("mode", ["eco"])[0])
+            json_response(self, 200 if ok else 400, {"ok": ok, "message": msg})
+        elif action == "camera":
+            ok, msg = ROS.camera_move(
+                form.get("axis", [""])[0],
+                form.get("direction", ["0"])[0],
+            )
+            json_response(self, 200 if ok else 503, {"ok": ok, "message": msg})
+        elif action in {"restart", "start", "stop_service"}:
+            svc = form.get("service", [""])[0]
+            if svc not in SERVICES:
+                json_response(self, 400, {"ok": False, "message": "service not allowed"})
+                return
+            verb = {"restart": "restart", "start": "start", "stop_service": "stop"}[action]
+            ok, detail = run_quiet(["systemctl", "--user", verb, svc], timeout=8)
+            json_response(self, 200 if ok else 500, {"ok": ok, "message": f"{verb} {svc}", "detail": detail})
+        elif action == "reboot":
+            subprocess.Popen(["bash", "-lc", "sleep 1; echo password | sudo -S reboot"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            json_response(self, 200, {"ok": True, "message": "Reboot requested"})
+        elif action == "shutdown":
+            subprocess.Popen(["bash", "-lc", "sleep 1; echo password | sudo -S shutdown -h now"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            json_response(self, 200, {"ok": True, "message": "Shutdown requested"})
+        else:
+            json_response(self, 400, {"ok": False, "message": "unknown action"})
+
+    def log_message(self, fmt, *args):
+        return
+
+
+def render_page():
+    return r"""<!doctype html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>ATLAS Rover Web App</title>
+<meta http-equiv="Cache-Control" content="no-store">
+<meta name="theme-color" content="#07111f">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/logo.png">
+<style>
+:root{--bg:#07111f;--panel:#111c2c;--panel2:#0d1824;--line:#1d334a;--muted:#8aa0b8;--blue:#1da1ff;--green:#24d446;--red:#ff4444;--orange:#ff982c}*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;height:100%;background:var(--bg);font-family:Arial,Helvetica,sans-serif;overflow:hidden;color:#fff}.app{display:grid;grid-template-rows:52px 1fr 30px;height:100vh;gap:6px;padding:6px 8px;background:var(--bg)}header{display:flex;align-items:center;gap:8px}.logo{width:38px;height:38px;object-fit:contain;flex-shrink:0}.title h1{font-size:14px;margin:0;color:#fff}.title p{font-size:10px;margin:0;color:var(--muted)}.topStats{margin-left:auto;display:flex;align-items:center;gap:6px;flex-shrink:0}.pill{padding:2px 8px;border:1px solid var(--line);background:#0f2134;border-radius:10px;font-size:11px;color:var(--muted)}.pill b{color:#fff}.pill b.alarm{color:var(--red)}.main{display:grid;grid-template-columns:230px 1fr 255px;gap:6px;min-height:0;overflow:hidden}.left-col,.right-col{overflow-y:auto;display:flex;flex-direction:column;gap:6px}.left-col::-webkit-scrollbar,.right-col::-webkit-scrollbar{width:3px}.left-col::-webkit-scrollbar-thumb,.right-col::-webkit-scrollbar-thumb{background:var(--line)}.center-col{display:flex;flex-direction:column;gap:6px;min-height:0;overflow:hidden}.panel{background:var(--panel);border-radius:6px;padding:8px 10px;flex-shrink:0}.panel h3{margin:0 0 7px;font-size:11px;color:var(--blue);letter-spacing:.6px;text-transform:uppercase;border-bottom:1px solid var(--line);padding-bottom:4px}.cameraBox{position:relative;background:#000;border:1px solid var(--line);border-radius:6px;flex:1;min-height:180px;overflow:hidden}.camera{width:100%;height:100%;object-fit:cover;display:block}.camOverlay{position:absolute;right:6px;bottom:6px;display:flex;gap:4px;flex-wrap:wrap;max-width:90%;justify-content:flex-end}.chip{padding:2px 6px;background:rgba(5,12,22,.82);border:1px solid rgba(255,255,255,.12);border-radius:3px;font-size:10px;color:var(--muted)}.driveGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:4px}.driveGrid button{padding:9px 2px;border:1px solid #31506e;background:#102942;color:#fff;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer;touch-action:none}.driveGrid button:active{background:#1a4a7c}.stop-center{background:#7a1c1c!important;border-color:#aa2a2a!important}.feature{display:grid;grid-template-columns:1fr 1fr;gap:5px}.feature button{padding:7px 4px;background:var(--panel2);border:1px solid var(--line);color:#fff;border-radius:4px;font-size:11px;cursor:pointer}.feature button.active{border-color:var(--green);color:var(--green);background:rgba(36,212,70,.08)}.cmdRow{display:flex;gap:4px}.cmdRow input{flex:1;background:var(--panel2);border:1px solid var(--line);color:#fff;padding:5px 7px;border-radius:4px;font-size:11px;outline:none}.cmdRow button{padding:5px 10px;background:#1a3a5c;border:1px solid var(--line);color:#fff;border-radius:4px;cursor:pointer;font-size:11px}.row{display:grid;grid-template-columns:90px 1fr;gap:4px;border-bottom:1px solid #1a2a3a;padding:4px 0;font-size:11px;color:var(--muted)}.row span:last-child{color:#cdd6e0;word-break:break-all;text-align:right}.cards{display:grid;grid-template-columns:1fr 1fr;gap:5px}.card{background:var(--panel2);border-radius:5px;padding:6px 8px}.card .lbl{font-size:10px;color:var(--muted);margin-bottom:1px}.card .val{font-size:14px;font-weight:bold;color:#fff;word-break:break-all}.card .sub{font-size:10px;color:var(--muted);margin-top:1px}.bar{height:3px;background:var(--line);border-radius:2px;margin-top:3px}.bar-fill{height:100%;background:var(--green);border-radius:2px;transition:width .4s}footer{display:flex;align-items:center;font-size:10px;color:var(--muted);padding:0 4px;overflow:hidden;white-space:nowrap}button{font-family:inherit}
+</style>
+</head>
+<body>
+<div class="app">
+<header><img class="logo" src="/logo.png"><div class="title"><h1>PROJECT ATLAS</h1><p>RaspRover-style Web APP plus ATLAS sensors</p></div><div class="topStats"><div class="pill">IP <b id="ipTop">--</b></div><div class="pill">CPU <b id="cpuTop">--</b></div><div class="pill">5G <b id="cellTop">--</b></div><button style="padding:4px 14px;background:var(--red);color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer;font-size:13px" onclick="post({action:stop})">STOP</button></div></header>
+<div class="main">
+<div class="left-col">
+<div class="panel"><h3>Chassis Control</h3><div class="driveGrid"><button data-lin="0" data-ang="1.0">LEFT</button><button data-lin="0.75" data-ang="0">FORWARD</button><button data-lin="0" data-ang="-1.0">RIGHT</button><button data-lin="-0.5" data-ang="1.0">BK-L</button><button class="stop-center" onclick="post({action:stop})">STOP</button><button data-lin="-0.5" data-ang="-1.0">BK-R</button><button style="visibility:hidden"></button><button data-lin="-0.75" data-ang="0">BACKWARD</button><button style="visibility:hidden"></button></div></div>
+<div class="panel"><h3>Function Buttons</h3><div class="feature"><button data-ai="armed">ALON</button><button data-ai="eco">ALOFF</button><button onclick="var a=document.createElement(a);a.href=/camera.jpg?ts=+Date.now()+.jpg;document.body.appendChild(a);a.click();toast(Snapshot requested)">Snapshot</button><button onclick="document.getElementById(cmd).value=explore;runCmd()">Explore</button></div></div>
+<div class="panel"><h3>Command Line</h3><div class="cmdRow"><input id="cmd" placeholder="type command..."><button onclick="runCmd()">Run</button></div><div id="aiTop" style="margin-top:6px;font-size:11px;color:var(--muted)">AI --</div><div id="aiList" style="font-size:10px;color:var(--muted);margin-top:3px;line-height:1.4"></div></div>
+<div class="panel"><h3>Robot Feedback</h3><div id="statusCards" class="cards"></div></div>
+</div>
+<div class="center-col">
+<div class="cameraBox"><img id="cam" class="camera" src="/camera.jpg"><div class="camOverlay"><span class="chip" id="camtxt">NO CAMERA</span></div></div>
+<div class="panel" style="flex-shrink:0"><h3>Sensors</h3><div id="rangeCards" class="cards"></div><div class="card" style="padding:6px;text-align:center"><span style="font-size:10px;color:var(--muted)">RADAR SWEEP</span><canvas id="radarVis" width="200" height="130" style="display:block;width:100%;margin-top:4px;border-radius:4px"></canvas></div></div>
+</div>
+<div class="right-col">
+<div class="panel"><h3>Power</h3><div id="powerCards" class="cards"></div></div>
+<div class="panel"><h3>Network</h3><div id="netRows"></div></div>
+<div class="panel"><h3>System</h3><div id="sysRows"></div><div class="card" style="padding:6px"><span style="font-size:10px;color:var(--muted)">CPU TEMP</span><canvas id="tempCanvas" width="220" height="50" style="display:block;width:100%;margin-top:3px;border-radius:3px"></canvas></div></div>
+</div>
+</div>
+<footer id="footRoute">route --</footer>
+</div>
+<div style=\"display:none\"><span id=\"radarTxt\"></span><canvas id=\"radarCanvas\" width=\"200\" height=\"200\"></canvas></div><script>
+
+var thermalHist=[];function val(r,k,d='--'){return r[k]&&r[k].value!==undefined?r[k].value:d}function num(v,d=0){v=Number(v);return Number.isFinite(v)?v.toFixed(d):'--'}function row(a,b){return `<div class="row"><span>${a}</span><span>${b}</span></div>`}function bar(v){var n=Math.max(0,Math.min(100,Number(v)||0));return `<div class="bar"><div class="fill" style="width:${n}%"></div></div>`}function card(a,b,c=''){return `<div class="card"><div class="label">${a}</div><div class="value">${b}</div><div class="sub">${c}</div></div>`}function toast(t){document.getElementById('footReady').textContent=t}
+async function post(data){var res=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});var j=await res.json();toast(j.message||'done');return j}function act(action,service){var d={action};if(service)d.service=service;post(d)}
+function parseRadar(raw){return (raw||'').toString().split('|').map((p,i)=>{var x=(p.match(/x=(-?\d+)mm/)||[])[1],y=(p.match(/y=(-?\d+)mm/)||[])[1],s=(p.match(/spd=(-?\d+)cm\/s/)||[])[1];if(x===undefined||y===undefined)return null;return {name:(p.split(':')[0]||`T${i+1}`).trim(),x:Number(x),y:Number(y),speed:Number(s||0),dist:Math.hypot(Number(x),Number(y))}}).filter(Boolean)}
+function drawRadar(r){var c=document.getElementById('radarCanvas'),ctx=c.getContext('2d'),w=c.width,h=c.height,cx=w/2,cy=h/2,rad=Math.min(w,h)*.43,max=3000;ctx.clearRect(0,0,w,h);ctx.fillStyle='#050b12';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#1d5f80';ctx.lineWidth=1;for(var i=1;i<=3;i++){ctx.beginPath();ctx.arc(cx,cy,rad*i/3,0,Math.PI*2);ctx.stroke()}ctx.strokeStyle='#1da1ff';ctx.beginPath();ctx.moveTo(cx-rad,cy);ctx.lineTo(cx+rad,cy);ctx.moveTo(cx,cy-rad);ctx.lineTo(cx,cy+rad);ctx.stroke();ctx.fillStyle='#24d46b';ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fill();var targets=parseRadar(val(r,'radar',''));targets.slice(0,8).forEach(t=>{if(t.y<0)return;var x=cx+t.x*rad/max,y=cy-t.y*rad/max;if((x-cx)**2+(y-cy)**2>rad**2)return;ctx.fillStyle=t.dist<500?'#ff4655':t.dist<1000?'#ffd23f':'#24d46b';ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='11px Arial';ctx.fillText(`${t.name} ${Math.round(t.dist)}mm`,x+9,y-7)});document.getElementById('radarTxt').textContent=targets.length?`${targets.length} target, nearest ${num(val(r,'radar_dist',0),0)}mm, ${val(r,'radar_zone','--')}`:'NO DETECTION'}
+function heat(v,mn,mx){var t=Math.max(0,Math.min(1,(Number(v)-mn)/Math.max(.1,mx-mn)));var rr=t<.5?Math.round(20+t*120):Math.round(80+(t-.5)*350),gg=t<.5?Math.round(70+t*260):Math.round(200-(t-.5)*160),bb=t<.5?Math.round(180+t*90):Math.round(225-(t-.5)*420);return `rgb(${rr},${gg},${Math.max(0,bb)})`}var c2=document.getElementById('radarVis');if(c2){var ctx2=c2.getContext('2d'),w2=c2.width,h2=c2.height;ctx2.drawImage(document.getElementById('radarCanvas'),0,0,w2,h2);}function drawThermal(r){var d={};try{d=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}var pix=Array.isArray(d.pixels)?d.pixels:[],live=d.ok&&pix.length==64,mn=Number(d.min_c||0),mx=Number(d.max_c||0),avg=Number(d.avg_c||0),box=document.getElementById('thermalMap');if(live){var now=Date.now();if(!thermalHist.length||now-thermalHist.at(-1).t>3500){thermalHist.push({t:now,min:mn,max:mx,avg});thermalHist=thermalHist.slice(-80)}}box.innerHTML='';var hot=live?pix.indexOf(Math.max(...pix)):-1;for(var i=0;i<64;i++){var e=document.createElement('div');e.className='heat';e.style.background=live?heat(pix[i],mn,mx):'#101a28';if(i==hot)e.style.outline='2px solid #fff';box.appendChild(e)}var c=document.getElementById('thermalChart'),ctx=c.getContext('2d'),w=c.width,h=c.height;ctx.clearRect(0,0,w,h);ctx.fillStyle='#050b12';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#24435d';ctx.strokeRect(.5,.5,w-1,h-1);if(thermalHist.length>1){var vals=thermalHist.flatMap(p=>[p.min,p.max]),lo=Math.min(...vals),hi=Math.max(...vals);if(hi<=lo)hi=lo+1;var pt=(i,v)=>[8+i*(w-16)/(thermalHist.length-1),h-10-(v-lo)*(h-24)/(hi-lo)];ctx.lineWidth=2;ctx.strokeStyle='#ff982c';ctx.beginPath();thermalHist.forEach((p,i)=>{var q=pt(i,p.max);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.stroke();ctx.strokeStyle='#1da1ff';ctx.beginPath();thermalHist.forEach((p,i)=>{var q=pt(i,p.min);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.stroke()}document.getElementById('thermalTxt').textContent=live?`MIN ${mn.toFixed(1)}C AVG ${avg.toFixed(1)}C MAX ${mx.toFixed(1)}C`:(val(r,'thermal_status','AMG waiting'))}
+function refreshCamera(){var img=document.getElementById('cam');if(img)img.src='/camera.jpg?ts='+Date.now()}
+function refresh(){fetch('/api/status',{cache:'no-store'}).then(x=>x.json()).then(d=>{var r=d.ros,n=d.network,s=d.system;document.getElementById('ipTop').textContent=n.wifi_ip;document.getElementById('cpuTop').textContent=s.cpu_percent+'%';document.getElementById('cellTop').textContent=val(r,'cell_signal','--')+'%';document.getElementById('footRoute').textContent=`route ${n.route} wifi ${n.wifi_ip} 5g ${n.cell_ip}`;var brain={};try{brain=JSON.parse(val(r,'atlas_health','{}')||'{}')}catch(e){}document.getElementById('stateTop').textContent=(brain.state||'--')+' / '+val(r,'atlas_readiness','--');var cam=val(r,'camera_info',{});document.getElementById('camtxt').textContent=cam.bytes?`camera ${cam.source||'live'} ${cam.bytes} bytes`:'NO CAMERA';document.getElementById('aiTop').textContent=val(r,'ai_status','AI --');var aiMode=val(r,'ai_mode','eco');document.querySelectorAll('button[data-ai]').forEach(b=>b.classList.toggle('active',b.dataset.ai==aiMode));var objs=[];try{objs=JSON.parse(val(r,'ai_objects','[]')||'[]')}catch(e){}document.getElementById('aiList').textContent=objs.length?objs.map(o=>`${o.label} ${o.conf}`).join(' | '):val(r,'ai_status','AI waiting');drawRadar(r);drawThermal(r);drawTempChart(s.temp||0);drawTempChart(s.temp||0);var lidar=val(r,'lidar',{}),od=val(r,'odom',{}),cmd=val(r,'cmd_vel',{});document.getElementById('rangeCards').innerHTML=card('LiDAR',num(lidar.nearest_m||0,2)+' m',`${lidar.points||0}/${lidar.total||0} pts`)+card('Ultrasonic',val(r,'us_front','--')+' mm',`L ${val(r,'us_left','--')} R ${val(r,'us_right','--')}`)+card('Radar',val(r,'radar_count','--'),`${num(val(r,'radar_dist',0),0)}mm ${val(r,'radar_zone','--')}`)+card('Compass',num(val(r,'imu_heading',0),0)+' deg',`R ${num(val(r,'imu_roll',0),1)} P ${num(val(r,'imu_pitch',0),1)}`);document.getElementById('statusCards').innerHTML=card('Odom',`${num(od.x,2)}, ${num(od.y,2)}`,`vx ${num(od.vx,2)} wz ${num(od.wz,2)}`)+card('Encoders',`${val(r,'enc_m1','--')} ${val(r,'enc_m2','--')}`,`${val(r,'enc_m3','--')} ${val(r,'enc_m4','--')}`)+card('Steering',`F ${num(val(r,'front_steer',0),0)} R ${num(val(r,'rear_steer',0),0)}`,val(r,'steer_mode','--'))+card('Motion',val(r,'motion_state','--'),val(r,'motion_percent','--')+'%');document.getElementById('powerCards').innerHTML=card('Main BMS',val(r,'bms_percent','--')+'%',`${num(val(r,'bms_voltage',0),3)}V ${num(val(r,'bms_current',0),2)}A`+bar(val(r,'bms_percent',0)))+card('Motor Board',num(val(r,'bat_voltage',0),3)+'V',num(val(r,'bat_current',0),2)+'A')+card('Pi UPS',val(r,'ups_bat_percent','--')+'%',`${num(val(r,'ups_bat_voltage',0),3)}V ${num(val(r,'ups_bat_current',0),2)}A`+bar(val(r,'ups_bat_percent',0)))+card('5G Hat',num(val(r,'hat_power',0),2)+'W',`${num(val(r,'hat_voltage',0),3)}V ${num(val(r,'hat_current',0),2)}A`);document.getElementById('netRows').innerHTML=row('WiFi/AP',n.wifi_ip)+row('5G',`${n.cell_ip} ${val(r,'cell_tech','--')} ${val(r,'cell_operator','')}`)+row('Tailscale',n.tailscale_ip)+row('SSH',n.ssh);document.getElementById('sysRows').innerHTML=row('CPU',s.cpu_percent+'%')+row('RAM',s.ram)+row('Temp',s.temp)+row('Voice',val(r,'voice_status','--'))+row('UPS',val(r,'ups_status','--'));}).catch(e=>toast('web data error '+e))}
+var holdTimer=null;function drive(l,a){post({action:'drive',linear:l,angular:a})}function startHold(b){drive(b.dataset.lin,b.dataset.ang);holdTimer=setInterval(()=>drive(b.dataset.lin,b.dataset.ang),100)}function stopHold(){if(holdTimer){clearInterval(holdTimer);holdTimer=null}act('stop')}document.querySelectorAll('button[data-lin]').forEach(b=>{b.addEventListener('mousedown',()=>startHold(b));b.addEventListener('touchstart',e=>{e.preventDefault();startHold(b)},{passive:false});['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>b.addEventListener(ev,stopHold))});document.querySelectorAll('button[data-ai]').forEach(b=>b.onclick=()=>post({action:'ai_mode',mode:b.dataset.ai}));function snapshot(){var a=document.createElement('a');a.href='/camera.jpg?ts='+Date.now();a.download='atlas_snapshot_'+Date.now()+'.jpg';document.body.appendChild(a);a.click();a.remove();toast('Snapshot requested')}function runCmd(){var c=document.getElementById('cmd').value.trim().toLowerCase();if(!c)return;if(c=='stop')act('stop');else if(['object','face','gesture','color','line','follow','eco'].includes(c))post({action:'ai_mode',mode:c});else if(c=='forward')drive(.5,0);else if(c=='back')drive(-.4,0);else if(c=='left')drive(0,1.0);else if(c=='right')drive(0,-1.0);else toast('unknown command')}
+refreshCamera();setInterval(refreshCamera,900);refresh();setInterval(refresh,3000);
+
+var tempHist=[];function drawTempChart(temp){var c=document.getElementById('tempCanvas');if(!c)return;tempHist.push(Number(temp)||0);if(tempHist.length>60)tempHist.shift();var ctx=c.getContext('2d'),w=c.width,h=c.height;ctx.fillStyle='#050b12';ctx.fillRect(0,0,w,h);if(tempHist.length<2)return;var mn=Math.min.apply(null,tempHist)-1,mx=Math.max.apply(null,tempHist)+1;if(mx-mn<2){mn=mn-1;mx=mx+1;}ctx.strokeStyle='#f77';ctx.lineWidth=2;ctx.beginPath();for(var i=0;i<tempHist.length;i++){var x=i/(tempHist.length-1)*(w-2)+1;var y=h-2-(tempHist[i]-mn)/(mx-mn)*(h-4);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.fillStyle='#f77';ctx.font='11px monospace';ctx.fillText(temp.toFixed(1)+String.fromCharCode(176)+'C',3,12);}</script>
+<div style="display:none"><span id="footReady"></span><span id="radarTxt"></span></div><span id="stateTop" style="display:none"></span><span id="thermalTxt" style="display:none"></span><canvas id="thermalChart" style="display:none"></canvas><div id="thermalMap" style="display:none"></div></body></html>"""
+
+
+def render_control_page():
+    return r"""<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="theme-color" content="#06101d"><link rel="manifest" href="/manifest.webmanifest">
+<title>ATLAS Command Center</title>
+<style>
+:root{--bg:#040a12;--panel:#0b1724;--line:#1c405d;--cyan:#17d5ff;--green:#34e58b;--red:#ff4655;--muted:#8ca6bb}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}body{margin:0;overflow-x:hidden;background:radial-gradient(circle at 50% -20%,#12354e 0,#07131f 38%,var(--bg) 75%);color:#eef7ff;font:14px system-ui,Arial}
+header{height:58px;display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#071421;z-index:3}
+header img{width:42px;height:42px;object-fit:contain}h1{font-size:16px;margin:0;color:var(--cyan)}.sub{font-size:11px;color:var(--muted)}
+.live{margin-left:auto;color:var(--green);font-weight:700}.grid{display:grid;grid-template-columns:minmax(270px,21vw) minmax(430px,1fr) minmax(310px,24vw);gap:8px;padding:8px;height:calc(100vh - 58px)}
+.col{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px}.panel{background:linear-gradient(145deg,rgba(15,34,51,.96),rgba(7,19,31,.96));border:1px solid #183b55;border-radius:10px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+h2{font-size:11px;letter-spacing:.8px;color:var(--cyan);margin:0 0 7px}.camera{width:100%;height:min(56vh,560px);object-fit:contain;background:#000;border-radius:7px}
+.drive,.camctl{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.btn{border:1px solid #315a78;background:#102b42;color:#fff;border-radius:7px;padding:13px 5px;font-weight:700;touch-action:none;user-select:none}
+.btn:active,.btn.on{background:#15527b;border-color:var(--cyan);box-shadow:0 0 14px rgba(23,213,255,.25)}.stop{background:#8b1521;border-color:#ff5966;font-size:16px}.ai-off{background:#54420d}.ai-on{background:#0c6542}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:6px}.card{background:#081522;border-radius:7px;padding:8px}.label{font-size:10px;color:var(--muted)}.value{font-size:16px;font-weight:750;margin-top:2px}.detail{font-size:10px;color:#aac0d1;margin-top:2px;word-break:break-word}
+.row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #173047;min-width:0}.row span:first-child{color:var(--muted)}.row span:last-child{text-align:right;overflow-wrap:anywhere;min-width:0}
+.envgrid{display:grid;grid-template-columns:130px 1fr;gap:8px}.heatmap{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;aspect-ratio:1}.heat{border-radius:2px;background:#112436}.chart{width:100%;height:82px;background:#06101a;border:1px solid #18364d;border-radius:6px}
+.radarScope{width:100%;height:min(36vh,340px);background:#020b09;border:1px solid #146044;border-radius:8px;box-shadow:inset 0 0 28px rgba(24,255,143,.08)}
+.healthhead{display:flex;align-items:center;justify-content:space-between;gap:8px}.healthsummary{font-size:11px;font-weight:800}
+.healthgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.healthitem{border:1px solid #24435d;border-left:5px solid #8ca6bb;border-radius:7px;background:#07131f;padding:7px;min-width:0}
+.healthitem.ok{border-left-color:#34e58b}.healthitem.warn{border-left-color:#ffcc3d}.healthitem.fail{border-left-color:#ff4655;background:#211017}
+.healthname{font-size:11px;font-weight:800;display:flex;justify-content:space-between;gap:4px}.healthstate{font-size:9px}.healthhint{font-size:9px;color:#aac0d1;margin-top:3px;line-height:1.25}
+.constellation-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px}.constellation{padding:6px;border-radius:6px;background:#07131f;border:1px solid #1d3c54}
+.constellation-top{display:flex;justify-content:space-between;font-size:10px;font-weight:800}.satbar{height:7px;margin-top:5px;background:#1a2a39;border-radius:5px;overflow:hidden}.satfill{height:100%;border-radius:5px}.constellation-note{font-size:9px;color:#8ca6bb;margin-top:6px}
+.companion{border-color:#216f8d;background:linear-gradient(145deg,rgba(10,43,60,.97),rgba(6,19,31,.98));box-shadow:0 0 22px rgba(23,213,255,.08)}
+.companionHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.companionState{font-size:10px;font-weight:900;padding:4px 8px;border:1px solid var(--cyan);border-radius:12px;color:var(--cyan)}
+.companionGrid{display:grid;grid-template-columns:1.25fr .75fr;gap:7px}.speech{background:#06131f;border:1px solid #1d4863;border-radius:8px;padding:8px;min-height:62px}.speech.you{border-left:4px solid #18c7ff}.speech.atlas{border-left:4px solid #34e58b}.speechText{font-size:14px;line-height:1.3;margin-top:3px;overflow-wrap:anywhere}
+.thoughts{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px}.thought{background:#071522;border-radius:6px;padding:6px;min-width:0}.thought strong{display:block;font-size:9px;color:var(--muted);margin-bottom:2px}.thought span{font-size:11px;overflow-wrap:anywhere}
+.companionStatus{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:7px}.pill{text-align:center;background:#071522;border:1px solid #24435d;border-radius:6px;padding:5px 3px;font-size:9px}.rgbDot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;background:#198dff;box-shadow:0 0 8px currentColor}
+section.col:nth-of-type(3) .panel:has(#heatmap){order:-3;border-color:#34e58b}
+section.col:nth-of-type(3) .panel:has(#healthGrid){order:-2}
+section.col:nth-of-type(3) .panel:has(#power){order:-1}
+#toast{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:#122b40;border:1px solid var(--cyan);padding:8px 14px;border-radius:20px;display:none;z-index:8}
+@media(max-width:900px){.grid{display:block;height:auto;width:100%;overflow:hidden}.col,.panel{overflow:visible;margin-bottom:8px;min-width:0}.camera{height:42vh}.envgrid{grid-template-columns:1fr}.heatmap{max-width:180px}canvas{max-width:100%}header .sub{display:none}}
+@media(min-width:1500px){body{font-size:15px}.grid{grid-template-columns:minmax(300px,20vw) minmax(600px,1fr) minmax(350px,23vw)}.camera{height:min(52vh,610px)}.speechText{font-size:16px}}
+@media(max-width:1150px) and (min-width:901px){.grid{grid-template-columns:265px minmax(390px,1fr) 295px}.companionGrid{grid-template-columns:1fr}.companionStatus{grid-template-columns:1fr 1fr}}
+</style></head><body>
+<header><img src="/logo.png"><div><h1>PROJECT ATLAS COMMAND CENTER</h1><div class="sub">Headless rover control • hold-to-drive • automatic stop watchdog</div></div><div class="live" id="online">CONNECTING</div></header>
+<main class="grid">
+<section class="col">
+ <div class="panel"><h2>ROVER DRIVE — HOLD BUTTON</h2><div class="drive">
+  <button class="btn" data-l=".45" data-a=".90">↖ FWD-L</button><button class="btn" data-l=".65" data-a="0">▲ FORWARD</button><button class="btn" data-l=".45" data-a="-.90">FWD-R ↗</button>
+  <button class="btn" data-l="-.65" data-a=".90">BACK-L</button><button class="btn stop" id="stop">E-STOP</button><button class="btn" data-l="-.65" data-a="-.90">BACK-R</button>
+  <span></span><button class="btn" data-l="-.65" data-a="0">▼ BACK</button><span></span>
+ </div></div>
+ <div class="panel"><h2>CAMERA PAN / TILT</h2><div class="camctl">
+  <span></span><button class="btn" data-cam="tilt" data-dir="-1">▲ UP</button><span></span>
+  <button class="btn" data-cam="pan" data-dir="-1">◀ LEFT</button><button class="btn" data-cam="center" data-dir="0">CENTER</button><button class="btn" data-cam="pan" data-dir="1">RIGHT ▶</button>
+  <span></span><button class="btn" data-cam="tilt" data-dir="1">▼ DOWN</button><span></span>
+ </div></div>
+ <div class="panel"><h2>JETSON AI POWER</h2><div class="cards">
+  <button class="btn ai-on" data-ai="object">AI ON</button><button class="btn ai-off" data-ai="eco">AI ECO / OFF</button>
+ </div><div class="detail" id="ai">AI status waiting</div></div>
+ <div class="panel"><h2>MOTION / ENCODERS</h2><div id="motion"></div></div>
+</section>
+<section class="col">
+ <div class="panel"><h2>LIVE CAMERA — 720P LOW LATENCY</h2><img class="camera" id="camera" src="/camera.mjpg"></div>
+ <div class="panel companion"><div class="companionHead"><h2>ATLAS COMPANION / DEVELOPER</h2><div class="companionState" id="companionState">STANDBY</div></div>
+  <div class="companionGrid">
+   <div class="speech you"><div class="label">YOU SAID / HEARD</div><div class="speechText" id="companionHeard">Waiting for voice service</div></div>
+   <div class="speech atlas"><div class="label">ATLAS SAYS</div><div class="speechText" id="companionReply">Voice bridge is being prepared</div></div>
+  </div>
+  <div class="thoughts">
+   <div class="thought"><strong>UNDERSTOOD INTENT</strong><span id="companionIntent">None</span></div>
+   <div class="thought"><strong>ACTION / TOOL SELECTED</strong><span id="companionAction">No action selected</span></div>
+  </div>
+  <div class="companionStatus">
+   <div class="pill" id="companionMode">LOCAL SAFETY</div><div class="pill" id="companionConfirm">NO CONFIRMATION</div>
+   <div class="pill" id="companionCloud">CLOUD OFFLINE</div><div class="pill"><span class="rgbDot" id="rgbDot"></span><span id="companionRgb">BLUE</span></div>
+  </div>
+ </div>
+ <div class="panel"><h2>RANGE & ATTITUDE</h2><div class="cards" id="sensors"></div></div>
+ <div class="panel"><h2>RD-03D LIVE MOTION RADAR — X/Y TRAILS</h2><canvas class="radarScope" id="radarScope" width="720" height="340"></canvas><div class="detail" id="radarCaption">WAITING FOR RADAR UART DATA</div></div>
+</section>
+<section class="col">
+ <div class="panel"><div class="healthhead"><h2>HARDWARE HEALTH / FAULT FINDER</h2><div class="healthsummary" id="healthSummary">CHECKING</div></div><div class="healthgrid" id="healthGrid"></div></div>
+ <div class="panel"><h2>POWER</h2><div class="cards" id="power"></div></div>
+ <div class="panel"><h2>ENVIRONMENT — INSIDE / OUTSIDE</h2>
+  <div class="envgrid"><div><div class="heatmap" id="heatmap"></div><div class="detail" id="thermalStats">Inside thermal waiting</div></div>
+  <div><div class="detail" id="outsideStats">Outside sensor waiting</div><canvas class="chart" id="insideChart" width="300" height="82"></canvas><canvas class="chart" id="outsideChart" width="300" height="82" style="margin-top:6px"></canvas></div></div>
+ </div>
+ <div class="panel"><h2>NETWORK</h2><div id="network"></div></div>
+ <div class="panel"><h2>GNSS / 5G</h2><div id="gnss"></div><div class="constellation-grid" id="constellationGrid"></div><div class="constellation-note">L76K supports GPS, GLONASS, BeiDou and QZSS. Galileo/NavIC remain visible for future receivers.</div></div>
+ <div class="panel"><h2>SYSTEM</h2><div id="system"></div></div>
+</section></main><div id="toast"></div>
+<script>
+const $=id=>document.getElementById(id), val=(r,k,d='--')=>r[k]&&r[k].value!==undefined?r[k].value:d;
+const n=(v,d=1)=>Number.isFinite(Number(v))?Number(v).toFixed(d):'--';
+const card=(a,b,c='')=>`<div class="card"><div class="label">${a}</div><div class="value">${b}</div><div class="detail">${c}</div></div>`;
+const row=(a,b)=>`<div class="row"><span>${a}</span><span>${b}</span></div>`;
+const age=(r,k)=>r[k]&&Number.isFinite(Number(r[k].age))?Number(r[k].age):9999;
+const recent=(r,k,seconds)=>age(r,k)<seconds;
+function healthItem(name,state,hint,seconds=null){
+ let ageText=seconds===null?'':seconds<60?`${seconds.toFixed(1)}s`:`${Math.round(seconds/60)}m`;
+ return `<div class="healthitem ${state}"><div class="healthname"><span>${name}</span><span class="healthstate">${state.toUpperCase()} ${ageText}</span></div><div class="healthhint">${hint}</div></div>`;
+}
+function renderHealth(r,net){
+ let thermal={};try{thermal=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}
+ let gpsLive=recent(r,'gps_sats',12),gpsSats=Number(val(r,'gps_sats',0))||0;
+ let items=[
+  ['CAMERA',recent(r,'camera_info',4)?'ok':'fail',recent(r,'camera_info',4)?'IMX708 video frames live':'No frames: check CSI ribbon and camera service','camera_info'],
+  ['MOTOR / ENCODERS',recent(r,'enc_m1',4)?'ok':'fail',recent(r,'enc_m1',4)?'Yahboom serial telemetry live':'Check /dev/yahboom USB and motor-board power','enc_m1'],
+  ['XBOX REMOTE',recent(r,'joy',8)?'ok':'warn',recent(r,'joy',8)?'Controller input received':'Wake controller, then press a stick or button','joy'],
+  ['IMU / COMPASS',recent(r,'imu_heading',4)?'ok':'fail',recent(r,'imu_heading',4)?'BNO08x attitude live':'Check IMU I2C power, SDA and SCL','imu_heading'],
+  ['RPLIDAR',recent(r,'lidar',4)?'ok':'fail',recent(r,'lidar',4)?'Laser scan live':'Check LiDAR USB, motor and cable','lidar'],
+  ['RD-03D RADAR',recent(r,'radar',3)?'ok':'fail',recent(r,'radar',3)?'UART target frames live':'Check radar power and crossed TX/RX','radar'],
+  ['ULTRASONIC',recent(r,'us_status',4)||recent(r,'us_front',4)?'ok':'fail',recent(r,'us_status',4)||recent(r,'us_front',4)?'Arduino range data live':'Check Arduino USB and sensor power',recent(r,'us_status',4)?'us_status':'us_front'],
+  ['INSIDE IR 8x8',thermal.ok&&recent(r,'thermal_json',5)?'ok':'fail',thermal.ok?'AMG8833 heatmap live':'Not detected: check 3.3V, GND, SDA pin 3, SCL pin 5','thermal_json'],
+  ['OUTSIDE TEMP',recent(r,'outside_temperature',9)?'ok':'fail',recent(r,'outside_temperature',9)?'Ambient temperature live':'Check outside sensor wiring/address 0x4B','outside_temperature'],
+  ['DALY BMS',recent(r,'bms_status',20)?'ok':'fail',recent(r,'bms_status',20)?'Battery telemetry live':'Check BMS Bluetooth connection','bms_status'],
+  ['5G MODEM',recent(r,'cell_signal',20)?'ok':'fail',recent(r,'cell_signal',20)?`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech','')}`:'Check SIM8230G USB and power','cell_signal'],
+  ['GNSS',gpsLive?(gpsSats>0?'ok':'warn'):'fail',gpsLive?(gpsSats>0?`${gpsSats} satellites received`:'Receiver live, antenna has no satellite lock'):'No GNSS messages: check modem/antenna','gps_sats'],
+  ['WEB / TAILSCALE',net&&net.tailscale_ip!='--'?'ok':'warn',net&&net.tailscale_ip!='--'?`Reachable at ${net.tailscale_ip}`:'Tailscale address unavailable',null]
+ ];
+ let ok=items.filter(x=>x[1]=='ok').length,warn=items.filter(x=>x[1]=='warn').length,fail=items.filter(x=>x[1]=='fail').length;
+ $('healthSummary').textContent=`${ok} OK / ${warn} WARN / ${fail} FAULT`;
+ $('healthSummary').style.color=fail?'#ff4655':warn?'#ffcc3d':'#34e58b';
+ $('healthGrid').innerHTML=items.map(x=>healthItem(x[0],x[1],x[2],x[3]?age(r,x[3]):null)).join('');
+}
+function renderConstellations(raw){
+ let counts={GPS:0,GLONASS:0,BEIDOU:0,GALILEO:0,QZSS:0,NAVIC:0};
+ String(raw||'').split('|').forEach(part=>{let p=part.split(':');if(p.length==2&&p[0] in counts)counts[p[0]]=Math.max(0,Number(p[1])||0)});
+ let systems=[
+  ['GPS','USA','#34e58b'],['GLONASS','RUSSIA','#46b4ff'],
+  ['BEIDOU','CHINA','#ff9d3d'],['GALILEO','EUROPE','#aa78ff'],
+  ['QZSS','JAPAN','#ffd34d'],['NAVIC','INDIA','#ff5078']
+ ];
+ $('constellationGrid').innerHTML=systems.map(([name,country,color])=>{
+   let count=counts[name],width=Math.min(100,count/12*100);
+   return `<div class="constellation"><div class="constellation-top"><span>${name} / ${country}</span><span style="color:${count?color:'#71869a'}">${count} SAT</span></div><div class="satbar"><div class="satfill" style="width:${width}%;background:${color}"></div></div></div>`;
+ }).join('');
+}
+function toast(t){let e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>e.style.display='none',2200)}
+async function post(data,loud=true){try{let q=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});let j=await q.json();if(loud)toast(j.message||'done');return j}catch(e){if(loud)toast('CONTROL LINK LOST')}}
+async function stop(){await post({action:'stop'},false)}
+let hold=null;function beginDrive(b){stopDrive(false);b.classList.add('on');let send=()=>post({action:'drive',linear:b.dataset.l,angular:b.dataset.a},false);send();hold=setInterval(send,120)}
+function stopDrive(send=true){if(hold){clearInterval(hold);hold=null}document.querySelectorAll('[data-l]').forEach(b=>b.classList.remove('on'));if(send)stop()}
+document.querySelectorAll('[data-l]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);beginDrive(b)};b.onpointerup=()=>stopDrive();b.onpointercancel=()=>stopDrive();b.onlostpointercapture=()=>stopDrive()});
+$('stop').onclick=()=>post({action:'e_stop'});window.addEventListener('blur',()=>stopDrive());document.addEventListener('visibilitychange',()=>{if(document.hidden)stopDrive()});
+document.querySelectorAll('[data-cam]').forEach(b=>{let timer;b.onpointerdown=e=>{e.preventDefault();let send=()=>post({action:'camera',axis:b.dataset.cam,direction:b.dataset.dir});send();timer=setInterval(send,160)};let end=()=>{clearInterval(timer)};b.onpointerup=end;b.onpointercancel=end;b.onpointerleave=end});
+document.querySelectorAll('[data-ai]').forEach(b=>b.onclick=()=>post({action:'ai_mode',mode:b.dataset.ai}));
+let insideHistory=[],outsideHistory=[];
+const radarTrails={T1:[],T2:[],T3:[]};let radarSweep=0,lastRadarRaw='';
+function parseRadarTargets(raw){return String(raw||'').split('|').map(part=>{let m=part.trim().match(/^(T\d+):x=(-?\d+)mm,y=(-?\d+)mm,spd=(-?\d+)cm\/s$/);return m?{id:m[1],x:Number(m[2]),y:Number(m[3]),speed:Number(m[4])}:null}).filter(Boolean)}
+function drawRadar(raw,live){let c=$('radarScope'),g=c.getContext('2d'),w=c.width,h=c.height,cx=w/2,base=h-18,maxY=4000,maxX=2400,targets=parseRadarTargets(raw);g.fillStyle='#020b09';g.fillRect(0,0,w,h);g.lineWidth=1;for(let meters=1;meters<=4;meters++){let ry=meters*1000/maxY*(h-42);g.strokeStyle=meters===1?'rgba(255,187,45,.35)':'rgba(44,224,143,.20)';g.beginPath();g.ellipse(cx,base,meters*1000/maxX*(w*.46),ry,0,Math.PI,Math.PI*2);g.stroke();g.fillStyle='#6fae94';g.font='11px system-ui';g.fillText(`${meters}m`,cx+5,base-ry+12)}g.strokeStyle='rgba(44,224,143,.28)';g.beginPath();g.moveTo(cx,base);g.lineTo(cx,18);g.moveTo(20,base);g.lineTo(w-20,base);g.stroke();radarSweep=(radarSweep+0.09)%(Math.PI*2);let grad=g.createLinearGradient(cx,base,cx+Math.sin(radarSweep)*w,base-Math.cos(radarSweep)*h);grad.addColorStop(0,'rgba(43,255,149,.32)');grad.addColorStop(1,'rgba(43,255,149,0)');g.strokeStyle=grad;g.lineWidth=2;g.beginPath();g.moveTo(cx,base);g.lineTo(cx+Math.sin(radarSweep)*w,base-Math.cos(radarSweep)*h);g.stroke();if(live&&raw!==lastRadarRaw){targets.forEach(t=>{let trail=radarTrails[t.id]||(radarTrails[t.id]=[]),previous=trail.at(-1);if(!previous||previous.x!==t.x||previous.y!==t.y)trail.push({x:t.x,y:t.y,at:Date.now()});radarTrails[t.id]=trail.filter(p=>Date.now()-p.at<12000).slice(-60)});lastRadarRaw=raw}let colors={T1:'#38ff9b',T2:'#19cfff',T3:'#ffcf3c'};Object.entries(radarTrails).forEach(([id,trail])=>{if(trail.length<2)return;g.strokeStyle=colors[id]||'#fff';g.lineWidth=2;g.beginPath();trail.forEach((p,i)=>{let px=cx+p.x/maxX*(w*.46),py=base-p.y/maxY*(h-42);i?g.lineTo(px,py):g.moveTo(px,py)});g.stroke()});targets.forEach(t=>{let px=cx+t.x/maxX*(w*.46),py=base-t.y/maxY*(h-42),color=colors[t.id]||'#fff';g.fillStyle=color;g.shadowColor=color;g.shadowBlur=14;g.beginPath();g.arc(px,py,9,0,Math.PI*2);g.fill();g.shadowBlur=0;g.fillStyle='#eafff5';g.font='bold 12px system-ui';g.fillText(`${t.id} ${Math.hypot(t.x,t.y).toFixed(0)}mm`,px+13,py-4);g.font='11px system-ui';g.fillText(`${t.speed>0?'+':''}${t.speed}cm/s`,px+13,py+11)});if(!live){g.fillStyle='#ff5966';g.font='bold 18px system-ui';g.textAlign='center';g.fillText('RADAR OFFLINE — NO UART FRAMES',cx,h/2);g.textAlign='left'}$('radarCaption').textContent=live?`${targets.length} MOVING TARGET${targets.length===1?'':'S'} • trails show last 12 seconds • forward range 4m`:'Check RD-03D power, GND and crossed TX/RX wiring on /dev/ttyTHS1'}
+async function pollRadar(){try{let d=await fetch('/api/radar',{cache:'no-store'}).then(x=>x.json()),r=d.radar||{},raw=val(r,'radar',''),live=!!r.radar&&r.radar.age<1;drawRadar(raw,live)}catch(e){drawRadar('',false)}}setInterval(pollRadar,125);pollRadar();
+function graph(id,history,color,label){let c=$(id),x=c.getContext('2d'),w=c.width,h=c.height;x.clearRect(0,0,w,h);x.fillStyle='#06101a';x.fillRect(0,0,w,h);x.strokeStyle='#18364d';for(let i=1;i<4;i++){x.beginPath();x.moveTo(0,i*h/4);x.lineTo(w,i*h/4);x.stroke()}if(!history.length)return;let lo=Math.min(...history),hi=Math.max(...history);if(hi-lo<2){lo-=1;hi+=1}x.strokeStyle=color;x.lineWidth=2;x.beginPath();history.forEach((v,i)=>{let px=8+i*(w-16)/Math.max(1,history.length-1),py=h-10-(v-lo)*(h-24)/(hi-lo);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke();x.fillStyle=color;x.font='11px system-ui';x.fillText(`${label} ${history.at(-1).toFixed(1)}°C  MIN ${Math.min(...history).toFixed(1)}  MAX ${Math.max(...history).toFixed(1)}`,7,13)}
+function environment(r){let t={};try{t=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}let pix=Array.isArray(t.pixels)?t.pixels:[],mn=Number(t.min_c),mx=Number(t.max_c),avg=Number(t.avg_c),map=$('heatmap');map.innerHTML='';for(let i=0;i<64;i++){let d=document.createElement('div');d.className='heat';if(pix.length===64){let q=Math.max(0,Math.min(1,(Number(pix[i])-mn)/Math.max(.2,mx-mn)));d.style.background=`hsl(${220-q*220} 88% ${28+q*28}%)`}map.appendChild(d)}let outside=Number(val(r,'outside_temperature',NaN)),humidity=Number(val(r,'outside_humidity',NaN));if(Number.isFinite(avg)){insideHistory.push(avg);insideHistory=insideHistory.slice(-90)}if(Number.isFinite(outside)){outsideHistory.push(outside);outsideHistory=outsideHistory.slice(-90)}$('thermalStats').textContent=Number.isFinite(avg)?`INSIDE AVG ${avg.toFixed(1)}°C • MIN ${mn.toFixed(1)} • MAX ${mx.toFixed(1)}`:val(r,'thermal_status','Inside sensor waiting');$('outsideStats').textContent=Number.isFinite(outside)?`OUTSIDE ${outside.toFixed(1)}°C • HUMIDITY ${n(humidity,0)}%`:`OUTSIDE SENSOR ${val(r,'outside_status','WAITING')}`;graph('insideChart',insideHistory,'#ff8c42','INSIDE');graph('outsideChart',outsideHistory,'#17d5ff','OUTSIDE')}
+function companion(r,s){
+ let state=String(val(r,'companion_state','STANDBY')),rgb=String(val(r,'companion_rgb','BLUE')).toUpperCase();
+ $('companionState').textContent=state;$('companionHeard').textContent=val(r,'companion_transcript','Waiting for voice service');
+ $('companionReply').textContent=val(r,'companion_response','Voice bridge is being prepared');
+ $('companionIntent').textContent=val(r,'companion_intent','None');$('companionAction').textContent=val(r,'companion_action','No action selected');
+ $('companionMode').textContent=val(r,'companion_mode','LOCAL SAFETY');$('companionConfirm').textContent=val(r,'companion_confirmation','NOT REQUIRED');
+ $('companionCloud').textContent=val(r,'companion_cloud',s.openai_configured?'KEY READY':'NOT CONNECTED');$('companionRgb').textContent=rgb;
+ let colors={BLUE:'#198dff',GREEN:'#34e58b',RED:'#ff4655',YELLOW:'#ffcc3d',PURPLE:'#b275ff',WHITE:'#eef7ff'},color=colors[rgb]||'#71869a';
+ $('rgbDot').style.background=color;$('rgbDot').style.color=color;
+ if(!s.voice_usb){$('companionState').textContent='VOICE USB OFFLINE';$('companionState').style.color='#ff4655';$('companionState').style.borderColor='#ff4655'}else{$('companionState').style.color='#17d5ff';$('companionState').style.borderColor='#17d5ff'}
+}
+async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'}).then(x=>x.json()),r=d.ros,net=d.network,s=d.system;
+ renderHealth(r,net);
+ companion(r,s);
+ $('online').textContent='● ONLINE';$('online').style.color='#34e58b';
+ $('ai').textContent=val(r,'ai_status','AI waiting');
+ $('motion').innerHTML=row('Web drive',val(r,'web_drive','STOP'))+row('Odometry',JSON.stringify(val(r,'odom',{})))+row('Encoders',`${val(r,'enc_m1')} / ${val(r,'enc_m2')} / ${val(r,'enc_m3')} / ${val(r,'enc_m4')}`);
+ let li=val(r,'lidar',{}),radarLive=!!r.radar_count&&r.radar_count.age<2.0;$('sensors').innerHTML=card('LiDAR',`${n(li.nearest_m,2)} m`,`${li.points||0} points`)+card('Ultrasonic',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')}`)+card('RD-03D Radar',radarLive?`${val(r,'radar_count')} targets`:'NO SERIAL DATA',radarLive?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:'Check radar power and TX/RX wiring on /dev/ttyTHS1')+card('Compass',`${n(val(r,'imu_heading'),0)}°`,`roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`);
+ $('power').innerHTML=card('Main BMS',`${n(val(r,'bms_percent'),0)}%`,`${n(val(r,'bms_voltage'),2)}V ${n(val(r,'bms_current'),2)}A ${n(val(r,'bms_power'),1)}W • CELLS ${n(val(r,'bms_cell1'),3)} / ${n(val(r,'bms_cell2'),3)} / ${n(val(r,'bms_cell3'),3)} / ${n(val(r,'bms_cell4'),3)}`)+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,`${n(val(r,'bat_current'),2)}A`)+card('Jetson / UPS',`${n(val(r,'ups_bat_percent'),0)}%`,`${n(val(r,'ups_bat_voltage'),2)}V ${n(val(r,'ups_bat_power'),1)}W`)+card('5G HAT',`${n(val(r,'hat_power'),1)}W`,`${n(val(r,'hat_voltage'),2)}V ${n(val(r,'hat_current'),2)}A`);
+ environment(r);
+ $('network').innerHTML=row('Wi-Fi',net.wifi_ip)+row('5G data',net.cell_ip)+row('Tailscale',net.tailscale_ip)+row('Active route',net.route);
+ let fix=val(r,'gps_fix',{});$('gnss').innerHTML=row('Cell signal',`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech')} ${val(r,'cell_operator')}`)+row('Satellites used in fix',val(r,'gps_sats'))+row('GPS fix',fix.status>=0?`${n(fix.lat,6)}, ${n(fix.lon,6)}`:'SEARCHING / NO FIX');renderConstellations(val(r,'gps_const',''));
+ $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('RAM',s.ram)+row('Jetson temp',s.temp)+row('Time',d.time);
+ }catch(e){$('online').textContent='● OFFLINE';$('online').style.color='#ff4655'}}
+refresh();setInterval(refresh,2000);
+</script></body></html>"""
+
+
+if __name__ == "__main__":
+    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

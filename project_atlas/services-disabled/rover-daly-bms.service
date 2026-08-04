@@ -1,0 +1,12 @@
+[Unit]
+Description=Project ATLAS Daly Smart BMS Bluetooth Monitor
+After=bluetooth.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash; source /home/dhruv/tortoisebot_ws/install/setup.bash; exec /usr/bin/python3 /home/dhruv/daly_bms_node.py'
+Restart=always
+RestartSec=8
+
+[Install]
+WantedBy=default.target

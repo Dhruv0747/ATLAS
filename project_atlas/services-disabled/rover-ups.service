@@ -1,0 +1,14 @@
+[Unit]
+Description=Rover UPS Battery Monitor
+After=network.target
+
+[Service]
+ExecStartPre=/bin/sleep 15
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/ups_node.py'
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/tmp/rover-ups.log
+StandardError=append:/tmp/rover-ups.log
+
+[Install]
+WantedBy=default.target

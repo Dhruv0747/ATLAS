@@ -1,0 +1,22 @@
+[Unit]
+Description=ATLAS 7-inch Rover Cockpit Dashboard
+After=default.target
+
+[Service]
+Type=simple
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=SDL_VIDEODRIVER=wayland
+WorkingDirectory=/home/dhruv
+ExecStartPre=/bin/sleep 12
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash; source /home/dhruv/tortoisebot_ws/install/setup.bash; python3 /home/dhruv/rover_dashboard.py'
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=2
+KillMode=mixed
+FinalKillSignal=SIGKILL
+StandardOutput=append:/tmp/dashboard.log
+StandardError=append:/tmp/dashboard.log
+
+[Install]
+WantedBy=default.target

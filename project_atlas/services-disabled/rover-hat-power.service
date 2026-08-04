@@ -1,0 +1,12 @@
+[Unit]
+Description=Rover PCIe HAT INA219 power monitor
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/hat_power_node.py'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

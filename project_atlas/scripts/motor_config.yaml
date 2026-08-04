@@ -1,0 +1,37 @@
+# TortoiseBot Motor Configuration
+# ST3215-HS Serial Bus Servo Motors via Waveshare Driver Board
+# IDs are stored in each servo EEPROM - they survive power cycles automatically
+
+motors:
+  left_front:
+    id: 1
+    port: 1
+    position: left-front
+    direction: forward_positive
+
+  left_rear:
+    id: 2
+    port: 1
+    position: left-rear
+    direction: forward_positive
+
+  right_front:
+    id: 3
+    port: 2
+    position: right-front
+    direction: forward_negative
+
+  right_rear:
+    id: 4
+    port: 2
+    position: right-rear
+    direction: forward_negative
+
+serial:
+  port: /dev/waveshare_servo
+  baudrate: 1000000
+  protocol: STS/Feetech
+
+wiring:
+  port1: ID1 (left-front) -> daisy-chain -> ID2 (left-rear)
+  port2: ID3 (right-front) -> daisy-chain -> ID4 (right-rear)

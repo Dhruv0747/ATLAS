@@ -1,0 +1,13 @@
+[Unit]
+Description=Project ATLAS AMG8833 Thermal Imager Node
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash; source /home/dhruv/tortoisebot_ws/install/setup.bash; exec python3 /home/dhruv/amg8833_thermal_node.py'
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

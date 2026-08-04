@@ -1,0 +1,7 @@
+ydlidar_node:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    frame_id: laser_frame
+    baudrate: 128000
+    lidar_type: 1
+    ignore_array: ""

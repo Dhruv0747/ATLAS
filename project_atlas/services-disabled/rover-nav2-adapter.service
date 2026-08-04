@@ -1,0 +1,13 @@
+[Unit]
+Description=Project ATLAS Nav2 cmd_vel adapter for steering rover
+After=rover-base.service
+Wants=rover-base.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/nav2_cmd_adapter.py'
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

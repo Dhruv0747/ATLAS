@@ -1,0 +1,14 @@
+[Unit]
+Description=Project ATLAS local status and control web page
+After=network-online.target
+
+[Service]
+TimeoutStopSec=5
+KillMode=mixed
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash; source /home/dhruv/tortoisebot_ws/install/setup.bash 2>/dev/null || true; exec /usr/bin/python3 /home/dhruv/atlas_status_web.py'
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

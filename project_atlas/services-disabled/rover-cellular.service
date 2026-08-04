@@ -1,0 +1,13 @@
+[Unit]
+Description=Rover SIM8230 Cellular and GNSS Telemetry
+
+[Service]
+Type=simple
+ExecStartPre=/bin/sleep 20
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/cellular_telemetry.py'
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

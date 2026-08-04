@@ -1,0 +1,14 @@
+[Unit]
+Description=Project ATLAS VC-02 Offline Voice Command Bridge
+After=rover-base.service
+Wants=rover-base.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash; source /home/dhruv/tortoisebot_ws/install/setup.bash; exec python3 /home/dhruv/vc02_voice_node.py'
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

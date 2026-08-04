@@ -1,0 +1,12 @@
+[Unit]
+Description=Nav2 start/stop ROS2 service for Foxglove
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && python3 /home/dhruv/nav2_service.py'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

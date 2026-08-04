@@ -1,0 +1,12 @@
+[Unit]
+Description=ATLAS Arduino Ultrasonic ROS2 Bridge
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash; source /home/dhruv/tortoisebot_ws/install/setup.bash; python3 /home/dhruv/ultrasonic_arduino_bridge.py'
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

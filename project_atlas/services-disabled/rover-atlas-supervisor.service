@@ -1,0 +1,14 @@
+[Unit]
+Description=Project ATLAS Pi5 supervisor, health, and Foxglove radar markers
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash; source /home/dhruv/tortoisebot_ws/install/setup.bash 2>/dev/null || true; exec /usr/bin/python3 /home/dhruv/atlas_supervisor.py'
+Restart=always
+RestartSec=3
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=default.target

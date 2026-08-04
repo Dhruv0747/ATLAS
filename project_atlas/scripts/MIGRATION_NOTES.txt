@@ -1,0 +1,45 @@
+Project ATLAS Migration Notes - 2026-07-21
+FROM: Raspberry Pi 5 (Ubuntu 24.04)
+TO:   Jetson Orin Nano Super (order TR/2026-27/0739-KR)
+
+BACKUP CONTENTS (atlas_backup/)
+  scripts/   - all Python nodes + shell scripts
+  services/  - systemd rover-*.service files
+  maps/      - my_map.pgm + yaml + data (saved SLAM map)
+  config/    - yaml configs
+  ros2_ws/   - full ROS2 workspace source
+
+KEY SCRIPTS
+  atlas_status_web.py    - dashboard port 8088
+  yahboom_base.py        - motors /dev/ttyUSB0 JSON protocol
+  rd03d_node.py          - 24GHz radar /dev/ttyAMA0 timeout=0 required
+  radar_avoidance.py     - obstacle stop <400mm
+  tof_center_node.py     - VL53L0X center TOF
+  tof_front_node.py      - VL53L0X front TOF
+  explore.py             - autonomous SLAM
+  yolov8n.onnx           - YOLO model (convert to TensorRT on Jetson)
+
+JETSON SETUP STEPS
+  1. Flash JetPack 6.x (Ubuntu 22.04)
+  2. Install ROS2 Humble (NOT Jazzy - not supported on Jetson)
+  3. pip3 install adafruit-circuitpython-bno08x vl53l0x ina260 ssd1306 smbus2
+  4. GPIO: replace RPi.GPIO imports with Jetson.GPIO
+  5. I2C: check bus numbers with i2cdetect -l
+  6. Camera: use GStreamer pipeline - nvarguscamerasrc for CSI camera
+  7. Serial: /dev/ttyUSB0 Yahboom, check radar ttyAMA path
+  8. YOLO: yolo export model=yolov8n.pt format=engine device=0
+
+SERVICES TO ENABLE
+  rover-base rover-avoidance rover-dashboard rover-status-web
+  rover-imu rover-radar rover-camera rover-tof rover-tof-front
+  rover-safety rover-teleop rover-thermal rover-gimbal rover-joy
+
+KNOWN ISSUES TO FIX ON JETSON
+  - Radar canvas visualization (drawRadar canvas scope bug)
+  - INA260 battery = 0% (A0 pin needs rewiring)
+  - GPS 0 satellites
+  - RD03D radar intermittent frame faults
+
+NETWORK
+  Install Tailscale on Jetson, login same account
+  Dashboard: python3 atlas_status_web.py (port 8088)
