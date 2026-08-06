@@ -47,7 +47,9 @@ def air_quality_label(iaq):
     return 'HAZARDOUS'
 
 # -- Object detection (YOLOv8n background thread) --------------------------
-ENABLE_YOLO = True
+# Object inference is owned by ai_annotator_node.  The HMI consumes that
+# node's detection JSON instead of loading a second TensorRT engine.
+ENABLE_YOLO = False
 AI_ACTIVE = True
 _detect_model    = None
 _detect_results  = []
@@ -185,6 +187,7 @@ class DashNode(Node):
         S(String,  '/voice/vc02/status',   lambda m: DATA.set(voice_status=m.data), 10)
         S(String,  '/voice/vc02/raw',      lambda m: DATA.set(voice_raw=m.data), 10)
         S(Bool,    '/atlas/ai_enabled',     self._ai_enabled, 10)
+        S(String,  '/camera/detections/json', self._detections, 10)
         S(String,  '/atlas/camera_tracking/status', self._tracking_status, 10)
         S(Int32,   '/camera/bottom_servo_us', lambda m: DATA.set(camera_pan_us=m.data), 10)
         S(Int32,   '/camera/second_servo_us', lambda m: DATA.set(camera_tilt_us=m.data), 10)
@@ -257,6 +260,32 @@ class DashNode(Node):
         text = message.data or ''
         DATA.set(face_tracking_status=text,
                  face_tracking_enabled=not text.startswith('OFF:'))
+
+    def _detections(self, message):
+        global _detect_results, _detect_result_size
+        try:
+            payload = json.loads(message.data or '{}')
+            width = max(1, int(payload.get('width', 1)))
+            height = max(1, int(payload.get('height', 1)))
+            converted = []
+            for item in payload.get('detections', []):
+                box = item.get('bbox', item.get('box', []))
+                if isinstance(box, dict):
+                    x1, y1 = box.get('x1', 0), box.get('y1', 0)
+                    x2, y2 = box.get('x2', 0), box.get('y2', 0)
+                elif len(box) >= 4:
+                    x1, y1, x2, y2 = box[:4]
+                else:
+                    continue
+                converted.append((float(x1), float(y1), float(x2), float(y2),
+                                  str(item.get('label', item.get('class', 'object'))),
+                                  float(item.get('confidence', item.get('score', 0.0)))))
+            with _detect_lock:
+                _detect_results = converted
+                _detect_result_size = (width, height)
+            DATA.set(ai_detection_count=len(converted))
+        except Exception:
+            DATA.set(ai_detection_count=0)
 
     def _recovery_state(self, message):
         try:
@@ -1763,8 +1792,7 @@ def draw_touch_camera(rect):
     if cam_frame is not None:
         frame=cv2.resize(cam_frame,(feed.w,feed.h))
         screen.blit(pygame.surfarray.make_surface(np.rot90(frame)),feed.topleft)
-        if ENABLE_YOLO and AI_ACTIVE:
-            with _detect_frame_lk: _detect_frame=cam_frame.copy()
+        if AI_ACTIVE:
             with _detect_lock:
                 detections=list(_detect_results); sw,sh=_detect_result_size
             for x1,y1,x2,y2,label,confidence in detections:
@@ -2330,7 +2358,9 @@ while True:
 
     draw_touch_dashboard()
     pygame.display.flip()
-    clock.tick(12)
+    # Eight full-HD refreshes per second are sufficient for telemetry and
+    # touch feedback, while leaving CPU headroom for Nav2/SLAM and vision.
+    clock.tick(8)
     continue
 
     screen.fill(BG)
