@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """rover_dashboard.py ??? Professional Rover HMI  (Pi 5 ?? 1024??600)"""
 import os, sys, time, math, json, threading, subprocess
+# This HMI has no text-entry controls.  Prevent SDL/GNOME from summoning the
+# integrated on-screen keyboard when the capacitive touchscreen is used.
+os.environ.setdefault('SDL_HINT_ENABLE_SCREEN_KEYBOARD', '0')
+os.environ.setdefault('SDL_ENABLE_SCREEN_KEYBOARD', '0')
+os.environ.setdefault('SDL_HINT_IME_SHOW_UI', '0')
+os.environ.setdefault('GTK_IM_MODULE', 'xim')
 import pygame, cv2, numpy as np, psutil
 
 # ?????? ROS 2 ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
@@ -133,6 +139,7 @@ class DashNode(Node):
         S(Float32, '/yahboom/imu/heading', lambda m: DATA.set(yb_heading=m.data), 10)
         S(Float32, '/yahboom/imu/roll',    lambda m: DATA.set(yb_roll=m.data),    10)
         S(Float32, '/yahboom/imu/pitch',   lambda m: DATA.set(yb_pitch=m.data),   10)
+        S(String,  '/imu/dashboard_json',  self._imu_dashboard, 10)
         # Power ??? tolerate up to 10s between publishes
         S(Float32, '/battery/voltage', lambda m: DATA.set(voltage=m.data),  10)
         S(Float32, '/battery/current', lambda m: DATA.set(current=m.data),  10)
@@ -256,6 +263,12 @@ class DashNode(Node):
             DATA.set(recovery_state=json.loads(message.data or '{}'))
         except Exception:
             DATA.set(recovery_state={})
+
+    def _imu_dashboard(self, message):
+        try:
+            DATA.set(imu_full=json.loads(message.data or '{}'))
+        except Exception:
+            DATA.set(imu_full={})
 
     def _thermal(self, m):
         try:
@@ -2010,6 +2023,85 @@ def draw_live_sensor_detail(rect, name, info):
 
     if name in ('ambient', 'thermal'):
         draw_environment_panel(rect.x+34, rect.y+92, rect.w-68, rect.h-128)
+    elif name == 'ultrasonic':
+        labels = [('LEFT', 'us_left'), ('FRONT', 'us_front'), ('RIGHT', 'us_right')]
+        gap = 18
+        card_w = (rect.w - 68 - gap*2)//3
+        top = rect.y + 125
+        for index, (label, key) in enumerate(labels):
+            value = DATA.get(key, -1)
+            valid = fresh(key, 4.0) and value is not None and float(value) >= 0
+            mm = float(value) if valid else -1.0
+            _, sensor_color = sensor_word(mm, valid)
+            tile = pygame.Rect(rect.x+34+index*(card_w+gap), top, card_w, 310)
+            pygame.draw.rect(screen, (7, 21, 32), tile, border_radius=12)
+            pygame.draw.rect(screen, sensor_color, tile, 2, border_radius=12)
+            title = F24.render(label, True, WHITE)
+            screen.blit(title, title.get_rect(center=(tile.centerx, tile.y+42)))
+            value_text = 'NO ECHO' if not valid else f'{mm:.0f} mm'
+            reading = F30.render(value_text, True, sensor_color)
+            screen.blit(reading, reading.get_rect(center=(tile.centerx, tile.y+112)))
+            zone = 'FAULT / NO DATA' if not valid else ('STOP ZONE' if mm < 250 else ('CAUTION' if mm < 500 else 'CLEAR'))
+            zone_text = F17.render(zone, True, sensor_color)
+            screen.blit(zone_text, zone_text.get_rect(center=(tile.centerx, tile.y+165)))
+            bar = pygame.Rect(tile.x+32, tile.y+215, tile.w-64, 28)
+            pygame.draw.rect(screen, (20, 39, 51), bar, border_radius=8)
+            if valid:
+                fill = int(max(0, min(1, mm/3000.0))*bar.w)
+                pygame.draw.rect(screen, sensor_color, (bar.x, bar.y, fill, bar.h), border_radius=8)
+            hud_label(f'AGE {DATA.age(key):.1f}s', tile.x+32, tile.y+268, DIM, F13, tile.w-64)
+        hud_label('LiDAR is the primary navigation layer; these three sensors provide close-range backup protection.',
+                  rect.x+34, rect.bottom-48, ACCENT, F14, rect.w-68)
+    elif name == 'camera':
+        feed = pygame.Rect(rect.x+34, rect.y+102, int(rect.w*.70), rect.h-165)
+        pygame.draw.rect(screen, (0, 0, 0), feed, border_radius=10)
+        cam_frame = None
+        with _dash_node._cam_lock:
+            if _dash_node._cam_frame is not None:
+                cam_frame = _dash_node._cam_frame.copy()
+        if cam_frame is not None:
+            frame = cv2.resize(cam_frame, (feed.w, feed.h))
+            screen.blit(pygame.surfarray.make_surface(np.rot90(frame)), feed.topleft)
+            pygame.draw.rect(screen, GREEN, feed, 2, border_radius=10)
+        else:
+            msg = F24.render('NO CAMERA SIGNAL', True, RED)
+            screen.blit(msg, msg.get_rect(center=feed.center))
+            pygame.draw.rect(screen, RED, feed, 2, border_radius=10)
+        side_x = feed.right + 28
+        touch_value('STREAM', 'LIVE' if fresh('camera_frame_ok', 4) else 'STALE', side_x, rect.y+125,
+                    GREEN if fresh('camera_frame_ok', 4) else RED, rect.right-side_x-24)
+        touch_value('AI DETECTION', 'ON' if DATA.get('ai_enabled', AI_ACTIVE) else 'OFF', side_x, rect.y+220,
+                    GREEN if DATA.get('ai_enabled', AI_ACTIVE) else YELLOW, rect.right-side_x-24)
+        with _detect_lock:
+            detection_count = len(_detect_results)
+        touch_value('OBJECTS', str(detection_count), side_x, rect.y+315, ACCENT, rect.right-side_x-24)
+        touch_value('FACE TRACKING', 'ON' if DATA.get('face_tracking_enabled', True) else 'OFF', side_x, rect.y+410,
+                    GREEN if DATA.get('face_tracking_enabled', True) else YELLOW, rect.right-side_x-24)
+        hud_label(str(DATA.get('face_tracking_status', 'waiting'))[:48], side_x, rect.y+485, DIM, F13, rect.right-side_x-24)
+    elif name == 'imu':
+        imu = DATA.get('imu_full', {}) or {}
+        values = [
+            ('ROLL', DATA.get('roll', imu.get('roll', 0)), 'deg'),
+            ('PITCH', DATA.get('pitch', imu.get('pitch', 0)), 'deg'),
+            ('HEADING', DATA.get('heading', imu.get('heading', 0)), 'deg'),
+            ('ACCEL X', imu.get('ax', 0), 'm/s2'), ('ACCEL Y', imu.get('ay', 0), 'm/s2'),
+            ('ACCEL Z', imu.get('az', 0), 'm/s2'), ('GYRO X', imu.get('gx', 0), 'rad/s'),
+            ('GYRO Y', imu.get('gy', 0), 'rad/s'), ('GYRO Z', imu.get('gz', 0), 'rad/s'),
+            ('MAG X', imu.get('mx', 0), 'uT'), ('MAG Y', imu.get('my', 0), 'uT'),
+            ('MAG Z', imu.get('mz', 0), 'uT'),
+        ]
+        cols = 3; gap = 14; left = rect.x+34; top = rect.y+115
+        card_w = (rect.w-68-gap*(cols-1))//cols; card_h = 105
+        for index, (label, value, unit) in enumerate(values):
+            row, col = divmod(index, cols)
+            tile = pygame.Rect(left+col*(card_w+gap), top+row*(card_h+gap), card_w, card_h)
+            pygame.draw.rect(screen, (8, 22, 34), tile, border_radius=8)
+            pygame.draw.rect(screen, GREEN if fresh('imu_full', 4) else RED, tile, 1, border_radius=8)
+            hud_label(label, tile.x+16, tile.y+13, DIM, F13, tile.w-32)
+            hud_label(f'{float(value or 0):+.3f} {unit}', tile.x+16, tile.y+48, WHITE, F17, tile.w-32)
+        hud_label(f'MOTOR-BOARD IMU COMPARISON: roll {float(DATA.get("yb_roll",0) or 0):+.1f} deg  '
+                  f'pitch {float(DATA.get("yb_pitch",0) or 0):+.1f} deg  heading {float(DATA.get("yb_heading",0) or 0):.1f} deg',
+                  rect.x+34, rect.bottom-45, ACCENT, F14, rect.w-68)
     elif name == 'lidar':
         plot = pygame.Rect(rect.x+34, rect.y+105, int(rect.w*.60), rect.h-180)
         pygame.draw.rect(screen, (3,14,22), plot, border_radius=10); pygame.draw.rect(screen, BORDER, plot, 1, border_radius=10)
@@ -2228,6 +2320,7 @@ def handle_touch_event(event):
         if now-TOUCH_LAST_ACTION<0.18: return
         TOUCH_LAST_ACTION=now; do_touch_action(key)
 while True:
+    pygame.key.stop_text_input()
     for ev in pygame.event.get():
         if ev.type == pygame.QUIT:
             sys.exit()
