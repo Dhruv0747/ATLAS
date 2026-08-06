@@ -4,6 +4,7 @@ import ipaddress
 import os
 import json
 import math
+import re
 import subprocess
 import threading
 import time
@@ -17,7 +18,7 @@ import rclpy
 from rclpy.qos import qos_profile_sensor_data
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import NavSatFix, LaserScan, CompressedImage, Image, Joy
+from sensor_msgs.msg import NavSatFix, LaserScan, CompressedImage, Joy
 from std_msgs.msg import Bool, Float32, String, Int32
 
 PORT = 8088
@@ -124,17 +125,8 @@ class AtlasRosNode:
                 Bool, "/atlas/ai_enabled", 10
             )
             n = self.node
-            n.create_subscription(Float32, "/ultrasonic/front_mm", lambda m: self._set("us_front", m.data), 10)
-            n.create_subscription(Float32, "/ultrasonic/left_mm", lambda m: self._set("us_left", m.data), 10)
-            n.create_subscription(Float32, "/ultrasonic/right_mm", lambda m: self._set("us_right", m.data), 10)
-            n.create_subscription(String, "/ultrasonic/status", lambda m: self._set("us_status", m.data), 10)
-            n.create_subscription(String, "/radar/targets", lambda m: self._set("radar", m.data), 10)
-            n.create_subscription(Float32, "/radar/target_count", lambda m: self._set("radar_count", m.data), 10)
-            n.create_subscription(Float32, "/radar/nearest_distance", lambda m: self._set("radar_dist", m.data), 10)
-            n.create_subscription(Float32, "/radar/nearest_x", lambda m: self._set("radar_x", m.data), 10)
-            n.create_subscription(Float32, "/radar/nearest_y", lambda m: self._set("radar_y", m.data), 10)
-            n.create_subscription(Float32, "/radar/nearest_speed", lambda m: self._set("radar_speed", m.data), 10)
-            n.create_subscription(String, "/radar/zone", lambda m: self._set("radar_zone", m.data), 10)
+            n.create_subscription(String, "/ultrasonic/status", self._ultrasonic_status_cb, 10)
+            n.create_subscription(String, "/radar/targets", self._radar_targets_cb, 10)
             n.create_subscription(String, "/thermal/amg8833/status", lambda m: self._set("thermal_status", m.data), 10)
             n.create_subscription(String, "/thermal/amg8833/json", lambda m: self._set("thermal_json", m.data), 10)
             n.create_subscription(
@@ -147,6 +139,24 @@ class AtlasRosNode:
                 Float32,
                 "/environment/outside_humidity_pct",
                 lambda m: self._set("outside_humidity", m.data),
+                10,
+            )
+            n.create_subscription(
+                Float32,
+                "/environment/pressure_hpa",
+                lambda m: self._set("outside_pressure", m.data),
+                10,
+            )
+            n.create_subscription(
+                Float32,
+                "/environment/gas_resistance_ohm",
+                lambda m: self._set("outside_gas", m.data),
+                10,
+            )
+            n.create_subscription(
+                String,
+                "/environment/bme680/json",
+                lambda m: self._set("bme680_json", m.data),
                 10,
             )
             n.create_subscription(
@@ -189,10 +199,10 @@ class AtlasRosNode:
             n.create_subscription(Float32, "/gps/satellites", lambda m: self._set("gps_sats", m.data), 10)
             n.create_subscription(Float32, "/gps/hdop", lambda m: self._set("gps_hdop", m.data), 10)
             n.create_subscription(String, "/gps/constellations", lambda m: self._set("gps_const", m.data), 10)
-            n.create_subscription(Float32, "/imu/heading", lambda m: self._set("imu_heading", m.data), 10)
-            n.create_subscription(Float32, "/imu/roll", lambda m: self._set("imu_roll", m.data), 10)
-            n.create_subscription(Float32, "/imu/pitch", lambda m: self._set("imu_pitch", m.data), 10)
-            n.create_subscription(Float32, "/imu/yaw", lambda m: self._set("imu_yaw", m.data), 10)
+            n.create_subscription(String, "/imu/dashboard_json", self._imu_dashboard_cb, 10)
+            n.create_subscription(Float32, "/yahboom/imu/roll", lambda m: self._set("board_imu_roll", m.data), 10)
+            n.create_subscription(Float32, "/yahboom/imu/pitch", lambda m: self._set("board_imu_pitch", m.data), 10)
+            n.create_subscription(Float32, "/yahboom/imu/heading", lambda m: self._set("board_imu_heading", m.data), 10)
             n.create_subscription(Float32, "/motor_speed", lambda m: self._set("motor_speed", m.data), 10)
             n.create_subscription(Int32, "/yahboom/encoder/m1", lambda m: self._set("enc_m1", m.data), 10)
             n.create_subscription(Int32, "/yahboom/encoder/m2", lambda m: self._set("enc_m2", m.data), 10)
@@ -200,7 +210,6 @@ class AtlasRosNode:
             n.create_subscription(Int32, "/yahboom/encoder/m4", lambda m: self._set("enc_m4", m.data), 10)
             n.create_subscription(LaserScan, "/scan", self._scan_cb, qos_profile_sensor_data)
             n.create_subscription(CompressedImage, "/camera/image_raw/compressed", self._camera_cb, qos_profile_sensor_data)
-            n.create_subscription(Image, "/camera/image_raw", self._raw_camera_cb, qos_profile_sensor_data)
             n.create_subscription(Float32, "/steering/front_angle_deg", lambda m: self._set("front_steer", m.data), 10)
             n.create_subscription(Float32, "/steering/rear_angle_deg", lambda m: self._set("rear_steer", m.data), 10)
             n.create_subscription(String, "/steering/mode", lambda m: self._set("steer_mode", m.data), 10)
@@ -252,6 +261,90 @@ class AtlasRosNode:
             "vx": msg.twist.twist.linear.x,
             "wz": msg.twist.twist.angular.z,
         })
+
+    def _ultrasonic_status_cb(self, msg):
+        now = time.time()
+        values = dict(re.findall(r"(front|left|right)=(-?\d+)", msg.data))
+        with self.lock:
+            self.data["us_status"] = {"value": msg.data, "ts": now}
+            if values:
+                self.data["us_front"] = {"value": float(values.get("front", -1)), "ts": now}
+                # Arduino LEFT/RIGHT fields are mirrored on the installed rover.
+                self.data["us_left"] = {"value": float(values.get("right", -1)), "ts": now}
+                self.data["us_right"] = {"value": float(values.get("left", -1)), "ts": now}
+
+    def _radar_targets_cb(self, msg):
+        targets = []
+        for part in msg.data.split("|"):
+            match = re.search(r"x=(-?\d+)mm,y=(-?\d+)mm,spd=(-?\d+)cm/s", part)
+            if not match:
+                continue
+            x, y, speed = (float(v) for v in match.groups())
+            if y > 0:
+                targets.append((math.hypot(x, y), x, y, speed))
+        if targets:
+            distance, x, y, speed = min(targets, key=lambda item: item[0])
+            zone = "DANGER" if distance < 500 else "CAUTION" if distance < 1000 else "CLEAR"
+        else:
+            distance, x, y, speed, zone = -1.0, 0.0, 0.0, 0.0, "NO_TARGET"
+        now = time.time()
+        with self.lock:
+            for key, value in (
+                ("radar", msg.data), ("radar_count", float(len(targets))),
+                ("radar_dist", distance), ("radar_x", x), ("radar_y", y),
+                ("radar_speed", speed), ("radar_zone", zone),
+            ):
+                self.data[key] = {"value": value, "ts": now}
+
+    def _imu_cb(self, msg):
+        self._set("imu_full", {
+            "qx": msg.orientation.x,
+            "qy": msg.orientation.y,
+            "qz": msg.orientation.z,
+            "qw": msg.orientation.w,
+            "gx": msg.angular_velocity.x,
+            "gy": msg.angular_velocity.y,
+            "gz": msg.angular_velocity.z,
+            "ax": msg.linear_acceleration.x,
+            "ay": msg.linear_acceleration.y,
+            "az": msg.linear_acceleration.z,
+            "frame": msg.header.frame_id,
+        })
+
+    def _mag_cb(self, msg):
+        self._set("imu_mag", {
+            "x_ut": msg.magnetic_field.x * 1e6,
+            "y_ut": msg.magnetic_field.y * 1e6,
+            "z_ut": msg.magnetic_field.z * 1e6,
+            "frame": msg.header.frame_id,
+        })
+
+    def _imu_dashboard_cb(self, msg):
+        try:
+            data = json.loads(msg.data)
+        except Exception:
+            return
+        now = time.time()
+        full = {k: data.get(k) for k in (
+            "qx", "qy", "qz", "qw", "gx", "gy", "gz",
+            "ax", "ay", "az", "frame"
+        )}
+        mag = {
+            "x_ut": data.get("mx_ut"),
+            "y_ut": data.get("my_ut"),
+            "z_ut": data.get("mz_ut"),
+            "frame": data.get("frame"),
+        }
+        with self.lock:
+            for key, value in (
+                ("imu_heading", data.get("heading")),
+                ("imu_roll", data.get("roll")),
+                ("imu_pitch", data.get("pitch")),
+                ("imu_yaw", data.get("yaw")),
+                ("imu_full", full),
+                ("imu_mag", mag),
+            ):
+                self.data[key] = {"value": value, "ts": now}
 
     def _scan_cb(self, msg):
         now = time.time()
@@ -565,12 +658,30 @@ def system_status():
     }
 
 
+_slow_cache_lock = threading.Lock()
+_slow_cache = {"ts": 0.0, "network": {}, "system": {}, "services": {}}
+
+
 def snapshot():
+    # Network discovery, top/free and systemctl previously ran independently
+    # for every connected dashboard.  CrowPanel + browser + diagnostics could
+    # therefore launch dozens of subprocesses per second.  Share a short cache
+    # while keeping ROS sensor values fresh on every response.
+    now = time.monotonic()
+    with _slow_cache_lock:
+        if now - _slow_cache["ts"] >= 2.0:
+            _slow_cache["network"] = network_status()
+            _slow_cache["system"] = system_status()
+            _slow_cache["services"] = services()
+            _slow_cache["ts"] = now
+        network = dict(_slow_cache["network"])
+        system = dict(_slow_cache["system"])
+        service_state = dict(_slow_cache["services"])
     return {
         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "network": network_status(),
-        "system": system_status(),
-        "services": services(),
+        "network": network,
+        "system": system,
+        "services": service_state,
         "ros": ROS.snapshot(),
         "todo": TODO,
     }
@@ -711,7 +822,10 @@ class Handler(BaseHTTPRequestHandler):
                     if frame:
                         self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(frame)).encode() + b"\r\n\r\n" + frame + b"\r\n")
                         self.wfile.flush()
-                    time.sleep(0.05)
+                    # The camera publisher is 10 FPS.  Sending the same JPEG at
+                    # 20 FPS wastes CPU and Wi-Fi bandwidth without reducing
+                    # visual latency.
+                    time.sleep(0.10)
                 except (BrokenPipeError, ConnectionResetError, TimeoutError):
                     break
             return
@@ -855,7 +969,7 @@ header img{width:42px;height:42px;object-fit:contain}h1{font-size:16px;margin:0;
 h2{font-size:11px;letter-spacing:.8px;color:var(--cyan);margin:0 0 7px}.camera{width:100%;height:min(56vh,560px);object-fit:contain;background:#000;border-radius:7px}
 .drive,.camctl{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.btn{border:1px solid #315a78;background:#102b42;color:#fff;border-radius:7px;padding:13px 5px;font-weight:700;touch-action:none;user-select:none}
 .btn:active,.btn.on{background:#15527b;border-color:var(--cyan);box-shadow:0 0 14px rgba(23,213,255,.25)}.stop{background:#8b1521;border-color:#ff5966;font-size:16px}.ai-off{background:#54420d}.ai-on{background:#0c6542}
-.cards{display:grid;grid-template-columns:1fr 1fr;gap:6px}.card{background:#081522;border-radius:7px;padding:8px}.label{font-size:10px;color:var(--muted)}.value{font-size:16px;font-weight:750;margin-top:2px}.detail{font-size:10px;color:#aac0d1;margin-top:2px;word-break:break-word}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:6px}.card{background:#081522;border-radius:7px;padding:8px}.card.touch{border:1px solid #214761;cursor:pointer;touch-action:manipulation}.card.touch:active{border-color:var(--cyan);background:#0d2b40}.label{font-size:10px;color:var(--muted)}.value{font-size:16px;font-weight:750;margin-top:2px}.detail{font-size:10px;color:#aac0d1;margin-top:2px;word-break:break-word}
 .row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #173047;min-width:0}.row span:first-child{color:var(--muted)}.row span:last-child{text-align:right;overflow-wrap:anywhere;min-width:0}
 .envgrid{display:grid;grid-template-columns:130px 1fr;gap:8px}.heatmap{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;aspect-ratio:1}.heat{border-radius:2px;background:#112436}.chart{width:100%;height:82px;background:#06101a;border:1px solid #18364d;border-radius:6px}
 .radarScope{width:100%;height:min(36vh,340px);background:#020b09;border:1px solid #146044;border-radius:8px;box-shadow:inset 0 0 28px rgba(24,255,143,.08)}
@@ -874,6 +988,8 @@ section.col:nth-of-type(3) .panel:has(#heatmap){order:-3;border-color:#34e58b}
 section.col:nth-of-type(3) .panel:has(#healthGrid){order:-2}
 section.col:nth-of-type(3) .panel:has(#power){order:-1}
 #toast{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:#122b40;border:1px solid var(--cyan);padding:8px 14px;border-radius:20px;display:none;z-index:8}
+.sensorModal{display:none;position:fixed;inset:0;z-index:20;background:rgba(0,5,10,.88);padding:3vh 3vw}.sensorModal.open{display:flex}.sensorSheet{width:min(980px,94vw);max-height:94vh;margin:auto;overflow:auto;background:#07131f;border:2px solid var(--cyan);border-radius:14px;padding:14px;box-shadow:0 0 38px rgba(23,213,255,.28)}.sensorHead{display:flex;align-items:center;gap:10px;border-bottom:1px solid #214761;padding-bottom:9px;margin-bottom:10px}.sensorHead h2{font-size:18px;margin:0}.closeDetail{margin-left:auto;background:#7f1722;border:1px solid #ff5966;color:#fff;border-radius:8px;padding:10px 18px;font-weight:800}.detailGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.detailTile{background:#0b1d2c;border:1px solid #214761;border-radius:9px;padding:10px}.detailTile b{display:block;color:var(--cyan);font-size:11px}.detailTile strong{display:block;font-size:22px;margin-top:5px}.rangeBar{height:18px;background:#13283a;border-radius:9px;overflow:hidden;margin-top:8px}.rangeFill{height:100%;background:linear-gradient(90deg,#ff4655,#ffcc3d,#34e58b);transition:width .25s}.modalCamera{width:100%;max-height:65vh;object-fit:contain;background:#000;border-radius:8px}.modalHeat{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;max-width:460px;aspect-ratio:1;margin:auto}.modalHeat i{display:block;border-radius:3px}.rawData{font:12px ui-monospace,monospace;white-space:pre-wrap;color:#bcd3e5;background:#040a12;border-radius:8px;padding:10px;margin-top:9px}.sensorHint{color:#8ca6bb;font-size:11px;margin-top:8px}
+@media(max-width:700px){.detailGrid{grid-template-columns:1fr}.sensorModal{padding:1vh 2vw}.sensorSheet{max-height:98vh}}
 @media(max-width:900px){.grid{display:block;height:auto;width:100%;overflow:hidden}.col,.panel{overflow:visible;margin-bottom:8px;min-width:0}.camera{height:42vh}.envgrid{grid-template-columns:1fr}.heatmap{max-width:180px}canvas{max-width:100%}header .sub{display:none}}
 @media(min-width:1500px){body{font-size:15px}.grid{grid-template-columns:minmax(300px,20vw) minmax(600px,1fr) minmax(350px,23vw)}.camera{height:min(52vh,610px)}.speechText{font-size:16px}}
 @media(max-width:1150px) and (min-width:901px){.grid{grid-template-columns:265px minmax(390px,1fr) 295px}.companionGrid{grid-template-columns:1fr}.companionStatus{grid-template-columns:1fr 1fr}}
@@ -897,7 +1013,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
  <div class="panel"><h2>MOTION / ENCODERS</h2><div id="motion"></div></div>
 </section>
 <section class="col">
- <div class="panel"><h2>LIVE CAMERA — 720P LOW LATENCY</h2><img class="camera" id="camera" src="/camera.mjpg"></div>
+ <div class="panel"><h2>LIVE CAMERA — 720P LOW LATENCY <button class="btn" style="float:right;padding:5px 9px" onclick="openDetail('camera')">OPEN DATA</button></h2><img class="camera" id="camera" src="/camera.mjpg" onclick="openDetail('camera')"></div>
  <div class="panel companion"><div class="companionHead"><h2>ATLAS COMPANION / DEVELOPER</h2><div class="companionState" id="companionState">STANDBY</div></div>
   <div class="companionGrid">
    <div class="speech you"><div class="label">YOU SAID / HEARD</div><div class="speechText" id="companionHeard">Waiting for voice service</div></div>
@@ -919,17 +1035,18 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
  <div class="panel"><div class="healthhead"><h2>HARDWARE HEALTH / FAULT FINDER</h2><div class="healthsummary" id="healthSummary">CHECKING</div></div><div class="healthgrid" id="healthGrid"></div></div>
  <div class="panel"><h2>POWER</h2><div class="cards" id="power"></div></div>
  <div class="panel"><h2>ENVIRONMENT — INSIDE / OUTSIDE</h2>
-  <div class="envgrid"><div><div class="heatmap" id="heatmap"></div><div class="detail" id="thermalStats">Inside thermal waiting</div></div>
-  <div><div class="detail" id="outsideStats">Outside sensor waiting</div><canvas class="chart" id="insideChart" width="300" height="82"></canvas><canvas class="chart" id="outsideChart" width="300" height="82" style="margin-top:6px"></canvas></div></div>
+  <div class="envgrid"><div class="card touch" onclick="openDetail('thermal')"><div class="heatmap" id="heatmap"></div><div class="detail" id="thermalStats">Inside thermal waiting</div><div class="detail">TOUCH FOR 64-PIXEL DATA</div></div>
+  <div class="card touch" onclick="openDetail('environment')"><div class="detail" id="outsideStats">Outside sensor waiting</div><canvas class="chart" id="insideChart" width="300" height="82"></canvas><canvas class="chart" id="outsideChart" width="300" height="82" style="margin-top:6px"></canvas><div class="detail">TOUCH FOR GAS / PRESSURE / IAQ</div></div></div>
  </div>
  <div class="panel"><h2>NETWORK</h2><div id="network"></div></div>
  <div class="panel"><h2>GNSS / 5G</h2><div id="gnss"></div><div class="constellation-grid" id="constellationGrid"></div><div class="constellation-note">L76K supports GPS, GLONASS, BeiDou and QZSS. Galileo/NavIC remain visible for future receivers.</div></div>
  <div class="panel"><h2>SYSTEM</h2><div id="system"></div></div>
 </section></main><div id="toast"></div>
+<div class="sensorModal" id="sensorModal" role="dialog" aria-modal="true"><div class="sensorSheet"><div class="sensorHead"><h2 id="detailTitle">LIVE SENSOR</h2><span class="live" id="detailFresh">LIVE</span><button class="closeDetail" onclick="closeDetail()">CLOSE</button></div><div id="detailBody"></div></div></div>
 <script>
 const $=id=>document.getElementById(id), val=(r,k,d='--')=>r[k]&&r[k].value!==undefined?r[k].value:d;
 const n=(v,d=1)=>Number.isFinite(Number(v))?Number(v).toFixed(d):'--';
-const card=(a,b,c='')=>`<div class="card"><div class="label">${a}</div><div class="value">${b}</div><div class="detail">${c}</div></div>`;
+const card=(a,b,c='',key='')=>`<div class="card ${key?'touch':''}" ${key?`onclick="openDetail('${key}')"`:''}><div class="label">${a}</div><div class="value">${b}</div><div class="detail">${c}${key?' • TOUCH FOR LIVE DATA':''}</div></div>`;
 const row=(a,b)=>`<div class="row"><span>${a}</span><span>${b}</span></div>`;
 const age=(r,k)=>r[k]&&Number.isFinite(Number(r[k].age))?Number(r[k].age):9999;
 const recent=(r,k,seconds)=>age(r,k)<seconds;
@@ -975,6 +1092,21 @@ function renderConstellations(raw){
 }
 function toast(t){let e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>e.style.display='none',2200)}
 async function post(data,loud=true){try{let q=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});let j=await q.json();if(loud)toast(j.message||'done');return j}catch(e){if(loud)toast('CONTROL LINK LOST')}}
+let latestStatus=null,activeDetail='';
+function tile(label,value,unit=''){return `<div class="detailTile"><b>${label}</b><strong>${value}${unit}</strong></div>`}
+function rangeTile(label,value){let mm=Number(value),pct=Number.isFinite(mm)?Math.max(0,Math.min(100,mm/30)):0;return `<div class="detailTile"><b>${label}</b><strong>${Number.isFinite(mm)?mm.toFixed(0):'--'} mm</strong><div class="rangeBar"><div class="rangeFill" style="width:${pct}%"></div></div><div class="sensorHint">${Number.isFinite(mm)?(mm<250?'NEAR — STOP ZONE':mm<500?'CAUTION':'CLEAR'):'NO CURRENT READING'}</div></div>`}
+function heatCells(r){let t={};try{t=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}let p=Array.isArray(t.pixels)?t.pixels:[],mn=Number(t.min_c),mx=Number(t.max_c);return `<div class="modalHeat">${Array.from({length:64},(_,i)=>{let v=Number(p[i]),q=Number.isFinite(v)?Math.max(0,Math.min(1,(v-mn)/Math.max(.2,mx-mn))):0;return `<i title="${Number.isFinite(v)?v.toFixed(1)+'°C':'--'}" style="background:${Number.isFinite(v)?`hsl(${220-q*220} 88% ${28+q*28}%)`:'#112436'}"></i>`}).join('')}</div><div class="detailGrid" style="margin-top:10px">${tile('MIN',n(t.min_c,1),'°C')}${tile('AVERAGE',n(t.avg_c,1),'°C')}${tile('MAX / HOTSPOT',n(t.max_c,1),'°C')}</div>`}
+function renderDetail(){if(!activeDetail||!latestStatus)return;let r=latestStatus.ros,body='',title='LIVE SENSOR',fresh='LIVE';
+ if(activeDetail==='ultrasonic'){title='THREE ULTRASONIC SENSORS';body=`<div class="detailGrid">${rangeTile('LEFT',val(r,'us_left'))}${rangeTile('FRONT',val(r,'us_front'))}${rangeTile('RIGHT',val(r,'us_right'))}</div><div class="rawData">STATUS: ${val(r,'us_status','waiting')}\nREFRESH: live ROS values, approximately 5–10 updates/second\nROLE: secondary near-field safety layer; LiDAR remains the primary navigation sensor.</div>`;fresh=Math.max(age(r,'us_left'),age(r,'us_front'),age(r,'us_right'))<3?'● LIVE':'STALE';}
+ else if(activeDetail==='camera'){title='IMX708 CAMERA — LIVE OUTPUT';let c=val(r,'camera_info',{});body=`<img id="modalCamera" class="modalCamera" src="/camera.mjpg"><div class="detailGrid" style="margin-top:10px">${tile('SOURCE',c.source||'--')}${tile('JPEG FRAME',c.bytes||'--',' bytes')}${tile('AGE',n(age(r,'camera_info'),1),' s')}</div><div class="rawData">AI: ${val(r,'ai_status','--')}\nMOTION: ${val(r,'motion_state','--')} (${n(val(r,'motion_percent'),1)}%)\nCamera processing remains single-source; this window does not start another detector.</div>`;fresh=age(r,'camera_info')<3?'● LIVE':'STALE';}
+ else if(activeDetail==='imu'){title='BNO08X IMU + MOTOR-BOARD IMU';let f=val(r,'imu_full',{}),m=val(r,'imu_mag',{});body=`<div class="detailGrid">${tile('ROLL',n(val(r,'imu_roll'),2),'°')}${tile('PITCH',n(val(r,'imu_pitch'),2),'°')}${tile('HEADING / YAW',n(val(r,'imu_heading'),2),'°')}${tile('ACCEL X',n(f.ax,3),' m/s²')}${tile('ACCEL Y',n(f.ay,3),' m/s²')}${tile('ACCEL Z',n(f.az,3),' m/s²')}${tile('GYRO X',n(f.gx,3),' rad/s')}${tile('GYRO Y',n(f.gy,3),' rad/s')}${tile('GYRO Z',n(f.gz,3),' rad/s')}${tile('MAG X',n(m.x_ut,2),' µT')}${tile('MAG Y',n(m.y_ut,2),' µT')}${tile('MAG Z',n(m.z_ut,2),' µT')}</div><div class="rawData">ORIENTATION QUATERNION: x ${n(f.qx,5)}  y ${n(f.qy,5)}  z ${n(f.qz,5)}  w ${n(f.qw,5)}\nDEDICATED BNO08X: navigation source\nMOTOR-BOARD IMU: roll ${n(val(r,'board_imu_roll'),1)}°, pitch ${n(val(r,'board_imu_pitch'),1)}°, heading ${n(val(r,'board_imu_heading'),1)}° — displayed for comparison/fault detection, not fused as the primary source.</div>`;fresh=age(r,'imu_full')<3?'● LIVE':'STALE';}
+ else if(activeDetail==='thermal'){title='AMG8833 8×8 THERMAL ARRAY';body=heatCells(r)+`<div class="rawData">${val(r,'thermal_status','Thermal sensor waiting')}\nEach square is one live infrared temperature pixel. Brightest square is the current hotspot.</div>`;fresh=age(r,'thermal_json')<4?'● LIVE':'STALE';}
+ else if(activeDetail==='environment'){title='BME680 OUTSIDE AIR / GAS';let j={};try{j=JSON.parse(val(r,'bme680_json','{}')||'{}')}catch(e){}body=`<div class="detailGrid">${tile('TEMPERATURE',n(val(r,'outside_temperature'),2),'°C')}${tile('HUMIDITY',n(val(r,'outside_humidity'),1),'% RH')}${tile('PRESSURE',n(val(r,'outside_pressure'),1),' hPa')}${tile('GAS RESISTANCE',n(Number(val(r,'outside_gas'))/1000,1),' kΩ')}${tile('IAQ ESTIMATE',n(j.iaq,0))}${tile('HEATER',j.heat_stable?'STABLE':'WARMING')}</div><div class="rawData">STATUS: ${val(r,'outside_status','waiting')}\nGas resistance is a relative VOC/air-quality signal, not a calibrated safety alarm. Compare its trend and IAQ estimate after the heater becomes stable.</div>`;fresh=age(r,'outside_gas')<8?'● LIVE':'STALE';}
+ $('detailTitle').textContent=title;$('detailFresh').textContent=fresh;$('detailFresh').style.color=fresh.includes('LIVE')?'#34e58b':'#ff4655';$('detailBody').innerHTML=body;
+}
+function openDetail(key){activeDetail=key;$('sensorModal').classList.add('open');renderDetail()}
+function closeDetail(){activeDetail='';$('sensorModal').classList.remove('open');$('detailBody').innerHTML=''}
+$('sensorModal').addEventListener('click',e=>{if(e.target===$('sensorModal'))closeDetail()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail()});
 async function stop(){await post({action:'stop'},false)}
 let hold=null;function beginDrive(b){stopDrive(false);b.classList.add('on');let send=()=>post({action:'drive',linear:b.dataset.l,angular:b.dataset.a},false);send();hold=setInterval(send,120)}
 function stopDrive(send=true){if(hold){clearInterval(hold);hold=null}document.querySelectorAll('[data-l]').forEach(b=>b.classList.remove('on'));if(send)stop()}
@@ -1000,18 +1132,18 @@ function companion(r,s){
  $('rgbDot').style.background=color;$('rgbDot').style.color=color;
  if(!s.voice_usb){$('companionState').textContent='VOICE USB OFFLINE';$('companionState').style.color='#ff4655';$('companionState').style.borderColor='#ff4655'}else{$('companionState').style.color='#17d5ff';$('companionState').style.borderColor='#17d5ff'}
 }
-async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'}).then(x=>x.json()),r=d.ros,net=d.network,s=d.system;
+async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'}).then(x=>x.json()),r=d.ros,net=d.network,s=d.system;latestStatus=d;
  renderHealth(r,net);
  companion(r,s);
  $('online').textContent='● ONLINE';$('online').style.color='#34e58b';
  $('ai').textContent=val(r,'ai_status','AI waiting');
  $('motion').innerHTML=row('Web drive',val(r,'web_drive','STOP'))+row('Odometry',JSON.stringify(val(r,'odom',{})))+row('Encoders',`${val(r,'enc_m1')} / ${val(r,'enc_m2')} / ${val(r,'enc_m3')} / ${val(r,'enc_m4')}`);
- let li=val(r,'lidar',{}),radarLive=!!r.radar_count&&r.radar_count.age<2.0;$('sensors').innerHTML=card('LiDAR',`${n(li.nearest_m,2)} m`,`${li.points||0} points`)+card('Ultrasonic',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')}`)+card('RD-03D Radar',radarLive?`${val(r,'radar_count')} targets`:'NO SERIAL DATA',radarLive?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:'Check radar power and TX/RX wiring on /dev/ttyTHS1')+card('Compass',`${n(val(r,'imu_heading'),0)}°`,`roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`);
+ let li=val(r,'lidar',{}),radarLive=!!r.radar_count&&r.radar_count.age<2.0;$('sensors').innerHTML=card('LiDAR',`${n(li.nearest_m,2)} m`,`${li.points||0} points`)+card('Ultrasonic',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')}`,'ultrasonic')+card('RD-03D Radar',radarLive?`${val(r,'radar_count')} targets`:'NO SERIAL DATA',radarLive?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:'Check radar power and TX/RX wiring on /dev/ttyTHS1')+card('BNO08X IMU',`${n(val(r,'imu_heading'),0)}°`,`roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`,'imu');
  $('power').innerHTML=card('Main BMS',`${n(val(r,'bms_percent'),0)}%`,`${n(val(r,'bms_voltage'),2)}V ${n(val(r,'bms_current'),2)}A ${n(val(r,'bms_power'),1)}W • CELLS ${n(val(r,'bms_cell1'),3)} / ${n(val(r,'bms_cell2'),3)} / ${n(val(r,'bms_cell3'),3)} / ${n(val(r,'bms_cell4'),3)}`)+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,`${n(val(r,'bat_current'),2)}A`)+card('Jetson / UPS',`${n(val(r,'ups_bat_percent'),0)}%`,`${n(val(r,'ups_bat_voltage'),2)}V ${n(val(r,'ups_bat_power'),1)}W`)+card('5G HAT',`${n(val(r,'hat_power'),1)}W`,`${n(val(r,'hat_voltage'),2)}V ${n(val(r,'hat_current'),2)}A`);
  environment(r);
  $('network').innerHTML=row('Wi-Fi',net.wifi_ip)+row('5G data',net.cell_ip)+row('Tailscale',net.tailscale_ip)+row('Active route',net.route);
  let fix=val(r,'gps_fix',{});$('gnss').innerHTML=row('Cell signal',`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech')} ${val(r,'cell_operator')}`)+row('Satellites used in fix',val(r,'gps_sats'))+row('GPS fix',fix.status>=0?`${n(fix.lat,6)}, ${n(fix.lon,6)}`:'SEARCHING / NO FIX');renderConstellations(val(r,'gps_const',''));
- $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('RAM',s.ram)+row('Jetson temp',s.temp)+row('Time',d.time);
+ $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('RAM',s.ram)+row('Jetson temp',s.temp)+row('Time',d.time);renderDetail();
  }catch(e){$('online').textContent='● OFFLINE';$('online').style.color='#ff4655'}}
 refresh();setInterval(refresh,2000);
 </script></body></html>"""

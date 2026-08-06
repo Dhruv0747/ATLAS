@@ -15,7 +15,7 @@ Published topics:
 
 Run: nohup python3 /home/jetson/project_atlas/scripts/bno08x_node.py > /tmp/bno08x.log 2>&1 &
 """
-import os, sys, time, math
+import os, sys, time, math, json
 
 if 'ROS_DISTRO' not in os.environ:
     os.execvpe('bash', ['bash', '-c',
@@ -26,7 +26,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, MagneticField
 from geometry_msgs.msg import Vector3
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, String
 
 import board
 import busio
@@ -110,6 +110,11 @@ class BNO08xNode(Node):
         self._pub_roll    = self.create_publisher(Float32, '/imu/roll',    10)
         self._pub_pitch   = self.create_publisher(Float32, '/imu/pitch',   10)
         self._pub_heading = self.create_publisher(Float32, '/imu/heading', 10)
+        # One compact 10 Hz dashboard stream avoids making every UI subscribe
+        # to six 20 Hz navigation topics.  Nav/EKF keep the original full-rate
+        # Imu and MagneticField topics.
+        self._pub_dashboard = self.create_publisher(String, '/imu/dashboard_json', 10)
+        self._dashboard_divider = 0
 
         self.create_timer(0.05, self._cb)
 
@@ -177,6 +182,23 @@ class BNO08xNode(Node):
         self._pub_roll.publish(Float32(data=float(roll)))
         self._pub_pitch.publish(Float32(data=float(pitch)))
         self._pub_heading.publish(Float32(data=float((yaw + 360.0) % 360.0)))
+        self._dashboard_divider = (self._dashboard_divider + 1) % 2
+        if self._dashboard_divider == 0:
+            self._pub_dashboard.publish(String(data=json.dumps({
+                'roll': round(float(roll), 3),
+                'pitch': round(float(pitch), 3),
+                'yaw': round(float(yaw), 3),
+                'heading': round(float((yaw + 360.0) % 360.0), 3),
+                'qx': round(float(qx), 6), 'qy': round(float(qy), 6),
+                'qz': round(float(qz), 6), 'qw': round(float(qw), 6),
+                'gx': round(float(gx), 6), 'gy': round(float(gy), 6),
+                'gz': round(float(gz), 6),
+                'ax': round(float(ax), 6), 'ay': round(float(ay), 6),
+                'az': round(float(az), 6),
+                'mx_ut': round(float(mx), 3), 'my_ut': round(float(my), 3),
+                'mz_ut': round(float(mz), 3),
+                'frame': 'base_link',
+            }, separators=(',', ':'))))
 
 
 def main():
