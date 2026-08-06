@@ -122,8 +122,10 @@ class UltrasonicArduinoBridge(Node):
         front, left, right = [int(v) for v in groups[:3]]
         la, ra, c1, c2, pca, ok = groups[3:]
         self.publish_mm(self.front_pub, front)
-        self.publish_mm(self.left_pub, left)
-        self.publish_mm(self.right_pub, right)
+        # The two side ultrasonic sensors are physically mirrored on ATLAS:
+        # the Arduino's LEFT field is the rover's right side and vice versa.
+        self.publish_mm(self.left_pub, right)
+        self.publish_mm(self.right_pub, left)
         if la is not None:
             self.left_servo_pub.publish(Int32(data=int(la)))
             self.right_servo_pub.publish(Int32(data=int(ra)))

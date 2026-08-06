@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=ATLAS Wireless HDMI 720p
+Comment=Select the ETZIN receiver's verified CTA-861 1280x720 mode
+Exec=/home/jetson/project_atlas/scripts/atlas-wireless-hdmi-mode.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true

@@ -42,3 +42,5 @@ fix_*.py
 .DS_Store
 Thumbs.db
 
+# Local document rendering/QA intermediates
+tmp/

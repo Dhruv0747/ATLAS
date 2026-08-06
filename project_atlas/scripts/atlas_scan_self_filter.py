@@ -14,6 +14,9 @@ from std_msgs.msg import Int32
 # wheel/chassis returns but preserves the requested 0.10 m external clearance.
 SELF_X_M = 0.28
 SELF_Y_M = 0.21
+# Measured installation: LiDAR centre is 0.30 m from the front edge of a
+# 0.50 m chassis, placing it 0.05 m behind base_footprint.
+LASER_X_M = -0.05
 LASER_YAW_RAD = math.pi
 
 
@@ -29,7 +32,10 @@ class AtlasScanSelfFilter(Node):
         self.publisher = self.create_publisher(LaserScan, '/scan', reliable_scan_qos)
         self.filtered_pub = self.create_publisher(Int32, '/atlas/lidar/self_filtered_points', 10)
         self.create_subscription(LaserScan, '/scan_raw', self._scan, qos_profile_sensor_data)
-        self.get_logger().info('ATLAS LiDAR self-filter ready: body envelope x=+-0.28m y=+-0.21m')
+        self.get_logger().info(
+            'ATLAS LiDAR self-filter ready: sensor x=-0.05m; '
+            'body envelope x=+-0.28m y=+-0.21m'
+        )
 
     def _scan(self, source):
         target = LaserScan()
@@ -55,7 +61,7 @@ class AtlasScanSelfFilter(Node):
             if math.isfinite(distance) and source.range_min <= distance <= source.range_max:
                 laser_x = distance * math.cos(angle)
                 laser_y = distance * math.sin(angle)
-                base_x = cosine * laser_x - sine * laser_y
+                base_x = LASER_X_M + cosine * laser_x - sine * laser_y
                 base_y = sine * laser_x + cosine * laser_y
                 if abs(base_x) <= SELF_X_M and abs(base_y) <= SELF_Y_M:
                     ranges[index] = float('inf')

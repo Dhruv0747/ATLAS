@@ -1,0 +1,13 @@
+[Unit]
+Description=Project ATLAS measured base_footprint to laser_frame transform
+Before=atlas-slam-fast.service atlas-nav2.service
+
+[Service]
+Type=simple
+Environment=LD_LIBRARY_PATH=/opt/ros/humble/lib
+ExecStart=/opt/ros/humble/lib/tf2_ros/static_transform_publisher -0.05 0 0.18 3.14159265 0 0 base_footprint laser_frame
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

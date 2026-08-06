@@ -33,3 +33,30 @@ Reliability and safety come before new capability. Implement one feature at a ti
 2. Validate wheel odometry and IMU fusion.
 3. Validate localization and Nav2.
 4. Tune perception and human-aware behavior only after navigation is stable.
+
+## Commissioned navigation baseline - 2026-08-06
+
+The Jetson migration and primary navigation commissioning sequence are complete.
+
+- Physical footprint: 0.50 x 0.36 m; Nav2 footprint is `[+/-0.25, +/-0.18]`.
+- Costmap inflation radius: 0.28 m with cost scaling factor 15.0.
+- Wheel order: M1 front-right, M2 front-left, M3 back-right, M4 back-left.
+- Installed 125 mm wheels use independently calibrated encoder counts per revolution:
+  M1 4048.7, M2 3300.6, M3 4080.1 and M4 2697.8.
+- LiDAR centre is 0.30 m behind the front chassis edge, placing it 0.05 m behind
+  `base_footprint`; the authoritative static transform is x=-0.05 m, z=0.18 m,
+  yaw=pi.
+- `/yahboom/odom` is encoder-distance-derived and is fused by the EKF onto `/odom`.
+- Nav2 uses the one-shot fail-stop behavior tree. It does not accumulate recovery
+  movement after a failed short goal.
+- Explore Lite holds one frontier goal until completion, abort or genuine
+  no-progress timeout. It no longer preempts goals as the frontier boundary moves.
+- Exploration stop automatically saves `maps/atlas_latest.yaml` and
+  `maps/atlas_latest.pgm`.
+- Reboot/autostart verification passed for the base, sensors, SLAM, Nav2, command
+  mux, remote, camera, AI, mission controls, Foxglove and dashboard. Autonomous
+  exploration remains off after boot until explicitly requested.
+
+Ground autonomous tests always require a clear area and an operator at the
+physical emergency stop. The priority command chain remains REMOTE > WEB >
+FOXGLOVE > NAV2, with stale-command stopping.

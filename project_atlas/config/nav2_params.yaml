@@ -52,7 +52,7 @@ bt_navigator:
     default_server_timeout: 2000
     wait_for_service_timeout: 5000
     action_server_result_timeout: 900.0
-    default_nav_to_pose_bt_xml: "/home/jetson/project_atlas/config/atlas_ackermann_recovery.xml"
+    default_nav_to_pose_bt_xml: "/home/jetson/project_atlas/config/atlas_ackermann_fail_stop.xml"
     default_nav_through_poses_bt_xml: "/home/jetson/project_atlas/config/atlas_ackermann_through_poses.xml"
     navigators: ["navigate_to_pose", "navigate_through_poses"]
     navigate_to_pose:
@@ -86,8 +86,8 @@ controller_server:
       # Exploration frontiers can begin close to the rover.  A 5 cm goal
       # tolerance prevents a nearby valid frontier from being declared reached
       # before the rover makes any physical progress.
-      xy_goal_tolerance: 0.10
-      yaw_goal_tolerance: 3.14
+      xy_goal_tolerance: 0.05
+      yaw_goal_tolerance: 0.35
 
     FollowPath:
       # ATLAS is a four-wheel-steering car, not a differential-drive robot.
@@ -115,7 +115,10 @@ controller_server:
       regulated_linear_scaling_min_radius: 0.35
       regulated_linear_scaling_min_speed: 0.11
       use_rotate_to_heading: false
-      allow_reversing: true
+      # Normal Nav2 goals must not silently choose reverse and back toward an
+      # unseen obstacle. Dedicated bounded recovery remains responsible for
+      # deliberate reverse escape maneuvers.
+      allow_reversing: false
       max_angular_accel: 3.2
 
 local_costmap:

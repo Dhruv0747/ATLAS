@@ -26,7 +26,9 @@ class Annotator(Node):
 
     def cb(self, msg):
         now = time.time()
-        if now - self.last < 0.2:
+        # Keep Foxglove responsive on Wi-Fi/Tailscale while retaining a useful
+        # real-time annotated view. The raw camera remains the faster stream.
+        if now - self.last < 0.25:
             return
         self.last = now
         img = cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_COLOR)
@@ -49,7 +51,7 @@ class Annotator(Node):
         out = CompressedImage()
         out.header = msg.header
         out.format = "jpeg"
-        out.data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 70])[1].tobytes()
+        out.data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 60])[1].tobytes()
         self.pub.publish(out)
         self.detection_pub.publish(String(data=json.dumps({"width": int(img.shape[1]), "height": int(img.shape[0]), "detections": structured})))
 

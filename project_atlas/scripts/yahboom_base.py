@@ -8,6 +8,7 @@ import math
 import os
 from pathlib import Path
 import socket
+import statistics
 import sys
 import time
 
@@ -25,7 +26,10 @@ from Rosmaster_Lib import Rosmaster
 MAX_VX = 1.0
 MAX_WZ = 2.0
 MAX_PWM = 100
-MIN_RUN_PWM = 72
+# Loaded-rover breakaway calibration. Commands below this floor only twitch;
+# keep a usable control range above it instead of forcing every Nav2 request
+# to near-full power.
+MIN_RUN_PWM = 90
 BOOST_TIME_S = 0.25
 LOW_SPEED_HOLD_PWM = 45
 PWM_RAMP_STEP = 4
@@ -47,8 +51,15 @@ BAT_MAX_V = 12.6
 # Physical order is the controller order: M1 FR, M2 FL, M3 BR, M4 BL.
 WHEEL_CIRCUMFERENCE_M = 0.392699
 WHEELBASE_M = 0.367
-ENCODER_COUNTS_PER_REV = (6077.0, 5579.0, 6157.0, 6494.0)
-# Normal forward drive commands M1/M4 positive and M2/M3 negative.
+# Ground calibration (2026-08-05): a nominal 0.0508 m odometry move covered
+# approximately 0.30 m physically, establishing a 5.91x distance correction.
+# Calibrated on the ground with the installed 125 mm wheels and final shafts.
+# A measured 0.20 m straight run is used independently for every channel;
+# the controller's four encoder channels have materially different scales.
+ENCODER_COUNTS_PER_REV = (4048.7, 3300.6, 4080.1, 2697.8)
+# Individually verified physical-forward polarity (wheels lifted, 2026-08-05):
+# M1/M4 require positive PWM; M2/M3 require negative PWM. Encoder polarity
+# follows those physical-forward raw signs, so normalize them all positive.
 ENCODER_FORWARD_SIGN = (1.0, -1.0, -1.0, 1.0)
 
 
@@ -92,6 +103,8 @@ class YahboomBase(Node):
         self._enc_rate_anchor_t = time.monotonic()
         self._wheel_cps = [0.0, 0.0, 0.0, 0.0]
         self._wheel_mps = [0.0, 0.0, 0.0, 0.0]
+        self._wheel_distance_m = [0.0, 0.0, 0.0, 0.0]
+        self._last_odom_wheel_distance = None
         self._last_enc_t = time.monotonic()
         self._last_enc_change_t = time.monotonic()
         self._encoder_stale = True
@@ -99,6 +112,7 @@ class YahboomBase(Node):
         self._y = 0.0
         self._yaw = 0.0
         self._last_odom_t = time.monotonic()
+        self._last_watchdog_ping = 0.0
 
         self.create_subscription(Twist, '/cmd_vel', self._on_cmd_vel, 10)
 
@@ -110,9 +124,7 @@ class YahboomBase(Node):
         self._pub_motion_vy = self.create_publisher(Float32, '/yahboom/motion/vy', 10)
         self._pub_motion_vz = self.create_publisher(Float32, '/yahboom/motion/vz', 10)
         self._pub_odom = self.create_publisher(Odometry, '/yahboom/odom', 10)
-        self._pub_main_odom = self.create_publisher(Odometry, '/odom', 10)
         self._pub_odom_source = self.create_publisher(String, '/yahboom/odom_source', 10)
-        self._tf_broadcaster = TransformBroadcaster(self)
 
         self._pub_roll = self.create_publisher(Float32, '/yahboom/imu/roll', 10)
         self._pub_pitch = self.create_publisher(Float32, '/yahboom/imu/pitch', 10)
@@ -155,6 +167,21 @@ class YahboomBase(Node):
     def _systemd_watchdog(self):
         # If the ROS executor or DDS participant stalls, this timer also stops.
         # systemd then kills the wedged process and safely reopens /dev/yahboom.
+        self._watchdog_ping(force=True)
+
+    def _watchdog_ping(self, force=False):
+        """Feed systemd from the critical motor loop, at most once per second.
+
+        A standalone ROS timer can be delayed behind other ready callbacks when
+        the Jetson is busy.  Feeding from the motor keepalive proves that the
+        actual safety/control loop is still being scheduled, while the existing
+        five-second systemd watchdog continues to restart a genuinely wedged
+        driver.
+        """
+        now = time.monotonic()
+        if not force and now - self._last_watchdog_ping < 1.0:
+            return
+        self._last_watchdog_ping = now
         systemd_notify(
             "WATCHDOG=1\n"
             f"STATUS=Base online; odom source={getattr(self, '_last_odom_source', 'starting')}"
@@ -175,6 +202,7 @@ class YahboomBase(Node):
             self.bot.set_motor(0, 0, 0, 0)
 
     def _motor_keepalive(self):
+        self._watchdog_ping()
         if time.time() - self._last_cmd_time > 0.25:
             self._last_vx = 0.0
             self._last_vz = 0.0
@@ -201,6 +229,8 @@ class YahboomBase(Node):
                 (MAX_PWM - MIN_RUN_PWM) * abs(drive)
             )
             pwm = magnitude if drive > 0.0 else -magnitude
+        # Individually verified ATLAS polarity: positive ROS linear.x must move
+        # every wheel toward the physical front of the rover.
         self.bot.set_motor(pwm, -pwm, -pwm, pwm)
         steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
         steer_range = STEER_LEFT_RANGE if steer_norm > 0 else STEER_RIGHT_RANGE
@@ -264,6 +294,7 @@ class YahboomBase(Node):
             self._wheel_mps[i] = speed_mps
             signed_counts = (float(enc[i]) - float(self._enc_origin[i])) * ENCODER_FORWARD_SIGN[i]
             distance_m = signed_counts * WHEEL_CIRCUMFERENCE_M / ENCODER_COUNTS_PER_REV[i]
+            self._wheel_distance_m[i] = distance_m
             self._wheel_rpm_pubs[i].publish(Float32(data=rpm))
             self._wheel_mps_pubs[i].publish(Float32(data=speed_mps))
             self._wheel_distance_pubs[i].publish(Float32(data=distance_m))
@@ -292,39 +323,43 @@ class YahboomBase(Node):
         dt = max(0.0, min(0.5, now - self._last_odom_t))
         self._last_odom_t = now
 
-        cmd_age = time.time() - self._last_cmd_time
-        cmd_active = cmd_age <= 0.35 and (
-            abs(self._last_vx) > 0.02 or abs(self._last_vz) > 0.02
-        )
-        encoder_recent = now - self._last_enc_change_t <= 0.50
-        if cmd_active and encoder_recent:
-            # Real wheel odometry. Physical order is FR, FL, BR, BL. Average
-            # the independently calibrated wheel speeds so one slipping wheel
-            # cannot dominate the position estimate.
-            vx = sum(self._wheel_mps) / 4.0
+        # Integrate measured encoder position deltas, not a delayed speed
+        # estimate. The controller reports counts in bursts; integrating the
+        # half-second CPS estimate lost the beginning and end of short moves.
+        # Use the median so one channel with a different encoder resolution
+        # (currently M4) cannot bias navigation distance. Raw values from all
+        # four channels remain published for diagnostics and later calibration.
+        wheel_distance = statistics.median(self._wheel_distance_m)
+        if self._last_odom_wheel_distance is None:
+            distance_delta = 0.0
+        else:
+            distance_delta = wheel_distance - self._last_odom_wheel_distance
+        self._last_odom_wheel_distance = wheel_distance
+
+        encoder_motion = abs(distance_delta) > 1.0e-6 and dt > 0.0
+        if encoder_motion:
+            vx = distance_delta / dt
             vy = 0.0
             front_delta = math.radians(FRONT_STEER_CENTER - self._front_target_angle)
             rear_delta = math.radians(REAR_STEER_CENTER - self._rear_target_angle)
-            # General bicycle relation for front and rear steering. With
-            # ATLAS counter-steering, the two tangent terms add.
-            vz = vx * (math.tan(front_delta) - math.tan(rear_delta)) / WHEELBASE_M
-            source = 'wheel_encoder_4ws'
+            curvature = (math.tan(front_delta) - math.tan(rear_delta)) / WHEELBASE_M
+            vz = vx * curvature
+            source = 'wheel_encoder_delta_4ws'
         else:
             vx = 0.0
             vy = 0.0
             vz = 0.0
-            source = 'stopped' if not cmd_active else 'commanded_encoder_stale'
+            curvature = 0.0
+            source = 'stopped'
 
         self._last_odom_source = source
-        if cmd_active and not encoder_recent:
-            self._encoder_stale = True
         self._pub_odom_source.publish(String(data=source))
 
-        self._yaw += float(vz) * dt
-        cy = math.cos(self._yaw)
-        sy = math.sin(self._yaw)
-        self._x += (float(vx) * cy - float(vy) * sy) * dt
-        self._y += (float(vx) * sy + float(vy) * cy) * dt
+        delta_yaw = distance_delta * curvature
+        yaw_mid = self._yaw + 0.5 * delta_yaw
+        self._x += distance_delta * math.cos(yaw_mid)
+        self._y += distance_delta * math.sin(yaw_mid)
+        self._yaw += delta_yaw
 
         stamp = self.get_clock().now().to_msg()
         qz = math.sin(self._yaw / 2.0)
@@ -348,18 +383,6 @@ class YahboomBase(Node):
         msg.twist.covariance[7] = 0.10
         msg.twist.covariance[35] = 0.20
         self._pub_odom.publish(msg)
-        self._pub_main_odom.publish(msg)
-
-        tf = TransformStamped()
-        tf.header.stamp = stamp
-        tf.header.frame_id = 'odom'
-        tf.child_frame_id = 'base_link'
-        tf.transform.translation.x = self._x
-        tf.transform.translation.y = self._y
-        tf.transform.translation.z = 0.0
-        tf.transform.rotation.z = qz
-        tf.transform.rotation.w = qw
-        self._tf_broadcaster.sendTransform(tf)
 
     def _publish_battery(self):
         try:

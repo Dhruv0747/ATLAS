@@ -1,0 +1,13 @@
+[Unit]
+Description=Project ATLAS authoritative 2D wheel-odometry and BNO08X EKF
+After=network-online.target
+
+[Service]
+Type=simple
+User=jetson
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec ros2 run robot_localization ekf_node --ros-args --params-file /home/jetson/project_atlas/config/atlas_ekf.yaml -r odometry/filtered:=/odom'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

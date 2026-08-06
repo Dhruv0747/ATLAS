@@ -118,16 +118,24 @@ class BNO08xNode(Node):
 
         imu = Imu()
         imu.header.stamp    = now
-        imu.header.frame_id = 'imu_link'
+        # The BNO08X is rigidly mounted to ATLAS.  Publish the navigation IMU
+        # in base_link so robot_localization does not depend on a missing
+        # imu_link TF.  ATLAS is a planar rover: raw roll/pitch are retained on
+        # the dashboard topics, while /imu/data carries yaw-only orientation.
+        imu.header.frame_id = 'base_link'
 
         try:
             qx, qy, qz, qw = self._bno.quaternion or (0, 0, 0, 1)
         except Exception:
             qx, qy, qz, qw = 0.0, 0.0, 0.0, 1.0
-        imu.orientation.x = float(qx)
-        imu.orientation.y = float(qy)
-        imu.orientation.z = float(qz)
-        imu.orientation.w = float(qw)
+        roll, pitch, yaw = quat_to_euler(qx, qy, qz, qw)
+        # BNO compass heading increases clockwise; ROS REP-103 yaw increases
+        # counter-clockwise.  Convert the sign before constructing quaternion.
+        ros_yaw = math.radians(-yaw)
+        imu.orientation.x = 0.0
+        imu.orientation.y = 0.0
+        imu.orientation.z = math.sin(ros_yaw / 2.0)
+        imu.orientation.w = math.cos(ros_yaw / 2.0)
         _oc=[0.002,0.0,0.0,0.0,0.002,0.0,0.0,0.0,0.002]
         _gc=[0.001,0.0,0.0,0.0,0.001,0.0,0.0,0.0,0.001]
         _ac=[0.05,0.0,0.0,0.0,0.05,0.0,0.0,0.0,0.05]
@@ -139,9 +147,9 @@ class BNO08xNode(Node):
             gx, gy, gz = self._bno.gyro or (0, 0, 0)
         except Exception:
             gx, gy, gz = 0.0, 0.0, 0.0
-        imu.angular_velocity.x = float(gx)
-        imu.angular_velocity.y = float(gy)
-        imu.angular_velocity.z = float(gz)
+        imu.angular_velocity.x = 0.0
+        imu.angular_velocity.y = 0.0
+        imu.angular_velocity.z = float(-gz)
 
         try:
             ax, ay, az = self._bno.acceleration or (0, 0, 0)
@@ -159,13 +167,12 @@ class BNO08xNode(Node):
             mx, my, mz = 0.0, 0.0, 0.0
         mag = MagneticField()
         mag.header.stamp    = now
-        mag.header.frame_id = 'imu_link'
+        mag.header.frame_id = 'base_link'
         mag.magnetic_field.x = float(mx) * 1e-6
         mag.magnetic_field.y = float(my) * 1e-6
         mag.magnetic_field.z = float(mz) * 1e-6
         self._pub_mag.publish(mag)
 
-        roll, pitch, yaw = quat_to_euler(qx, qy, qz, qw)
         self._pub_euler.publish(Vector3(x=roll, y=pitch, z=yaw))
         self._pub_roll.publish(Float32(data=float(roll)))
         self._pub_pitch.publish(Float32(data=float(pitch)))

@@ -1,0 +1,16 @@
+<!--
+  Project ATLAS fail-stop navigation tree.
+
+  Car-like steering cannot safely use Nav2's spin recovery, and repeated
+  FollowPath retries can accumulate unwanted travel when a collision is
+  predicted. Any planning or control failure therefore aborts immediately;
+  the operator or bounded LiDAR recovery node may explicitly request a retry.
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence name="NavigateFailStop">
+      <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+      <FollowPath path="{path}" controller_id="FollowPath"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

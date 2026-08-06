@@ -41,6 +41,7 @@
 #include <explore/costmap_client.h>
 #include <explore/frontier_search.h>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <std_msgs/msg/empty.hpp>
 #include <tf2_ros/transform_listener.hpp>
 
 #include <chrono>
@@ -112,6 +113,8 @@ private:
     * @brief Publisher for exploration status updates (see ExploreStatus.msg for status values)
     */
   rclcpp::Publisher<explore_lite_msgs::msg::ExploreStatus>::SharedPtr status_pub_;
+  rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr recovery_request_pub_;
+  unsigned int consecutive_nav_aborts_{0};
 
   rclcpp::Logger logger_;
   tf2_ros::Buffer tf_buffer_;

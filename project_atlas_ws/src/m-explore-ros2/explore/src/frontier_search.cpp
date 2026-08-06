@@ -111,6 +111,16 @@ Frontier FrontierSearch::buildNewFrontier(unsigned int initial_cell,
   costmap_->indexToCells(initial_cell, ix, iy);
   costmap_->mapToWorld(ix, iy, output.initial.x, output.initial.y);
 
+  // The initial cell is already marked in frontier_flag by the caller, so it
+  // will not be encountered again by isNewFrontierCell() below. Include it in
+  // every frontier statistic here. Leaving the centroid accumulator at zero
+  // while counting this cell biases each centroid toward map coordinate (0,0),
+  // which can make a valid frontier look too close to a robot that started at
+  // the map origin.
+  output.centroid = output.initial;
+  output.middle = output.initial;
+  output.points.push_back(output.initial);
+
   // push initial gridcell onto queue
   std::queue<unsigned int> bfs;
   bfs.push(initial_cell);
@@ -120,6 +130,8 @@ Frontier FrontierSearch::buildNewFrontier(unsigned int initial_cell,
   double reference_x, reference_y;
   costmap_->indexToCells(reference, rx, ry);
   costmap_->mapToWorld(rx, ry, reference_x, reference_y);
+  output.min_distance = std::hypot(reference_x - output.initial.x,
+                                   reference_y - output.initial.y);
 
   while (!bfs.empty()) {
     unsigned int idx = bfs.front();

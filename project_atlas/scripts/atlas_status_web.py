@@ -79,6 +79,8 @@ class AtlasRosNode:
         self.drive_active = False
         self.last_raw_camera_encode = 0.0
         self.last_compressed_camera = 0.0
+        self.panel_camera_frame = None
+        self.panel_camera_source_ts = 0.0
         self.last_scan_summary = 0.0
         self.last_motion_check = 0.0
         self.prev_motion_gray = None
@@ -453,6 +455,48 @@ class AtlasRosNode:
             item = self.data.get("camera_frame")
             return item["value"] if item else None
 
+    def camera_panel_frame(self):
+        """Return a small cached JPEG sized for the 1024x600 CrowPanel."""
+        now = time.time()
+        with self.lock:
+            source = self.data.get("camera_frame")
+            if not source:
+                return None
+            source_jpeg = source["value"]
+            source_ts = source["ts"]
+            if (self.panel_camera_frame is not None and
+                    self.panel_camera_source_ts == source_ts and
+                    now - source_ts < 2.0):
+                return self.panel_camera_frame
+        try:
+            encoded = np.frombuffer(source_jpeg, dtype=np.uint8)
+            frame = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+            if frame is None:
+                return source_jpeg
+            # Mapping mode publishes the camera at the CrowPanel's native
+            # viewport. Reuse that JPEG directly instead of performing a
+            # costly decode-resize-encode cycle for every panel request.
+            if frame.shape[1] == 656 and frame.shape[0] == 368:
+                with self.lock:
+                    self.panel_camera_frame = source_jpeg
+                    self.panel_camera_source_ts = source_ts
+                return source_jpeg
+            # Exact live-camera viewport used by the approved 1024x600
+            # CrowPanel Drive screen. Both dimensions are JPEG-HW aligned.
+            frame = cv2.resize(frame, (656, 368), interpolation=cv2.INTER_AREA)
+            ok, panel_jpeg = cv2.imencode(
+                ".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 68]
+            )
+            if not ok:
+                return source_jpeg
+            result = panel_jpeg.tobytes()
+            with self.lock:
+                self.panel_camera_frame = result
+                self.panel_camera_source_ts = source_ts
+            return result
+        except Exception:
+            return source_jpeg
+
 
 ROS = AtlasRosNode()
 
@@ -632,6 +676,18 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if self.path.startswith("/camera_panel.jpg"):
+            frame = ROS.camera_panel_frame()
+            if frame:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(frame)))
+                self.end_headers()
+                self.wfile.write(frame)
+            else:
+                self.send_error(404)
+            return
         if self.path.startswith("/camera.jpg"):
             frame = ROS.camera_frame()
             if frame:
@@ -691,6 +747,28 @@ class Handler(BaseHTTPRequestHandler):
                 form.get("direction", ["0"])[0],
             )
             json_response(self, 200 if ok else 503, {"ok": ok, "message": msg})
+        elif action in {"start_mapping", "stop_mapping", "set_home", "return_home", "auto_explore", "cancel_goal"}:
+            # Keep the HTTP thread non-blocking.  atlas_mission_control owns the
+            # ROS/Nav2 work and its safety checks; the panel only publishes the
+            # same requests used by Foxglove and the voice companion.
+            topic = {
+                "start_mapping": "/atlas/start_exploration",
+                "auto_explore": "/atlas/start_exploration",
+                "stop_mapping": "/atlas/stop_exploration",
+                "cancel_goal": "/atlas/stop_exploration",
+                "set_home": "/atlas/set_home",
+                "return_home": "/atlas/return_home",
+            }[action]
+            command = (
+                "source /opt/ros/humble/setup.bash; "
+                "source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null || true; "
+                f"timeout 5 ros2 topic pub --once {topic} std_msgs/msg/Empty '{{}}'"
+            )
+            subprocess.Popen(
+                ["bash", "-lc", command], stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, start_new_session=True,
+            )
+            json_response(self, 202, {"ok": True, "message": f"{action} requested", "topic": topic})
         elif action in {"restart", "start", "stop_service"}:
             svc = form.get("service", [""])[0]
             if svc not in SERVICES:

@@ -108,6 +108,8 @@ Explore::Explore()
   rclcpp::QoS status_qos(10);
   status_qos.transient_local();
   status_pub_ = this->create_publisher<explore_lite_msgs::msg::ExploreStatus>("explore/status", status_qos);
+  recovery_request_pub_ =
+      this->create_publisher<std_msgs::msg::Empty>("/atlas/tight_recovery_request", 10);
 
   // Subscription to resume or stop exploration
   resume_subscription_ = this->create_subscription<std_msgs::msg::Bool>(
@@ -234,8 +236,33 @@ void Explore::visualizeFrontiers(
 
 void Explore::makePlan()
 {
-  // find frontiers
   auto pose = costmap_client_.getRobotPose();
+
+  // Never preempt a live Nav2 goal merely because the frontier boundary moved
+  // as SLAM added cells. ATLAS is a car-like rover: goal churn every planning
+  // cycle causes abrupt steering changes and can destabilize localization.
+  // Hold one target until Nav2 returns a result, cancelling only after a real
+  // lack-of-progress timeout. The result callback/timer will then select the
+  // next frontier.
+  if (goal_active_) {
+    const double distance = std::hypot(prev_goal_.x - pose.position.x,
+                                       prev_goal_.y - pose.position.y);
+    if (prev_distance_ - distance > 0.05) {
+      prev_distance_ = distance;
+      last_progress_ = this->now();
+    }
+    if (!resuming_ &&
+        this->now() - last_progress_ >
+            tf2::durationFromSec(progress_timeout_)) {
+      RCLCPP_WARN(logger_,
+                  "Active frontier made no progress; cancelling and blacklisting");
+      frontier_blacklist_.push_back(prev_goal_);
+      move_base_client_->async_cancel_all_goals();
+    }
+    return;
+  }
+
+  // find frontiers
   // get frontiers sorted according to cost
   auto frontiers = search_.searchFrom(pose.position);
   RCLCPP_DEBUG(logger_, "found %lu frontiers", frontiers.size());
@@ -262,14 +289,48 @@ void Explore::makePlan()
   // radius; otherwise explore_lite repeatedly sends a 1-2 cm goal that Nav2
   // correctly reports as already reached without moving the rover.
   constexpr double frontier_standoff = 0.35;
+  const auto frontierTarget = [&pose, frontier_standoff, this](
+                                  const frontier_exploration::Frontier& f) {
+    // A newly observed free area often has one ring-shaped frontier whose
+    // centroid lies on the robot. Select the most distant point on that ring,
+    // then pull the goal back into known-free space. This avoids both a goal in
+    // unknown space and the false "already reached" centroid goal.
+    geometry_msgs::msg::Point edge = f.centroid;
+    double edge_distance = std::hypot(edge.x - pose.position.x,
+                                      edge.y - pose.position.y);
+    // Only a startup frontier ring needs the farthest-point fallback. Once
+    // SLAM splits the boundary into directional frontiers, their centroids are
+    // better approach goals and avoid selecting the inaccessible far side of
+    // a long or curved frontier.
+    if (edge_distance < min_goal_distance_) {
+      for (const auto& point : f.points) {
+        const double distance = std::hypot(point.x - pose.position.x,
+                                           point.y - pose.position.y);
+        if (distance > edge_distance) {
+          edge = point;
+          edge_distance = distance;
+        }
+      }
+    }
+    geometry_msgs::msg::Point target = edge;
+    if (edge_distance > 0.0) {
+      const double target_distance = std::min(
+          edge_distance,
+          std::max(min_goal_distance_, edge_distance - frontier_standoff));
+      const double scale = target_distance / edge_distance;
+      target.x = pose.position.x + (edge.x - pose.position.x) * scale;
+      target.y = pose.position.y + (edge.y - pose.position.y) * scale;
+    }
+    return target;
+  };
   // find non blacklisted frontier
   auto frontier = std::find_if_not(
       frontiers.begin(), frontiers.end(),
-      [this, &pose, frontier_standoff](const frontier_exploration::Frontier& f) {
-        const double dx = f.centroid.x - pose.position.x;
-        const double dy = f.centroid.y - pose.position.y;
-        const bool too_close = std::hypot(dx, dy) < min_goal_distance_;
-        return goalOnBlacklist(f.centroid) || too_close;
+      [this, &pose, &frontierTarget](const frontier_exploration::Frontier& f) {
+        const auto target = frontierTarget(f);
+        const double target_distance = std::hypot(
+            target.x - pose.position.x, target.y - pose.position.y);
+        return goalOnBlacklist(target) || target_distance < min_goal_distance_;
       });
   if (frontier == frontiers.end()) {
     RCLCPP_WARN(logger_, "All frontiers traversed/tried out, stopping.");
@@ -279,54 +340,20 @@ void Explore::makePlan()
     stop(true);
     return;
   }
-  // Drive toward the frontier centroid. This fork previously targeted
-  // `middle`, the closest frontier cell, which repeatedly produced a goal only
-  // 1-2 cm from ATLAS even when the frontier itself was meaningfully distant.
-  // Nav2 will reject/blacklist a centroid whose approach path is obstructed.
-  geometry_msgs::msg::Point target_position = frontier->centroid;
-  const double frontier_dx = frontier->centroid.x - pose.position.x;
-  const double frontier_dy = frontier->centroid.y - pose.position.y;
-  const double frontier_distance = std::hypot(frontier_dx, frontier_dy);
-  if (frontier_distance > 0.0) {
-    // Preserve the normal stand-off for distant frontiers, but on a new/small
-    // map ensure the commanded target is far enough away to require real
-    // motion instead of being accepted immediately by the goal checker.
-    const double target_distance = std::min(
-        frontier_distance,
-        std::max(min_goal_distance_, frontier_distance - frontier_standoff));
-    const double scale = target_distance / frontier_distance;
-    target_position.x = pose.position.x + frontier_dx * scale;
-    target_position.y = pose.position.y + frontier_dy * scale;
-  }
-
-  // time out if we are not making any progress
-  bool same_goal = same_point(prev_goal_, target_position);
+  geometry_msgs::msg::Point target_position = frontierTarget(*frontier);
+  RCLCPP_INFO(logger_, "ATLAS selected frontier target=(%.2f, %.2f), distance=%.2f",
+              target_position.x, target_position.y,
+              std::hypot(target_position.x - pose.position.x,
+                         target_position.y - pose.position.y));
 
   prev_goal_ = target_position;
-  if (!same_goal || prev_distance_ > frontier->min_distance) {
-    // we have different goal or we made some progress
-    last_progress_ = this->now();
-    prev_distance_ = frontier->min_distance;
-  }
-  // black list if we've made no progress for a long time
-  if (goal_active_ &&
-      (this->now() - last_progress_ >
-       tf2::durationFromSec(progress_timeout_)) &&
-      !resuming_) {
-    frontier_blacklist_.push_back(target_position);
-    RCLCPP_DEBUG(logger_, "Adding current goal to black list");
-    makePlan();
-    return;
-  }
+  prev_distance_ = std::hypot(target_position.x - pose.position.x,
+                              target_position.y - pose.position.y);
+  last_progress_ = this->now();
 
   // ensure only first call of makePlan was set resuming to true
   if (resuming_) {
     resuming_ = false;
-  }
-
-  // we don't need to do anything if we still pursuing the same goal
-  if (same_goal && goal_active_) {
-    return;
   }
 
   RCLCPP_DEBUG(logger_, "Sending goal to move base nav2");
@@ -418,6 +445,7 @@ void Explore::reachedGoal(const NavigationGoalHandle::WrappedResult& result,
       RCLCPP_DEBUG(logger_, "Goal was successful");
       last_progress_ = this->now();
       prev_distance_ = 0;
+      consecutive_nav_aborts_ = 0;
       break;
     case rclcpp_action::ResultCode::ABORTED:
 #ifdef NAV2_RESULT_HAS_ERROR_CODE
@@ -434,6 +462,15 @@ void Explore::reachedGoal(const NavigationGoalHandle::WrappedResult& result,
       RCLCPP_DEBUG(logger_, "Goal aborted — blacklisting frontier");
       frontier_blacklist_.push_back(frontier_goal);
 #endif
+      ++consecutive_nav_aborts_;
+      if (consecutive_nav_aborts_ >= 2) {
+        RCLCPP_WARN(logger_,
+                    "Nav2 aborted %u consecutive exploration goals; requesting "
+                    "sensor-guarded tight-space recovery",
+                    consecutive_nav_aborts_);
+        recovery_request_pub_->publish(std_msgs::msg::Empty());
+        consecutive_nav_aborts_ = 0;
+      }
       // If it was aborted probably because we've found another frontier goal,
       // so just return and don't make plan again
       return;

@@ -1,0 +1,15 @@
+[Unit]
+Description=Project ATLAS verified wireless HDMI display mode
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/jetson/.Xauthority
+ExecStartPre=/bin/sleep 8
+ExecStart=/home/jetson/project_atlas/scripts/atlas-wireless-hdmi-mode.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target

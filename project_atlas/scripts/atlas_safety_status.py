@@ -154,10 +154,17 @@ class AtlasSafetyStatus(Node):
         self.angular_speed = float(msg.twist.twist.angular.z)
 
     def on_ultrasonic(self, msg: Float32) -> None:
-        self.front_ultrasonic = float(msg.data) / 1000.0
+        value_mm = float(msg.data)
+        # The Arduino uses -1 for "no echo / open range". Treat that as no
+        # ultrasonic constraint and let the LiDAR remain authoritative; a
+        # negative distance must never become a fake zero-distance obstacle.
+        self.front_ultrasonic = (
+            value_mm / 1000.0 if value_mm > 0.0 else math.inf
+        )
 
     def on_side_ultrasonic(self, side: str, msg: Float32) -> None:
-        value = float(msg.data) / 1000.0
+        value_mm = float(msg.data)
+        value = value_mm / 1000.0 if value_mm > 0.0 else math.inf
         if side == "left":
             self.left_ultrasonic = value
         else:
