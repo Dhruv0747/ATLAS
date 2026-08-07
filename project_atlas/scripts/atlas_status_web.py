@@ -82,6 +82,8 @@ class AtlasRosNode:
         self.last_compressed_camera = 0.0
         self.panel_camera_frame = None
         self.panel_camera_source_ts = 0.0
+        self.overview_camera_frame = None
+        self.overview_camera_source_ts = 0.0
         self.last_scan_summary = 0.0
         self.last_motion_check = 0.0
         self.prev_motion_gray = None
@@ -590,6 +592,38 @@ class AtlasRosNode:
         except Exception:
             return source_jpeg
 
+    def camera_overview_frame(self):
+        """Return a cached native-size JPEG for CrowPanel Overview."""
+        now = time.time()
+        with self.lock:
+            source = self.data.get("camera_frame")
+            if not source:
+                return None
+            source_jpeg = source["value"]
+            source_ts = source["ts"]
+            if (self.overview_camera_frame is not None and
+                    self.overview_camera_source_ts == source_ts and
+                    now - source_ts < 2.0):
+                return self.overview_camera_frame
+        try:
+            encoded = np.frombuffer(source_jpeg, dtype=np.uint8)
+            frame = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+            if frame is None:
+                return None
+            frame = cv2.resize(frame, (272, 160), interpolation=cv2.INTER_AREA)
+            ok, overview_jpeg = cv2.imencode(
+                ".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70]
+            )
+            if not ok:
+                return None
+            result = overview_jpeg.tobytes()
+            with self.lock:
+                self.overview_camera_frame = result
+                self.overview_camera_source_ts = source_ts
+            return result
+        except Exception:
+            return None
+
 
 ROS = AtlasRosNode()
 
@@ -789,6 +823,18 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/camera_panel.jpg"):
             frame = ROS.camera_panel_frame()
+            if frame:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(frame)))
+                self.end_headers()
+                self.wfile.write(frame)
+            else:
+                self.send_error(404)
+            return
+        if self.path.startswith("/camera_overview.jpg"):
+            frame = ROS.camera_overview_frame()
             if frame:
                 self.send_response(200)
                 self.send_header("Content-Type", "image/jpeg")
