@@ -21,6 +21,19 @@ The broken 11-inch Jetson-connected display will be replaced by a removable 10.1
 - `project_atlas/config/`: robot configuration
 - `project_atlas/maps/`: current mapping assets
 
+## AI and MCP control
+
+`project_atlas/scripts/atlas_mcp_server.py` exposes a small MCP interface for
+status, sensors, camera snapshots, navigation stop, emergency stop, mapping and
+return-home. It uses the commissioned Jetson gateway and ROS 2 mission/mux
+interfaces; it never accesses the motor controller directly.
+
+Motion-capable tools are locked by default. Commission status, sensor, camera
+and stop behavior first. Only then set `ATLAS_MCP_ENABLE_MOTION=1` in a local
+systemd override while an operator has access to the physical emergency stop.
+The MCP process uses stdio and should be launched by the trusted MCP client; the
+included unit is an installation template, not an unauthenticated network API.
+
 Generated ROS directories, local environments, models, logs, credentials, and historical backups are intentionally excluded.
 
 ## Engineering policy
