@@ -29,10 +29,10 @@ return-home. It uses the commissioned Jetson gateway and ROS 2 mission/mux
 interfaces; it never accesses the motor controller directly.
 
 Motion-capable tools are locked by default. Commission status, sensor, camera
-and stop behavior first. Only then set `ATLAS_MCP_ENABLE_MOTION=1` in a local
-systemd override while an operator has access to the physical emergency stop.
-The MCP process uses stdio and should be launched by the trusted MCP client; the
-included unit is an installation template, not an unauthenticated network API.
+and stop behavior first. Only then set `ATLAS_MCP_ENABLE_MOTION=1` in the MCP
+client environment while an operator has access to the physical emergency stop.
+The MCP process uses stdio and must be launched by the trusted MCP client. It is
+not a standalone systemd daemon or an unauthenticated network API.
 
 Generated ROS directories, local environments, models, logs, credentials, and historical backups are intentionally excluded.
 
