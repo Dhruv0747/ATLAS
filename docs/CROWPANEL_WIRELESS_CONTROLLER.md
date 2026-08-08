@@ -82,3 +82,15 @@ The Jetson will remain the authority for:
 5. Watchdog-protected manual drive controls
 6. Mapping, navigation and mission controls
 7. Local camera, voice, logging and OTA functions
+
+## AI/MCP companion interface
+
+The Jetson also provides `project_atlas/scripts/atlas_mcp_server.py` for a
+trusted local AI client. MCP and CrowPanel commands converge only at the
+commissioned ROS mission controller and command mux. Neither interface may
+open the Yahboom serial device or publish to the motor driver directly.
+
+The default MCP commissioning profile is read-only plus stop actions. Mapping
+and return-home remain locked until `ATLAS_MCP_ENABLE_MOTION=1` is deliberately
+set after status, camera, link-loss and emergency-stop tests pass. Every
+motion-capable call additionally requires an explicit clear-area confirmation.
