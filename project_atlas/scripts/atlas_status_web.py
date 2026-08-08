@@ -106,6 +106,9 @@ class AtlasRosNode:
         self._set("companion_confirmation", "NOT REQUIRED")
         self._set("companion_rgb", "BLUE")
         self._set("companion_cloud", "NOT CONNECTED")
+        self._set("agent_status", "Agent supervisor starting")
+        self._set("agent_decision", "No mission selected")
+        self._set("agent_state", "{}")
         threading.Thread(target=self._spin, daemon=True).start()
 
     def _set(self, key, value):
@@ -221,6 +224,9 @@ class AtlasRosNode:
             n.create_subscription(String, "/atlas/health", lambda m: self._set("atlas_health", m.data), 10)
             n.create_subscription(String, "/atlas/readiness", lambda m: self._set("atlas_readiness", m.data), 10)
             n.create_subscription(String, "/atlas/sensor_freshness", lambda m: self._set("atlas_freshness", m.data), 10)
+            n.create_subscription(String, "/atlas/agent/status", lambda m: self._set("agent_status", m.data), 10)
+            n.create_subscription(String, "/atlas/agent/decision", lambda m: self._set("agent_decision", m.data), 10)
+            n.create_subscription(String, "/atlas/agent/state", lambda m: self._set("agent_state", m.data), 10)
             n.create_subscription(String, "/voice/vc02/status", lambda m: self._set("voice_status", m.data), 10)
             n.create_subscription(String, "/voice/vc02/event", lambda m: self._set("voice_event", m.data), 10)
             n.create_subscription(String, "/voice/vc02/raw", lambda m: self._set("voice_raw", m.data), 10)
@@ -1189,7 +1195,8 @@ async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'})
  environment(r);
  $('network').innerHTML=row('Wi-Fi',net.wifi_ip)+row('5G data',net.cell_ip)+row('Tailscale',net.tailscale_ip)+row('Active route',net.route);
  let fix=val(r,'gps_fix',{});$('gnss').innerHTML=row('Cell signal',`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech')} ${val(r,'cell_operator')}`)+row('Satellites used in fix',val(r,'gps_sats'))+row('GPS fix',fix.status>=0?`${n(fix.lat,6)}, ${n(fix.lon,6)}`:'SEARCHING / NO FIX');renderConstellations(val(r,'gps_const',''));
- $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('RAM',s.ram)+row('Jetson temp',s.temp)+row('Time',d.time);renderDetail();
+ let agent={};try{agent=JSON.parse(val(r,'agent_state','{}')||'{}')}catch(e){}
+ $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('RAM',s.ram)+row('Jetson temp',s.temp)+row('Agent',`${agent.mode||'--'} / ${agent.phase||'--'}`)+row('Agent decision',val(r,'agent_decision','No mission selected'))+row('Time',d.time);renderDetail();
  }catch(e){$('online').textContent='● OFFLINE';$('online').style.color='#ff4655'}}
 refresh();setInterval(refresh,2000);
 </script></body></html>"""

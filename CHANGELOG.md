@@ -12,7 +12,14 @@
   stdio server.
 - Completed live Jetson read-only MCP commissioning for status, sensors and
   camera with motion disabled, and recorded the deployed environment.
-
+- Added a safety-constrained mission agent with OpenAI/offline planning,
+  allowlisted high-level ROS tools, explicit motion confirmation, deterministic
+  live preflight, action verification, bounded persistent memory and
+  operator-visible state topics. Deployment defaults to monitor-only mode.
+- Added a dedicated mission-control navigation-cancel topic/service and a user
+  service for the existing sensor-guarded tight-space recovery tool; neither
+  bypasses the velocity mux, watchdog or emergency-stop priority.
+- Exposed agent status, state and decision telemetry through the ATLAS web API.
 - Established a clean source-control baseline from the live ATLAS Jetson deployment.
 - Added repository policy, safety exclusions, architecture overview, and development instructions.
 - Approved a camera-equipped 10.1-inch CrowPanel ESP32-P4 as the removable wireless dashboard/controller replacing the broken 11-inch display; documented integration and safety requirements.

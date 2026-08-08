@@ -58,6 +58,7 @@ class AtlasMissionControl(Node):
             "/atlas/stop_exploration": self.request_stop_exploration,
             "/atlas/set_home": self.request_set_home,
             "/atlas/return_home": self.request_return_home,
+            "/atlas/cancel_navigation": self.request_cancel_navigation,
         }
         for topic, callback in bindings.items():
             self.create_subscription(Empty, topic, callback, 10)
@@ -86,9 +87,15 @@ class AtlasMissionControl(Node):
                 res, self.return_home, "return-home queued"
             )
         )
+        self.create_service(
+            Trigger, "/atlas/cancel_navigation",
+            lambda req, res: self.service_submit(
+                res, self.cancel_navigation, "navigation cancel queued"
+            )
+        )
         self.status("READY")
         self.get_logger().info(
-            "Foxglove topic bindings ready: start, stop, set-home, return-home"
+            "Foxglove topic bindings ready: start, stop, set-home, return-home, cancel"
         )
 
     def status(self, text: str) -> None:
@@ -138,6 +145,9 @@ class AtlasMissionControl(Node):
 
     def request_return_home(self, _msg: Empty) -> None:
         self.submit("return home", self.return_home)
+
+    def request_cancel_navigation(self, _msg: Empty) -> None:
+        self.submit("cancel navigation", self.cancel_navigation)
 
     def current_pose(self):
         failures = []
@@ -238,6 +248,14 @@ class AtlasMissionControl(Node):
         if not map_yaml.exists():
             raise RuntimeError("map saver returned success but YAML is absent")
         self.status(f"EXPLORATION STOPPED; MAP SAVED {self.map_prefix}.yaml")
+
+    def cancel_navigation(self) -> None:
+        """Cancel active Nav2 goals without changing mapping or saving a map."""
+        self.zero_pub.publish(Twist())
+        if not self.cancel_all_nav_goals():
+            raise RuntimeError("Nav2 goal cancellation was not acknowledged")
+        self.zero_pub.publish(Twist())
+        self.status("NAVIGATION CANCELED; ROVER STOPPED")
 
     def return_home(self) -> None:
         if not self.home_file.exists():

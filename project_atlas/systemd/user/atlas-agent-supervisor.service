@@ -1,0 +1,15 @@
+[Unit]
+Description=Project ATLAS safety-constrained mission agent
+Wants=network-online.target atlas-mission-control.service atlas-safety-status.service
+After=network-online.target atlas-mission-control.service atlas-safety-status.service
+
+[Service]
+Type=simple
+EnvironmentFile=-%h/.config/project-atlas/openai.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null || true; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_agent_supervisor.py --ros-args --params-file /home/jetson/project_atlas/config/atlas_agent.yaml'
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

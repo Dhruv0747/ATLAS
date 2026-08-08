@@ -81,3 +81,28 @@ The Jetson migration and primary navigation commissioning sequence are complete.
 Ground autonomous tests always require a clear area and an operator at the
 physical emergency stop. The priority command chain remains REMOTE > WEB >
 FOXGLOVE > NAV2, with stale-command stopping.
+
+## Safety-constrained mission agent
+
+`atlas_agent_supervisor.py` adds an observe-plan-act-verify layer above the
+commissioned ROS 2 stack. It accepts natural mission requests on
+`/atlas/agent/command`, creates a maximum four-step plan from a fixed tool
+allowlist, publishes its operator-visible state, requires confirmation for
+motion, rechecks live safety data, dispatches only high-level mission topics,
+and verifies the resulting status. It never publishes velocity commands.
+
+The service is commissioned in `MONITOR_ONLY` mode. In that mode cloud or
+offline planning can be tested, but no physical action is dispatched. Runtime
+execution can be enabled through `/atlas/agent/set_execution_enabled`; motion
+plans still require `/atlas/agent/confirm_plan` and must pass the deterministic
+LiDAR, odometry, SLAM, manual-control and battery preflight.
+
+Useful interfaces:
+
+- `/atlas/agent/state`, `/status`, `/plan`, `/decision`, `/response`: dashboard
+  and Foxglove visibility
+- `/atlas/agent/command` (`std_msgs/String`): natural mission request
+- `/atlas/agent/confirm_plan`, `/cancel_plan`: explicit operator gate
+- `/atlas/agent/set_execution_enabled`: monitor-only/active selection
+- Persistent bounded event memory:
+  `~/.config/project_atlas/agent_memory.json`
