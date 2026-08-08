@@ -34,6 +34,14 @@ client environment while an operator has access to the physical emergency stop.
 The MCP process uses stdio and must be launched by the trusted MCP client. It is
 not a standalone systemd daemon or an unauthenticated network API.
 
+Install its isolated dependency set with:
+
+```bash
+python3 -m venv /home/jetson/project_atlas/.venv-mcp
+/home/jetson/project_atlas/.venv-mcp/bin/pip install \
+  -r /home/jetson/project_atlas/requirements-mcp.txt
+```
+
 Generated ROS directories, local environments, models, logs, credentials, and historical backups are intentionally excluded.
 
 ## Engineering policy
