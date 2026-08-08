@@ -8,6 +8,8 @@
   clear-area confirmation after commissioning.
 - Pointed the MCP defaults at the commissioned Jetson status gateway on port
   `8088`.
+- Pinned the MCP SDK below 2.0 to preserve the FastMCP import used by the ATLAS
+  stdio server.
 
 - Established a clean source-control baseline from the live ATLAS Jetson deployment.
 - Added repository policy, safety exclusions, architecture overview, and development instructions.
