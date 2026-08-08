@@ -20,8 +20,8 @@ from typing import Any, Sequence
 from mcp.server.fastmcp import FastMCP
 
 
-STATUS_URL = os.environ.get("ATLAS_STATUS_URL", "http://127.0.0.1:8000/api/status")
-CAMERA_URL = os.environ.get("ATLAS_CAMERA_URL", "http://127.0.0.1:8000/camera.jpg")
+STATUS_URL = os.environ.get("ATLAS_STATUS_URL", "http://127.0.0.1:8088/api/status")
+CAMERA_URL = os.environ.get("ATLAS_CAMERA_URL", "http://127.0.0.1:8088/camera.jpg")
 SNAPSHOT_PATH = Path(os.environ.get("ATLAS_SNAPSHOT_PATH", "/tmp/atlas_mcp_camera.jpg"))
 MOTION_ENABLED = os.environ.get("ATLAS_MCP_ENABLE_MOTION", "0") == "1"
 TIMEOUT_S = 5.0
