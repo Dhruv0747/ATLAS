@@ -6,6 +6,8 @@
   camera, stop, mapping and return-home through the existing mission controller
   and command mux; motion tools are locked by default and require explicit
   clear-area confirmation after commissioning.
+- Pointed the MCP defaults at the commissioned Jetson status gateway on port
+  `8088`.
 
 - Established a clean source-control baseline from the live ATLAS Jetson deployment.
 - Added repository policy, safety exclusions, architecture overview, and development instructions.
