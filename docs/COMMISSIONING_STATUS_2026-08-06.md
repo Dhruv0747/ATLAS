@@ -75,3 +75,16 @@ ground navigation and mapping.
 - Complete the CrowPanel wireless controller as a separate project phase.
 - Periodically recheck encoder calibration, wheel freedom, LiDAR mounting,
   battery health and sensor wiring after mechanical changes.
+
+## MCP read-only commissioning - 2026-08-08
+
+- Deployed `atlas_mcp_server.py` to `/home/jetson/project_atlas/scripts/`.
+- Created the isolated `/home/jetson/project_atlas/.venv-mcp` environment and
+  installed the repository-pinned MCP 1.x SDK.
+- Verified the commissioned status gateway on `127.0.0.1:8088`.
+- Passed live read-only calls for robot status, sensor summary and camera
+  capture; the captured JPEG was 18,916 bytes.
+- Confirmed `ATLAS_MCP_ENABLE_MOTION=0`; no stop, navigation or motor command
+  was issued during commissioning.
+- Registered the Jetson stdio server in the operator's Codex configuration with
+  only `get_robot_status`, `get_sensor_summary` and `capture_image` enabled.
