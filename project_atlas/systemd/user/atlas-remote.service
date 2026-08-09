@@ -4,7 +4,7 @@ After=default.target
 
 [Service]
 Type=simple
-ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; ros2 run joy joy_node --ros-args -p device_id:=0 -p deadzone:=0.08 -p autorepeat_rate:=30.0 -p coalesce_interval:=0.005 & joy_pid=$!; trap "kill $joy_pid 2>/dev/null" EXIT; exec ros2 run teleop_twist_joy teleop_node --ros-args --params-file /home/jetson/project_atlas/config/teleop_twist_joy.yaml -r cmd_vel:=/cmd_vel_joy'
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; ros2 run joy joy_node --ros-args -p device_id:=0 -p deadzone:=0.08 -p autorepeat_rate:=20.0 & joy_pid=$!; trap "kill $joy_pid 2>/dev/null" EXIT; exec ros2 run teleop_twist_joy teleop_node --ros-args --params-file /home/jetson/project_atlas/config/teleop_twist_joy.yaml -r cmd_vel:=/cmd_vel_joy'
 Restart=on-failure
 RestartSec=3
 
