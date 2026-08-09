@@ -85,10 +85,11 @@ controller_server:
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      # Exploration frontiers can begin close to the rover.  A 5 cm goal
-      # tolerance prevents a nearby valid frontier from being declared reached
-      # before the rover makes any physical progress.
-      xy_goal_tolerance: 0.05
+      # Match the rover's practical low-speed positioning accuracy and the
+      # progress checker's 10 cm movement radius.  This prevents a car-like
+      # chassis from stalling while attempting an impractical final 2-5 cm
+      # correction; obstacle clearance remains governed by the costmaps.
+      xy_goal_tolerance: 0.10
       yaw_goal_tolerance: 0.35
 
     FollowPath:

@@ -502,6 +502,7 @@ class AtlasAgentSupervisor(Node):
 
         self.phase = "READY" if self.execution_enabled else "MONITOR_ONLY"
         self.current_step = ""
+        self.last_error = ""
         self.decision = "Mission plan completed and verified"
         self.memory["successful_missions"] = int(
             self.memory.get("successful_missions", 0)
@@ -524,7 +525,11 @@ class AtlasAgentSupervisor(Node):
             "set_home": 6.0,
             "start_mapping": 18.0,
             "stop_mapping": 45.0,
-            "return_home": 15.0,
+            # Nav2's progress checker allows 20 seconds for a car-like rover
+            # to make measurable progress.  Keep the agent verifier alive
+            # beyond that window so it observes Nav2's real terminal result
+            # instead of canceling a valid final approach prematurely.
+            "return_home": 45.0,
             "cancel_navigation": 8.0,
             "request_tight_recovery": 15.0,
         }.get(action, base_timeout)
