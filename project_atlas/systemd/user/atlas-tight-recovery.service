@@ -1,6 +1,9 @@
 [Unit]
 Description=Project ATLAS sensor-guarded tight-space recovery tool
-Wants=atlas-cmd-vel-mux.service atlas-safety-status.service
+# The mux already pulls this helper into the boot transaction. Requiring the
+# mux here creates a mutual Wants= cycle and can cause systemd to drop this
+# service during startup.
+Wants=atlas-safety-status.service
 After=atlas-cmd-vel-mux.service atlas-safety-status.service
 
 [Service]

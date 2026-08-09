@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Removed the tight-recovery helper's reverse dependency on the velocity mux,
+  eliminating a systemd boot ordering cycle that could leave recovery inactive.
 - Added a safety-gated stdio MCP server for AI access to ATLAS status, sensors,
   camera, stop, mapping and return-home through the existing mission controller
   and command mux; motion tools are locked by default and require explicit
