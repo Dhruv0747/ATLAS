@@ -219,9 +219,10 @@ planner_server:
     use_sim_time: False
     planner_plugins: ["GridBased"]
     GridBased:
-      # Smac 2D uses the costmap's exact rectangular footprint and does not
-      # falsely reject ATLAS's free start pose as Hybrid A* did.
-      plugin: "nav2_smac_planner/SmacPlanner2D"
+      # ATLAS is a four-wheel-steering car. Hybrid-A* produces curvature-
+      # constrained paths the pure-pursuit controller can physically follow;
+      # the former 2D planner could request differential-drive pivots.
+      plugin: "nav2_smac_planner/SmacPlannerHybrid"
       # Frontier centroids lie on the known/unknown boundary. Permit the
       # planner to finish at the nearest safe cell outside the 28 cm inflation
       # band instead of rejecting an otherwise useful exploration route.
@@ -232,8 +233,18 @@ planner_server:
       max_iterations: 1000000
       max_on_approach_iterations: 1000
       max_planning_time: 3.0
-      cost_travel_multiplier: 2.0
-      use_final_approach_orientation: false
+      motion_model_for_search: "DUBIN"
+      angle_quantization_bins: 72
+      minimum_turning_radius: 0.35
+      analytic_expansion_ratio: 3.5
+      analytic_expansion_max_length: 2.0
+      reverse_penalty: 2.0
+      change_penalty: 0.0
+      non_straight_penalty: 1.2
+      cost_penalty: 2.0
+      lookup_table_size: 20.0
+      cache_obstacle_heuristic: false
+      smooth_path: true
 
 smoother_server:
   ros__parameters:
