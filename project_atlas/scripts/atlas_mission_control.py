@@ -223,7 +223,7 @@ class AtlasMissionControl(Node):
         previous_mtime = map_yaml.stat().st_mtime if map_yaml.exists() else 0.0
         result = subprocess.run(
             ["systemctl", "--user", "stop", self.explore_unit],
-            check=False, timeout=15, capture_output=True, text=True
+            check=False, timeout=40, capture_output=True, text=True
         )
         if result.returncode:
             raise RuntimeError(result.stderr.strip() or "systemctl stop failed")

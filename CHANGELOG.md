@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Bounded Explore Lite's stop-time map saver with a forced-kill grace period
+  and aligned mission-control's wait time, preventing a successfully saved map
+  from leaving `atlas-explore.service` stuck in deactivation or failed state.
 - Removed the tight-recovery helper's reverse dependency on the velocity mux,
   eliminating a systemd boot ordering cycle that could leave recovery inactive.
 - Added a safety-gated stdio MCP server for AI access to ATLAS status, sensors,
