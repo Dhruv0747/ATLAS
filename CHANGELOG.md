@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Corrected the 180-degree LiDAR mounting yaw in operator clearance and
+  tight-recovery sector calculations. Front/left/right labels and bounded
+  recovery direction now use the rover base frame rather than raw scan angles.
 - Bounded Explore Lite's stop-time map saver with a forced-kill grace period
   and aligned mission-control's wait time, preventing a successfully saved map
   from leaving `atlas-explore.service` stuck in deactivation or failed state.

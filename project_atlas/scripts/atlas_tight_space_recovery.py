@@ -12,6 +12,8 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Bool, Empty, Float32, String
 
+from atlas_scan_geometry import ray_in_base_sector
+
 
 class Phase(Enum):
     IDLE = auto()
@@ -34,6 +36,7 @@ class TightRecovery(Node):
         self.declare_parameter('pulse_duration_s', 0.8)
         self.declare_parameter('minimum_progress_m', 0.025)
         self.declare_parameter('max_attempts', 3)
+        self.declare_parameter('laser_yaw_deg', 180.0)
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel_web', 10)
         self.status_pub = self.create_publisher(String, '/atlas/tight_recovery_status', 10)
         self.resume_pub = self.create_publisher(Bool, '/explore/resume', 10)
@@ -93,8 +96,12 @@ class TightRecovery(Node):
             if not math.isfinite(value) or value < self.scan.range_min:
                 continue
             angle = math.degrees(self.scan.angle_min + i * self.scan.angle_increment)
-            delta = (angle - center_deg + 180.0) % 360.0 - 180.0
-            if abs(delta) <= width_deg:
+            if ray_in_base_sector(
+                angle,
+                center_deg,
+                width_deg,
+                self.get_parameter('laser_yaw_deg').value,
+            ):
                 vals.append(value)
         return min(vals) if vals else math.inf
 

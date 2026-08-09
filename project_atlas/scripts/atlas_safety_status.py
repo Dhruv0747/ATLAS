@@ -14,6 +14,11 @@ from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage, LaserScan
 from std_msgs.msg import Float32, String
 
+from atlas_scan_geometry import ray_in_base_sector
+
+
+LASER_YAW_DEG = 180.0
+
 
 class AtlasSafetyStatus(Node):
     def __init__(self):
@@ -112,11 +117,11 @@ class AtlasSafetyStatus(Node):
             if not math.isfinite(value) or not msg.range_min <= value <= msg.range_max:
                 continue
             degrees = math.degrees(angle)
-            if abs(degrees) <= 35.0:
+            if ray_in_base_sector(degrees, 0.0, 35.0, LASER_YAW_DEG):
                 nearest["front"] = min(nearest["front"], value)
-            elif 35.0 < degrees <= 120.0:
+            elif ray_in_base_sector(degrees, 77.5, 42.5, LASER_YAW_DEG):
                 nearest["left"] = min(nearest["left"], value)
-            elif -120.0 <= degrees < -35.0:
+            elif ray_in_base_sector(degrees, -77.5, 42.5, LASER_YAW_DEG):
                 nearest["right"] = min(nearest["right"], value)
         clear_value = float(msg.range_max)
         self.front_lidar = (
