@@ -20,6 +20,7 @@ from std_srvs.srv import SetBool, Trigger
 
 from atlas_agent_core import (
     TOOL_POLICIES,
+    evaluate_action_status,
     enforce_request_policy,
     fallback_plan,
     plan_is_stop_only,
@@ -518,14 +519,6 @@ class AtlasAgentSupervisor(Node):
     ) -> tuple[bool, str]:
         if action == "inspect_status":
             return True, "state snapshot published"
-        expected = {
-            "set_home": ("HOME SAVED",),
-            "start_mapping": ("EXPLORATION ACTIVE",),
-            "stop_mapping": ("EXPLORATION STOPPED",),
-            "return_home": ("RETURN HOME ACCEPTED", "RETURN HOME FINISHED"),
-            "cancel_navigation": ("NAVIGATION CANCELED",),
-            "request_tight_recovery": ("RECOVERED", "BLOCKED"),
-        }[action]
         base_timeout = float(self.get_parameter("verification_timeout_s").value)
         timeout = {
             "set_home": 6.0,
@@ -541,10 +534,10 @@ class AtlasAgentSupervisor(Node):
                 return False, "operator canceled the plan"
             current = self.observation_value(action)
             text, observed_at = current
-            if observed_at > before[1] and any(token in text.upper() for token in expected):
-                if action == "request_tight_recovery" and "BLOCKED" in text.upper():
-                    return False, text
-                return True, text
+            if observed_at > before[1]:
+                result = evaluate_action_status(action, text)
+                if result is not None:
+                    return result, text
             time.sleep(0.1)
         return False, f"no expected status after {before[0]!r}"
 

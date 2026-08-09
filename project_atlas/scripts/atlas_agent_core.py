@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 
@@ -27,6 +28,31 @@ TOOL_POLICIES = {
 }
 
 MAX_PLAN_STEPS = 4
+
+
+def evaluate_action_status(action: str, status: str) -> bool | None:
+    """Classify a fresh mission status as success, failure, or not-final."""
+    text = str(status).upper()
+    if action == "return_home":
+        if "RETURN HOME FINISHED" not in text:
+            return None
+        match = re.search(r"STATUS\s*=\s*(\d+)", text)
+        return bool(match and int(match.group(1)) == 4)
+    if action == "request_tight_recovery":
+        if "RECOVERED" in text:
+            return True
+        if "BLOCKED" in text:
+            return False
+        return None
+    expected = {
+        "set_home": "HOME SAVED",
+        "start_mapping": "EXPLORATION ACTIVE",
+        "stop_mapping": "EXPLORATION STOPPED",
+        "cancel_navigation": "NAVIGATION CANCELED",
+    }.get(action)
+    if expected is None:
+        return None
+    return True if expected in text else None
 
 
 def _step(action: str, reason: str) -> dict[str, str]:

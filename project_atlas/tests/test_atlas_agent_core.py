@@ -78,6 +78,28 @@ class AtlasAgentCoreTests(unittest.TestCase):
         )
         self.assertEqual(allowed["steps"][0]["action"], "request_tight_recovery")
 
+    def test_return_home_requires_successful_final_action_status(self):
+        self.assertIsNone(
+            MODULE.evaluate_action_status("return_home", "RETURN HOME ACCEPTED")
+        )
+        self.assertTrue(
+            MODULE.evaluate_action_status(
+                "return_home", "RETURN HOME FINISHED status=4"
+            )
+        )
+        self.assertFalse(
+            MODULE.evaluate_action_status(
+                "return_home", "RETURN HOME FINISHED status=6"
+            )
+        )
+
+    def test_blocked_recovery_is_failure(self):
+        self.assertFalse(
+            MODULE.evaluate_action_status(
+                "request_tight_recovery", "BLOCKED: no safe corridor"
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

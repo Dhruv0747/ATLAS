@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed agent action verification so Nav2 `RETURN HOME FINISHED status=6`
+  (aborted) is reported as failure; only action status 4 is accepted as a
+  successful return-home completion.
 - Corrected the 180-degree LiDAR mounting yaw in operator clearance and
   tight-recovery sector calculations. Front/left/right labels and bounded
   recovery direction now use the rover base frame rather than raw scan angles.
