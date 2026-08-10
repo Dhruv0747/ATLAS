@@ -1,6 +1,22 @@
-# Project ATLAS
+# Project ATLAS - Autonomous Service Rover
 
-Project ATLAS is a ROS 2 Humble autonomous service rover running Ubuntu 22.04 on an NVIDIA Jetson Orin Nano Super 8GB.
+**Creator: Dhruv Kaushik**
+
+Project ATLAS is an open robotics development project for a four-wheel autonomous service rover. It runs ROS 2 Humble on Ubuntu 22.04 with an NVIDIA Jetson Orin Nano Super 8GB and combines LiDAR SLAM, Nav2 autonomous navigation, wheel odometry, IMU sensor fusion, bounded recovery behaviours, AI vision, voice control, Foxglove, and wireless dashboards.
+
+This repository is the searchable engineering record for ATLAS: ROS 2 source code, launch files, robot parameters, hardware integration, safety controls, autonomous mapping, recovery logic, diagnostics, operating documentation, and commissioning evidence.
+
+**Search terms:** Project ATLAS rover, Dhruv Kaushik, autonomous rover, ROS 2 Humble, Jetson Orin Nano Super, Nav2, SLAM Toolbox, Explore Lite, LiDAR mapping, Ackermann steering, service robot, autonomous navigation, robot recovery, Foxglove, MCP robotics.
+
+## Current autonomy maturity
+
+- Core navigation foundation: operational with ROS 2, Nav2, LiDAR SLAM, encoder odometry and IMU/EKF fusion.
+- Deterministic recovery: implemented for no-progress detection, LiDAR-validated bounded reverse, costmap clearing and replanning.
+- Autonomous mapping: functional and under controlled endurance testing.
+- Current engineering gate: repeatable TF/odometry reliability and 20/20 controlled dead-end recovery trials.
+- Unattended operation is not yet approved; ground tests require a clear area and an operator at the physical emergency stop.
+
+ATLAS uses its 360-degree LiDAR as the primary navigation and obstacle sensor. Ultrasonic sensors provide close-range secondary protection. AI may select high-level goals, but it cannot bypass the deterministic command mux, watchdog or emergency stop.
 
 ## Hardware
 
@@ -20,6 +36,14 @@ The broken 11-inch Jetson-connected display will be replaced by a removable 10.1
 - `project_atlas/scripts/`: operational nodes, dashboard, diagnostics, voice, and recovery tools
 - `project_atlas/config/`: robot configuration
 - `project_atlas/maps/`: current mapping assets
+
+## Citation and authorship
+
+Project ATLAS was created by **Dhruv Kaushik**. Academic papers, articles and derived projects should cite the repository using the metadata in [`CITATION.cff`](CITATION.cff).
+
+Suggested attribution:
+
+> Dhruv Kaushik, Project ATLAS: ROS 2 Autonomous Service Rover, 2026.
 
 ## AI and MCP control
 

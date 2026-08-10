@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use Project ATLAS in research, education, or another robotics project, please cite it using this metadata."
+title: "Project ATLAS: ROS 2 Autonomous Service Rover"
+type: software
+authors:
+  - family-names: "Kaushik"
+    given-names: "Dhruv"
+    alias: "Dhruv0747"
+repository-code: "https://github.com/Dhruv0747/ATLAS"
+url: "https://github.com/Dhruv0747/ATLAS"
+abstract: >-
+  Project ATLAS is a four-wheel autonomous service rover built on ROS 2 Humble,
+  Ubuntu 22.04, and the NVIDIA Jetson Orin Nano Super. The project integrates
+  LiDAR SLAM, Nav2 navigation, encoder and IMU state estimation, deterministic
+  recovery, AI vision, voice interaction, safety arbitration, Foxglove, and
+  wireless operator dashboards.
+keywords:
+  - autonomous rover
+  - ROS 2 Humble
+  - NVIDIA Jetson Orin Nano
+  - Nav2
+  - SLAM
+  - LiDAR
+  - service robot
+  - autonomous navigation
+  - robot recovery
+license: "NOASSERTION"
+version: "0.9.0-development"
+date-released: "2026-08-10"
