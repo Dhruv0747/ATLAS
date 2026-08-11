@@ -139,6 +139,10 @@ local_costmap:
       height: 3
       resolution: 0.05
       footprint: "[[0.25, 0.18], [0.25, -0.18], [-0.25, -0.18], [-0.25, 0.18]]"
+      # Keep collision geometry equal to the measured chassis. The inflation
+      # layer supplies the graded 10 cm wheel-edge preference; hard footprint
+      # padding made valid tight-space starts appear lethal.
+      footprint_padding: 0.0
       plugins: ["obstacle_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
@@ -153,17 +157,28 @@ local_costmap:
         z_voxels: 16
         max_obstacle_height: 2.0
         mark_threshold: 0
-        observation_sources: scan
+        observation_sources: scan semantic_camera
         scan:
           topic: /scan
           max_obstacle_height: 2.0
           clearing: True
           marking: True
           data_type: "LaserScan"
+          inf_is_valid: true
           raytrace_max_range: 3.0
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.05
+        semantic_camera:
+          topic: /camera/semantic_obstacles
+          data_type: "PointCloud2"
+          clearing: False
+          marking: True
+          min_obstacle_height: 0.0
+          max_obstacle_height: 1.5
+          obstacle_max_range: 3.0
+          obstacle_min_range: 0.20
+          observation_persistence: 0.8
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
@@ -178,23 +193,35 @@ global_costmap:
       robot_base_frame: base_link
       use_sim_time: False
       footprint: "[[0.25, 0.18], [0.25, -0.18], [-0.25, -0.18], [-0.25, 0.18]]"
+      footprint_padding: 0.0
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: scan
+        observation_sources: scan semantic_camera
         scan:
           topic: /scan
           max_obstacle_height: 2.0
           clearing: True
           marking: True
           data_type: "LaserScan"
+          inf_is_valid: true
           raytrace_max_range: 3.0
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.05
+        semantic_camera:
+          topic: /camera/semantic_obstacles
+          data_type: "PointCloud2"
+          clearing: False
+          marking: True
+          min_obstacle_height: 0.0
+          max_obstacle_height: 1.5
+          obstacle_max_range: 3.0
+          obstacle_min_range: 0.20
+          observation_persistence: 0.8
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
@@ -224,8 +251,8 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       # ATLAS is a four-wheel-steering car. Hybrid-A* produces curvature-
-      # constrained paths the pure-pursuit controller can physically follow;
-      # the former 2D planner could request differential-drive pivots.
+      # constrained paths that Regulated Pure Pursuit can physically follow;
+      # the 2D grid planner can request an unsafe pivot at the start pose.
       plugin: "nav2_smac_planner/SmacPlannerHybrid"
       # Frontier centroids lie on the known/unknown boundary. Permit the
       # planner to finish at the nearest safe cell outside the 28 cm inflation
@@ -237,7 +264,9 @@ planner_server:
       max_iterations: 1000000
       max_on_approach_iterations: 1000
       max_planning_time: 3.0
-      motion_model_for_search: "DUBIN"
+      # Permit bounded reversing when the rover starts pointed away from the
+      # route. ATLAS has verified reverse drive and 360-degree LiDAR coverage.
+      motion_model_for_search: "REEDS_SHEPP"
       angle_quantization_bins: 72
       minimum_turning_radius: 0.35
       analytic_expansion_ratio: 3.5
@@ -265,10 +294,10 @@ behavior_server:
     costmap_topic: local_costmap/costmap_raw
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
-    # ATLAS has front/side ultrasonic coverage but no rear range sensor.
-    # Never execute Nav2's blind reverse recovery, and do not request an
-    # impossible differential-drive spin from a four-wheel-steering chassis.
-    behavior_plugins: ["assisted_teleop", "wait"]
+    # ATLAS has a 360-degree LiDAR. Permit a short, costmap-checked reverse
+    # recovery when a forward route is blocked. Spin remains disabled because
+    # the four-wheel-steering chassis cannot rotate in place.
+    behavior_plugins: ["backup", "assisted_teleop", "wait"]
     spin:
       plugin: "nav2_behaviors/Spin"
     backup:

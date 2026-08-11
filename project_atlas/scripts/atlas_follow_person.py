@@ -28,10 +28,13 @@ class AtlasFollowPerson(Node):
         self.lidar_front_m = math.inf
         self.lidar_at = 0.0
         self.pan_us = 1300
+        self.fused_person = None
+        self.fused_at = 0.0
         self.pub = self.create_publisher(Twist, '/cmd_vel_nav', 10)
         self.status = self.create_publisher(String, '/atlas/follow_person/status', 10)
         self.create_subscription(Bool, '/atlas/follow_person/enabled', self.enable_cb, 10)
         self.create_subscription(String, '/camera/detections/json', self.detections_cb, 10)
+        self.create_subscription(String, '/atlas/person_fusion/target', self.fusion_cb, 10)
         self.create_subscription(Float32, '/ultrasonic/front_mm', self.front_cb, 10)
         self.create_subscription(Int32, '/camera/bottom_servo_us', self.pan_cb, 10)
         self.create_subscription(LaserScan, '/scan', self.scan_cb, 10)
@@ -73,6 +76,16 @@ class AtlasFollowPerson(Node):
         self.front_mm = float(msg.data)
         self.front_at = time.monotonic()
 
+    def fusion_cb(self, msg):
+        try:
+            data = json.loads(msg.data)
+            if not data.get('confirmed'):
+                return
+            self.fused_person = data
+            self.fused_at = time.monotonic()
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+
     def pan_cb(self, msg):
         self.pan_us = int(msg.data)
 
@@ -94,6 +107,10 @@ class AtlasFollowPerson(Node):
             self.stop()
             self.publish_status('PAUSED - person lost; camera searching')
             return
+        if self.fused_person is None or now - self.fused_at > 0.75:
+            self.stop()
+            self.publish_status('PAUSED - person lacks fresh LiDAR confirmation')
+            return
 
         ultrasonic_valid = now - self.front_at < 0.8 and self.front_mm > 0
         lidar_valid = now - self.lidar_at < 0.8 and math.isfinite(self.lidar_front_m)
@@ -109,24 +126,26 @@ class AtlasFollowPerson(Node):
             return
 
         target = self.person
+        fused = self.fused_person
         # Camera tracker keeps the person centered, so pan displacement is also
         # steering error. Positive pan values correspond to the current rig's left.
-        pan_error = max(-1.0, min(1.0, (self.pan_us - 1300) / 700.0))
-        steering_error = max(-1.0, min(1.0, 0.65 * pan_error - 0.35 * target['x_error']))
+        steering_error = max(-1.0, min(1.0, math.radians(float(fused['bearing_deg'])) / math.radians(45)))
         cmd = Twist()
         cmd.angular.z = max(-0.42, min(0.42, 0.55 * steering_error))
 
         # Bounding-box size is a conservative monocular distance proxy. Never
         # reverse automatically; stop when the leader is close enough.
         size = target['height_ratio']
-        if size < 0.52 and abs(steering_error) < 0.72:
-            cmd.linear.x = max(0.07, min(0.14, (0.52 - size) * 0.55))
+        distance = float(fused['distance_m'])
+        if distance > 1.20 and abs(steering_error) < 0.72:
+            cmd.linear.x = max(0.07, min(0.14, (distance - 1.20) * 0.20))
             if abs(steering_error) > 0.38:
                 cmd.linear.x *= 0.55
         self.pub.publish(cmd)
         self.publish_status(
             f'FOLLOWING - person {target["confidence"]*100:.0f}% '
-            f'size {size:.2f} v {cmd.linear.x:.2f} w {cmd.angular.z:.2f}'
+            f'distance {distance:.2f}m motion {fused.get("motion", "UNKNOWN")} '
+            f'speed {fused.get("speed_mps")}m/s v {cmd.linear.x:.2f} w {cmd.angular.z:.2f}'
         )
 
 

@@ -135,6 +135,7 @@ local_costmap:
       height: 3
       resolution: 0.05
       footprint: "[[0.25, 0.18], [0.25, -0.18], [-0.25, -0.18], [-0.25, 0.18]]"
+      footprint_padding: 0.0
       plugins: ["obstacle_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
@@ -149,7 +150,7 @@ local_costmap:
         z_voxels: 16
         max_obstacle_height: 2.0
         mark_threshold: 0
-        observation_sources: scan
+        observation_sources: scan semantic_camera
         scan:
           topic: /scan
           max_obstacle_height: 2.0
@@ -160,6 +161,16 @@ local_costmap:
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.05
+        semantic_camera:
+          topic: /camera/semantic_obstacles
+          data_type: "PointCloud2"
+          clearing: False
+          marking: True
+          min_obstacle_height: 0.0
+          max_obstacle_height: 1.5
+          obstacle_max_range: 3.0
+          obstacle_min_range: 0.20
+          observation_persistence: 0.8
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
@@ -174,13 +185,14 @@ global_costmap:
       robot_base_frame: base_link
       use_sim_time: False
       footprint: "[[0.25, 0.18], [0.25, -0.18], [-0.25, -0.18], [-0.25, 0.18]]"
+      footprint_padding: 0.0
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: scan
+        observation_sources: scan semantic_camera
         scan:
           topic: /scan
           max_obstacle_height: 2.0
@@ -191,6 +203,16 @@ global_costmap:
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.05
+        semantic_camera:
+          topic: /camera/semantic_obstacles
+          data_type: "PointCloud2"
+          clearing: False
+          marking: True
+          min_obstacle_height: 0.0
+          max_obstacle_height: 1.5
+          obstacle_max_range: 3.0
+          obstacle_min_range: 0.20
+          observation_persistence: 0.8
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
@@ -233,7 +255,7 @@ planner_server:
       max_iterations: 1000000
       max_on_approach_iterations: 1000
       max_planning_time: 3.0
-      motion_model_for_search: "DUBIN"
+      motion_model_for_search: "REEDS_SHEPP"
       angle_quantization_bins: 72
       minimum_turning_radius: 0.35
       analytic_expansion_ratio: 3.5

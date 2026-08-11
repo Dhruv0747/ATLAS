@@ -1,0 +1,14 @@
+[Unit]
+Description=Project ATLAS camera and LiDAR semantic navigation fusion
+Wants=atlas-camera.service atlas-ai-annotator.service atlas-scan-filter.service atlas-arducam-ptz.service
+After=atlas-camera.service atlas-ai-annotator.service atlas-scan-filter.service atlas-arducam-ptz.service
+
+[Service]
+Type=simple
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_vision_lidar_fusion.py'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

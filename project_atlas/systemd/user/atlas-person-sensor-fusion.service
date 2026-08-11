@@ -1,0 +1,17 @@
+[Unit]
+Description=Project ATLAS camera LiDAR RD-03D person sensor fusion
+Wants=atlas-camera.service atlas-ai-annotator.service rover-radar.service atlas-scan-filter.service
+After=atlas-camera.service atlas-ai-annotator.service rover-radar.service atlas-scan-filter.service
+
+[Service]
+Type=simple
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null || true; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_person_sensor_fusion.py'
+Restart=on-failure
+RestartSec=3
+Nice=10
+CPUWeight=25
+CPUQuota=15%
+
+[Install]
+WantedBy=default.target
