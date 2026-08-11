@@ -1,0 +1,19 @@
+[Unit]
+Description=Project ATLAS saved-map localization and Nav2
+After=default.target atlas-lidar.service atlas-scan-filter.service
+Conflicts=atlas-slam-fast.service atlas-nav2.service atlas-explore.service atlas-map-footprint-filter.service
+
+[Service]
+Type=simple
+# Fast DDS shared-memory locks can survive short-lived ROS CLI diagnostics on
+# Jetson and prevent lifecycle nodes from discovering each other. UDPv4 keeps
+# all communication local/network-compatible without the stale SHM ports.
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec ros2 launch tortoisebot_bringup atlas_localization.launch.py map:=/home/jetson/project_atlas/maps/atlas_latest.yaml'
+ExecStartPost=/bin/bash -lc 'sleep 10; source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; /usr/bin/python3 /home/jetson/project_atlas/scripts/seed_atlas_localization.py'
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,16 @@
+[Unit]
+Description=Project ATLAS Nav2 planner and controller stack
+Wants=atlas-frame-bridge.service atlas-laser-tf.service atlas-slam-fast.service atlas-map-footprint-filter.service
+After=atlas-frame-bridge.service atlas-laser-tf.service atlas-slam-fast.service atlas-map-footprint-filter.service
+
+[Service]
+Type=simple
+CPUWeight=1000
+ExecStart=/bin/bash /home/jetson/project_atlas/scripts/nav2_launch.sh
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+KillMode=control-group
+
+[Install]
+WantedBy=default.target

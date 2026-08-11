@@ -1,0 +1,15 @@
+[Unit]
+Description=Project ATLAS mapping-only live footprint sanitizer
+Wants=atlas-slam-fast.service atlas-frame-bridge.service
+After=atlas-slam-fast.service atlas-frame-bridge.service
+
+[Service]
+Type=simple
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_map_footprint_filter.py'
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=8
+
+[Install]
+WantedBy=default.target
