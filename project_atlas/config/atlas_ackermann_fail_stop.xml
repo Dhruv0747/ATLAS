@@ -1,16 +1,36 @@
 <!--
-  Project ATLAS fail-stop navigation tree.
+  Project ATLAS LiDAR-guarded car-like navigation tree.
 
-  Car-like steering cannot safely use Nav2's spin recovery, and repeated
-  FollowPath retries can accumulate unwanted travel when a collision is
-  predicted. Any planning or control failure therefore aborts immediately;
-  the operator or bounded LiDAR recovery node may explicitly request a retry.
+  ATLAS cannot spin in place. When planning or following fails, clear stale
+  costmaps, attempt one short collision-checked reverse escape, and replan.
+  All reverse motion is bounded by the local costmap and the full footprint.
 -->
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
-    <Sequence name="NavigateFailStop">
-      <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
-      <FollowPath path="{path}" controller_id="FollowPath"/>
-    </Sequence>
+    <RecoveryNode number_of_retries="6" name="NavigateWithRecovery">
+      <PipelineSequence name="NavigateWithReplanning">
+        <RateController hz="0.5">
+          <RecoveryNode number_of_retries="1" name="ComputePathToPose">
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
+          </RecoveryNode>
+        </RateController>
+        <RecoveryNode number_of_retries="1" name="FollowPath">
+          <FollowPath path="{path}" controller_id="FollowPath"/>
+          <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+      </PipelineSequence>
+      <ReactiveFallback name="RecoveryFallback">
+        <GoalUpdated/>
+        <RoundRobin name="RecoveryActions">
+          <Sequence name="ClearCostmaps">
+            <ClearEntireCostmap name="ClearLocalCostmap-Recovery" service_name="local_costmap/clear_entirely_local_costmap"/>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Recovery" service_name="global_costmap/clear_entirely_global_costmap"/>
+          </Sequence>
+          <BackUp backup_dist="0.18" backup_speed="0.12" time_allowance="5.0"/>
+          <Wait wait_duration="2"/>
+        </RoundRobin>
+      </ReactiveFallback>
+    </RecoveryNode>
   </BehaviorTree>
 </root>

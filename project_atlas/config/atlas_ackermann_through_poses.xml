@@ -1,4 +1,4 @@
-<!-- Project ATLAS multi-pose tree: no spin and no blind reverse. -->
+<!-- Project ATLAS multi-pose tree: no spin; short LiDAR-guarded reverse. -->
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <RecoveryNode number_of_retries="6" name="NavigateRecovery">
@@ -24,6 +24,7 @@
             <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap"/>
             <ClearEntireCostmap name="ClearGlobalCostmap-Subtree" service_name="global_costmap/clear_entirely_global_costmap"/>
           </Sequence>
+          <BackUp backup_dist="0.18" backup_speed="0.12" time_allowance="5.0"/>
           <Wait wait_duration="3"/>
         </RoundRobin>
       </ReactiveFallback>

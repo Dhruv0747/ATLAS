@@ -1,0 +1,16 @@
+[Unit]
+Description=Project ATLAS persistent mission and recovery experience store
+After=default.target
+
+[Service]
+Type=simple
+Nice=10
+CPUWeight=25
+CPUQuota=10%
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null || true; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_experience_store.py'
+Restart=always
+RestartSec=3
+TimeoutStopSec=8
+
+[Install]
+WantedBy=default.target

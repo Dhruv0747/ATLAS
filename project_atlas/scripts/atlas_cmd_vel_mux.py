@@ -238,6 +238,7 @@ class AtlasCmdVelMux(Node):
         self.output.publish(Twist())
         self.last_sent = Twist()
         self.active_name = None
+        self.safety_output.publish(String(data="AUTONOMY IDLE"))
         self.get_logger().warn(f"Safety stop: {reason}")
         self.publish_mode()
 
@@ -259,6 +260,10 @@ class AtlasCmdVelMux(Node):
         if selected is None:
             if self.moving(self.last_sent):
                 self.publish_stop("no live command source")
+            elif self.active_name is not None:
+                self.active_name = None
+                self.safety_output.publish(String(data="AUTONOMY IDLE"))
+                self.publish_mode()
             return
 
         self.active_name = selected.name

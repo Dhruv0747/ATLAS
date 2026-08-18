@@ -6,6 +6,7 @@ Before=atlas-slam-fast.service atlas-nav2.service
 
 [Service]
 Type=simple
+CPUWeight=1000
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_scan_self_filter.py'
 Restart=on-failure
 RestartSec=2

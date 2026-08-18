@@ -12,8 +12,12 @@ from std_msgs.msg import Int32
 
 # Slightly larger than the verified 0.50 x 0.36 m footprint. This removes
 # wheel/chassis returns but preserves the requested 0.10 m external clearance.
-SELF_X_M = 0.28
-SELF_Y_M = 0.21
+# The live commissioning map showed wheel/chassis returns reaching roughly
+# 4.4 cm beyond the nominal 0.50 x 0.36 m body.  A 5 cm exclusion margin
+# removes that self-imprint while remaining inside the 10 cm navigation
+# clearance, so obstacles at the planned safety boundary are still retained.
+SELF_X_M = 0.30
+SELF_Y_M = 0.23
 # Measured installation: LiDAR centre is 0.30 m from the front edge of a
 # 0.50 m chassis, placing it 0.05 m behind base_footprint.
 LASER_X_M = -0.05
@@ -23,18 +27,21 @@ LASER_YAW_RAD = math.pi
 class AtlasScanSelfFilter(Node):
     def __init__(self):
         super().__init__('atlas_scan_self_filter')
+        # Keep only the newest scan. Under dashboard load, a deep reliable
+        # queue delayed scans behind the current TF window and made Nav2 drop
+        # otherwise valid LiDAR data.
         reliable_scan_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
-            depth=10,
+            depth=1,
         )
         self.publisher = self.create_publisher(LaserScan, '/scan', reliable_scan_qos)
         self.filtered_pub = self.create_publisher(Int32, '/atlas/lidar/self_filtered_points', 10)
         self.create_subscription(LaserScan, '/scan_raw', self._scan, qos_profile_sensor_data)
         self.get_logger().info(
             'ATLAS LiDAR self-filter ready: sensor x=-0.05m; '
-            'body envelope x=+-0.28m y=+-0.21m'
+            'body envelope x=+-0.30m y=+-0.23m'
         )
 
     def _scan(self, source):

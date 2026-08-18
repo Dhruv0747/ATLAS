@@ -32,14 +32,20 @@ MAX_PWM = 100
 MIN_RUN_PWM = 90
 BOOST_TIME_S = 0.25
 LOW_SPEED_HOLD_PWM = 45
-PWM_RAMP_STEP = 4
+PWM_RAMP_STEP = 8
+CMD_TIMEOUT_S = 0.45
+SERVO_UPDATE_TICKS = 2
+STEER_RAMP_STEP_DEG = 6
 CMD_ODOM_VX_SCALE = 1.0
 CMD_ODOM_WZ_SCALE = 0.45
 
 FRONT_STEER_SERVO_ID = 1    # Front steering servo port on Yahboom board (1-4)
 REAR_STEER_SERVO_ID  = 2    # Rear steering servo port on Yahboom board (1-4)
-FRONT_STEER_CENTER   = 90   # Straight-ahead angle (degrees)
-REAR_STEER_CENTER    = 90   # Straight-ahead angle (degrees)
+# Ground trim after the replacement steering motors (2026-08-11).  A 90/90
+# command produced a repeatable left arc.  Four-wheel opposite steering needs
+# equal and opposite centre correction so angular.z=0 is physically straight.
+FRONT_STEER_CENTER   = 100  # Straight-ahead angle (degrees)
+REAR_STEER_CENTER    = 86   # Straight-ahead angle (degrees)
 STEER_RANGE          = 30   # Normal/right max deflection each side
 STEER_LEFT_RANGE     = 42   # Extra left throw to match right mechanical angle
 STEER_RIGHT_RANGE    = 30
@@ -97,6 +103,8 @@ class YahboomBase(Node):
         self._applied_pwm = 0
         self._front_target_angle = FRONT_STEER_CENTER
         self._rear_target_angle = REAR_STEER_CENTER
+        self._front_applied_angle = FRONT_STEER_CENTER
+        self._rear_applied_angle = REAR_STEER_CENTER
         self._last_enc = None
         self._enc_origin = None
         self._enc_rate_anchor = None
@@ -199,22 +207,58 @@ class YahboomBase(Node):
         self._last_vz = vz
         self._last_cmd_time = time.time()
         if vx == 0.0 and vz == 0.0:
+            self._applied_pwm = 0
             self.bot.set_motor(0, 0, 0, 0)
 
     def _motor_keepalive(self):
         self._watchdog_ping()
-        if time.time() - self._last_cmd_time > 0.25:
+        if time.time() - self._last_cmd_time > CMD_TIMEOUT_S:
             self._last_vx = 0.0
             self._last_vz = 0.0
         self._drive_pwm(self._last_vx, self._last_vz)
         self._servo_tick = getattr(self, '_servo_tick', 0) + 1
-        if self._servo_tick >= 5:
+        if self._servo_tick >= SERVO_UPDATE_TICKS:
             self._servo_tick = 0
             try:
-                self.bot.set_pwm_servo(FRONT_STEER_SERVO_ID, self._front_target_angle)
-                self.bot.set_pwm_servo(REAR_STEER_SERVO_ID, self._rear_target_angle)
+                self._front_applied_angle = self._step_toward(
+                    self._front_applied_angle,
+                    self._front_target_angle,
+                    STEER_RAMP_STEP_DEG,
+                )
+                self._rear_applied_angle = self._step_toward(
+                    self._rear_applied_angle,
+                    self._rear_target_angle,
+                    STEER_RAMP_STEP_DEG,
+                )
+                self.bot.set_pwm_servo(FRONT_STEER_SERVO_ID, self._front_applied_angle)
+                self.bot.set_pwm_servo(REAR_STEER_SERVO_ID, self._rear_applied_angle)
             except Exception:
                 pass
+
+    @staticmethod
+    def _step_toward(current, target, step):
+        """Move one bounded step toward target without overshooting it."""
+        if current < target:
+            return min(current + step, target)
+        if current > target:
+            return max(current - step, target)
+        return target
+
+    def _slew_motor_pwm(self, target_pwm):
+        """Smooth normal drive changes while retaining an immediate safe stop."""
+        if target_pwm == 0:
+            return 0
+
+        current = self._applied_pwm
+        if current != 0 and (current > 0) != (target_pwm > 0):
+            # Never drive directly through zero when the operator reverses.
+            return 0
+
+        if current == 0:
+            start = min(abs(target_pwm), LOW_SPEED_HOLD_PWM)
+            return start if target_pwm > 0 else -start
+
+        return int(self._step_toward(current, target_pwm, PWM_RAMP_STEP))
 
     def _drive_pwm(self, vx, wz):
         drive = max(-1.0, min(1.0, vx))
@@ -229,9 +273,15 @@ class YahboomBase(Node):
                 (MAX_PWM - MIN_RUN_PWM) * abs(drive)
             )
             pwm = magnitude if drive > 0.0 else -magnitude
+        self._applied_pwm = self._slew_motor_pwm(pwm)
         # Individually verified ATLAS polarity: positive ROS linear.x must move
         # every wheel toward the physical front of the rover.
-        self.bot.set_motor(pwm, -pwm, -pwm, pwm)
+        self.bot.set_motor(
+            self._applied_pwm,
+            -self._applied_pwm,
+            -self._applied_pwm,
+            self._applied_pwm,
+        )
         steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
         steer_range = STEER_LEFT_RANGE if steer_norm > 0 else STEER_RIGHT_RANGE
         steer = steer_norm * steer_range
@@ -241,8 +291,8 @@ class YahboomBase(Node):
         max_angle = max(FRONT_STEER_CENTER + STEER_LEFT_RANGE, FRONT_STEER_CENTER + STEER_RIGHT_RANGE)
         self._front_target_angle = max(min_angle, min(max_angle, front_angle))
         self._rear_target_angle = max(min_angle, min(max_angle, rear_angle))
-        self._pub_front_steer.publish(Float32(data=float(self._front_target_angle)))
-        self._pub_rear_steer.publish(Float32(data=float(self._rear_target_angle)))
+        self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
+        self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))
         self._pub_steer_mode.publish(String(data='four_wheel_opposite'))
 
     def _servo_loop(self):
@@ -340,8 +390,8 @@ class YahboomBase(Node):
         if encoder_motion:
             vx = distance_delta / dt
             vy = 0.0
-            front_delta = math.radians(FRONT_STEER_CENTER - self._front_target_angle)
-            rear_delta = math.radians(REAR_STEER_CENTER - self._rear_target_angle)
+            front_delta = math.radians(FRONT_STEER_CENTER - self._front_applied_angle)
+            rear_delta = math.radians(REAR_STEER_CENTER - self._rear_applied_angle)
             curvature = (math.tan(front_delta) - math.tan(rear_delta)) / WHEELBASE_M
             vz = vx * curvature
             source = 'wheel_encoder_delta_4ws'
@@ -404,6 +454,7 @@ class YahboomBase(Node):
 
     def stop(self):
         systemd_notify("STOPPING=1\nSTATUS=Stopping Yahboom base")
+        self._applied_pwm = 0
         self.bot.set_motor(0, 0, 0, 0)
 
 

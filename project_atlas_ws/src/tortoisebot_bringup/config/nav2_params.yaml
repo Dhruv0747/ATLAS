@@ -147,7 +147,10 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 15.0
-        inflation_radius: 0.28
+        # With a polygon footprint, inflation_radius is clearance outside the
+        # physical rover outline. The previous 0.28 m value counted the
+        # 0.18 m half-width twice and rejected valid tight-space starts.
+        inflation_radius: 0.10
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -228,7 +231,9 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 15.0
-        inflation_radius: 0.28
+        # Match the requested 10 cm wheel-edge clearance. The rectangular
+        # footprint itself already accounts for the rover's half-width.
+        inflation_radius: 0.10
       always_send_full_costmap: True
 
 map_server:

@@ -1,0 +1,17 @@
+[Unit]
+Description=Project ATLAS lightweight specialist-agent role board
+After=atlas-agent-supervisor.service atlas-sensor-recovery.service atlas-mode-manager.service
+Wants=atlas-agent-supervisor.service atlas-sensor-recovery.service atlas-mode-manager.service
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+Nice=10
+CPUWeight=20
+CPUQuota=8%
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null || true; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_agent_team.py'
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

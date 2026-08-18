@@ -1,0 +1,18 @@
+[Unit]
+Description=Project ATLAS authoritative user-managed 2D EKF
+Wants=rover-base-telemetry.service atlas-imu.service
+After=rover-base-telemetry.service atlas-imu.service
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+CPUWeight=1000
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /opt/ros/humble/lib/robot_localization/ekf_node --ros-args --params-file /home/jetson/project_atlas/config/atlas_ekf.yaml -r odometry/filtered:=/odom'
+Restart=always
+RestartSec=3
+TimeoutStopSec=6
+KillMode=control-group
+
+[Install]
+WantedBy=default.target

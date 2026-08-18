@@ -1,9 +1,10 @@
 atlas_agent_supervisor:
   ros__parameters:
     enabled: true
-    # Commission in monitor-only mode. Enabling execution still leaves the
-    # explicit confirmation and deterministic preflight gates active.
-    execution_enabled: false
+    # Active supervised mode: the agent may dispatch only allowlisted tools.
+    # Motion still requires explicit confirmation and deterministic preflight
+    # checks for localization, sensors, battery, and safety state.
+    execution_enabled: true
     llm_enabled: true
     require_confirmation: true
     confirmation_timeout_s: 60.0

@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
-from threading import Event, Lock
+from threading import Event, Lock, RLock, get_ident
 import time
 from typing import Any
 
@@ -44,6 +44,7 @@ class AtlasAgentSupervisor(Node):
         self.declare_parameter("require_confirmation", True)
         self.declare_parameter("confirmation_timeout_s", 60.0)
         self.declare_parameter("state_timeout_s", 3.0)
+        self.declare_parameter("battery_timeout_s", 12.0)
         self.declare_parameter("verification_timeout_s", 12.0)
         self.declare_parameter("minimum_battery_percent", 20.0)
         self.declare_parameter("model", os.getenv("ATLAS_AGENT_MODEL", "gpt-4o-mini"))
@@ -69,9 +70,12 @@ class AtlasAgentSupervisor(Node):
         self.recovery_status = "UNKNOWN"
         self.recovery_status_at = 0.0
         self.recovery_state: dict[str, Any] = {}
-        self.battery_percent: float | None = None
+        self.traction_battery_percent: float | None = None
+        self.traction_battery_at = 0.0
+        self.aux_battery_percent: float | None = None
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="atlas-agent")
         self.busy_lock = Lock()
+        self.memory_lock = RLock()
         self.cancel_requested = Event()
 
         self.status_pub = self.create_publisher(String, "/atlas/agent/status", 10)
@@ -85,6 +89,8 @@ class AtlasAgentSupervisor(Node):
             "start_mapping": self.create_publisher(Empty, "/atlas/start_exploration", 10),
             "stop_mapping": self.create_publisher(Empty, "/atlas/stop_exploration", 10),
             "return_home": self.create_publisher(Empty, "/atlas/return_home", 10),
+            "save_named_place": self.create_publisher(String, "/atlas/save_named_place", 10),
+            "navigate_named_place": self.create_publisher(String, "/atlas/navigate_named_place", 10),
             "cancel_navigation": self.create_publisher(
                 Empty, "/atlas/cancel_navigation", 10
             ),
@@ -116,10 +122,10 @@ class AtlasAgentSupervisor(Node):
             String, "/atlas/recovery_state", self.on_recovery_state, 10
         )
         self.create_subscription(
-            Float32, "/battery/percent", self.on_battery_percent, 10
+            Float32, "/battery/percent", self.on_aux_battery_percent, 10
         )
         self.create_subscription(
-            Float32, "/bms/percent", self.on_battery_percent, 10
+            Float32, "/bms/percent", self.on_traction_battery_percent, 10
         )
 
         self.create_service(SetBool, "/atlas/agent/set_enabled", self.set_enabled)
@@ -147,12 +153,15 @@ class AtlasAgentSupervisor(Node):
         return {"version": 1, "events": [], "successful_missions": 0}
 
     def save_memory(self) -> None:
-        self.memory_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.memory_path.with_suffix(".tmp")
-        temporary.write_text(
-            json.dumps(self.memory, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
-        temporary.replace(self.memory_path)
+        with self.memory_lock:
+            self.memory_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = self.memory_path.with_name(
+                f"{self.memory_path.name}.tmp.{os.getpid()}.{get_ident()}"
+            )
+            temporary.write_text(
+                json.dumps(self.memory, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+            temporary.replace(self.memory_path)
 
     def record(self, kind: str, message: str, **extra: Any) -> None:
         event = {
@@ -161,10 +170,11 @@ class AtlasAgentSupervisor(Node):
             "message": message[:300],
             **extra,
         }
-        self.memory.setdefault("events", []).append(event)
-        self.memory["events"] = self.memory["events"][-200:]
         try:
-            self.save_memory()
+            with self.memory_lock:
+                self.memory.setdefault("events", []).append(event)
+                self.memory["events"] = self.memory["events"][-200:]
+                self.save_memory()
         except OSError as exc:
             self.get_logger().error(f"Could not save agent memory: {exc}")
 
@@ -201,10 +211,16 @@ class AtlasAgentSupervisor(Node):
         except ValueError:
             self.recovery_state = {}
 
-    def on_battery_percent(self, msg: Float32) -> None:
+    def on_traction_battery_percent(self, msg: Float32) -> None:
         value = float(msg.data)
         if 0.0 <= value <= 100.0:
-            self.battery_percent = value
+            self.traction_battery_percent = value
+            self.traction_battery_at = time.monotonic()
+
+    def on_aux_battery_percent(self, msg: Float32) -> None:
+        value = float(msg.data)
+        if 0.0 <= value <= 100.0:
+            self.aux_battery_percent = value
 
     def snapshot(self) -> dict[str, Any]:
         age = (
@@ -219,7 +235,12 @@ class AtlasAgentSupervisor(Node):
             "mission_status": self.mission_status,
             "recovery_status": self.recovery_status,
             "recovery_state": self.recovery_state,
-            "battery_percent": self.battery_percent,
+            "traction_battery_percent": self.traction_battery_percent,
+            "traction_battery_age_s": (
+                round(time.monotonic() - self.traction_battery_at, 2)
+                if self.traction_battery_at else None
+            ),
+            "aux_battery_percent": self.aux_battery_percent,
         }
 
     def set_enabled(self, request: SetBool.Request, response: SetBool.Response):
@@ -312,7 +333,9 @@ class AtlasAgentSupervisor(Node):
             "short operator-visible reason. Use only the supplied allowlisted tools. "
             "Use no more than four steps. Prefer inspect_status when the request is "
             "unclear. Never invent sensor readings, shell commands, raw motor control, "
-            "or coordinates. A separate deterministic safety gate will approve or "
+            "or coordinates. For save_named_place and navigate_named_place, include a "
+            "target field containing the operator's place name. Never invent a place. "
+            "A separate deterministic safety gate will approve or "
             "reject execution. Do not include hidden reasoning or chain of thought."
         )
         body = {
@@ -361,19 +384,55 @@ class AtlasAgentSupervisor(Node):
             except Exception as exc:
                 self.get_logger().warning(f"Cloud planner unavailable; using rules: {exc}")
                 raw = fallback_plan(request)
-            plan = enforce_request_policy(
-                raw,
-                request,
-                str(self.last_autonomy_state.get("phase", "")),
-            )
+            try:
+                plan = enforce_request_policy(
+                    raw,
+                    request,
+                    str(self.last_autonomy_state.get("phase", "")),
+                )
+            except (TypeError, ValueError, KeyError) as exc:
+                if not use_cloud:
+                    raise
+                self.get_logger().warning(
+                    f"Cloud plan failed policy validation; using rules: {exc}"
+                )
+                plan = enforce_request_policy(
+                    fallback_plan(request),
+                    request,
+                    str(self.last_autonomy_state.get("phase", "")),
+                )
             self.pending_plan = plan
             self.pending_deadline = time.monotonic() + float(
                 self.get_parameter("confirmation_timeout_s").value
             )
+            requires_confirmation = (
+                self.execution_enabled
+                and not plan_is_stop_only(plan)
+                and bool(self.get_parameter("require_confirmation").value)
+            )
+            if requires_confirmation:
+                # Publish the plan only after confirm() can safely see it as
+                # pending. This closes the DDS delivery race between the plan
+                # topic and the confirmation service.
+                self.phase = "AWAITING_CONFIRMATION"
             self.plan_pub.publish(String(data=json.dumps(plan, separators=(",", ":"))))
             actions = ", ".join(step["action"] for step in plan["steps"])
             self.decision = plan["summary"]
             self.record("plan", plan["summary"], actions=actions, planner=plan["planner"])
+
+            # A cancel can arrive as soon as the plan topic is observed.  Do
+            # not let the planner worker overwrite cancel() with a later
+            # AWAITING_CONFIRMATION transition.
+            if self.cancel_requested.is_set():
+                self.pending_plan = None
+                self.pending_deadline = 0.0
+                self.phase = "READY" if self.execution_enabled else "MONITOR_ONLY"
+                self.decision = "Plan canceled before dispatch"
+                return
+            if requires_confirmation and self.phase != "AWAITING_CONFIRMATION":
+                # confirm() already accepted/rejected the plan while this
+                # worker was finishing its operator-visible record.
+                return
 
             if not self.execution_enabled:
                 self.phase = "MONITOR_ONLY"
@@ -384,8 +443,7 @@ class AtlasAgentSupervisor(Node):
                 self.phase = "EXECUTING"
                 self.publish_message(f"Executing safety action: {actions}")
                 self.execute_plan_worker(plan)
-            elif bool(self.get_parameter("require_confirmation").value):
-                self.phase = "AWAITING_CONFIRMATION"
+            elif requires_confirmation:
                 self.publish_message(
                     f"Plan ready: {actions}. Confirm within "
                     f"{int(self.get_parameter('confirmation_timeout_s').value)} seconds."
@@ -421,8 +479,18 @@ class AtlasAgentSupervisor(Node):
         if missing:
             return False, "required safety sensors unavailable: " + ", ".join(missing)
         minimum = float(self.get_parameter("minimum_battery_percent").value)
-        if self.battery_percent is not None and self.battery_percent < minimum:
-            return False, f"battery {self.battery_percent:.0f}% is below {minimum:.0f}%"
+        if (
+            self.traction_battery_percent is None
+            or not self.traction_battery_at
+            or time.monotonic() - self.traction_battery_at
+            > float(self.get_parameter("battery_timeout_s").value)
+        ):
+            return False, "main traction BMS percentage is unavailable or stale"
+        if self.traction_battery_percent < minimum:
+            return False, (
+                f"main traction battery {self.traction_battery_percent:.0f}% "
+                f"is below {minimum:.0f}%"
+            )
         drive_mode = str(self.last_autonomy_state.get("drive_mode", "")).upper()
         if drive_mode in {"REMOTE", "WEB", "FOXGLOVE"}:
             return False, f"manual channel {drive_mode} currently has control"
@@ -484,7 +552,10 @@ class AtlasAgentSupervisor(Node):
                 self.fail_plan(f"{action} tool has no active ROS subscriber")
                 return
             before = self.observation_value(action)
-            publisher.publish(Empty())
+            if action in {"save_named_place", "navigate_named_place"}:
+                publisher.publish(String(data=step["target"]))
+            else:
+                publisher.publish(Empty())
             self.record("tool", action, reason=step["reason"])
             self.phase = "VERIFYING"
             verified, detail = self.verify_action(action, before)
@@ -530,6 +601,8 @@ class AtlasAgentSupervisor(Node):
             # beyond that window so it observes Nav2's real terminal result
             # instead of canceling a valid final approach prematurely.
             "return_home": 45.0,
+            "save_named_place": 6.0,
+            "navigate_named_place": 90.0,
             "cancel_navigation": 8.0,
             "request_tight_recovery": 15.0,
         }.get(action, base_timeout)
@@ -558,6 +631,7 @@ class AtlasAgentSupervisor(Node):
     def cancel(self, source: str) -> None:
         self.cancel_requested.set()
         self.pending_plan = None
+        self.pending_deadline = 0.0
         self.current_step = ""
         cancel_pub = self.tool_pubs["cancel_navigation"]
         if cancel_pub.get_subscription_count() > 0:

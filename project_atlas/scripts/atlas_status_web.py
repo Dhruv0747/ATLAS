@@ -74,8 +74,8 @@ class AtlasRosNode:
         self.pan_pub = None
         self.tilt_pub = None
         self.ai_pub = None
-        self.pan_us = 1500
-        self.tilt_us = 1500
+        self.pan_us = 1300
+        self.tilt_us = 2100
         self.last_drive_command = 0.0
         self.drive_active = False
         self.last_raw_camera_encode = 0.0
@@ -131,6 +131,12 @@ class AtlasRosNode:
             )
             n = self.node
             n.create_subscription(String, "/ultrasonic/status", self._ultrasonic_status_cb, 10)
+            n.create_subscription(
+                String,
+                "/arduino/i2c/status",
+                lambda m: self._set("i2c_status", m.data),
+                10,
+            )
             n.create_subscription(String, "/radar/targets", self._radar_targets_cb, 10)
             n.create_subscription(String, "/thermal/amg8833/status", lambda m: self._set("thermal_status", m.data), 10)
             n.create_subscription(String, "/thermal/amg8833/json", lambda m: self._set("thermal_json", m.data), 10)
@@ -187,6 +193,14 @@ class AtlasRosNode:
             n.create_subscription(Float32, "/cellular/hat_current", lambda m: self._set("hat_current", m.data), 10)
             n.create_subscription(Float32, "/cellular/hat_power", lambda m: self._set("hat_power", m.data), 10)
             n.create_subscription(String, "/cellular/hat_status", lambda m: self._set("hat_status", m.data), 10)
+            n.create_subscription(Float32, "/jetson/power/input_voltage", lambda m: self._set("jetson_voltage", m.data), 10)
+            n.create_subscription(Float32, "/jetson/power/input_current", lambda m: self._set("jetson_current", m.data), 10)
+            n.create_subscription(Float32, "/jetson/power/input_power", lambda m: self._set("jetson_power", m.data), 10)
+            n.create_subscription(Float32, "/jetson/power/cpu_gpu_power", lambda m: self._set("jetson_cpu_gpu_power", m.data), 10)
+            n.create_subscription(Float32, "/jetson/power/soc_power", lambda m: self._set("jetson_soc_power", m.data), 10)
+            n.create_subscription(String, "/jetson/power/status", lambda m: self._set("jetson_power_status", m.data), 10)
+            n.create_subscription(String, "/jetson/carrier/json", lambda m: self._set("carrier_json", m.data), 10)
+            n.create_subscription(String, "/jetson/carrier/status", lambda m: self._set("carrier_status", m.data), 10)
             n.create_subscription(String, "/ups/status", lambda m: self._set("ups_status", m.data), 10)
             n.create_subscription(Float32, "/ups/battery_voltage", lambda m: self._set("ups_bat_voltage", m.data), 10)
             n.create_subscription(Float32, "/ups/battery_current", lambda m: self._set("ups_bat_current", m.data), 10)
@@ -215,6 +229,8 @@ class AtlasRosNode:
             n.create_subscription(Int32, "/yahboom/encoder/m4", lambda m: self._set("enc_m4", m.data), 10)
             n.create_subscription(LaserScan, "/scan", self._scan_cb, qos_profile_sensor_data)
             n.create_subscription(CompressedImage, "/camera/image_raw/compressed", self._camera_cb, qos_profile_sensor_data)
+            n.create_subscription(CompressedImage, "/camera/detections/compressed", self._ai_camera_cb, 10)
+            n.create_subscription(String, "/camera/detections/json", self._ai_detections_cb, 10)
             n.create_subscription(Float32, "/steering/front_angle_deg", lambda m: self._set("front_steer", m.data), 10)
             n.create_subscription(Float32, "/steering/rear_angle_deg", lambda m: self._set("rear_steer", m.data), 10)
             n.create_subscription(String, "/steering/mode", lambda m: self._set("steer_mode", m.data), 10)
@@ -227,6 +243,8 @@ class AtlasRosNode:
             n.create_subscription(String, "/atlas/agent/status", lambda m: self._set("agent_status", m.data), 10)
             n.create_subscription(String, "/atlas/agent/decision", lambda m: self._set("agent_decision", m.data), 10)
             n.create_subscription(String, "/atlas/agent/state", lambda m: self._set("agent_state", m.data), 10)
+            n.create_subscription(String, "/atlas/agent_team/status", lambda m: self._set("agent_team_status", m.data), 10)
+            n.create_subscription(String, "/atlas/experience/status", lambda m: self._set("experience_status", m.data), 10)
             n.create_subscription(String, "/voice/vc02/status", lambda m: self._set("voice_status", m.data), 10)
             n.create_subscription(String, "/voice/vc02/event", lambda m: self._set("voice_event", m.data), 10)
             n.create_subscription(String, "/voice/vc02/raw", lambda m: self._set("voice_raw", m.data), 10)
@@ -393,7 +411,9 @@ class AtlasRosNode:
                     self.prev_motion_gray = small
             except Exception as exc:
                 self._set("motion_error", str(exc))
-        self._run_object_ai(frame_bytes)
+        # Object inference is owned by ai_annotator_node. Running another
+        # TensorRT engine here duplicated GPU work and gave the dashboard a
+        # different result from Foxglove's annotated stream.
         if self.ai_mode == "object":
             ai_status = self.data.get("ai_status", {}).get("value", "Object detection armed")
         elif self.ai_mode == "eco":
@@ -404,6 +424,33 @@ class AtlasRosNode:
             self.data["camera_frame"] = {"value": frame_bytes, "ts": time.time()}
             self.data["camera_info"] = {"value": {"bytes": len(frame_bytes), "source": "compressed", "motion": motion_text, "ai": ai_status}, "ts": time.time()}
             self.data["ai_status"] = {"value": ai_status, "ts": time.time()}
+
+    def _ai_camera_cb(self, msg):
+        self._set("ai_camera_frame", bytes(msg.data))
+
+    def _ai_detections_cb(self, msg):
+        try:
+            payload = json.loads(msg.data)
+            objects = []
+            for detection in payload.get("detections", [])[:12]:
+                objects.append({
+                    "label": str(detection.get("label", "object")),
+                    "conf": round(float(detection.get("confidence", 0.0)), 3),
+                    "x1": int(detection.get("x1", 0)),
+                    "y1": int(detection.get("y1", 0)),
+                    "x2": int(detection.get("x2", 0)),
+                    "y2": int(detection.get("y2", 0)),
+                })
+        except (ValueError, TypeError, AttributeError):
+            return
+        self._set("ai_objects", json.dumps(objects, separators=(",", ":")))
+        self._set("ai_detector_live", True)
+        if self.ai_mode == "object":
+            if objects:
+                text = ", ".join(f"{item['label']} {item['conf']:.2f}" for item in objects[:4])
+                self._set("ai_status", "OBJECT " + text)
+            else:
+                self._set("ai_status", "OBJECT no object in frame")
     def _raw_camera_cb(self, msg):
         now = time.time()
         if now - self.last_compressed_camera < 2.0:
@@ -445,7 +492,7 @@ class AtlasRosNode:
             self.ai_pub.publish(Bool(data=mode != "eco"))
         self._set("ai_mode", mode)
         if mode == "object":
-            msg = "Object detection armed" if self.yolo_ready else "YOLO model missing"
+            msg = "TensorRT object detection enabled" if self.yolo_ready else "YOLO model missing"
         elif mode == "eco":
             self.ai_model = None
             self.ai_detections = []
@@ -465,17 +512,23 @@ class AtlasRosNode:
     def camera_move(self, axis, direction):
         direction = max(-1, min(1, int(direction)))
         if axis == "pan" and self.pan_pub is not None:
-            self.pan_us = max(1100, min(1900, self.pan_us + direction * 40))
+            self.pan_us = max(700, min(2300, self.pan_us + direction * 40))
             self.pan_pub.publish(Int32(data=self.pan_us))
             return True, f"pan {self.pan_us}us"
         if axis == "tilt" and self.tilt_pub is not None:
-            self.tilt_us = max(1100, min(1900, self.tilt_us + direction * 50))
+            # The web UI's screen-space direction is opposite the installed
+            # B0283 servo pulse direction: a lower pulse points the camera
+            # down, while a higher pulse points it up. Translate here so even
+            # an already-open/cached dashboard controls the physical direction.
+            direction = -direction
+            self.tilt_us = max(700, min(2300, self.tilt_us + direction * 50))
             self.tilt_pub.publish(Int32(data=self.tilt_us))
             return True, f"tilt {self.tilt_us}us"
         if axis == "center" and self.pan_pub is not None and self.tilt_pub is not None:
-            self.pan_us = self.tilt_us = 1500
-            self.pan_pub.publish(Int32(data=1500))
-            self.tilt_pub.publish(Int32(data=1500))
+            self.pan_us = 1300
+            self.tilt_us = 2100
+            self.pan_pub.publish(Int32(data=self.pan_us))
+            self.tilt_pub.publish(Int32(data=self.tilt_us))
             return True, "camera centred"
         return False, "camera publisher unavailable"
 
@@ -545,7 +598,7 @@ class AtlasRosNode:
             out = {}
             now = time.time()
             for k, v in self.data.items():
-                if k == "camera_frame":
+                if k in {"camera_frame", "ai_camera_frame"}:
                     continue
                 out[k] = {"value": v["value"], "age": round(now - v["ts"], 1)}
             out["web_control_ready"] = {"value": self.ready, "age": 0}
@@ -553,7 +606,9 @@ class AtlasRosNode:
 
     def camera_frame(self):
         with self.lock:
-            item = self.data.get("camera_frame")
+            item = self.data.get("ai_camera_frame") if self.ai_mode == "object" else None
+            if not item or time.time() - item["ts"] > 1.5:
+                item = self.data.get("camera_frame")
             return item["value"] if item else None
 
     def camera_panel_frame(self):
@@ -649,7 +704,7 @@ def network_status():
             info["tailscale_ip"] = ip
     route = run(["ip", "route", "show", "default"])
     if " dev wwan0 " in route or " dev enx" in route:
-        info["route"] = "5G/cellular"
+        info["route"] = "cellular"
     elif " dev wlan0 " in route or " dev wlP1p1s0 " in route:
         info["route"] = "Wi-Fi"
     peers = []
@@ -663,37 +718,80 @@ def network_status():
                 peers.append(peer)
     if peers:
         peer = peers[-1]
-        info["ssh"] = ("Wi-Fi LAN: " if peer.startswith("192.168.1.") else "Tailscale/5G: " if peer.startswith("100.") else "") + peer
+        info["ssh"] = ("Wi-Fi LAN: " if peer.startswith("192.168.1.") else "Tailscale/cellular: " if peer.startswith("100.") else "") + peer
     return info
 
 
 def services():
-    return {name: (run(["systemctl", "--user", "is-active", name], timeout=1) or "unknown") for name in SERVICES}
+    # Query every dashboard unit in one systemd round-trip.  The previous
+    # implementation spawned one process per unit on every cache refresh.
+    output = run(
+        ["systemctl", "--user", "show", "--property=Id", "--property=ActiveState", *SERVICES],
+        timeout=2,
+    )
+    states = {name: "unknown" for name in SERVICES}
+    unit = ""
+    for line in output.splitlines():
+        if line.startswith("Id="):
+            unit = line[3:].removesuffix(".service")
+        elif line.startswith("ActiveState=") and unit in states:
+            states[unit] = line.split("=", 1)[1] or "unknown"
+    return states
+
+
+_cpu_sample_lock = threading.Lock()
+_cpu_sample = None
+
+
+def cpu_percent():
+    global _cpu_sample
+    try:
+        fields = [int(value) for value in open("/proc/stat", encoding="utf-8").readline().split()[1:]]
+        total = sum(fields)
+        idle = fields[3] + (fields[4] if len(fields) > 4 else 0)
+        with _cpu_sample_lock:
+            previous = _cpu_sample
+            _cpu_sample = (total, idle)
+        if previous:
+            delta_total = total - previous[0]
+            delta_idle = idle - previous[1]
+            if delta_total > 0:
+                return f"{100.0 * (delta_total - delta_idle) / delta_total:.1f}"
+    except (OSError, ValueError, IndexError):
+        pass
+    return "--"
 
 
 def system_status():
-    cpu = run(["bash", "-lc", "top -bn1 | awk '/Cpu\\(s\\)/ {printf \"%.1f\", 100-$8}'"], timeout=2)
-    mem_line = run(["bash", "-lc", "free -m | awk '/Mem:/ {printf \"%s %s %.0f\", $3, $2, ($3/$2)*100}'"], timeout=2)
+    cpu = cpu_percent()
     ram = "--"
     ram_percent = None
-    if mem_line:
-        parts = mem_line.split()
-        if len(parts) == 3:
-            used, total, percent = parts
-            ram = f"{used} MB / {total} MB ({percent}%)"
-            try:
-                ram_percent = float(percent)
-            except ValueError:
-                ram_percent = None
-    temp = run(["bash", "-lc", "cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null"], timeout=1)
+    try:
+        memory = {}
+        for line in open("/proc/meminfo", encoding="utf-8"):
+            key, value = line.split(":", 1)
+            memory[key] = int(value.strip().split()[0])
+        total_mb = memory["MemTotal"] // 1024
+        available_mb = memory.get("MemAvailable", memory.get("MemFree", 0)) // 1024
+        used_mb = total_mb - available_mb
+        ram_percent = round(100.0 * used_mb / total_mb) if total_mb else None
+        ram = f"{used_mb} MB / {total_mb} MB ({ram_percent}%)"
+    except (OSError, ValueError, KeyError):
+        pass
+    try:
+        temp = open("/sys/class/thermal/thermal_zone0/temp", encoding="utf-8").read().strip()
+    except OSError:
+        temp = ""
     if temp.isdigit():
         temp = f"{int(temp) / 1000:.0f} C"
     return {
-        "cpu_percent": cpu or "--",
+        "cpu_percent": cpu,
         "ram": ram,
         "ram_percent": ram_percent,
         "temp": temp or "--",
-        "voice_usb": os.path.exists("/dev/ttyACM2"),
+        "voice_usb": os.path.exists(
+            "/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_28:84:85:57:02:24-if00"
+        ),
         "openai_configured": os.path.exists("/home/jetson/.config/project-atlas/openai.env"),
     }
 
@@ -1025,6 +1123,7 @@ h2{font-size:11px;letter-spacing:.8px;color:var(--cyan);margin:0 0 7px}.camera{w
 .row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #173047;min-width:0}.row span:first-child{color:var(--muted)}.row span:last-child{text-align:right;overflow-wrap:anywhere;min-width:0}
 .envgrid{display:grid;grid-template-columns:130px 1fr;gap:8px}.heatmap{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;aspect-ratio:1}.heat{border-radius:2px;background:#112436}.chart{width:100%;height:82px;background:#06101a;border:1px solid #18364d;border-radius:6px}
 .radarScope{width:100%;height:min(36vh,340px);background:#020b09;border:1px solid #146044;border-radius:8px;box-shadow:inset 0 0 28px rgba(24,255,143,.08)}
+.radarViewBar{display:flex;align-items:center;gap:6px;margin-bottom:7px}.radarViewBar .btn{padding:7px 11px;font-size:10px}.radarViewBar .btn.active{background:#15527b;border-color:var(--cyan);box-shadow:0 0 14px rgba(23,213,255,.22)}.radarViewNote{margin-left:auto;color:var(--muted);font-size:9px;text-align:right}.radarHidden{display:none}
 .healthhead{display:flex;align-items:center;justify-content:space-between;gap:8px}.healthsummary{font-size:11px;font-weight:800}
 .healthgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.healthitem{border:1px solid #24435d;border-left:5px solid #8ca6bb;border-radius:7px;background:#07131f;padding:7px;min-width:0}
 .healthitem.ok{border-left-color:#34e58b}.healthitem.warn{border-left-color:#ffcc3d}.healthitem.fail{border-left-color:#ff4655;background:#211017}
@@ -1081,7 +1180,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
   </div>
  </div>
  <div class="panel"><h2>RANGE & ATTITUDE</h2><div class="cards" id="sensors"></div></div>
- <div class="panel"><h2>RD-03D LIVE MOTION RADAR — X/Y TRAILS</h2><canvas class="radarScope" id="radarScope" width="720" height="340"></canvas><div class="detail" id="radarCaption">WAITING FOR RADAR UART DATA</div></div>
+ <div class="panel"><h2>RD-03D LIVE MOTION RADAR</h2><div class="radarViewBar"><button class="btn" id="radar2dBtn" onclick="setRadarView('2d')">2D RADAR</button><button class="btn active" id="radar3dBtn" onclick="setRadarView('3d')">3D PEOPLE</button><span class="radarViewNote">LIVE RD-03D DATA<br>UP TO 3 TARGETS</span></div><canvas class="radarScope radarHidden" id="radarScope" width="720" height="340"></canvas><canvas class="radarScope" id="radarTwin" width="720" height="340"></canvas><div class="detail" id="radarCaption">WAITING FOR RADAR UART DATA</div></div>
 </section>
 <section class="col">
  <div class="panel"><div class="healthhead"><h2>HARDWARE HEALTH / FAULT FINDER</h2><div class="healthsummary" id="healthSummary">CHECKING</div></div><div class="healthgrid" id="healthGrid"></div></div>
@@ -1091,7 +1190,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
   <div class="card touch" onclick="openDetail('environment')"><div class="detail" id="outsideStats">Outside sensor waiting</div><canvas class="chart" id="insideChart" width="300" height="82"></canvas><canvas class="chart" id="outsideChart" width="300" height="82" style="margin-top:6px"></canvas><div class="detail">TOUCH FOR GAS / PRESSURE / IAQ</div></div></div>
  </div>
  <div class="panel"><h2>NETWORK</h2><div id="network"></div></div>
- <div class="panel"><h2>GNSS / 5G</h2><div id="gnss"></div><div class="constellation-grid" id="constellationGrid"></div><div class="constellation-note">L76K supports GPS, GLONASS, BeiDou and QZSS. Galileo/NavIC remain visible for future receivers.</div></div>
+ <div class="panel"><h2>GNSS / CELLULAR</h2><div id="gnss"></div><div class="constellation-grid" id="constellationGrid"></div><div class="constellation-note">L76K supports GPS, GLONASS, BeiDou and QZSS. DETECTED means that constellation's NMEA stream is present; the accurate combined fix count is shown above. Galileo/NavIC remain visible for future receivers.</div></div>
  <div class="panel"><h2>SYSTEM</h2><div id="system"></div></div>
 </section></main><div id="toast"></div>
 <div class="sensorModal" id="sensorModal" role="dialog" aria-modal="true"><div class="sensorSheet"><div class="sensorHead"><h2 id="detailTitle">LIVE SENSOR</h2><span class="live" id="detailFresh">LIVE</span><button class="closeDetail" onclick="closeDetail()">CLOSE</button></div><div id="detailBody"></div></div></div>
@@ -1102,13 +1201,17 @@ const card=(a,b,c='',key='')=>`<div class="card ${key?'touch':''}" ${key?`onclic
 const row=(a,b)=>`<div class="row"><span>${a}</span><span>${b}</span></div>`;
 const age=(r,k)=>r[k]&&Number.isFinite(Number(r[k].age))?Number(r[k].age):9999;
 const recent=(r,k,seconds)=>age(r,k)<seconds;
+function cellGeneration(raw){let t=String(raw||'').toLowerCase();if(t.includes('5g')||t.includes('nr'))return '5G';if(t.includes('lte'))return '4G';if(t.includes('umts')||t.includes('hspa'))return '3G';if(t.includes('gsm')||t.includes('edge')||t.includes('gprs'))return '2G';return 'CELLULAR'}
 function healthItem(name,state,hint,seconds=null){
  let ageText=seconds===null?'':seconds<60?`${seconds.toFixed(1)}s`:`${Math.round(seconds/60)}m`;
  return `<div class="healthitem ${state}"><div class="healthname"><span>${name}</span><span class="healthstate">${state.toUpperCase()} ${ageText}</span></div><div class="healthhint">${hint}</div></div>`;
 }
 function renderHealth(r,net){
  let thermal={};try{thermal=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}
+ let carrier={};try{carrier=JSON.parse(val(r,'carrier_json','{}')||'{}')}catch(e){}
+ let cellGen=cellGeneration(val(r,'cell_tech',''));
  let gpsLive=recent(r,'gps_sats',12),gpsSats=Number(val(r,'gps_sats',0))||0;
+ let i2c=i2cInfo(r);
  let items=[
   ['CAMERA',recent(r,'camera_info',4)?'ok':'fail',recent(r,'camera_info',4)?'IMX708 video frames live':'No frames: check CSI ribbon and camera service','camera_info'],
   ['MOTOR / ENCODERS',recent(r,'enc_m1',4)?'ok':'fail',recent(r,'enc_m1',4)?'Yahboom serial telemetry live':'Check /dev/yahboom USB and motor-board power','enc_m1'],
@@ -1117,10 +1220,12 @@ function renderHealth(r,net){
   ['RPLIDAR',recent(r,'lidar',4)?'ok':'fail',recent(r,'lidar',4)?'Laser scan live':'Check LiDAR USB, motor and cable','lidar'],
   ['RD-03D RADAR',recent(r,'radar',3)?'ok':'fail',recent(r,'radar',3)?'UART target frames live':'Check radar power and crossed TX/RX','radar'],
   ['ULTRASONIC',recent(r,'us_status',4)||recent(r,'us_front',4)?'ok':'fail',recent(r,'us_status',4)||recent(r,'us_front',4)?'Arduino range data live':'Check Arduino USB and sensor power',recent(r,'us_status',4)?'us_status':'us_front'],
+  ['I2C SENSOR BUS',i2c.liveCount?'ok':(i2c.arduinoLive?'warn':'fail'),i2c.liveCount?`${i2c.liveCount} native sensor${i2c.liveCount===1?'':'s'} live on Jetson I2C-7`:(i2c.arduinoLive?'Arduino bridge live, but reports no devices':'No live I2C sensor telemetry'),i2c.liveCount?(i2c.imuLive?'imu_heading':i2c.thermalLive?'thermal_status':'outside_status'):'i2c_status'],
   ['INSIDE IR 8x8',thermal.ok&&recent(r,'thermal_json',5)?'ok':'fail',thermal.ok?'AMG8833 heatmap live':'Not detected: check 3.3V, GND, SDA pin 3, SCL pin 5','thermal_json'],
   ['OUTSIDE TEMP',recent(r,'outside_temperature',9)?'ok':'fail',recent(r,'outside_temperature',9)?'Ambient temperature live':'Check outside sensor wiring/address 0x4B','outside_temperature'],
   ['DALY BMS',recent(r,'bms_status',20)?'ok':'fail',recent(r,'bms_status',20)?'Battery telemetry live':'Check BMS Bluetooth connection','bms_status'],
-  ['5G MODEM',recent(r,'cell_signal',20)?'ok':'fail',recent(r,'cell_signal',20)?`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech','')}`:'Check SIM8230G USB and power','cell_signal'],
+  ['ORIN IO BASE',recent(r,'carrier_status',25)&&carrier.ok?'ok':'fail',carrier.ok?`${carrier.power_mode} • NVMe ${carrier.nvme.free_gb}GB free • ${carrier.usb_devices} USB devices`:'Carrier health service offline','carrier_status'],
+  [`${cellGen} MODEM`,recent(r,'cell_signal',20)?'ok':'fail',recent(r,'cell_signal',20)?`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech','')}`:'Check SIM8230G USB and power','cell_signal'],
   ['GNSS',gpsLive?(gpsSats>0?'ok':'warn'):'fail',gpsLive?(gpsSats>0?`${gpsSats} satellites received`:'Receiver live, antenna has no satellite lock'):'No GNSS messages: check modem/antenna','gps_sats'],
   ['WEB / TAILSCALE',net&&net.tailscale_ip!='--'?'ok':'warn',net&&net.tailscale_ip!='--'?`Reachable at ${net.tailscale_ip}`:'Tailscale address unavailable',null]
  ];
@@ -1131,15 +1236,24 @@ function renderHealth(r,net){
 }
 function renderConstellations(raw){
  let counts={GPS:0,GLONASS:0,BEIDOU:0,GALILEO:0,QZSS:0,NAVIC:0};
- String(raw||'').split('|').forEach(part=>{let p=part.split(':');if(p.length==2&&p[0] in counts)counts[p[0]]=Math.max(0,Number(p[1])||0)});
+ let detected=new Set(),text=String(raw||'').trim();
+ // Accept both publishers used on ATLAS.  The modem publisher sends numeric
+ // totals (GPS:4|GLONASS:2), while the UNO R4 GNSS bridge sends NMEA talker
+ // IDs (BD,GN,GP).  A talker ID proves reception from that constellation but
+ // does not contain a trustworthy per-system satellite count.
+ if(text.includes(':'))text.split('|').forEach(part=>{let p=part.split(':'),name=String(p.shift()||'').trim().toUpperCase(),value=p.join(':');if(name in counts){counts[name]=Math.max(0,Number(value)||0);if(counts[name]>0)detected.add(name)}else if(name==='TALKERS'){let talkers={GP:'GPS',GL:'GLONASS',BD:'BEIDOU',GB:'BEIDOU',GA:'GALILEO',GQ:'QZSS',QZ:'QZSS',GI:'NAVIC',IR:'NAVIC'};value.split(',').map(x=>x.trim().toUpperCase()).forEach(code=>{if(talkers[code])detected.add(talkers[code])})}});
+ else {
+  let talkers={GP:'GPS',GL:'GLONASS',BD:'BEIDOU',GB:'BEIDOU',GA:'GALILEO',GQ:'QZSS',QZ:'QZSS',GI:'NAVIC',IR:'NAVIC'};
+  text.split(',').map(x=>x.trim().toUpperCase()).forEach(code=>{if(talkers[code])detected.add(talkers[code])});
+ }
  let systems=[
   ['GPS','USA','#34e58b'],['GLONASS','RUSSIA','#46b4ff'],
   ['BEIDOU','CHINA','#ff9d3d'],['GALILEO','EUROPE','#aa78ff'],
   ['QZSS','JAPAN','#ffd34d'],['NAVIC','INDIA','#ff5078']
  ];
  $('constellationGrid').innerHTML=systems.map(([name,country,color])=>{
-   let count=counts[name],width=Math.min(100,count/12*100);
-   return `<div class="constellation"><div class="constellation-top"><span>${name} / ${country}</span><span style="color:${count?color:'#71869a'}">${count} SAT</span></div><div class="satbar"><div class="satfill" style="width:${width}%;background:${color}"></div></div></div>`;
+   let count=counts[name],seen=detected.has(name),width=count?Math.min(100,count/12*100):(seen?22:0),label=count?`${count} SAT`:(seen?'DETECTED':'0 SAT');
+   return `<div class="constellation"><div class="constellation-top"><span>${name} / ${country}</span><span style="color:${seen?color:'#71869a'}">${label}</span></div><div class="satbar"><div class="satfill" style="width:${width}%;background:${color}"></div></div></div>`;
  }).join('');
 }
 function toast(t){let e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>e.style.display='none',2200)}
@@ -1148,12 +1262,22 @@ let latestStatus=null,activeDetail='';
 function tile(label,value,unit=''){return `<div class="detailTile"><b>${label}</b><strong>${value}${unit}</strong></div>`}
 function rangeTile(label,value){let mm=Number(value),pct=Number.isFinite(mm)?Math.max(0,Math.min(100,mm/30)):0;return `<div class="detailTile"><b>${label}</b><strong>${Number.isFinite(mm)?mm.toFixed(0):'--'} mm</strong><div class="rangeBar"><div class="rangeFill" style="width:${pct}%"></div></div><div class="sensorHint">${Number.isFinite(mm)?(mm<250?'NEAR — STOP ZONE':mm<500?'CAUTION':'CLEAR'):'NO CURRENT READING'}</div></div>`}
 function heatCells(r){let t={};try{t=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}let p=Array.isArray(t.pixels)?t.pixels:[],mn=Number(t.min_c),mx=Number(t.max_c);return `<div class="modalHeat">${Array.from({length:64},(_,i)=>{let v=Number(p[i]),q=Number.isFinite(v)?Math.max(0,Math.min(1,(v-mn)/Math.max(.2,mx-mn))):0;return `<i title="${Number.isFinite(v)?v.toFixed(1)+'°C':'--'}" style="background:${Number.isFinite(v)?`hsl(${220-q*220} 88% ${28+q*28}%)`:'#112436'}"></i>`}).join('')}</div><div class="detailGrid" style="margin-top:10px">${tile('MIN',n(t.min_c,1),'°C')}${tile('AVERAGE',n(t.avg_c,1),'°C')}${tile('MAX / HOTSPOT',n(t.max_c,1),'°C')}</div>`}
+function i2cInfo(r){
+ let raw=String(val(r,'i2c_status','')),arduinoBus=(raw.match(/(?:^|,)BUS=([^,]*)/i)||[])[1]||'--',arduinoAddresses=raw.match(/0x[0-9a-f]{2}/gi)||[];
+ arduinoAddresses=[...new Set(arduinoAddresses.map(x=>x.toUpperCase()))];
+ let imuLive=recent(r,'imu_heading',4),thermalLive=recent(r,'thermal_status',5),outsideLive=recent(r,'outside_status',9),native=[];
+ if(imuLive)native.push({name:'BNO08X IMU',address:'0x4B'});
+ if(thermalLive){let a=String(val(r,'thermal_status','')).match(/addr=(0x[0-9a-f]{2})/i);native.push({name:'AMG8833 8x8',address:a?a[1].toUpperCase():'--'})}
+ if(outsideLive){let a=String(val(r,'outside_status','')).match(/addr=(0x[0-9a-f]{2})/i);native.push({name:'BME680 AIR',address:a?a[1].toUpperCase():'--'})}
+ return {raw,arduinoBus,arduinoAddresses,arduinoLive:recent(r,'i2c_status',6),imuLive,thermalLive,outsideLive,native,liveCount:native.length};
+}
 function renderDetail(){if(!activeDetail||!latestStatus)return;let r=latestStatus.ros,body='',title='LIVE SENSOR',fresh='LIVE';
  if(activeDetail==='ultrasonic'){title='THREE ULTRASONIC SENSORS';body=`<div class="detailGrid">${rangeTile('LEFT',val(r,'us_left'))}${rangeTile('FRONT',val(r,'us_front'))}${rangeTile('RIGHT',val(r,'us_right'))}</div><div class="rawData">STATUS: ${val(r,'us_status','waiting')}\nREFRESH: live ROS values, approximately 5–10 updates/second\nROLE: secondary near-field safety layer; LiDAR remains the primary navigation sensor.</div>`;fresh=Math.max(age(r,'us_left'),age(r,'us_front'),age(r,'us_right'))<3?'● LIVE':'STALE';}
  else if(activeDetail==='camera'){title='IMX708 CAMERA — LIVE OUTPUT';let c=val(r,'camera_info',{});body=`<img id="modalCamera" class="modalCamera" src="/camera.mjpg"><div class="detailGrid" style="margin-top:10px">${tile('SOURCE',c.source||'--')}${tile('JPEG FRAME',c.bytes||'--',' bytes')}${tile('AGE',n(age(r,'camera_info'),1),' s')}</div><div class="rawData">AI: ${val(r,'ai_status','--')}\nMOTION: ${val(r,'motion_state','--')} (${n(val(r,'motion_percent'),1)}%)\nCamera processing remains single-source; this window does not start another detector.</div>`;fresh=age(r,'camera_info')<3?'● LIVE':'STALE';}
  else if(activeDetail==='imu'){title='BNO08X IMU + MOTOR-BOARD IMU';let f=val(r,'imu_full',{}),m=val(r,'imu_mag',{});body=`<div class="detailGrid">${tile('ROLL',n(val(r,'imu_roll'),2),'°')}${tile('PITCH',n(val(r,'imu_pitch'),2),'°')}${tile('HEADING / YAW',n(val(r,'imu_heading'),2),'°')}${tile('ACCEL X',n(f.ax,3),' m/s²')}${tile('ACCEL Y',n(f.ay,3),' m/s²')}${tile('ACCEL Z',n(f.az,3),' m/s²')}${tile('GYRO X',n(f.gx,3),' rad/s')}${tile('GYRO Y',n(f.gy,3),' rad/s')}${tile('GYRO Z',n(f.gz,3),' rad/s')}${tile('MAG X',n(m.x_ut,2),' µT')}${tile('MAG Y',n(m.y_ut,2),' µT')}${tile('MAG Z',n(m.z_ut,2),' µT')}</div><div class="rawData">ORIENTATION QUATERNION: x ${n(f.qx,5)}  y ${n(f.qy,5)}  z ${n(f.qz,5)}  w ${n(f.qw,5)}\nDEDICATED BNO08X: navigation source\nMOTOR-BOARD IMU: roll ${n(val(r,'board_imu_roll'),1)}°, pitch ${n(val(r,'board_imu_pitch'),1)}°, heading ${n(val(r,'board_imu_heading'),1)}° — displayed for comparison/fault detection, not fused as the primary source.</div>`;fresh=age(r,'imu_full')<3?'● LIVE':'STALE';}
  else if(activeDetail==='thermal'){title='AMG8833 8×8 THERMAL ARRAY';body=heatCells(r)+`<div class="rawData">${val(r,'thermal_status','Thermal sensor waiting')}\nEach square is one live infrared temperature pixel. Brightest square is the current hotspot.</div>`;fresh=age(r,'thermal_json')<4?'● LIVE':'STALE';}
  else if(activeDetail==='environment'){title='BME680 OUTSIDE AIR / GAS';let j={};try{j=JSON.parse(val(r,'bme680_json','{}')||'{}')}catch(e){}body=`<div class="detailGrid">${tile('TEMPERATURE',n(val(r,'outside_temperature'),2),'°C')}${tile('HUMIDITY',n(val(r,'outside_humidity'),1),'% RH')}${tile('PRESSURE',n(val(r,'outside_pressure'),1),' hPa')}${tile('GAS RESISTANCE',n(Number(val(r,'outside_gas'))/1000,1),' kΩ')}${tile('IAQ ESTIMATE',n(j.iaq,0))}${tile('HEATER',j.heat_stable?'STABLE':'WARMING')}</div><div class="rawData">STATUS: ${val(r,'outside_status','waiting')}\nGas resistance is a relative VOC/air-quality signal, not a calibrated safety alarm. Compare its trend and IAQ estimate after the heater becomes stable.</div>`;fresh=age(r,'outside_gas')<8?'● LIVE':'STALE';}
+ else if(activeDetail==='i2c'){title='ATLAS I²C ROUTES — LIVE INVENTORY';let q=i2cInfo(r),nativeText=q.native.length?q.native.map(x=>`${x.name}  ${x.address}`).join('\n'):'NONE',arduinoText=q.arduinoAddresses.length?q.arduinoAddresses.join(', '):'NONE REPORTED';body=`<div class="detailGrid">${tile('JETSON I2C-7',q.liveCount+' LIVE')}${tile('BNO08X',q.imuLive?'0x4B LIVE':'OFFLINE')}${tile('AMG8833',q.thermalLive?'LIVE':'OFFLINE')}${tile('BME680',q.outsideLive?'LIVE':'OFFLINE')}${tile('UNO BRIDGE',q.arduinoLive?'ONLINE':'OFFLINE')}${tile('UNO DEVICES',q.arduinoAddresses.length)}</div><div class="rawData">JETSON I2C-7 ACTIVE SENSORS:\n${nativeText}\n\nARDUINO ${q.arduinoBus} STATUS:\n${q.raw||'waiting for /arduino/i2c/status'}\nADDRESSES: ${arduinoText}\n\nSensor LIVE states are based on fresh ROS telemetry, not a disruptive repeated bus scan.</div>`;fresh=q.liveCount?'● LIVE':(q.arduinoLive?'● BRIDGE ONLY':'STALE');}
  $('detailTitle').textContent=title;$('detailFresh').textContent=fresh;$('detailFresh').style.color=fresh.includes('LIVE')?'#34e58b':'#ff4655';$('detailBody').innerHTML=body;
 }
 function openDetail(key){activeDetail=key;$('sensorModal').classList.add('open');renderDetail()}
@@ -1167,10 +1291,14 @@ $('stop').onclick=()=>post({action:'e_stop'});window.addEventListener('blur',()=
 document.querySelectorAll('[data-cam]').forEach(b=>{let timer;b.onpointerdown=e=>{e.preventDefault();let send=()=>post({action:'camera',axis:b.dataset.cam,direction:b.dataset.dir});send();timer=setInterval(send,160)};let end=()=>{clearInterval(timer)};b.onpointerup=end;b.onpointercancel=end;b.onpointerleave=end});
 document.querySelectorAll('[data-ai]').forEach(b=>b.onclick=()=>post({action:'ai_mode',mode:b.dataset.ai}));
 let insideHistory=[],outsideHistory=[];
-const radarTrails={T1:[],T2:[],T3:[]};let radarSweep=0,lastRadarRaw='';
+const radarTrails={T1:[],T2:[],T3:[]};let radarSweep=0,lastRadarRaw='',radarView='3d',lastRadarTargets=[],lastRadarLive=false;
 function parseRadarTargets(raw){return String(raw||'').split('|').map(part=>{let m=part.trim().match(/^(T\d+):x=(-?\d+)mm,y=(-?\d+)mm,spd=(-?\d+)cm\/s$/);return m?{id:m[1],x:Number(m[2]),y:Number(m[3]),speed:Number(m[4])}:null}).filter(Boolean)}
+function setRadarView(view){radarView=view==='3d'?'3d':'2d';$('radarScope').classList.toggle('radarHidden',radarView!=='2d');$('radarTwin').classList.toggle('radarHidden',radarView!=='3d');$('radar2dBtn').classList.toggle('active',radarView==='2d');$('radar3dBtn').classList.toggle('active',radarView==='3d');if(radarView==='3d')drawRadarTwins(lastRadarTargets,lastRadarLive)}
+function radarColor(t){let d=Math.hypot(t.x,t.y);return d<750?'#ff4655':d<1500?'#ffcf3c':t.id==='T2'?'#19cfff':'#38ff9b'}
+function drawPerson(g,x,y,scale,color,label,detail){let head=Math.max(5,8*scale),body=Math.max(17,28*scale),arm=Math.max(10,17*scale),leg=Math.max(12,21*scale);g.save();g.strokeStyle=color;g.fillStyle=color;g.lineWidth=Math.max(2,4*scale);g.shadowColor=color;g.shadowBlur=12;g.beginPath();g.arc(x,y-body-head-3,head,0,Math.PI*2);g.fill();g.beginPath();g.moveTo(x,y-body);g.lineTo(x,y);g.moveTo(x-arm,y-body*.68);g.lineTo(x,y-body*.82);g.lineTo(x+arm,y-body*.68);g.moveTo(x,y);g.lineTo(x-leg*.62,y+leg);g.moveTo(x,y);g.lineTo(x+leg*.62,y+leg);g.stroke();g.shadowBlur=0;g.fillStyle='#eefaff';g.font='bold 12px system-ui';g.textAlign='center';g.fillText(label,x,y+leg+18);g.font='10px system-ui';g.fillStyle='#a9c7d9';g.fillText(detail,x,y+leg+31);g.restore()}
+function drawRadarTwins(targets,live){let c=$('radarTwin'),g=c.getContext('2d'),w=c.width,h=c.height,cx=w/2,horizon=66,floor=h-27;g.clearRect(0,0,w,h);let bg=g.createLinearGradient(0,0,0,h);bg.addColorStop(0,'#061628');bg.addColorStop(.42,'#07131d');bg.addColorStop(1,'#020806');g.fillStyle=bg;g.fillRect(0,0,w,h);g.strokeStyle='rgba(23,213,255,.22)';g.lineWidth=1;for(let i=-6;i<=6;i++){g.beginPath();g.moveTo(cx+i*22,horizon);g.lineTo(cx+i*70,floor);g.stroke()}for(let m=1;m<=8;m++){let q=m/8,y=horizon+(floor-horizon)*q*q;g.beginPath();g.moveTo(30+(1-q)*cx*.76,y);g.lineTo(w-30-(1-q)*cx*.76,y);g.stroke()}g.fillStyle='#17d5ff';g.font='bold 12px system-ui';g.textAlign='left';g.fillText('RD-03D DIGITAL TWIN ROOM',14,22);g.fillStyle='#8ca6bb';g.font='10px system-ui';g.fillText('AVATARS REPRESENT LIVE RADAR X/Y — NOT A BODY SCAN',14,38);let visible=targets.filter(t=>t.y>=0).slice(0,3).sort((a,b)=>b.y-a.y);visible.forEach(t=>{let depth=Math.max(0,Math.min(1,t.y/8000)),py=floor-(floor-horizon)*Math.pow(depth,.62),spread=54+(1-depth)*270,px=cx+Math.max(-1,Math.min(1,t.x/4000))*spread,scale=.55+(1-depth)*.62,d=Math.hypot(t.x,t.y);drawPerson(g,px,py,scale,radarColor(t),t.id,`${(d/1000).toFixed(2)}m  ${t.speed>0?'+':''}${t.speed}cm/s`)});g.fillStyle='#eefaff';g.font='bold 12px system-ui';g.textAlign='right';g.fillText(`${visible.length}/3 PEOPLE`,w-14,22);if(!live){g.fillStyle='rgba(2,8,12,.76)';g.fillRect(0,0,w,h);g.fillStyle='#ff5966';g.font='bold 18px system-ui';g.textAlign='center';g.fillText('RADAR OFFLINE — NO LIVE TARGET FRAMES',cx,h/2)}else if(!visible.length){g.fillStyle='#8ca6bb';g.font='bold 16px system-ui';g.textAlign='center';g.fillText('NO PERSON MOTION DETECTED',cx,h/2)}}
 function drawRadar(raw,live){let c=$('radarScope'),g=c.getContext('2d'),w=c.width,h=c.height,cx=w/2,base=h-18,maxY=4000,maxX=2400,targets=parseRadarTargets(raw);g.fillStyle='#020b09';g.fillRect(0,0,w,h);g.lineWidth=1;for(let meters=1;meters<=4;meters++){let ry=meters*1000/maxY*(h-42);g.strokeStyle=meters===1?'rgba(255,187,45,.35)':'rgba(44,224,143,.20)';g.beginPath();g.ellipse(cx,base,meters*1000/maxX*(w*.46),ry,0,Math.PI,Math.PI*2);g.stroke();g.fillStyle='#6fae94';g.font='11px system-ui';g.fillText(`${meters}m`,cx+5,base-ry+12)}g.strokeStyle='rgba(44,224,143,.28)';g.beginPath();g.moveTo(cx,base);g.lineTo(cx,18);g.moveTo(20,base);g.lineTo(w-20,base);g.stroke();radarSweep=(radarSweep+0.09)%(Math.PI*2);let grad=g.createLinearGradient(cx,base,cx+Math.sin(radarSweep)*w,base-Math.cos(radarSweep)*h);grad.addColorStop(0,'rgba(43,255,149,.32)');grad.addColorStop(1,'rgba(43,255,149,0)');g.strokeStyle=grad;g.lineWidth=2;g.beginPath();g.moveTo(cx,base);g.lineTo(cx+Math.sin(radarSweep)*w,base-Math.cos(radarSweep)*h);g.stroke();if(live&&raw!==lastRadarRaw){targets.forEach(t=>{let trail=radarTrails[t.id]||(radarTrails[t.id]=[]),previous=trail.at(-1);if(!previous||previous.x!==t.x||previous.y!==t.y)trail.push({x:t.x,y:t.y,at:Date.now()});radarTrails[t.id]=trail.filter(p=>Date.now()-p.at<12000).slice(-60)});lastRadarRaw=raw}let colors={T1:'#38ff9b',T2:'#19cfff',T3:'#ffcf3c'};Object.entries(radarTrails).forEach(([id,trail])=>{if(trail.length<2)return;g.strokeStyle=colors[id]||'#fff';g.lineWidth=2;g.beginPath();trail.forEach((p,i)=>{let px=cx+p.x/maxX*(w*.46),py=base-p.y/maxY*(h-42);i?g.lineTo(px,py):g.moveTo(px,py)});g.stroke()});targets.forEach(t=>{let px=cx+t.x/maxX*(w*.46),py=base-t.y/maxY*(h-42),color=colors[t.id]||'#fff';g.fillStyle=color;g.shadowColor=color;g.shadowBlur=14;g.beginPath();g.arc(px,py,9,0,Math.PI*2);g.fill();g.shadowBlur=0;g.fillStyle='#eafff5';g.font='bold 12px system-ui';g.fillText(`${t.id} ${Math.hypot(t.x,t.y).toFixed(0)}mm`,px+13,py-4);g.font='11px system-ui';g.fillText(`${t.speed>0?'+':''}${t.speed}cm/s`,px+13,py+11)});if(!live){g.fillStyle='#ff5966';g.font='bold 18px system-ui';g.textAlign='center';g.fillText('RADAR OFFLINE — NO UART FRAMES',cx,h/2);g.textAlign='left'}$('radarCaption').textContent=live?`${targets.length} MOVING TARGET${targets.length===1?'':'S'} • trails show last 12 seconds • forward range 4m`:'Check RD-03D power, GND and crossed TX/RX wiring on /dev/ttyTHS1'}
-async function pollRadar(){try{let d=await fetch('/api/radar',{cache:'no-store'}).then(x=>x.json()),r=d.radar||{},raw=val(r,'radar',''),live=!!r.radar&&r.radar.age<1;drawRadar(raw,live)}catch(e){drawRadar('',false)}}setInterval(pollRadar,125);pollRadar();
+async function pollRadar(){try{let d=await fetch('/api/radar',{cache:'no-store'}).then(x=>x.json()),r=d.radar||{},raw=val(r,'radar',''),live=!!r.radar&&r.radar.age<1;lastRadarTargets=parseRadarTargets(raw);lastRadarLive=live;drawRadar(raw,live);if(radarView==='3d')drawRadarTwins(lastRadarTargets,live)}catch(e){lastRadarTargets=[];lastRadarLive=false;drawRadar('',false);if(radarView==='3d')drawRadarTwins([],false)}}setInterval(pollRadar,125);pollRadar();
 function graph(id,history,color,label){let c=$(id),x=c.getContext('2d'),w=c.width,h=c.height;x.clearRect(0,0,w,h);x.fillStyle='#06101a';x.fillRect(0,0,w,h);x.strokeStyle='#18364d';for(let i=1;i<4;i++){x.beginPath();x.moveTo(0,i*h/4);x.lineTo(w,i*h/4);x.stroke()}if(!history.length)return;let lo=Math.min(...history),hi=Math.max(...history);if(hi-lo<2){lo-=1;hi+=1}x.strokeStyle=color;x.lineWidth=2;x.beginPath();history.forEach((v,i)=>{let px=8+i*(w-16)/Math.max(1,history.length-1),py=h-10-(v-lo)*(h-24)/(hi-lo);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke();x.fillStyle=color;x.font='11px system-ui';x.fillText(`${label} ${history.at(-1).toFixed(1)}°C  MIN ${Math.min(...history).toFixed(1)}  MAX ${Math.max(...history).toFixed(1)}`,7,13)}
 function environment(r){let t={};try{t=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}let pix=Array.isArray(t.pixels)?t.pixels:[],mn=Number(t.min_c),mx=Number(t.max_c),avg=Number(t.avg_c),map=$('heatmap');map.innerHTML='';for(let i=0;i<64;i++){let d=document.createElement('div');d.className='heat';if(pix.length===64){let q=Math.max(0,Math.min(1,(Number(pix[i])-mn)/Math.max(.2,mx-mn)));d.style.background=`hsl(${220-q*220} 88% ${28+q*28}%)`}map.appendChild(d)}let outside=Number(val(r,'outside_temperature',NaN)),humidity=Number(val(r,'outside_humidity',NaN));if(Number.isFinite(avg)){insideHistory.push(avg);insideHistory=insideHistory.slice(-90)}if(Number.isFinite(outside)){outsideHistory.push(outside);outsideHistory=outsideHistory.slice(-90)}$('thermalStats').textContent=Number.isFinite(avg)?`INSIDE AVG ${avg.toFixed(1)}°C • MIN ${mn.toFixed(1)} • MAX ${mx.toFixed(1)}`:val(r,'thermal_status','Inside sensor waiting');$('outsideStats').textContent=Number.isFinite(outside)?`OUTSIDE ${outside.toFixed(1)}°C • HUMIDITY ${n(humidity,0)}%`:`OUTSIDE SENSOR ${val(r,'outside_status','WAITING')}`;graph('insideChart',insideHistory,'#ff8c42','INSIDE');graph('outsideChart',outsideHistory,'#17d5ff','OUTSIDE')}
 function companion(r,s){
@@ -1185,18 +1313,20 @@ function companion(r,s){
  if(!s.voice_usb){$('companionState').textContent='VOICE USB OFFLINE';$('companionState').style.color='#ff4655';$('companionState').style.borderColor='#ff4655'}else{$('companionState').style.color='#17d5ff';$('companionState').style.borderColor='#17d5ff'}
 }
 async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'}).then(x=>x.json()),r=d.ros,net=d.network,s=d.system;latestStatus=d;
+ let cellGen=cellGeneration(val(r,'cell_tech',''));
  renderHealth(r,net);
  companion(r,s);
  $('online').textContent='● ONLINE';$('online').style.color='#34e58b';
  $('ai').textContent=val(r,'ai_status','AI waiting');
  $('motion').innerHTML=row('Web drive',val(r,'web_drive','STOP'))+row('Odometry',JSON.stringify(val(r,'odom',{})))+row('Encoders',`${val(r,'enc_m1')} / ${val(r,'enc_m2')} / ${val(r,'enc_m3')} / ${val(r,'enc_m4')}`);
- let li=val(r,'lidar',{}),radarLive=!!r.radar_count&&r.radar_count.age<2.0;$('sensors').innerHTML=card('LiDAR',`${n(li.nearest_m,2)} m`,`${li.points||0} points`)+card('Ultrasonic',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')}`,'ultrasonic')+card('RD-03D Radar',radarLive?`${val(r,'radar_count')} targets`:'NO SERIAL DATA',radarLive?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:'Check radar power and TX/RX wiring on /dev/ttyTHS1')+card('BNO08X IMU',`${n(val(r,'imu_heading'),0)}°`,`roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`,'imu');
- $('power').innerHTML=card('Main BMS',`${n(val(r,'bms_percent'),0)}%`,`${n(val(r,'bms_voltage'),2)}V ${n(val(r,'bms_current'),2)}A ${n(val(r,'bms_power'),1)}W • CELLS ${n(val(r,'bms_cell1'),3)} / ${n(val(r,'bms_cell2'),3)} / ${n(val(r,'bms_cell3'),3)} / ${n(val(r,'bms_cell4'),3)}`)+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,`${n(val(r,'bat_current'),2)}A`)+card('Jetson / UPS',`${n(val(r,'ups_bat_percent'),0)}%`,`${n(val(r,'ups_bat_voltage'),2)}V ${n(val(r,'ups_bat_power'),1)}W`)+card('5G HAT',`${n(val(r,'hat_power'),1)}W`,`${n(val(r,'hat_voltage'),2)}V ${n(val(r,'hat_current'),2)}A`);
+ let li=val(r,'lidar',{}),radarLive=!!r.radar_count&&r.radar_count.age<2.0,i2c=i2cInfo(r);$('sensors').innerHTML=card('LiDAR',`${n(li.nearest_m,2)} m`,`${li.points||0} points`)+card('Ultrasonic',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')}`,'ultrasonic')+card('RD-03D Radar',radarLive?`${val(r,'radar_count')} targets`:'NO SERIAL DATA',radarLive?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:'Check radar power and TX/RX wiring on /dev/ttyTHS1')+card('BNO08X IMU',`${n(val(r,'imu_heading'),0)}°`,`roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`,'imu')+card('I²C Sensor Bus',i2c.liveCount?`${i2c.liveCount} LIVE`:(i2c.arduinoLive?'BRIDGE ONLY':'OFFLINE'),i2c.liveCount?`Jetson I2C-7 • ${i2c.native.map(x=>x.address).join(' • ')}`:(i2c.arduinoLive?`${i2c.arduinoBus} live; no device addresses`:'No fresh sensor telemetry'),'i2c');
+ $('power').innerHTML=card('Main BMS',`${n(val(r,'bms_percent'),0)}%`,`${n(val(r,'bms_voltage'),2)}V ${n(val(r,'bms_current'),2)}A ${n(val(r,'bms_power'),1)}W • CELLS ${n(val(r,'bms_cell1'),3)} / ${n(val(r,'bms_cell2'),3)} / ${n(val(r,'bms_cell3'),3)} / ${n(val(r,'bms_cell4'),3)}`)+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,`${n(val(r,'bat_current'),2)}A`)+card('Jetson INA3221',`${n(val(r,'jetson_power'),1)}W`,`${n(val(r,'jetson_voltage'),3)}V ${n(val(r,'jetson_current'),2)}A • CPU/GPU ${n(val(r,'jetson_cpu_gpu_power'),1)}W • SoC ${n(val(r,'jetson_soc_power'),1)}W`)+card('Jetson / UPS',`${n(val(r,'ups_bat_percent'),0)}%`,`${n(val(r,'ups_bat_voltage'),2)}V ${n(val(r,'ups_bat_power'),1)}W`)+card(`${cellGen} HAT`,`${n(val(r,'hat_power'),1)}W`,`${n(val(r,'hat_voltage'),2)}V ${n(val(r,'hat_current'),2)}A`);
  environment(r);
- $('network').innerHTML=row('Wi-Fi',net.wifi_ip)+row('5G data',net.cell_ip)+row('Tailscale',net.tailscale_ip)+row('Active route',net.route);
+ $('network').innerHTML=row('Wi-Fi',net.wifi_ip)+row(`${cellGen} data`,`${net.cell_ip} • ${val(r,'cell_operator','--')} • ${n(val(r,'cell_signal'),0)}%`)+row('Tailscale',net.tailscale_ip)+row('Active route',net.route);
  let fix=val(r,'gps_fix',{});$('gnss').innerHTML=row('Cell signal',`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech')} ${val(r,'cell_operator')}`)+row('Satellites used in fix',val(r,'gps_sats'))+row('GPS fix',fix.status>=0?`${n(fix.lat,6)}, ${n(fix.lon,6)}`:'SEARCHING / NO FIX');renderConstellations(val(r,'gps_const',''));
  let agent={};try{agent=JSON.parse(val(r,'agent_state','{}')||'{}')}catch(e){}
- $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('RAM',s.ram)+row('Jetson temp',s.temp)+row('Agent',`${agent.mode||'--'} / ${agent.phase||'--'}`)+row('Agent decision',val(r,'agent_decision','No mission selected'))+row('Time',d.time);renderDetail();
+ let carrier={};try{carrier=JSON.parse(val(r,'carrier_json','{}')||'{}')}catch(e){}
+ $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('RAM',s.ram)+row('Jetson temp',s.temp)+row('Carrier',carrier.board||'--')+row('Power mode',carrier.power_mode||'--')+row('NVMe',carrier.nvme?`${carrier.nvme.free_gb} GB free / ${carrier.nvme.total_gb} GB`:'--')+row('Carrier I/O',carrier.ok?`${carrier.usb_devices} USB • ${carrier.i2c_buses} I²C • ${carrier.csi_video_devices} CSI video`:'--')+row('Mission AI',`${agent.mode||'--'} / ${agent.phase||'--'}`)+row('Agent team',val(r,'agent_team_status','starting'))+row('Experience memory',val(r,'experience_status','starting'))+row('Agent decision',val(r,'agent_decision','No mission selected'))+row('Time',d.time);renderDetail();
  }catch(e){$('online').textContent='● OFFLINE';$('online').style.color='#ff4655'}}
 refresh();setInterval(refresh,2000);
 </script></body></html>"""

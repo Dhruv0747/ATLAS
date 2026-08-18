@@ -2,6 +2,8 @@
   ros__parameters:
     robot_base_frame: base_link
     return_to_init: false
+    # Discover known/unknown boundaries from SLAM. Nav2 still validates every
+    # resulting approach goal against the inflated global and local costmaps.
     costmap_topic: /map
     costmap_updates_topic: /map_updates
     visualize: true

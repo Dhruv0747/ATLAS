@@ -145,7 +145,9 @@ class TightRecovery(Node):
             turn = 0.25 if left > right else -0.25
             return 0.09, turn, 'forward arc toward clearer side'
         if rear > rc:
-            return -0.08, 0.0, 'reverse'
+            # Match the verified ATLAS drivetrain deadband. The previous
+            # 0.08 m/s command was safe but too small to turn the wheels.
+            return -self.get_parameter('pulse_speed').value, 0.0, 'reverse'
         return None
 
     def still_safe(self):

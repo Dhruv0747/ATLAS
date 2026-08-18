@@ -20,6 +20,39 @@ COMMANDS = {
     "cell_extreme": "a540910800000000000000007e",
 }
 
+# Conservative resting-voltage estimate for the installed 4S LiFePO4 pack.
+# LiFePO4 has a very flat discharge curve, so this is a safe fallback rather
+# than a precision fuel gauge.  Prefer the DALY coulomb counter whenever its
+# value is plausible.
+LIFEPO4_CELL_SOC_CURVE = (
+    (2.90, 0.0),
+    (3.10, 5.0),
+    (3.20, 10.0),
+    (3.25, 20.0),
+    (3.28, 30.0),
+    (3.30, 45.0),
+    (3.32, 60.0),
+    (3.33, 70.0),
+    (3.34, 80.0),
+    (3.36, 90.0),
+    (3.40, 95.0),
+    (3.50, 98.0),
+    (3.60, 100.0),
+)
+
+
+def interpolate_lifepo4_soc(cell_voltage):
+    voltage = float(cell_voltage)
+    if voltage <= LIFEPO4_CELL_SOC_CURVE[0][0]:
+        return LIFEPO4_CELL_SOC_CURVE[0][1]
+    for (low_v, low_soc), (high_v, high_soc) in zip(
+        LIFEPO4_CELL_SOC_CURVE, LIFEPO4_CELL_SOC_CURVE[1:]
+    ):
+        if voltage <= high_v:
+            fraction = (voltage - low_v) / (high_v - low_v)
+            return low_soc + fraction * (high_soc - low_soc)
+    return LIFEPO4_CELL_SOC_CURVE[-1][1]
+
 
 class DalyBmsNode(Node):
     def __init__(self):
@@ -145,7 +178,39 @@ class DalyBmsNode(Node):
 
         if cells:
             data["cells_v"] = [cells.get(i, 0.0) for i in range(1, 5)]
+        self.correct_soc(data)
         return data
+
+    def correct_soc(self, data):
+        """Replace an impossible DALY SOC with a conservative voltage estimate."""
+        if "voltage_v" not in data:
+            return
+        native_soc = data.get("soc_percent")
+        valid_cells = [
+            float(value) for value in data.get("cells_v", [])
+            if 2.0 <= float(value) <= 4.0
+        ]
+        cell_voltage = min(valid_cells) if valid_cells else float(data["voltage_v"]) / 4.0
+        estimate = round(interpolate_lifepo4_soc(cell_voltage), 1)
+
+        # A 4S LiFePO4 pack above 3.20 V/cell cannot truthfully be at 0%.
+        native_invalid = (
+            native_soc is None
+            or not 0.0 <= float(native_soc) <= 100.0
+            or (float(native_soc) <= 0.5 and cell_voltage >= 3.20)
+        )
+        data["soc_native_percent"] = native_soc
+        data["soc_estimated_percent"] = estimate
+        data["battery_chemistry"] = "4S_LiFePO4"
+        data["soc_cell_voltage_v"] = round(cell_voltage, 3)
+        if native_invalid:
+            data["soc_percent"] = estimate
+            data["soc_source"] = "voltage_estimate_lifepo4"
+            data["soc_estimated"] = True
+        else:
+            data["soc_percent"] = float(native_soc)
+            data["soc_source"] = "daly_coulomb_counter"
+            data["soc_estimated"] = False
 
     def split_frames(self, vals):
         frames = []

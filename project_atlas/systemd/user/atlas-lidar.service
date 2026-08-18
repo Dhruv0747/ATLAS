@@ -3,6 +3,7 @@ Description=Project ATLAS RPLIDAR A1 raw scan publisher
 
 [Service]
 Type=simple
+CPUWeight=1000
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec ros2 run rplidar_ros rplidar_composition --ros-args -r scan:=scan_raw -p serial_port:=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0 -p serial_baudrate:=115200 -p frame_id:=laser_frame -p angle_compensate:=true -p scan_mode:=Standard'
 Restart=on-failure

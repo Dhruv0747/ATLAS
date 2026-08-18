@@ -1,0 +1,14 @@
+[Unit]
+Description=Project ATLAS Arducam B0283 pan tilt driver
+After=default.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec /home/jetson/project_atlas/venv/bin/python /home/jetson/project_atlas/scripts/atlas_arducam_ptz.py'
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target

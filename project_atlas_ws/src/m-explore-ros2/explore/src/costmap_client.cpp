@@ -69,8 +69,14 @@ Costmap2DClient::Costmap2DClient(rclcpp::Node& node, const tf2_ros::Buffer* tf)
   node_.get_parameter("transform_tolerance", transform_tolerance_);
 
   /* initialize costmap */
+  // Nav2 and SLAM publish their full occupancy grids as transient-local data.
+  // Matching that durability lets explore_lite receive the most recent map
+  // immediately after it starts, instead of waiting indefinitely for another
+  // full-grid publication while only incremental updates are flowing.
+  auto full_map_qos = rclcpp::QoS(rclcpp::KeepLast(1));
+  full_map_qos.reliable().transient_local();
   costmap_sub_ = node_.create_subscription<nav_msgs::msg::OccupancyGrid>(
-      costmap_topic, 1000,
+      costmap_topic, full_map_qos,
       [this](const nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
         costmap_received_ = true;
         updateFullMap(msg);

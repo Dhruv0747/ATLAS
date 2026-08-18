@@ -24,7 +24,37 @@ ATLAS uses its 360-degree LiDAR as the primary navigation and obstacle sensor. U
 - RPLIDAR A1, BNO08X IMU, ultrasonic sensors, and RD-03D radar
 - IMX708 Camera Module 3 on a pan/tilt platform
 - GNSS, BMS, BME680, AMG8833 8x8 thermal sensor, Wi-Fi, and cellular connectivity
+
+The commissioned sensor transport uses an Arduino UNO R4 WiFi as the rover's
+I2C/GNSS hub. It forwards the PCA9685 (`0x40`), BME680 (`0x76`/`0x77`),
+AMG8833 (`0x68`/`0x69`), BNO08x (`0x4A`/`0x4B`) and Serial1 L76K data over a
+stable USB device path. The Jetson bridge republishes the original ROS 2 topic
+names, so Nav2, EKF, dashboards and Foxglove do not depend on the physical bus.
 - ESP32-S3 voice interface and 11-inch touchscreen dashboard
+
+The web Command Center includes both a conventional 2D RD-03D radar scope and
+a lightweight **3D PEOPLE** digital-twin view. The latter places up to three
+avatars using live radar X/Y coordinates, distance and speed. It is an operator
+visualization, not a depth-camera body scan, and it does not alter navigation or
+motor commands.
+
+## Mobile notifications
+
+ATLAS can notify Dhruv's Android or iOS phone through the ntfy app when the
+rover boots, when the main DALY BMS reaches 20%, and when charging remains at
+99% or higher for three consecutive BMS readings. Alert state includes
+hysteresis to avoid repeated notifications near a threshold. Notification HTTP
+work runs in a separate worker and cannot block ROS motion control.
+
+On the Jetson, run:
+
+```bash
+bash /home/jetson/project_atlas/scripts/setup_mobile_notifications.sh
+```
+
+Install the ntfy app on the phone and subscribe to the private random topic
+printed by the setup helper. The private topic is stored only in
+`~/.config/project-atlas/notifications.env`; it must not be committed.
 
 ## Planned wireless controller upgrade
 
@@ -130,3 +160,13 @@ Useful interfaces:
 - `/atlas/agent/set_execution_enabled`: monitor-only/active selection
 - Persistent bounded event memory:
   `~/.config/project_atlas/agent_memory.json`
+
+### INA219 address requirement
+
+The external INA219 must not use its factory-default `0x40` address on ATLAS.
+Jetson I2C bus 1 already reserves `0x40` for NVIDIA's onboard INA3221, and the
+camera-servo PCA9685 also uses `0x40` on the external sensor bus. Set the
+INA219 A0 address jumper to `0x41`, then configure the cellular telemetry
+service with `ATLAS_INA219_ADDRESS=0x41` and the bus to which it is wired.
+The telemetry node detects a kernel-owned address and reports the conflict
+without repeatedly opening or disrupting the bus.

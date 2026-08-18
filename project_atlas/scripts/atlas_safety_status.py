@@ -11,6 +11,7 @@ from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from nav2_msgs.msg import BehaviorTreeLog
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CompressedImage, LaserScan
 from std_msgs.msg import Float32, String
 
@@ -49,14 +50,25 @@ class AtlasSafetyStatus(Node):
         self.goal_status = 0
         self.bt_action = ""
         self.motion_safety = ""
+        self.last_motion_safety = 0.0
         self.odom_source = "unknown"
         self.drive_mode = "STOPPED"
         self.mission_status = "READY"
+        self.operating_mode = "UNKNOWN"
 
         self.create_subscription(LaserScan, "/scan", self.on_scan, 10)
-        self.create_subscription(OccupancyGrid, "/map", self.on_map, 10)
+        # A saved-map server publishes /map with transient-local durability and
+        # may only send it once. Match that QoS so localization mode receives
+        # the latched map instead of falsely reporting "SLAM MAP DATA LOST".
+        map_qos = QoSProfile(depth=1)
+        map_qos.reliability = ReliabilityPolicy.RELIABLE
+        map_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        self.create_subscription(OccupancyGrid, "/map", self.on_map, map_qos)
         self.create_subscription(Path, "/plan", self.on_plan, 10)
         self.create_subscription(Odometry, "/odom", self.on_odom, 10)
+        self.create_subscription(
+            String, "/atlas/mode", self.on_operating_mode, 10
+        )
         self.create_subscription(
             Float32, "/ultrasonic/front_mm", self.on_ultrasonic, 10
         )
@@ -74,7 +86,9 @@ class AtlasSafetyStatus(Node):
         self.create_subscription(
             String, "/yahboom/odom_source", self.on_odom_source, 10
         )
-        self.create_subscription(String, "/atlas/drive_mode", self.on_mode, 10)
+        self.create_subscription(
+            String, "/atlas/drive_mode", self.on_drive_mode, 10
+        )
         self.create_subscription(
             String, "/atlas/mission_status", self.on_mission, 10
         )
@@ -147,6 +161,9 @@ class AtlasSafetyStatus(Node):
         self.map_occupied_cells = sum(1 for value in msg.data if value >= 65)
         self.map_known_pct = 100.0 * known / total if total else 0.0
 
+    def on_operating_mode(self, msg: String) -> None:
+        self.operating_mode = msg.data.strip().upper() or "UNKNOWN"
+
     def on_plan(self, msg: Path) -> None:
         self.last_plan = time.monotonic()
         self.plan_points = len(msg.poses)
@@ -177,11 +194,12 @@ class AtlasSafetyStatus(Node):
 
     def on_motion_safety(self, msg: String) -> None:
         self.motion_safety = msg.data
+        self.last_motion_safety = time.monotonic()
 
     def on_odom_source(self, msg: String) -> None:
         self.odom_source = msg.data
 
-    def on_mode(self, msg: String) -> None:
+    def on_drive_mode(self, msg: String) -> None:
         self.drive_mode = msg.data
 
     def on_mission(self, msg: String) -> None:
@@ -243,7 +261,14 @@ class AtlasSafetyStatus(Node):
                 "STOP: DRIVE COMMANDED BUT ENCODERS NOT MOVING",
                 "Check wheel contact, motor power, and encoder cable",
             )
-        if now - self.last_map > 3.0:
+        # SLAM should refresh the map while mapping. In localization, map_server
+        # intentionally publishes a latched static map, so receipt once is
+        # sufficient and age must not be treated as a fault.
+        map_missing = self.last_map <= 0.0
+        map_stale = (
+            self.operating_mode != "LOCALIZATION" and now - self.last_map > 3.0
+        )
+        if map_missing or map_stale:
             return 2, "FAULT", "STOP: SLAM MAP DATA LOST", "Restart SLAM"
 
         nearest = min(self.front_lidar, self.front_ultrasonic)
@@ -254,7 +279,10 @@ class AtlasSafetyStatus(Node):
                 f"BLOCKED: OBSTACLE {nearest:.2f} m - REPLANNING",
                 "Stop, update costmap, and search for another car-like path",
             )
-        if self.motion_safety.startswith("AUTONOMY BLOCKED"):
+        if (
+            now - self.last_motion_safety <= 1.0
+            and self.motion_safety.startswith("AUTONOMY BLOCKED")
+        ):
             return 2, "BLOCKED", self.motion_safety, "Wait or replan around obstacle"
         if now - self.last_bt_action < 2.0 and self.bt_action:
             phase = (
@@ -290,7 +318,7 @@ class AtlasSafetyStatus(Node):
                 f"AUTONOMY: DRIVING - FRONT {nearest:.2f} m CLEAR",
                 "Following the current collision-checked path",
             )
-        if "EXPLORATION" in self.mission_status.upper():
+        if self.mission_status.upper().startswith("EXPLORATION ACTIVE"):
             return (
                 0,
                 "EXPLORING",
@@ -341,7 +369,13 @@ class AtlasSafetyStatus(Node):
             "sensors": {
                 "lidar": "ONLINE" if now - self.last_scan <= 1.5 else "LOST",
                 "odometry": "ONLINE" if now - self.last_odom <= 1.5 else "LOST",
-                "slam_map": "ONLINE" if now - self.last_map <= 3.0 else "LOST",
+                "slam_map": "ONLINE"
+                if self.last_map > 0.0
+                and (
+                    self.operating_mode == "LOCALIZATION"
+                    or now - self.last_map <= 3.0
+                )
+                else "LOST",
                 "ai_camera": "ONLINE"
                 if now - self.last_ai_camera <= 2.5
                 else "LOST",

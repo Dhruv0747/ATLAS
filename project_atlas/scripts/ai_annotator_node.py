@@ -6,9 +6,10 @@ import cv2
 import numpy as np
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CompressedImage
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 from trt_yolo_detector import TensorRTYOLO
 
 ENGINE = "/home/jetson/project_atlas/scripts/yolov8n_fp16.engine"
@@ -20,11 +21,19 @@ class Annotator(Node):
         self.det = TensorRTYOLO(ENGINE)
         self.pub = self.create_publisher(CompressedImage, "/camera/detections/compressed", 10)
         self.detection_pub = self.create_publisher(String, "/camera/detections/json", 10)
+        self.enabled = False
+        self.create_subscription(Bool, "/atlas/ai_enabled", self.enable_cb, 10)
         self.create_subscription(CompressedImage, "/camera/image_raw/compressed", self.cb, qos_profile_sensor_data)
         self.last = 0.0
         self.get_logger().info("AI annotator ready")
 
+    def enable_cb(self, msg):
+        self.enabled = bool(msg.data)
+        self.get_logger().info("AI object detection %s" % ("enabled" if self.enabled else "disabled"))
+
     def cb(self, msg):
+        if not self.enabled:
+            return
         now = time.time()
         # Keep Foxglove responsive on Wi-Fi/Tailscale while retaining a useful
         # real-time annotated view. The raw camera remains the faster stream.
@@ -60,8 +69,12 @@ def main():
     node = Annotator()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 if __name__ == "__main__":
     main()

@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Bool, Int32, String
 
@@ -16,7 +17,7 @@ class CameraTracker(Node):
         super().__init__('atlas_camera_tracker')
         self.enabled = True
         self.pan = 1300
-        self.tilt = 2500
+        self.tilt = 2100
         self.last_move = 0.0
         self.last_face = 0.0
         self.last_face_scan = 0.0
@@ -51,7 +52,7 @@ class CameraTracker(Node):
             self.pan_pub.publish(Int32(data=self.pan)); moved = True
         if abs(ey) > height * 0.10:
             # Larger pulse physically tilts this ATLAS bracket upward.
-            self.tilt = max(500, min(2500, int(self.tilt + (-65 if ey > 0 else 65))))
+            self.tilt = max(700, min(2300, int(self.tilt + (-65 if ey > 0 else 65))))
             self.tilt_pub.publish(Int32(data=self.tilt)); moved = True
         if moved:
             self.last_move = time.monotonic()
@@ -103,10 +104,12 @@ def main():
     rclpy.init(); node = CameraTracker()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        node.destroy_node(); rclpy.shutdown()
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

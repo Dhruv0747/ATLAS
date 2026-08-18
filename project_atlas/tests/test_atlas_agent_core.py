@@ -15,6 +15,38 @@ SPEC.loader.exec_module(MODULE)
 
 
 class AtlasAgentCoreTests(unittest.TestCase):
+    def test_named_place_offline_plans_preserve_target(self):
+        save = MODULE.fallback_plan("Save this as kitchen")
+        self.assertEqual(save["steps"][0]["action"], "save_named_place")
+        self.assertEqual(save["steps"][0]["target"], "kitchen")
+        go = MODULE.fallback_plan("Go to kitchen")
+        self.assertEqual(go["steps"][0]["action"], "navigate_named_place")
+        self.assertEqual(go["steps"][0]["target"], "kitchen")
+        back = MODULE.fallback_plan("Come back to my room")
+        self.assertEqual(back["steps"][0]["action"], "navigate_named_place")
+        self.assertEqual(back["steps"][0]["target"], "my room")
+
+    def test_named_place_requires_valid_target(self):
+        with self.assertRaises(ValueError):
+            MODULE.validate_plan({"steps": [{"action": "navigate_named_place"}]})
+
+    def test_named_place_waits_for_terminal_nav2_result(self):
+        self.assertIsNone(
+            MODULE.evaluate_action_status(
+                "navigate_named_place", "NAMED GOAL ACCEPTED name=kitchen"
+            )
+        )
+        self.assertTrue(
+            MODULE.evaluate_action_status(
+                "navigate_named_place", "NAMED GOAL FINISHED name=kitchen status=4"
+            )
+        )
+        self.assertFalse(
+            MODULE.evaluate_action_status(
+                "navigate_named_place", "NAMED GOAL FINISHED name=kitchen status=6"
+            )
+        )
+
     def test_mapping_stores_home_before_starting(self):
         plan = MODULE.fallback_plan("Map this room")
         self.assertEqual(

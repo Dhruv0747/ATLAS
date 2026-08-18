@@ -9,6 +9,7 @@ import threading
 
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
 from std_msgs.msg import Int32, String
 
 try:
@@ -51,6 +52,10 @@ class ArducamPTZ(Node):
 
     def ensure_ready(self):
         if self.active:
+            # Periodic authoritative feedback lets newly started dashboards,
+            # voice control and the Xbox node synchronize before commanding.
+            self.pan_pub.publish(Int32(data=self.pan))
+            self.tilt_pub.publish(Int32(data=self.tilt))
             return
         if not os.path.exists(MARKER):
             self.status("STANDBY: Arducam not commissioned; legacy camera remains active")
@@ -111,11 +116,12 @@ def main():
     node = ArducamPTZ()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

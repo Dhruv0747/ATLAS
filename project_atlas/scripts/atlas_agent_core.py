@@ -21,6 +21,8 @@ TOOL_POLICIES = {
     "start_mapping": ToolPolicy("Start SLAM frontier exploration", True),
     "stop_mapping": ToolPolicy("Stop exploration, cancel goals, and save map", False, True),
     "return_home": ToolPolicy("Ask Nav2 to return to the saved home pose", True),
+    "save_named_place": ToolPolicy("Save the current localized pose under a spoken name", False),
+    "navigate_named_place": ToolPolicy("Navigate with Nav2 to a previously saved named pose", True),
     "cancel_navigation": ToolPolicy("Cancel every active Nav2 goal and stop", False, True),
     "request_tight_recovery": ToolPolicy(
         "Request one sensor-guarded bounded recovery pulse", True
@@ -44,6 +46,13 @@ def evaluate_action_status(action: str, status: str) -> bool | None:
         if "BLOCKED" in text:
             return False
         return None
+    if action == "save_named_place":
+        return True if "PLACE SAVED" in text else None
+    if action == "navigate_named_place":
+        if "NAMED GOAL FINISHED" not in text:
+            return None
+        match = re.search(r"STATUS\s*=\s*(\d+)", text)
+        return bool(match and int(match.group(1)) == 4)
     expected = {
         "set_home": "HOME SAVED",
         "start_mapping": "EXPLORATION ACTIVE",
@@ -55,13 +64,28 @@ def evaluate_action_status(action: str, status: str) -> bool | None:
     return True if expected in text else None
 
 
-def _step(action: str, reason: str) -> dict[str, str]:
-    return {"action": action, "reason": reason[:180]}
+def _clean_target(value: Any) -> str:
+    target = " ".join(str(value or "").strip().lower().split())
+    if not target or len(target) > 48 or not re.fullmatch(r"[a-z0-9][a-z0-9 _-]*", target):
+        raise ValueError("named-place target is missing or invalid")
+    return target
+
+
+def _step(action: str, reason: str, target: str = "") -> dict[str, str]:
+    step = {"action": action, "reason": reason[:180]}
+    if target:
+        step["target"] = _clean_target(target)
+    return step
 
 
 def fallback_plan(request: str) -> dict[str, Any]:
     """Create a conservative offline plan when the cloud planner is unavailable."""
     text = " ".join((request or "").lower().split())
+    save_match = re.search(
+        r"(?:save|remember)(?: this| here| this place| this location)?(?: as)? ([a-z0-9][a-z0-9 _-]{0,47})$",
+        text,
+    )
+    go_match = re.search(r"(?:go|navigate|drive|move|come back)(?: to)? (?:the )?([a-z0-9][a-z0-9 _-]{0,47})$", text)
     if any(word in text for word in ("emergency", "cancel", "stop moving", "stop navigation")):
         steps = [_step("cancel_navigation", "A stop request takes priority")]
         intent = "stop"
@@ -77,6 +101,14 @@ def fallback_plan(request: str) -> dict[str, Any]:
     elif any(phrase in text for phrase in ("return home", "go home", "come home")):
         steps = [_step("return_home", "Use Nav2 and the saved home pose")]
         intent = "return_home"
+    elif save_match:
+        target = _clean_target(save_match.group(1))
+        steps = [_step("save_named_place", f"Store the current pose as {target}", target)]
+        intent = "save_named_place"
+    elif go_match:
+        target = _clean_target(go_match.group(1))
+        steps = [_step("navigate_named_place", f"Navigate to saved place {target}", target)]
+        intent = "navigate_named_place"
     elif any(word in text for word in ("stuck", "recover", "escape", "tight space")):
         steps = [
             _step(
@@ -117,7 +149,12 @@ def validate_plan(plan: Any) -> dict[str, Any]:
         if action not in TOOL_POLICIES:
             raise ValueError(f"tool is not allowed: {action or '<empty>'}")
         reason = str(raw.get("reason", TOOL_POLICIES[action].description)).strip()
-        steps.append(_step(action, reason))
+        target = raw.get("target", "")
+        if action in {"save_named_place", "navigate_named_place"}:
+            target = _clean_target(target)
+        else:
+            target = ""
+        steps.append(_step(action, reason, target))
 
     intent = str(plan.get("intent", "mission")).strip()[:80] or "mission"
     summary = str(plan.get("summary", "ATLAS mission plan")).strip()[:240]

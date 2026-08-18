@@ -258,6 +258,15 @@ void Explore::makePlan()
                   "Active frontier made no progress; cancelling and blacklisting");
       frontier_blacklist_.push_back(prev_goal_);
       move_base_client_->async_cancel_all_goals();
+      // A saturated action client may never receive the goal-response or
+      // result callback. Release the local goal latch immediately so this
+      // timeout is handled once instead of blacklisting/cancelling the same
+      // frontier every planner cycle. The recovery node pauses exploration
+      // while it performs its own sensor-guarded escape pulse.
+      goal_active_ = false;
+      active_goal_id_.fill(0);
+      recovery_request_pub_->publish(std_msgs::msg::Empty());
+      last_progress_ = this->now();
     }
     return;
   }
@@ -295,13 +304,14 @@ void Explore::makePlan()
     // centroid lies on the robot. Select the most distant point on that ring,
     // then pull the goal back into known-free space. This avoids both a goal in
     // unknown space and the false "already reached" centroid goal.
-    geometry_msgs::msg::Point edge = f.centroid;
+    // The centroid of a long or curved frontier can lie behind a wall or in
+    // another disconnected free-space pocket. The middle point is the
+    // frontier cell closest to the robot and therefore the safest approach
+    // candidate. Pull it back below before asking Nav2 to validate the path.
+    geometry_msgs::msg::Point edge = f.middle;
     double edge_distance = std::hypot(edge.x - pose.position.x,
                                       edge.y - pose.position.y);
-    // Only a startup frontier ring needs the farthest-point fallback. Once
-    // SLAM splits the boundary into directional frontiers, their centroids are
-    // better approach goals and avoid selecting the inaccessible far side of
-    // a long or curved frontier.
+    // Only a startup frontier ring needs the farthest-point fallback.
     if (edge_distance < min_goal_distance_) {
       for (const auto& point : f.points) {
         const double distance = std::hypot(point.x - pose.position.x,

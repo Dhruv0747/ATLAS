@@ -1,0 +1,14 @@
+[Unit]
+Description=Project ATLAS Jetson INA3221 power telemetry
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec python3 /home/jetson/project_atlas/scripts/atlas_ina3221_power.py'
+Restart=on-failure
+RestartSec=3
+Nice=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

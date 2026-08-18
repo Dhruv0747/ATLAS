@@ -8,6 +8,7 @@ and stop after repeated failures so hardware faults cannot create restart loops.
 """
 
 import json
+import os
 import subprocess
 import threading
 import time
@@ -31,9 +32,14 @@ class Monitor:
     service: str | None
     recover: bool = True
     required: bool = True
+    stopped_only: bool = False
 
 
-MONITORS = (
+GNSS_ENABLED = os.environ.get("ATLAS_GNSS_ENABLED", "1").strip().lower() not in (
+    "0", "false", "no", "off",
+)
+
+MONITORS = tuple(item for item in (
     Monitor("lidar", "/scan", LaserScan, 5.0, "atlas-lidar.service"),
     Monitor("camera", "/camera/image_raw/compressed", CompressedImage, 8.0,
             "atlas-camera.service"),
@@ -55,14 +61,19 @@ MONITORS = (
     # connected. Report it and let the operator approve network recovery.
     Monitor("cellular", "/cellular/registration", String, 20.0,
             "rover-cellular.service", recover=False, required=False),
-    # Safety-critical locomotion components are deliberately diagnosis-only.
+    # Fused odometry may recover automatically only while the rover is
+    # stationary. The user-managed EKF has no motor authority.
     Monitor("odometry", "/odom", Odometry, 5.0,
+            "atlas-ekf.service", recover=True, stopped_only=True),
+    # Raw wheel odometry belongs to the motor-base process. Restarting that
+    # process is deliberately diagnosis-only because it owns locomotion I/O.
+    Monitor("wheel_odometry", "/yahboom/odom", Odometry, 5.0,
             "rover-base-telemetry.service", recover=False),
     Monitor("encoder_fl", "/yahboom/encoder/m1", Int32, 6.0,
             "rover-base-telemetry.service", recover=False),
     Monitor("map", "/map", OccupancyGrid, 20.0,
             "atlas-slam-fast.service", recover=False, required=False),
-)
+) if GNSS_ENABLED or item.name != "gps")
 
 BAD_WORDS = (
     "offline", "error", "failed", "fault", "disconnected", "not found",
@@ -86,6 +97,7 @@ class AtlasRecovery(Node):
         self.last_notice = {item.name: 0.0 for item in MONITORS}
         self.recovering = set()
         self.lock = threading.Lock()
+        self.service_cache = {}
         self.motion_last_seen = now
         self.motion_active = False
         self.status_pub = self.create_publisher(
@@ -132,16 +144,21 @@ class AtlasRecovery(Node):
         if self.attempts[name] and now - self.attempts[name][-1] > ATTEMPT_WINDOW:
             self.attempts[name] = []
 
-    @staticmethod
-    def service_active(service):
+    def service_active(self, service):
         if not service:
             return True
+        now = time.monotonic()
+        cached = self.service_cache.get(service)
+        if cached and now - cached[0] < 4.0:
+            return cached[1]
         result = subprocess.run(
             ["systemctl", "--user", "is-active", "--quiet", service],
             timeout=5,
             check=False,
         )
-        return result.returncode == 0
+        active = result.returncode == 0
+        self.service_cache[service] = (now, active)
+        return active
 
     def bad_status(self, name):
         value = self.last_value[name].lower()
@@ -149,6 +166,14 @@ class AtlasRecovery(Node):
 
     def schedule_recovery(self, item, reason):
         now = time.monotonic()
+        if item.stopped_only and self.motion_active:
+            if now - self.last_notice[item.name] >= COOLDOWN:
+                self.last_notice[item.name] = now
+                self.publish_status(
+                    f"STOP REQUIRED: {item.name} {reason}; automatic restart "
+                    "is inhibited while motion is active"
+                )
+            return
         with self.lock:
             recent = [stamp for stamp in self.attempts[item.name]
                       if now - stamp < ATTEMPT_WINDOW]
@@ -174,9 +199,9 @@ class AtlasRecovery(Node):
 
     def recover(self, item, reason):
         try:
-            # Peripheral recovery is allowed while stationary or moving because
-            # the command watchdog remains authoritative. Locomotion services
-            # never reach this function (recover=False in MONITORS).
+            # Most peripheral recovery is allowed while stationary or moving
+            # because the command watchdog remains authoritative. Components
+            # marked stopped_only are gated before this worker is scheduled.
             attempt = len(self.attempts[item.name])
             self.publish_status(
                 f"RECOVERING: {item.name} ({reason}); restarting "
@@ -187,6 +212,7 @@ class AtlasRecovery(Node):
                 timeout=15,
                 check=True,
             )
+            self.service_cache.pop(item.service, None)
             deadline = time.monotonic() + RECOVERY_CONFIRM_TIMEOUT
             baseline = time.monotonic()
             while time.monotonic() < deadline:

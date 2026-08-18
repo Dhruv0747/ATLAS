@@ -1,0 +1,14 @@
+[Unit]
+Description=Project ATLAS Waveshare Jetson carrier health telemetry
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec python3 /home/jetson/project_atlas/scripts/atlas_carrier_health.py'
+Restart=on-failure
+RestartSec=5
+Nice=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

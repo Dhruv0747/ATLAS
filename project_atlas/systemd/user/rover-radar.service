@@ -1,0 +1,12 @@
+[Unit]
+Description=Project ATLAS RD-03D radar
+
+[Service]
+Type=simple
+Environment=ATLAS_RADAR_PORT=/dev/ttyTHS1
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec python3 /home/jetson/project_atlas/scripts/rd03d_node.py'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

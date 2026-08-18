@@ -7,7 +7,9 @@ import rclpy
 from nav_msgs.msg import OccupancyGrid
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
+from sensor_msgs.msg import LaserScan
 from tf2_ros import Buffer, TransformListener
 
 
@@ -18,12 +20,17 @@ class Diagnostic(Node):
     def __init__(self):
         super().__init__('atlas_costmap_alignment_diagnostic')
         self.grid = None
+        self.scan = None
         self.buffer = Buffer(cache_time=Duration(seconds=10.0))
         self.listener = TransformListener(self.buffer, self)
         self.create_subscription(OccupancyGrid, '/global_costmap/costmap', self._grid, 10)
+        self.create_subscription(LaserScan, '/scan', self._scan, qos_profile_sensor_data)
 
     def _grid(self, message):
         self.grid = message
+
+    def _scan(self, message):
+        self.scan = message
 
 
 def grid_cost(grid, x, y):
@@ -79,6 +86,80 @@ def main():
         print('AROUND_0.5M', counts)
         blocked = any(cost is None or cost < 0 or cost >= 99 for cost in costs)
         print('START_POSE', 'BLOCKED' if blocked else 'VALID')
+
+        if node.scan is not None:
+            try:
+                laser_tf = node.buffer.lookup_transform('base_link', node.scan.header.frame_id, Time())
+                lx = laser_tf.transform.translation.x
+                ly = laser_tf.transform.translation.y
+                ql = laser_tf.transform.rotation
+                laser_yaw = 2.0 * math.atan2(ql.z, ql.w)
+                nearest = []
+                inside = []
+                for index, distance in enumerate(node.scan.ranges):
+                    if not math.isfinite(distance):
+                        continue
+                    if distance < node.scan.range_min or distance > node.scan.range_max:
+                        continue
+                    angle = node.scan.angle_min + index * node.scan.angle_increment + laser_yaw
+                    bx = lx + distance * math.cos(angle)
+                    by = ly + distance * math.sin(angle)
+                    item = (math.hypot(bx, by), bx, by, index)
+                    nearest.append(item)
+                    if abs(bx) <= 0.25 and abs(by) <= 0.18:
+                        inside.append(item)
+                nearest.sort()
+                inside.sort()
+                print(
+                    f'SCAN frame={node.scan.header.frame_id} '
+                    f'laser=({lx:+.3f},{ly:+.3f},{laser_yaw:+.3f}) '
+                    f'finite={len(nearest)} inside_physical_footprint={len(inside)}'
+                )
+                for distance, bx, by, index in nearest[:12]:
+                    print(
+                        f'SCAN_NEAR index={index} base=({bx:+.3f},{by:+.3f}) '
+                        f'distance_from_base={distance:.3f}'
+                    )
+                close = [item for item in nearest if item[0] <= 0.50]
+                if close:
+                    indices = sorted(item[3] for item in close)
+                    groups = []
+                    start = previous = indices[0]
+                    for index in indices[1:]:
+                        if index > previous + 1:
+                            groups.append((start, previous))
+                            start = index
+                        previous = index
+                    groups.append((start, previous))
+                    print(
+                        f'SCAN_WITHIN_0.5M count={len(close)} '
+                        f'index_groups={groups} '
+                        f'x_range=({min(item[1] for item in close):+.3f},'
+                        f'{max(item[1] for item in close):+.3f}) '
+                        f'y_range=({min(item[2] for item in close):+.3f},'
+                        f'{max(item[2] for item in close):+.3f})'
+                    )
+                sectors = {
+                    'front': (0.0, 12.5),
+                    'left': (70.0, 12.5),
+                    'right': (-70.0, 12.5),
+                    'rear': (180.0, 12.5),
+                }
+                values = {}
+                for name, (center, half_width) in sectors.items():
+                    candidates = []
+                    for distance, bx, by, _index in nearest:
+                        bearing = math.degrees(math.atan2(by, bx))
+                        delta = (bearing - center + 180.0) % 360.0 - 180.0
+                        if abs(delta) <= half_width:
+                            candidates.append(distance)
+                    values[name] = min(candidates) if candidates else math.inf
+                print('SCAN_SECTORS ' + ' '.join(
+                    f'{name}={value:.3f}' if math.isfinite(value) else f'{name}=inf'
+                    for name, value in values.items()
+                ))
+            except Exception as exc:
+                print(f'SCAN_DIAGNOSTIC_FAILED {exc}')
     node.destroy_node()
     rclpy.shutdown()
 

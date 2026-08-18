@@ -1,0 +1,14 @@
+[Unit]
+Description=Project ATLAS camera-only person tracker
+After=default.target atlas-camera.service atlas-ai-annotator.service atlas-arducam-ptz.service
+Wants=atlas-camera.service atlas-ai-annotator.service atlas-arducam-ptz.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_camera_tracker.py'
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target

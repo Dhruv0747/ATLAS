@@ -1,10 +1,11 @@
 [Unit]
 Description=Project ATLAS Foxglove mapping and home controls
-Wants=atlas-nav2.service atlas-slam-fast.service
-After=atlas-nav2.service atlas-slam-fast.service
+Wants=atlas-mode-manager.service
+After=atlas-mode-manager.service
 
 [Service]
 Type=simple
+CPUWeight=1000
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_mission_control.py'
 Restart=on-failure
 RestartSec=2
