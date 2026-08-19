@@ -121,3 +121,4 @@
 
 - Added a compact `TALK / LISTEN` control to the main web dashboard for the secure two-way rover intercom.
 - Added bounded boot recovery for Tailscale `NoState` startup failures and automatic restoration of the intercom Serve route.
+- Changed intercom navigation to the current dashboard tab so the MJPEG camera stream releases CPU during calls; added a return-to-dashboard control.

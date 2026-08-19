@@ -1145,7 +1145,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
 @media(min-width:1500px){body{font-size:15px}.grid{grid-template-columns:minmax(300px,20vw) minmax(600px,1fr) minmax(350px,23vw)}.camera{height:min(52vh,610px)}.speechText{font-size:16px}}
 @media(max-width:1150px) and (min-width:901px){.grid{grid-template-columns:265px minmax(390px,1fr) 295px}.companionGrid{grid-template-columns:1fr}.companionStatus{grid-template-columns:1fr 1fr}}
 </style></head><body>
-<header><img src="/logo.png"><div><h1>PROJECT ATLAS COMMAND CENTER</h1><div class="sub">Headless rover control • hold-to-drive • automatic stop watchdog</div></div><div class="live" id="online">CONNECTING</div><a class="intercomBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" target="_blank" rel="noopener" title="Open two-way ATLAS intercom. AI Voice pauses during the live call."><span class="intercomIcon">☎</span><span class="intercomText">TALK / LISTEN</span></a></header>
+<header><img src="/logo.png"><div><h1>PROJECT ATLAS COMMAND CENTER</h1><div class="sub">Headless rover control • hold-to-drive • automatic stop watchdog</div></div><div class="live" id="online">CONNECTING</div><a class="intercomBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" title="Open two-way ATLAS intercom. The camera stream closes to preserve call quality and AI Voice pauses during the call."><span class="intercomIcon">☎</span><span class="intercomText">TALK / LISTEN</span></a></header>
 <main class="grid">
 <section class="col">
  <div class="panel"><h2>ROVER DRIVE — HOLD BUTTON</h2><div class="drive">
