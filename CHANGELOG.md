@@ -117,3 +117,7 @@
   system panels.
 - Ultrasonic sensors are intentionally disconnected; LiDAR remains the primary
   ranging and navigation safety source.
+# 2026-08-19
+
+- Added a compact `TALK / LISTEN` control to the main web dashboard for the secure two-way rover intercom.
+- Added bounded boot recovery for Tailscale `NoState` startup failures and automatic restoration of the intercom Serve route.

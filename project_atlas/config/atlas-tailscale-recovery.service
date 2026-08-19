@@ -1,0 +1,12 @@
+[Unit]
+Description=Project ATLAS Tailscale and secure intercom boot recovery
+Wants=network-online.target
+After=network-online.target NetworkManager-wait-online.service tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/jetson/project_atlas/scripts/atlas_tailscale_recovery.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
