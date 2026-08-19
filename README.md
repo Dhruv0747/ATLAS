@@ -1,5 +1,13 @@
 # Project ATLAS - Autonomous Service Rover
 
+## Secure live-call intercom
+
+ATLAS now has mutually exclusive AI Voice and on-demand WebRTC Live Call
+modes. A live call requests browser echo cancellation/noise suppression, turns
+the ESP32 speaker LED red, and automatically returns USB audio ownership to the
+AI companion when the call ends. The server binds to loopback and must be
+published only through authenticated Tailscale HTTPS—not the public Internet.
+
 **Creator: Dhruv Kaushik**
 
 Project ATLAS is an open robotics development project for a four-wheel autonomous service rover. It runs ROS 2 Humble on Ubuntu 22.04 with an NVIDIA Jetson Orin Nano Super 8GB and combines LiDAR SLAM, Nav2 autonomous navigation, wheel odometry, IMU sensor fusion, bounded recovery behaviours, AI vision, voice control, Foxglove, and wireless dashboards.

@@ -1,0 +1,33 @@
+--- main/main.c (protocol v1)
++++ main/main.c (protocol v2)
+@@
+ #define USB_TYPE_PLAY_END 0x84
++#define USB_TYPE_PLAY_STREAM_PCM16 0x85
+@@
++    } else if (strcmp(command, "STATE CALL") == 0) {
++        esp_audio_set_play_mute(false);
++        set_rgb_color(RGB_COLOR_RED);
++        set_rgb_mode(RGB_MODE_PLAYING);
+@@
++        } else if (header.type == USB_TYPE_PLAY_STREAM_PCM16) {
++            if (header.payload_len > 0 && (header.payload_len & 1u) == 0) {
++                esp_audio_set_play_mute(false);
++                esp_audio_play((const int16_t *)host_payload,
++                               header.payload_len, portMAX_DELAY);
++            }
+@@
+-    send_event("ATLAS_AUDIO_READY protocol=1 sample_rate=16000 "
++    send_event("ATLAS_AUDIO_READY protocol=2 sample_rate=16000 "
+
+Build requirements for the ESP32-S3 smart-speaker board:
+
+    CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+    CONFIG_SPIRAM=y
+    CONFIG_SPIRAM_MODE_OCT=y
+    CONFIG_SPIRAM_TYPE_AUTO=y
+    CONFIG_SPIRAM_SPEED_80M=y
+    CONFIG_SPIRAM_BOOT_INIT=y
+    CONFIG_SPIRAM_USE_MALLOC=y
+
+The deployed image was built with ESP-IDF 5.5 for `esp32s3`. The 8 MB octal
+PSRAM setting is required for backward-compatible buffered AI speech.

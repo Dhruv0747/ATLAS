@@ -1178,6 +1178,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
    <div class="pill" id="companionMode">LOCAL SAFETY</div><div class="pill" id="companionConfirm">NO CONFIRMATION</div>
    <div class="pill" id="companionCloud">CLOUD OFFLINE</div><div class="pill"><span class="rgbDot" id="rgbDot"></span><span id="companionRgb">BLUE</span></div>
   </div>
+  <a class="btn" style="display:block;text-align:center;margin-top:10px;text-decoration:none" href="https://project-atlas-jetson.tail12f5ff.ts.net" target="_blank" rel="noopener">SECURE LIVE CALL — AI VOICE PAUSES</a>
  </div>
  <div class="panel"><h2>RANGE & ATTITUDE</h2><div class="cards" id="sensors"></div></div>
  <div class="panel"><h2>RD-03D LIVE MOTION RADAR</h2><div class="radarViewBar"><button class="btn" id="radar2dBtn" onclick="setRadarView('2d')">2D RADAR</button><button class="btn active" id="radar3dBtn" onclick="setRadarView('3d')">3D PEOPLE</button><span class="radarViewNote">LIVE RD-03D DATA<br>UP TO 3 TARGETS</span></div><canvas class="radarScope radarHidden" id="radarScope" width="720" height="340"></canvas><canvas class="radarScope" id="radarTwin" width="720" height="340"></canvas><div class="detail" id="radarCaption">WAITING FOR RADAR UART DATA</div></div>

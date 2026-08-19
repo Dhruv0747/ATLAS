@@ -1,0 +1,9 @@
+[Unit]
+Description=ATLAS WebRTC live-call intercom
+After=network-online.target
+[Service]
+ExecStart=/home/jetson/project_atlas/venv-intercom/bin/python /home/jetson/project_atlas/scripts/atlas_intercom.py
+Restart=on-failure
+RestartSec=3
+[Install]
+WantedBy=default.target

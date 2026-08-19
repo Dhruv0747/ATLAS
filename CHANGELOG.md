@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added on-demand full-duplex WebRTC intercom with exclusive AI Voice / Live
+  Call audio ownership, disconnect recovery, and a red privacy indicator.
+- Added ESP32 audio protocol-v2 low-latency streaming playback (`0x85`).
+
 - Unified the web AI switch, object list and bounding-box camera feed with the
   existing TensorRT annotator. AI OFF now skips inference to save GPU power,
   while AI ON uses one detector instead of launching duplicate dashboard work.
