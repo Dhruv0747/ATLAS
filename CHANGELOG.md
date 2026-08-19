@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Permanently repaired the autonomous mapping/localization startup chain:
+  navigation now waits for synchronized clock, odometry and LiDAR data; SLAM
+  uses scan matching and loop closure; Nav2 retains the rectangular 50 x 36 cm
+  footprint with 28 cm inflation; LiDAR-guarded backup recovery is available;
+  and the mapping readiness timeout covers Smac Hybrid initialization.
+- Made map acceptance transactional and session-aware. A stopped/failed
+  Explore Lite process can no longer overwrite `atlas_latest`; accepted maps
+  are backed up, home/localization poses are tied to a map identity, and stale
+  coordinates are rejected after a map replacement.
 - Added on-demand full-duplex WebRTC intercom with exclusive AI Voice / Live
   Call audio ownership, disconnect recovery, and a red privacy indicator.
 - Added ESP32 audio protocol-v2 low-latency streaming playback (`0x85`).

@@ -7,7 +7,9 @@ After=atlas-nav2.service atlas-slam-fast.service atlas-map-footprint-filter.serv
 Type=simple
 CPUWeight=1000
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec ros2 run explore_lite explore --ros-args --params-file /home/jetson/project_atlas/config/atlas_explore_params.yaml'
-ExecStopPost=/bin/bash -lc 'source /opt/ros/humble/setup.bash; timeout -k 2s 22s ros2 run nav2_map_server map_saver_cli -f /home/jetson/project_atlas/maps/atlas_latest --ros-args -p save_map_timeout:=18.0 || true; timeout -k 1s 3s ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{}" || true'
+# atlas_mission_control owns transactional map saving.  This unit must never
+# overwrite the accepted map merely because it was stopped or failed to start.
+ExecStopPost=/bin/bash -lc 'source /opt/ros/humble/setup.bash; timeout -k 1s 3s ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{}" || true'
 Restart=no
 TimeoutStopSec=32
 KillMode=control-group

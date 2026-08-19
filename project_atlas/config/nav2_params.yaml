@@ -283,10 +283,10 @@ behavior_server:
     costmap_topic: local_costmap/costmap_raw
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
-    # ATLAS has front/side ultrasonic coverage but no rear range sensor.
-    # Never execute Nav2's blind reverse recovery, and do not request an
-    # impossible differential-drive spin from a four-wheel-steering chassis.
-    behavior_plugins: ["assisted_teleop", "wait"]
+    # The 360-degree LiDAR is the primary collision source, including behind
+    # ATLAS. Allow only a short, costmap-checked reverse recovery; never ask
+    # this four-wheel-steering chassis to perform an in-place Nav2 spin.
+    behavior_plugins: ["backup", "assisted_teleop", "wait"]
     spin:
       plugin: "nav2_behaviors/Spin"
     backup:

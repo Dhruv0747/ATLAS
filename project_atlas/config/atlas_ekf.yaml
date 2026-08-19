@@ -2,6 +2,10 @@ ekf_filter_node:
   ros__parameters:
     frequency: 10.0
     sensor_timeout: 0.3
+    # Publish odom -> base_link slightly ahead to cover normal Jetson
+    # scheduling latency. AMCL/Nav2 otherwise request "now" while the newest
+    # transform is commonly 50-200 ms behind during a loaded startup.
+    transform_time_offset: 0.2
     two_d_mode: true
     publish_tf: true
     publish_acceleration: false

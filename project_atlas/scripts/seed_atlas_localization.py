@@ -8,6 +8,7 @@ import time
 
 import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from nav_msgs.msg import Odometry
 from rclpy.node import Node
 
 
@@ -50,6 +51,14 @@ def main():
     rclpy.init()
     node = Node("atlas_localization_seeder")
     publisher = node.create_publisher(PoseWithCovarianceStamped, "/initialpose", 10)
+    latest_odom_stamp = {"value": None}
+
+    def receive_odom(msg: Odometry):
+        latest_odom_stamp["value"] = msg.header.stamp
+
+    odom_subscription = node.create_subscription(
+        Odometry, "/odom", receive_odom, 10
+    )
     message = PoseWithCovarianceStamped()
     message.header.frame_id = "map"
     message.pose.pose.position.x = float(pose["x"])
@@ -69,15 +78,25 @@ def main():
     if publisher.get_subscription_count() == 0:
         raise RuntimeError("AMCL is not subscribed to /initialpose")
 
+    odom_deadline = time.monotonic() + 8.0
+    while latest_odom_stamp["value"] is None and time.monotonic() < odom_deadline:
+        rclpy.spin_once(node, timeout_sec=0.1)
+    if latest_odom_stamp["value"] is None:
+        raise RuntimeError("no odometry timestamp is available for AMCL seeding")
+    # Freeze this known-good timestamp. The subscription continues receiving
+    # newer odometry while we publish; following that moving edge would put
+    # every new initial pose just ahead of the TF buffer again.
+    seed_stamp = latest_odom_stamp["value"]
+
     # A lifecycle node may expose /initialpose before AMCL is active. Publish
     # across the activation window so at least one seed is processed before
     # the delayed Nav2 costmaps start and require map -> odom.
     for _ in range(20):
-        # Zero requests the latest available TF. A wall-clock stamp can be a
-        # few milliseconds newer than odom and makes AMCL report avoidable
-        # future-extrapolation warnings during startup.
-        message.header.stamp.sec = 0
-        message.header.stamp.nanosec = 0
+        # Use a timestamp actually emitted by odometry.  AMCL treats a zero
+        # initial-pose stamp as wall-clock 'now', which can still be newer
+        # than the latest odom -> base_link transform on a loaded Jetson.
+        message.header.stamp.sec = seed_stamp.sec
+        message.header.stamp.nanosec = seed_stamp.nanosec
         publisher.publish(message)
         rclpy.spin_once(node, timeout_sec=0.5)
     node.get_logger().info(

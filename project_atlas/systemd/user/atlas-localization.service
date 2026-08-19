@@ -1,6 +1,7 @@
 [Unit]
 Description=Project ATLAS saved-map localization and Nav2
-After=default.target atlas-lidar.service atlas-scan-filter.service
+Wants=rover-base-telemetry.service atlas-ekf.service atlas-lidar.service atlas-scan-filter.service
+After=default.target rover-base-telemetry.service atlas-ekf.service atlas-lidar.service atlas-scan-filter.service
 Conflicts=atlas-slam-fast.service atlas-nav2.service atlas-explore.service atlas-map-footprint-filter.service
 
 [Service]
@@ -9,6 +10,7 @@ Type=simple
 # Jetson and prevent lifecycle nodes from discovering each other. UDPv4 keeps
 # all communication local/network-compatible without the stale SHM ports.
 Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStartPre=/home/jetson/project_atlas/scripts/atlas_wait_navigation_inputs.sh
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec ros2 launch tortoisebot_bringup atlas_localization.launch.py map:=/home/jetson/project_atlas/maps/atlas_latest.yaml'
 ExecStartPost=/bin/bash -lc 'sleep 10; source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; /usr/bin/python3 /home/jetson/project_atlas/scripts/seed_atlas_localization.py'
 Restart=on-failure

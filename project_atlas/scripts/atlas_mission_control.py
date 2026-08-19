@@ -2,10 +2,14 @@
 """Non-blocking Foxglove mission bindings for Project ATLAS."""
 
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import json
 import math
+import os
+import shutil
 import subprocess
 import time
+import uuid
 from pathlib import Path
 from threading import Lock
 from typing import Callable, Optional
@@ -60,6 +64,9 @@ class AtlasMissionControl(Node):
         )
         self.paused_services_file = (
             Path.home() / ".config/project_atlas/mapping_paused_services.json"
+        )
+        self.mapping_session_file = (
+            Path.home() / ".config/project_atlas/mapping_session.json"
         )
 
         self.tf_buffer = Buffer()
@@ -252,12 +259,122 @@ class AtlasMissionControl(Node):
                 failures.append(f"{frame_id}: {exc}")
         raise RuntimeError("no map/odom pose available; " + " | ".join(failures))
 
+    @staticmethod
+    def atomic_write_json(path: Path, value: dict) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+        temporary.write_text(json.dumps(value, indent=2), encoding="utf-8")
+        os.replace(temporary, path)
+
+    def current_map_id(self) -> Optional[str]:
+        """Return an identity tied to the exact accepted YAML and image."""
+        yaml_path = self.map_prefix.with_suffix(".yaml")
+        if not yaml_path.exists():
+            return None
+        image_path = self.map_prefix.with_suffix(".pgm")
+        try:
+            for line in yaml_path.read_text(encoding="utf-8").splitlines():
+                if line.strip().startswith("image:"):
+                    image_name = line.split(":", 1)[1].strip().strip("'\"")
+                    candidate = Path(image_name)
+                    image_path = candidate if candidate.is_absolute() else yaml_path.parent / candidate
+                    break
+            digest = hashlib.sha256()
+            digest.update(yaml_path.read_bytes())
+            digest.update(image_path.read_bytes())
+            return digest.hexdigest()[:20]
+        except OSError:
+            return None
+
+    def active_mapping_session(self) -> Optional[dict]:
+        try:
+            value = json.loads(self.mapping_session_file.read_text(encoding="utf-8"))
+            return value if value.get("state") == "active" else None
+        except (OSError, ValueError, AttributeError):
+            return None
+
+    def require_matching_map(self, pose: dict, label: str) -> None:
+        stored_id = pose.get("map_id")
+        current_id = self.current_map_id()
+        if stored_id and current_id and stored_id != current_id:
+            raise RuntimeError(
+                f"{label} belongs to a different map; set it again on the current map"
+            )
+
+    def bind_legacy_locations_to_map(self, map_id: Optional[str]) -> None:
+        """Bind old unversioned coordinates before accepting a replacement map."""
+        if not map_id:
+            return
+        for path in (self.home_file, self.localization_seed_file):
+            try:
+                value = json.loads(path.read_text(encoding="utf-8"))
+                if not value.get("map_id"):
+                    value["map_id"] = map_id
+                    self.atomic_write_json(path, value)
+            except (OSError, ValueError, AttributeError):
+                pass
+        places = self.load_named_places()
+        changed = False
+        for pose in places.values():
+            if isinstance(pose, dict) and not pose.get("map_id"):
+                pose["map_id"] = map_id
+                changed = True
+        if changed:
+            self.atomic_write_json(self.places_file, places)
+
+    def accept_saved_map(self, candidate_prefix: Path, session: dict) -> str:
+        """Validate and atomically promote a candidate map; YAML is committed last."""
+        candidate_yaml = candidate_prefix.with_suffix(".yaml")
+        candidate_image = candidate_prefix.with_suffix(".pgm")
+        if (
+            not candidate_yaml.exists() or candidate_yaml.stat().st_size < 40
+            or not candidate_image.exists() or candidate_image.stat().st_size < 100
+        ):
+            raise RuntimeError("candidate map is missing or too small; accepted map preserved")
+
+        yaml_text = candidate_yaml.read_text(encoding="utf-8")
+        lines = yaml_text.splitlines()
+        image_line = next((line for line in lines if line.strip().startswith("image:")), None)
+        if image_line is None:
+            raise RuntimeError("candidate map YAML has no image; accepted map preserved")
+        lines[lines.index(image_line)] = f"image: {self.map_prefix.name}.pgm"
+        candidate_yaml.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        accepted_yaml = self.map_prefix.with_suffix(".yaml")
+        accepted_image = self.map_prefix.with_suffix(".pgm")
+        old_id = self.current_map_id()
+        self.bind_legacy_locations_to_map(old_id)
+        backup_dir = self.map_prefix.parent / "accepted_backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        if accepted_yaml.exists():
+            shutil.copy2(accepted_yaml, backup_dir / f"atlas_latest-{stamp}.yaml")
+        if accepted_image.exists():
+            shutil.copy2(accepted_image, backup_dir / f"atlas_latest-{stamp}.pgm")
+
+        os.replace(candidate_image, accepted_image)
+        os.replace(candidate_yaml, accepted_yaml)
+        map_id = self.current_map_id()
+        if not map_id:
+            raise RuntimeError("accepted map identity could not be verified")
+
+        for path in (self.home_file, self.localization_seed_file):
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if value.get("mapping_session_id") != session["id"]:
+                raise RuntimeError(f"{path.name} does not belong to active mapping session")
+            value["map_id"] = map_id
+            value.pop("mapping_session_id", None)
+            self.atomic_write_json(path, value)
+        return map_id
+
     def set_home(self) -> None:
         pose = self.stable_current_pose()
-        self.home_file.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.home_file.with_suffix(".tmp")
-        temporary.write_text(json.dumps(pose, indent=2), encoding="utf-8")
-        temporary.replace(self.home_file)
+        session = self.active_mapping_session()
+        if session:
+            pose["mapping_session_id"] = session["id"]
+        else:
+            pose["map_id"] = self.current_map_id()
+        self.atomic_write_json(self.home_file, pose)
         self.status(
             f"HOME SAVED frame={pose['frame_id']} "
             f"x={pose['x']:.2f} y={pose['y']:.2f}"
@@ -296,10 +413,10 @@ class AtlasMissionControl(Node):
         pose = self.stable_current_pose()
         if pose.get("frame_id") != "map":
             raise RuntimeError("localization seed requires a live map-frame pose")
-        self.localization_seed_file.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.localization_seed_file.with_suffix(".tmp")
-        temporary.write_text(json.dumps(pose, indent=2), encoding="utf-8")
-        temporary.replace(self.localization_seed_file)
+        session = self.active_mapping_session()
+        if session:
+            pose["mapping_session_id"] = session["id"]
+        self.atomic_write_json(self.localization_seed_file, pose)
         self.get_logger().info(
             "LOCALIZATION SEED SAVED "
             f"x={pose['x']:.2f} y={pose['y']:.2f}"
@@ -311,10 +428,16 @@ class AtlasMissionControl(Node):
         # mapping stack before recording home so the pose belongs to the new
         # live SLAM frame rather than the previously loaded map frame.
         self.ensure_mapping_stack()
+        session = {
+            "id": uuid.uuid4().hex,
+            "state": "active",
+            "started_unix": time.time(),
+        }
+        self.atomic_write_json(self.mapping_session_file, session)
         # Start always records the present SLAM pose as mission home.
-        self.set_home()
-        self.pause_mapping_background()
         try:
+            self.set_home()
+            self.pause_mapping_background()
             self.center_camera_for_navigation()
             result = subprocess.run(
                 ["systemctl", "--user", "start", self.explore_unit],
@@ -322,10 +445,16 @@ class AtlasMissionControl(Node):
             )
             if result.returncode:
                 raise RuntimeError(result.stderr.strip() or "systemctl start failed")
+            if subprocess.run(
+                ["systemctl", "--user", "is-active", "--quiet", self.explore_unit],
+                check=False, timeout=4,
+            ).returncode != 0:
+                raise RuntimeError("explore_lite exited instead of becoming active")
         except Exception:
+            self.mapping_session_file.unlink(missing_ok=True)
             self.restore_mapping_background()
             raise
-        self.status("EXPLORATION ACTIVE")
+        self.status(f"EXPLORATION ACTIVE session={session['id'][:8]}")
 
     def center_camera_for_navigation(self) -> None:
         """Put the pan/tilt camera in its calibrated forward navigation pose."""
@@ -358,7 +487,10 @@ class AtlasMissionControl(Node):
             raise RuntimeError(
                 start.stderr.strip() or "could not start mapping stack"
             )
-        deadline = time.monotonic() + 30.0
+        # Smac Hybrid's first heuristic-table build can take 40-60 seconds on
+        # the Orin while SLAM and costmaps start.  The previous 30-second
+        # deadline falsely declared failure just before Nav2 became active.
+        deadline = time.monotonic() + 90.0
         while time.monotonic() < deadline:
             ready = all(
                 subprocess.run(
@@ -370,7 +502,7 @@ class AtlasMissionControl(Node):
             if ready and self.nav.wait_for_server(timeout_sec=1.0):
                 return
             time.sleep(1.0)
-        raise RuntimeError("mapping stack did not become ready within 30 seconds")
+        raise RuntimeError("mapping stack did not become ready within 90 seconds")
 
     def pause_mapping_background(self) -> None:
         """Free CPU for SLAM/Nav2 while preserving the live raw camera."""
@@ -413,6 +545,7 @@ class AtlasMissionControl(Node):
             raise RuntimeError(
                 "named places require a live map pose; start mapping or localization first"
             )
+        pose["map_id"] = self.current_map_id()
         places = self.load_named_places()
         places[name] = pose
         self.places_file.parent.mkdir(parents=True, exist_ok=True)
@@ -429,6 +562,7 @@ class AtlasMissionControl(Node):
         pose = places[name]
         if pose.get("frame_id") != "map":
             raise RuntimeError(f"named place {name!r} is not stored in the map frame")
+        self.require_matching_map(pose, f"named place {name!r}")
         self.dispatch_pose_goal(pose, name)
 
     def dispatch_pose_goal(self, pose: dict, label: str) -> None:
@@ -543,10 +677,16 @@ class AtlasMissionControl(Node):
     def stop_exploration(self) -> None:
         try:
             self.zero_pub.publish(Twist())
-            map_yaml = self.map_prefix.with_suffix(".yaml")
-            map_image = self.map_prefix.with_suffix(".pgm")
-            previous_yaml_mtime = map_yaml.stat().st_mtime if map_yaml.exists() else 0.0
-            previous_image_mtime = map_image.stat().st_mtime if map_image.exists() else 0.0
+            session = self.active_mapping_session()
+            explore_active = subprocess.run(
+                ["systemctl", "--user", "is-active", "--quiet", self.explore_unit],
+                check=False, timeout=4,
+            ).returncode == 0
+            if not session or not explore_active:
+                self.cancel_all_nav_goals()
+                self.zero_pub.publish(Twist())
+                self.status("MAPPING NOT ACTIVE; ACCEPTED MAP PRESERVED")
+                return
             result = subprocess.run(
                 ["systemctl", "--user", "stop", self.explore_unit],
                 check=False, timeout=40, capture_output=True, text=True
@@ -560,30 +700,26 @@ class AtlasMissionControl(Node):
             # active.  The next localization boot must never reuse a seed
             # from an older map/session.
             self.save_localization_seed()
-
-            # ExecStopPost normally saves the map. Avoid racing it with a
-            # second map_saver; only run it when no fresh YAML appeared.
-            saved_by_unit = (
-                map_yaml.exists()
-                and map_image.exists()
-                and map_yaml.stat().st_mtime > previous_yaml_mtime
-                and map_image.stat().st_mtime > previous_image_mtime
+            candidate_prefix = self.map_prefix.parent / (
+                f".atlas_candidate_{session['id']}"
             )
-            if not saved_by_unit:
-                save = subprocess.run(
-                    [
-                        "ros2", "run", "nav2_map_server", "map_saver_cli",
-                        "-f", str(self.map_prefix),
-                        "--ros-args", "-p", "save_map_timeout:=18.0",
-                    ],
-                    check=False, timeout=30, capture_output=True, text=True
-                )
-                self.zero_pub.publish(Twist())
-                if save.returncode:
-                    raise RuntimeError(save.stderr.strip() or "map save failed")
-            if not map_yaml.exists() or not map_image.exists():
-                raise RuntimeError("map saver returned success but YAML/PGM output is incomplete")
-            self.status(f"EXPLORATION STOPPED; MAP SAVED {self.map_prefix}.yaml")
+            save = subprocess.run(
+                [
+                    "ros2", "run", "nav2_map_server", "map_saver_cli",
+                    "-f", str(candidate_prefix),
+                    "--ros-args", "-p", "save_map_timeout:=18.0",
+                ],
+                check=False, timeout=30, capture_output=True, text=True
+            )
+            self.zero_pub.publish(Twist())
+            if save.returncode:
+                raise RuntimeError(save.stderr.strip() or "map save failed; accepted map preserved")
+            map_id = self.accept_saved_map(candidate_prefix, session)
+            self.mapping_session_file.unlink(missing_ok=True)
+            self.status(
+                f"EXPLORATION STOPPED; MAP ACCEPTED id={map_id} "
+                f"path={self.map_prefix}.yaml"
+            )
         finally:
             self.restore_mapping_background()
 
@@ -605,6 +741,7 @@ class AtlasMissionControl(Node):
         if not self.nav.wait_for_server(timeout_sec=10.0):
             raise RuntimeError("Nav2 NavigateToPose action is unavailable")
         pose = json.loads(self.home_file.read_text(encoding="utf-8"))
+        self.require_matching_map(pose, "home pose")
         self.dispatch_home_goal(pose, attempt=0)
 
     def dispatch_home_goal(self, pose, attempt: int) -> None:
