@@ -35,6 +35,7 @@ class AtlasSafetyStatus(Node):
         self.front_lidar = math.inf
         self.left_lidar = math.inf
         self.right_lidar = math.inf
+        self.rear_lidar = math.inf
         self.front_ultrasonic = math.inf
         self.left_ultrasonic = math.inf
         self.right_ultrasonic = math.inf
@@ -117,6 +118,9 @@ class AtlasSafetyStatus(Node):
         self.state_pub = self.create_publisher(
             String, "/atlas/autonomy_state", 10
         )
+        self.rear_clearance_pub = self.create_publisher(
+            Float32, "/atlas/clearance/rear_m", 10
+        )
         self.diagnostics_pub = self.create_publisher(
             DiagnosticArray, "/diagnostics", 10
         )
@@ -125,7 +129,12 @@ class AtlasSafetyStatus(Node):
 
     def on_scan(self, msg: LaserScan) -> None:
         self.last_scan = time.monotonic()
-        nearest = {"front": math.inf, "left": math.inf, "right": math.inf}
+        nearest = {
+            "front": math.inf,
+            "left": math.inf,
+            "right": math.inf,
+            "rear": math.inf,
+        }
         for index, value in enumerate(msg.ranges):
             angle = msg.angle_min + index * msg.angle_increment
             if not math.isfinite(value) or not msg.range_min <= value <= msg.range_max:
@@ -137,6 +146,8 @@ class AtlasSafetyStatus(Node):
                 nearest["left"] = min(nearest["left"], value)
             elif ray_in_base_sector(degrees, -77.5, 42.5, LASER_YAW_DEG):
                 nearest["right"] = min(nearest["right"], value)
+            elif ray_in_base_sector(degrees, 180.0, 35.0, LASER_YAW_DEG):
+                nearest["rear"] = min(nearest["rear"], value)
         clear_value = float(msg.range_max)
         self.front_lidar = (
             nearest["front"] if math.isfinite(nearest["front"]) else clear_value
@@ -146,6 +157,9 @@ class AtlasSafetyStatus(Node):
         )
         self.right_lidar = (
             nearest["right"] if math.isfinite(nearest["right"]) else clear_value
+        )
+        self.rear_lidar = (
+            nearest["rear"] if math.isfinite(nearest["rear"]) else clear_value
         )
 
     def on_map(self, msg: OccupancyGrid) -> None:
@@ -337,6 +351,7 @@ class AtlasSafetyStatus(Node):
         level, phase, text, decision = self.classify()
         self.status_pub.publish(String(data=text))
         self.phase_pub.publish(String(data=phase))
+        self.rear_clearance_pub.publish(Float32(data=float(self.rear_lidar)))
         state = {
             "phase": phase,
             "severity": ["OK", "WARN", "ERROR"][min(level, 2)],
@@ -358,6 +373,7 @@ class AtlasSafetyStatus(Node):
                 "front": round(min(self.front_lidar, self.front_ultrasonic), 3),
                 "left": round(min(self.left_lidar, self.left_ultrasonic), 3),
                 "right": round(min(self.right_lidar, self.right_ultrasonic), 3),
+                "rear": round(self.rear_lidar, 3),
             },
             "map": {
                 "width_m": round(self.map_width_m, 2),
@@ -420,6 +436,7 @@ class AtlasSafetyStatus(Node):
             ),
             KeyValue(key="left_ultrasonic_m", value=f"{self.left_ultrasonic:.3f}"),
             KeyValue(key="right_ultrasonic_m", value=f"{self.right_ultrasonic:.3f}"),
+            KeyValue(key="rear_lidar_m", value=f"{self.rear_lidar:.3f}"),
             KeyValue(key="odometry_source", value=self.odom_source),
             KeyValue(key="map_known_percent", value=f"{self.map_known_pct:.1f}"),
             KeyValue(key="plan_points", value=str(self.plan_points)),

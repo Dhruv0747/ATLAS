@@ -35,6 +35,13 @@ class AtlasMissionControl(Node):
         "atlas-foxglove.service",
         "atlas-voice-companion.service",
     )
+    CAMERA_PAN_MIN_US = 700
+    CAMERA_PAN_MAX_US = 2300
+    CAMERA_PAN_HOME_US = 1300
+    CAMERA_TILT_MIN_US = 500
+    CAMERA_TILT_MAX_US = 2500
+    CAMERA_TILT_HOME_US = 2100
+    CAMERA_STEP_US = 160
 
     def __init__(self):
         super().__init__("atlas_mission_control")
@@ -82,6 +89,14 @@ class AtlasMissionControl(Node):
         self.camera_tilt_pub = self.create_publisher(
             Int32, "/camera/second_servo_cmd_us", 10
         )
+        self.camera_pan_us = self.CAMERA_PAN_HOME_US
+        self.camera_tilt_us = self.CAMERA_TILT_HOME_US
+        self.create_subscription(
+            Int32, "/camera/bottom_servo_us", self.update_camera_pan, 10
+        )
+        self.create_subscription(
+            Int32, "/camera/second_servo_us", self.update_camera_tilt, 10
+        )
         self.status_pub = self.create_publisher(
             String, "/atlas/mission_status", 10
         )
@@ -117,6 +132,11 @@ class AtlasMissionControl(Node):
             [
                 self.create_subscription(String, "/atlas/save_named_place", self.request_save_named_place, 10),
                 self.create_subscription(String, "/atlas/navigate_named_place", self.request_navigate_named_place, 10),
+                self.create_subscription(Empty, "/atlas/camera/pan_left", self.camera_pan_left, 10),
+                self.create_subscription(Empty, "/atlas/camera/pan_right", self.camera_pan_right, 10),
+                self.create_subscription(Empty, "/atlas/camera/tilt_up", self.camera_tilt_up, 10),
+                self.create_subscription(Empty, "/atlas/camera/tilt_down", self.camera_tilt_down, 10),
+                self.create_subscription(Empty, "/atlas/camera/home", self.camera_home, 10),
             ]
         )
 
@@ -152,8 +172,48 @@ class AtlasMissionControl(Node):
         )
         self.status("READY")
         self.get_logger().info(
-            "Foxglove topic bindings ready: start, stop, set-home, return-home, cancel"
+            "Foxglove topic bindings ready: missions, rear clearance, camera pan/tilt"
         )
+
+    def update_camera_pan(self, msg: Int32) -> None:
+        self.camera_pan_us = max(
+            self.CAMERA_PAN_MIN_US, min(self.CAMERA_PAN_MAX_US, int(msg.data))
+        )
+
+    def update_camera_tilt(self, msg: Int32) -> None:
+        self.camera_tilt_us = max(
+            self.CAMERA_TILT_MIN_US, min(self.CAMERA_TILT_MAX_US, int(msg.data))
+        )
+
+    def camera_pan_left(self, _msg: Empty) -> None:
+        self.camera_pan_us = max(
+            self.CAMERA_PAN_MIN_US, self.camera_pan_us - self.CAMERA_STEP_US
+        )
+        self.camera_pan_pub.publish(Int32(data=self.camera_pan_us))
+
+    def camera_pan_right(self, _msg: Empty) -> None:
+        self.camera_pan_us = min(
+            self.CAMERA_PAN_MAX_US, self.camera_pan_us + self.CAMERA_STEP_US
+        )
+        self.camera_pan_pub.publish(Int32(data=self.camera_pan_us))
+
+    def camera_tilt_up(self, _msg: Empty) -> None:
+        self.camera_tilt_us = min(
+            self.CAMERA_TILT_MAX_US, self.camera_tilt_us + self.CAMERA_STEP_US
+        )
+        self.camera_tilt_pub.publish(Int32(data=self.camera_tilt_us))
+
+    def camera_tilt_down(self, _msg: Empty) -> None:
+        self.camera_tilt_us = max(
+            self.CAMERA_TILT_MIN_US, self.camera_tilt_us - self.CAMERA_STEP_US
+        )
+        self.camera_tilt_pub.publish(Int32(data=self.camera_tilt_us))
+
+    def camera_home(self, _msg: Empty) -> None:
+        self.camera_pan_us = self.CAMERA_PAN_HOME_US
+        self.camera_tilt_us = self.CAMERA_TILT_HOME_US
+        self.camera_pan_pub.publish(Int32(data=self.camera_pan_us))
+        self.camera_tilt_pub.publish(Int32(data=self.camera_tilt_us))
 
     def status(self, text: str) -> None:
         self.current_status = text
