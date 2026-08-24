@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-24 - Localization teaching-route diagnosis
+
+- Recorded manual Dhruv Room to Hall and Hall to Dhruv Room teaching bags
+  with LiDAR, TF, fused/wheel odometry, steering, encoders, safety and camera.
+- Extended the route analyzer to quantify `map -> odom` correction jumps.
+- Confirmed the failed return contained a false 2.55 m / 24.43 degree AMCL
+  correction while wheel and fused headings agreed and LiDAR median delay was
+  only 3.56 ms.
+- Began a one-variable A/B trial by increasing AMCL `max_beams` from 60 to
+  120. Home remained stationary and stable while AMCL consumed about 11% CPU.
+- Kept costmap tuning unchanged after separately detecting a blocked start
+  region; it must be diagnosed as the next isolated variable.
+
 ## 2026-08-24 - Bounded recovery experience feedback
 
 - Added deterministic classification for localization, TF timing, costmap,
