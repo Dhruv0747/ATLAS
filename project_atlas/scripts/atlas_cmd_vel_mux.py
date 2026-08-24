@@ -35,6 +35,8 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("foxglove_max_linear", 0.20)
         self.declare_parameter("foxglove_max_angular", 0.45)
         self.declare_parameter("foxglove_steering_expo", 2.0)
+        self.declare_parameter("remote_linear_deadband", 0.06)
+        self.declare_parameter("remote_angular_deadband", 0.12)
         self.declare_parameter("auto_front_stop_m", 0.30)
         self.declare_parameter("auto_side_stop_m", 0.18)
         self.declare_parameter("auto_reaction_time_s", 1.0)
@@ -51,6 +53,12 @@ class AtlasCmdVelMux(Node):
         )
         self.foxglove_steering_expo = float(
             self.get_parameter("foxglove_steering_expo").value
+        )
+        self.remote_linear_deadband = float(
+            self.get_parameter("remote_linear_deadband").value
+        )
+        self.remote_angular_deadband = float(
+            self.get_parameter("remote_angular_deadband").value
         )
         self.auto_front_stop_m = float(
             self.get_parameter("auto_front_stop_m").value
@@ -134,7 +142,20 @@ class AtlasCmdVelMux(Node):
         channel = self.channels[name]
         channel.last_rx = time.monotonic()
         command = self.copy_twist(msg)
-        if name == "FOXGLOVE":
+        if name == "REMOTE":
+            # An ageing joystick can cross joy_node's raw-axis deadzone and
+            # repeatedly steal ownership from Web/Nav2 with tiny commands.
+            # Preserve deliberate input while treating neutral-stick noise as
+            # an idle heartbeat that cannot interrupt a lower-priority owner.
+            if abs(command.linear.x) < self.remote_linear_deadband:
+                command.linear.x = 0.0
+            if abs(command.angular.z) < self.remote_angular_deadband:
+                command.angular.z = 0.0
+            command.linear.y = 0.0
+            command.linear.z = 0.0
+            command.angular.x = 0.0
+            command.angular.y = 0.0
+        elif name == "FOXGLOVE":
             command.linear.x = max(
                 -self.foxglove_max_linear,
                 min(self.foxglove_max_linear, command.linear.x),
