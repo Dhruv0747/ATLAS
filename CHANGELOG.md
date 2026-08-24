@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-24 - Navigation heading-fusion correction
+
+- Added repeatable rosbag fusion and isolated offline-SLAM diagnostics.
+- Measured BNO08X rotation-vector changes of 100-175 degrees while its own
+  integrated gyro reported only 1.7-6 degrees on the same routes.
+- Removed magnetically distorted IMU yaw/yaw-rate from the navigation EKF;
+  the IMU remains live for dashboard and health monitoring.
+- Fused commissioned wheel pose yaw and yaw rate, which agreed within about
+  one degree in both recorded routes.
+- Offline real-time replay produced a substantially cleaner, coherent map with
+  no EKF replay warnings. The candidate remains quarantined pending one fresh
+  live ground mapping validation.
+
 ## 2026-08-24 - Tight-space recovery command isolation
 
 - Gave bounded tight-space recovery its own `/cmd_vel_recovery` mux input.
