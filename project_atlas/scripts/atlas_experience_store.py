@@ -50,6 +50,19 @@ CREATE TABLE IF NOT EXISTS recovery_cases (
     approved INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(episode_id) REFERENCES episodes(id)
 );
+CREATE TABLE IF NOT EXISTS mission_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    episode_id TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    outcome TEXT NOT NULL,
+    failure_class TEXT NOT NULL,
+    status TEXT NOT NULL,
+    final_pose TEXT NOT NULL,
+    context TEXT NOT NULL,
+    FOREIGN KEY(episode_id) REFERENCES episodes(id)
+);
+CREATE INDEX IF NOT EXISTS mission_results_time
+ON mission_results(created_at);
 """
 
 
@@ -78,6 +91,21 @@ def recovery_strategy(source):
         if source == "tight_recovery"
         else "bounded_peripheral_recovery"
     )
+
+
+def mission_outcome(value):
+    """Return success/failure only for terminal mission status messages."""
+    text = str(value).upper()
+    failure_words = ("REJECTED", "FAILED", "ABORTED", "CANCELED", "CANCELLED", "INACCURATE")
+    if any(word in text for word in failure_words):
+        return "failure"
+    if "FINISHED" in text and "STATUS=4" in text:
+        return "success"
+    if "VERIFIED" in text or "MAP SAVED" in text or "MISSION COMPLETE" in text:
+        return "success"
+    if "FINISHED" in text and "STATUS=" in text:
+        return "failure"
+    return None
 
 
 class AtlasExperienceStore(Node):
@@ -204,6 +232,33 @@ class AtlasExperienceStore(Node):
             return
         self.last_recorded_at[source] = now
         self.record(source, "status_changed", {"value": value, "pose": self.last_pose})
+        if source == "mission":
+            outcome = mission_outcome(value)
+            if outcome:
+                failure_class = "none" if outcome == "success" else classify_failure(value)
+                context = {
+                    "safety": self.latest_context.get("safety", ""),
+                    "autonomy": self.latest_context.get("autonomy", ""),
+                    "mode": self.latest_context.get("mode", ""),
+                }
+                self.execute(
+                    "INSERT INTO mission_results(episode_id, created_at, outcome, "
+                    "failure_class, status, final_pose, context) VALUES(?,?,?,?,?,?,?)",
+                    (
+                        self.episode_id,
+                        time.time(),
+                        outcome,
+                        failure_class,
+                        value[:1000],
+                        json.dumps(self.last_pose, separators=(",", ":"))[:2000],
+                        json.dumps(context, separators=(",", ":"))[:8000],
+                    ),
+                )
+                self.record(
+                    "mission_ledger",
+                    "mission_" + outcome,
+                    {"status": value, "failure_class": failure_class, "pose": self.last_pose},
+                )
         if source in {"recovery", "tight_recovery"} and (
             "RECOVERED" in upper or "BLOCKED" in upper or "FAILED" in upper
         ):
@@ -284,27 +339,39 @@ class AtlasExperienceStore(Node):
         episodes = self.connection.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
         events = self.connection.execute("SELECT COUNT(*) FROM events").fetchone()[0]
         cases = self.connection.execute("SELECT COUNT(*) FROM recovery_cases").fetchone()[0]
-        return episodes, events, cases
+        successes = self.connection.execute(
+            "SELECT COUNT(*) FROM mission_results WHERE outcome='success'"
+        ).fetchone()[0]
+        failures = self.connection.execute(
+            "SELECT COUNT(*) FROM mission_results WHERE outcome='failure'"
+        ).fetchone()[0]
+        return episodes, events, cases, successes, failures
 
     def publish_status(self):
-        episodes, events, cases = self.counts()
+        episodes, events, cases, successes, failures = self.counts()
         payload = {
             "database": str(self.database),
             "episode": self.episode_id,
             "episodes": episodes,
             "events": events,
             "recovery_cases": cases,
+            "mission_successes": successes,
+            "mission_failures": failures,
+            "mission_success_rate_percent": round(
+                100.0 * successes / max(1, successes + failures), 1
+            ),
         }
         self.status_pub.publish(
             String(data=json.dumps(payload, separators=(",", ":")))
         )
 
     def status_service(self, _request, response):
-        episodes, events, cases = self.counts()
+        episodes, events, cases, successes, failures = self.counts()
         response.success = True
         response.message = (
             f"episode={self.episode_id} episodes={episodes} events={events} "
-            f"recovery_cases={cases} database={self.database}"
+            f"recovery_cases={cases} successes={successes} failures={failures} "
+            f"database={self.database}"
         )
         return response
 

@@ -4,6 +4,9 @@
 
 - Added deterministic classification for localization, TF timing, costmap,
   planner, controller, traction, sensor and blocked-space failures.
+- Added a durable mission-result ledger that records every terminal success or
+  failure with status, final odometry pose and safety/autonomy context, and
+  publishes cumulative success, failure and success-rate statistics.
 - The persistent experience store now retrieves collision-free successful
   recoveries for the same failure class and publishes a structured
   `/atlas/experience/recommendation`.
