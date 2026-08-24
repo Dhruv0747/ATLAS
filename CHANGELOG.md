@@ -27,6 +27,10 @@
   topic fallback and an immediate no-motion scan update.
 - Verified AMCL accepted the normalized Home pose and Nav2 computed an
   8.411 m, 100-pose path from Dhruv Room to Hall without commanding motion.
+- Re-taught Hall from the live manual route after commissioning exposed that
+  the earlier Hall waypoint was not the physical destination. The corrected
+  free-space pose is x=1.853 m, y=-1.461 m and is backed by demonstration
+  `teach_dhruv_room_to_hall-20260824-190151`.
 
 ## 2026-08-24 - Navigation heading-fusion correction
 
