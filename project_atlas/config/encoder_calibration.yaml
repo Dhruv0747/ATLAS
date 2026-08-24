@@ -1,7 +1,7 @@
 # Project ATLAS encoder calibration
 # Wheels were lifted. Physical mapping was visually verified on 2026-08-04.
-# Values are encoder counts per one wheel revolution.
-# M1 is a powered visual estimate; M2-M4 are manual forward/back measurements.
+# Commissioned encoder counts per wheel revolution. These values are the
+# single source shared with yahboom_base.py after measured ground validation.
 encoder_calibration:
   wheelbase_m: 0.367
   wheel_diameter_m: 0.125
@@ -10,21 +10,21 @@ encoder_calibration:
   motors:
     m1:
       position: front_right
-      counts_per_revolution: 6077
-      confidence: provisional
-      method: inferred_from_m2_m3_m4_average_after_equal_speed_visual_test
+      counts_per_revolution: 4048.7
+      confidence: commissioned
+      method: measured_ground_calibration
     m2:
       position: front_left
-      counts_per_revolution: 5579
-      confidence: provisional
-      method: manual_average
+      counts_per_revolution: 3300.6
+      confidence: commissioned
+      method: measured_ground_calibration
     m3:
       position: back_right
-      counts_per_revolution: 6157
-      confidence: provisional
-      method: manual_average
+      counts_per_revolution: 4080.1
+      confidence: commissioned
+      method: measured_ground_calibration
     m4:
       position: back_left
-      counts_per_revolution: 6494
-      confidence: provisional
-      method: manual_forward_trial
+      counts_per_revolution: 2697.8
+      confidence: commissioned
+      method: measured_ground_calibration

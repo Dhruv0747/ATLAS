@@ -52,8 +52,6 @@ bt_navigator:
     default_server_timeout: 2000
     wait_for_service_timeout: 5000
     action_server_result_timeout: 900.0
-    # Fail immediately on planning/control failure. Repeated recovery retries
-    # caused a short ATLAS goal to accumulate unsafe extra wheel travel.
     default_nav_to_pose_bt_xml: "/home/jetson/project_atlas/config/atlas_ackermann_fail_stop.xml"
     default_nav_through_poses_bt_xml: "/home/jetson/project_atlas/config/atlas_ackermann_through_poses.xml"
     navigators: ["navigate_to_pose", "navigate_through_poses"]
@@ -118,12 +116,9 @@ controller_server:
       regulated_linear_scaling_min_radius: 0.35
       regulated_linear_scaling_min_speed: 0.11
       use_rotate_to_heading: false
-      # Normal Nav2 goals must not silently choose reverse and back toward an
-      # unseen obstacle. Dedicated bounded recovery remains responsible for
-      # deliberate reverse escape maneuvers.
-      # ATLAS cannot spin in place. Permit controlled reverse paths so a
-      # return-home goal behind the chassis does not become a forward escape.
-      allow_reversing: true
+      # Normal goals remain forward-only. Deliberate reverse motion belongs
+      # only to the short, 360-degree-LiDAR-checked recovery behavior.
+      allow_reversing: false
       max_angular_accel: 3.2
 
 local_costmap:
@@ -139,18 +134,12 @@ local_costmap:
       height: 3
       resolution: 0.05
       footprint: "[[0.25, 0.18], [0.25, -0.18], [-0.25, -0.18], [-0.25, 0.18]]"
-      # Keep collision geometry equal to the measured chassis. The inflation
-      # layer supplies the graded 10 cm wheel-edge preference; hard footprint
-      # padding made valid tight-space starts appear lethal.
       footprint_padding: 0.0
       plugins: ["obstacle_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 15.0
-        # With a polygon footprint, inflation_radius is clearance outside the
-        # physical rover outline. The previous 0.28 m value counted the
-        # 0.18 m half-width twice and rejected valid tight-space starts.
-        inflation_radius: 0.10
+        inflation_radius: 0.28
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -167,7 +156,6 @@ local_costmap:
           clearing: True
           marking: True
           data_type: "LaserScan"
-          inf_is_valid: true
           raytrace_max_range: 3.0
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
@@ -210,7 +198,6 @@ global_costmap:
           clearing: True
           marking: True
           data_type: "LaserScan"
-          inf_is_valid: true
           raytrace_max_range: 3.0
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
@@ -231,9 +218,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 15.0
-        # Match the requested 10 cm wheel-edge clearance. The rectangular
-        # footprint itself already accounts for the rover's half-width.
-        inflation_radius: 0.10
+        inflation_radius: 0.28
       always_send_full_costmap: True
 
 map_server:
@@ -256,8 +241,8 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       # ATLAS is a four-wheel-steering car. Hybrid-A* produces curvature-
-      # constrained paths that Regulated Pure Pursuit can physically follow;
-      # the 2D grid planner can request an unsafe pivot at the start pose.
+      # constrained paths the pure-pursuit controller can physically follow;
+      # the former 2D planner could request differential-drive pivots.
       plugin: "nav2_smac_planner/SmacPlannerHybrid"
       # Frontier centroids lie on the known/unknown boundary. Permit the
       # planner to finish at the nearest safe cell outside the 28 cm inflation
@@ -269,9 +254,9 @@ planner_server:
       max_iterations: 1000000
       max_on_approach_iterations: 1000
       max_planning_time: 3.0
-      # Permit bounded reversing when the rover starts pointed away from the
-      # route. ATLAS has verified reverse drive and 360-degree LiDAR coverage.
-      motion_model_for_search: "REEDS_SHEPP"
+      # Keep normal paths consistent with allow_reversing=false. Reeds-Shepp
+      # can generate reverse segments that the controller then refuses.
+      motion_model_for_search: "DUBIN"
       angle_quantization_bins: 72
       minimum_turning_radius: 0.35
       analytic_expansion_ratio: 3.5
@@ -299,9 +284,9 @@ behavior_server:
     costmap_topic: local_costmap/costmap_raw
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
-    # ATLAS has a 360-degree LiDAR. Permit a short, costmap-checked reverse
-    # recovery when a forward route is blocked. Spin remains disabled because
-    # the four-wheel-steering chassis cannot rotate in place.
+    # The 360-degree LiDAR is the primary collision source, including behind
+    # ATLAS. Allow only a short, costmap-checked reverse recovery; never ask
+    # this four-wheel-steering chassis to perform an in-place Nav2 spin.
     behavior_plugins: ["backup", "assisted_teleop", "wait"]
     spin:
       plugin: "nav2_behaviors/Spin"

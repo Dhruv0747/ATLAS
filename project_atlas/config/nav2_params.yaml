@@ -116,9 +116,8 @@ controller_server:
       regulated_linear_scaling_min_radius: 0.35
       regulated_linear_scaling_min_speed: 0.11
       use_rotate_to_heading: false
-      # Normal Nav2 goals must not silently choose reverse and back toward an
-      # unseen obstacle. Dedicated bounded recovery remains responsible for
-      # deliberate reverse escape maneuvers.
+      # Normal goals remain forward-only. Deliberate reverse motion belongs
+      # only to the short, 360-degree-LiDAR-checked recovery behavior.
       allow_reversing: false
       max_angular_accel: 3.2
 
@@ -255,7 +254,9 @@ planner_server:
       max_iterations: 1000000
       max_on_approach_iterations: 1000
       max_planning_time: 3.0
-      motion_model_for_search: "REEDS_SHEPP"
+      # Keep normal paths consistent with allow_reversing=false. Reeds-Shepp
+      # can generate reverse segments that the controller then refuses.
+      motion_model_for_search: "DUBIN"
       angle_quantization_bins: 72
       minimum_turning_radius: 0.35
       analytic_expansion_ratio: 3.5

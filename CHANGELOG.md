@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Removed the planner/controller kinematic contradiction: Smac Hybrid now uses
+  forward-only `DUBIN` paths to match Regulated Pure Pursuit
+  `allow_reversing=false`, while the separate short LiDAR-checked backup
+  behavior remains available for recovery.
+- Synchronized the two authoritative Nav2 parameter copies and replaced the
+  obsolete provisional encoder YAML values with the commissioned per-wheel
+  counts already used by the runtime Yahboom driver.
 - Permanently repaired the autonomous mapping/localization startup chain:
   navigation now waits for synchronized clock, odometry and LiDAR data; SLAM
   uses scan matching and loop closure; Nav2 retains the rectangular 50 x 36 cm
