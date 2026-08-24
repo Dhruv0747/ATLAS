@@ -8,8 +8,9 @@
 - Confirmed the failed return contained a false 2.55 m / 24.43 degree AMCL
   correction while wheel and fused headings agreed and LiDAR median delay was
   only 3.56 ms.
-- Began a one-variable A/B trial by increasing AMCL `max_beams` from 60 to
-  120. Home remained stationary and stable while AMCL consumed about 11% CPU.
+- Rejected a one-variable A/B trial increasing AMCL `max_beams` from 60 to
+  120: despite an initially stable sample, stationary localization later
+  jumped to x=0.383 m, y=-0.312 m, heading 63.89 degrees. Restored 60 beams.
 - Kept costmap tuning unchanged after separately detecting a blocked start
   region; it must be diagnosed as the next isolated variable.
 

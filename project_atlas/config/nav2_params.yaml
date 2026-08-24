@@ -17,10 +17,7 @@ amcl:
     laser_max_range: 100.0
     laser_min_range: -1.0
     laser_model_type: "likelihood_field"
-    # Commissioning bags showed false 2.55 m / 24.43 degree AMCL jumps in
-    # similar indoor geometry. Use more of the live A1 scan for discrimination;
-    # this is the sole parameter changed for the first controlled A/B trial.
-    max_beams: 120
+    max_beams: 60
     max_particles: 2000
     min_particles: 500
     odom_frame_id: "odom"
