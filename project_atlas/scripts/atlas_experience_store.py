@@ -53,6 +53,33 @@ CREATE TABLE IF NOT EXISTS recovery_cases (
 """
 
 
+def classify_failure(value):
+    """Map free-form status text to a stable commissioning failure class."""
+    text = str(value).upper()
+    rules = (
+        ("localization", ("AMCL", "LOCALIZATION", "POSE JUMP", "LOST POSE")),
+        ("tf_timing", ("TF", "TRANSFORM", "EXTRAPOLATION", "STALE ODOM")),
+        ("costmap", ("COSTMAP", "FALSE OBSTACLE", "STALE OBSTACLE")),
+        ("planner", ("NO PATH", "PLANNER", "PLAN FAILED")),
+        ("controller", ("CONTROLLER", "PROGRESS CHECKER", "CONTROL FAILED")),
+        ("traction", ("TRACTION", "WHEEL SLIP", "STALLED")),
+        ("sensor", ("LIDAR", "ULTRASONIC", "SENSOR STALE")),
+        ("blocked", ("BLOCKED", "TIGHT", "DEAD END")),
+    )
+    for name, words in rules:
+        if any(word in text for word in words):
+            return name
+    return "unknown"
+
+
+def recovery_strategy(source):
+    return (
+        "sensor_guarded_bounded_recovery"
+        if source == "tight_recovery"
+        else "bounded_peripheral_recovery"
+    )
+
+
 class AtlasExperienceStore(Node):
     FINAL_SUCCESS = ("FINISHED STATUS=4", "MAP SAVED", "COMPLETE")
     FINAL_FAILURE = ("ERROR", "FAILED", "BLOCKED", "REJECTED")
@@ -80,6 +107,9 @@ class AtlasExperienceStore(Node):
         self.latest_context = {}
         self.status_pub = self.create_publisher(
             String, "/atlas/experience/status", 10
+        )
+        self.recommendation_pub = self.create_publisher(
+            String, "/atlas/experience/recommendation", 10
         )
         self.create_subscription(
             String, "/atlas/experience/record", self.on_external_event, 10
@@ -178,14 +208,16 @@ class AtlasExperienceStore(Node):
             "RECOVERED" in upper or "BLOCKED" in upper or "FAILED" in upper
         ):
             outcome = "success" if "RECOVERED" in upper else "failure"
+            failure_class = classify_failure(value)
+            strategy = recovery_strategy(source)
             self.execute(
                 "INSERT INTO recovery_cases(episode_id, created_at, failure_class, "
                 "strategy, outcome, context) VALUES(?,?,?,?,?,?)",
                 (
                     self.episode_id,
                     time.time(),
-                    source,
-                    value[:500],
+                    failure_class,
+                    strategy,
                     outcome,
                     json.dumps(
                         {"pose": self.last_pose, **self.latest_context},
@@ -193,6 +225,36 @@ class AtlasExperienceStore(Node):
                     )[:8000],
                 ),
             )
+            if outcome == "failure":
+                self.publish_recommendation(failure_class)
+
+    def publish_recommendation(self, failure_class):
+        """Retrieve safe prior outcomes; never grant motion authority here."""
+        rows = self.connection.execute(
+            "SELECT strategy, validation_state, controlled_successes, approved, "
+            "created_at FROM recovery_cases WHERE failure_class=? AND outcome='success' "
+            "AND collision_count=0 ORDER BY approved DESC, controlled_successes DESC, "
+            "created_at DESC LIMIT 5",
+            (failure_class,),
+        ).fetchall()
+        selected = rows[0] if rows else None
+        validated = bool(selected and (selected[3] or selected[2] >= 3))
+        payload = {
+            "failure_class": failure_class,
+            "matches": len(rows),
+            "strategy": selected[0] if selected else "none",
+            "validation_state": selected[1] if selected else "none",
+            "controlled_successes": selected[2] if selected else 0,
+            "approved": bool(selected[3]) if selected else False,
+            "authority": "validated_candidate" if validated else "advisory_only",
+            "note": (
+                "deterministic safety and Nav2 gates retain final authority"
+            ),
+        }
+        self.recommendation_pub.publish(
+            String(data=json.dumps(payload, separators=(",", ":")))
+        )
+        self.record("experience_reasoner", "recommendation", payload)
 
     def on_external_event(self, msg):
         try:

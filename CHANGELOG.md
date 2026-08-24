@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-08-24 - Bounded recovery experience feedback
+
+- Added deterministic classification for localization, TF timing, costmap,
+  planner, controller, traction, sensor and blocked-space failures.
+- The persistent experience store now retrieves collision-free successful
+  recoveries for the same failure class and publishes a structured
+  `/atlas/experience/recommendation`.
+- Fed that evidence into the Mission AI live-state snapshot. Unproven history
+  remains advisory; only validated candidates may influence recovery, and all
+  motion remains subject to deterministic Nav2, sensor and safety gates.
+
 ## 2026-08-24 - Commissioned house map and room localization
 
 - Promoted the clean wheel-heading SLAM map recorded on the final Dhruv Room

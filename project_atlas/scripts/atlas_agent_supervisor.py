@@ -70,6 +70,7 @@ class AtlasAgentSupervisor(Node):
         self.recovery_status = "UNKNOWN"
         self.recovery_status_at = 0.0
         self.recovery_state: dict[str, Any] = {}
+        self.experience_recommendation: dict[str, Any] = {}
         self.traction_battery_percent: float | None = None
         self.traction_battery_at = 0.0
         self.aux_battery_percent: float | None = None
@@ -120,6 +121,12 @@ class AtlasAgentSupervisor(Node):
         )
         self.create_subscription(
             String, "/atlas/recovery_state", self.on_recovery_state, 10
+        )
+        self.create_subscription(
+            String,
+            "/atlas/experience/recommendation",
+            self.on_experience_recommendation,
+            10,
         )
         self.create_subscription(
             Float32, "/battery/percent", self.on_aux_battery_percent, 10
@@ -211,6 +218,13 @@ class AtlasAgentSupervisor(Node):
         except ValueError:
             self.recovery_state = {}
 
+    def on_experience_recommendation(self, msg: String) -> None:
+        try:
+            value = json.loads(msg.data)
+            self.experience_recommendation = value if isinstance(value, dict) else {}
+        except ValueError:
+            self.experience_recommendation = {}
+
     def on_traction_battery_percent(self, msg: Float32) -> None:
         value = float(msg.data)
         if 0.0 <= value <= 100.0:
@@ -235,6 +249,7 @@ class AtlasAgentSupervisor(Node):
             "mission_status": self.mission_status,
             "recovery_status": self.recovery_status,
             "recovery_state": self.recovery_state,
+            "past_recovery_evidence": self.experience_recommendation,
             "traction_battery_percent": self.traction_battery_percent,
             "traction_battery_age_s": (
                 round(time.monotonic() - self.traction_battery_at, 2)
