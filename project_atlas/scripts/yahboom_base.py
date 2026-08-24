@@ -46,10 +46,12 @@ REAR_STEER_SERVO_ID  = 2    # Rear steering servo port on Yahboom board (1-4)
 # equal and opposite centre correction so angular.z=0 is physically straight.
 FRONT_STEER_CENTER   = 83   # Straight-ahead angle (commissioned 2026-08-24)
 REAR_STEER_CENTER    = 106  # Straight-ahead angle (commissioned 2026-08-24)
-STEER_RANGE          = 30   # Normal/right max deflection each side
-STEER_LEFT_RANGE     = 42   # Extra left throw to match right mechanical angle
-STEER_RIGHT_RANGE    = 30
-REAR_STEER_GAIN      = 1.0  # 1.0 = full opposite rear steering
+# Lifted-wheel physical commissioning (2026-08-24). These are independent
+# asymmetric endpoints; do not derive rear limits from the front geometry.
+FRONT_STEER_RIGHT    = 58
+FRONT_STEER_LEFT     = 130
+REAR_STEER_RIGHT     = 58
+REAR_STEER_LEFT      = 142
 BAT_MIN_V = 10.5
 BAT_MAX_V = 12.6
 
@@ -283,14 +285,25 @@ class YahboomBase(Node):
             self._applied_pwm,
         )
         steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
-        steer_range = STEER_LEFT_RANGE if steer_norm > 0 else STEER_RIGHT_RANGE
-        steer = steer_norm * steer_range
-        front_angle = int(FRONT_STEER_CENTER - steer)
-        rear_angle = int(REAR_STEER_CENTER + steer * REAR_STEER_GAIN)
-        min_angle = min(FRONT_STEER_CENTER - STEER_LEFT_RANGE, FRONT_STEER_CENTER - STEER_RIGHT_RANGE)
-        max_angle = max(FRONT_STEER_CENTER + STEER_LEFT_RANGE, FRONT_STEER_CENTER + STEER_RIGHT_RANGE)
-        self._front_target_angle = max(min_angle, min(max_angle, front_angle))
-        self._rear_target_angle = max(min_angle, min(max_angle, rear_angle))
+        if steer_norm >= 0.0:
+            # Positive ROS angular.z is a left turn: front points left while
+            # the rear counter-steers right.
+            front_angle = FRONT_STEER_CENTER + steer_norm * (
+                FRONT_STEER_LEFT - FRONT_STEER_CENTER
+            )
+            rear_angle = REAR_STEER_CENTER + steer_norm * (
+                REAR_STEER_RIGHT - REAR_STEER_CENTER
+            )
+        else:
+            turn = -steer_norm
+            front_angle = FRONT_STEER_CENTER + turn * (
+                FRONT_STEER_RIGHT - FRONT_STEER_CENTER
+            )
+            rear_angle = REAR_STEER_CENTER + turn * (
+                REAR_STEER_LEFT - REAR_STEER_CENTER
+            )
+        self._front_target_angle = int(round(front_angle))
+        self._rear_target_angle = int(round(rear_angle))
         self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
         self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))
         self._pub_steer_mode.publish(String(data='four_wheel_opposite'))
