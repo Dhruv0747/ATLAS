@@ -3,6 +3,7 @@
 
 from dataclasses import dataclass, field
 import math
+import os
 import time
 from typing import Dict, Optional
 
@@ -75,6 +76,9 @@ class AtlasCmdVelMux(Node):
         self.ultrasonic_timeout = float(
             self.get_parameter("ultrasonic_timeout").value
         )
+        self.ultrasonic_enabled = os.environ.get(
+            "ATLAS_ULTRASONIC_ENABLED", "1"
+        ).strip().lower() not in ("0", "false", "no", "off")
         self.ultrasonic = {"front": float("inf"), "left": float("inf"), "right": float("inf")}
         self.ultrasonic_rx = {"front": 0.0, "left": 0.0, "right": 0.0}
         self.channels: Dict[str, Channel] = {
@@ -208,6 +212,8 @@ class AtlasCmdVelMux(Node):
         # Ultrasonics supplement the LiDAR/Nav2 costmaps. A disconnected side
         # sensor must not deadlock all autonomy; only a fresh positive reading
         # may veto motion. Sensor health is still published below as DEGRADED.
+        if not self.ultrasonic_enabled:
+            return None
         fresh = {
             name: stamp > 0.0 and now - stamp <= self.ultrasonic_timeout
             for name, stamp in self.ultrasonic_rx.items()
@@ -304,11 +310,15 @@ class AtlasCmdVelMux(Node):
             stale = [
                 name for name, stamp in self.ultrasonic_rx.items()
                 if stamp <= 0.0 or now - stamp > self.ultrasonic_timeout
-            ]
+            ] if self.ultrasonic_enabled else []
             health = (
                 "AUTONOMY DEGRADED: ULTRASONIC STALE " + ",".join(stale)
                 if stale
-                else "AUTONOMY CLEAR:"
+                else (
+                    "AUTONOMY CLEAR: ULTRASONIC DISABLED; LIDAR PRIMARY"
+                    if not self.ultrasonic_enabled
+                    else "AUTONOMY CLEAR:"
+                )
             )
             self.safety_output.publish(
                 String(

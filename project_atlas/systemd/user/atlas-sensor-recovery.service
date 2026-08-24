@@ -4,6 +4,7 @@ After=atlas-cmd-vel-mux.service
 
 [Service]
 Type=simple
+EnvironmentFile=-%h/.config/project-atlas/hardware.env
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_sensor_recovery.py'
 Restart=always
 RestartSec=3

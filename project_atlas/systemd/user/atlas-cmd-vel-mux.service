@@ -5,6 +5,7 @@ After=network.target
 [Service]
 Type=simple
 CPUWeight=1000
+EnvironmentFile=-%h/.config/project-atlas/hardware.env
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_cmd_vel_mux.py'
 Restart=always
 RestartSec=2

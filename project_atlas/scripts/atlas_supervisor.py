@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import math
+import os
 import re
 import time
 
@@ -22,6 +23,9 @@ RADAR_RE = re.compile(
 class AtlasSupervisor(Node):
     def __init__(self):
         super().__init__("atlas_supervisor")
+        self.ultrasonic_enabled = os.environ.get(
+            "ATLAS_ULTRASONIC_ENABLED", "1"
+        ).strip().lower() not in ("0", "false", "no", "off")
         self.last = {}
         self.values = {}
         self.radar_targets = []
@@ -193,7 +197,11 @@ class AtlasSupervisor(Node):
             and checks["battery"]
             and len(warnings) == 0
         )
-        ready_for_autonomy = ready_for_mapping and checks["radar"] and checks["ultrasonic_front"]
+        ready_for_autonomy = (
+            ready_for_mapping
+            and checks["radar"]
+            and (checks["ultrasonic_front"] or not self.ultrasonic_enabled)
+        )
 
         payload = {
             "state": "OK" if not stale and not warnings else "WARN",
@@ -201,6 +209,7 @@ class AtlasSupervisor(Node):
             "warnings": warnings,
             "ready_for_mapping": ready_for_mapping,
             "ready_for_autonomy": ready_for_autonomy,
+            "ultrasonic_enabled": self.ultrasonic_enabled,
             "radar_targets": len(self.radar_targets),
             "battery_v": voltage,
             "cell_signal": self.values.get("cell_signal"),

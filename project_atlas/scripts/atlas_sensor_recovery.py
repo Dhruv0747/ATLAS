@@ -38,6 +38,9 @@ class Monitor:
 GNSS_ENABLED = os.environ.get("ATLAS_GNSS_ENABLED", "1").strip().lower() not in (
     "0", "false", "no", "off",
 )
+ULTRASONIC_ENABLED = os.environ.get(
+    "ATLAS_ULTRASONIC_ENABLED", "1"
+).strip().lower() not in ("0", "false", "no", "off")
 
 MONITORS = tuple(item for item in (
     Monitor("lidar", "/scan", LaserScan, 5.0, "atlas-lidar.service"),
@@ -73,7 +76,8 @@ MONITORS = tuple(item for item in (
             "rover-base-telemetry.service", recover=False),
     Monitor("map", "/map", OccupancyGrid, 20.0,
             "atlas-slam-fast.service", recover=False, required=False),
-) if GNSS_ENABLED or item.name != "gps")
+) if (GNSS_ENABLED or item.name != "gps")
+   and (ULTRASONIC_ENABLED or item.name != "ultrasonic"))
 
 BAD_WORDS = (
     "offline", "error", "failed", "fault", "disconnected", "not found",
@@ -116,7 +120,11 @@ class AtlasRecovery(Node):
         self.create_subscription(Twist, "/cmd_vel", self.on_velocity, 10)
         self.create_timer(2.0, self.check)
         self.create_timer(5.0, self.publish_state)
-        self.publish_status("READY: full bounded fault recovery armed")
+        suffix = (
+            "; ultrasonic intentionally disabled; LiDAR primary"
+            if not ULTRASONIC_ENABLED else ""
+        )
+        self.publish_status("READY: full bounded fault recovery armed" + suffix)
 
     def publish_status(self, text):
         self.status_pub.publish(String(data=text))
