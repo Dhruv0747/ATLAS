@@ -14,6 +14,11 @@ Project ATLAS is an open robotics development project for a four-wheel autonomou
 
 This repository is the searchable engineering record for ATLAS: ROS 2 source code, launch files, robot parameters, hardware integration, safety controls, autonomous mapping, recovery logic, diagnostics, operating documentation, and commissioning evidence.
 
+The read-only [ATLAS Visual Cloud](docs/ATLAS_VISUAL_CLOUD.md) integration adds
+an authenticated ROS graph/traffic agent, historical API and real-time browser
+view. It has no cloud-to-velocity or cloud-to-motor interface; all safety and
+control authority remains local on the Jetson.
+
 **Search terms:** Project ATLAS rover, Dhruv Kaushik, autonomous rover, ROS 2 Humble, Jetson Orin Nano Super, Nav2, SLAM Toolbox, Explore Lite, LiDAR mapping, Ackermann steering, service robot, autonomous navigation, robot recovery, Foxglove, MCP robotics.
 
 ## Current autonomy maturity

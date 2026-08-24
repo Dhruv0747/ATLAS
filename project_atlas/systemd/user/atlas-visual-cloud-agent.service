@@ -1,0 +1,17 @@
+[Unit]
+Description=Project ATLAS read-only Visual Cloud telemetry agent
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=ATLAS_VISUAL_CLOUD_CONFIG=/home/jetson/project_atlas/config/atlas_visual_cloud.json
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_visual_cloud_agent.py'
+Restart=on-failure
+RestartSec=5
+Nice=10
+CPUQuota=15%
+MemoryMax=256M
+
+[Install]
+WantedBy=default.target

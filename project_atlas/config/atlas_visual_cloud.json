@@ -1,0 +1,27 @@
+{
+  "cloud_url": "https://atlas-visual-cloud.example/api/v1/ingest",
+  "token_file": "/home/jetson/.config/project_atlas/visual_cloud.token",
+  "robot_id": "project-atlas-jetson",
+  "publish_interval_s": 1.0,
+  "graph_interval_s": 5.0,
+  "history_seconds": 10,
+  "topics": {
+    "/scan": 8.0,
+    "/yahboom/odom": 10.0,
+    "/odom": 10.0,
+    "/amcl_pose": 1.0,
+    "/map": 0.05,
+    "/local_costmap/costmap": 1.0,
+    "/global_costmap/costmap": 1.0,
+    "/goal_pose": 0.1,
+    "/plan": 1.0,
+    "/cmd_vel_nav": 5.0,
+    "/cmd_vel": 5.0,
+    "/tf": 10.0,
+    "/atlas/safety_status": 2.0,
+    "/atlas/mission_status": 0.1,
+    "/atlas/recovery_status": 0.1,
+    "/atlas/experience/status": 0.1,
+    "/bms/json": 0.1
+  }
+}

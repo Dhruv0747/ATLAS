@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-24 - Add read-only ATLAS Visual Cloud foundation
+
+- Added a lightweight subscription-only Jetson agent for ROS nodes, topics,
+  publishers, subscribers, services, actions, TF, rates, age and compact
+  navigation telemetry.
+- Added an authenticated ingest/history API and real-time pipeline dashboard.
+- Added requested failure taxonomy, Git/config version evidence and bounded
+  system metrics while explicitly excluding every cloud-to-motion interface.
+- Added a ROS CLI daemon diagnostic that verifies `--no-daemon` discovery
+  before resetting the CLI daemon; live execution waits for motors-off startup.
+- Added CPU/RAM service limits, deployment guidance and ROS-independent tests.
+
 ## 2026-08-24 - Record tight-recovery localization failure
 
 - Preserved a 12,760-message manual tight-recovery demonstration from the

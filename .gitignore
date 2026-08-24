@@ -9,6 +9,7 @@ __pycache__/
 .pytest_cache/
 venv*/
 .venv/
+visual-cloud-test.sqlite3*
 
 # Models and generated binaries
 *.engine
