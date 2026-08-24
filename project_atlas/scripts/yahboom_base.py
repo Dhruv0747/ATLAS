@@ -44,8 +44,8 @@ REAR_STEER_SERVO_ID  = 2    # Rear steering servo port on Yahboom board (1-4)
 # Ground trim after the replacement steering motors (2026-08-11).  A 90/90
 # command produced a repeatable left arc.  Four-wheel opposite steering needs
 # equal and opposite centre correction so angular.z=0 is physically straight.
-FRONT_STEER_CENTER   = 100  # Straight-ahead angle (degrees)
-REAR_STEER_CENTER    = 86   # Straight-ahead angle (degrees)
+FRONT_STEER_CENTER   = 83   # Straight-ahead angle (commissioned 2026-08-24)
+REAR_STEER_CENTER    = 106  # Straight-ahead angle (commissioned 2026-08-24)
 STEER_RANGE          = 30   # Normal/right max deflection each side
 STEER_LEFT_RANGE     = 42   # Extra left throw to match right mechanical angle
 STEER_RIGHT_RANGE    = 30
