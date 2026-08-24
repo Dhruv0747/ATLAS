@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-24 - Correct four-wheel-steering odometry yaw sign
+
+- Added a bounded LiDAR/odometry-guarded arc commissioning tool using the
+  isolated recovery command channel and an explicit zero-command tail.
+- A physically confirmed left arc travelled 0.263 m but wheel odometry
+  reported -7.24 degrees and fused odometry -7.76 degrees.
+- Corrected the front/rear servo-to-wheel delta convention so physical left
+  steering produces positive ROS yaw and physical right produces negative.
+
 ## 2026-08-24 - Localization teaching-route diagnosis
 
 - Recorded manual Dhruv Room to Hall and Hall to Dhruv Room teaching bags

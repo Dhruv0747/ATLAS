@@ -403,8 +403,13 @@ class YahboomBase(Node):
         if encoder_motion:
             vx = distance_delta / dt
             vy = 0.0
-            front_delta = math.radians(FRONT_STEER_CENTER - self._front_applied_angle)
-            rear_delta = math.radians(REAR_STEER_CENTER - self._rear_applied_angle)
+            # Servo commissioning defines increasing front angle as physical
+            # left and decreasing rear angle as physical right. Therefore a
+            # positive ROS left command must produce positive curvature.
+            # The previous centre-minus-applied convention inverted measured
+            # yaw: a physically observed left arc was published as -7.24 deg.
+            front_delta = math.radians(self._front_applied_angle - FRONT_STEER_CENTER)
+            rear_delta = math.radians(self._rear_applied_angle - REAR_STEER_CENTER)
             curvature = (math.tan(front_delta) - math.tan(rear_delta)) / WHEELBASE_M
             vz = vx * curvature
             source = 'wheel_encoder_delta_4ws'
