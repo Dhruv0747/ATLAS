@@ -1210,6 +1210,8 @@ function healthItem(name,state,hint,seconds=null){
 function renderHealth(r,net){
  let thermal={};try{thermal=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}
  let carrier={};try{carrier=JSON.parse(val(r,'carrier_json','{}')||'{}')}catch(e){}
+ let brain={};try{brain=JSON.parse(val(r,'atlas_health','{}')||'{}')}catch(e){}
+ let ultrasonicEnabled=brain.ultrasonic_enabled!==false;
  let cellGen=cellGeneration(val(r,'cell_tech',''));
  let gpsLive=recent(r,'gps_sats',12),gpsSats=Number(val(r,'gps_sats',0))||0;
  let i2c=i2cInfo(r);
@@ -1220,7 +1222,7 @@ function renderHealth(r,net){
   ['IMU / COMPASS',recent(r,'imu_heading',4)?'ok':'fail',recent(r,'imu_heading',4)?'BNO08x attitude live':'Check IMU I2C power, SDA and SCL','imu_heading'],
   ['RPLIDAR',recent(r,'lidar',4)?'ok':'fail',recent(r,'lidar',4)?'Laser scan live':'Check LiDAR USB, motor and cable','lidar'],
   ['RD-03D RADAR',recent(r,'radar',3)?'ok':'fail',recent(r,'radar',3)?'UART target frames live':'Check radar power and crossed TX/RX','radar'],
-  ['ULTRASONIC',recent(r,'us_status',4)||recent(r,'us_front',4)?'ok':'fail',recent(r,'us_status',4)||recent(r,'us_front',4)?'Arduino range data live':'Check Arduino USB and sensor power',recent(r,'us_status',4)?'us_status':'us_front'],
+  ['ULTRASONIC',!ultrasonicEnabled?'warn':(recent(r,'us_status',4)||recent(r,'us_front',4)?'ok':'fail'),!ultrasonicEnabled?'Intentionally disabled; LiDAR is primary':(recent(r,'us_status',4)||recent(r,'us_front',4)?'Arduino range data live':'Check Arduino USB and sensor power'),ultrasonicEnabled?(recent(r,'us_status',4)?'us_status':'us_front'):null],
   ['I2C SENSOR BUS',i2c.liveCount?'ok':(i2c.arduinoLive?'warn':'fail'),i2c.liveCount?`${i2c.liveCount} native sensor${i2c.liveCount===1?'':'s'} live on Jetson I2C-7`:(i2c.arduinoLive?'Arduino bridge live, but reports no devices':'No live I2C sensor telemetry'),i2c.liveCount?(i2c.imuLive?'imu_heading':i2c.thermalLive?'thermal_status':'outside_status'):'i2c_status'],
   ['INSIDE IR 8x8',thermal.ok&&recent(r,'thermal_json',5)?'ok':'fail',thermal.ok?'AMG8833 heatmap live':'Not detected: check 3.3V, GND, SDA pin 3, SCL pin 5','thermal_json'],
   ['OUTSIDE TEMP',recent(r,'outside_temperature',9)?'ok':'fail',recent(r,'outside_temperature',9)?'Ambient temperature live':'Check outside sensor wiring/address 0x4B','outside_temperature'],
