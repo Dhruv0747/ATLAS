@@ -4,7 +4,7 @@
   "description": "Two-axis watchdog-safe rover joystick, traction diagnostics, and autonomy controls.",
   "publisher": "project-atlas",
   "homepage": "",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "license": "UNLICENSED",
   "main": "./dist/extension.js",
   "keywords": [],

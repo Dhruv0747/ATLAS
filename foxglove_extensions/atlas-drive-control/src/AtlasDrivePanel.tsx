@@ -243,6 +243,15 @@ function AtlasDrivePanel({ context }: { context: PanelExtensionContext }): React
         : "#41d18b";
   const knobLeft = 50 + (steering / MAX_ANGULAR) * 42;
   const knobTop = 50 - (throttle / MAX_LINEAR) * 42;
+  const rearClearance = autonomy?.clearance_m?.rear;
+  const rearColor =
+    rearClearance == undefined
+      ? "#8099b5"
+      : rearClearance < 0.25
+        ? "#ff4d5a"
+        : rearClearance < 0.45
+          ? "#ffc857"
+          : "#41d18b";
 
   return (
     <div
@@ -275,6 +284,61 @@ function AtlasDrivePanel({ context }: { context: PanelExtensionContext }): React
         >
           STOP
         </button>
+      </div>
+
+      <div
+        style={{
+          marginTop: 8,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          border: `2px solid ${rearColor}`,
+          borderRadius: 8,
+          padding: "8px 10px",
+          background: `${rearColor}18`,
+        }}
+      >
+        <div>
+          <div style={{ color: rearColor, fontSize: 10, fontWeight: 900 }}>REAR VIEW · LIDAR</div>
+          <div style={{ color: "#9db0c8", fontSize: 10 }}>Reverse-direction clearance</div>
+        </div>
+        <div style={{ color: rearColor, fontSize: 19, fontWeight: 900 }}>
+          {rearClearance?.toFixed(2) ?? "--"} m
+        </div>
+      </div>
+
+      <div style={{ marginTop: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 5 }}>
+          {([ 
+            ["/atlas/camera/pan_left", "CAM ←"],
+            ["/atlas/camera/tilt_up", "CAM ↑"],
+            ["/atlas/camera/home", "HOME"],
+            ["/atlas/camera/tilt_down", "CAM ↓"],
+            ["/atlas/camera/pan_right", "CAM →"],
+          ] as const).map(([topic, label]) => (
+            <button
+              key={`fixed-${topic}-${label}`}
+              onClick={() => {
+                publishCamera(topic);
+              }}
+              style={{
+                border: "1px solid #2f668d",
+                borderRadius: 6,
+                padding: "7px 2px",
+                color: "white",
+                background: label === "HOME" ? "#264560" : "#123454",
+                fontSize: 9,
+                fontWeight: 800,
+                cursor: canPublish ? "pointer" : "not-allowed",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ marginTop: 3, color: "#7f94ac", fontSize: 9, textAlign: "center" }}>
+          Camera pan {cameraPanUs} us · tilt {cameraTiltUs} us
+        </div>
       </div>
 
       <div
@@ -384,50 +448,6 @@ function AtlasDrivePanel({ context }: { context: PanelExtensionContext }): React
       </div>
       <div style={{ marginTop: 9, color: "#7f94ac", fontSize: 11 }}>
         Drag diagonally to combine forward movement and steering. Releasing the control stops the rover.
-      </div>
-
-      <div
-        style={{
-          marginTop: 12,
-          borderTop: "1px solid #294866",
-          paddingTop: 10,
-        }}
-      >
-        <div style={{ color: "#62c8ff", fontSize: 11, fontWeight: 800 }}>
-          CAMERA PAN / TILT
-        </div>
-        <div style={{ margin: "5px 0 8px", color: "#b7c8dc", fontSize: 11 }}>
-          Pan {cameraPanUs} us · Tilt {cameraTiltUs} us
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-          {([
-            ["/atlas/camera/tilt_up", "UP"],
-            ["/atlas/camera/home", "HOME"],
-            ["/atlas/camera/tilt_down", "DOWN"],
-            ["/atlas/camera/pan_left", "LEFT"],
-            ["/atlas/camera/home", "CENTER"],
-            ["/atlas/camera/pan_right", "RIGHT"],
-          ] as const).map(([topic, label]) => (
-            <button
-              key={`${topic}-${label}`}
-              onClick={() => {
-                publishCamera(topic);
-              }}
-              style={{
-                border: "1px solid #2f668d",
-                borderRadius: 7,
-                padding: "8px 4px",
-                color: "white",
-                background: label === "HOME" || label === "CENTER" ? "#264560" : "#123454",
-                fontSize: 10,
-                fontWeight: 800,
-                cursor: canPublish ? "pointer" : "not-allowed",
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div
