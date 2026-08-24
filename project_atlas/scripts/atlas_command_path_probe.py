@@ -11,19 +11,20 @@ from std_msgs.msg import Int32, String
 
 
 class Probe(Node):
-    def __init__(self, linear: float, angular: float, duration: float) -> None:
+    def __init__(self, linear: float, angular: float, duration: float, topic: str) -> None:
         super().__init__("atlas_command_path_probe")
         self.linear = linear
         self.angular = angular
         self.duration = duration
         self.started = time.monotonic()
-        self.pub = self.create_publisher(Twist, "/cmd_vel_web", 10)
+        self.command_topic = topic
+        self.pub = self.create_publisher(Twist, topic, 10)
         self.web_samples = []
         self.output_samples = []
         self.modes = []
         self.encoder_first = {}
         self.encoder_last = {}
-        self.create_subscription(Twist, "/cmd_vel_web", self.on_web, 50)
+        self.create_subscription(Twist, topic, self.on_web, 50)
         self.create_subscription(Twist, "/cmd_vel", self.on_output, 50)
         self.create_subscription(String, "/atlas/drive_mode", self.on_mode, 10)
         for index in range(1, 5):
@@ -70,9 +71,14 @@ def main() -> None:
     parser.add_argument("--linear", type=float, default=0.08)
     parser.add_argument("--angular", type=float, default=-0.28)
     parser.add_argument("--duration", type=float, default=3.0)
+    parser.add_argument(
+        "--topic",
+        choices=("/cmd_vel_web", "/cmd_vel_teleop"),
+        default="/cmd_vel_web",
+    )
     args = parser.parse_args()
     rclpy.init()
-    node = Probe(args.linear, args.angular, args.duration)
+    node = Probe(args.linear, args.angular, args.duration, args.topic)
     deadline = time.monotonic() + args.duration + 1.5
     try:
         while rclpy.ok() and time.monotonic() < deadline:

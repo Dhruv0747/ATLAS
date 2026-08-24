@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-24 - Tight-space recovery command isolation
+
+- Gave bounded tight-space recovery its own `/cmd_vel_recovery` mux input.
+- Preserved physical remote as the highest-priority override and applied the
+  autonomy proximity guard to both recovery and Nav2 commands.
+- Enabled Reeds-Shepp reverse-capable planning and controller reversing for
+  collision-checked exits from tight spaces.
+- Removed stale semantic-camera points from navigation costmap marking; LiDAR
+  remains the commissioned collision authority.
+- Ground verification passed: recovery advanced 0.048 m, watchdog-stopped,
+  cleared costmaps, and resumed Nav2.
+
 ## Unreleased
 
 - Removed the planner/controller kinematic contradiction: Smac Hybrid now uses

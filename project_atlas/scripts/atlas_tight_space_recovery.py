@@ -37,7 +37,10 @@ class TightRecovery(Node):
         self.declare_parameter('minimum_progress_m', 0.025)
         self.declare_parameter('max_attempts', 3)
         self.declare_parameter('laser_yaw_deg', 180.0)
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel_web', 10)
+        # Dedicated mux input: dashboard/web zero-heartbeats must never cancel
+        # a sensor-guarded recovery pulse. The physical remote still has higher
+        # priority and can immediately take control.
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel_recovery', 10)
         self.status_pub = self.create_publisher(String, '/atlas/tight_recovery_status', 10)
         self.resume_pub = self.create_publisher(Bool, '/explore/resume', 10)
         self.create_subscription(Empty, '/atlas/tight_recovery_request', self.request, 10)

@@ -79,11 +79,17 @@ class AtlasCmdVelMux(Node):
         self.ultrasonic_rx = {"front": 0.0, "left": 0.0, "right": 0.0}
         self.channels: Dict[str, Channel] = {
             "REMOTE": Channel("REMOTE", "/cmd_vel_joy", 1, manual_timeout),
-            "WEB": Channel("WEB", "/cmd_vel_web", 2, manual_timeout),
-            "FOXGLOVE": Channel(
-                "FOXGLOVE", "/cmd_vel_teleop", 3, manual_timeout
+            # Recovery has an independent channel so dashboard zero-heartbeats
+            # cannot cancel a bounded autonomous escape manoeuvre. The physical
+            # remote remains the only command source allowed to pre-empt it.
+            "RECOVERY": Channel(
+                "RECOVERY", "/cmd_vel_recovery", 2, manual_timeout
             ),
-            "NAV2": Channel("NAV2", "/cmd_vel_nav", 4, nav_timeout),
+            "WEB": Channel("WEB", "/cmd_vel_web", 3, manual_timeout),
+            "FOXGLOVE": Channel(
+                "FOXGLOVE", "/cmd_vel_teleop", 4, manual_timeout
+            ),
+            "NAV2": Channel("NAV2", "/cmd_vel_nav", 5, nav_timeout),
         }
 
         self.output = self.create_publisher(Twist, "/cmd_vel", 10)
@@ -288,7 +294,7 @@ class AtlasCmdVelMux(Node):
             return
 
         self.active_name = selected.name
-        if selected.name == "NAV2":
+        if selected.name in ("RECOVERY", "NAV2"):
             blocked_reason = self.autonomous_guard(selected.command, now)
             if blocked_reason:
                 self.output.publish(Twist())

@@ -116,9 +116,9 @@ controller_server:
       regulated_linear_scaling_min_radius: 0.35
       regulated_linear_scaling_min_speed: 0.11
       use_rotate_to_heading: false
-      # Normal goals remain forward-only. Deliberate reverse motion belongs
-      # only to the short, 360-degree-LiDAR-checked recovery behavior.
-      allow_reversing: false
+      # The four-wheel-steering rover must be able to back out of tight spaces.
+      # Reverse segments remain collision checked by the 360-degree LiDAR.
+      allow_reversing: true
       max_angular_accel: 3.2
 
 local_costmap:
@@ -149,7 +149,10 @@ local_costmap:
         z_voxels: 16
         max_obstacle_height: 2.0
         mark_threshold: 0
-        observation_sources: scan semantic_camera
+        # LiDAR is the commissioned collision authority. Semantic camera
+        # points remain available for UI/AI, but must not leave uncleared
+        # stale obstacles under the rover when the AI feed drops.
+        observation_sources: scan
         scan:
           topic: /scan
           max_obstacle_height: 2.0
@@ -191,7 +194,8 @@ global_costmap:
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        observation_sources: scan semantic_camera
+        # Keep global planning deterministic when AI vision is disabled/lost.
+        observation_sources: scan
         scan:
           topic: /scan
           max_obstacle_height: 2.0
@@ -254,9 +258,9 @@ planner_server:
       max_iterations: 1000000
       max_on_approach_iterations: 1000
       max_planning_time: 3.0
-      # Keep normal paths consistent with allow_reversing=false. Reeds-Shepp
-      # can generate reverse segments that the controller then refuses.
-      motion_model_for_search: "DUBIN"
+      # Reeds-Shepp permits collision-checked forward and reverse car-like
+      # paths; Dubins made valid tight-space return-home routes impossible.
+      motion_model_for_search: "REEDS_SHEPP"
       angle_quantization_bins: 72
       minimum_turning_radius: 0.35
       analytic_expansion_ratio: 3.5
