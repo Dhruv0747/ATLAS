@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-08-24 - Record tight-recovery localization failure
+
+- Preserved a 12,760-message manual tight-recovery demonstration from the
+  failed Hall autonomous start to the physical Dhruv Room.
+- Classified the autonomous failure as planner/costmap localization: Smac
+  Hybrid found no valid path and later reported the start footprint lethal.
+- Measured 2.06 m accumulated map-to-odom correction, including a 0.341 m / 8
+  degree correction step, and documented the stale named-place mismatch.
+- Added a stationary-first map and named-place realignment procedure for the
+  next controlled session; no further motion or blind AMCL tuning was done.
+
 ## 2026-08-24 - Correct four-wheel-steering odometry yaw sign
 
 - Added a bounded LiDAR/odometry-guarded arc commissioning tool using the
