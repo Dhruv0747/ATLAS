@@ -11,6 +11,10 @@
 - Rejected a one-variable A/B trial increasing AMCL `max_beams` from 60 to
   120: despite an initially stable sample, stationary localization later
   jumped to x=0.383 m, y=-0.312 m, heading 63.89 degrees. Restored 60 beams.
+- Added a repeatable stationary AMCL/LiDAR stability monitor with forced
+  no-motion scan updates. A one-variable beam-skipping trial reduced the
+  20-second position span from 9.8 cm to 4.9 cm and maximum pose step from
+  4.7 cm to 1.8 cm; retained provisionally for the next controlled loop.
 - Kept costmap tuning unchanged after separately detecting a blocked start
   region; it must be diagnosed as the next isolated variable.
 
