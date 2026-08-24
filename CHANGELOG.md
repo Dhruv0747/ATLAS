@@ -11,6 +11,11 @@
   remains the commissioned collision authority.
 - Ground verification passed: recovery advanced 0.048 m, watchdog-stopped,
   cleared costmaps, and resumed Nav2.
+- Added `/atlas/start_manual_mapping` for versioned, remote-driven teaching
+  sessions that can atomically save and promote a map without Explore Lite.
+- Refuse to store a temporary SLAM pose as Home unless a versioned mapping
+  session is active, preventing coordinates from an unaccepted map being used
+  for return-home.
 
 ## Unreleased
 

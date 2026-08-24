@@ -115,6 +115,7 @@ class AtlasMissionControl(Node):
 
         bindings = {
             "/atlas/start_exploration": self.request_start_exploration,
+            "/atlas/start_manual_mapping": self.request_start_manual_mapping,
             "/atlas/stop_exploration": self.request_stop_exploration,
             "/atlas/set_home": self.request_set_home,
             "/atlas/return_home": self.request_return_home,
@@ -173,6 +174,12 @@ class AtlasMissionControl(Node):
         self.status("READY")
         self.get_logger().info(
             "Foxglove topic bindings ready: missions, rear clearance, camera pan/tilt"
+        )
+        self.create_service(
+            Trigger, "/atlas/start_manual_mapping",
+            lambda req, res: self.service_submit(
+                res, self.start_manual_mapping, "manual mapping start queued"
+            )
         )
 
     def update_camera_pan(self, msg: Int32) -> None:
@@ -263,6 +270,9 @@ class AtlasMissionControl(Node):
 
     def request_start_exploration(self, _msg: Empty) -> None:
         self.submit("start exploration", self.start_exploration)
+
+    def request_start_manual_mapping(self, _msg: Empty) -> None:
+        self.submit("start manual mapping", self.start_manual_mapping)
 
     def request_stop_exploration(self, _msg: Empty) -> None:
         self.submit("stop exploration", self.stop_exploration)
@@ -430,6 +440,18 @@ class AtlasMissionControl(Node):
     def set_home(self) -> None:
         pose = self.stable_current_pose()
         session = self.active_mapping_session()
+        mapping_stack_active = all(
+            subprocess.run(
+                ["systemctl", "--user", "is-active", "--quiet", unit],
+                check=False, timeout=4,
+            ).returncode == 0
+            for unit in ("atlas-slam-fast.service", "atlas-nav2.service")
+        )
+        if mapping_stack_active and not session:
+            raise RuntimeError(
+                "refusing to save a temporary SLAM pose without a versioned "
+                "mapping session; use /atlas/start_manual_mapping first"
+            )
         if session:
             pose["mapping_session_id"] = session["id"]
         else:
@@ -515,6 +537,31 @@ class AtlasMissionControl(Node):
             self.restore_mapping_background()
             raise
         self.status(f"EXPLORATION ACTIVE session={session['id'][:8]}")
+
+    def start_manual_mapping(self) -> None:
+        """Start a versioned SLAM session without autonomous wheel motion.
+
+        This is the teaching mode used while Dhruv drives with the physical
+        remote.  It deliberately leaves explore_lite stopped, but creates the
+        same map-session identity used by the atomic map acceptance path.
+        """
+        self.ensure_mapping_stack()
+        session = {
+            "id": uuid.uuid4().hex,
+            "state": "active",
+            "mode": "manual_teaching",
+            "started_unix": time.time(),
+        }
+        self.atomic_write_json(self.mapping_session_file, session)
+        try:
+            self.set_home()
+        except Exception:
+            self.mapping_session_file.unlink(missing_ok=True)
+            raise
+        self.status(
+            f"MANUAL MAPPING ACTIVE session={session['id'][:8]}; "
+            "exploration stopped, operator has drive authority"
+        )
 
     def center_camera_for_navigation(self) -> None:
         """Put the pan/tilt camera in its calibrated forward navigation pose."""
@@ -742,17 +789,21 @@ class AtlasMissionControl(Node):
                 ["systemctl", "--user", "is-active", "--quiet", self.explore_unit],
                 check=False, timeout=4,
             ).returncode == 0
-            if not session or not explore_active:
+            manual_session = bool(
+                session and session.get("mode") == "manual_teaching"
+            )
+            if not session or (not explore_active and not manual_session):
                 self.cancel_all_nav_goals()
                 self.zero_pub.publish(Twist())
                 self.status("MAPPING NOT ACTIVE; ACCEPTED MAP PRESERVED")
                 return
-            result = subprocess.run(
-                ["systemctl", "--user", "stop", self.explore_unit],
-                check=False, timeout=40, capture_output=True, text=True
-            )
-            if result.returncode:
-                raise RuntimeError(result.stderr.strip() or "systemctl stop failed")
+            if explore_active:
+                result = subprocess.run(
+                    ["systemctl", "--user", "stop", self.explore_unit],
+                    check=False, timeout=40, capture_output=True, text=True
+                )
+                if result.returncode:
+                    raise RuntimeError(result.stderr.strip() or "systemctl stop failed")
             if not self.cancel_all_nav_goals():
                 raise RuntimeError("exploration stopped but Nav2 goal cancellation was not acknowledged")
             self.zero_pub.publish(Twist())
