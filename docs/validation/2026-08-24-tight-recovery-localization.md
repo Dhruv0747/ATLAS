@@ -8,6 +8,14 @@ Jetson at:
 
 `/home/jetson/project_atlas/data/demonstrations/teach_tight_recovery_to_dhruv_room-20260824-202332`
 
+Dataset integrity manifest:
+
+- Directory size: 9,144,514 bytes
+- Bag database SHA-256:
+  `454a02c463cf93ce8fede85e7eee0135465a4fb1ec314dad7beaf21884c38392`
+- Metadata SHA-256:
+  `af6397e670e4742683aff75141ad4ac7fe0642e2f776461233f14ff14bce7817`
+
 No autonomous success is claimed. The run exposed a map-frame/localization
 misalignment that must be corrected before another named-room mission.
 
