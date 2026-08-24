@@ -1,0 +1,19 @@
+[Unit]
+Description=Project ATLAS local Visual Cloud preview API
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/home/jetson/.config/project_atlas/visual_cloud.env
+Environment=ATLAS_VISUAL_CLOUD_PORT=8095
+Environment=ATLAS_VISUAL_CLOUD_DB=/home/jetson/project_atlas/data/visual_cloud/history.sqlite3
+ExecStart=/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_visual_cloud_server.py
+Restart=on-failure
+RestartSec=5
+Nice=10
+CPUQuota=20%
+MemoryMax=384M
+
+[Install]
+WantedBy=default.target

@@ -20,6 +20,8 @@ on local safety.
 - `atlas_visual_cloud_dashboard.html`: live pipeline, ROS graph, TF and map view.
 - `atlas_visual_cloud.json`: monitored topics and expected rates.
 - `atlas-visual-cloud-agent.service`: low-priority, CPU/RAM-capped user service.
+- `atlas-visual-cloud-server.service`: optional Jetson-local preview; the same
+  API can later move unchanged to a separate cloud host.
 
 ## First deployment (motor power off)
 
