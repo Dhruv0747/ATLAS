@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "map_id": "a8e7035836f61cbac5f3",
+  "map_file": "/home/jetson/project_atlas/maps/atlas_latest.yaml",
+  "commissioned_at": "2026-08-24",
+  "rooms": {
+    "dhruv room": {
+      "frame_id": "map",
+      "x": -0.327,
+      "y": -0.060,
+      "z": 0.0,
+      "qx": 0.0,
+      "qy": 0.0,
+      "qz": -0.01608251569318344,
+      "qw": 0.9998706679811037,
+      "map_id": "a8e7035836f61cbac5f3",
+      "role": "home"
+    },
+    "hall": {
+      "frame_id": "map",
+      "x": 1.245,
+      "y": -6.382,
+      "z": 0.0,
+      "qx": 0.0,
+      "qy": 0.0,
+      "qz": -0.9903806924458444,
+      "qw": 0.13836937533460839,
+      "map_id": "a8e7035836f61cbac5f3",
+      "role": "destination"
+    }
+  },
+  "connections": [
+    {
+      "from": "dhruv room",
+      "to": "hall",
+      "bidirectional": true,
+      "demonstration": "house_final_roundtrip_wheel_heading-20260824-181633",
+      "recovery_policy": "replan_then_sensor_guarded_bounded_recovery"
+    }
+  ]
+}

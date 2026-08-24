@@ -26,7 +26,10 @@ amcl:
     recovery_alpha_fast: 0.0
     recovery_alpha_slow: 0.0
     resample_interval: 1
-    robot_model_type: "nav2_amcl::OmniMotionModel"
+    # ATLAS has four-wheel steering but cannot translate sideways. Nav2 AMCL
+    # has no Ackermann/4WS model; DifferentialMotionModel is the closest
+    # non-holonomic prediction and avoids impossible omni lateral particles.
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
     save_pose_rate: 0.5
     sigma_hit: 0.2
     tf_broadcast: true

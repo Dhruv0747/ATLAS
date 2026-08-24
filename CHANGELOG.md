@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-24 - Commissioned house map and room localization
+
+- Promoted the clean wheel-heading SLAM map recorded on the final Dhruv Room
+  to Hall round trip and tied all saved locations to map ID
+  `a8e7035836f61cbac5f3`.
+- Commissioned normalized poses for Dhruv Room (Home) and Hall and added the
+  bidirectional semantic room connection backed by the recorded route.
+- Changed AMCL from the impossible omni-directional prediction model to the
+  closest available non-holonomic `DifferentialMotionModel` for ATLAS 4WS.
+- Made localization seeding use AMCL's `/set_initial_pose` service with a
+  topic fallback and an immediate no-motion scan update.
+- Verified AMCL accepted the normalized Home pose and Nav2 computed an
+  8.411 m, 100-pose path from Dhruv Room to Hall without commanding motion.
+
 ## 2026-08-24 - Navigation heading-fusion correction
 
 - Added repeatable rosbag fusion and isolated offline-SLAM diagnostics.

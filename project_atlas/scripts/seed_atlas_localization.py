@@ -9,7 +9,9 @@ import time
 import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
+from nav2_msgs.srv import SetInitialPose
 from rclpy.node import Node
+from std_srvs.srv import Empty
 
 
 POSE_FILES = (
@@ -51,6 +53,8 @@ def main():
     rclpy.init()
     node = Node("atlas_localization_seeder")
     publisher = node.create_publisher(PoseWithCovarianceStamped, "/initialpose", 10)
+    pose_client = node.create_client(SetInitialPose, "/set_initial_pose")
+    update_client = node.create_client(Empty, "/request_nomotion_update")
     latest_odom_stamp = {"value": None}
 
     def receive_odom(msg: Odometry):
@@ -88,19 +92,28 @@ def main():
     # every new initial pose just ahead of the TF buffer again.
     seed_stamp = latest_odom_stamp["value"]
 
-    # A lifecycle node may expose /initialpose before AMCL is active. Publish
-    # across the activation window so at least one seed is processed before
-    # the delayed Nav2 costmaps start and require map -> odom.
-    for _ in range(20):
-        # Use a timestamp actually emitted by odometry.  AMCL treats a zero
-        # initial-pose stamp as wall-clock 'now', which can still be newer
-        # than the latest odom -> base_link transform on a loaded Jetson.
-        message.header.stamp.sec = seed_stamp.sec
-        message.header.stamp.nanosec = seed_stamp.nanosec
-        publisher.publish(message)
-        rclpy.spin_once(node, timeout_sec=0.5)
+    # Use AMCL's direct service when available. Topic publication can report a
+    # subscriber yet still be discarded during lifecycle/timestamp races.
+    message.header.stamp.sec = seed_stamp.sec
+    message.header.stamp.nanosec = seed_stamp.nanosec
+    service_applied = False
+    if pose_client.wait_for_service(timeout_sec=5.0):
+        request = SetInitialPose.Request()
+        request.pose = message
+        future = pose_client.call_async(request)
+        rclpy.spin_until_future_complete(node, future, timeout_sec=5.0)
+        service_applied = future.done() and future.exception() is None
+    if not service_applied:
+        # Compatibility fallback for older AMCL builds without the service.
+        for _ in range(20):
+            publisher.publish(message)
+            rclpy.spin_once(node, timeout_sec=0.5)
+    if update_client.wait_for_service(timeout_sec=2.0):
+        future = update_client.call_async(Empty.Request())
+        rclpy.spin_until_future_complete(node, future, timeout_sec=3.0)
     node.get_logger().info(
-        f"Seeded AMCL from saved pose x={pose['x']:.3f} y={pose['y']:.3f}"
+        f"Seeded AMCL from saved pose x={pose['x']:.3f} y={pose['y']:.3f} "
+        f"via {'service' if service_applied else 'topic fallback'}"
     )
     node.destroy_node()
     rclpy.shutdown()
