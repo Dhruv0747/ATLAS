@@ -29,6 +29,11 @@
 - Moved the recovery distance cap from fused `/odom` to high-rate raw
   `/yahboom/odom` and added a discontinuity abort, preventing delayed EKF/SLAM
   corrections or a motor-driver restart from overrunning a short escape pulse.
+- Re-arm a recovery lockout after fresh LiDAR and wheel odometry confirm that
+  an operator has held ATLAS in a usable corridor for one second; re-arming
+  never commands motion. Live mapping then completed three sensor-guarded
+  recoveries (0.078-0.093 m), resumed Nav2 each time, and accepted map
+  `5674a1b39b86379ce214` instead of remaining permanently blocked.
 
 ## 2026-08-25 - Block autonomy when saved-map localization is uncertain
 

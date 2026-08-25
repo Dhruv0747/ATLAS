@@ -7,6 +7,7 @@ import rclpy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from nav2_msgs.srv import ClearEntireCostmap
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
@@ -81,6 +82,7 @@ class TightRecovery(Node):
         self.direction = 0.0
         self.angular = 0.0
         self.avoid_forward = False
+        self.lockout_clear_since = None
         self.timer = self.create_timer(0.1, self.tick)
         self.report('READY: recovery idle; no motion commanded')
 
@@ -159,6 +161,7 @@ class TightRecovery(Node):
         self.attempts = 0
         self.avoid_forward = False
         self.odom_discontinuity = False
+        self.lockout_clear_since = None
         self.phase = Phase.CLEARING
         self.deadline = now + 0.8
         for client in self.clear_clients:
@@ -233,10 +236,35 @@ class TightRecovery(Node):
     def stop(self, reason):
         self.publish_cmd()
         self.phase = Phase.LOCKOUT if reason.startswith('BLOCKED') else Phase.IDLE
+        if self.phase == Phase.LOCKOUT:
+            self.lockout_clear_since = None
         self.report(reason)
 
     def tick(self):
         now = self.now_s()
+        if self.phase == Phase.LOCKOUT:
+            # A lockout must prevent repeated blind recovery pulses, but it
+            # must not survive forever after the operator safely repositions
+            # ATLAS. Re-arm only after fresh sensors show a usable corridor
+            # continuously; this branch never publishes a motion command.
+            corridor_clear = (
+                self.sensors_fresh()
+                and self.odom is not None
+                and self.choose_motion() is not None
+            )
+            if not corridor_clear:
+                self.lockout_clear_since = None
+                return
+            if self.lockout_clear_since is None:
+                self.lockout_clear_since = now
+                return
+            if now - self.lockout_clear_since >= 1.0:
+                self.phase = Phase.IDLE
+                self.lockout_clear_since = None
+                self.report(
+                    'READY: sensor-confirmed manual reposition; recovery re-armed'
+                )
+            return
         if self.phase == Phase.CLEARING and now >= self.deadline:
             motion = self.choose_motion()
             if motion is None:
@@ -308,6 +336,8 @@ def main():
     node = TightRecovery()
     try:
         rclpy.spin(node)
+    except (ExternalShutdownException, KeyboardInterrupt):
+        pass
     finally:
         # systemd may deliver SIGTERM after rclpy has already invalidated the
         # context. The active mux watchdog independently commands zero, so a
