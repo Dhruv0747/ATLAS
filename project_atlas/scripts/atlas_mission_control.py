@@ -25,6 +25,8 @@ from std_msgs.msg import Empty, Int32, String
 from std_srvs.srv import Trigger
 from tf2_ros import Buffer, TransformListener
 
+from atlas_map_footprint_sanitizer import sanitize_saved_map
+
 
 class AtlasMissionControl(Node):
     """Expose topic and service controls without blocking the ROS executor."""
@@ -465,6 +467,16 @@ class AtlasMissionControl(Node):
             raise RuntimeError("candidate map YAML has no image; accepted map preserved")
         lines[lines.index(image_line)] = f"image: {self.map_prefix.name}.pgm"
         candidate_yaml.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        seed = json.loads(self.localization_seed_file.read_text(encoding="utf-8"))
+        if seed.get("mapping_session_id") != session["id"]:
+            raise RuntimeError(
+                "localization seed does not belong to the candidate map session"
+            )
+        cleared = sanitize_saved_map(candidate_yaml, candidate_image, seed)
+        self.get_logger().info(
+            f"Saved-map footprint sanitation cleared {cleared} self-imprint cells"
+        )
 
         accepted_yaml = self.map_prefix.with_suffix(".yaml")
         accepted_image = self.map_prefix.with_suffix(".pgm")

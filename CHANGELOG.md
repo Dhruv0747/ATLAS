@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-08-25 - Remove saved-map self-imprints before localization
+
+- Added a bounded occupancy-map sanitizer that clears only cells inside
+  ATLAS's commissioned 0.50 m x 0.36 m rotated footprint at the verified
+  localization seed; obstacles outside the physical body envelope remain
+  unchanged.
+- Integrated sanitation into atomic map acceptance after confirming that the
+  localization seed belongs to the active mapping session.
+- Backed up and repaired the accepted Dhruv Room map after a costmap audit
+  found one stale occupied map cell inside the rover footprint. The repaired
+  map identity is `2aaf97cdec712662c8fb`.
+- Verified after reload that the live footprint contains zero lethal costmap
+  cells and completed a bounded 20 cm Nav2 goal. Return-home remained safely
+  blocked when AMCL position uncertainty rose above the existing 0.60 m gate,
+  isolating localization confidence as the next reliability issue.
+
 ## 2026-08-25 - Match Nav2 curvature in the four-wheel steering driver
 
 - Replaced the former proportional yaw-rate steering approximation with
