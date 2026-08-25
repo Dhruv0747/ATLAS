@@ -24,6 +24,9 @@
 - Corrected the autonomous side-stop threshold from the 0.18 m physical
   half-width to 0.28 m, preserving the commissioned 10 cm wheel-edge margin
   when fresh side ultrasonic data is available.
+- Replaced the corrupted accepted occupancy map with the guarded fresh-mapping
+  result. The promoted map has synchronized home/localization identity
+  `54de8f1f3a3c0b34fa7c`, a clear exact rover footprint, and no ghost rooms.
 
 ## 2026-08-25 - Gate missions on stationary AMCL convergence
 
