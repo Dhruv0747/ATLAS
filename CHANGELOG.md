@@ -12,6 +12,9 @@
 - Corrected a rejected AMCL recovery seed by publishing a live ROS timestamp;
   localization accepted the reconstructed stationary pose and returned to low
   covariance before any further movement.
+- Extended the mission gate to reject named-place goals whenever the safety
+  monitor reports a sensor/odometry fault or an explicit stop condition, so a
+  stale LiDAR process cannot dispatch Nav2 from an old dashboard reading.
 
 ## 2026-08-25 - Block autonomy when saved-map localization is uncertain
 

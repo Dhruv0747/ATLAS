@@ -286,7 +286,14 @@ class AtlasMissionControl(Node):
         value = self.safety_status.upper()
         return any(
             marker in value
-            for marker in ("BLOCKED", "EMERGENCY", "E-STOP", "ESTOP")
+            for marker in (
+                "BLOCKED",
+                "FAULT",
+                "STOP:",
+                "EMERGENCY",
+                "E-STOP",
+                "ESTOP",
+            )
         )
 
     def error(self, operation: str, exc: Exception) -> None:
@@ -711,6 +718,10 @@ class AtlasMissionControl(Node):
         self.status(f"PLACE SAVED name={name} frame={pose['frame_id']} x={pose['x']:.2f} y={pose['y']:.2f}")
 
     def navigate_named_place(self, name: str) -> None:
+        if self.safety_blocks_autonomy():
+            raise RuntimeError(
+                f"safety blocks named-place navigation: {self.safety_status}"
+            )
         self.require_confident_localization()
         places = self.load_named_places()
         if name not in places:
