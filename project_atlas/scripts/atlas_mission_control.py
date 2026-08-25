@@ -16,7 +16,7 @@ from typing import Callable, Optional
 
 import rclpy
 from action_msgs.srv import CancelGoal
-from geometry_msgs.msg import PoseStamped, Twist
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
@@ -52,6 +52,8 @@ class AtlasMissionControl(Node):
         self.declare_parameter("home_verify_delay", 2.0)
         self.declare_parameter("home_verify_tolerance", 0.15)
         self.declare_parameter("home_max_retries", 1)
+        self.declare_parameter("localization_max_xy_std_m", 0.60)
+        self.declare_parameter("localization_max_yaw_std_deg", 25.0)
         self.home_file = Path.home() / ".config/project_atlas/home_pose.json"
         self.localization_seed_file = (
             Path.home() / ".config/project_atlas/localization_seed_pose.json"
@@ -68,6 +70,12 @@ class AtlasMissionControl(Node):
         )
         self.home_max_retries = int(
             self.get_parameter("home_max_retries").value
+        )
+        self.localization_max_xy_std_m = float(
+            self.get_parameter("localization_max_xy_std_m").value
+        )
+        self.localization_max_yaw_std_deg = float(
+            self.get_parameter("localization_max_yaw_std_deg").value
         )
         self.paused_services_file = (
             Path.home() / ".config/project_atlas/mapping_paused_services.json"
@@ -102,10 +110,17 @@ class AtlasMissionControl(Node):
         )
         self.current_status = "STARTING"
         self.safety_status = "UNKNOWN"
+        self.localization_quality = None
         self.tracker_paused_for_goal = False
         self.create_timer(1.0, self.publish_current_status)
         self.safety_subscription = self.create_subscription(
             String, "/atlas/safety_status", self.update_safety_status, 10
+        )
+        self.localization_subscription = self.create_subscription(
+            PoseWithCovarianceStamped,
+            "/amcl_pose",
+            self.update_localization_quality,
+            10,
         )
 
         self.worker = ThreadPoolExecutor(
@@ -232,6 +247,33 @@ class AtlasMissionControl(Node):
 
     def update_safety_status(self, msg: String) -> None:
         self.safety_status = msg.data.strip()
+
+    def update_localization_quality(self, msg: PoseWithCovarianceStamped) -> None:
+        covariance = msg.pose.covariance
+        xy_variance = max(0.0, covariance[0]) + max(0.0, covariance[7])
+        yaw_variance = max(0.0, covariance[35])
+        self.localization_quality = (
+            math.sqrt(xy_variance),
+            math.degrees(math.sqrt(yaw_variance)),
+        )
+
+    def require_confident_localization(self) -> None:
+        if self.localization_quality is None:
+            raise RuntimeError(
+                "localization confidence unavailable; set the current named "
+                "place before autonomous navigation"
+            )
+        xy_std, yaw_std_deg = self.localization_quality
+        if (
+            xy_std > self.localization_max_xy_std_m
+            or yaw_std_deg > self.localization_max_yaw_std_deg
+        ):
+            raise RuntimeError(
+                "localization uncertain: "
+                f"position_std={xy_std:.2f}m "
+                f"heading_std={yaw_std_deg:.1f}deg; "
+                "set the current named place before autonomous navigation"
+            )
 
     def safety_blocks_autonomy(self) -> bool:
         value = self.safety_status.upper()
@@ -662,6 +704,7 @@ class AtlasMissionControl(Node):
         self.status(f"PLACE SAVED name={name} frame={pose['frame_id']} x={pose['x']:.2f} y={pose['y']:.2f}")
 
     def navigate_named_place(self, name: str) -> None:
+        self.require_confident_localization()
         places = self.load_named_places()
         if name not in places:
             known = ", ".join(sorted(places)) or "none"
@@ -849,6 +892,7 @@ class AtlasMissionControl(Node):
             raise RuntimeError(
                 f"safety blocks return-home: {self.safety_status}"
             )
+        self.require_confident_localization()
         if not self.nav.wait_for_server(timeout_sec=10.0):
             raise RuntimeError("Nav2 NavigateToPose action is unavailable")
         pose = json.loads(self.home_file.read_text(encoding="utf-8"))

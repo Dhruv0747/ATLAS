@@ -44,20 +44,40 @@ def summarize_odom(samples):
     }
 
 
+def summarize_amcl(samples):
+    if not samples:
+        return {"samples": 0}
+    result = summarize_odom([(s[0], s[1], s[2], s[3]) for s in samples])
+    xy_variances = [max(0.0, s[4]) + max(0.0, s[5]) for s in samples]
+    yaw_variances = [max(0.0, s[6]) for s in samples]
+    result["xy_std_m_median"] = round(math.sqrt(sorted(xy_variances)[len(xy_variances) // 2]), 4)
+    result["xy_std_m_max"] = round(math.sqrt(max(xy_variances)), 4)
+    result["yaw_std_deg_median"] = round(math.degrees(math.sqrt(sorted(yaw_variances)[len(yaw_variances) // 2])), 3)
+    result["yaw_std_deg_max"] = round(math.degrees(math.sqrt(max(yaw_variances))), 3)
+    return result
+
+
 def summarize_transform(samples):
     if not samples:
         return {"samples": 0}
     distance = 0.0
     max_translation_step = 0.0
     max_yaw_step = 0.0
+    max_translation_time = None
+    max_yaw_time = None
+    start_ns = samples[0][0]
     for first, second in zip(samples, samples[1:]):
         step = math.hypot(second[1] - first[1], second[2] - first[2])
         yaw_step = abs(math.atan2(
             math.sin(second[3] - first[3]), math.cos(second[3] - first[3])
         ))
         distance += step
-        max_translation_step = max(max_translation_step, step)
-        max_yaw_step = max(max_yaw_step, yaw_step)
+        if step > max_translation_step:
+            max_translation_step = step
+            max_translation_time = (second[0] - start_ns) / 1_000_000_000.0
+        if yaw_step > max_yaw_step:
+            max_yaw_step = yaw_step
+            max_yaw_time = (second[0] - start_ns) / 1_000_000_000.0
     first, last = samples[0], samples[-1]
     return {
         "samples": len(samples),
@@ -65,7 +85,9 @@ def summarize_transform(samples):
         "end": {"x": round(last[1], 3), "y": round(last[2], 3), "yaw_deg": round(math.degrees(last[3]), 2)},
         "accumulated_correction_m": round(distance, 3),
         "max_translation_step_m": round(max_translation_step, 4),
+        "max_translation_step_at_s": round(max_translation_time, 3),
         "max_yaw_step_deg": round(math.degrees(max_yaw_step), 3),
+        "max_yaw_step_at_s": round(max_yaw_time, 3),
     }
 
 
@@ -82,11 +104,12 @@ def main() -> None:
     topic_types = {
         item.name: item.type for item in reader.get_all_topics_and_types()
     }
-    wanted = {"/odom", "/yahboom/odom", "/scan", "/tf"}
+    wanted = {"/odom", "/yahboom/odom", "/amcl_pose", "/scan", "/tf"}
     messages = {name: get_message(topic_types[name]) for name in wanted if name in topic_types}
     odometry = defaultdict(list)
     scan_lag_ms = []
     map_to_odom = []
+    amcl_pose = []
 
     while reader.has_next():
         topic, raw, recorded_ns = reader.read_next()
@@ -98,6 +121,18 @@ def main() -> None:
             odometry[topic].append(
                 (recorded_ns, pose.position.x, pose.position.y, yaw_of(pose.orientation))
             )
+        elif topic == "/amcl_pose":
+            pose = msg.pose.pose
+            covariance = msg.pose.covariance
+            amcl_pose.append((
+                recorded_ns,
+                pose.position.x,
+                pose.position.y,
+                yaw_of(pose.orientation),
+                covariance[0],
+                covariance[7],
+                covariance[35],
+            ))
         elif topic == "/scan":
             stamp_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
             scan_lag_ms.append((recorded_ns - stamp_ns) / 1_000_000.0)
@@ -115,6 +150,7 @@ def main() -> None:
                     ))
 
     result = {name: summarize_odom(values) for name, values in odometry.items()}
+    result["/amcl_pose"] = summarize_amcl(amcl_pose)
     result["map_to_odom_correction"] = summarize_transform(map_to_odom)
     if scan_lag_ms:
         ordered = sorted(scan_lag_ms)

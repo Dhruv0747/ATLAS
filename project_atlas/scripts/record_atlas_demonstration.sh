@@ -14,7 +14,7 @@ source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null || true
 echo "Recording ATLAS demonstration to ${output}"
 exec ros2 bag record --storage sqlite3 -o "${output}" \
   /camera/image_raw/compressed \
-  /scan /imu/data /odom /yahboom/odom /tf /tf_static \
+  /scan /imu/data /odom /yahboom/odom /amcl_pose /particle_cloud /map /tf /tf_static \
   /cmd_vel /cmd_vel_joy /cmd_vel_web /cmd_vel_teleop /cmd_vel_nav \
   /joy \
   /steering/front_angle_deg /steering/rear_angle_deg /steering/mode \

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-08-25 - Block autonomy when saved-map localization is uncertain
+
+- Recorded a fresh Dhruv Room to Hall baseline and Hall to Dhruv Room A/B run
+  with Visual Cloud monitoring and complete navigation telemetry.
+- Traced the large map-to-odom corrections to startup localization being seeded
+  at Hall while the rover was physically in Dhruv Room; wheel odometry, EKF and
+  normal LiDAR timing remained healthy.
+- Rejected and reverted an isolated `update_min_d` 0.25 m to 0.10 m trial after
+  maximum translation/yaw corrections worsened to 0.364 m / 7.94 degrees.
+- Re-seeded the stopped rover at Dhruv Room, reducing median observed AMCL
+  uncertainty from approximately 1.05 m / 38.7 degrees to 0.38 m / 11.1 degrees.
+- Added a mission-control confidence gate that blocks named-place and
+  return-home goals above 0.60 m or 25 degrees of AMCL uncertainty.
+- Extended demonstration bags and analysis with AMCL pose, covariance,
+  particle-cloud/map evidence and correction-event timestamps.
+
 ## 2026-08-24 - Add read-only ATLAS Visual Cloud foundation
 
 - Added a lightweight subscription-only Jetson agent for ROS nodes, topics,
