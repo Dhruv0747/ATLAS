@@ -34,6 +34,14 @@
 - Preserved Yahboom odometry across same-boot CH341 USB/service restarts using
   a 5 Hz tmpfs checkpoint. A transient motor-controller USB disconnect can no
   longer reset `/yahboom/odom` to `(0,0)` and corrupt EKF/SLAM coordinates.
+- Corrected the localization-jump motor guard after Visual Cloud evidence
+  showed a valid 0.34 m AMCL update during commanded motion being rejected by
+  the old fixed 0.20 m limit. Jump limits now scale with elapsed AMCL update
+  time and ATLAS's commissioned speed/yaw envelope, while instantaneous pose
+  discontinuities remain latched and motor-blocking.
+- Synchronized the corrected guarded map accepted on the Jetson with map/home
+  identity `84e18dd14e7e2efc1dcd`; this supersedes the earlier fresh-map
+  snapshot for deployment and rollback reproducibility.
 
 ## 2026-08-25 - Gate missions on stationary AMCL convergence
 

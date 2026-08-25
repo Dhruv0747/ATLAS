@@ -48,6 +48,16 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("localization_timeout", 2.5)
         self.declare_parameter("localization_max_xy_std_m", 0.25)
         self.declare_parameter("localization_max_yaw_std_deg", 12.0)
+        # AMCL normally publishes at about 0.5 Hz on ATLAS.  A rover moving at
+        # 0.15 m/s can therefore travel more than the old fixed 0.20 m jump
+        # limit between two valid estimates.  Bound pose changes by elapsed
+        # time and the rover's commissioned physical motion envelope instead.
+        self.declare_parameter("localization_jump_base_m", 0.20)
+        self.declare_parameter("localization_jump_max_speed_mps", 0.22)
+        self.declare_parameter("localization_jump_margin_m", 0.10)
+        self.declare_parameter("localization_jump_base_yaw_deg", 15.0)
+        self.declare_parameter("localization_jump_max_yaw_rate_deg_s", 55.0)
+        self.declare_parameter("localization_jump_yaw_margin_deg", 8.0)
 
         manual_timeout = float(self.get_parameter("manual_timeout").value)
         nav_timeout = float(self.get_parameter("nav_timeout").value)
@@ -90,12 +100,31 @@ class AtlasCmdVelMux(Node):
         self.localization_max_yaw_std_deg = float(
             self.get_parameter("localization_max_yaw_std_deg").value
         )
+        self.localization_jump_base_m = float(
+            self.get_parameter("localization_jump_base_m").value
+        )
+        self.localization_jump_max_speed_mps = float(
+            self.get_parameter("localization_jump_max_speed_mps").value
+        )
+        self.localization_jump_margin_m = float(
+            self.get_parameter("localization_jump_margin_m").value
+        )
+        self.localization_jump_base_yaw_deg = float(
+            self.get_parameter("localization_jump_base_yaw_deg").value
+        )
+        self.localization_jump_max_yaw_rate_deg_s = float(
+            self.get_parameter("localization_jump_max_yaw_rate_deg_s").value
+        )
+        self.localization_jump_yaw_margin_deg = float(
+            self.get_parameter("localization_jump_yaw_margin_deg").value
+        )
         self.operating_mode = "UNKNOWN"
         self.localization_rx = 0.0
         self.localization_xy_std_m = float("inf")
         self.localization_yaw_std_deg = float("inf")
         self.localization_pose = None
         self.localization_jump_fault = None
+        self.last_blocked_reason = None
         self.ultrasonic_enabled = os.environ.get(
             "ATLAS_ULTRASONIC_ENABLED", "1"
         ).strip().lower() not in ("0", "false", "no", "off")
@@ -251,14 +280,27 @@ class AtlasCmdVelMux(Node):
         pose = msg.pose.pose
         yaw = 2.0 * math.atan2(float(pose.orientation.z), float(pose.orientation.w))
         if self.localization_pose is not None and now - self.localization_rx < 3.0:
+            elapsed_s = max(0.0, now - self.localization_rx)
             old_x, old_y, old_yaw = self.localization_pose
             jump_m = math.hypot(pose.position.x - old_x, pose.position.y - old_y)
             jump_yaw_deg = abs(math.degrees(math.atan2(
                 math.sin(yaw - old_yaw), math.cos(yaw - old_yaw)
             )))
-            if jump_m > 0.20 or jump_yaw_deg > 15.0:
+            allowed_jump_m = max(
+                self.localization_jump_base_m,
+                self.localization_jump_max_speed_mps * elapsed_s
+                + self.localization_jump_margin_m,
+            )
+            allowed_jump_yaw_deg = max(
+                self.localization_jump_base_yaw_deg,
+                self.localization_jump_max_yaw_rate_deg_s * elapsed_s
+                + self.localization_jump_yaw_margin_deg,
+            )
+            if jump_m > allowed_jump_m or jump_yaw_deg > allowed_jump_yaw_deg:
                 self.localization_jump_fault = (
-                    f"pose jump {jump_m:.2f}m/{jump_yaw_deg:.1f}deg"
+                    f"pose jump {jump_m:.2f}m/{jump_yaw_deg:.1f}deg "
+                    f"(allowed {allowed_jump_m:.2f}m/"
+                    f"{allowed_jump_yaw_deg:.1f}deg over {elapsed_s:.2f}s)"
                 )
         self.localization_pose = (float(pose.position.x), float(pose.position.y), yaw)
         self.localization_rx = now
@@ -396,7 +438,11 @@ class AtlasCmdVelMux(Node):
                 self.output.publish(Twist())
                 self.last_sent = Twist()
                 self.safety_output.publish(String(data=blocked_reason))
+                if blocked_reason != self.last_blocked_reason:
+                    self.get_logger().error(blocked_reason)
+                    self.last_blocked_reason = blocked_reason
                 return
+            self.last_blocked_reason = None
             stale = [
                 name for name, stamp in self.ultrasonic_rx.items()
                 if stamp <= 0.0 or now - stamp > self.ultrasonic_timeout
