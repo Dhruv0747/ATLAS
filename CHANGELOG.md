@@ -15,6 +15,14 @@
 - Extended the mission gate to reject named-place goals whenever the safety
   monitor reports a sensor/odometry fault or an explicit stop condition, so a
   stale LiDAR process cannot dispatch Nav2 from an old dashboard reading.
+- Changed bounded recovery pulses to allow steering-settle time while imposing
+  an 8 cm odometry cap; recovery now ends on measured body displacement rather
+  than losing its entire fixed window while the steering axles travel.
+- Added a LiDAR-guarded reverse-arc escape toward the clearer side and reduced
+  the powered displacement cap to 4 cm after field measurement showed up to
+  roughly 8 cm of additional drivetrain coast.
+- Raised recovery's forward-selection threshold to 0.65 m at the rear-offset
+  LiDAR, preserving approximately 30 cm ahead of ATLAS's physical nose.
 
 ## 2026-08-25 - Block autonomy when saved-map localization is uncertain
 
