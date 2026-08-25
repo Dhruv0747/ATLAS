@@ -31,9 +31,9 @@ class TightRecovery(Node):
         self.declare_parameter('request_cooldown_s', 20.0)
         self.declare_parameter('sensor_timeout_s', 1.5)
         # LiDAR is mounted about 5 cm behind rover centre while the body ends
-        # 30 cm ahead. Requiring 0.65 m at the sensor preserves roughly 30 cm
+        # 30 cm ahead. Requiring 0.60 m at the sensor preserves roughly 30 cm
         # ahead of the physical nose before selecting a forward escape.
-        self.declare_parameter('front_clear_m', 0.65)
+        self.declare_parameter('front_clear_m', 0.60)
         self.declare_parameter('rear_clear_m', 0.55)
         self.declare_parameter('side_clear_m', 0.28)
         self.declare_parameter('side_balance_for_straight_m', 0.06)

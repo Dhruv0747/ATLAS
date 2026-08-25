@@ -16,9 +16,12 @@ slam_toolbox:
     minimum_time_interval: 0.06
     transform_timeout: 0.2
     tf_buffer_duration: 30.0
-    # The RPLIDAR scan matcher produced metre-scale corrections during short
-    # indoor moves.  EKF wheel/IMU odometry is the stable pose source; LiDAR
-    # remains fully active for map construction and Nav2 obstacle costmaps.
-    use_scan_matching: false
-    do_loop_closing: false
+    # Mapping must correct accumulated wheel/IMU drift from LiDAR geometry.
+    # Disabling these produced duplicated/ghost walls and made AMCL converge
+    # to different poses while ATLAS was stationary.
+    use_scan_matching: true
+    do_loop_closing: true
+    minimum_travel_distance: 0.05
+    minimum_travel_heading: 0.10
+    scan_queue_size: 20
     resolution: 0.05

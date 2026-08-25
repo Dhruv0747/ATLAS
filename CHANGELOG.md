@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-25 - Reject corrupt-map starts and restore LiDAR SLAM correction
+
+- Added a strict return-home campaign preflight that checks the exact
+  0.50 m x 0.36 m footprint against the live global costmap before every
+  outbound and return goal. Any lethal, unknown, stale, or missing footprint
+  data now stops the campaign before Nav2 can command motion.
+- Diagnosed the first 20-run campaign failure as a corrupt accepted occupancy
+  map: AMCL moved while EKF and wheel odometry stayed exactly at zero, and the
+  saved map contained occupied cells inside the physical rover envelope.
+- An isolated ROS-domain replay proved the old round-trip bags cannot safely
+  rebuild the map: one round trip ended 3.91 m from its odometry start and
+  accumulated 8.88 m of reported travel.
+- Restored LiDAR scan matching and loop closure in the workspace SLAM config;
+  the enabled mapping service already requests both and the source defaults
+  now agree.
+- Kept the rejected offline candidate separate and preserved rollback copies
+  of the accepted map. A new calibrated mapping pass is required before the
+  20/20 motion campaign resumes.
+- Reduced the guarded forward-recovery sensor threshold from 0.65 m to
+  0.60 m after a verified 3 cm recovery. With LiDAR 30 cm behind the nose,
+  this still preserves about 30 cm physical forward clearance.
+
 ## 2026-08-25 - Gate missions on stationary AMCL convergence
 
 - Added a repeatable localization diagnostic that records AMCL covariance and
