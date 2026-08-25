@@ -23,6 +23,12 @@
   roughly 8 cm of additional drivetrain coast.
 - Raised recovery's forward-selection threshold to 0.65 m at the rear-offset
   LiDAR, preserving approximately 30 cm ahead of ATLAS's physical nose.
+- Activated the existing three-attempt recovery budget: a no-progress forward
+  action now clears costmaps and automatically tries a LiDAR-confirmed reverse
+  arc toward the clearer side instead of immediately requiring human help.
+- Moved the recovery distance cap from fused `/odom` to high-rate raw
+  `/yahboom/odom` and added a discontinuity abort, preventing delayed EKF/SLAM
+  corrections or a motor-driver restart from overrunning a short escape pulse.
 
 ## 2026-08-25 - Block autonomy when saved-map localization is uncertain
 

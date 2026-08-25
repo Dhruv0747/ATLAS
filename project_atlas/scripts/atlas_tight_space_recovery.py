@@ -56,7 +56,10 @@ class TightRecovery(Node):
         self.resume_pub = self.create_publisher(Bool, '/explore/resume', 10)
         self.create_subscription(Empty, '/atlas/tight_recovery_request', self.request, 10)
         self.create_subscription(LaserScan, '/scan', self.scan_cb, qos_profile_sensor_data)
-        self.create_subscription(Odometry, '/odom', self.odom_cb, 10)
+        # Short recovery displacement must come directly from wheel odometry.
+        # Fused /odom can be delayed or corrected by the EKF/SLAM stack and
+        # once allowed a pulse to run past its cap before reporting 0.383 m.
+        self.create_subscription(Odometry, '/yahboom/odom', self.odom_cb, 20)
         for name in ('front', 'left', 'right'):
             self.create_subscription(Float32, f'/ultrasonic/{name}_mm',
                                      lambda msg, n=name: self.ultra_cb(n, msg), 10)
@@ -69,12 +72,15 @@ class TightRecovery(Node):
         self.ultra = {'front': math.inf, 'left': math.inf, 'right': math.inf}
         self.ultra_time = {'front': 0.0, 'left': 0.0, 'right': 0.0}
         self.odom = None
+        self.previous_odom = None
+        self.odom_discontinuity = False
         self.start_xy = None
         self.deadline = 0.0
         self.last_request = -1e9
         self.attempts = 0
         self.direction = 0.0
         self.angular = 0.0
+        self.avoid_forward = False
         self.timer = self.create_timer(0.1, self.tick)
         self.report('READY: recovery idle; no motion commanded')
 
@@ -101,7 +107,18 @@ class TightRecovery(Node):
 
     def odom_cb(self, msg):
         p = msg.pose.pose.position
-        self.odom = (p.x, p.y)
+        current = (p.x, p.y)
+        if self.previous_odom is not None and self.phase in (
+            Phase.PULSE, Phase.SETTLE
+        ):
+            step = math.hypot(
+                current[0] - self.previous_odom[0],
+                current[1] - self.previous_odom[1],
+            )
+            if step > 0.12:
+                self.odom_discontinuity = True
+        self.previous_odom = current
+        self.odom = current
 
     def sector_min(self, center_deg, width_deg):
         if self.scan is None:
@@ -139,6 +156,9 @@ class TightRecovery(Node):
             self.stop('BLOCKED: stale LiDAR/ultrasonic/odometry; no recovery motion')
             return
         self.resume_pub.publish(Bool(data=False))
+        self.attempts = 0
+        self.avoid_forward = False
+        self.odom_discontinuity = False
         self.phase = Phase.CLEARING
         self.deadline = now + 0.8
         for client in self.clear_clients:
@@ -159,6 +179,9 @@ class TightRecovery(Node):
         fc = self.get_parameter('front_clear_m').value
         rc = self.get_parameter('rear_clear_m').value
         sc = self.get_parameter('side_clear_m').value
+        if self.avoid_forward and rear > rc and max(left, right) > sc:
+            turn = -0.25 if left > right else 0.25
+            return -0.09, turn, 'alternate reverse arc toward clearer side'
         if front > fc and left > sc and right > sc:
             return self.get_parameter('pulse_speed').value, 0.0, 'forward'
         if front > fc and max(left, right) > sc:
@@ -229,6 +252,9 @@ class TightRecovery(Node):
             self.report(f'RECOVERY: bounded {label} pulse, attempt {self.attempts}')
             self.publish_cmd(linear, angular)
         elif self.phase == Phase.PULSE:
+            if self.odom_discontinuity:
+                self.stop('BLOCKED: wheel odometry reset during recovery pulse')
+                return
             if not self.still_safe():
                 self.stop('BLOCKED: obstacle or stale sensor detected during pulse')
                 return
@@ -250,12 +276,29 @@ class TightRecovery(Node):
         elif self.phase == Phase.SETTLE and now >= self.deadline:
             progress = self.measured_progress()
             if progress < self.get_parameter('minimum_progress_m').value:
-                self.stop(f'BLOCKED: drivetrain made only {progress:.3f} m progress')
+                if self.attempts < self.get_parameter('max_attempts').value:
+                    self.avoid_forward = True
+                    self.phase = Phase.CLEARING
+                    self.deadline = now + 1.0
+                    for client in self.clear_clients:
+                        if client.service_is_ready():
+                            client.call_async(ClearEntireCostmap.Request())
+                    self.report(
+                        f'RETRYING: only {progress:.3f} m progress; '
+                        'selecting a different sensor-confirmed escape'
+                    )
+                    return
+                self.stop(
+                    f'BLOCKED: drivetrain made only {progress:.3f} m '
+                    f'progress after {self.attempts} attempts'
+                )
                 return
             for client in self.clear_clients:
                 if client.service_is_ready():
                     client.call_async(ClearEntireCostmap.Request())
             self.phase = Phase.IDLE
+            self.attempts = 0
+            self.avoid_forward = False
             self.resume_pub.publish(Bool(data=True))
             self.report(f'RECOVERED: moved {progress:.3f} m; costmaps cleared and Nav2 resumed')
 
