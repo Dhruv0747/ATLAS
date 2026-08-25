@@ -8,7 +8,7 @@ import time
 from typing import Dict, Optional
 
 import rclpy
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import Float32, String
@@ -45,6 +45,9 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("auto_reaction_time_s", 1.0)
         self.declare_parameter("auto_stop_margin_m", 0.15)
         self.declare_parameter("ultrasonic_timeout", 1.0)
+        self.declare_parameter("localization_timeout", 2.5)
+        self.declare_parameter("localization_max_xy_std_m", 0.25)
+        self.declare_parameter("localization_max_yaw_std_deg", 12.0)
 
         manual_timeout = float(self.get_parameter("manual_timeout").value)
         nav_timeout = float(self.get_parameter("nav_timeout").value)
@@ -78,6 +81,21 @@ class AtlasCmdVelMux(Node):
         self.ultrasonic_timeout = float(
             self.get_parameter("ultrasonic_timeout").value
         )
+        self.localization_timeout = float(
+            self.get_parameter("localization_timeout").value
+        )
+        self.localization_max_xy_std_m = float(
+            self.get_parameter("localization_max_xy_std_m").value
+        )
+        self.localization_max_yaw_std_deg = float(
+            self.get_parameter("localization_max_yaw_std_deg").value
+        )
+        self.operating_mode = "UNKNOWN"
+        self.localization_rx = 0.0
+        self.localization_xy_std_m = float("inf")
+        self.localization_yaw_std_deg = float("inf")
+        self.localization_pose = None
+        self.localization_jump_fault = None
         self.ultrasonic_enabled = os.environ.get(
             "ATLAS_ULTRASONIC_ENABLED", "1"
         ).strip().lower() not in ("0", "false", "no", "off")
@@ -120,6 +138,15 @@ class AtlasCmdVelMux(Node):
                 lambda msg, sensor=side: self.on_ultrasonic(sensor, msg),
                 10,
             )
+        self.create_subscription(
+            String, "/atlas/mode", self.on_operating_mode, 10
+        )
+        self.create_subscription(
+            PoseWithCovarianceStamped,
+            "/amcl_pose",
+            self.on_localization,
+            10,
+        )
 
         period = float(self.get_parameter("watchdog_period").value)
         self.create_timer(period, self.watchdog)
@@ -209,6 +236,60 @@ class AtlasCmdVelMux(Node):
         if value_m > 0.0:
             self.ultrasonic[sensor] = value_m
             self.ultrasonic_rx[sensor] = time.monotonic()
+
+    def on_operating_mode(self, msg: String) -> None:
+        self.operating_mode = msg.data.strip().upper() or "UNKNOWN"
+
+    def on_localization(self, msg: PoseWithCovarianceStamped) -> None:
+        now = time.monotonic()
+        covariance = msg.pose.covariance
+        xy_variance = max(0.0, covariance[0]) + max(0.0, covariance[7])
+        self.localization_xy_std_m = math.sqrt(xy_variance)
+        self.localization_yaw_std_deg = math.degrees(
+            math.sqrt(max(0.0, covariance[35]))
+        )
+        pose = msg.pose.pose
+        yaw = 2.0 * math.atan2(float(pose.orientation.z), float(pose.orientation.w))
+        if self.localization_pose is not None and now - self.localization_rx < 3.0:
+            old_x, old_y, old_yaw = self.localization_pose
+            jump_m = math.hypot(pose.position.x - old_x, pose.position.y - old_y)
+            jump_yaw_deg = abs(math.degrees(math.atan2(
+                math.sin(yaw - old_yaw), math.cos(yaw - old_yaw)
+            )))
+            if jump_m > 0.20 or jump_yaw_deg > 15.0:
+                self.localization_jump_fault = (
+                    f"pose jump {jump_m:.2f}m/{jump_yaw_deg:.1f}deg"
+                )
+        self.localization_pose = (float(pose.position.x), float(pose.position.y), yaw)
+        self.localization_rx = now
+
+    def localization_guard(self, now: float) -> Optional[str]:
+        """Fail closed when saved-map navigation loses AMCL confidence."""
+        age = now - self.localization_rx if self.localization_rx else float("inf")
+        # Live AMCL is authoritative evidence that saved-map localization is
+        # running. Only permit mapping without AMCL after the old publisher has
+        # genuinely disappeared; a stale /atlas/mode label must never bypass
+        # localization safety.
+        if age > self.localization_timeout and self.operating_mode == "MAPPING":
+            return None
+        if self.localization_jump_fault:
+            return (
+                "AUTONOMY BLOCKED: LOCALIZATION JUMP "
+                f"{self.localization_jump_fault}"
+            )
+        if age > self.localization_timeout:
+            return f"AUTONOMY BLOCKED: LOCALIZATION STALE {age:.1f}s"
+        if self.localization_xy_std_m > self.localization_max_xy_std_m:
+            return (
+                "AUTONOMY BLOCKED: LOCALIZATION XY UNCERTAINTY "
+                f"{self.localization_xy_std_m:.2f}m"
+            )
+        if self.localization_yaw_std_deg > self.localization_max_yaw_std_deg:
+            return (
+                "AUTONOMY BLOCKED: LOCALIZATION HEADING UNCERTAINTY "
+                f"{self.localization_yaw_std_deg:.1f}deg"
+            )
+        return None
 
     def autonomous_guard(self, command: Twist, now: float) -> Optional[str]:
         # Ultrasonics supplement the LiDAR/Nav2 costmaps. A disconnected side
@@ -303,7 +384,14 @@ class AtlasCmdVelMux(Node):
 
         self.active_name = selected.name
         if selected.name in ("RECOVERY", "NAV2"):
-            blocked_reason = self.autonomous_guard(selected.command, now)
+            blocked_reason = (
+                self.localization_guard(now)
+                if selected.name == "NAV2"
+                else None
+            )
+            blocked_reason = blocked_reason or self.autonomous_guard(
+                selected.command, now
+            )
             if blocked_reason:
                 self.output.publish(Twist())
                 self.last_sent = Twist()

@@ -27,6 +27,10 @@
 - Replaced the corrupted accepted occupancy map with the guarded fresh-mapping
   result. The promoted map has synchronized home/localization identity
   `54de8f1f3a3c0b34fa7c`, a clear exact rover footprint, and no ghost rooms.
+- Added a motor-command localization watchdog. In saved-map mode, Nav2 output
+  now stops immediately if AMCL data becomes stale or exceeds 0.25 m position
+  or 12 degree heading uncertainty, and sudden 0.20 m/15 degree pose jumps are
+  latched; sensor-bounded recovery remains available.
 
 ## 2026-08-25 - Gate missions on stationary AMCL convergence
 
