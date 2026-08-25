@@ -21,6 +21,9 @@
 - Reduced the guarded forward-recovery sensor threshold from 0.65 m to
   0.60 m after a verified 3 cm recovery. With LiDAR 30 cm behind the nose,
   this still preserves about 30 cm physical forward clearance.
+- Corrected the autonomous side-stop threshold from the 0.18 m physical
+  half-width to 0.28 m, preserving the commissioned 10 cm wheel-edge margin
+  when fresh side ultrasonic data is available.
 
 ## 2026-08-25 - Gate missions on stationary AMCL convergence
 

@@ -39,7 +39,9 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("remote_linear_deadband", 0.06)
         self.declare_parameter("remote_angular_deadband", 0.12)
         self.declare_parameter("auto_front_stop_m", 0.30)
-        self.declare_parameter("auto_side_stop_m", 0.18)
+        # Rover half-width is 0.18 m; preserve the commissioned 0.10 m
+        # wheel-edge clearance during autonomous steering.
+        self.declare_parameter("auto_side_stop_m", 0.28)
         self.declare_parameter("auto_reaction_time_s", 1.0)
         self.declare_parameter("auto_stop_margin_m", 0.15)
         self.declare_parameter("ultrasonic_timeout", 1.0)
