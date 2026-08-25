@@ -2,6 +2,7 @@
 """Non-blocking Foxglove mission bindings for Project ATLAS."""
 
 from concurrent.futures import ThreadPoolExecutor
+from collections import deque
 import hashlib
 import json
 import math
@@ -22,7 +23,7 @@ from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import Empty, Int32, String
-from std_srvs.srv import Trigger
+from std_srvs.srv import Empty as EmptyService, Trigger
 from tf2_ros import Buffer, TransformListener
 
 from atlas_map_footprint_sanitizer import sanitize_saved_map
@@ -54,8 +55,13 @@ class AtlasMissionControl(Node):
         self.declare_parameter("home_verify_delay", 2.0)
         self.declare_parameter("home_verify_tolerance", 0.15)
         self.declare_parameter("home_max_retries", 1)
+        self.declare_parameter("home_already_reached_distance_m", 0.05)
+        self.declare_parameter("home_already_reached_yaw_deg", 10.0)
         self.declare_parameter("localization_max_xy_std_m", 0.60)
         self.declare_parameter("localization_max_yaw_std_deg", 25.0)
+        self.declare_parameter("localization_stability_window_s", 8.0)
+        self.declare_parameter("localization_max_stationary_shift_m", 0.10)
+        self.declare_parameter("localization_max_stationary_yaw_deg", 5.0)
         self.home_file = Path.home() / ".config/project_atlas/home_pose.json"
         self.localization_seed_file = (
             Path.home() / ".config/project_atlas/localization_seed_pose.json"
@@ -74,11 +80,26 @@ class AtlasMissionControl(Node):
         self.home_max_retries = int(
             self.get_parameter("home_max_retries").value
         )
+        self.home_already_reached_distance_m = float(
+            self.get_parameter("home_already_reached_distance_m").value
+        )
+        self.home_already_reached_yaw_deg = float(
+            self.get_parameter("home_already_reached_yaw_deg").value
+        )
         self.localization_max_xy_std_m = float(
             self.get_parameter("localization_max_xy_std_m").value
         )
         self.localization_max_yaw_std_deg = float(
             self.get_parameter("localization_max_yaw_std_deg").value
+        )
+        self.localization_stability_window_s = float(
+            self.get_parameter("localization_stability_window_s").value
+        )
+        self.localization_max_stationary_shift_m = float(
+            self.get_parameter("localization_max_stationary_shift_m").value
+        )
+        self.localization_max_stationary_yaw_deg = float(
+            self.get_parameter("localization_max_stationary_yaw_deg").value
         )
         self.paused_services_file = (
             Path.home() / ".config/project_atlas/mapping_paused_services.json"
@@ -120,6 +141,7 @@ class AtlasMissionControl(Node):
         self.current_status = "STARTING"
         self.safety_status = "UNKNOWN"
         self.localization_quality = None
+        self.localization_samples = deque(maxlen=30)
         self.tracker_paused_for_goal = False
         self.create_timer(1.0, self.publish_current_status)
         self.safety_subscription = self.create_subscription(
@@ -131,6 +153,10 @@ class AtlasMissionControl(Node):
             self.update_localization_quality,
             10,
         )
+        self.nomotion_client = self.create_client(
+            EmptyService, "/request_nomotion_update"
+        )
+        self.create_timer(2.0, self.request_stationary_localization_update)
 
         self.worker = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="atlas-mission"
@@ -265,6 +291,47 @@ class AtlasMissionControl(Node):
             math.sqrt(xy_variance),
             math.degrees(math.sqrt(yaw_variance)),
         )
+        pose = msg.pose.pose
+        self.localization_samples.append(
+            (
+                time.monotonic(),
+                float(pose.position.x),
+                float(pose.position.y),
+                2.0 * math.atan2(
+                    float(pose.orientation.z), float(pose.orientation.w)
+                ),
+            )
+        )
+
+    def request_stationary_localization_update(self) -> None:
+        """Keep stationary AMCL convergence observable before mission dispatch."""
+        if "STOPPED" not in self.safety_status.upper():
+            return
+        if self.nomotion_client.service_is_ready():
+            self.nomotion_client.call_async(EmptyService.Request())
+
+    @staticmethod
+    def angle_delta(first: float, second: float) -> float:
+        return math.atan2(math.sin(second - first), math.cos(second - first))
+
+    def localization_stability(self) -> tuple:
+        now = time.monotonic()
+        window_start = now - self.localization_stability_window_s
+        samples = [item for item in self.localization_samples if item[0] >= window_start]
+        if len(samples) < 4:
+            return None
+        covered = samples[-1][0] - samples[0][0]
+        if covered < self.localization_stability_window_s * 0.70:
+            return None
+        maximum_shift = max(
+            math.hypot(a[1] - b[1], a[2] - b[2])
+            for index, a in enumerate(samples)
+            for b in samples[index + 1:]
+        )
+        reference_yaw = samples[0][3]
+        relative_yaws = [self.angle_delta(reference_yaw, item[3]) for item in samples]
+        maximum_yaw = math.degrees(max(relative_yaws) - min(relative_yaws))
+        return maximum_shift, maximum_yaw
 
     def require_confident_localization(self) -> None:
         if self.localization_quality is None:
@@ -282,6 +349,22 @@ class AtlasMissionControl(Node):
                 f"position_std={xy_std:.2f}m "
                 f"heading_std={yaw_std_deg:.1f}deg; "
                 "set the current named place before autonomous navigation"
+            )
+        stability = self.localization_stability()
+        if stability is None:
+            raise RuntimeError(
+                "localization has not completed its stationary stability window; "
+                "keep ATLAS stopped and retry shortly"
+            )
+        shift_m, yaw_deg = stability
+        if (
+            shift_m > self.localization_max_stationary_shift_m
+            or yaw_deg > self.localization_max_stationary_yaw_deg
+        ):
+            raise RuntimeError(
+                "localization still moving while ATLAS is stopped: "
+                f"pose_shift={shift_m:.2f}m heading_shift={yaw_deg:.1f}deg; "
+                "autonomous navigation remains blocked"
             )
 
     def safety_blocks_autonomy(self) -> bool:
@@ -506,7 +589,6 @@ class AtlasMissionControl(Node):
         return map_id
 
     def set_home(self) -> None:
-        pose = self.stable_current_pose()
         session = self.active_mapping_session()
         mapping_stack_active = all(
             subprocess.run(
@@ -520,6 +602,9 @@ class AtlasMissionControl(Node):
                 "refusing to save a temporary SLAM pose without a versioned "
                 "mapping session; use /atlas/start_manual_mapping first"
             )
+        if not session and not mapping_stack_active:
+            self.require_confident_localization()
+        pose = self.stable_current_pose()
         if session:
             pose["mapping_session_id"] = session["id"]
         else:
@@ -1028,6 +1113,27 @@ class AtlasMissionControl(Node):
             raise RuntimeError("Nav2 NavigateToPose action is unavailable")
         pose = json.loads(self.home_file.read_text(encoding="utf-8"))
         self.require_matching_map(pose, "home pose")
+        current = self.current_pose()
+        if current.get("frame_id") == pose.get("frame_id", "map"):
+            distance = math.hypot(
+                float(current["x"]) - float(pose["x"]),
+                float(current["y"]) - float(pose["y"]),
+            )
+            current_yaw = 2.0 * math.atan2(
+                float(current["qz"]), float(current["qw"])
+            )
+            home_yaw = 2.0 * math.atan2(float(pose["qz"]), float(pose["qw"]))
+            yaw_error = abs(math.degrees(self.angle_delta(current_yaw, home_yaw)))
+            if (
+                distance <= self.home_already_reached_distance_m
+                and yaw_error <= self.home_already_reached_yaw_deg
+            ):
+                self.zero_pub.publish(Twist())
+                self.status(
+                    "HOME ALREADY REACHED; ROVER STOPPED "
+                    f"error={distance:.3f}m heading={yaw_error:.1f}deg"
+                )
+                return
         self.dispatch_home_goal(pose, attempt=0)
 
     def dispatch_home_goal(self, pose, attempt: int) -> None:

@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-08-25 - Gate missions on stationary AMCL convergence
+
+- Added a repeatable localization diagnostic that records AMCL covariance and
+  stationary drift alongside EKF odometry, raw wheel odometry, LiDAR age and
+  TF availability.
+- Measured a 0.70 m stationary AMCL correction while both odometry sources
+  remained exactly still. LiDAR latency remained healthy, proving that the
+  immediate failure was map localization rather than drivetrain or compute
+  timing. The installed AMCL model was already DifferentialMotionModel, so no
+  unsupported motion-model change was made.
+- Mission control now requests periodic no-motion AMCL updates while stopped
+  and requires an eight-second stable pose window in addition to covariance
+  limits before Home or autonomous goals can be accepted.
+- Added a near-Home guard that commands zero and completes locally within 5 cm
+  and 10 degrees, preventing Nav2 recovery from moving a rover already Home.
+- Made bounded tight-space recovery arc toward the wider side when left/right
+  clearance is meaningfully unbalanced, preserving all existing LiDAR,
+  odometry, displacement and watchdog limits.
+- Removed four verified static-map self-imprint cells at the converged Dhruv
+  Room pose, aligned the startup seed, and promoted map
+  `88b70c1600f73777ede2` with rollback backups.
+- Live validation completed an autonomous return with 0.05 m final error and
+  zero lethal footprint cells. A second return request correctly reported
+  `HOME ALREADY REACHED` at 0.006 m / 0.2 degrees without moving ATLAS.
+
 ## 2026-08-25 - Remove saved-map self-imprints before localization
 
 - Added a bounded occupancy-map sanitizer that clears only cells inside

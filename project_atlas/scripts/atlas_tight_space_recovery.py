@@ -36,6 +36,7 @@ class TightRecovery(Node):
         self.declare_parameter('front_clear_m', 0.65)
         self.declare_parameter('rear_clear_m', 0.55)
         self.declare_parameter('side_clear_m', 0.28)
+        self.declare_parameter('side_balance_for_straight_m', 0.06)
         self.declare_parameter('pulse_speed', 0.12)
         # The commissioned steering driver holds traction until both axles
         # settle. Allow enough wall-clock time for that safe gate, but end the
@@ -186,6 +187,12 @@ class TightRecovery(Node):
             turn = -0.25 if left > right else 0.25
             return -0.09, turn, 'alternate reverse arc toward clearer side'
         if front > fc and left > sc and right > sc:
+            side_difference = left - right
+            if abs(side_difference) > self.get_parameter(
+                'side_balance_for_straight_m'
+            ).value:
+                turn = 0.25 if side_difference > 0.0 else -0.25
+                return 0.09, turn, 'forward arc toward wider side'
             return self.get_parameter('pulse_speed').value, 0.0, 'forward'
         if front > fc and max(left, right) > sc:
             turn = 0.25 if left > right else -0.25
