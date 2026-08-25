@@ -31,6 +31,9 @@
   now stops immediately if AMCL data becomes stale or exceeds 0.25 m position
   or 12 degree heading uncertainty, and sudden 0.20 m/15 degree pose jumps are
   latched; sensor-bounded recovery remains available.
+- Preserved Yahboom odometry across same-boot CH341 USB/service restarts using
+  a 5 Hz tmpfs checkpoint. A transient motor-controller USB disconnect can no
+  longer reset `/yahboom/odom` to `(0,0)` and corrupt EKF/SLAM coordinates.
 
 ## 2026-08-25 - Gate missions on stationary AMCL convergence
 

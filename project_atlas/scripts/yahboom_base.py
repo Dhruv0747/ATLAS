@@ -6,6 +6,7 @@ Publishes  : battery, board motion, board IMU, encoder, and Yahboom odom topics.
 """
 import math
 import os
+import json
 from pathlib import Path
 import socket
 import statistics
@@ -38,6 +39,7 @@ SERVO_UPDATE_TICKS = 2
 STEER_RAMP_STEP_DEG = 6
 CMD_ODOM_VX_SCALE = 1.0
 CMD_ODOM_WZ_SCALE = 0.45
+ODOM_STATE_SAVE_PERIOD_S = 0.20
 
 FRONT_STEER_SERVO_ID = 1    # Front steering servo port on Yahboom board (1-4)
 REAR_STEER_SERVO_ID  = 2    # Rear steering servo port on Yahboom board (1-4)
@@ -121,6 +123,12 @@ class YahboomBase(Node):
         self._x = 0.0
         self._y = 0.0
         self._yaw = 0.0
+        runtime_dir = Path(
+            os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+        )
+        self._odom_state_path = runtime_dir / "atlas_yahboom_odom_state.json"
+        self._last_odom_state_save = 0.0
+        self._restore_odom_state()
         self._last_odom_t = time.monotonic()
         self._last_watchdog_ping = 0.0
 
@@ -173,6 +181,43 @@ class YahboomBase(Node):
             "READY=1\n"
             "STATUS=Yahboom serial and ROS odometry publisher online"
         )
+
+    def _restore_odom_state(self):
+        """Resume the odom origin after a same-boot USB/service restart.
+
+        XDG_RUNTIME_DIR is tmpfs and is cleared on a full Jetson reboot. This
+        preserves continuity across a transient CH341 disconnect without
+        carrying an old coordinate origin into the next boot.
+        """
+        try:
+            state = json.loads(self._odom_state_path.read_text(encoding="utf-8"))
+            self._x = float(state["x"])
+            self._y = float(state["y"])
+            self._yaw = float(state["yaw"])
+            self.get_logger().warn(
+                "Resuming same-boot odometry after driver restart: "
+                f"x={self._x:.3f} y={self._y:.3f} yaw={math.degrees(self._yaw):.1f}deg"
+            )
+        except (OSError, ValueError, KeyError, TypeError):
+            return
+
+    def _save_odom_state(self, now):
+        if now - self._last_odom_state_save < ODOM_STATE_SAVE_PERIOD_S:
+            return
+        self._last_odom_state_save = now
+        try:
+            self._odom_state_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = self._odom_state_path.with_suffix(".tmp")
+            temporary.write_text(
+                json.dumps({"x": self._x, "y": self._y, "yaw": self._yaw}) + "\n",
+                encoding="utf-8",
+            )
+            os.replace(temporary, self._odom_state_path)
+        except OSError as exc:
+            self.get_logger().warn(
+                f"Could not checkpoint same-boot odometry: {exc}",
+                throttle_duration_sec=10.0,
+            )
 
     def _systemd_watchdog(self):
         # If the ROS executor or DDS participant stalls, this timer also stops.
@@ -455,6 +500,7 @@ class YahboomBase(Node):
         self._x += distance_delta * math.cos(yaw_mid)
         self._y += distance_delta * math.sin(yaw_mid)
         self._yaw += delta_yaw
+        self._save_odom_state(now)
 
         stamp = self.get_clock().now().to_msg()
         qz = math.sin(self._yaw / 2.0)
@@ -499,6 +545,7 @@ class YahboomBase(Node):
 
     def stop(self):
         systemd_notify("STOPPING=1\nSTATUS=Stopping Yahboom base")
+        self._save_odom_state(time.monotonic() + ODOM_STATE_SAVE_PERIOD_S)
         self._applied_pwm = 0
         self.bot.set_motor(0, 0, 0, 0)
 
