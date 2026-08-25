@@ -37,9 +37,20 @@ class ArcTest(Node):
 
     def on_scan(self, msg):
         values, angle = [], msg.angle_min
-        heading = 35.0 if self.angular >= 0.0 else -35.0
+        # Guard the direction of travel. The old implementation always
+        # inspected a forward-side sector, even for a reverse arc, so it could
+        # not safely commission a doorway escape maneuver.
+        if self.speed < 0.0:
+            heading = 180.0
+            sector_width = 70.0
+        elif abs(self.angular) < 1.0e-3:
+            heading = 0.0
+            sector_width = 35.0
+        else:
+            heading = 35.0 if self.angular >= 0.0 else -35.0
+            sector_width = 55.0
         for value in msg.ranges:
-            if (ray_in_base_sector(math.degrees(angle), heading, 55.0, 180.0)
+            if (ray_in_base_sector(math.degrees(angle), heading, sector_width, 180.0)
                     and math.isfinite(value) and value >= msg.range_min):
                 values.append(value)
             angle += msg.angle_increment

@@ -266,3 +266,20 @@
 - Added a compact `TALK / LISTEN` control to the main web dashboard for the secure two-way rover intercom.
 - Added bounded boot recovery for Tailscale `NoState` startup failures and automatic restoration of the intercom Serve route.
 - Changed intercom navigation to the current dashboard tab so the MJPEG camera stream releases CPU during calls; added a return-to-dashboard control.
+# 2026-08-25 — Doorway recovery and taught-corridor navigation
+
+- Made tight-space recovery use the same conservative LiDAR sectors as the
+  main safety monitor after a narrower sector missed a door/wall edge.
+- Added rear-direction and straight-direction LiDAR guarding to the bounded
+  arc commissioning tool; unsafe arcs now stop before wheel motion.
+- Extracted the successful Dhruv Room → Hall manual demonstration into a
+  127-pose, 3.813 m map-frame taught route.
+- Added collision-checked `NavigateThroughPoses` room routing so named-place
+  navigation can follow the demonstrated doorway turn instead of aiming only
+  at the final room pose.
+- Added atomic taught-corridor map promotion with backup and map-ID rebinding.
+- Field result: localization remained stable and wall escape succeeded, but
+  final autonomous traversal remains blocked because the current footprint is
+  inside the live costmap safety envelope and low-speed pulses overshoot their
+  targets. Precision base stopping must be corrected before reduced-clearance
+  autonomous recovery is enabled.

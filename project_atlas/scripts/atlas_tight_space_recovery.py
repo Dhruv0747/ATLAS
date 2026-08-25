@@ -135,10 +135,15 @@ class TightRecovery(Node):
         self.report('RECOVERY: Nav2 paused; costmaps clearing')
 
     def choose_motion(self):
-        front = min(self.sector_min(0.0, 25.0), self.ultra['front'])
-        rear = self.sector_min(180.0, 25.0)
-        left = min(self.sector_min(70.0, 25.0), self.ultra['left'])
-        right = min(self.sector_min(-70.0, 25.0), self.ultra['right'])
+        # Match atlas_safety_status exactly.  A narrower recovery sector once
+        # classified a door/wall edge as clear while the operator safety view
+        # correctly reported it at 0.52 m, allowing a forward pulse into the
+        # obstruction. Recovery must never be less conservative than the main
+        # safety monitor.
+        front = min(self.sector_min(0.0, 35.0), self.ultra['front'])
+        rear = self.sector_min(180.0, 35.0)
+        left = min(self.sector_min(77.5, 42.5), self.ultra['left'])
+        right = min(self.sector_min(-77.5, 42.5), self.ultra['right'])
         fc = self.get_parameter('front_clear_m').value
         rc = self.get_parameter('rear_clear_m').value
         sc = self.get_parameter('side_clear_m').value
@@ -157,8 +162,8 @@ class TightRecovery(Node):
         if not self.sensors_fresh():
             return False
         if self.direction > 0:
-            return min(self.sector_min(0.0, 25.0), self.ultra['front']) > 0.34
-        return self.sector_min(180.0, 25.0) > 0.34
+            return min(self.sector_min(0.0, 35.0), self.ultra['front']) > 0.34
+        return self.sector_min(180.0, 35.0) > 0.34
 
     def publish_cmd(self, linear=0.0, angular=0.0):
         msg = Twist()

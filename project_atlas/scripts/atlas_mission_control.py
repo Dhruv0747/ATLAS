@@ -17,7 +17,7 @@ from typing import Callable, Optional
 import rclpy
 from action_msgs.srv import CancelGoal
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
-from nav2_msgs.action import NavigateToPose
+from nav2_msgs.action import NavigateThroughPoses, NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -59,6 +59,7 @@ class AtlasMissionControl(Node):
             Path.home() / ".config/project_atlas/localization_seed_pose.json"
         )
         self.places_file = Path.home() / ".config/project_atlas/named_places.json"
+        self.taught_routes_dir = Path("/home/jetson/project_atlas/config/routes")
         self.map_prefix = Path(str(self.get_parameter("map_prefix").value))
         self.map_prefix.parent.mkdir(parents=True, exist_ok=True)
         self.explore_unit = str(self.get_parameter("explore_unit").value)
@@ -87,8 +88,14 @@ class AtlasMissionControl(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.nav = ActionClient(self, NavigateToPose, "/navigate_to_pose")
+        self.nav_through = ActionClient(
+            self, NavigateThroughPoses, "/navigate_through_poses"
+        )
         self.cancel_nav = self.create_client(
             CancelGoal, "/navigate_to_pose/_action/cancel_goal"
+        )
+        self.cancel_nav_through = self.create_client(
+            CancelGoal, "/navigate_through_poses/_action/cancel_goal"
         )
         self.zero_pub = self.create_publisher(Twist, "/cmd_vel_nav", 10)
         self.camera_pan_pub = self.create_publisher(
@@ -713,7 +720,105 @@ class AtlasMissionControl(Node):
         if pose.get("frame_id") != "map":
             raise RuntimeError(f"named place {name!r} is not stored in the map frame")
         self.require_matching_map(pose, f"named place {name!r}")
+        if self.dispatch_taught_route(name):
+            return
         self.dispatch_pose_goal(pose, name)
+
+    @staticmethod
+    def yaw_quaternion(yaw: float) -> tuple:
+        return (0.0, 0.0, math.sin(yaw * 0.5), math.cos(yaw * 0.5))
+
+    def dispatch_taught_route(self, destination: str) -> bool:
+        """Follow the commissioned room corridor instead of turning late.
+
+        The route contains map poses learned from Dhruv's successful manual
+        drive. Nav2 still plans and collision-checks each segment; no recorded
+        motor command is replayed. If ATLAS is too far from the taught corridor
+        we deliberately fall back to ordinary global planning.
+        """
+        normalized = destination.strip().lower()
+        if normalized not in {"hall", "dhruv room"}:
+            return False
+        route_file = self.taught_routes_dir / "dhruv_room_to_hall.json"
+        try:
+            payload = json.loads(route_file.read_text(encoding="utf-8"))
+            points = payload["points"]
+        except (OSError, ValueError, KeyError, TypeError):
+            return False
+        if normalized == "dhruv room":
+            points = list(reversed(points))
+        current = self.current_pose()
+        nearest_index, nearest_point = min(
+            enumerate(points),
+            key=lambda pair: math.hypot(
+                float(pair[1]["x"]) - float(current["x"]),
+                float(pair[1]["y"]) - float(current["y"]),
+            ),
+        )
+        nearest_distance = math.hypot(
+            float(nearest_point["x"]) - float(current["x"]),
+            float(nearest_point["y"]) - float(current["y"]),
+        )
+        if nearest_distance > 0.65:
+            self.get_logger().warn(
+                f"Taught route ignored: rover is {nearest_distance:.2f} m "
+                "from the commissioned corridor"
+            )
+            return False
+        remaining = points[nearest_index:]
+        selected = []
+        for point in remaining:
+            if not selected:
+                selected.append(point)
+                continue
+            distance = math.hypot(
+                float(point["x"]) - float(selected[-1]["x"]),
+                float(point["y"]) - float(selected[-1]["y"]),
+            )
+            yaw_change = abs(math.atan2(
+                math.sin(float(point["yaw"]) - float(selected[-1]["yaw"])),
+                math.cos(float(point["yaw"]) - float(selected[-1]["yaw"])),
+            ))
+            if distance >= 0.22 or yaw_change >= math.radians(10.0):
+                selected.append(point)
+        if remaining and selected[-1] is not remaining[-1]:
+            selected.append(remaining[-1])
+        # The closest recorded point is a corridor anchor, not a useful goal.
+        if len(selected) > 1:
+            selected = selected[1:]
+        if not selected:
+            return False
+        self.dispatch_route_goal(selected, normalized, nearest_distance)
+        return True
+
+    def dispatch_route_goal(
+        self, points: list, label: str, corridor_distance: float
+    ) -> None:
+        self.center_camera_for_navigation()
+        if not self.nav_through.wait_for_server(timeout_sec=10.0):
+            raise RuntimeError("Nav2 NavigateThroughPoses action is unavailable")
+        goal = NavigateThroughPoses.Goal()
+        now = self.get_clock().now().to_msg()
+        for point in points:
+            pose = PoseStamped()
+            pose.header.frame_id = "map"
+            pose.header.stamp = now
+            pose.pose.position.x = float(point["x"])
+            pose.pose.position.y = float(point["y"])
+            qx, qy, qz, qw = self.yaw_quaternion(float(point["yaw"]))
+            pose.pose.orientation.x = qx
+            pose.pose.orientation.y = qy
+            pose.pose.orientation.z = qz
+            pose.pose.orientation.w = qw
+            goal.poses.append(pose)
+        future = self.nav_through.send_goal_async(goal)
+        future.add_done_callback(
+            lambda done: self.named_goal_response(done, f"{label} taught-route")
+        )
+        self.status(
+            f"TAUGHT ROUTE DISPATCHED name={label} waypoints={len(points)} "
+            f"corridor_error={corridor_distance:.2f}m"
+        )
 
     def dispatch_pose_goal(self, pose: dict, label: str) -> None:
         # Nav2 semantic fusion assumes the optical axis stays aligned with the
@@ -801,26 +906,29 @@ class AtlasMissionControl(Node):
             self.get_logger().error(f"Background restore failed: {exc}")
 
     def cancel_all_nav_goals(self) -> bool:
-        if not self.cancel_nav.wait_for_service(timeout_sec=2.0):
-            self.get_logger().warn("Nav2 cancel service unavailable")
+        clients = [self.cancel_nav, self.cancel_nav_through]
+        ready = [client for client in clients if client.wait_for_service(timeout_sec=1.0)]
+        if not ready:
+            self.get_logger().warn("Nav2 cancel services unavailable")
             return False
         request = CancelGoal.Request()
         request.goal_info.goal_id.uuid = [0] * 16
         request.goal_info.stamp.sec = 0
         request.goal_info.stamp.nanosec = 0
-        future = self.cancel_nav.call_async(request)
+        futures = [client.call_async(request) for client in ready]
         deadline = time.monotonic() + 3.0
-        while not future.done() and time.monotonic() < deadline:
+        while any(not future.done() for future in futures) and time.monotonic() < deadline:
             time.sleep(0.05)
-        if not future.done():
+        if any(not future.done() for future in futures):
             self.get_logger().error("Timed out waiting for Nav2 goal cancellation")
             return False
-        response = future.result()
-        if response is None:
+        responses = [future.result() for future in futures]
+        if any(response is None for response in responses):
             self.get_logger().error("Nav2 goal cancellation returned no response")
             return False
         self.get_logger().info(
-            f"Nav2 cancel acknowledged; goals_canceling={len(response.goals_canceling)}"
+            "Nav2 cancel acknowledged; goals_canceling="
+            f"{sum(len(response.goals_canceling) for response in responses)}"
         )
         return True
 
