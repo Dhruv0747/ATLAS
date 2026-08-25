@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-25 - Match Nav2 curvature in the four-wheel steering driver
+
+- Replaced the former proportional yaw-rate steering approximation with
+  signed four-wheel opposite-steering kinematics based on the commissioned
+  wheelbase and commanded linear/angular velocity.
+- Preserved the correct reverse curvature direction and clamped both steering
+  axles to their commissioned mechanical endpoints.
+- Added a steering-settle gate so traction remains stopped until both steering
+  axles are within 8 degrees of the curvature assumed by Nav2.
+- Corrected a rejected AMCL recovery seed by publishing a live ROS timestamp;
+  localization accepted the reconstructed stationary pose and returned to low
+  covariance before any further movement.
+
 ## 2026-08-25 - Block autonomy when saved-map localization is uncertain
 
 - Recorded a fresh Dhruv Room to Hall baseline and Hall to Dhruv Room A/B run

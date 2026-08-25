@@ -275,7 +275,54 @@ class YahboomBase(Node):
                 (MAX_PWM - MIN_RUN_PWM) * abs(drive)
             )
             pwm = magnitude if drive > 0.0 else -magnitude
-        self._applied_pwm = self._slew_motor_pwm(pwm)
+        if abs(vx) > 0.02:
+            # Four-wheel opposite steering kinematics:
+            #   wz = 2 * vx * tan(delta) / wheelbase
+            # The former wz/MAX_WZ mapping produced only ~3-6 degrees at
+            # normal Nav2 speeds, while Hybrid-A* planned a 0.35 m radius.
+            # It also steered reverse commands in the wrong curvature sense.
+            # Signed vx is essential: the wheel angle must reverse when the
+            # same yaw rate is requested while backing up.
+            steer_delta = math.degrees(math.atan(
+                (WHEELBASE_M * wz) / (2.0 * vx)
+            ))
+            steer_delta = max(-35.0, min(35.0, steer_delta))
+            front_angle = FRONT_STEER_CENTER + steer_delta
+            rear_angle = REAR_STEER_CENTER - steer_delta
+        else:
+            # Steering-only operator command: no kinematic curvature exists
+            # at zero speed, so retain proportional wheel positioning.
+            steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
+            if steer_norm >= 0.0:
+                front_angle = FRONT_STEER_CENTER + steer_norm * (
+                    FRONT_STEER_LEFT - FRONT_STEER_CENTER
+                )
+                rear_angle = REAR_STEER_CENTER + steer_norm * (
+                    REAR_STEER_RIGHT - REAR_STEER_CENTER
+                )
+            else:
+                turn = -steer_norm
+                front_angle = FRONT_STEER_CENTER + turn * (
+                    FRONT_STEER_RIGHT - FRONT_STEER_CENTER
+                )
+                rear_angle = REAR_STEER_CENTER + turn * (
+                    REAR_STEER_LEFT - REAR_STEER_CENTER
+                )
+        front_angle = max(FRONT_STEER_RIGHT, min(FRONT_STEER_LEFT, front_angle))
+        rear_angle = max(REAR_STEER_RIGHT, min(REAR_STEER_LEFT, rear_angle))
+        self._front_target_angle = int(round(front_angle))
+        self._rear_target_angle = int(round(rear_angle))
+        steering_error = max(
+            abs(self._front_target_angle - self._front_applied_angle),
+            abs(self._rear_target_angle - self._rear_applied_angle),
+        )
+        # Do not move straight while the steering servos are still traveling
+        # toward a tight-curve request. That lag made ATLAS enter the doorway
+        # before its wheels reached the angle assumed by Nav2.
+        if pwm and steering_error > 8:
+            self._applied_pwm = 0
+        else:
+            self._applied_pwm = self._slew_motor_pwm(pwm)
         # Individually verified ATLAS polarity: positive ROS linear.x must move
         # every wheel toward the physical front of the rover.
         self.bot.set_motor(
@@ -284,26 +331,6 @@ class YahboomBase(Node):
             -self._applied_pwm,
             self._applied_pwm,
         )
-        steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
-        if steer_norm >= 0.0:
-            # Positive ROS angular.z is a left turn: front points left while
-            # the rear counter-steers right.
-            front_angle = FRONT_STEER_CENTER + steer_norm * (
-                FRONT_STEER_LEFT - FRONT_STEER_CENTER
-            )
-            rear_angle = REAR_STEER_CENTER + steer_norm * (
-                REAR_STEER_RIGHT - REAR_STEER_CENTER
-            )
-        else:
-            turn = -steer_norm
-            front_angle = FRONT_STEER_CENTER + turn * (
-                FRONT_STEER_RIGHT - FRONT_STEER_CENTER
-            )
-            rear_angle = REAR_STEER_CENTER + turn * (
-                REAR_STEER_LEFT - REAR_STEER_CENTER
-            )
-        self._front_target_angle = int(round(front_angle))
-        self._rear_target_angle = int(round(rear_angle))
         self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
         self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))
         self._pub_steer_mode.publish(String(data='four_wheel_opposite'))
