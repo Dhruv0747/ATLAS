@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-25 - Add rear ultrasonic close-range protection
+
+- Extended the UNO R4 sensor-hub firmware to scan the new rear ultrasonic
+  sensor on D8/TRIG and D9/ECHO and report it as the `B=` telemetry field.
+- Added `/ultrasonic/rear_mm` to the ROS bridge and enabled the Arduino sensor
+  hub at login so all four ultrasonic topics start automatically.
+- Added a fresh-data reverse-motion veto to the command mux and combined the
+  rear ultrasonic reading with rear LiDAR in safety status and tight-space
+  recovery. LiDAR remains the primary navigation sensor.
+- Added the fourth live reading to the web and 11-inch touchscreen sensor
+  views. A no-echo value remains unavailable data rather than a false obstacle.
+
 ## 2026-08-25 - Reject corrupt-map starts and restore LiDAR SLAM correction
 
 - Added a strict return-home campaign preflight that checks the exact

@@ -15,6 +15,9 @@ constexpr uint8_t LEFT_TRIG = 4;
 constexpr uint8_t LEFT_ECHO = 5;
 constexpr uint8_t RIGHT_TRIG = 6;
 constexpr uint8_t RIGHT_ECHO = 7;
+constexpr uint8_t REAR_TRIG = 8;
+constexpr uint8_t REAR_ECHO = 9;
+constexpr uint8_t ULTRASONIC_COUNT = 4;
 
 constexpr uint8_t PCA9685_ADDR = 0x40;
 constexpr uint8_t BME680_ADDRS[] = {0x77, 0x76};
@@ -49,9 +52,13 @@ float bno_ax = 0.0f, bno_ay = 0.0f, bno_az = 0.0f;
 float bno_mx = 0.0f, bno_my = 0.0f, bno_mz = 0.0f;
 bool bno_have_q = false, bno_have_g = false, bno_have_a = false, bno_have_m = false;
 
-int distances_mm[3] = {-1, -1, -1};
-const uint8_t trig_pins[3] = {FRONT_TRIG, LEFT_TRIG, RIGHT_TRIG};
-const uint8_t echo_pins[3] = {FRONT_ECHO, LEFT_ECHO, RIGHT_ECHO};
+int distances_mm[ULTRASONIC_COUNT] = {-1, -1, -1, -1};
+const uint8_t trig_pins[ULTRASONIC_COUNT] = {
+  FRONT_TRIG, LEFT_TRIG, RIGHT_TRIG, REAR_TRIG
+};
+const uint8_t echo_pins[ULTRASONIC_COUNT] = {
+  FRONT_ECHO, LEFT_ECHO, RIGHT_ECHO, REAR_ECHO
+};
 uint8_t next_sensor = 0;
 
 int servo_us[4] = {2000, 1500, 1500, 700};
@@ -285,6 +292,8 @@ void printTelemetry() {
   Serial.print(distances_mm[1]);
   Serial.print(",R=");
   Serial.print(distances_mm[2]);
+  Serial.print(",B=");
+  Serial.print(distances_mm[3]);
   Serial.print(",LA=");
   Serial.print(servo_us[0]);
   Serial.print(",RA=");
@@ -548,7 +557,7 @@ void serviceGpsDiagnostics(uint32_t now) {
 
 void updateMatrix() {
   uint8_t frame[8][12] = {};
-  // Front zone, left zone, right zone, and lower status bar.
+  // Front, left, right, rear zones, and lower nearest-distance status bar.
   if (distances_mm[0] > 0 && distances_mm[0] < 600) {
     for (uint8_t r = 0; r < 3; ++r) for (uint8_t c = 4; c < 8; ++c) frame[r][c] = 1;
   }
@@ -558,9 +567,13 @@ void updateMatrix() {
   if (distances_mm[2] > 0 && distances_mm[2] < 500) {
     for (uint8_t r = 2; r < 6; ++r) for (uint8_t c = 9; c < 12; ++c) frame[r][c] = 1;
   }
+  if (distances_mm[3] > 0 && distances_mm[3] < 600) {
+    for (uint8_t r = 5; r < 7; ++r) for (uint8_t c = 4; c < 8; ++c) frame[r][c] = 1;
+  }
   const int nearest = min(distances_mm[0] > 0 ? distances_mm[0] : 9999,
                           min(distances_mm[1] > 0 ? distances_mm[1] : 9999,
-                              distances_mm[2] > 0 ? distances_mm[2] : 9999));
+                              min(distances_mm[2] > 0 ? distances_mm[2] : 9999,
+                                  distances_mm[3] > 0 ? distances_mm[3] : 9999)));
   const uint8_t width = nearest < 300 ? 12 : (nearest < 700 ? 8 : 4);
   for (uint8_t c = 0; c < width; ++c) frame[7][c] = 1;
   matrix.renderBitmap(frame, 8, 12);
@@ -569,7 +582,7 @@ void updateMatrix() {
 void setup() {
   Serial.begin(USB_BAUD);
   Serial1.begin(GPS_BAUD);
-  for (uint8_t i = 0; i < 3; ++i) {
+  for (uint8_t i = 0; i < ULTRASONIC_COUNT; ++i) {
     pinMode(trig_pins[i], OUTPUT);
     digitalWrite(trig_pins[i], LOW);
     pinMode(echo_pins[i], INPUT);
@@ -586,7 +599,7 @@ void setup() {
   printI2cScan();
   initializeI2cSensors();
   delay(100);
-  Serial.println("ATLAS_UNO_SENSOR_HUB_V3");
+  Serial.println("ATLAS_UNO_SENSOR_HUB_V4");
 }
 
 void loop() {
@@ -603,7 +616,7 @@ void loop() {
   if (now - last_range_ms >= 32) {
     last_range_ms = now;
     distances_mm[next_sensor] = readRangeMm(trig_pins[next_sensor], echo_pins[next_sensor]);
-    next_sensor = (next_sensor + 1) % 3;
+    next_sensor = (next_sensor + 1) % ULTRASONIC_COUNT;
   }
   if (now - last_report_ms >= 120) {
     last_report_ms = now;

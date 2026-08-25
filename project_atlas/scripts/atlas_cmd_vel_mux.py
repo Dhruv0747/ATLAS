@@ -39,6 +39,7 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("remote_linear_deadband", 0.06)
         self.declare_parameter("remote_angular_deadband", 0.12)
         self.declare_parameter("auto_front_stop_m", 0.30)
+        self.declare_parameter("auto_rear_stop_m", 0.30)
         # Rover half-width is 0.18 m; preserve the commissioned 0.10 m
         # wheel-edge clearance during autonomous steering.
         self.declare_parameter("auto_side_stop_m", 0.28)
@@ -78,6 +79,9 @@ class AtlasCmdVelMux(Node):
         )
         self.auto_front_stop_m = float(
             self.get_parameter("auto_front_stop_m").value
+        )
+        self.auto_rear_stop_m = float(
+            self.get_parameter("auto_rear_stop_m").value
         )
         self.auto_side_stop_m = float(
             self.get_parameter("auto_side_stop_m").value
@@ -128,8 +132,13 @@ class AtlasCmdVelMux(Node):
         self.ultrasonic_enabled = os.environ.get(
             "ATLAS_ULTRASONIC_ENABLED", "1"
         ).strip().lower() not in ("0", "false", "no", "off")
-        self.ultrasonic = {"front": float("inf"), "left": float("inf"), "right": float("inf")}
-        self.ultrasonic_rx = {"front": 0.0, "left": 0.0, "right": 0.0}
+        self.ultrasonic = {
+            "front": float("inf"), "left": float("inf"),
+            "right": float("inf"), "rear": float("inf"),
+        }
+        self.ultrasonic_rx = {
+            "front": 0.0, "left": 0.0, "right": 0.0, "rear": 0.0,
+        }
         self.channels: Dict[str, Channel] = {
             "REMOTE": Channel("REMOTE", "/cmd_vel_joy", 1, manual_timeout),
             # Recovery has an independent channel so dashboard zero-heartbeats
@@ -160,7 +169,7 @@ class AtlasCmdVelMux(Node):
                 lambda msg, name=channel.name: self.on_command(name, msg),
                 10,
             )
-        for side in ("front", "left", "right"):
+        for side in ("front", "left", "right", "rear"):
             self.create_subscription(
                 Float32,
                 f"/ultrasonic/{side}_mm",
@@ -351,6 +360,21 @@ class AtlasCmdVelMux(Node):
             abs(command.linear.x) * self.auto_reaction_time_s
             + self.auto_stop_margin_m,
         )
+        rear_stop_m = max(
+            self.auto_rear_stop_m,
+            abs(command.linear.x) * self.auto_reaction_time_s
+            + self.auto_stop_margin_m,
+        )
+        if (
+            command.linear.x < 0.0
+            and fresh["rear"]
+            and self.ultrasonic["rear"] < rear_stop_m
+        ):
+            return (
+                "AUTONOMY BLOCKED: REAR "
+                f"{self.ultrasonic['rear']:.2f} m "
+                f"(stop {rear_stop_m:.2f} m)"
+            )
         if (
             command.linear.x > 0.0
             and fresh["front"]
@@ -462,7 +486,8 @@ class AtlasCmdVelMux(Node):
                         f"{health} "
                         f"F {self.ultrasonic['front']:.2f} m "
                         f"L {self.ultrasonic['left']:.2f} m "
-                        f"R {self.ultrasonic['right']:.2f} m"
+                        f"R {self.ultrasonic['right']:.2f} m "
+                        f"B {self.ultrasonic['rear']:.2f} m"
                     )
                 )
             )

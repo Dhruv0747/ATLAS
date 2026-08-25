@@ -172,6 +172,7 @@ class DashNode(Node):
         S(Float32, '/ultrasonic/front_mm', lambda m: DATA.set(us_front=m.data), 10)
         S(Float32, '/ultrasonic/left_mm',  lambda m: DATA.set(us_left=m.data), 10)
         S(Float32, '/ultrasonic/right_mm', lambda m: DATA.set(us_right=m.data), 10)
+        S(Float32, '/ultrasonic/rear_mm',  lambda m: DATA.set(us_rear=m.data), 10)
         S(String,  '/ultrasonic/status',   lambda m: DATA.set(us_status=m.data), 10)
         S(String,  '/atlas/recovery_status', lambda m: DATA.set(recovery_status=m.data), 10)
         S(String,  '/atlas/recovery_state',  self._recovery_state, 10)
@@ -768,8 +769,9 @@ def draw_ultrasonic_map(x, y, w, h):
     front = DATA.get('us_front', -1.0)
     left = DATA.get('us_left', -1.0)
     right = DATA.get('us_right', -1.0)
-    live = fresh('us_status', 2.5) or fresh('us_front', 2.5) or fresh('us_left', 2.5) or fresh('us_right', 2.5)
-    valid = [v for v in [front, left, right] if v is not None and v >= 0]
+    rear = DATA.get('us_rear', -1.0)
+    live = fresh('us_status', 2.5) or fresh('us_front', 2.5) or fresh('us_left', 2.5) or fresh('us_right', 2.5) or fresh('us_rear', 2.5)
+    valid = [v for v in [front, left, right, rear] if v is not None and v >= 0]
     nearest = min(valid) if valid else -1
     zone, zc = sensor_word(nearest, live and nearest >= 0)
 
@@ -778,10 +780,23 @@ def draw_ultrasonic_map(x, y, w, h):
     blit_fit(f'ULTRASONIC {zone}', F15, zc, x+7, y+4, w-14)
     nearest_txt = f'nearest {int(nearest)} mm' if nearest >= 0 else 'no distance data'
     blit_fit(nearest_txt, F10, DIM, x+7, y+24, w-14)
-    ry = y + 39
-    draw_sensor_row('FRONT', front, x+7, ry, w-14, live, 1800)
-    draw_sensor_row('LEFT', left, x+7, ry+27, w-14, live, 1800)
-    draw_sensor_row('RIGHT', right, x+7, ry+54, w-14, live, 1800)
+    # Four compact 2x2 tiles fit the small overview card without crossing the
+    # LiDAR panel below it. The full sensor page retains the larger gauges.
+    gap = 5
+    tile_w = (w - 19) // 2
+    tile_h = max(24, (h - 47 - gap) // 2)
+    for index, (label, mm) in enumerate(
+        [('FRONT', front), ('REAR', rear), ('LEFT', left), ('RIGHT', right)]
+    ):
+        col, row = index % 2, index // 2
+        tx = x + 7 + col * (tile_w + gap)
+        ty = y + 39 + row * (tile_h + gap)
+        word, color = sensor_word(mm, live)
+        pygame.draw.rect(screen, (8, 18, 30), (tx, ty, tile_w, tile_h), border_radius=4)
+        pygame.draw.rect(screen, color, (tx, ty, tile_w, tile_h), 1, border_radius=4)
+        blit_fit(label, F10, DIM, tx+5, ty+4, 44)
+        reading = f'{int(mm)} mm' if live and mm is not None and mm >= 0 else word
+        blit_fit(reading, F13, color, tx+52, ty+3, tile_w-57)
 def draw_compass(cx, cy, r, deg):
     deg = deg % 360.0
     pygame.draw.circle(screen, (5, 15, 26), (cx, cy), r)
@@ -1027,8 +1042,9 @@ def draw_range_block(x, y, w, h):
     front = DATA.get('us_front', -1.0)
     left = DATA.get('us_left', -1.0)
     right = DATA.get('us_right', -1.0)
-    us_live = fresh('us_status', 2.5) or fresh('us_front', 2.5) or fresh('us_left', 2.5) or fresh('us_right', 2.5)
-    us_vals = [v for v in [front, left, right] if v is not None and v >= 0]
+    rear = DATA.get('us_rear', -1.0)
+    us_live = fresh('us_status', 2.5) or fresh('us_front', 2.5) or fresh('us_left', 2.5) or fresh('us_right', 2.5) or fresh('us_rear', 2.5)
+    us_vals = [v for v in [front, left, right, rear] if v is not None and v >= 0]
     us_near = min(us_vals) if us_vals else -1
     us_word, us_col = sensor_word(us_near, us_live and us_near >= 0)
 
@@ -1060,7 +1076,7 @@ def draw_range_block(x, y, w, h):
         for wx, wy in [(cx-33, ry-15), (cx+33, ry-15), (cx-33, ry+17), (cx+33, ry+17)]:
             pygame.draw.circle(screen, (10, 16, 24), (wx, wy), 5)
             pygame.draw.circle(screen, ACCENT, (wx, wy), 5, 1)
-        for label, mm, px, py in [('F', front, cx, inner_y+48), ('L', left, ux+18, ry+23), ('R', right, ux+card_w-58, ry+23)]:
+        for label, mm, px, py in [('F', front, cx, inner_y+48), ('L', left, ux+18, ry+23), ('R', right, ux+card_w-58, ry+23), ('B', rear, cx, ry+44)]:
             word, col = sensor_word(mm, us_live)
             pygame.draw.rect(screen, (8, 18, 30), (px-22, py, 44, 30), border_radius=5)
             pygame.draw.rect(screen, col, (px-22, py, 44, 30), 1, border_radius=5)
@@ -1436,8 +1452,8 @@ def draw_hud_sensor_strip(x, y, w, h):
     hud_line(rx-8, y+36, rx-8, y+h, BORDER, 1)
     hud_line(tx-8, y+36, tx-8, y+h, BORDER, 1)
     us_live = fresh('us_status', 2.5) or fresh('us_front', 2.5)
-    left = DATA.get('us_left', -1.0); front = DATA.get('us_front', -1.0); right = DATA.get('us_right', -1.0)
-    us_vals = [v for v in [left, front, right] if v is not None and v >= 0]
+    left = DATA.get('us_left', -1.0); front = DATA.get('us_front', -1.0); right = DATA.get('us_right', -1.0); rear = DATA.get('us_rear', -1.0)
+    us_vals = [v for v in [left, front, right, rear] if v is not None and v >= 0]
     us_near = min(us_vals) if us_vals else -1
     us_word, us_col = sensor_word(us_near, us_live and us_near >= 0)
     hud_label(f'ULTRASONIC {us_word}', ux, y+40, us_col, F15, third-20)
@@ -1462,6 +1478,7 @@ def draw_hud_sensor_strip(x, y, w, h):
     beam('FRONT', front, -90, 58, 20)
     beam('LEFT', left, 180, 58, 18)
     beam('RIGHT', right, 0, 58, 18)
+    beam('REAR', rear, 90, 52, 20)
 
     logo = scaled_logo(74, 74)
     if logo:
@@ -1881,7 +1898,7 @@ def draw_touch_range_overlay(rect):
     ]
     ultra = [
         ('FRONT', DATA.get('us_front', -1)), ('LEFT', DATA.get('us_left', -1)),
-        ('RIGHT', DATA.get('us_right', -1)),
+        ('RIGHT', DATA.get('us_right', -1)), ('REAR', DATA.get('us_rear', -1)),
     ]
     hud_label('LiDAR', band.x+10, band.y+8, ACCENT, F13, 60)
     cell = (band.w-76)//4
@@ -1893,7 +1910,7 @@ def draw_touch_range_overlay(rect):
         hud_label(f'{int(value)} mm' if live else '--', x, band.y+25, color, F13, cell-4)
     pygame.draw.line(screen,(32,54,72),(band.x+8,band.y+45),(band.right-8,band.y+45),1)
     hud_label('ULTRA', band.x+10, band.y+54, GREEN, F13, 60)
-    cell=(band.w-76)//3
+    cell=(band.w-76)//4
     for i,(label,value) in enumerate(ultra):
         live=ultra_live and value is not None and value >= 0
         _,color=sensor_word(value,live)
@@ -2052,9 +2069,9 @@ def draw_live_sensor_detail(rect, name, info):
     if name in ('ambient', 'thermal'):
         draw_environment_panel(rect.x+34, rect.y+92, rect.w-68, rect.h-128)
     elif name == 'ultrasonic':
-        labels = [('LEFT', 'us_left'), ('FRONT', 'us_front'), ('RIGHT', 'us_right')]
+        labels = [('LEFT', 'us_left'), ('FRONT', 'us_front'), ('RIGHT', 'us_right'), ('REAR', 'us_rear')]
         gap = 18
-        card_w = (rect.w - 68 - gap*2)//3
+        card_w = (rect.w - 68 - gap*3)//4
         top = rect.y + 125
         for index, (label, key) in enumerate(labels):
             value = DATA.get(key, -1)
@@ -2078,7 +2095,7 @@ def draw_live_sensor_detail(rect, name, info):
                 fill = int(max(0, min(1, mm/3000.0))*bar.w)
                 pygame.draw.rect(screen, sensor_color, (bar.x, bar.y, fill, bar.h), border_radius=8)
             hud_label(f'AGE {DATA.age(key):.1f}s', tile.x+32, tile.y+268, DIM, F13, tile.w-64)
-        hud_label('LiDAR is the primary navigation layer; these three sensors provide close-range backup protection.',
+        hud_label('LiDAR is primary; four ultrasonic sensors provide close-range backup including reverse protection.',
                   rect.x+34, rect.bottom-48, ACCENT, F14, rect.w-68)
     elif name == 'camera':
         feed = pygame.Rect(rect.x+34, rect.y+102, int(rect.w*.70), rect.h-165)

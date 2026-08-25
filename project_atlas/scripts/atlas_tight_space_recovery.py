@@ -62,7 +62,7 @@ class TightRecovery(Node):
         # Fused /odom can be delayed or corrected by the EKF/SLAM stack and
         # once allowed a pulse to run past its cap before reporting 0.383 m.
         self.create_subscription(Odometry, '/yahboom/odom', self.odom_cb, 20)
-        for name in ('front', 'left', 'right'):
+        for name in ('front', 'left', 'right', 'rear'):
             self.create_subscription(Float32, f'/ultrasonic/{name}_mm',
                                      lambda msg, n=name: self.ultra_cb(n, msg), 10)
         self.clear_clients = [
@@ -71,8 +71,13 @@ class TightRecovery(Node):
         self.phase = Phase.IDLE
         self.scan = None
         self.scan_time = 0.0
-        self.ultra = {'front': math.inf, 'left': math.inf, 'right': math.inf}
-        self.ultra_time = {'front': 0.0, 'left': 0.0, 'right': 0.0}
+        self.ultra = {
+            'front': math.inf, 'left': math.inf,
+            'right': math.inf, 'rear': math.inf,
+        }
+        self.ultra_time = {
+            'front': 0.0, 'left': 0.0, 'right': 0.0, 'rear': 0.0,
+        }
         self.odom = None
         self.previous_odom = None
         self.odom_discontinuity = False
@@ -177,7 +182,7 @@ class TightRecovery(Node):
         # obstruction. Recovery must never be less conservative than the main
         # safety monitor.
         front = min(self.sector_min(0.0, 35.0), self.ultra['front'])
-        rear = self.sector_min(180.0, 35.0)
+        rear = min(self.sector_min(180.0, 35.0), self.ultra['rear'])
         left = min(self.sector_min(77.5, 42.5), self.ultra['left'])
         right = min(self.sector_min(-77.5, 42.5), self.ultra['right'])
         fc = self.get_parameter('front_clear_m').value
@@ -218,7 +223,9 @@ class TightRecovery(Node):
             ) > 0.34
             swept_side = 77.5 if self.angular > 0 else -77.5
         else:
-            travel_clear = self.sector_min(180.0, 35.0) > 0.34
+            travel_clear = min(
+                self.sector_min(180.0, 35.0), self.ultra['rear']
+            ) > 0.34
             # Positive yaw while reversing sweeps the rear toward the right.
             swept_side = -77.5 if self.angular > 0 else 77.5
         if not travel_clear:

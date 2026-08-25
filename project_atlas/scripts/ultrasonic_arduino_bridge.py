@@ -25,7 +25,12 @@ GNSS_ENABLED = os.environ.get('ATLAS_GNSS_ENABLED', '1').strip().lower() not in 
     '0', 'false', 'no', 'off',
 )
 CAMERA_ROUTE = os.environ.get('ATLAS_CAMERA_ROUTE', 'jetson').strip().lower()
-LINE_RE = re.compile(r'F=(-?\d+),L=(-?\d+),R=(-?\d+)(?:,LA=(-?\d+),RA=(-?\d+),C1=(-?\d+),C2=(-?\d+),PCA=(\d+))?,OK=(\d+)')
+LINE_RE = re.compile(
+    r'F=(?P<front>-?\d+),L=(?P<left>-?\d+),R=(?P<right>-?\d+)'
+    r'(?:,B=(?P<rear>-?\d+))?'
+    r'(?:,LA=(?P<la>-?\d+),RA=(?P<ra>-?\d+),C1=(?P<c1>-?\d+),'
+    r'C2=(?P<c2>-?\d+),PCA=(?P<pca>\d+))?,OK=(?P<ok>\d+)'
+)
 
 
 class UltrasonicArduinoBridge(Node):
@@ -34,6 +39,7 @@ class UltrasonicArduinoBridge(Node):
         self.front_pub = self.create_publisher(Float32, '/ultrasonic/front_mm', 10)
         self.left_pub = self.create_publisher(Float32, '/ultrasonic/left_mm', 10)
         self.right_pub = self.create_publisher(Float32, '/ultrasonic/right_mm', 10)
+        self.rear_pub = self.create_publisher(Float32, '/ultrasonic/rear_mm', 10)
         self.status_pub = self.create_publisher(String, '/ultrasonic/status', 10)
         self.pca_status_pub = self.create_publisher(String, '/arduino/pca9685/status', 10)
         self.left_servo_pub = self.create_publisher(Int32, '/ultrasonic/left_servo_us', 10)
@@ -465,14 +471,20 @@ class UltrasonicArduinoBridge(Node):
         if not m:
             self.status_pub.publish(String(data=f'parse_error {raw[:80]}'))
             return
-        groups = m.groups()
-        front, left, right = [int(v) for v in groups[:3]]
-        la, ra, c1, c2, pca, ok = groups[3:]
+        values = m.groupdict()
+        front = int(values['front'])
+        left = int(values['left'])
+        right = int(values['right'])
+        rear = int(values['rear']) if values['rear'] is not None else -1
+        la, ra, c1, c2, pca = (
+            values['la'], values['ra'], values['c1'], values['c2'], values['pca']
+        )
         self.publish_mm(self.front_pub, front)
         # The two side ultrasonic sensors are physically mirrored on ATLAS:
         # the Arduino's LEFT field is the rover's right side and vice versa.
         self.publish_mm(self.left_pub, right)
         self.publish_mm(self.right_pub, left)
+        self.publish_mm(self.rear_pub, rear)
         if la is not None:
             self.left_servo_pub.publish(Int32(data=int(la)))
             self.right_servo_pub.publish(Int32(data=int(ra)))
@@ -485,7 +497,9 @@ class UltrasonicArduinoBridge(Node):
                 self.camera_status_pub.publish(String(data=f'online via=arduino cam1_us={c1} cam2_us={c2}'))
             self.pca_status_pub.publish(String(data=f'pca={pca} left_us={la} right_us={ra} cam1_us={c1} cam2_us={c2}'))
         self.last_ok = time.time()
-        self.status_pub.publish(String(data=f'ok front={front} left={left} right={right}'))
+        self.status_pub.publish(
+            String(data=f'ok front={front} left={left} right={right} rear={rear}')
+        )
 
     def destroy_node(self):
         if self.ser is not None:

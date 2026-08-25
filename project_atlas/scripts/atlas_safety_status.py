@@ -39,6 +39,8 @@ class AtlasSafetyStatus(Node):
         self.front_ultrasonic = math.inf
         self.left_ultrasonic = math.inf
         self.right_ultrasonic = math.inf
+        self.rear_ultrasonic = math.inf
+        self.last_rear_ultrasonic = 0.0
         self.plan_points = 0
         self.map_width_m = 0.0
         self.map_height_m = 0.0
@@ -80,6 +82,9 @@ class AtlasSafetyStatus(Node):
         self.create_subscription(
             Float32, "/ultrasonic/right_mm",
             lambda msg: self.on_side_ultrasonic("right", msg), 10
+        )
+        self.create_subscription(
+            Float32, "/ultrasonic/rear_mm", self.on_rear_ultrasonic, 10
         )
         self.create_subscription(
             String, "/atlas/motion_safety", self.on_motion_safety, 10
@@ -205,6 +210,18 @@ class AtlasSafetyStatus(Node):
             self.left_ultrasonic = value
         else:
             self.right_ultrasonic = value
+
+    def on_rear_ultrasonic(self, msg: Float32) -> None:
+        value_mm = float(msg.data)
+        self.rear_ultrasonic = (
+            value_mm / 1000.0 if value_mm > 0.0 else math.inf
+        )
+        self.last_rear_ultrasonic = time.monotonic()
+
+    def rear_clearance(self, now: float) -> float:
+        if now - self.last_rear_ultrasonic <= 1.5:
+            return min(self.rear_lidar, self.rear_ultrasonic)
+        return self.rear_lidar
 
     def on_motion_safety(self, msg: String) -> None:
         self.motion_safety = msg.data
@@ -351,7 +368,8 @@ class AtlasSafetyStatus(Node):
         level, phase, text, decision = self.classify()
         self.status_pub.publish(String(data=text))
         self.phase_pub.publish(String(data=phase))
-        self.rear_clearance_pub.publish(Float32(data=float(self.rear_lidar)))
+        rear_clearance = self.rear_clearance(now)
+        self.rear_clearance_pub.publish(Float32(data=float(rear_clearance)))
         state = {
             "phase": phase,
             "severity": ["OK", "WARN", "ERROR"][min(level, 2)],
@@ -373,7 +391,7 @@ class AtlasSafetyStatus(Node):
                 "front": round(min(self.front_lidar, self.front_ultrasonic), 3),
                 "left": round(min(self.left_lidar, self.left_ultrasonic), 3),
                 "right": round(min(self.right_lidar, self.right_ultrasonic), 3),
-                "rear": round(self.rear_lidar, 3),
+                "rear": round(rear_clearance, 3),
             },
             "map": {
                 "width_m": round(self.map_width_m, 2),
@@ -437,6 +455,13 @@ class AtlasSafetyStatus(Node):
             KeyValue(key="left_ultrasonic_m", value=f"{self.left_ultrasonic:.3f}"),
             KeyValue(key="right_ultrasonic_m", value=f"{self.right_ultrasonic:.3f}"),
             KeyValue(key="rear_lidar_m", value=f"{self.rear_lidar:.3f}"),
+            KeyValue(
+                key="rear_ultrasonic_m",
+                value="unknown"
+                if not math.isfinite(self.rear_ultrasonic)
+                else f"{self.rear_ultrasonic:.3f}",
+            ),
+            KeyValue(key="rear_clearance_m", value=f"{rear_clearance:.3f}"),
             KeyValue(key="odometry_source", value=self.odom_source),
             KeyValue(key="map_known_percent", value=f"{self.map_known_pct:.1f}"),
             KeyValue(key="plan_points", value=str(self.plan_points)),
