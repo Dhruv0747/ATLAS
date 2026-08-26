@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-08-26 - Preserve named places across atomic map acceptance
+
+- Tagged named places captured during manual SLAM with the active mapping
+  session instead of the previous accepted map identity, then promoted those
+  records only after candidate-map validation succeeds.
+- Completed a Hall to Dhruv Room to Hall manual mapping pass. The Jetson
+  accepted map `1ffeabdd1dbc0c0b519c`; Hall and Dhruv Room now share that
+  exact identity and saved-map AMCL converged at the Hall endpoint.
+- A planning-only validation found a map bottleneck near `x=-0.85, y=-4.6`
+  that disconnects the two rooms after applying ATLAS's 0.36 m body width.
+  Collision safety remains unchanged; this passage requires a slower LiDAR
+  remap before autonomous room-to-room movement is enabled.
+
+## 2026-08-26 - Add direct ultrasonic telemetry to Foxglove
+
+- Upgraded the persistent Project ATLAS Smooth Drive extension to display
+  live front, left, right, and rear ultrasonic ranges in metres and raw
+  millimetres.
+- Added explicit waiting/no-echo presentation and the Arduino sensor-hub
+  status so a disconnected or disabled sensor is not mistaken for zero range.
+- Diagnosed the commissioned room metadata as stale after the accepted map was
+  refreshed; stale room goals remain blocked until the house is remapped.
+- Added a strict map-identity gate for taught routes so a route recorded on an
+  older occupancy map can never be replayed against a replacement map frame.
+
 ## 2026-08-25 - Add rear ultrasonic close-range protection
 
 - Extended the UNO R4 sensor-hub firmware to scan the new rear ultrasonic

@@ -2,6 +2,8 @@
 build/
 install/
 log/
+node_modules/
+dist/
 
 # Python/runtime output
 __pycache__/

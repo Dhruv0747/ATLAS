@@ -17,6 +17,13 @@ type Twist = {
 
 type StringMessage = { data?: string };
 type Int32Message = { data?: number };
+type Float32Message = { data?: number };
+type UltrasonicReadings = {
+  front?: number;
+  left?: number;
+  right?: number;
+  rear?: number;
+};
 type AutonomyState = {
   phase?: string;
   severity?: string;
@@ -51,6 +58,29 @@ const MAX_LINEAR = 0.2;
 const MAX_ANGULAR = 0.45;
 const PUBLISH_HZ = 20;
 
+function ultrasonicColor(value: number | undefined): string {
+  if (value == undefined || value < 0) {
+    return "#8099b5";
+  }
+  if (value < 250) {
+    return "#ff4d5a";
+  }
+  if (value < 450) {
+    return "#ffc857";
+  }
+  return "#41d18b";
+}
+
+function ultrasonicLabel(value: number | undefined): string {
+  if (value == undefined) {
+    return "WAITING";
+  }
+  if (value < 0) {
+    return "NO ECHO";
+  }
+  return `${(value / 1000).toFixed(2)} m`;
+}
+
 function zeroTwist(): Twist {
   return {
     linear: { x: 0, y: 0, z: 0 },
@@ -71,6 +101,8 @@ function AtlasDrivePanel({ context }: { context: PanelExtensionContext }): React
   const [autonomy, setAutonomy] = useState<AutonomyState>();
   const [cameraPanUs, setCameraPanUs] = useState(1300);
   const [cameraTiltUs, setCameraTiltUs] = useState(2100);
+  const [ultrasonic, setUltrasonic] = useState<UltrasonicReadings>({});
+  const [ultrasonicStatus, setUltrasonicStatus] = useState("Waiting for sensor hub");
   const [canPublish, setCanPublish] = useState(false);
   const [renderDone, setRenderDone] = useState<(() => void)>();
 
@@ -178,6 +210,18 @@ function AtlasDrivePanel({ context }: { context: PanelExtensionContext }): React
           setCameraPanUs((event as MessageEvent<Int32Message>).message.data ?? 1300);
         } else if (event.topic === "/camera/second_servo_us") {
           setCameraTiltUs((event as MessageEvent<Int32Message>).message.data ?? 2100);
+        } else if (event.topic === "/ultrasonic/status") {
+          setUltrasonicStatus(message.data ?? "unknown");
+        } else if (event.topic.startsWith("/ultrasonic/") && event.topic.endsWith("_mm")) {
+          const value = (event as MessageEvent<Float32Message>).message.data;
+          if (value != undefined) {
+            const direction = event.topic.slice("/ultrasonic/".length, -"_mm".length) as
+              | "front"
+              | "left"
+              | "right"
+              | "rear";
+            setUltrasonic((previous) => ({ ...previous, [direction]: value }));
+          }
         }
       }
       setRenderDone(() => done);
@@ -191,6 +235,11 @@ function AtlasDrivePanel({ context }: { context: PanelExtensionContext }): React
       { topic: "/atlas/autonomy_state" },
       { topic: "/camera/bottom_servo_us" },
       { topic: "/camera/second_servo_us" },
+      { topic: "/ultrasonic/front_mm" },
+      { topic: "/ultrasonic/left_mm" },
+      { topic: "/ultrasonic/right_mm" },
+      { topic: "/ultrasonic/rear_mm" },
+      { topic: "/ultrasonic/status" },
     ]);
     context.advertise?.(CMD_TOPIC, "geometry_msgs/msg/Twist");
     for (const topic of MISSION_TOPICS) {
@@ -392,6 +441,71 @@ function AtlasDrivePanel({ context }: { context: PanelExtensionContext }): React
           ))}
         </div>
       )}
+
+      <div
+        style={{
+          marginTop: 10,
+          border: "1px solid #294866",
+          borderRadius: 8,
+          padding: 9,
+          background: "#071321a8",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ color: "#62c8ff", fontSize: 11, fontWeight: 900 }}>
+            LIVE ULTRASONIC
+          </div>
+          <div style={{ color: "#8099b5", fontSize: 9, textAlign: "right" }}>
+            raw sensor range
+          </div>
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: 6,
+            marginTop: 7,
+          }}
+        >
+          {(["front", "left", "right", "rear"] as const).map((direction) => {
+            const value = ultrasonic[direction];
+            const color = ultrasonicColor(value);
+            return (
+              <div
+                key={`ultrasonic-${direction}`}
+                style={{
+                  minWidth: 0,
+                  padding: "7px 4px",
+                  border: `1px solid ${color}`,
+                  borderRadius: 7,
+                  background: `${color}12`,
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ color: "#9db0c8", fontSize: 8, fontWeight: 800 }}>
+                  {direction.toUpperCase()}
+                </div>
+                <div style={{ color, fontSize: 12, fontWeight: 900, whiteSpace: "nowrap" }}>
+                  {ultrasonicLabel(value)}
+                </div>
+                <div style={{ color: "#607891", fontSize: 8 }}>
+                  {value != undefined && value >= 0 ? `${Math.round(value)} mm` : "—"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div
+          style={{
+            marginTop: 6,
+            color: ultrasonicStatus.startsWith("ok") ? "#41d18b" : "#ffc857",
+            fontSize: 9,
+            overflowWrap: "anywhere",
+          }}
+        >
+          HUB: {ultrasonicStatus}
+        </div>
+      </div>
 
       <div
         ref={padRef}

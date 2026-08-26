@@ -586,6 +586,18 @@ class AtlasMissionControl(Node):
             value["map_id"] = map_id
             value.pop("mapping_session_id", None)
             self.atomic_write_json(path, value)
+        places = self.load_named_places()
+        places_changed = False
+        for pose in places.values():
+            if not isinstance(pose, dict):
+                continue
+            if pose.get("mapping_session_id") != session["id"]:
+                continue
+            pose["map_id"] = map_id
+            pose.pop("mapping_session_id", None)
+            places_changed = True
+        if places_changed:
+            self.atomic_write_json(self.places_file, places)
         return map_id
 
     def set_home(self) -> None:
@@ -805,7 +817,14 @@ class AtlasMissionControl(Node):
             raise RuntimeError(
                 "named places require a live map pose; start mapping or localization first"
             )
-        pose["map_id"] = self.current_map_id()
+        session = self.active_mapping_session()
+        if session:
+            # The live SLAM frame belongs to the candidate map, not the
+            # previously accepted map. Defer binding until that candidate is
+            # validated and atomically promoted by accept_saved_map().
+            pose["mapping_session_id"] = session["id"]
+        else:
+            pose["map_id"] = self.current_map_id()
         places = self.load_named_places()
         places[name] = pose
         self.places_file.parent.mkdir(parents=True, exist_ok=True)
@@ -852,6 +871,14 @@ class AtlasMissionControl(Node):
             payload = json.loads(route_file.read_text(encoding="utf-8"))
             points = payload["points"]
         except (OSError, ValueError, KeyError, TypeError):
+            return False
+        route_map_id = payload.get("map_id")
+        current_map_id = self.current_map_id()
+        if not route_map_id or not current_map_id or route_map_id != current_map_id:
+            self.get_logger().warn(
+                "Taught route ignored: route map identity is missing or does not "
+                "match the accepted occupancy map"
+            )
             return False
         if normalized == "dhruv room":
             points = list(reversed(points))
