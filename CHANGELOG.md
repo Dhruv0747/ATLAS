@@ -11,6 +11,10 @@
   recovery. LiDAR remains the primary navigation sensor.
 - Added the fourth live reading to the web and 11-inch touchscreen sensor
   views. A no-echo value remains unavailable data rather than a false obstacle.
+- Enabled the installed ultrasonic layer in the deployed hardware profile.
+  A motor-disconnected integration test proved a 0.20 m rear obstacle forces
+  91/91 mux output samples to zero, and a full reboot restored the physical
+  rear reading and all safety services automatically.
 
 ## 2026-08-25 - Reject corrupt-map starts and restore LiDAR SLAM correction
 
