@@ -156,7 +156,11 @@ class AtlasMissionControl(Node):
         self.nomotion_client = self.create_client(
             EmptyService, "/request_nomotion_update"
         )
-        self.create_timer(2.0, self.request_stationary_localization_update)
+        # AMCL publishes poses after a configured odometry delta rather than
+        # as a fixed-rate heartbeat. Force the next scan update once per
+        # second so the mux can distinguish healthy slow/stationary
+        # localization from a dead AMCL process without relaxing its timeout.
+        self.create_timer(1.0, self.request_periodic_localization_update)
 
         self.worker = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="atlas-mission"
@@ -303,12 +307,49 @@ class AtlasMissionControl(Node):
             )
         )
 
-    def request_stationary_localization_update(self) -> None:
-        """Keep stationary AMCL convergence observable before mission dispatch."""
-        if "STOPPED" not in self.safety_status.upper():
-            return
+    def request_periodic_localization_update(self) -> None:
+        """Keep scan/odometry-backed AMCL health observable at low speed.
+
+        Nav2 AMCL's no-motion service sets ``force_update`` for the next laser
+        callback. Despite the historical service name, AMCL still reads and
+        applies the latest odometry delta. This is therefore safe while moving
+        and prevents an event-driven pose topic from looking dead to the mux.
+        """
         if self.nomotion_client.service_is_ready():
             self.nomotion_client.call_async(EmptyService.Request())
+
+    def refresh_localization_before_motion(self, timeout_s: float = 5.0) -> None:
+        """Force one fresh AMCL sample immediately before releasing motion.
+
+        AMCL normally waits for a configured odometry change before
+        publishing. The motor mux intentionally refuses autonomous motion when
+        AMCL is older than 2.5 seconds, so a stationary rover can otherwise
+        deadlock at mission start. A forced scan update breaks that deadlock
+        without relaxing the watchdog.
+        """
+        if not self.nomotion_client.wait_for_service(timeout_sec=1.0):
+            raise RuntimeError("AMCL no-motion update service is unavailable")
+        previous_stamp = (
+            self.localization_samples[-1][0]
+            if self.localization_samples else 0.0
+        )
+        future = self.nomotion_client.call_async(EmptyService.Request())
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            if future.done() and future.exception() is not None:
+                raise RuntimeError(
+                    f"AMCL no-motion update failed: {future.exception()}"
+                )
+            if (
+                self.localization_samples
+                and self.localization_samples[-1][0] > previous_stamp
+            ):
+                self.require_confident_localization()
+                return
+            time.sleep(0.05)
+        raise RuntimeError(
+            "AMCL did not publish a fresh pose before motion; autonomy remains blocked"
+        )
 
     @staticmethod
     def angle_delta(first: float, second: float) -> float:
@@ -930,6 +971,7 @@ class AtlasMissionControl(Node):
         self, points: list, label: str, corridor_distance: float
     ) -> None:
         self.center_camera_for_navigation()
+        self.refresh_localization_before_motion()
         if not self.nav_through.wait_for_server(timeout_sec=10.0):
             raise RuntimeError("Nav2 NavigateThroughPoses action is unavailable")
         goal = NavigateThroughPoses.Goal()
@@ -969,6 +1011,7 @@ class AtlasMissionControl(Node):
                 check=False, timeout=10, capture_output=True, text=True,
             )
         self.center_camera_for_navigation()
+        self.refresh_localization_before_motion()
         if not self.nav.wait_for_server(timeout_sec=10.0):
             self.restore_goal_tracker()
             raise RuntimeError("Nav2 NavigateToPose action is unavailable")
@@ -1135,7 +1178,7 @@ class AtlasMissionControl(Node):
             raise RuntimeError(
                 f"safety blocks return-home: {self.safety_status}"
             )
-        self.require_confident_localization()
+        self.refresh_localization_before_motion()
         if not self.nav.wait_for_server(timeout_sec=10.0):
             raise RuntimeError("Nav2 NavigateToPose action is unavailable")
         pose = json.loads(self.home_file.read_text(encoding="utf-8"))

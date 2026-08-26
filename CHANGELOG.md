@@ -2,6 +2,15 @@
 
 ## 2026-08-26 - Preserve named places across atomic map acceptance
 
+- Kept ROS 2 DDS discovery local to the Jetson while preserving remote
+  Foxglove/web/Visual Cloud TCP access. This removes the multi-interface DDS
+  discovery storm that starved scan, odometry, and AMCL callbacks.
+- Added a one-second forced AMCL scan update during saved-map localization so
+  slow or stationary motion cannot be misclassified as a dead localization
+  process. The mux's 2.5-second stale-localization watchdog remains unchanged.
+- Added a mandatory pre-motion AMCL no-motion refresh for named goals, taught
+  routes, and return-home. This verifies one fresh, confident pose immediately
+  before dispatch; no watchdog threshold was weakened.
 - Tagged named places captured during manual SLAM with the active mapping
   session instead of the previous accepted map identity, then promoted those
   records only after candidate-map validation succeeds.
