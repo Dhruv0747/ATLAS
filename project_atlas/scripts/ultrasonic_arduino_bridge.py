@@ -4,6 +4,7 @@ import time
 import os
 import math
 import json
+import socket
 
 import rclpy
 from rclpy.node import Node
@@ -32,6 +33,9 @@ GNSS_ENABLED = os.environ.get('ATLAS_GNSS_ENABLED', '1').strip().lower() not in 
     '0', 'false', 'no', 'off',
 )
 CAMERA_ROUTE = os.environ.get('ATLAS_CAMERA_ROUTE', 'jetson').strip().lower()
+CAMERA_SOCKET_PATH = os.environ.get(
+    'ATLAS_MEGA_CAMERA_SOCKET', '/run/user/1000/atlas-mega-camera.sock'
+).strip()
 LINE_RE = re.compile(
     r'F=(?P<front>-?\d+),L=(?P<left>-?\d+),R=(?P<right>-?\d+)'
     r'(?:,B=(?P<rear>-?\d+))?'
@@ -115,6 +119,18 @@ class UltrasonicArduinoBridge(Node):
                 lambda m: self.send_servo(self.camera_tilt_channel, m.data), 10)
         self.create_subscription(Int32, '/ultrasonic/right_servo_cmd_us', lambda m: self.send_servo(3, m.data), 10)
         self.ser = None
+        self.camera_socket = None
+        if self.camera_via_arduino:
+            try:
+                if os.path.exists(CAMERA_SOCKET_PATH):
+                    os.unlink(CAMERA_SOCKET_PATH)
+                self.camera_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+                self.camera_socket.bind(CAMERA_SOCKET_PATH)
+                os.chmod(CAMERA_SOCKET_PATH, 0o600)
+                self.camera_socket.setblocking(False)
+            except Exception as exc:
+                self.camera_socket = None
+                self.get_logger().error(f'camera command socket unavailable: {exc}')
         self.last_ok = 0.0
         self.radar_last_rx = 0.0
         self.radar_bytes_total = 0
@@ -196,6 +212,25 @@ class UltrasonicArduinoBridge(Node):
             return
         pulse_us = max(500, min(2500, pulse_us))
         self.write_line(f'SERVO,{int(channel)},{pulse_us}')
+
+    def read_local_camera_commands(self):
+        """Accept dashboard fallback commands without opening Mega serial twice."""
+        if self.camera_socket is None:
+            return
+        for _ in range(8):
+            try:
+                raw = self.camera_socket.recv(96)
+            except BlockingIOError:
+                break
+            except OSError:
+                break
+            match = re.fullmatch(rb'SERVO,(\d+),(\d+)', raw.strip())
+            if not match:
+                continue
+            channel, pulse = (int(match.group(1)), int(match.group(2)))
+            if channel not in (self.camera_pan_channel, self.camera_tilt_channel):
+                continue
+            self.send_servo(channel, pulse)
 
     def servo_cmd_cb(self, msg):
         value = int(msg.data)
@@ -545,6 +580,7 @@ class UltrasonicArduinoBridge(Node):
                   f'NO2={data["NO2"]:.1f}ppb O3={data["O3"]:.1f}ppb')))
 
     def tick(self):
+        self.read_local_camera_commands()
         if self.ser is None:
             self.connect()
             return
@@ -664,6 +700,13 @@ class UltrasonicArduinoBridge(Node):
         )
 
     def destroy_node(self):
+        if self.camera_socket is not None:
+            try:
+                self.camera_socket.close()
+                if os.path.exists(CAMERA_SOCKET_PATH):
+                    os.unlink(CAMERA_SOCKET_PATH)
+            except Exception:
+                pass
         if self.ser is not None:
             try:
                 self.ser.close()

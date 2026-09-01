@@ -5,6 +5,7 @@ import os
 import json
 import math
 import re
+import socket
 import subprocess
 import threading
 import time
@@ -22,6 +23,9 @@ from sensor_msgs.msg import NavSatFix, LaserScan, CompressedImage, Joy
 from std_msgs.msg import Bool, Float32, String, Int32
 
 PORT = 8088
+MEGA_CAMERA_SOCKET = os.environ.get(
+    "ATLAS_MEGA_CAMERA_SOCKET", "/run/user/1000/atlas-mega-camera.sock"
+)
 COCO_LABELS = ['person','bicycle','car','motorcycle','airplane','bus','train','truck','boat','traffic light','fire hydrant','stop sign','parking meter','bench','bird','cat','dog','horse','sheep','cow','elephant','bear','zebra','giraffe','backpack','umbrella','handbag','tie','suitcase','frisbee','skis','snowboard','sports ball','kite','baseball bat','baseball glove','skateboard','surfboard','tennis racket','bottle','wine glass','cup','fork','knife','spoon','bowl','banana','apple','sandwich','orange','broccoli','carrot','hot dog','pizza','donut','cake','chair','couch','potted plant','bed','dining table','toilet','tv','laptop','mouse','remote','keyboard','cell phone','microwave','oven','toaster','sink','refrigerator','book','clock','vase','scissors','teddy bear','hair drier','toothbrush']
 AI_MODES = {"eco", "object", "face", "gesture", "color", "line", "follow"}
 MANIFEST_JSON = """{
@@ -519,6 +523,7 @@ class AtlasRosNode:
         if axis == "pan" and self.pan_pub is not None:
             self.pan_us = max(700, min(2300, self.pan_us + direction * 40))
             self.pan_pub.publish(Int32(data=self.pan_us))
+            self._send_mega_camera(0, self.pan_us)
             return True, f"pan {self.pan_us}us"
         if axis == "tilt" and self.tilt_pub is not None:
             # The web UI's screen-space direction is opposite the installed
@@ -528,14 +533,33 @@ class AtlasRosNode:
             direction = -direction
             self.tilt_us = max(700, min(2300, self.tilt_us + direction * 50))
             self.tilt_pub.publish(Int32(data=self.tilt_us))
+            self._send_mega_camera(1, self.tilt_us)
             return True, f"tilt {self.tilt_us}us"
         if axis == "center" and self.pan_pub is not None and self.tilt_pub is not None:
             self.pan_us = 1300
             self.tilt_us = 2100
             self.pan_pub.publish(Int32(data=self.pan_us))
             self.tilt_pub.publish(Int32(data=self.tilt_us))
+            self._send_mega_camera(0, self.pan_us)
+            self._send_mega_camera(1, self.tilt_us)
             return True, "camera centred"
         return False, "camera publisher unavailable"
+
+    @staticmethod
+    def _send_mega_camera(channel, pulse_us):
+        """Local fallback; the Mega bridge remains the sole serial owner."""
+        try:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            try:
+                sock.sendto(
+                    f"SERVO,{int(channel)},{int(pulse_us)}".encode(),
+                    MEGA_CAMERA_SOCKET,
+                )
+            finally:
+                sock.close()
+            return True
+        except OSError:
+            return False
 
     def _load_ai_model(self):
         if self.ai_model is not None:

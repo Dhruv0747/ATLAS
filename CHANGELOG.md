@@ -18,6 +18,10 @@
 - Prevented the Jetson serial bridge from asserting CH340 DTR/RTS while opening
   the Mega port. This avoids Mega-only resets that leave externally powered
   I2C peripherals in a mismatched state and disable the camera controller.
+- Added a local Unix-datagram camera-command fallback between the web dashboard
+  and the single Mega serial owner. Dashboard pan/tilt remains functional when
+  ROS Python graph discovery is temporarily unavailable, without allowing a
+  second process to open or reset the Mega serial port.
 
 ## 2026-09-01 - Restore Mega radar and AMG8833 dashboard visibility
 
