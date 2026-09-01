@@ -108,6 +108,8 @@ class UltrasonicArduinoBridge(Node):
         self.create_subscription(Int32, '/ultrasonic/right_servo_cmd_us', lambda m: self.send_servo(3, m.data), 10)
         self.ser = None
         self.last_ok = 0.0
+        self.radar_last_rx = 0.0
+        self.radar_bytes_total = 0
         self.gps_hdop = math.nan
         self.gps_constellations = set()
         self.gps_constellation_counts = {
@@ -570,6 +572,7 @@ class UltrasonicArduinoBridge(Node):
         if raw.startswith('RADARHEX,'):
             payload = raw.split(',', 1)[1].strip()
             if payload and len(payload) % 2 == 0:
+                self.radar_last_rx = time.time()
                 self.radar_raw_pub.publish(String(data=payload))
                 self.radar_status_pub.publish(String(
                     data=(f'{self.hub_transport.upper()}_RADAR_STREAM '
@@ -580,6 +583,16 @@ class UltrasonicArduinoBridge(Node):
             return
         if raw.startswith('HEARTBEAT,'):
             self.status_pub.publish(String(data=raw))
+            match = re.search(r'RADAR_BAUD=(\d+),RADAR_BYTES=(\d+)', raw)
+            if match:
+                baud, total = (int(value) for value in match.groups())
+                self.radar_bytes_total = total
+                age = (time.time() - self.radar_last_rx
+                       if self.radar_last_rx else -1.0)
+                state = 'STREAMING' if 0 <= age < 3.0 else 'WAITING_FOR_UART'
+                self.radar_status_pub.publish(String(
+                    data=(f'{self.hub_transport.upper()}_RADAR_{state} '
+                          f'baud={baud} bytes_total={total} rx_age_s={age:.1f}')))
             return
         if raw.startswith('ACK,') or raw.startswith('ERR,'):
             self.pca_status_pub.publish(String(data=raw))

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-01 - Restore Mega radar and AMG8833 dashboard visibility
+
+- Accepted the Mega thermal payload's `pixels_c` field in every 8x8 heatmap.
+- Added a live Mega radar-link heartbeat with baud, byte count, and receive age.
+- Distinguished a healthy hub waiting for radar UART from a disconnected radar.
+- Replaced obsolete direct-Jetson radar wiring guidance with Mega Serial2 pins.
+
 ## 2026-09-01 - Permanent Mega sensor ownership
 
 - Made the Mega 2560 the authoritative owner for ATLAS low-bandwidth sensors.
