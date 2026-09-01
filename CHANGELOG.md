@@ -12,6 +12,9 @@
 - Hardened the Mega 2560 sensor-hub I2C transport with the AVR Wire timeout so
   a disconnected, unpowered, or SDA/SCL-stuck peripheral cannot freeze GPS,
   radar, ultrasonic telemetry, or camera-command processing.
+- Added automatic stuck-bus recovery: the Mega releases SDA/SCL with clock
+  pulses and a STOP condition, reinitializes Wire, and retries the installed
+  I2C sensors every 30 seconds without rebooting the Jetson.
 
 ## 2026-09-01 - Restore Mega radar and AMG8833 dashboard visibility
 

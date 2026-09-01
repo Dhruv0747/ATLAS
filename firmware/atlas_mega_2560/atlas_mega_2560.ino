@@ -108,6 +108,7 @@ uint32_t last_nicla_ms = 0;
 uint32_t last_scan_ms = 0;
 uint32_t last_ultrasonic_sample_ms = 0;
 uint32_t last_ultrasonic_report_ms = 0;
+uint16_t i2c_recovery_count = 0;
 int ultrasonic_mm[ULTRASONIC_COUNT] = {-1, -1, -1, -1};
 const uint8_t ultrasonic_trig_pins[ULTRASONIC_COUNT] = {
   FRONT_TRIG, LEFT_TRIG, RIGHT_TRIG, REAR_TRIG
@@ -120,6 +121,52 @@ char command_buffer[128];
 size_t command_length = 0;
 char gps_buffer[160];
 size_t gps_length = 0;
+
+void configureSensorWire() {
+  ATLAS_SENSOR_WIRE.begin();
+#if defined(ARDUINO_ARCH_AVR)
+  ATLAS_SENSOR_WIRE.setWireTimeout(25000, true);
+#endif
+  ATLAS_SENSOR_WIRE.setClock(I2C_HZ);
+}
+
+// Release an I2C slave that lost power or reset while holding SDA low.  This
+// is deliberately local to the Mega: losing the environmental/PCA bus must
+// not require rebooting the Jetson or interrupt GPS/radar/ultrasonic traffic.
+bool recoverI2cBus() {
+#if defined(ARDUINO_ARCH_AVR)
+  ATLAS_SENSOR_WIRE.end();
+  pinMode(SDA, INPUT_PULLUP);
+  pinMode(SCL, INPUT_PULLUP);
+  delay(2);
+
+  for (uint8_t pulse = 0; pulse < 18 && digitalRead(SDA) == LOW; ++pulse) {
+    pinMode(SCL, OUTPUT);
+    digitalWrite(SCL, LOW);
+    delayMicroseconds(8);
+    pinMode(SCL, INPUT_PULLUP);
+    delayMicroseconds(8);
+  }
+
+  // Generate a STOP condition: SDA low -> SCL released high -> SDA released.
+  pinMode(SDA, OUTPUT);
+  digitalWrite(SDA, LOW);
+  delayMicroseconds(8);
+  pinMode(SCL, INPUT_PULLUP);
+  delayMicroseconds(8);
+  pinMode(SDA, INPUT_PULLUP);
+  delayMicroseconds(8);
+
+  const bool released = digitalRead(SDA) == HIGH && digitalRead(SCL) == HIGH;
+  configureSensorWire();
+  ++i2c_recovery_count;
+  Serial.print("I2CRECOVERY,COUNT="); Serial.print(i2c_recovery_count);
+  Serial.print(",RELEASED="); Serial.println(released ? 1 : 0);
+  return released;
+#else
+  return false;
+#endif
+}
 
 bool probe(uint8_t address) {
   ATLAS_SENSOR_WIRE.beginTransmission(address);
@@ -528,14 +575,7 @@ void setup() {
     digitalWrite(ultrasonic_trig_pins[i], LOW);
     pinMode(ultrasonic_echo_pins[i], INPUT);
   }
-  ATLAS_SENSOR_WIRE.begin();
-  // Never let one faulty or unpowered I2C peripheral freeze the complete
-  // Mega sensor hub (GPS, radar, ultrasonics and camera commands).  AVR Wire
-  // can otherwise block forever when SDA/SCL is held low.
-#if defined(ARDUINO_ARCH_AVR)
-  ATLAS_SENSOR_WIRE.setWireTimeout(25000, true);
-#endif
-  ATLAS_SENSOR_WIRE.setClock(I2C_HZ);
+  configureSensorWire();
   ATLAS_GPS_SERIAL.begin(gps_baud);
   ATLAS_RADAR_SERIAL.begin(radar_baud);
   delay(1200);
@@ -583,6 +623,7 @@ void loop() {
     sensor_offline = sensor_offline || !nicla_online;
 #endif
     if (sensor_offline) {
+      recoverI2cBus();
       initializeSensors();
     }
   }
@@ -593,7 +634,8 @@ void loop() {
     Serial.print(",GPS_BAUD="); Serial.print(gps_baud);
     Serial.print(",GPS_BYTES="); Serial.print(gps_bytes);
     Serial.print(",RADAR_BAUD="); Serial.print(radar_baud);
-    Serial.print(",RADAR_BYTES="); Serial.println(radar_bytes);
+    Serial.print(",RADAR_BYTES="); Serial.print(radar_bytes);
+    Serial.print(",I2C_RECOVERIES="); Serial.println(i2c_recovery_count);
   }
   delay(1);
 }
