@@ -224,7 +224,15 @@ void initializePca() {
   // Sleep, set 50 Hz prescale, then wake with register auto-increment enabled.
   pca_online = pcaWrite8(0x00, 0x10) && pcaWrite8(0xFE, 121) && pcaWrite8(0x00, 0x20);
   delay(5);
-  if (pca_online) pcaHomeCamera();
+  if (pca_online) {
+    // Keep both servos electrically released at boot.  Automatically driving
+    // the commissioned home angles here can create a simultaneous stall-current
+    // surge before the servo rail has stabilized, brown out the Mega, and trap
+    // the complete shared I2C bus in a reset loop.  Dashboard/voice/remote
+    // commands explicitly energize an axis when the operator needs it.
+    pcaFree(CAMERA_PAN_CHANNEL);
+    pcaFree(CAMERA_TILT_CHANNEL);
+  }
 }
 
 void scanBus() {

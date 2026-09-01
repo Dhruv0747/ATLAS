@@ -26,6 +26,10 @@
   thermal, ultrasonic, and ambient faults are now diagnosed while the Mega
   firmware handles its shared I2C bus locally, preventing a restart feedback
   loop that repeatedly reset the controller and disabled every I2C device.
+- Changed PCA9685 startup to release both camera-servo outputs instead of
+  automatically homing both axes simultaneously. This avoids boot-time servo
+  stall-current surges that brown out the Mega and repeatedly reset the shared
+  I2C sensor bus; an explicit camera command now energizes an axis.
 
 ## 2026-09-01 - Restore Mega radar and AMG8833 dashboard visibility
 
