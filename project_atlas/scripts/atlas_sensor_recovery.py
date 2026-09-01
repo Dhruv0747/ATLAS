@@ -46,12 +46,18 @@ MONITORS = tuple(item for item in (
     Monitor("lidar", "/scan", LaserScan, 5.0, "atlas-lidar.service"),
     Monitor("camera", "/camera/image_raw/compressed", CompressedImage, 8.0,
             "atlas-camera.service"),
-    Monitor("imu", "/imu/data", Imu, 5.0, "atlas-mega-sensor-hub.service"),
+    # The Mega is the single owner for several shared-bus sensors. Restarting
+    # its CH340 serial service can hardware-reset only the Mega while its I2C
+    # peripherals remain powered, turning one stale topic into a complete bus
+    # outage. The Mega firmware performs bounded bus recovery internally;
+    # systemd still restarts the bridge if the process genuinely crashes.
+    Monitor("imu", "/imu/data", Imu, 5.0,
+            "atlas-mega-sensor-hub.service", recover=False),
     Monitor("radar", "/radar/targets", String, 8.0, "rover-radar.service"),
     Monitor("ultrasonic", "/ultrasonic/status", String, 8.0,
-            "atlas-mega-sensor-hub.service"),
+            "atlas-mega-sensor-hub.service", recover=False),
     Monitor("thermal", "/thermal/amg8833/status", String, 10.0,
-            "atlas-mega-sensor-hub.service"),
+            "atlas-mega-sensor-hub.service", recover=False),
     # The ambient sensor is currently being replaced. Diagnose bad/stale data,
     # but do not create restart loops while the BME680 is electrically absent.
     Monitor("ambient", "/environment/outside_status", String, 10.0,
