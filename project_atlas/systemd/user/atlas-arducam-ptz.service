@@ -1,6 +1,6 @@
 [Unit]
 Description=Project ATLAS Arducam B0283 pan tilt driver
-After=default.target
+After=atlas-camera.service
 
 [Service]
 Type=simple

@@ -1,13 +1,77 @@
 # Changelog
 
+## 2026-09-01 - Permanent Mega sensor ownership
+
+- Made the Mega 2560 the authoritative owner for ATLAS low-bandwidth sensors.
+- Changed the EKF startup dependency from the obsolete direct IMU service to
+  `atlas-mega-sensor-hub.service`.
+- Documented the legacy direct sensor services that must remain masked.
+- Fixed the Arducam pan/tilt driver leaking an I2C file descriptor after each
+  failed controller probe.
+
+## 2026-09-01 - Replace Portenta sensor hub with Mega 2560
+
+- Added independently buildable Mega 2560 firmware for BME680, AMG8833,
+  BNO08x, L76K GNSS, RD-03D radar, and four sequential ultrasonic channels.
+- Extended the existing ROS bridge to recognize the Mega transport while
+  preserving all established ATLAS topic names and physical side labels.
+- Separated the identical CH340 Yahboom and Mega devices by fixed Jetson USB
+  topology (`2.4` motor base, `2.2.3` Mega), eliminating unsafe tty-number and
+  generic `/dev/yahboom` selection.
+- Added an inactive Mega systemd service, udev alias installer, and complete
+  wiring/commissioning documentation. Portenta files remain only as migration
+  history and are no longer the active transport.
+- Verified live Mega streams for BME680, AMG8833, BNO08x, GPS NMEA, and RD-03D
+  radar. Four ultrasonic inputs currently report no echo. The Nicla Sense Env
+  library is unavailable on the AVR runtime and is reported offline honestly.
+- Commissioned the installed rear ultrasonic wiring as Mega TRIG 23/ECHO 22;
+  the unused front channel moves to TRIG 28/ECHO 29 to prevent pin contention.
+
+## 2026-08-29 - Add four ultrasonic sensors to the Portenta hub
+
+- Assigned Portenta D0-D7 to front, left, right, and rear ultrasonic Trigger/Echo
+  pairs without conflicting with Wire2, GNSS, radar, or USB.
+- Added staggered ranging and compatible `F/L/R/B` telemetry to the Portenta
+  firmware, plus direct physical-side handling in the ROS bridge.
+- Documented mandatory 5 V Echo-to-3.3 V level conversion and safe wiring.
+
+## 2026-08-29 - Prepare Portenta H7 Lite sensor-hub migration
+
+- Added firmware for a telemetry-only Portenta H7 Lite sensor hub using the
+  isolated external `Wire2` bus, UART2 for GNSS, UART3 for RD-03D radar, and
+  USB CDC for the Jetson link. The firmware supports BME680, AMG8833, BNO08x,
+  Nicla Sense Env, NMEA forwarding, radar-byte forwarding, health heartbeats,
+  I2C scans, and automatic sensor reconnection.
+- Generalized the existing Jetson sensor bridge to select its serial device and
+  transport through environment variables while preserving the commissioned
+  UNO R4 defaults.
+- Added complete Nicla Sense Env ROS telemetry (HS4001 temperature/humidity,
+  ZMOD4410 IAQ/eCO2/TVOC/ethanol, and ZMOD4510 AQI/NO2/O3) and a staged raw
+  Portenta radar channel.
+- Added an inactive Portenta systemd unit, stable udev identities, guarded root
+  installer, and a documented one-device-at-a-time migration procedure. No
+  current sensor service or hardware route was changed.
+
 ## 2026-08-26 - Preserve named places across atomic map acceptance
 
+- Smoothed four-wheel steering without changing its commissioned centres or
+  rear mechanical endpoints: servo updates now use 3-degree steps every 100
+  ms, preserving the prior 30 deg/s slew rate. Conservatively extended the
+  front-right endpoint from 58 to 42 degrees during supervised
+  recommissioning. The additional range remains pending a watched
+  steering-only mechanical-limit test. Added an 8-PWM curvature-aware
+  inside/outside wheel bias to reduce tyre scrub during forward and reverse
+  turns while keeping every driven wheel above the verified breakaway PWM.
 - Kept ROS 2 DDS discovery local to the Jetson while preserving remote
   Foxglove/web/Visual Cloud TCP access. This removes the multi-interface DDS
   discovery storm that starved scan, odometry, and AMCL callbacks.
 - Added a one-second forced AMCL scan update during saved-map localization so
   slow or stationary motion cannot be misclassified as a dead localization
   process. The mux's 2.5-second stale-localization watchdog remains unchanged.
+- Raised only the mux's AMCL yaw-covariance gate from 12 to 20 degrees after
+  recorded route evidence showed 14-17.4 degrees during valid turns while the
+  actual map-to-odom correction stayed below one degree. Pose-jump, XY
+  confidence, costmap, LiDAR, watchdog and emergency-stop guards are unchanged.
 - Added a mandatory pre-motion AMCL no-motion refresh for named goals, taught
   routes, and return-home. This verifies one fresh, confident pose immediately
   before dispatch; no watchdog threshold was weakened.
@@ -452,3 +516,15 @@
   inside the live costmap safety envelope and low-speed pulses overshoot their
   targets. Precision base stopping must be corrected before reduced-clearance
   autonomous recovery is enabled.
+# 2026-08-26
+
+- Made the navigation-input boot gate daemon-free and explicitly local-only,
+  preventing stale ROS 2 CLI daemon faults from blocking saved-map localization.
+- Removed the pan/tilt service's dependency on `default.target`, eliminating
+  the camera/LiDAR fusion startup ordering cycle seen after reboot.
+## 2026-08-27
+
+- Made the shared TensorRT camera annotator enable automatically after a
+  20-second DDS/CUDA warm-up so the AI safety feed survives reboot without
+  starving ROS graph discovery; Eco mode can still disable inference through
+  `/atlas/ai_enabled`.

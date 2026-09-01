@@ -31,26 +31,44 @@ class RD03DNode(Node):
         self.pub_nearest_y = self.create_publisher(Float32, "/radar/nearest_y", 10)
         self.pub_nearest_speed = self.create_publisher(Float32, "/radar/nearest_speed", 10)
         self.pub_zone = self.create_publisher(String, "/radar/zone", 10)
-        self.port = os.environ.get("ATLAS_RADAR_PORT", "/dev/ttyTHS1")
-        self.ser = serial.Serial(
-            self.port,
-            256000,
-            timeout=0,
-            rtscts=False,
-            dsrdtr=False,
-        )
-        time.sleep(0.5)
-        self.ser.write(MULTI_TARGET_CMD)
-        self.ser.flush()
-        time.sleep(0.2)
         self.buf = b""
-        self.timer = self.create_timer(0.05, self.read_cb)
-        self.get_logger().info(f"RD03D multi-target mode started on {self.port}")
+        self.ser = None
+        self.source = os.environ.get("ATLAS_RADAR_SOURCE", "serial").strip().lower()
+        if self.source == "topic":
+            self.create_subscription(
+                String, "/radar/hub/raw_hex", self.raw_hex_cb, 50
+            )
+            self.get_logger().info("RD03D decoder using Mega sensor-hub stream")
+        else:
+            self.port = os.environ.get("ATLAS_RADAR_PORT", "/dev/ttyTHS1")
+            self.ser = serial.Serial(
+                self.port, 256000, timeout=0, rtscts=False, dsrdtr=False
+            )
+            time.sleep(0.5)
+            self.ser.write(MULTI_TARGET_CMD)
+            self.ser.flush()
+            time.sleep(0.2)
+            self.timer = self.create_timer(0.05, self.read_cb)
+            self.get_logger().info(
+                f"RD03D multi-target mode started on {self.port}"
+            )
+
+    def raw_hex_cb(self, msg):
+        try:
+            self.buf += bytes.fromhex(msg.data.strip())
+        except ValueError:
+            self.get_logger().warning("Discarding malformed radar hex chunk")
+            return
+        self.parse_frames()
 
     def read_cb(self):
         chunk = self.ser.read(128)
         if chunk:
             self.buf += chunk
+
+        self.parse_frames()
+
+    def parse_frames(self):
 
         while len(self.buf) >= FRAME_LEN:
             index = self.buf.find(HEADER)
@@ -108,7 +126,8 @@ def main():
     try:
         rclpy.spin(node)
     finally:
-        node.ser.close()
+        if node.ser is not None:
+            node.ser.close()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

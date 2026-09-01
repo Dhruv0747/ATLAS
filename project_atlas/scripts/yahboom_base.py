@@ -35,8 +35,15 @@ BOOST_TIME_S = 0.25
 LOW_SPEED_HOLD_PWM = 45
 PWM_RAMP_STEP = 8
 CMD_TIMEOUT_S = 0.45
-SERVO_UPDATE_TICKS = 2
-STEER_RAMP_STEP_DEG = 6
+# Apply smaller steering increments at every 100 ms control tick.  This keeps
+# the commissioned 30 deg/s slew rate while removing the coarse 6-degree jump
+# that made low-speed right steering feel abrupt.
+SERVO_UPDATE_TICKS = 1
+STEER_RAMP_STEP_DEG = 3
+# Four equal wheel speeds force the tyres to scrub during a 4WS turn.  Keep
+# every powered wheel at or above the commissioned breakaway PWM, but give the
+# outside pair a small speed advantage and the inside pair a small reduction.
+TURN_PWM_BIAS = 8
 CMD_ODOM_VX_SCALE = 1.0
 CMD_ODOM_WZ_SCALE = 0.45
 ODOM_STATE_SAVE_PERIOD_S = 0.20
@@ -50,7 +57,10 @@ FRONT_STEER_CENTER   = 83   # Straight-ahead angle (commissioned 2026-08-24)
 REAR_STEER_CENTER    = 106  # Straight-ahead angle (commissioned 2026-08-24)
 # Lifted-wheel physical commissioning (2026-08-24). These are independent
 # asymmetric endpoints; do not derive rear limits from the front geometry.
-FRONT_STEER_RIGHT    = 58
+# Extended right endpoint requested during supervised recommissioning.  This
+# 42-degree setting must be physically validated before autonomous driving;
+# immediately restore 52 if the linkage contacts, strains, or the servo buzzes.
+FRONT_STEER_RIGHT    = 42
 FRONT_STEER_LEFT     = 130
 REAR_STEER_RIGHT     = 58
 REAR_STEER_LEFT      = 142
@@ -71,6 +81,10 @@ ENCODER_COUNTS_PER_REV = (4048.7, 3300.6, 4080.1, 2697.8)
 # M1/M4 require positive PWM; M2/M3 require negative PWM. Encoder polarity
 # follows those physical-forward raw signs, so normalize them all positive.
 ENCODER_FORWARD_SIGN = (1.0, -1.0, -1.0, 1.0)
+YAHBOOM_PORT = os.environ.get(
+    'ATLAS_YAHBOOM_PORT',
+    '/dev/serial/by-path/platform-3610000.usb-usb-0:2.4:1.0-port0',
+)
 
 
 def systemd_notify(message: str) -> None:
@@ -94,7 +108,7 @@ class YahboomBase(Node):
     def __init__(self):
         super().__init__('yahboom_base')
 
-        self.bot = Rosmaster(car_type=5, com='/dev/yahboom')
+        self.bot = Rosmaster(car_type=5, com=YAHBOOM_PORT)
         self.bot.create_receive_threading()
         self.bot.set_car_type(5)
         self.bot.set_auto_report_state(True, False)
@@ -176,7 +190,10 @@ class YahboomBase(Node):
 
         version = self.bot.get_version()
         car_type = self.bot.get_car_type_from_machine()
-        self.get_logger().info(f'Yahboom board ready on /dev/yahboom, firmware={version}, car_type={car_type}')
+        self.get_logger().info(
+            f'Yahboom board ready on {YAHBOOM_PORT}, '
+            f'firmware={version}, car_type={car_type}'
+        )
         systemd_notify(
             "READY=1\n"
             "STATUS=Yahboom serial and ROS odometry publisher online"
@@ -370,11 +387,24 @@ class YahboomBase(Node):
             self._applied_pwm = self._slew_motor_pwm(pwm)
         # Individually verified ATLAS polarity: positive ROS linear.x must move
         # every wheel toward the physical front of the rover.
+        right_pwm = self._applied_pwm
+        left_pwm = self._applied_pwm
+        if self._applied_pwm and abs(wz) > 0.02:
+            magnitude = abs(self._applied_pwm)
+            inside = max(MIN_RUN_PWM, magnitude - TURN_PWM_BIAS)
+            outside = min(MAX_PWM, magnitude + TURN_PWM_BIAS)
+            sign = 1 if self._applied_pwm > 0 else -1
+            # Curvature is wz/vx.  Reverse motion swaps which side follows the
+            # inside arc even when the requested yaw-rate sign is unchanged.
+            if vx * wz > 0.0:  # left-curving path: left wheels are inside
+                left_pwm, right_pwm = sign * inside, sign * outside
+            else:  # right-curving path: right wheels are inside
+                right_pwm, left_pwm = sign * inside, sign * outside
         self.bot.set_motor(
-            self._applied_pwm,
-            -self._applied_pwm,
-            -self._applied_pwm,
-            self._applied_pwm,
+            right_pwm,   # M1 front-right
+            -left_pwm,   # M2 front-left
+            -right_pwm,  # M3 back-right
+            left_pwm,    # M4 back-left
         )
         self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
         self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))

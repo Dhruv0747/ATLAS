@@ -48,7 +48,12 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("ultrasonic_timeout", 1.0)
         self.declare_parameter("localization_timeout", 2.5)
         self.declare_parameter("localization_max_xy_std_m", 0.25)
-        self.declare_parameter("localization_max_yaw_std_deg", 12.0)
+        # Recorded Hall/Dhruv routes show 14-17.4 deg reported AMCL yaw
+        # standard deviation during valid turns while map->odom correction
+        # changes by less than 1 deg. Keep margin above that measured envelope;
+        # independent pose-jump, XY confidence, costmap and collision guards
+        # remain authoritative.
+        self.declare_parameter("localization_max_yaw_std_deg", 20.0)
         # AMCL normally publishes at about 0.5 Hz on ATLAS.  A rover moving at
         # 0.15 m/s can therefore travel more than the old fixed 0.20 m jump
         # limit between two valid estimates.  Bound pose changes by elapsed

@@ -1,0 +1,18 @@
+[Unit]
+Description=Project ATLAS Portenta H7 sensor hub bridge
+After=default.target
+ConditionPathExists=/dev/atlas-portenta
+
+[Service]
+Type=simple
+Environment=ATLAS_SENSOR_HUB_PORT=/dev/atlas-portenta
+Environment=ATLAS_SENSOR_HUB_TRANSPORT=portenta_h7
+Environment=ATLAS_NICLA_PRIMARY=1
+Environment=ATLAS_GNSS_ENABLED=1
+Environment=ATLAS_CAMERA_ROUTE=jetson
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/ultrasonic_arduino_bridge.py'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

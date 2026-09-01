@@ -21,9 +21,11 @@ done
 source /opt/ros/humble/setup.bash
 source /home/jetson/project_atlas_ws/install/setup.bash
 export FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+export ROS_LOCALHOST_ONLY=1
 
 # A running process is insufficient: require actual fresh odometry and scan
-# messages before AMCL/SLAM construct their TF buffers.
-timeout 15s ros2 topic echo --once /odom nav_msgs/msg/Odometry >/dev/null
-timeout 15s ros2 topic echo --once /scan sensor_msgs/msg/LaserScan >/dev/null
-
+# messages before AMCL/SLAM construct their TF buffers.  Bypass the ROS CLI
+# daemon here: a stale daemon previously raised !rclpy.ok() and prevented a
+# healthy localization stack from starting after a mode switch or reboot.
+timeout 15s ros2 topic echo --no-daemon --once /odom nav_msgs/msg/Odometry >/dev/null
+timeout 15s ros2 topic echo --no-daemon --once /scan sensor_msgs/msg/LaserScan >/dev/null

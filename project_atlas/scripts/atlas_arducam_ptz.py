@@ -50,6 +50,15 @@ class ArducamPTZ(Node):
         self.status_pub.publish(String(data=text))
         self.get_logger().info(text)
 
+    def close_bus(self):
+        """Release the I2C file descriptor before retrying or shutting down."""
+        bus, self.bus = self.bus, None
+        if bus is not None:
+            try:
+                bus.close()
+            except Exception:
+                pass
+
     def ensure_ready(self):
         if self.active:
             # Periodic authoritative feedback lets newly started dashboards,
@@ -64,6 +73,7 @@ class ArducamPTZ(Node):
             self.status("ERROR: python smbus2 is missing")
             return
         try:
+            self.close_bus()
             self.bus = SMBus(I2C_BUS)
             # A harmless register read verifies this exact controller address.
             self.bus.read_byte_data(PCA9685_ADDRESS, MODE1)
@@ -77,7 +87,7 @@ class ArducamPTZ(Node):
             self.tilt_pub.publish(Int32(data=self.tilt))
             self.status("ONLINE: Arducam B0283 I2C pan/tilt active")
         except Exception as exc:
-            self.bus = None
+            self.close_bus()
             self.status(f"WAITING: Arducam not found on i2c-{I2C_BUS} at 0x40 ({exc})")
 
     def set_pulse(self, channel, pulse_us):
@@ -96,6 +106,7 @@ class ArducamPTZ(Node):
                 self.pan_pub.publish(Int32(data=self.pan))
             except Exception as exc:
                 self.active = False
+                self.close_bus()
                 self.status(f"ERROR: Arducam pan write failed ({exc})")
 
     def tilt_cb(self, msg):
@@ -108,7 +119,12 @@ class ArducamPTZ(Node):
                 self.tilt_pub.publish(Int32(data=self.tilt))
             except Exception as exc:
                 self.active = False
+                self.close_bus()
                 self.status(f"ERROR: Arducam tilt write failed ({exc})")
+
+    def destroy_node(self):
+        self.close_bus()
+        return super().destroy_node()
 
 
 def main():

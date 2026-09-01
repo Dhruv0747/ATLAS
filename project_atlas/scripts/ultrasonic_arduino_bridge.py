@@ -19,8 +19,15 @@ except Exception as exc:
 else:
     SERIAL_IMPORT_ERROR = None
 
-PORT = '/dev/serial/by-id/usb-Arduino_UNO_WiFi_R4_CMSIS-DAP_E4B063836708-if01'
+PORT = os.environ.get(
+    'ATLAS_SENSOR_HUB_PORT',
+    '/dev/serial/by-id/usb-Arduino_UNO_WiFi_R4_CMSIS-DAP_E4B063836708-if01',
+).strip()
 BAUD = 115200
+HUB_TRANSPORT = os.environ.get('ATLAS_SENSOR_HUB_TRANSPORT', 'arduino_uno_r4').strip()
+NICLA_PRIMARY = os.environ.get('ATLAS_NICLA_PRIMARY', '0').strip().lower() in (
+    '1', 'true', 'yes', 'on',
+)
 GNSS_ENABLED = os.environ.get('ATLAS_GNSS_ENABLED', '1').strip().lower() not in (
     '0', 'false', 'no', 'off',
 )
@@ -56,6 +63,21 @@ class UltrasonicArduinoBridge(Node):
         self.eco2_pub = self.create_publisher(Float32, '/environment/eco2_ppm', 10)
         self.environment_status_pub = self.create_publisher(String, '/environment/outside_status', 10)
         self.environment_json_pub = self.create_publisher(String, '/environment/bme680/json', 10)
+        self.nicla_temp_pub = self.create_publisher(Float32, '/environment/nicla/temperature_c', 10)
+        self.nicla_humidity_pub = self.create_publisher(Float32, '/environment/nicla/humidity_pct', 10)
+        self.nicla_indoor_iaq_pub = self.create_publisher(Float32, '/environment/nicla/indoor_iaq', 10)
+        self.nicla_relative_iaq_pub = self.create_publisher(Float32, '/environment/nicla/relative_iaq_pct', 10)
+        self.nicla_eco2_pub = self.create_publisher(Float32, '/environment/nicla/eco2_ppm', 10)
+        self.nicla_tvoc_pub = self.create_publisher(Float32, '/environment/nicla/tvoc_mg_m3', 10)
+        self.nicla_ethanol_pub = self.create_publisher(Float32, '/environment/nicla/ethanol_ppm', 10)
+        self.nicla_outdoor_aqi_pub = self.create_publisher(Float32, '/environment/nicla/outdoor_aqi', 10)
+        self.nicla_fast_aqi_pub = self.create_publisher(Float32, '/environment/nicla/outdoor_fast_aqi', 10)
+        self.nicla_no2_pub = self.create_publisher(Float32, '/environment/nicla/no2_ppb', 10)
+        self.nicla_o3_pub = self.create_publisher(Float32, '/environment/nicla/o3_ppb', 10)
+        self.nicla_status_pub = self.create_publisher(String, '/environment/nicla/status', 10)
+        self.nicla_json_pub = self.create_publisher(String, '/environment/nicla/json', 10)
+        self.radar_raw_pub = self.create_publisher(String, '/radar/hub/raw_hex', 10)
+        self.radar_status_pub = self.create_publisher(String, '/radar/hub/status', 10)
         self.thermal_json_pub = self.create_publisher(String, '/thermal/amg8833/json', 10)
         self.thermal_status_pub = self.create_publisher(String, '/thermal/amg8833/status', 10)
         self.thermal_min_pub = self.create_publisher(Float32, '/thermal/amg8833/min_c', 10)
@@ -96,7 +118,10 @@ class UltrasonicArduinoBridge(Node):
         self.bme_started = time.time()
         self.create_timer(0.05, self.tick)
         camera_route = 'Arduino UNO R4' if self.camera_via_arduino else 'Jetson i2c-7 / atlas_arducam_ptz'
-        self.get_logger().info(f'ATLAS Arduino sensor hub starting on {PORT}; camera route: {camera_route}')
+        self.hub_transport = HUB_TRANSPORT or 'unknown_sensor_hub'
+        self.get_logger().info(
+            f'ATLAS sensor hub starting on {PORT}; transport: {self.hub_transport}; '
+            f'camera route: {camera_route}')
         if not self.gnss_enabled:
             self.get_logger().info('Arduino GNSS forwarding disabled by ATLAS_GNSS_ENABLED=0')
 
@@ -108,9 +133,14 @@ class UltrasonicArduinoBridge(Node):
             self.ser = serial.Serial(PORT, BAUD, timeout=0.02)
             time.sleep(1.8)
             self.status_pub.publish(String(data='connected'))
-            self.write_line('PCA?')
-            self.write_line('SCAN')
-            self.write_line('HOME')
+            if HUB_TRANSPORT == 'mega_2560':
+                # Mega firmware scans and initializes during setup. BNO08x's
+                # AVR driver cannot be begin_I2C() initialized twice safely.
+                self.write_line('ID')
+            else:
+                self.write_line('PCA?')
+                self.write_line('SCAN')
+                self.write_line('HOME')
             return True
         except Exception as exc:
             self.ser = None
@@ -292,7 +322,8 @@ class UltrasonicArduinoBridge(Node):
     def handle_bme(self, raw):
         values = self.parse_fields(raw)
         if values.get('OK') != '1':
-            self.environment_status_pub.publish(String(data='BME680_OFFLINE via=arduino'))
+            self.environment_status_pub.publish(String(
+                data=f'BME680_OFFLINE via={self.hub_transport}'))
             return
         try:
             temperature = float(values['T'])
@@ -326,9 +357,10 @@ class UltrasonicArduinoBridge(Node):
             self.eco2_pub.publish(Float32(data=eco2))
         address = values.get('A', '--')
         self.environment_status_pub.publish(String(
-            data=f'BME680_{label} addr=0x{address} via=arduino T={temperature:.1f}C RH={humidity:.0f}% P={pressure:.1f}hPa'))
+            data=(f'BME680_{label} addr=0x{address} via={self.hub_transport} '
+                  f'T={temperature:.1f}C RH={humidity:.0f}% P={pressure:.1f}hPa')))
         payload = {
-            'ok': True, 'address': f'0x{address}', 'bus': 'arduino_uno_r4',
+            'ok': True, 'address': f'0x{address}', 'bus': self.hub_transport,
             'temperature_c': round(temperature, 2), 'humidity_pct': round(humidity, 1),
             'pressure_hpa': round(pressure, 1), 'gas_resistance_ohm': round(gas),
             'heat_stable': stable, 'iaq_estimate': None if not math.isfinite(iaq) else round(iaq, 1),
@@ -340,7 +372,8 @@ class UltrasonicArduinoBridge(Node):
     def handle_amg(self, raw):
         values = self.parse_fields(raw)
         if values.get('OK') != '1':
-            self.thermal_status_pub.publish(String(data='offline via=arduino'))
+            self.thermal_status_pub.publish(String(
+                data=f'offline via={self.hub_transport}'))
             return
         try:
             pixels = [float(value) for value in values['PX'].split(';')]
@@ -358,12 +391,14 @@ class UltrasonicArduinoBridge(Node):
         self.thermal_avg_pub.publish(Float32(data=average))
         self.thermal_center_pub.publish(Float32(data=center))
         payload = {
-            'ok': True, 'address': f"0x{values.get('A', '--')}", 'bus': 'arduino_uno_r4',
+            'ok': True, 'address': f"0x{values.get('A', '--')}", 'bus': self.hub_transport,
             'min_c': minimum, 'max_c': maximum, 'avg_c': average, 'center_c': center,
             'pixels_c': pixels,
         }
         self.thermal_json_pub.publish(String(data=json.dumps(payload, separators=(',', ':'))))
-        self.thermal_status_pub.publish(String(data=f'online via=arduino min={minimum:.1f} max={maximum:.1f}'))
+        self.thermal_status_pub.publish(String(
+            data=(f'online via={self.hub_transport} '
+                  f'min={minimum:.1f} max={maximum:.1f}')))
 
     @staticmethod
     def quaternion_to_euler(x, y, z, w):
@@ -380,7 +415,8 @@ class UltrasonicArduinoBridge(Node):
     def handle_bno(self, raw):
         values = self.parse_fields(raw)
         if values.get('OK') != '1':
-            self.i2c_status_pub.publish(String(data='BNO08X_OFFLINE via=arduino'))
+            self.i2c_status_pub.publish(String(
+                data=f'BNO08X_OFFLINE via={self.hub_transport}'))
             return
         try:
             names = ('QX', 'QY', 'QZ', 'QW', 'GX', 'GY', 'GZ', 'AX', 'AY', 'AZ', 'MX', 'MY', 'MZ')
@@ -418,10 +454,67 @@ class UltrasonicArduinoBridge(Node):
         dashboard = {
             'roll': round(roll, 3), 'pitch': round(pitch, 3), 'yaw': round(yaw, 3),
             'heading': round((yaw + 360.0) % 360.0, 3), 'frame': 'base_link',
-            'address': f"0x{values.get('A', '--')}", 'transport': 'arduino_uno_r4',
+            'address': f"0x{values.get('A', '--')}", 'transport': self.hub_transport,
         }
         dashboard.update({name.lower(): round(value, 6) for name, value in data.items()})
         self.imu_json_pub.publish(String(data=json.dumps(dashboard, separators=(',', ':'))))
+
+    def handle_nicla_env(self, raw):
+        values = self.parse_fields(raw)
+        if values.get('OK') != '1':
+            self.nicla_status_pub.publish(String(
+                data=f'NICLA_SENSE_ENV_OFFLINE via={self.hub_transport}'))
+            return
+        field_names = ('T', 'H', 'IAQ', 'RIAQ', 'ECO2', 'TVOC', 'ETOH',
+                       'AQI', 'FAQI', 'NO2', 'O3')
+        try:
+            data = {name: float(values[name]) for name in field_names}
+        except (KeyError, ValueError) as exc:
+            self.nicla_status_pub.publish(String(data=f'NICLA_SENSE_ENV_PARSE_ERROR {exc}'))
+            return
+        publishers = {
+            'T': self.nicla_temp_pub,
+            'H': self.nicla_humidity_pub,
+            'IAQ': self.nicla_indoor_iaq_pub,
+            'RIAQ': self.nicla_relative_iaq_pub,
+            'ECO2': self.nicla_eco2_pub,
+            'TVOC': self.nicla_tvoc_pub,
+            'ETOH': self.nicla_ethanol_pub,
+            'AQI': self.nicla_outdoor_aqi_pub,
+            'FAQI': self.nicla_fast_aqi_pub,
+            'NO2': self.nicla_no2_pub,
+            'O3': self.nicla_o3_pub,
+        }
+        for name, publisher in publishers.items():
+            if math.isfinite(data[name]):
+                publisher.publish(Float32(data=data[name]))
+        if NICLA_PRIMARY:
+            self.outside_temp_pub.publish(Float32(data=data['T']))
+            self.outside_humidity_pub.publish(Float32(data=data['H']))
+            self.iaq_pub.publish(Float32(data=data['IAQ']))
+            self.eco2_pub.publish(Float32(data=data['ECO2']))
+        payload = {
+            'ok': True,
+            'address': f"0x{values.get('A', '21')}",
+            'transport': self.hub_transport,
+            'temperature_c': data['T'],
+            'humidity_pct': data['H'],
+            'indoor_iaq': data['IAQ'],
+            'relative_iaq_pct': data['RIAQ'],
+            'eco2_ppm': data['ECO2'],
+            'tvoc_mg_m3': data['TVOC'],
+            'ethanol_ppm': data['ETOH'],
+            'outdoor_aqi': data['AQI'],
+            'outdoor_fast_aqi': data['FAQI'],
+            'no2_ppb': data['NO2'],
+            'o3_ppb': data['O3'],
+            'primary_environment_source': NICLA_PRIMARY,
+        }
+        self.nicla_json_pub.publish(String(data=json.dumps(payload, separators=(',', ':'))))
+        self.nicla_status_pub.publish(String(
+            data=(f'ONLINE via={self.hub_transport} T={data["T"]:.1f}C '
+                  f'RH={data["H"]:.0f}% IAQ={data["IAQ"]:.1f} '
+                  f'NO2={data["NO2"]:.1f}ppb O3={data["O3"]:.1f}ppb')))
 
     def tick(self):
         if self.ser is None:
@@ -441,7 +534,14 @@ class UltrasonicArduinoBridge(Node):
             if time.time() - self.last_ok > 2.5:
                 self.status_pub.publish(String(data='waiting_for_data'))
             return
-        if raw.startswith('ATLAS_ULTRASONIC') or raw.startswith('ATLAS_UNO_SENSOR_HUB'):
+        if (raw.startswith('ATLAS_ULTRASONIC') or
+                raw.startswith('ATLAS_UNO_SENSOR_HUB') or
+                raw.startswith('ATLAS_PORTENTA_SENSOR_HUB') or
+                raw.startswith('ATLAS_MEGA_2560_SENSOR_HUB')):
+            if raw.startswith('ATLAS_PORTENTA_SENSOR_HUB'):
+                self.hub_transport = 'portenta_h7'
+            elif raw.startswith('ATLAS_MEGA_2560_SENSOR_HUB'):
+                self.hub_transport = 'mega_2560'
             self.status_pub.publish(String(data=raw))
             return
         if raw.startswith('I2C,') or raw.startswith('I2CSTAT,'):
@@ -456,6 +556,9 @@ class UltrasonicArduinoBridge(Node):
         if raw.startswith('BNO,'):
             self.handle_bno(raw)
             return
+        if raw.startswith('NICLAENV,'):
+            self.handle_nicla_env(raw)
+            return
         if raw.startswith('GPS,$'):
             if self.gnss_enabled:
                 self.handle_nmea(raw[4:])
@@ -463,6 +566,20 @@ class UltrasonicArduinoBridge(Node):
         if raw.startswith('GPSSTAT,'):
             if self.gnss_enabled:
                 self.gps_status_pub.publish(String(data=raw))
+            return
+        if raw.startswith('RADARHEX,'):
+            payload = raw.split(',', 1)[1].strip()
+            if payload and len(payload) % 2 == 0:
+                self.radar_raw_pub.publish(String(data=payload))
+                self.radar_status_pub.publish(String(
+                    data=(f'{self.hub_transport.upper()}_RADAR_STREAM '
+                          f'bytes={len(payload) // 2}')))
+            else:
+                self.radar_status_pub.publish(String(
+                    data=f'{self.hub_transport.upper()}_RADAR_FRAME_INVALID'))
+            return
+        if raw.startswith('HEARTBEAT,'):
+            self.status_pub.publish(String(data=raw))
             return
         if raw.startswith('ACK,') or raw.startswith('ERR,'):
             self.pca_status_pub.publish(String(data=raw))
@@ -480,10 +597,14 @@ class UltrasonicArduinoBridge(Node):
             values['la'], values['ra'], values['c1'], values['c2'], values['pca']
         )
         self.publish_mm(self.front_pub, front)
-        # The two side ultrasonic sensors are physically mirrored on ATLAS:
-        # the Arduino's LEFT field is the rover's right side and vice versa.
-        self.publish_mm(self.left_pub, right)
-        self.publish_mm(self.right_pub, left)
+        if self.hub_transport in ('portenta_h7', 'mega_2560'):
+            # New sensor-hub harnesses use logical physical-side labels directly.
+            self.publish_mm(self.left_pub, left)
+            self.publish_mm(self.right_pub, right)
+        else:
+            # The existing UNO harness is physically mirrored on ATLAS.
+            self.publish_mm(self.left_pub, right)
+            self.publish_mm(self.right_pub, left)
         self.publish_mm(self.rear_pub, rear)
         if la is not None:
             self.left_servo_pub.publish(Int32(data=int(la)))

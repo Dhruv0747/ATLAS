@@ -35,14 +35,18 @@ ATLAS uses its 360-degree LiDAR as the primary navigation and obstacle sensor. U
 
 - Four-wheel rover with wheel encoders and Yahboom motor controller
 - RPLIDAR A1, BNO08X IMU, ultrasonic sensors, and RD-03D radar
+- Arduino Mega 2560 sensor hub carries the I2C sensors, L76K GNSS, RD-03D radar,
+  and four sequentially sampled ultrasonic channels. See
+  [`docs/MEGA_2560_SENSOR_HUB.md`](docs/MEGA_2560_SENSOR_HUB.md).
 - IMX708 Camera Module 3 on a pan/tilt platform
 - GNSS, BMS, BME680, AMG8833 8x8 thermal sensor, Wi-Fi, and cellular connectivity
 
-The commissioned sensor transport uses an Arduino UNO R4 WiFi as the rover's
-I2C/GNSS hub. It forwards the PCA9685 (`0x40`), BME680 (`0x76`/`0x77`),
-AMG8833 (`0x68`/`0x69`), BNO08x (`0x4A`/`0x4B`) and Serial1 L76K data over a
-stable USB device path. The Jetson bridge republishes the original ROS 2 topic
-names, so Nav2, EKF, dashboards and Foxglove do not depend on the physical bus.
+The commissioned sensor transport now uses an Arduino Mega 2560. It forwards
+the PCA9685 (`0x40`) discovery state, BME680 (`0x76`/`0x77`), AMG8833
+(`0x68`/`0x69`), BNO08x (`0x4A`/`0x4B`), L76K NMEA, RD-03D frames and four
+ultrasonic ranges over a fixed Jetson USB physical path. The Jetson bridge
+republishes the original ROS 2 topic names, so Nav2, EKF, dashboards and
+Foxglove do not depend on the physical bus.
 - ESP32-S3 voice interface and 11-inch touchscreen dashboard
 
 The web Command Center includes both a conventional 2D RD-03D radar scope and
@@ -183,3 +187,12 @@ INA219 A0 address jumper to `0x41`, then configure the cellular telemetry
 service with `ATLAS_INA219_ADDRESS=0x41` and the bus to which it is wired.
 The telemetry node detects a kernel-owned address and reports the conflict
 without repeatedly opening or disrupting the bus.
+
+## Archived Portenta H7 migration record
+
+The earlier Portenta H7 sensor-hub prototype is retained only as engineering
+history. It is disabled and is not part of the active ATLAS hardware route.
+The commissioned sensor hub is the Mega 2560 described above.
+
+See [docs/PORTENTA_SENSOR_HUB.md](docs/PORTENTA_SENSOR_HUB.md) only when
+reviewing the superseded prototype and its electrical test record.

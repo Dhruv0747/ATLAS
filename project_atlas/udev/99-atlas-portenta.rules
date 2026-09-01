@@ -1,0 +1,10 @@
+# Arduino Portenta H7/H7 Lite application USB CDC (Arduino Mbed Portenta core).
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", ATTRS{idProduct}=="025b", SYMLINK+="atlas-portenta", GROUP="dialout", MODE="0660"
+
+# Portenta bootloader/DFU serial identity.  Kept separate so the ROS bridge
+# never opens a board while firmware is being uploaded.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", ATTRS{idProduct}=="035b", SYMLINK+="atlas-portenta-bootloader", GROUP="dialout", MODE="0660"
+
+# dfu-util opens the USB device itself rather than a tty.  Grant the dialout
+# group access while the Portenta is in its official 2341:035b bootloader.
+SUBSYSTEM=="usb", ATTR{idVendor}=="2341", ATTR{idProduct}=="035b", GROUP="dialout", MODE="0660", TAG+="uaccess"

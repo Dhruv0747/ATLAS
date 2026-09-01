@@ -1,7 +1,7 @@
 [Unit]
 Description=Project ATLAS authoritative user-managed 2D EKF
-Wants=rover-base-telemetry.service atlas-imu.service
-After=rover-base-telemetry.service atlas-imu.service
+Wants=rover-base-telemetry.service atlas-mega-sensor-hub.service
+After=rover-base-telemetry.service atlas-mega-sensor-hub.service
 StartLimitIntervalSec=120
 StartLimitBurst=5
 

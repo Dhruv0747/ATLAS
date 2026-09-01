@@ -46,16 +46,16 @@ MONITORS = tuple(item for item in (
     Monitor("lidar", "/scan", LaserScan, 5.0, "atlas-lidar.service"),
     Monitor("camera", "/camera/image_raw/compressed", CompressedImage, 8.0,
             "atlas-camera.service"),
-    Monitor("imu", "/imu/data", Imu, 5.0, "atlas-imu.service"),
+    Monitor("imu", "/imu/data", Imu, 5.0, "atlas-mega-sensor-hub.service"),
     Monitor("radar", "/radar/targets", String, 8.0, "rover-radar.service"),
     Monitor("ultrasonic", "/ultrasonic/status", String, 8.0,
-            "atlas-ultrasonic.service"),
+            "atlas-mega-sensor-hub.service"),
     Monitor("thermal", "/thermal/amg8833/status", String, 10.0,
-            "atlas-thermal.service"),
+            "atlas-mega-sensor-hub.service"),
     # The ambient sensor is currently being replaced. Diagnose bad/stale data,
     # but do not create restart loops while the BME680 is electrically absent.
     Monitor("ambient", "/environment/outside_status", String, 10.0,
-            "atlas-ambient.service", recover=False),
+            "atlas-mega-sensor-hub.service", recover=False),
     # cellular_telemetry is the single GPS owner. A missing fix is diagnostic;
     # starting the legacy atlas-gnss unit would create a duplicate publisher.
     Monitor("gps", "/gps/fix", NavSatFix, 12.0, None, recover=False),

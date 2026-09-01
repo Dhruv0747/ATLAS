@@ -21,11 +21,22 @@ class Annotator(Node):
         self.det = TensorRTYOLO(ENGINE)
         self.pub = self.create_publisher(CompressedImage, "/camera/detections/compressed", 10)
         self.detection_pub = self.create_publisher(String, "/camera/detections/json", 10)
+        # Allow DDS discovery and the TensorRT/CUDA context to settle before
+        # starting inference.  Enabling immediately during construction can
+        # starve graph discovery on a busy Jetson boot.
         self.enabled = False
+        self._startup_timer = self.create_timer(20.0, self._enable_after_startup)
         self.create_subscription(Bool, "/atlas/ai_enabled", self.enable_cb, 10)
         self.create_subscription(CompressedImage, "/camera/image_raw/compressed", self.cb, qos_profile_sensor_data)
         self.last = 0.0
-        self.get_logger().info("AI annotator ready")
+        self.get_logger().info("AI annotator ready (automatic enable after warm-up)")
+
+    def _enable_after_startup(self):
+        if self._startup_timer is not None:
+            self._startup_timer.cancel()
+            self._startup_timer = None
+        self.enabled = True
+        self.get_logger().info("AI object detection automatically enabled after warm-up")
 
     def enable_cb(self, msg):
         self.enabled = bool(msg.data)
