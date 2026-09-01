@@ -15,6 +15,9 @@
 - Added automatic stuck-bus recovery: the Mega releases SDA/SCL with clock
   pulses and a STOP condition, reinitializes Wire, and retries the installed
   I2C sensors every 30 seconds without rebooting the Jetson.
+- Prevented the Jetson serial bridge from asserting CH340 DTR/RTS while opening
+  the Mega port. This avoids Mega-only resets that leave externally powered
+  I2C peripherals in a mismatched state and disable the camera controller.
 
 ## 2026-09-01 - Restore Mega radar and AMG8833 dashboard visibility
 

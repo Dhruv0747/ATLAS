@@ -144,7 +144,19 @@ class UltrasonicArduinoBridge(Node):
             self.status_pub.publish(String(data=f'pyserial_missing {SERIAL_IMPORT_ERROR}'))
             return False
         try:
-            self.ser = serial.Serial(PORT, BAUD, timeout=0.02)
+            # Configure modem-control lines before opening.  The Mega's CH340
+            # adapter wires DTR to RESET; pyserial's normal open sequence can
+            # therefore reset only the Mega while externally powered I2C
+            # slaves remain mid-session.  That power-domain mismatch made the
+            # complete I2C bus disappear until a full rover power cycle.
+            self.ser = serial.Serial()
+            self.ser.port = PORT
+            self.ser.baudrate = BAUD
+            self.ser.timeout = 0.02
+            self.ser.write_timeout = 0.25
+            self.ser.dtr = False
+            self.ser.rts = False
+            self.ser.open()
             time.sleep(1.8)
             self.status_pub.publish(String(data='connected'))
             if HUB_TRANSPORT == 'mega_2560':

@@ -581,6 +581,10 @@ void setup() {
   delay(1200);
   Serial.print("ATLAS_"); Serial.print(ATLAS_HUB_NAME);
   Serial.print("_SENSOR_HUB,V=1,BOARD="); Serial.println(ATLAS_BOARD_NAME);
+  // Opening the CH340 serial port resets the Mega but leaves the externally
+  // powered I2C peripherals running.  Recover immediately so a peripheral
+  // interrupted mid-transaction cannot make the first scan falsely empty.
+  recoverI2cBus();
   scanBus();
   initializeSensors();
 }
