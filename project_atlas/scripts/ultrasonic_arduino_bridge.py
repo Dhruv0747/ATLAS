@@ -101,10 +101,18 @@ class UltrasonicArduinoBridge(Node):
             self.gps_status_pub = self.create_publisher(String, '/gps/arduino_status', 10)
         self.create_subscription(Int32, '/arduino/pca9685/servo_us', self.servo_cmd_cb, 10)
         self.create_subscription(Int32, '/ultrasonic/left_servo_cmd_us', lambda m: self.send_servo(0, m.data), 10)
-        self.camera_via_arduino = CAMERA_ROUTE == 'arduino'
+        self.camera_via_arduino = CAMERA_ROUTE in ('arduino', 'mega')
         if self.camera_via_arduino:
-            self.create_subscription(Int32, '/camera/bottom_servo_cmd_us', lambda m: self.send_servo(1, m.data), 10)
-            self.create_subscription(Int32, '/camera/second_servo_cmd_us', lambda m: self.send_servo(2, m.data), 10)
+            # The commissioned PCA9685 wiring uses channels 0/1 on the Mega.
+            # Retain the legacy UNO R4 mapping (channels 1/2) for rollback.
+            self.camera_pan_channel = 0 if HUB_TRANSPORT == 'mega_2560' else 1
+            self.camera_tilt_channel = 1 if HUB_TRANSPORT == 'mega_2560' else 2
+            self.create_subscription(
+                Int32, '/camera/bottom_servo_cmd_us',
+                lambda m: self.send_servo(self.camera_pan_channel, m.data), 10)
+            self.create_subscription(
+                Int32, '/camera/second_servo_cmd_us',
+                lambda m: self.send_servo(self.camera_tilt_channel, m.data), 10)
         self.create_subscription(Int32, '/ultrasonic/right_servo_cmd_us', lambda m: self.send_servo(3, m.data), 10)
         self.ser = None
         self.last_ok = 0.0
@@ -119,7 +127,11 @@ class UltrasonicArduinoBridge(Node):
         self.gas_baseline = None
         self.bme_started = time.time()
         self.create_timer(0.05, self.tick)
-        camera_route = 'Arduino UNO R4' if self.camera_via_arduino else 'Jetson i2c-7 / atlas_arducam_ptz'
+        if self.camera_via_arduino:
+            camera_route = ('Mega 2560 PCA9685' if HUB_TRANSPORT == 'mega_2560'
+                            else 'Arduino UNO R4 PCA9685')
+        else:
+            camera_route = 'Jetson i2c-7 / atlas_arducam_ptz'
         self.hub_transport = HUB_TRANSPORT or 'unknown_sensor_hub'
         self.get_logger().info(
             f'ATLAS sensor hub starting on {PORT}; transport: {self.hub_transport}; '
@@ -139,6 +151,8 @@ class UltrasonicArduinoBridge(Node):
                 # Mega firmware scans and initializes during setup. BNO08x's
                 # AVR driver cannot be begin_I2C() initialized twice safely.
                 self.write_line('ID')
+                if self.camera_via_arduino:
+                    self.write_line('PCA?')
             else:
                 self.write_line('PCA?')
                 self.write_line('SCAN')
@@ -628,7 +642,9 @@ class UltrasonicArduinoBridge(Node):
             if self.camera_via_arduino and pca == '1':
                 self.camera_bottom_pub.publish(Int32(data=int(c1)))
                 self.camera_second_pub.publish(Int32(data=int(c2)))
-                self.camera_status_pub.publish(String(data=f'online via=arduino cam1_us={c1} cam2_us={c2}'))
+                self.camera_status_pub.publish(String(
+                    data=(f'online via={self.hub_transport} '
+                          f'cam1_us={c1} cam2_us={c2}')))
             self.pca_status_pub.publish(String(data=f'pca={pca} left_us={la} right_us={ra} cam1_us={c1} cam2_us={c2}'))
         self.last_ok = time.time()
         self.status_pub.publish(

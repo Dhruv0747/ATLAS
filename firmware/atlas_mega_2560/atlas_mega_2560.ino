@@ -41,6 +41,13 @@ constexpr uint8_t NICLA_ENV_ADDR = 0x21;
 constexpr uint8_t BME_ADDRS[] = {0x77, 0x76};
 constexpr uint8_t AMG_ADDRS[] = {0x69, 0x68};
 constexpr uint8_t BNO_ADDRS[] = {0x4B, 0x4A};
+constexpr uint8_t PCA9685_ADDR = 0x40;
+constexpr uint8_t CAMERA_PAN_CHANNEL = 0;
+constexpr uint8_t CAMERA_TILT_CHANNEL = 1;
+constexpr int CAMERA_MIN_PULSE_US = 700;
+constexpr int CAMERA_MAX_PULSE_US = 2300;
+constexpr int CAMERA_PAN_HOME_US = 1300;
+constexpr int CAMERA_TILT_HOME_US = 2100;
 constexpr uint8_t ULTRASONIC_COUNT = 4;
 #ifdef ATLAS_MEGA_2560
 constexpr uint8_t FRONT_TRIG = 28;
@@ -77,6 +84,7 @@ bool bme_online = false;
 bool amg_online = false;
 bool bno_online = false;
 bool nicla_online = false;
+bool pca_online = false;
 uint8_t bme_addr = 0;
 uint8_t amg_addr = 0;
 uint8_t bno_addr = 0;
@@ -84,6 +92,8 @@ uint32_t gps_baud = GPS_DEFAULT_BAUD;
 uint32_t radar_baud = RADAR_DEFAULT_BAUD;
 uint32_t gps_bytes = 0;
 uint32_t radar_bytes = 0;
+int camera_pan_us = CAMERA_PAN_HOME_US;
+int camera_tilt_us = CAMERA_TILT_HOME_US;
 
 float qx = 0, qy = 0, qz = 0, qw = 1;
 float gx = 0, gy = 0, gz = 0;
@@ -116,6 +126,60 @@ bool probe(uint8_t address) {
   return ATLAS_SENSOR_WIRE.endTransmission() == 0;
 }
 
+bool pcaWrite8(uint8_t reg, uint8_t value) {
+  ATLAS_SENSOR_WIRE.beginTransmission(PCA9685_ADDR);
+  ATLAS_SENSOR_WIRE.write(reg);
+  ATLAS_SENSOR_WIRE.write(value);
+  return ATLAS_SENSOR_WIRE.endTransmission() == 0;
+}
+
+bool pcaSetPulse(uint8_t channel, int pulse_us) {
+  if (!pca_online || channel > 15) return false;
+  pulse_us = constrain(pulse_us, CAMERA_MIN_PULSE_US, CAMERA_MAX_PULSE_US);
+  const uint16_t ticks = (uint32_t)pulse_us * 4096UL / 20000UL;
+  const uint8_t base = 0x06 + 4 * channel;
+  ATLAS_SENSOR_WIRE.beginTransmission(PCA9685_ADDR);
+  ATLAS_SENSOR_WIRE.write(base);
+  ATLAS_SENSOR_WIRE.write(0);
+  ATLAS_SENSOR_WIRE.write(0);
+  ATLAS_SENSOR_WIRE.write(ticks & 0xFF);
+  ATLAS_SENSOR_WIRE.write((ticks >> 8) & 0x0F);
+  return ATLAS_SENSOR_WIRE.endTransmission() == 0;
+}
+
+void pcaSetCamera(uint8_t channel, int pulse_us) {
+  pulse_us = constrain(pulse_us, CAMERA_MIN_PULSE_US, CAMERA_MAX_PULSE_US);
+  if (channel == CAMERA_PAN_CHANNEL) camera_pan_us = pulse_us;
+  if (channel == CAMERA_TILT_CHANNEL) camera_tilt_us = pulse_us;
+  pcaSetPulse(channel, pulse_us);
+}
+
+void pcaFree(uint8_t channel) {
+  if (!pca_online || channel > 15) return;
+  const uint8_t base = 0x06 + 4 * channel;
+  ATLAS_SENSOR_WIRE.beginTransmission(PCA9685_ADDR);
+  ATLAS_SENSOR_WIRE.write(base);
+  ATLAS_SENSOR_WIRE.write(0);
+  ATLAS_SENSOR_WIRE.write(0);
+  ATLAS_SENSOR_WIRE.write(0);
+  ATLAS_SENSOR_WIRE.write(0x10);
+  ATLAS_SENSOR_WIRE.endTransmission();
+}
+
+void pcaHomeCamera() {
+  pcaSetCamera(CAMERA_PAN_CHANNEL, CAMERA_PAN_HOME_US);
+  pcaSetCamera(CAMERA_TILT_CHANNEL, CAMERA_TILT_HOME_US);
+}
+
+void initializePca() {
+  pca_online = probe(PCA9685_ADDR);
+  if (!pca_online) return;
+  // Sleep, set 50 Hz prescale, then wake with register auto-increment enabled.
+  pca_online = pcaWrite8(0x00, 0x10) && pcaWrite8(0xFE, 121) && pcaWrite8(0x00, 0x20);
+  delay(5);
+  if (pca_online) pcaHomeCamera();
+}
+
 void scanBus() {
   Serial.print("I2C,BUS="); Serial.print(ATLAS_HUB_NAME); Serial.print(",ADDRS=");
   bool first = true;
@@ -137,6 +201,7 @@ void enableBnoReports() {
 }
 
 void initializeSensors() {
+  initializePca();
   bme_online = false;
   for (uint8_t address : BME_ADDRS) {
     if (!probe(address)) continue;
@@ -188,6 +253,7 @@ void initializeSensors() {
 #endif
 
   Serial.print("I2CSTAT,HUB="); Serial.print(ATLAS_HUB_NAME);
+  Serial.print(",PCA="); Serial.print(pca_online ? 1 : 0);
   Serial.print(",BME="); Serial.print(bme_online ? 1 : 0);
   Serial.print(",AMG="); Serial.print(amg_online ? 1 : 0);
   Serial.print(",BNO="); Serial.print(bno_online ? 1 : 0);
@@ -341,6 +407,11 @@ void reportUltrasonics() {
   Serial.print(",L="); Serial.print(ultrasonic_mm[1]);
   Serial.print(",R="); Serial.print(ultrasonic_mm[2]);
   Serial.print(",B="); Serial.print(ultrasonic_mm[3]);
+  // Preserve the established bridge telemetry shape. LA/RA are not fitted on
+  // the Mega; C1/C2 are the commissioned camera pan/tilt channels.
+  Serial.print(",LA=-1,RA=-1,C1="); Serial.print(camera_pan_us);
+  Serial.print(",C2="); Serial.print(camera_tilt_us);
+  Serial.print(",PCA="); Serial.print(pca_online ? 1 : 0);
   Serial.println(",OK=1");
 }
 
@@ -402,6 +473,29 @@ void handleCommand(const char *command) {
   } else if (!strcmp(command, "SCAN")) {
     scanBus();
     initializeSensors();
+  } else if (!strcmp(command, "PCA?")) {
+    if (!pca_online) initializePca();
+    Serial.print("ACK,PCA,"); Serial.println(pca_online ? 1 : 0);
+  } else if (!strcmp(command, "HOME")) {
+    if (!pca_online) initializePca();
+    if (pca_online) pcaHomeCamera();
+    Serial.print("ACK,HOME,PCA="); Serial.println(pca_online ? 1 : 0);
+  } else if (!strncmp(command, "SERVO,", 6)) {
+    int channel = -1, pulse = -1;
+    if (sscanf(command, "SERVO,%d,%d", &channel, &pulse) == 2 &&
+        channel >= 0 && channel <= 15) {
+      if (!pca_online) initializePca();
+      pulse = constrain(pulse, CAMERA_MIN_PULSE_US, CAMERA_MAX_PULSE_US);
+      if (pca_online) pcaSetCamera(static_cast<uint8_t>(channel), pulse);
+      Serial.print("ACK,SERVO,"); Serial.print(channel); Serial.print(',');
+      Serial.print(pulse); Serial.print(",PCA="); Serial.println(pca_online ? 1 : 0);
+    } else {
+      Serial.println("ERR,BAD_SERVO_COMMAND");
+    }
+  } else if (!strncmp(command, "FREE,", 5)) {
+    const int channel = atoi(command + 5);
+    if (channel >= 0 && channel <= 15) pcaFree(static_cast<uint8_t>(channel));
+    Serial.print("ACK,FREE,"); Serial.println(channel);
   } else if (!strncmp(command, "GPSBAUD,", 8)) {
     setGpsBaud(strtoul(command + 8, nullptr, 10));
   } else if (!strncmp(command, "RADARBAUD,", 10)) {
@@ -435,6 +529,12 @@ void setup() {
     pinMode(ultrasonic_echo_pins[i], INPUT);
   }
   ATLAS_SENSOR_WIRE.begin();
+  // Never let one faulty or unpowered I2C peripheral freeze the complete
+  // Mega sensor hub (GPS, radar, ultrasonics and camera commands).  AVR Wire
+  // can otherwise block forever when SDA/SCL is held low.
+#if defined(ARDUINO_ARCH_AVR)
+  ATLAS_SENSOR_WIRE.setWireTimeout(25000, true);
+#endif
   ATLAS_SENSOR_WIRE.setClock(I2C_HZ);
   ATLAS_GPS_SERIAL.begin(gps_baud);
   ATLAS_RADAR_SERIAL.begin(radar_baud);

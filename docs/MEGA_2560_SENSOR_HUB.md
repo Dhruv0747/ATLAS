@@ -14,6 +14,7 @@ The Mega 2560 is the single hardware owner for the low-bandwidth sensor bus:
 - L76K GNSS receiver
 - RD-03D motion radar transport
 - installed ultrasonic channels
+- PCA9685 camera pan/tilt controller
 
 The Jetson runs one `atlas-mega-sensor-hub.service` ROS bridge and the
 `rover-radar.service` frame decoder. The legacy direct `atlas-imu`,
@@ -21,9 +22,9 @@ The Jetson runs one `atlas-mega-sensor-hub.service` ROS bridge and the
 must remain disabled/masked to prevent duplicate publishers and polling.
 
 High-bandwidth or safety-critical hardware remains directly owned by the
-Jetson: CSI camera, USB LiDAR, Yahboom motor/encoder controller, BMS, camera
-pan/tilt controller, and cellular modem. These devices must not be routed
-through the Mega.
+Jetson: CSI camera video, USB LiDAR, Yahboom motor/encoder controller, BMS,
+and cellular modem. Camera pan/tilt PWM is low bandwidth and is routed through
+the Mega-owned PCA9685; camera video remains directly on the Jetson.
 
 ## Commissioned wiring
 
@@ -31,6 +32,8 @@ through the Mega.
 |---|---:|---|
 | I2C SDA | 20 | SDA on the 3.3 V I2C bus/level shifter |
 | I2C SCL | 21 | SCL on the 3.3 V I2C bus/level shifter |
+| Camera pan PWM | PCA9685 channel 0 | Arducam base/pan servo |
+| Camera tilt PWM | PCA9685 channel 1 | Arducam upper/tilt servo |
 | GNSS input | RX1 / 19 | L76K TX |
 | GNSS output | TX1 / 18 | L76K RX |
 | Radar input | RX2 / 17 | RD-03D TX |
@@ -54,7 +57,8 @@ acoustic crosstalk. `-1` means no valid echo; it does not mean zero distance.
 - BME680: addresses `0x76` or `0x77`
 - AMG8833: addresses `0x68` or `0x69`
 - BNO08x: addresses `0x4A` or `0x4B`
-- PCA9685: visible in the I2C scan at `0x40`; camera control remains on Jetson
+- PCA9685: address `0x40`, controlled by the Mega; channel 0 is pan and channel
+  1 is tilt. Safe pulse range is 700-2300 us; home is 1300/2100 us.
 - GNSS: Serial1, 9600 baud by default
 - RD-03D radar: Serial2, 256000 baud by default
 - Jetson link: USB serial, 115200 baud
@@ -77,10 +81,10 @@ arduino-cli compile --fqbn arduino:avr:mega firmware/atlas_mega_2560
 The Mega is addressed by its physical Jetson USB path, not by `/dev/ttyUSBN`:
 
 ```text
-/dev/serial/by-path/platform-3610000.usb-usb-0:2.2.3:1.0-port0
+/dev/serial/by-path/platform-3610000.usb-usb-0:2.4.3:1.0-port0
 ```
 
-The Yahboom base uses physical path `2.4`. This separation is mandatory because
+The Yahboom base uses physical path `2.2`. This separation is mandatory because
 both boards expose the same CH340 VID/PID and cannot safely be distinguished by
 USB identity alone.
 

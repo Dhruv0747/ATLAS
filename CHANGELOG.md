@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-09-01 - Move PCA9685 camera control to the Mega
+
+- Added native 50 Hz PCA9685 control to the Mega 2560 firmware with the
+  commissioned channel 0/1 pan/tilt wiring, 700-2300 us safety limits, and
+  1300/2100 us home position.
+- Routed the established ROS, dashboard, remote, tracker, and voice camera
+  command topics through the single Mega serial bridge.
+- Preserved camera feedback topics and disabled the obsolete direct Jetson
+  i2c-7 camera-controller route.
+- Hardened the Mega 2560 sensor-hub I2C transport with the AVR Wire timeout so
+  a disconnected, unpowered, or SDA/SCL-stuck peripheral cannot freeze GPS,
+  radar, ultrasonic telemetry, or camera-command processing.
+
 ## 2026-09-01 - Restore Mega radar and AMG8833 dashboard visibility
 
 - Accepted the Mega thermal payload's `pixels_c` field in every 8x8 heatmap.
