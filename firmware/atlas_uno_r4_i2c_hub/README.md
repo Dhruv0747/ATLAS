@@ -37,8 +37,9 @@ is the functional pass condition.
   never issue it while the sensor/bus is unhealthy because its driver can
   block the hub until reset.
 - `STATUS` prints device, UART, ultrasonic, and bus-health state.
-- `RADARINIT` resends the RD-03D multi-target-mode request. The same request
-  is sent automatically after every firmware boot and radar baud change.
+- `RADARINIT` sends the RD-03D multi-target-mode request during controlled
+  maintenance. It is deliberately not sent automatically: a damaged or
+  miswired radar UART must never stall unrelated sensor telemetry.
 - `USENABLE,F|L|R|B,0|1` enables or disables one ultrasonic position.
 
 The built-in 12x8 LED matrix cycles through device labels. A check means live,

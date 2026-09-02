@@ -555,8 +555,6 @@ void setRadarBaud(uint32_t baud) {
   radar_baud = baud;
   radar_serial.end();
   radar_serial.begin(radar_baud);
-  delay(120);
-  initializeRadar();
   Serial.print("ACK,RADARBAUD="); Serial.println(radar_baud);
 }
 
@@ -660,7 +658,6 @@ void setup() {
   configureSensorWire();
   configureBnoWire();
   delay(1200);
-  initializeRadar();
   Serial.println("ATLAS_UNO_R4_WIFI_I2C_HUB,V=1,BOARD=UNO_R4_WIFI,BUS=A4_A5");
   recoverI2cBus();
   scanBus();

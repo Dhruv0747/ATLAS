@@ -1,10 +1,11 @@
 # Changelog
 
-## 2026-09-02 - Initialize RD-03D multi-target output
+## 2026-09-02 - Add controlled RD-03D multi-target initialization
 
-- Added the documented RD-03D multi-target request to the UNO R4 sensor-hub
-  startup sequence so the bridge can receive 30-byte tracking frames.
-- Added a `RADARINIT` maintenance command and heartbeat initialization count.
+- Added the documented RD-03D multi-target request as a controlled
+  `RADARINIT` maintenance command with a heartbeat initialization count.
+- Kept this request out of automatic boot and baud-change paths after proving
+  that a faulty radar UART can stall the UNO before its first heartbeat.
 
 ## 2026-09-02 - Expose RD-03D raw diagnostic sample
 
