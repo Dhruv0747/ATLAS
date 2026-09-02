@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-02 - Add isolated UNO R4 multi-sensor hub firmware
+
+- Added a consolidated UNO R4 WiFi firmware for the PCA9685, BME680, AMG8833,
+  BNO08x, L76K GNSS, RD-03D radar and four ultrasonic positions, with USB
+  telemetry, bounded retries and a local 12x8 sensor-health display.
+- Kept the main A4/A5 I2C bus recoverable and isolated the BNO08x on the UNO R4
+  Qwiic/Wire1 bus so the IMU's atypical I2C behavior cannot stall every other
+  sensor.
+- Commissioned D0/D1 for L76K GNSS, D11/D12 for RD-03D radar, and D8/D9 for
+  the fitted rear ultrasonic sensor. Front, left and right channels remain
+  safely disabled until installed.
+- Bench-verified the environment, thermal, GNSS, radar and rear ultrasonic
+  streams. The BNO08x is powered and visible at `0x4B` on the wrong A4/A5 bus,
+  but produced no valid IMU packets; moving it to Qwiic remains the hardware
+  gate before Jetson deployment.
+
 ## 2026-09-01 - Move PCA9685 camera control to the Mega
 
 - Added native 50 Hz PCA9685 control to the Mega 2560 firmware with the
