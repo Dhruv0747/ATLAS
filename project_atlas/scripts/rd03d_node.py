@@ -40,6 +40,7 @@ class RD03DNode(Node):
         self.valid_frames = 0
         self.bad_footers = 0
         self.discarded_bytes = 0
+        self.last_chunk_hex = ""
         self.started_at = time.monotonic()
         self.last_valid_frame_at = None
         self.source = os.environ.get("ATLAS_RADAR_SOURCE", "serial").strip().lower()
@@ -69,6 +70,7 @@ class RD03DNode(Node):
         except ValueError:
             self.get_logger().warning("Discarding malformed radar hex chunk")
             return
+        self.last_chunk_hex = chunk[:32].hex().upper()
         self.raw_bytes += len(chunk)
         self.buf += chunk
         self.parse_frames()
@@ -152,7 +154,8 @@ class RD03DNode(Node):
             f"state={state} source={self.source} bytes={self.raw_bytes} "
             f"frames={self.valid_frames} bad_footers={self.bad_footers} "
             f"discarded={self.discarded_bytes} buffer={len(self.buf)} "
-            f"last_frame_age={frame_age:.1f}s"
+            f"last_frame_age={frame_age:.1f}s "
+            f"sample={self.last_chunk_hex or 'NONE'}"
         )
         self.pub_decoder_status.publish(String(data=status))
 

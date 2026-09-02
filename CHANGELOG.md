@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-02 - Initialize RD-03D multi-target output
+
+- Added the documented RD-03D multi-target request to the UNO R4 sensor-hub
+  startup sequence so the bridge can receive 30-byte tracking frames.
+- Added a `RADARINIT` maintenance command and heartbeat initialization count.
+
+## 2026-09-02 - Expose RD-03D raw diagnostic sample
+
+- Added the latest bounded UART chunk to `/radar/decoder_status` so wiring,
+  baud-rate, and protocol-mode faults can be distinguished without taking
+  ownership of the UNO sensor-hub serial port.
+
 ## 2026-09-02 - Keep UNO telemetry alive with an absent BNO08x
 
 - Disabled the automatic 30-second BNO08x reinitialization attempt while the
@@ -8,8 +20,10 @@
 - Separated automatic A4/A5 recovery from BNO08x initialization as well, so a
   later transient BME680/AMG8833/PCA9685 read fault cannot enter the blocking
   IMU path and freeze the whole hub.
-- Kept BNO08x visibly offline and retained the explicit `SCAN` command as the
-  controlled retry path after its wiring is corrected.
+- Removed the remaining boot-time BNO08x initialization after reproducing an
+  intermittent startup lock. Ordinary `SCAN` is now safe for the main bus;
+  `BNOINIT` is the explicit maintenance-only retry after wiring is corrected.
+- Kept BNO08x visibly offline without allowing it to stall working telemetry.
 
 ## 2026-09-02 - Make motor telemetry independent of USB hub position
 

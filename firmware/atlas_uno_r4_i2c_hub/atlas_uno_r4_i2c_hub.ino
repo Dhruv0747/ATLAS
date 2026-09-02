@@ -37,6 +37,10 @@ constexpr uint32_t GPS_DEFAULT_BAUD = 9600;
 constexpr uint32_t RADAR_DEFAULT_BAUD = 256000;
 constexpr uint8_t RADAR_TX_PIN = 11;
 constexpr uint8_t RADAR_RX_PIN = 12;
+constexpr uint8_t RADAR_MULTI_TARGET_COMMAND[] = {
+  0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00,
+  0x90, 0x00, 0x04, 0x03, 0x02, 0x01
+};
 constexpr uint8_t ULTRASONIC_COUNT = 4;
 constexpr uint8_t ULTRASONIC_TRIG_PINS[ULTRASONIC_COUNT] = {2, 4, 6, 8};
 constexpr uint8_t ULTRASONIC_ECHO_PINS[ULTRASONIC_COUNT] = {3, 5, 7, 9};
@@ -57,7 +61,8 @@ constexpr uint32_t SENSOR_RETRY_MS = 30000;
 // The commissioned BNO08x is currently absent from the isolated Qwiic bus.
 // Re-running begin_I2C() against a missing/faulty BNO08x can block the UNO R4
 // after about 30 seconds and freeze every otherwise healthy telemetry stream.
-// Probe it once at boot and only retry it through the explicit SCAN command.
+// Never probe it automatically. It can only be retried through the explicit
+// BNOINIT maintenance command after its isolated Qwiic wiring is corrected.
 constexpr bool BNO_PERIODIC_RETRY = false;
 
 Adafruit_BME680 *bme = nullptr;
@@ -98,6 +103,7 @@ uint32_t gps_bytes = 0;
 uint32_t radar_bytes = 0;
 uint32_t gps_baud = GPS_DEFAULT_BAUD;
 uint32_t radar_baud = RADAR_DEFAULT_BAUD;
+uint16_t radar_init_count = 0;
 char command_buffer[128];
 size_t command_length = 0;
 char gps_buffer[160];
@@ -525,6 +531,17 @@ void forwardRadar() {
   Serial.println();
 }
 
+void initializeRadar() {
+  // Request the RD-03D's documented 30-byte multi-target stream. D11 is the
+  // UNO TX connected to radar RX; D12 is the UNO RX connected to radar TX.
+  for (size_t index = 0; index < sizeof(RADAR_MULTI_TARGET_COMMAND); ++index) {
+    radar_serial.write(RADAR_MULTI_TARGET_COMMAND[index]);
+  }
+  radar_serial.flush();
+  ++radar_init_count;
+  Serial.print("ACK,RADARINIT="); Serial.println(radar_init_count);
+}
+
 void setGpsBaud(uint32_t baud) {
   if (baud < 1200 || baud > 115200) return;
   gps_baud = baud;
@@ -538,6 +555,8 @@ void setRadarBaud(uint32_t baud) {
   radar_baud = baud;
   radar_serial.end();
   radar_serial.begin(radar_baud);
+  delay(120);
+  initializeRadar();
   Serial.print("ACK,RADARBAUD="); Serial.println(radar_baud);
 }
 
@@ -549,8 +568,12 @@ void handleCommand(const char *command) {
   } else if (!strcmp(command, "SCAN")) {
     scanBus();
     initializeMainSensors();
-    // BNO initialization is deliberately manual because a faulty/absent
-    // BNO08x can block its library call and stop all UNO telemetry.
+  } else if (!strcmp(command, "BNOINIT")) {
+    // Deliberate maintenance-only action: a faulty/absent BNO08x can block
+    // this library call and stop all UNO telemetry until the board is reset.
+    Wire1.end();
+    delay(5);
+    configureBnoWire();
     initializeBno();
     reportStatus();
   } else if (!strcmp(command, "PCA?")) {
@@ -581,6 +604,8 @@ void handleCommand(const char *command) {
     Serial.print("ACK,FREE,"); Serial.println(channel);
   } else if (!strncmp(command, "GPSBAUD,", 8)) {
     setGpsBaud(strtoul(command + 8, nullptr, 10));
+  } else if (!strcmp(command, "RADARINIT")) {
+    initializeRadar();
   } else if (!strncmp(command, "RADARBAUD,", 10)) {
     setRadarBaud(strtoul(command + 10, nullptr, 10));
   } else if (!strncmp(command, "USENABLE,", 9)) {
@@ -635,13 +660,13 @@ void setup() {
   configureSensorWire();
   configureBnoWire();
   delay(1200);
+  initializeRadar();
   Serial.println("ATLAS_UNO_R4_WIFI_I2C_HUB,V=1,BOARD=UNO_R4_WIFI,BUS=A4_A5");
   recoverI2cBus();
   scanBus();
   initializeMainSensors();
-  // One boot-time BNO probe is safe; automatic main-bus recovery never
-  // touches this isolated sensor again.
-  initializeBno();
+  // Do not initialize the BNO08x here. Its driver can block indefinitely
+  // when the sensor is absent or its Qwiic bus is unhealthy.
   reportStatus();
 }
 
@@ -702,6 +727,7 @@ void loop() {
     Serial.print(",GPS_BYTES="); Serial.print(gps_bytes);
     Serial.print(",RADAR_BAUD="); Serial.print(radar_baud);
     Serial.print(",RADAR_BYTES="); Serial.print(radar_bytes);
+    Serial.print(",RADAR_INITS="); Serial.print(radar_init_count);
     Serial.print(",PCA="); Serial.print(pca_online ? 1 : 0);
     Serial.print(",BME="); Serial.print(bme_online ? 1 : 0);
     Serial.print(",AMG="); Serial.print(amg_online ? 1 : 0);

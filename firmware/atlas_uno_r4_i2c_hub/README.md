@@ -32,8 +32,13 @@ is the functional pass condition.
 
 ## Serial commands
 
-- `SCAN` scans both I2C buses and retries all configured devices.
+- `SCAN` scans both I2C buses and retries the main A4/A5 devices.
+- `BNOINIT` explicitly retries the isolated BNO08x after its wiring is fixed;
+  never issue it while the sensor/bus is unhealthy because its driver can
+  block the hub until reset.
 - `STATUS` prints device, UART, ultrasonic, and bus-health state.
+- `RADARINIT` resends the RD-03D multi-target-mode request. The same request
+  is sent automatically after every firmware boot and radar baud change.
 - `USENABLE,F|L|R|B,0|1` enables or disables one ultrasonic position.
 
 The built-in 12x8 LED matrix cycles through device labels. A check means live,
@@ -68,10 +73,10 @@ The BNO08x may remain offline temporarily because the commissioned navigation
 EKF currently uses wheel odometry rather than IMU yaw. Autonomous operation
 must continue to report the missing IMU, and the motor-controller attitude
 topics are comparison telemetry—not a silently substituted navigation source.
-While it is absent, firmware intentionally does not retry BNO08x initialization
-on the 30-second background timer because the library can block and freeze all
-UNO telemetry. `SCAN` remains the deliberate/manual retry path after correcting
-the Qwiic wiring.
+While it is absent, firmware never initializes the BNO08x during boot,
+background recovery, or ordinary `SCAN`, because the library can block and
+freeze all UNO telemetry. `BNOINIT` is the deliberate maintenance-only retry
+path after correcting the Qwiic wiring.
 Automatic BME680, AMG8833 and PCA9685 recovery is also fully isolated from the
 BNO08x initializer, so a transient main-bus read error cannot re-enter the
 faulty IMU path and stall the hub later.
