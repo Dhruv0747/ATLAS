@@ -31,14 +31,23 @@ class RD03DNode(Node):
         self.pub_nearest_y = self.create_publisher(Float32, "/radar/nearest_y", 10)
         self.pub_nearest_speed = self.create_publisher(Float32, "/radar/nearest_speed", 10)
         self.pub_zone = self.create_publisher(String, "/radar/zone", 10)
+        self.pub_decoder_status = self.create_publisher(
+            String, "/radar/decoder_status", 10
+        )
         self.buf = b""
         self.ser = None
+        self.raw_bytes = 0
+        self.valid_frames = 0
+        self.bad_footers = 0
+        self.discarded_bytes = 0
+        self.started_at = time.monotonic()
+        self.last_valid_frame_at = None
         self.source = os.environ.get("ATLAS_RADAR_SOURCE", "serial").strip().lower()
         if self.source == "topic":
             self.create_subscription(
                 String, "/radar/hub/raw_hex", self.raw_hex_cb, 50
             )
-            self.get_logger().info("RD03D decoder using Mega sensor-hub stream")
+            self.get_logger().info("RD03D decoder using UNO R4 sensor-hub stream")
         else:
             self.port = os.environ.get("ATLAS_RADAR_PORT", "/dev/ttyTHS1")
             self.ser = serial.Serial(
@@ -52,18 +61,22 @@ class RD03DNode(Node):
             self.get_logger().info(
                 f"RD03D multi-target mode started on {self.port}"
             )
+        self.status_timer = self.create_timer(1.0, self.publish_decoder_status)
 
     def raw_hex_cb(self, msg):
         try:
-            self.buf += bytes.fromhex(msg.data.strip())
+            chunk = bytes.fromhex(msg.data.strip())
         except ValueError:
             self.get_logger().warning("Discarding malformed radar hex chunk")
             return
+        self.raw_bytes += len(chunk)
+        self.buf += chunk
         self.parse_frames()
 
     def read_cb(self):
         chunk = self.ser.read(128)
         if chunk:
+            self.raw_bytes += len(chunk)
             self.buf += chunk
 
         self.parse_frames()
@@ -73,9 +86,13 @@ class RD03DNode(Node):
         while len(self.buf) >= FRAME_LEN:
             index = self.buf.find(HEADER)
             if index < 0:
-                self.buf = b""
+                # Retain a possible partial header split across UART chunks.
+                keep = min(len(HEADER) - 1, len(self.buf))
+                self.discarded_bytes += len(self.buf) - keep
+                self.buf = self.buf[-keep:] if keep else b""
                 return
             if index > 0:
+                self.discarded_bytes += index
                 self.buf = self.buf[index:]
             if len(self.buf) < FRAME_LEN:
                 return
@@ -83,8 +100,12 @@ class RD03DNode(Node):
             frame = self.buf[:FRAME_LEN]
             self.buf = self.buf[FRAME_LEN:]
             if frame[-2:] != FOOTER:
+                self.bad_footers += 1
                 self.buf = frame[1:] + self.buf
                 continue
+
+            self.valid_frames += 1
+            self.last_valid_frame_at = time.monotonic()
 
             target_strings = []
             target_values = []
@@ -118,6 +139,22 @@ class RD03DNode(Node):
                 self.pub_nearest_y.publish(Float32(data=0.0))
                 self.pub_nearest_speed.publish(Float32(data=0.0))
                 self.pub_zone.publish(String(data="NO_TARGET"))
+
+    def publish_decoder_status(self):
+        now = time.monotonic()
+        if self.last_valid_frame_at is None:
+            frame_age = now - self.started_at
+            state = "NO_VALID_FRAMES"
+        else:
+            frame_age = now - self.last_valid_frame_at
+            state = "VALID" if frame_age < 2.0 else "STALE"
+        status = (
+            f"state={state} source={self.source} bytes={self.raw_bytes} "
+            f"frames={self.valid_frames} bad_footers={self.bad_footers} "
+            f"discarded={self.discarded_bytes} buffer={len(self.buf)} "
+            f"last_frame_age={frame_age:.1f}s"
+        )
+        self.pub_decoder_status.publish(String(data=status))
 
 
 def main():

@@ -35,13 +35,13 @@ ATLAS uses its 360-degree LiDAR as the primary navigation and obstacle sensor. U
 
 - Four-wheel rover with wheel encoders and Yahboom motor controller
 - RPLIDAR A1, BNO08X IMU, ultrasonic sensors, and RD-03D radar
-- Arduino Mega 2560 sensor hub carries the I2C sensors, L76K GNSS, RD-03D radar,
-  and four sequentially sampled ultrasonic channels. See
-  [`docs/MEGA_2560_SENSOR_HUB.md`](docs/MEGA_2560_SENSOR_HUB.md).
+- Arduino UNO R4 WiFi sensor hub carries the I2C sensors, L76K GNSS, RD-03D
+  radar, camera PCA9685, and four sequentially sampled ultrasonic channels.
+  See [`firmware/atlas_uno_r4_i2c_hub/README.md`](firmware/atlas_uno_r4_i2c_hub/README.md).
 - IMX708 Camera Module 3 on a pan/tilt platform
 - GNSS, BMS, BME680, AMG8833 8x8 thermal sensor, Wi-Fi, and cellular connectivity
 
-The commissioned sensor transport now uses an Arduino Mega 2560. It forwards
+The commissioned sensor transport now uses an Arduino UNO R4 WiFi. It forwards
 the PCA9685 (`0x40`) discovery state, BME680 (`0x76`/`0x77`), AMG8833
 (`0x68`/`0x69`), BNO08x (`0x4A`/`0x4B`), L76K NMEA, RD-03D frames and four
 ultrasonic ranges over a fixed Jetson USB physical path. The Jetson bridge

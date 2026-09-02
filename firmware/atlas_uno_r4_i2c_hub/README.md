@@ -13,7 +13,7 @@ over one persistent USB serial connection at 115200 baud.
 | BME680 | A4/SDA, A5/SCL, 3.3 V, common GND | live at `0x77` |
 | BNO08x | **Qwiic/Wire1 only**, 3.3 V, common GND | move required; expected at `0x4B` |
 | L76K GNSS | module TX to D0/RX, module RX to D1/TX | live at 9600 baud |
-| RD-03D radar | module TX to D12/RX; D11/TX optional | live at 256000 baud |
+| RD-03D radar | module TX to D12/RX; module RX to D11/TX; common GND | 256000 baud; require valid `AA FF 03 00 … 55 CC` frames |
 | Rear ultrasonic | TRIG D8, ECHO D9 | live |
 | Front ultrasonic | TRIG D2, ECHO D3 | reserved, disabled |
 | Left ultrasonic | TRIG D4, ECHO D5 | reserved, disabled |
@@ -46,8 +46,9 @@ disabled. The display is diagnostic only and cannot bypass ATLAS motion safety.
 - Isolated Qwiic scan: empty because the BNO08x has not yet been moved.
 - BNO08x: powered and acknowledging on the wrong bus, but 0 valid packets from
   71 reports; not operational until physically moved to Qwiic.
-- BME680, AMG8833, L76K GNSS, RD-03D radar, PCA9685 discovery, and rear
-  ultrasonic telemetry passed their bench checks.
+- BME680, AMG8833, L76K GNSS, PCA9685 discovery, and rear ultrasonic telemetry
+  passed their bench checks. Radar UART byte activity alone is not a pass: the
+  Jetson decoder must report valid 30-byte RD-03D target frames.
 
 It may be installed as the Jetson's authoritative telemetry hub while the
 BNO08x is offline because the commissioned EKF does not currently fuse that

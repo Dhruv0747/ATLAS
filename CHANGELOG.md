@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-02 - Expose valid RD-03D frame health
+
+- Added `/radar/decoder_status` with received-byte, valid-frame, bad-footer,
+  discarded-byte, buffer and last-valid-frame-age counters.
+- Corrected the dashboard so UNO byte activity is no longer presented as a
+  working radar when no valid target frames decode.
+- Replaced stale Mega/direct-Jetson instructions with the commissioned UNO R4
+  wiring: radar TX to D12/RX, radar RX to D11/TX, plus common ground.
+- Preserved partial frame headers across UART chunks and bench-tested the
+  30-byte target decoder without publishing synthetic sensor data into ROS.
+
 ## 2026-09-02 - Add isolated UNO R4 multi-sensor hub firmware
 
 - Added a consolidated UNO R4 WiFi firmware for the PCA9685, BME680, AMG8833,

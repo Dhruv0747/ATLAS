@@ -24,8 +24,8 @@
 // UART inputs:
 //   D0 / RX  -> L76K TX (9600 baud, hardware Serial1)
 //   D12 / RX -> RD-03D TX (256000 baud, independent hardware UART)
-// D1 and D11 are reserved transmit pins, but are intentionally left physically
-// disconnected during the read-only commissioning test.
+// Matching UART outputs are D1 / TX -> L76K RX and D11 / TX -> RD-03D RX.
+// D13 cannot replace D11 because it belongs to a different SCI channel.
 //
 // USB CDC is the Jetson telemetry and command connection. The PCA9685 servo
 // channels are released at startup so boot/reconnect cannot unexpectedly move
