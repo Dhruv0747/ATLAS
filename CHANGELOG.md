@@ -5,6 +5,9 @@
 - Disabled the automatic 30-second BNO08x reinitialization attempt while the
   sensor is absent from its isolated Qwiic bus; the blocking retry was freezing
   otherwise healthy BME680, AMG8833, PCA9685, GNSS, radar, and ultrasonic data.
+- Separated automatic A4/A5 recovery from BNO08x initialization as well, so a
+  later transient BME680/AMG8833/PCA9685 read fault cannot enter the blocking
+  IMU path and freeze the whole hub.
 - Kept BNO08x visibly offline and retained the explicit `SCAN` command as the
   controlled retry path after its wiring is corrected.
 

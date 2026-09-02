@@ -267,7 +267,9 @@ void initializeBno() {
   }
 }
 
-void initializeSensors() {
+// Initialize only the main A4/A5 bus. The BNO08x lives on isolated Wire1 and
+// must never be part of automatic recovery for these commissioned sensors.
+void initializeMainSensors() {
   initializePca();
 
   bme_online = false;
@@ -295,7 +297,6 @@ void initializeSensors() {
     }
   }
 
-  initializeBno();
   reportStatus();
 }
 
@@ -547,7 +548,11 @@ void handleCommand(const char *command) {
     Serial.println("ATLAS_UNO_R4_WIFI_I2C_HUB,V=1,BOARD=UNO_R4_WIFI,BUS=A4_A5");
   } else if (!strcmp(command, "SCAN")) {
     scanBus();
-    initializeSensors();
+    initializeMainSensors();
+    // BNO initialization is deliberately manual because a faulty/absent
+    // BNO08x can block its library call and stop all UNO telemetry.
+    initializeBno();
+    reportStatus();
   } else if (!strcmp(command, "PCA?")) {
     if (!pca_online) initializePca();
     Serial.print("ACK,PCA,"); Serial.println(pca_online ? 1 : 0);
@@ -633,7 +638,11 @@ void setup() {
   Serial.println("ATLAS_UNO_R4_WIFI_I2C_HUB,V=1,BOARD=UNO_R4_WIFI,BUS=A4_A5");
   recoverI2cBus();
   scanBus();
-  initializeSensors();
+  initializeMainSensors();
+  // One boot-time BNO probe is safe; automatic main-bus recovery never
+  // touches this isolated sensor again.
+  initializeBno();
+  reportStatus();
 }
 
 void loop() {
@@ -676,7 +685,7 @@ void loop() {
     last_retry_ms = now;
     if (!bme_online || !amg_online || !pca_online) {
       recoverI2cBus();
-      initializeSensors();
+      initializeMainSensors();
     } else if (BNO_PERIODIC_RETRY && !bno_online) {
       Wire1.end();
       delay(5);

@@ -72,6 +72,9 @@ While it is absent, firmware intentionally does not retry BNO08x initialization
 on the 30-second background timer because the library can block and freeze all
 UNO telemetry. `SCAN` remains the deliberate/manual retry path after correcting
 the Qwiic wiring.
+Automatic BME680, AMG8833 and PCA9685 recovery is also fully isolated from the
+BNO08x initializer, so a transient main-bus read error cannot re-enter the
+faulty IMU path and stall the hub later.
 
 Install `project_atlas/udev/70-project-atlas-uno-r4.rules` with the supplied
 root helper before the final endurance run. It prevents ModemManager from
