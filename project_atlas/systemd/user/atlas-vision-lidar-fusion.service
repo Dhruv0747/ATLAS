@@ -1,7 +1,7 @@
 [Unit]
 Description=Project ATLAS camera and LiDAR semantic navigation fusion
-Wants=atlas-camera.service atlas-ai-annotator.service atlas-scan-filter.service atlas-arducam-ptz.service
-After=atlas-camera.service atlas-ai-annotator.service atlas-scan-filter.service atlas-arducam-ptz.service
+Wants=atlas-camera.service atlas-ai-annotator.service atlas-scan-filter.service atlas-uno-r4-sensor-hub.service
+After=atlas-camera.service atlas-ai-annotator.service atlas-scan-filter.service atlas-uno-r4-sensor-hub.service
 
 [Service]
 Type=simple

@@ -43,7 +43,7 @@ MANIFEST_JSON = """{
     {"src": "/logo.png", "sizes": "512x512", "type": "image/png"}
   ]
 }"""
-SERVICES = ["rover-base", "rover-teleop", "rover-ultrasonic-arduino", "rover-cellular", "rover-ups", "rover-daly-bms", "rover-atlas-supervisor", "rover-status-web"]
+SERVICES = ["rover-base", "rover-teleop", "atlas-uno-r4-sensor-hub", "rover-cellular", "rover-ups", "rover-daly-bms", "rover-atlas-supervisor", "rover-status-web"]
 TODO = [
     ("GPS/NavIC", "Move GNSS antenna outside metal body; validate satellites later."),
     ("Encoder odom", "Calibrate Yahboom encoder ticks to real wheel distance."),

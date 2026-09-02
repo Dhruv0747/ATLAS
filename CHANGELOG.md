@@ -15,6 +15,23 @@
   streams. The BNO08x is powered and visible at `0x4B` on the wrong A4/A5 bus,
   but produced no valid IMU packets; moving it to Qwiic remains the hardware
   gate before Jetson deployment.
+- Added a stable-by-ID Jetson user service for the UNO R4, asserted the DTR
+  state required by its native USB CDC port, and migrated camera/vision/EKF
+  service dependencies away from the retired Mega bridge.
+- Corrected the consolidated UNO's PCA9685 camera mapping to channels 0/1 and
+  preserved released servo outputs across USB reconnects so sensor recovery
+  cannot unexpectedly move the camera.
+- Hardened native USB reconnects by asserting DTR after `cdc_acm` opens and by
+  leaving boot-time I2C initialization to the firmware instead of immediately
+  forcing a second recovery scan. Rate-limited disconnected status telemetry
+  to reduce idle ROS/DDS load.
+- Accepted the UNO firmware's `USTAT` diagnostic as a valid ultrasonic health
+  record, preserving disabled/online channel state without false parse errors.
+- Updated the web dashboard's service-health inventory to follow the active
+  UNO R4 hub instead of reporting the retired ultrasonic bridge as offline.
+- Added a serial-number-specific udev rule that excludes only the UNO R4 from
+  ModemManager probing, preserving the SIMCom cellular service and providing a
+  stable `/dev/atlas-sensor-hub` diagnostic alias.
 
 ## 2026-09-01 - Move PCA9685 camera control to the Mega
 

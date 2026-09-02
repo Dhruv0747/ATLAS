@@ -1,0 +1,18 @@
+[Unit]
+Description=Project ATLAS UNO R4 WiFi sensor hub bridge
+After=default.target
+
+[Service]
+Type=simple
+Environment=ATLAS_SENSOR_HUB_PORT=/dev/serial/by-id/usb-Arduino_UNO_WiFi_R4_CMSIS-DAP_E4B063836708-if01
+Environment=ATLAS_SENSOR_HUB_TRANSPORT=uno_r4_i2c_hub
+Environment=ATLAS_NICLA_PRIMARY=0
+Environment=ATLAS_GNSS_ENABLED=1
+Environment=ATLAS_CAMERA_ROUTE=arduino
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/ultrasonic_arduino_bridge.py'
+Restart=always
+RestartSec=3
+TimeoutStopSec=8
+
+[Install]
+WantedBy=default.target

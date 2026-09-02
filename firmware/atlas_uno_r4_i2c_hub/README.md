@@ -49,5 +49,26 @@ disabled. The display is diagnostic only and cannot bypass ATLAS motion safety.
 - BME680, AMG8833, L76K GNSS, RD-03D radar, PCA9685 discovery, and rear
   ultrasonic telemetry passed their bench checks.
 
-Do not install this as the Jetson's authoritative sensor hub until the BNO08x
-is moved to Qwiic and produces valid live packets.
+It may be installed as the Jetson's authoritative telemetry hub while the
+BNO08x is offline because the commissioned EKF does not currently fuse that
+IMU. Keep the offline state visible and complete the Qwiic move before treating
+the IMU channel or orientation redundancy as commissioned.
+
+## Jetson deployment
+
+The UNO is permanently identified by its USB serial number, not by the changing
+`/dev/ttyACM*` index. Install and enable
+`project_atlas/systemd/user/atlas-uno-r4-sensor-hub.service`. Disable the old
+Mega, Portenta, and direct Jetson PTZ services so only one process owns the
+sensor UART and PCA9685 command path. The ROS bridge asserts DTR for native UNO
+R4 USB CDC, but does not automatically move the camera during a reconnect.
+
+The BNO08x may remain offline temporarily because the commissioned navigation
+EKF currently uses wheel odometry rather than IMU yaw. Autonomous operation
+must continue to report the missing IMU, and the motor-controller attitude
+topics are comparison telemetry—not a silently substituted navigation source.
+
+Install `project_atlas/udev/70-project-atlas-uno-r4.rules` with the supplied
+root helper before the final endurance run. It prevents ModemManager from
+probing this exact Arduino CDC endpoint while leaving the SIMCom 4G/5G modem
+untouched. The same rule creates `/dev/atlas-sensor-hub` for local diagnostics.

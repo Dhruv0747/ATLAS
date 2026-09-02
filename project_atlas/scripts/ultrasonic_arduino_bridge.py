@@ -107,10 +107,11 @@ class UltrasonicArduinoBridge(Node):
         self.create_subscription(Int32, '/ultrasonic/left_servo_cmd_us', lambda m: self.send_servo(0, m.data), 10)
         self.camera_via_arduino = CAMERA_ROUTE in ('arduino', 'mega')
         if self.camera_via_arduino:
-            # The commissioned PCA9685 wiring uses channels 0/1 on the Mega.
-            # Retain the legacy UNO R4 mapping (channels 1/2) for rollback.
-            self.camera_pan_channel = 0 if HUB_TRANSPORT == 'mega_2560' else 1
-            self.camera_tilt_channel = 1 if HUB_TRANSPORT == 'mega_2560' else 2
+            # The commissioned Mega and consolidated UNO R4 hub firmware use
+            # channels 0/1. Retain channels 1/2 only for the legacy UNO image.
+            commissioned_hub = HUB_TRANSPORT in ('mega_2560', 'uno_r4_i2c_hub')
+            self.camera_pan_channel = 0 if commissioned_hub else 1
+            self.camera_tilt_channel = 1 if commissioned_hub else 2
             self.create_subscription(
                 Int32, '/camera/bottom_servo_cmd_us',
                 lambda m: self.send_servo(self.camera_pan_channel, m.data), 10)
@@ -132,6 +133,7 @@ class UltrasonicArduinoBridge(Node):
                 self.camera_socket = None
                 self.get_logger().error(f'camera command socket unavailable: {exc}')
         self.last_ok = 0.0
+        self.last_wait_status = 0.0
         self.radar_last_rx = 0.0
         self.radar_bytes_total = 0
         self.gps_hdop = math.nan
@@ -164,15 +166,22 @@ class UltrasonicArduinoBridge(Node):
             # adapter wires DTR to RESET; pyserial's normal open sequence can
             # therefore reset only the Mega while externally powered I2C
             # slaves remain mid-session.  That power-domain mismatch made the
-            # complete I2C bus disappear until a full rover power cycle.
+            # complete I2C bus disappear until a full rover power cycle. The
+            # UNO R4 native USB CDC endpoint instead requires DTR asserted in
+            # order to emit Serial telemetry.
             self.ser = serial.Serial()
             self.ser.port = PORT
             self.ser.baudrate = BAUD
             self.ser.timeout = 0.02
             self.ser.write_timeout = 0.25
-            self.ser.dtr = False
+            self.ser.dtr = HUB_TRANSPORT != 'mega_2560'
             self.ser.rts = False
             self.ser.open()
+            # Apply the final modem-control state after open as well. Linux
+            # cdc_acm may not propagate a pre-open DTR assignment to the UNO
+            # R4 native USB endpoint on every enumeration.
+            self.ser.setDTR(HUB_TRANSPORT != 'mega_2560')
+            self.ser.setRTS(False)
             time.sleep(1.8)
             self.status_pub.publish(String(data='connected'))
             if HUB_TRANSPORT == 'mega_2560':
@@ -181,10 +190,21 @@ class UltrasonicArduinoBridge(Node):
                 self.write_line('ID')
                 if self.camera_via_arduino:
                     self.write_line('PCA?')
+            elif HUB_TRANSPORT == 'uno_r4_i2c_hub':
+                # Firmware setup already performs the authoritative scan and
+                # bounded initialization. Do not launch a second recovery scan
+                # during a USB reconnect; it can interrupt an in-flight sensor
+                # transaction. Camera outputs remain released.
+                self.write_line('PING')
+                self.write_line('PCA?')
             else:
                 self.write_line('PCA?')
                 self.write_line('SCAN')
-                self.write_line('HOME')
+                # The consolidated hub releases camera servo outputs during
+                # boot/reconnect to prevent an unexpected movement or current
+                # surge. Home only the legacy UNO firmware automatically.
+                if HUB_TRANSPORT != 'uno_r4_i2c_hub':
+                    self.write_line('HOME')
             return True
         except Exception as exc:
             self.ser = None
@@ -595,17 +615,22 @@ class UltrasonicArduinoBridge(Node):
             self.ser = None
             return
         if not raw:
-            if time.time() - self.last_ok > 2.5:
+            now = time.time()
+            if now - self.last_ok > 2.5 and now - self.last_wait_status >= 1.0:
+                self.last_wait_status = now
                 self.status_pub.publish(String(data='waiting_for_data'))
             return
         if (raw.startswith('ATLAS_ULTRASONIC') or
                 raw.startswith('ATLAS_UNO_SENSOR_HUB') or
+                raw.startswith('ATLAS_UNO_R4_WIFI_I2C_HUB') or
                 raw.startswith('ATLAS_PORTENTA_SENSOR_HUB') or
                 raw.startswith('ATLAS_MEGA_2560_SENSOR_HUB')):
             if raw.startswith('ATLAS_PORTENTA_SENSOR_HUB'):
                 self.hub_transport = 'portenta_h7'
             elif raw.startswith('ATLAS_MEGA_2560_SENSOR_HUB'):
                 self.hub_transport = 'mega_2560'
+            elif raw.startswith('ATLAS_UNO_R4_WIFI_I2C_HUB'):
+                self.hub_transport = 'uno_r4_i2c_hub'
             self.status_pub.publish(String(data=raw))
             return
         if raw.startswith('I2C,') or raw.startswith('I2CSTAT,'):
@@ -656,6 +681,12 @@ class UltrasonicArduinoBridge(Node):
                     data=(f'{self.hub_transport.upper()}_RADAR_{state} '
                           f'baud={baud} bytes_total={total} rx_age_s={age:.1f}')))
             return
+        if raw.startswith('USTAT,'):
+            # Firmware health state for all four physical positions. Preserve
+            # DISABLED versus ONLINE/OFFLINE instead of misclassifying this
+            # valid diagnostic line as an ultrasonic range parse error.
+            self.status_pub.publish(String(data=raw))
+            return
         if raw.startswith('ACK,') or raw.startswith('ERR,'):
             self.pca_status_pub.publish(String(data=raw))
             return
@@ -672,7 +703,7 @@ class UltrasonicArduinoBridge(Node):
             values['la'], values['ra'], values['c1'], values['c2'], values['pca']
         )
         self.publish_mm(self.front_pub, front)
-        if self.hub_transport in ('portenta_h7', 'mega_2560'):
+        if self.hub_transport in ('portenta_h7', 'mega_2560', 'uno_r4_i2c_hub'):
             # New sensor-hub harnesses use logical physical-side labels directly.
             self.publish_mm(self.left_pub, left)
             self.publish_mm(self.right_pub, right)

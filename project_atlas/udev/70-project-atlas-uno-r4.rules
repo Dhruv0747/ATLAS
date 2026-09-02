@@ -1,0 +1,3 @@
+# Keep ModemManager away from the ATLAS UNO R4 native USB CDC endpoint while
+# retaining ModemManager for the SIMCom 4G/5G modem.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", ATTRS{idProduct}=="1002", ATTRS{serial}=="E4B063836708", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{ID_MM_PORT_IGNORE}="1", GROUP="dialout", MODE="0660", SYMLINK+="atlas-sensor-hub"
