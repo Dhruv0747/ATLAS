@@ -25,6 +25,9 @@ PORT = os.environ.get(
     '/dev/serial/by-id/usb-Arduino_UNO_WiFi_R4_CMSIS-DAP_E4B063836708-if01',
 ).strip()
 BAUD = 115200
+SERIAL_STALE_REOPEN_SECONDS = max(
+    5.0, float(os.environ.get('ATLAS_SENSOR_HUB_STALE_REOPEN_SECONDS', '8.0'))
+)
 HUB_TRANSPORT = os.environ.get('ATLAS_SENSOR_HUB_TRANSPORT', 'arduino_uno_r4').strip()
 NICLA_PRIMARY = os.environ.get('ATLAS_NICLA_PRIMARY', '0').strip().lower() in (
     '1', 'true', 'yes', 'on',
@@ -133,6 +136,7 @@ class UltrasonicArduinoBridge(Node):
                 self.camera_socket = None
                 self.get_logger().error(f'camera command socket unavailable: {exc}')
         self.last_ok = 0.0
+        self.last_serial_rx = 0.0
         self.last_wait_status = 0.0
         self.radar_last_rx = 0.0
         self.radar_bytes_total = 0
@@ -183,6 +187,13 @@ class UltrasonicArduinoBridge(Node):
             self.ser.setDTR(HUB_TRANSPORT != 'mega_2560')
             self.ser.setRTS(False)
             time.sleep(1.8)
+            now = time.time()
+            # Give a newly enumerated board a bounded startup grace period.
+            # A native USB reset can leave an otherwise valid cdc_acm handle
+            # returning empty reads forever, so tick() reopens it if no bytes
+            # arrive before this deadline.
+            self.last_ok = now
+            self.last_serial_rx = now
             self.status_pub.publish(String(data='connected'))
             if HUB_TRANSPORT == 'mega_2560':
                 # Mega firmware scans and initializes during setup. BNO08x's
@@ -616,10 +627,23 @@ class UltrasonicArduinoBridge(Node):
             return
         if not raw:
             now = time.time()
+            if now - self.last_serial_rx >= SERIAL_STALE_REOPEN_SECONDS:
+                self.status_pub.publish(String(
+                    data=(f'serial_stale_reopening age_s='
+                          f'{now - self.last_serial_rx:.1f}')))
+                try:
+                    self.ser.close()
+                except Exception:
+                    pass
+                self.ser = None
+                self.last_serial_rx = now
+                self.last_wait_status = now
+                return
             if now - self.last_ok > 2.5 and now - self.last_wait_status >= 1.0:
                 self.last_wait_status = now
                 self.status_pub.publish(String(data='waiting_for_data'))
             return
+        self.last_serial_rx = time.time()
         if (raw.startswith('ATLAS_ULTRASONIC') or
                 raw.startswith('ATLAS_UNO_SENSOR_HUB') or
                 raw.startswith('ATLAS_UNO_R4_WIFI_I2C_HUB') or
