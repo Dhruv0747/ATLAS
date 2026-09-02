@@ -141,6 +141,18 @@ class AtlasRosNode:
                 lambda m: self._set("i2c_status", m.data),
                 10,
             )
+            n.create_subscription(
+                String,
+                "/arduino/pca9685/status",
+                lambda m: self._set("pca_status", m.data),
+                10,
+            )
+            n.create_subscription(
+                String,
+                "/camera/arducam/status",
+                lambda m: self._set("camera_servo_status", m.data),
+                10,
+            )
             n.create_subscription(String, "/radar/targets", self._radar_targets_cb, 10)
             n.create_subscription(
                 String, "/radar/hub/status",
@@ -1253,9 +1265,9 @@ function renderHealth(r,net){
   ['RPLIDAR',recent(r,'lidar',4)?'ok':'fail',recent(r,'lidar',4)?'Laser scan live':'Check LiDAR USB, motor and cable','lidar'],
   ['RD-03D RADAR',recent(r,'radar',3)?'ok':'fail',recent(r,'radar',3)?'UART target frames live':'Check radar power and crossed TX/RX','radar'],
   ['ULTRASONIC',!ultrasonicEnabled?'warn':(recent(r,'us_status',4)||recent(r,'us_front',4)?'ok':'fail'),!ultrasonicEnabled?'Intentionally disabled; LiDAR is primary':(recent(r,'us_status',4)||recent(r,'us_front',4)?'Arduino range data live':'Check Arduino USB and sensor power'),ultrasonicEnabled?(recent(r,'us_status',4)?'us_status':'us_front'):null],
-  ['I2C SENSOR BUS',i2c.liveCount?'ok':(i2c.arduinoLive?'warn':'fail'),i2c.liveCount?`${i2c.liveCount} native sensor${i2c.liveCount===1?'':'s'} live on Jetson I2C-7`:(i2c.arduinoLive?'Arduino bridge live, but reports no devices':'No live I2C sensor telemetry'),i2c.liveCount?(i2c.imuLive?'imu_heading':i2c.thermalLive?'thermal_status':'outside_status'):'i2c_status'],
+  ['I2C SENSOR BUS',i2c.liveCount?'ok':(i2c.bridgeLive?'warn':'fail'),i2c.liveCount?`${i2c.liveCount}/4 sensor${i2c.liveCount===1?'':'s'} live through ${i2c.route}`:(i2c.bridgeLive?'UNO R4 bridge live, but sensor data is stale':'No live I2C sensor telemetry'),i2c.freshestKey],
   ['INSIDE IR 8x8',thermal.ok&&recent(r,'thermal_json',5)?'ok':'fail',thermal.ok?'AMG8833 heatmap live':'Not detected: check 3.3V, GND, SDA pin 3, SCL pin 5','thermal_json'],
-  ['OUTSIDE TEMP',recent(r,'outside_temperature',9)?'ok':'fail',recent(r,'outside_temperature',9)?'Ambient temperature live':'Check outside sensor wiring/address 0x4B','outside_temperature'],
+  ['OUTSIDE TEMP',recent(r,'outside_temperature',9)?'ok':'fail',recent(r,'outside_temperature',9)?'BME680 ambient temperature live':'Check BME680 wiring/address 0x77','outside_temperature'],
   ['DALY BMS',recent(r,'bms_status',20)?'ok':'fail',recent(r,'bms_status',20)?'Battery telemetry live':'Check BMS Bluetooth connection','bms_status'],
   ['ORIN IO BASE',recent(r,'carrier_status',25)&&carrier.ok?'ok':'fail',carrier.ok?`${carrier.power_mode} • NVMe ${carrier.nvme.free_gb}GB free • ${carrier.usb_devices} USB devices`:'Carrier health service offline','carrier_status'],
   [`${cellGen} MODEM`,recent(r,'cell_signal',20)?'ok':'fail',recent(r,'cell_signal',20)?`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech','')}`:'Check SIM8230G USB and power','cell_signal'],
@@ -1296,13 +1308,21 @@ function tile(label,value,unit=''){return `<div class="detailTile"><b>${label}</
 function rangeTile(label,value){let mm=Number(value),pct=Number.isFinite(mm)?Math.max(0,Math.min(100,mm/30)):0;return `<div class="detailTile"><b>${label}</b><strong>${Number.isFinite(mm)?mm.toFixed(0):'--'} mm</strong><div class="rangeBar"><div class="rangeFill" style="width:${pct}%"></div></div><div class="sensorHint">${Number.isFinite(mm)?(mm<250?'NEAR — STOP ZONE':mm<500?'CAUTION':'CLEAR'):'NO CURRENT READING'}</div></div>`}
 function heatCells(r){let t={};try{t=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}let p=Array.isArray(t.pixels_c)?t.pixels_c:(Array.isArray(t.pixels)?t.pixels:[]),mn=Number(t.min_c),mx=Number(t.max_c);return `<div class="modalHeat">${Array.from({length:64},(_,i)=>{let v=Number(p[i]),q=Number.isFinite(v)?Math.max(0,Math.min(1,(v-mn)/Math.max(.2,mx-mn))):0;return `<i title="${Number.isFinite(v)?v.toFixed(1)+'°C':'--'}" style="background:${Number.isFinite(v)?`hsl(${220-q*220} 88% ${28+q*28}%)`:'#112436'}"></i>`}).join('')}</div><div class="detailGrid" style="margin-top:10px">${tile('MIN',n(t.min_c,1),'°C')}${tile('AVERAGE',n(t.avg_c,1),'°C')}${tile('MAX / HOTSPOT',n(t.max_c,1),'°C')}</div>`}
 function i2cInfo(r){
- let raw=String(val(r,'i2c_status','')),arduinoBus=(raw.match(/(?:^|,)BUS=([^,]*)/i)||[])[1]||'--',arduinoAddresses=raw.match(/0x[0-9a-f]{2}/gi)||[];
+ let raw=String(val(r,'i2c_status','')),pcaRaw=String(val(r,'pca_status','')),cameraRaw=String(val(r,'camera_servo_status','')),arduinoBus=(raw.match(/(?:^|,)BUS=([^,]*)/i)||[])[1]||'UNO R4 A4/A5',arduinoAddresses=raw.match(/0x[0-9a-f]{2}/gi)||[];
  arduinoAddresses=[...new Set(arduinoAddresses.map(x=>x.toUpperCase()))];
- let imuLive=recent(r,'imu_heading',4),thermalLive=recent(r,'thermal_status',5),outsideLive=recent(r,'outside_status',9),native=[];
- if(imuLive)native.push({name:'BNO08X IMU',address:'0x4B'});
- if(thermalLive){let a=String(val(r,'thermal_status','')).match(/addr=(0x[0-9a-f]{2})/i);native.push({name:'AMG8833 8x8',address:a?a[1].toUpperCase():'--'})}
- if(outsideLive){let a=String(val(r,'outside_status','')).match(/addr=(0x[0-9a-f]{2})/i);native.push({name:'BME680 AIR',address:a?a[1].toUpperCase():'--'})}
- return {raw,arduinoBus,arduinoAddresses,arduinoLive:recent(r,'i2c_status',6),imuLive,thermalLive,outsideLive,native,liveCount:native.length};
+ let imuLive=recent(r,'imu_full',4)||recent(r,'imu_heading',4);
+ let thermalLive=recent(r,'thermal_json',5)||recent(r,'thermal_status',5);
+ let outsideLive=recent(r,'outside_temperature',9)||recent(r,'bme680_json',9)||recent(r,'outside_status',9);
+ let pcaLive=(recent(r,'pca_status',5)&&(/pca=1|ACK,PCA,1|PCA=1/i.test(pcaRaw)))||recent(r,'camera_servo_status',5);
+ let bridgeLive=recent(r,'i2c_status',8)||thermalLive||outsideLive||pcaLive;
+ let sensors=[
+  {name:'PCA9685 CAMERA',address:'0x40',live:pcaLive,key:pcaLive?'pca_status':'i2c_status'},
+  {name:'BNO08X IMU',address:'0x4B',live:imuLive,key:imuLive?'imu_full':'i2c_status'},
+  {name:'AMG8833 8x8',address:'0x69',live:thermalLive,key:thermalLive?'thermal_json':'i2c_status'},
+  {name:'BME680 AIR',address:'0x77',live:outsideLive,key:outsideLive?'outside_temperature':'i2c_status'}
+ ];
+ let liveSensors=sensors.filter(x=>x.live),freshest=liveSensors.map(x=>x.key).sort((a,b)=>age(r,a)-age(r,b))[0]||'i2c_status';
+ return {raw,pcaRaw,cameraRaw,arduinoBus,arduinoAddresses,arduinoLive:recent(r,'i2c_status',8),bridgeLive,route:'UNO R4 USB/I2C hub',imuLive,thermalLive,outsideLive,pcaLive,sensors,liveSensors,liveCount:liveSensors.length,freshestKey:freshest};
 }
 function renderDetail(){if(!activeDetail||!latestStatus)return;let r=latestStatus.ros,body='',title='LIVE SENSOR',fresh='LIVE';
  if(activeDetail==='ultrasonic'){title='FOUR ULTRASONIC SENSORS';body=`<div class="detailGrid">${rangeTile('LEFT',val(r,'us_left'))}${rangeTile('FRONT',val(r,'us_front'))}${rangeTile('RIGHT',val(r,'us_right'))}${rangeTile('REAR',val(r,'us_rear'))}</div><div class="rawData">STATUS: ${val(r,'us_status','waiting')}\nREFRESH: live ROS values, approximately 5–10 updates/second\nROLE: secondary near-field safety layer; LiDAR remains the primary navigation sensor.</div>`;fresh=Math.max(age(r,'us_left'),age(r,'us_front'),age(r,'us_right'),age(r,'us_rear'))<3?'● LIVE':'STALE';}
@@ -1310,7 +1330,7 @@ function renderDetail(){if(!activeDetail||!latestStatus)return;let r=latestStatu
  else if(activeDetail==='imu'){title='BNO08X IMU + MOTOR-BOARD IMU';let f=val(r,'imu_full',{}),m=val(r,'imu_mag',{});body=`<div class="detailGrid">${tile('ROLL',n(val(r,'imu_roll'),2),'°')}${tile('PITCH',n(val(r,'imu_pitch'),2),'°')}${tile('HEADING / YAW',n(val(r,'imu_heading'),2),'°')}${tile('ACCEL X',n(f.ax,3),' m/s²')}${tile('ACCEL Y',n(f.ay,3),' m/s²')}${tile('ACCEL Z',n(f.az,3),' m/s²')}${tile('GYRO X',n(f.gx,3),' rad/s')}${tile('GYRO Y',n(f.gy,3),' rad/s')}${tile('GYRO Z',n(f.gz,3),' rad/s')}${tile('MAG X',n(m.x_ut,2),' µT')}${tile('MAG Y',n(m.y_ut,2),' µT')}${tile('MAG Z',n(m.z_ut,2),' µT')}</div><div class="rawData">ORIENTATION QUATERNION: x ${n(f.qx,5)}  y ${n(f.qy,5)}  z ${n(f.qz,5)}  w ${n(f.qw,5)}\nDEDICATED BNO08X: navigation source\nMOTOR-BOARD IMU: roll ${n(val(r,'board_imu_roll'),1)}°, pitch ${n(val(r,'board_imu_pitch'),1)}°, heading ${n(val(r,'board_imu_heading'),1)}° — displayed for comparison/fault detection, not fused as the primary source.</div>`;fresh=age(r,'imu_full')<3?'● LIVE':'STALE';}
  else if(activeDetail==='thermal'){title='AMG8833 8×8 THERMAL ARRAY';body=heatCells(r)+`<div class="rawData">${val(r,'thermal_status','Thermal sensor waiting')}\nEach square is one live infrared temperature pixel. Brightest square is the current hotspot.</div>`;fresh=age(r,'thermal_json')<4?'● LIVE':'STALE';}
  else if(activeDetail==='environment'){title='BME680 OUTSIDE AIR / GAS';let j={};try{j=JSON.parse(val(r,'bme680_json','{}')||'{}')}catch(e){}body=`<div class="detailGrid">${tile('TEMPERATURE',n(val(r,'outside_temperature'),2),'°C')}${tile('HUMIDITY',n(val(r,'outside_humidity'),1),'% RH')}${tile('PRESSURE',n(val(r,'outside_pressure'),1),' hPa')}${tile('GAS RESISTANCE',n(Number(val(r,'outside_gas'))/1000,1),' kΩ')}${tile('IAQ ESTIMATE',n(j.iaq,0))}${tile('HEATER',j.heat_stable?'STABLE':'WARMING')}</div><div class="rawData">STATUS: ${val(r,'outside_status','waiting')}\nGas resistance is a relative VOC/air-quality signal, not a calibrated safety alarm. Compare its trend and IAQ estimate after the heater becomes stable.</div>`;fresh=age(r,'outside_gas')<8?'● LIVE':'STALE';}
- else if(activeDetail==='i2c'){title='ATLAS I²C ROUTES — LIVE INVENTORY';let q=i2cInfo(r),nativeText=q.native.length?q.native.map(x=>`${x.name}  ${x.address}`).join('\n'):'NONE',arduinoText=q.arduinoAddresses.length?q.arduinoAddresses.join(', '):'NONE REPORTED';body=`<div class="detailGrid">${tile('JETSON I2C-7',q.liveCount+' LIVE')}${tile('BNO08X',q.imuLive?'0x4B LIVE':'OFFLINE')}${tile('AMG8833',q.thermalLive?'LIVE':'OFFLINE')}${tile('BME680',q.outsideLive?'LIVE':'OFFLINE')}${tile('UNO BRIDGE',q.arduinoLive?'ONLINE':'OFFLINE')}${tile('UNO DEVICES',q.arduinoAddresses.length)}</div><div class="rawData">JETSON I2C-7 ACTIVE SENSORS:\n${nativeText}\n\nARDUINO ${q.arduinoBus} STATUS:\n${q.raw||'waiting for /arduino/i2c/status'}\nADDRESSES: ${arduinoText}\n\nSensor LIVE states are based on fresh ROS telemetry, not a disruptive repeated bus scan.</div>`;fresh=q.liveCount?'● LIVE':(q.arduinoLive?'● BRIDGE ONLY':'STALE');}
+ else if(activeDetail==='i2c'){title='ATLAS I²C ROUTES — LIVE INVENTORY';let q=i2cInfo(r),sensorText=q.sensors.map(x=>`${x.live?'LIVE   ':'OFFLINE'} ${x.name}  ${x.address}`).join('\n'),arduinoText=q.arduinoAddresses.length?q.arduinoAddresses.join(', '):'not present in latest status frame';body=`<div class="detailGrid">${tile('UNO R4 I2C HUB',q.liveCount+'/4 LIVE')}${tile('PCA9685',q.pcaLive?'0x40 LIVE':'OFFLINE')}${tile('BNO08X',q.imuLive?'0x4B LIVE':'OFFLINE')}${tile('AMG8833',q.thermalLive?'0x69 LIVE':'OFFLINE')}${tile('BME680',q.outsideLive?'0x77 LIVE':'OFFLINE')}${tile('USB BRIDGE',q.bridgeLive?'ONLINE':'OFFLINE')}</div><div class="rawData">LIVE SENSOR ROUTE: Jetson USB → UNO R4 → I²C A4/A5\n${sensorText}\n\nI²C STATUS:\n${q.raw||'waiting for /arduino/i2c/status'}\nPCA STATUS:\n${q.pcaRaw||q.cameraRaw||'waiting for PCA9685 feedback'}\nSCANNED ADDRESSES: ${arduinoText}\n\nEach LIVE/OFFLINE result is calculated from that sensor's own fresh ROS data. One failed sensor no longer hides the working sensors.</div>`;fresh=q.liveCount?`● ${q.liveCount}/4 LIVE`:(q.bridgeLive?'● BRIDGE ONLY':'STALE');}
  $('detailTitle').textContent=title;$('detailFresh').textContent=fresh;$('detailFresh').style.color=fresh.includes('LIVE')?'#34e58b':'#ff4655';$('detailBody').innerHTML=body;
 }
 function openDetail(key){activeDetail=key;$('sensorModal').classList.add('open');renderDetail()}
@@ -1359,7 +1379,7 @@ async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'})
  let li=val(r,'lidar',{}),radarLive=!!r.radar_count&&r.radar_count.age<2.0,radarHub=!!r.radar_link&&r.radar_link.age<3.0,i2c=i2cInfo(r);
  let radarTitle=radarLive?`${val(r,'radar_count')} targets`:(radarHub?'HUB ONLINE':'OFFLINE');
  let radarDetail=radarLive?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:(radarHub?String(val(r,'radar_link')):'Check RD-03D power/GND and Mega Serial2 pins 16/17');
- $('sensors').innerHTML=card('LiDAR',`${n(li.nearest_m,2)} m`,`${li.points||0} points`)+card('Ultrasonic',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')} • B ${val(r,'us_rear')}`,'ultrasonic')+card('RD-03D Radar',radarTitle,radarDetail)+card('BNO08X IMU',`${n(val(r,'imu_heading'),0)}°`,`roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`,'imu')+card('I²C Sensor Bus',i2c.liveCount?`${i2c.liveCount} LIVE`:(i2c.arduinoLive?'BRIDGE ONLY':'OFFLINE'),i2c.liveCount?`${i2c.arduinoBus} • ${i2c.native.map(x=>x.address).join(' • ')}`:(i2c.arduinoLive?`${i2c.arduinoBus} live; no device addresses`:'No fresh sensor telemetry'),'i2c');
+ $('sensors').innerHTML=card('LiDAR',`${n(li.nearest_m,2)} m`,`${li.points||0} points`)+card('Ultrasonic',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')} • B ${val(r,'us_rear')}`,'ultrasonic')+card('RD-03D Radar',radarTitle,radarDetail)+card('BNO08X IMU',i2c.imuLive?`${n(val(r,'imu_heading'),0)}°`:'OFFLINE',i2c.imuLive?`roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`:'Move BNO08x to UNO R4 Qwiic / Wire1','imu')+card('I²C Sensor Bus',i2c.liveCount?`${i2c.liveCount}/4 LIVE`:(i2c.bridgeLive?'BRIDGE ONLY':'OFFLINE'),i2c.liveCount?`${i2c.route} • ${i2c.liveSensors.map(x=>x.address).join(' • ')}`:(i2c.bridgeLive?'UNO R4 live; sensor data stale':'No fresh sensor telemetry'),'i2c');
  $('power').innerHTML=card('Main BMS',`${n(val(r,'bms_percent'),0)}%`,`${n(val(r,'bms_voltage'),2)}V ${n(val(r,'bms_current'),2)}A ${n(val(r,'bms_power'),1)}W • CELLS ${n(val(r,'bms_cell1'),3)} / ${n(val(r,'bms_cell2'),3)} / ${n(val(r,'bms_cell3'),3)} / ${n(val(r,'bms_cell4'),3)}`)+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,`${n(val(r,'bat_current'),2)}A`)+card('Jetson INA3221',`${n(val(r,'jetson_power'),1)}W`,`${n(val(r,'jetson_voltage'),3)}V ${n(val(r,'jetson_current'),2)}A • CPU/GPU ${n(val(r,'jetson_cpu_gpu_power'),1)}W • SoC ${n(val(r,'jetson_soc_power'),1)}W`)+card('Jetson / UPS',`${n(val(r,'ups_bat_percent'),0)}%`,`${n(val(r,'ups_bat_voltage'),2)}V ${n(val(r,'ups_bat_power'),1)}W`)+card(`${cellGen} HAT`,`${n(val(r,'hat_power'),1)}W`,`${n(val(r,'hat_voltage'),2)}V ${n(val(r,'hat_current'),2)}A`);
  environment(r);
  $('network').innerHTML=row('Wi-Fi',net.wifi_ip)+row(`${cellGen} data`,`${net.cell_ip} • ${val(r,'cell_operator','--')} • ${n(val(r,'cell_signal'),0)}%`)+row('Tailscale',net.tailscale_ip)+row('Active route',net.route);
