@@ -83,7 +83,7 @@ ENCODER_COUNTS_PER_REV = (4048.7, 3300.6, 4080.1, 2697.8)
 ENCODER_FORWARD_SIGN = (1.0, -1.0, -1.0, 1.0)
 YAHBOOM_PORT = os.environ.get(
     'ATLAS_YAHBOOM_PORT',
-    '/dev/serial/by-path/platform-3610000.usb-usb-0:2.2:1.0-port0',
+    '/dev/yahboom',
 )
 
 

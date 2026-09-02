@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-09-02 - Keep UNO telemetry alive with an absent BNO08x
+
+- Disabled the automatic 30-second BNO08x reinitialization attempt while the
+  sensor is absent from its isolated Qwiic bus; the blocking retry was freezing
+  otherwise healthy BME680, AMG8833, PCA9685, GNSS, radar, and ultrasonic data.
+- Kept BNO08x visibly offline and retained the explicit `SCAN` command as the
+  controlled retry path after its wiring is corrected.
+
+## 2026-09-02 - Make motor telemetry independent of USB hub position
+
+- Changed the Yahboom base driver's default port from the obsolete physical
+  USB `by-path` address to the commissioned `/dev/yahboom` udev alias.
+- This preserves encoder and odometry startup when the controller enumerates
+  on a different powered-hub socket after a full rover reboot.
+
 ## 2026-09-02 - Expose valid RD-03D frame health
 
 - Added `/radar/decoder_status` with received-byte, valid-frame, bad-footer,

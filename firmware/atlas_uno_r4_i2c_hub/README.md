@@ -68,6 +68,10 @@ The BNO08x may remain offline temporarily because the commissioned navigation
 EKF currently uses wheel odometry rather than IMU yaw. Autonomous operation
 must continue to report the missing IMU, and the motor-controller attitude
 topics are comparison telemetry—not a silently substituted navigation source.
+While it is absent, firmware intentionally does not retry BNO08x initialization
+on the 30-second background timer because the library can block and freeze all
+UNO telemetry. `SCAN` remains the deliberate/manual retry path after correcting
+the Qwiic wiring.
 
 Install `project_atlas/udev/70-project-atlas-uno-r4.rules` with the supplied
 root helper before the final endurance run. It prevents ModemManager from

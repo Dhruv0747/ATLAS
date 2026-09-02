@@ -54,6 +54,11 @@ constexpr int CAMERA_MAX_PULSE_US = 2300;
 constexpr int CAMERA_PAN_HOME_US = 1300;
 constexpr int CAMERA_TILT_HOME_US = 2100;
 constexpr uint32_t SENSOR_RETRY_MS = 30000;
+// The commissioned BNO08x is currently absent from the isolated Qwiic bus.
+// Re-running begin_I2C() against a missing/faulty BNO08x can block the UNO R4
+// after about 30 seconds and freeze every otherwise healthy telemetry stream.
+// Probe it once at boot and only retry it through the explicit SCAN command.
+constexpr bool BNO_PERIODIC_RETRY = false;
 
 Adafruit_BME680 *bme = nullptr;
 Adafruit_AMG88xx amg;
@@ -672,7 +677,7 @@ void loop() {
     if (!bme_online || !amg_online || !pca_online) {
       recoverI2cBus();
       initializeSensors();
-    } else if (!bno_online) {
+    } else if (BNO_PERIODIC_RETRY && !bno_online) {
       Wire1.end();
       delay(5);
       configureBnoWire();
