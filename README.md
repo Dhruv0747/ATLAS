@@ -48,6 +48,11 @@ the PCA9685 (`0x40`) discovery state, BME680 (`0x76`/`0x77`), AMG8833
 ultrasonic ranges over a fixed Jetson USB physical path. The Jetson bridge
 republishes the original ROS 2 topic names, so Nav2, EKF, dashboards and
 Foxglove do not depend on the physical bus.
+
+The local web dashboard also consumes a small atomic UNO snapshot as a
+read-only fallback when DDS discovery is delayed during simultaneous service
+restarts. Fresh ROS messages always take precedence; the fallback carries no
+control commands and cannot affect motor or navigation safety.
 - ESP32-S3 voice interface and 11-inch touchscreen dashboard
 
 The web Command Center includes both a conventional 2D RD-03D radar scope and

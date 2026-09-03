@@ -8,6 +8,7 @@ import json
 import socket
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import Float32, String, Int32
 from sensor_msgs.msg import NavSatFix, NavSatStatus
@@ -45,6 +46,10 @@ CAMERA_ROUTE = os.environ.get('ATLAS_CAMERA_ROUTE', 'jetson').strip().lower()
 CAMERA_SOCKET_PATH = os.environ.get(
     'ATLAS_SENSOR_HUB_CAMERA_SOCKET',
     '/run/user/1000/atlas-sensor-hub-camera.sock',
+).strip()
+DASHBOARD_SNAPSHOT_PATH = os.environ.get(
+    'ATLAS_SENSOR_HUB_STATUS_PATH',
+    '/run/user/1000/atlas-sensor-hub-status.json',
 ).strip()
 LINE_RE = re.compile(
     r'F=(?P<front>-?\d+),L=(?P<left>-?\d+),R=(?P<right>-?\d+)'
@@ -149,6 +154,13 @@ class UltrasonicArduinoBridge(Node):
         }
         self.gas_baseline = None
         self.bme_started = time.time()
+        # ROS discovery can briefly miss a publisher when the web dashboard
+        # and this USB bridge restart together. Keep a tiny local snapshot as
+        # a second, read-only dashboard transport. ROS topics remain the
+        # authoritative control/robot interface.
+        self.dashboard_cache = {}
+        self.last_dashboard_cache_flush = 0.0
+        self.last_dashboard_cache_error = 0.0
         self.create_timer(0.05, self.tick)
         if self.camera_via_arduino:
             camera_route = 'Arduino UNO R4 PCA9685'
@@ -252,6 +264,46 @@ class UltrasonicArduinoBridge(Node):
         except Exception as exc:
             self.status_pub.publish(String(data=f'write_error {exc}'))
             return False
+
+    def dashboard_cache_set(self, key, value, timestamp=None):
+        self.dashboard_cache[key] = {
+            'value': value,
+            'ts': float(timestamp if timestamp is not None else time.time()),
+        }
+
+    def flush_dashboard_cache(self, force=False):
+        """Atomically expose sensor telemetry when DDS discovery is delayed."""
+        if not DASHBOARD_SNAPSHOT_PATH:
+            return
+        now = time.monotonic()
+        if not force and now - self.last_dashboard_cache_flush < 0.25:
+            return
+        self.last_dashboard_cache_flush = now
+        temporary = f'{DASHBOARD_SNAPSHOT_PATH}.{os.getpid()}.tmp'
+        try:
+            parent = os.path.dirname(DASHBOARD_SNAPSHOT_PATH)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            payload = {
+                'schema': 1,
+                'source': 'atlas-uno-r4-sensor-hub',
+                'updated_at': time.time(),
+                'data': self.dashboard_cache,
+            }
+            with open(temporary, 'w', encoding='utf-8') as stream:
+                json.dump(payload, stream, separators=(',', ':'), allow_nan=False)
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, DASHBOARD_SNAPSHOT_PATH)
+        except Exception as exc:
+            try:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+            except OSError:
+                pass
+            wall_now = time.time()
+            if wall_now - self.last_dashboard_cache_error >= 30.0:
+                self.last_dashboard_cache_error = wall_now
+                self.get_logger().warning(f'dashboard snapshot unavailable: {exc}')
 
     def send_servo(self, channel, pulse_us):
         pulse_us = int(pulse_us)
@@ -433,8 +485,9 @@ class UltrasonicArduinoBridge(Node):
     def handle_bme(self, raw):
         values = self.parse_fields(raw)
         if values.get('OK') != '1':
-            self.environment_status_pub.publish(String(
-                data=f'BME680_OFFLINE via={self.hub_transport}'))
+            status = f'BME680_OFFLINE via={self.hub_transport}'
+            self.environment_status_pub.publish(String(data=status))
+            self.dashboard_cache_set('outside_status', status)
             return
         try:
             temperature = float(values['T'])
@@ -442,7 +495,9 @@ class UltrasonicArduinoBridge(Node):
             pressure = float(values['P'])
             gas = float(values['G'])
         except (KeyError, ValueError) as exc:
-            self.environment_status_pub.publish(String(data=f'BME680_PARSE_ERROR {exc}'))
+            status = f'BME680_PARSE_ERROR {exc}'
+            self.environment_status_pub.publish(String(data=status))
+            self.dashboard_cache_set('outside_status', status)
             return
         stable = time.time() - self.bme_started >= 180.0 and gas > 0.0
         iaq = eco2 = math.nan
@@ -467,9 +522,9 @@ class UltrasonicArduinoBridge(Node):
             self.iaq_pub.publish(Float32(data=iaq))
             self.eco2_pub.publish(Float32(data=eco2))
         address = values.get('A', '--')
-        self.environment_status_pub.publish(String(
-            data=(f'BME680_{label} addr=0x{address} via={self.hub_transport} '
-                  f'T={temperature:.1f}C RH={humidity:.0f}% P={pressure:.1f}hPa')))
+        status = (f'BME680_{label} addr=0x{address} via={self.hub_transport} '
+                  f'T={temperature:.1f}C RH={humidity:.0f}% P={pressure:.1f}hPa')
+        self.environment_status_pub.publish(String(data=status))
         payload = {
             'ok': True, 'address': f'0x{address}', 'bus': self.hub_transport,
             'temperature_c': round(temperature, 2), 'humidity_pct': round(humidity, 1),
@@ -478,13 +533,25 @@ class UltrasonicArduinoBridge(Node):
             'eco2_estimate_ppm': None if not math.isfinite(eco2) else round(eco2),
             'quality': label, 'note': 'IAQ/eCO2 are VOC-derived estimates; eCO2 is not direct CO2',
         }
-        self.environment_json_pub.publish(String(data=json.dumps(payload, separators=(',', ':'))))
+        payload_json = json.dumps(payload, separators=(',', ':'))
+        self.environment_json_pub.publish(String(data=payload_json))
+        timestamp = time.time()
+        for key, value in (
+            ('outside_temperature', temperature),
+            ('outside_humidity', humidity),
+            ('outside_pressure', pressure),
+            ('outside_gas', gas),
+            ('outside_status', status),
+            ('bme680_json', payload_json),
+        ):
+            self.dashboard_cache_set(key, value, timestamp)
 
     def handle_amg(self, raw):
         values = self.parse_fields(raw)
         if values.get('OK') != '1':
-            self.thermal_status_pub.publish(String(
-                data=f'offline via={self.hub_transport}'))
+            status = f'offline via={self.hub_transport}'
+            self.thermal_status_pub.publish(String(data=status))
+            self.dashboard_cache_set('thermal_status', status)
             return
         try:
             pixels = [float(value) for value in values['PX'].split(';')]
@@ -495,7 +562,9 @@ class UltrasonicArduinoBridge(Node):
             if len(pixels) != 64:
                 raise ValueError(f'expected 64 pixels, got {len(pixels)}')
         except (KeyError, ValueError) as exc:
-            self.thermal_status_pub.publish(String(data=f'parse_error {exc}'))
+            status = f'parse_error {exc}'
+            self.thermal_status_pub.publish(String(data=status))
+            self.dashboard_cache_set('thermal_status', status)
             return
         self.thermal_min_pub.publish(Float32(data=minimum))
         self.thermal_max_pub.publish(Float32(data=maximum))
@@ -506,10 +575,14 @@ class UltrasonicArduinoBridge(Node):
             'min_c': minimum, 'max_c': maximum, 'avg_c': average, 'center_c': center,
             'pixels_c': pixels,
         }
-        self.thermal_json_pub.publish(String(data=json.dumps(payload, separators=(',', ':'))))
-        self.thermal_status_pub.publish(String(
-            data=(f'online via={self.hub_transport} '
-                  f'min={minimum:.1f} max={maximum:.1f}')))
+        payload_json = json.dumps(payload, separators=(',', ':'))
+        status = (f'online via={self.hub_transport} '
+                  f'min={minimum:.1f} max={maximum:.1f}')
+        self.thermal_json_pub.publish(String(data=payload_json))
+        self.thermal_status_pub.publish(String(data=status))
+        timestamp = time.time()
+        self.dashboard_cache_set('thermal_json', payload_json, timestamp)
+        self.dashboard_cache_set('thermal_status', status, timestamp)
 
     def handle_nicla_env(self, raw):
         values = self.parse_fields(raw)
@@ -569,6 +642,7 @@ class UltrasonicArduinoBridge(Node):
                   f'NO2={data["NO2"]:.1f}ppb O3={data["O3"]:.1f}ppb')))
 
     def tick(self):
+        self.flush_dashboard_cache()
         self.read_local_camera_commands()
         if self.ser is None:
             self.connect()
@@ -614,6 +688,7 @@ class UltrasonicArduinoBridge(Node):
             return
         if raw.startswith('I2C,') or raw.startswith('I2CSTAT,'):
             self.i2c_status_pub.publish(String(data=raw))
+            self.dashboard_cache_set('i2c_status', raw)
             return
         if raw.startswith('BME,'):
             self.handle_bme(raw)
@@ -637,12 +712,14 @@ class UltrasonicArduinoBridge(Node):
             if payload and len(payload) % 2 == 0:
                 self.radar_last_rx = time.time()
                 self.radar_raw_pub.publish(String(data=payload))
-                self.radar_status_pub.publish(String(
-                    data=(f'{self.hub_transport.upper()}_RADAR_STREAM '
-                          f'bytes={len(payload) // 2}')))
+                status = (f'{self.hub_transport.upper()}_RADAR_STREAM '
+                          f'bytes={len(payload) // 2}')
+                self.radar_status_pub.publish(String(data=status))
+                self.dashboard_cache_set('radar_link', status)
             else:
-                self.radar_status_pub.publish(String(
-                    data=f'{self.hub_transport.upper()}_RADAR_FRAME_INVALID'))
+                status = f'{self.hub_transport.upper()}_RADAR_FRAME_INVALID'
+                self.radar_status_pub.publish(String(data=status))
+                self.dashboard_cache_set('radar_link', status)
             return
         if raw.startswith('HEARTBEAT,'):
             self.status_pub.publish(String(data=raw))
@@ -653,18 +730,21 @@ class UltrasonicArduinoBridge(Node):
                 age = (time.time() - self.radar_last_rx
                        if self.radar_last_rx else -1.0)
                 state = 'STREAMING' if 0 <= age < 3.0 else 'WAITING_FOR_UART'
-                self.radar_status_pub.publish(String(
-                    data=(f'{self.hub_transport.upper()}_RADAR_{state} '
-                          f'baud={baud} bytes_total={total} rx_age_s={age:.1f}')))
+                status = (f'{self.hub_transport.upper()}_RADAR_{state} '
+                          f'baud={baud} bytes_total={total} rx_age_s={age:.1f}')
+                self.radar_status_pub.publish(String(data=status))
+                self.dashboard_cache_set('radar_link', status)
             return
         if raw.startswith('USTAT,'):
             # Firmware health state for all four physical positions. Preserve
             # DISABLED versus ONLINE/OFFLINE instead of misclassifying this
             # valid diagnostic line as an ultrasonic range parse error.
             self.status_pub.publish(String(data=raw))
+            self.dashboard_cache_set('us_status', raw)
             return
         if raw.startswith('ACK,') or raw.startswith('ERR,'):
             self.pca_status_pub.publish(String(data=raw))
+            self.dashboard_cache_set('pca_status', raw)
             return
         m = LINE_RE.fullmatch(raw)
         if not m:
@@ -697,16 +777,28 @@ class UltrasonicArduinoBridge(Node):
             if self.camera_via_arduino and pca == '1':
                 self.camera_bottom_pub.publish(Int32(data=int(c1)))
                 self.camera_second_pub.publish(Int32(data=int(c2)))
-                self.camera_status_pub.publish(String(
-                    data=(f'online via={self.hub_transport} '
-                          f'cam1_us={c1} cam2_us={c2}')))
-            self.pca_status_pub.publish(String(data=f'pca={pca} left_us={la} right_us={ra} cam1_us={c1} cam2_us={c2}'))
+                camera_status = (f'online via={self.hub_transport} '
+                                 f'cam1_us={c1} cam2_us={c2}')
+                self.camera_status_pub.publish(String(data=camera_status))
+                self.dashboard_cache_set('camera_servo_status', camera_status)
+            pca_status = f'pca={pca} left_us={la} right_us={ra} cam1_us={c1} cam2_us={c2}'
+            self.pca_status_pub.publish(String(data=pca_status))
+            self.dashboard_cache_set('pca_status', pca_status)
         self.last_ok = time.time()
-        self.status_pub.publish(
-            String(data=f'ok front={front} left={left} right={right} rear={rear}')
-        )
+        status = f'ok front={front} left={left} right={right} rear={rear}'
+        self.status_pub.publish(String(data=status))
+        timestamp = time.time()
+        for key, value in (
+            ('us_status', status),
+            ('us_front', float(front if front >= 0 else -1)),
+            ('us_left', float(left if left >= 0 else -1)),
+            ('us_right', float(right if right >= 0 else -1)),
+            ('us_rear', float(rear if rear >= 0 else -1)),
+        ):
+            self.dashboard_cache_set(key, value, timestamp)
 
     def destroy_node(self):
+        self.flush_dashboard_cache(force=True)
         if self.camera_socket is not None:
             try:
                 self.camera_socket.close()
@@ -727,7 +819,7 @@ def main():
     node = UltrasonicArduinoBridge()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()

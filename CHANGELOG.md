@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-03 - Make UNO sensor telemetry survive dashboard restarts
+
+- Added an atomic, read-only local snapshot from the UNO R4 bridge containing
+  I2C inventory, PCA9685 state, BME680 measurements, all 64 AMG8833 pixels,
+  ultrasonic ranges and radar-link status.
+- Made the web dashboard merge that snapshot only when it is newer than the
+  corresponding ROS value, so ROS remains primary while a delayed DDS
+  discovery session can no longer leave healthy sensor cards blank.
+- Ordered the dashboard after the UNO bridge at boot and added graceful
+  shutdown to both Python services, eliminating forced dashboard termination
+  and false UNO bridge failures during normal service restarts.
+- Verified dashboard-only and combined bridge/dashboard restart tests with all
+  commissioned I2C devices returning fresh data automatically.
+
 ## 2026-09-03 - Retire the Mega 2560 sensor-hub path
 
 - Removed the inactive Mega 2560 firmware, systemd unit, wiring guide and CH340

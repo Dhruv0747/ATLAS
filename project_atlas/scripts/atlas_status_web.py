@@ -9,6 +9,7 @@ import socket
 import subprocess
 import threading
 import time
+import signal
 
 import cv2
 import numpy as np
@@ -26,6 +27,10 @@ PORT = 8088
 SENSOR_HUB_CAMERA_SOCKET = os.environ.get(
     "ATLAS_SENSOR_HUB_CAMERA_SOCKET",
     "/run/user/1000/atlas-sensor-hub-camera.sock",
+)
+SENSOR_HUB_STATUS_PATH = os.environ.get(
+    "ATLAS_SENSOR_HUB_STATUS_PATH",
+    "/run/user/1000/atlas-sensor-hub-status.json",
 )
 COCO_LABELS = ['person','bicycle','car','motorcycle','airplane','bus','train','truck','boat','traffic light','fire hydrant','stop sign','parking meter','bench','bird','cat','dog','horse','sheep','cow','elephant','bear','zebra','giraffe','backpack','umbrella','handbag','tie','suitcase','frisbee','skis','snowboard','sports ball','kite','baseball bat','baseball glove','skateboard','surfboard','tennis racket','bottle','wine glass','cup','fork','knife','spoon','bowl','banana','apple','sandwich','orange','broccoli','carrot','hot dog','pizza','donut','cake','chair','couch','potted plant','bed','dining table','toilet','tv','laptop','mouse','remote','keyboard','cell phone','microwave','oven','toaster','sink','refrigerator','book','clock','vase','scissors','teddy bear','hair drier','toothbrush']
 AI_MODES = {"eco", "object", "face", "gesture", "color", "line", "follow"}
@@ -67,6 +72,52 @@ def run_quiet(cmd, timeout=2):
         return True, "ok"
     except Exception as exc:
         return False, str(exc)
+
+
+SENSOR_HUB_CACHE_KEYS = {
+    "i2c_status", "pca_status", "camera_servo_status",
+    "outside_temperature", "outside_humidity", "outside_pressure",
+    "outside_gas", "outside_status", "bme680_json",
+    "thermal_status", "thermal_json",
+    "us_status", "us_front", "us_left", "us_right", "us_rear",
+    "radar_link",
+}
+_sensor_hub_cache_lock = threading.Lock()
+_sensor_hub_cache_mtime = None
+_sensor_hub_cache_payload = {"updated_at": 0.0, "data": {}}
+
+
+def sensor_hub_cache_snapshot():
+    """Read the UNO snapshot used when ROS discovery misses its publisher."""
+    global _sensor_hub_cache_mtime, _sensor_hub_cache_payload
+    try:
+        stat = os.stat(SENSOR_HUB_STATUS_PATH)
+    except OSError:
+        with _sensor_hub_cache_lock:
+            return _sensor_hub_cache_payload
+    with _sensor_hub_cache_lock:
+        if stat.st_mtime_ns == _sensor_hub_cache_mtime:
+            return _sensor_hub_cache_payload
+        try:
+            with open(SENSOR_HUB_STATUS_PATH, encoding="utf-8") as stream:
+                payload = json.load(stream)
+            if payload.get("schema") != 1 or not isinstance(payload.get("data"), dict):
+                return _sensor_hub_cache_payload
+            clean = {}
+            for key, item in payload["data"].items():
+                if key not in SENSOR_HUB_CACHE_KEYS or not isinstance(item, dict):
+                    continue
+                if "value" not in item or not isinstance(item.get("ts"), (int, float)):
+                    continue
+                clean[key] = {"value": item["value"], "ts": float(item["ts"])}
+            _sensor_hub_cache_payload = {
+                "updated_at": float(payload.get("updated_at", 0.0)),
+                "data": clean,
+            }
+            _sensor_hub_cache_mtime = stat.st_mtime_ns
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            pass
+        return _sensor_hub_cache_payload
 
 
 class AtlasRosNode:
@@ -114,7 +165,8 @@ class AtlasRosNode:
         self._set("agent_status", "Agent supervisor starting")
         self._set("agent_decision", "No mission selected")
         self._set("agent_state", "{}")
-        threading.Thread(target=self._spin, daemon=True).start()
+        self.spin_thread = threading.Thread(target=self._spin, daemon=True)
+        self.spin_thread.start()
 
     def _set(self, key, value):
         with self.lock:
@@ -304,6 +356,24 @@ class AtlasRosNode:
         except Exception as exc:
             self._set("web_error", str(exc))
             self.ready = False
+        finally:
+            self.ready = False
+            try:
+                if self.node is not None:
+                    self.node.destroy_node()
+            except Exception:
+                pass
+            self.node = None
+
+    def close(self):
+        self.ready = False
+        try:
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception:
+            pass
+        if self.spin_thread.is_alive():
+            self.spin_thread.join(timeout=3.0)
 
     def _odom_cb(self, msg):
         self._set("odom", {
@@ -643,14 +713,28 @@ class AtlasRosNode:
 
     def snapshot(self):
         with self.lock:
-            out = {}
-            now = time.time()
-            for k, v in self.data.items():
-                if k in {"camera_frame", "ai_camera_frame"}:
-                    continue
-                out[k] = {"value": v["value"], "age": round(now - v["ts"], 1)}
-            out["web_control_ready"] = {"value": self.ready, "age": 0}
-            return out
+            data = {key: dict(item) for key, item in self.data.items()}
+        fallback = sensor_hub_cache_snapshot()
+        for key, item in fallback["data"].items():
+            direct = data.get(key)
+            if direct is None or item["ts"] > direct["ts"]:
+                data[key] = item
+        out = {}
+        now = time.time()
+        for k, v in data.items():
+            if k in {"camera_frame", "ai_camera_frame"}:
+                continue
+            out[k] = {"value": v["value"], "age": round(now - v["ts"], 1)}
+        cache_updated = fallback.get("updated_at", 0.0)
+        out["sensor_hub_cache"] = {
+            "value": {
+                "source": "UNO R4 local fallback",
+                "items": len(fallback["data"]),
+            },
+            "age": round(now - cache_updated, 1) if cache_updated else None,
+        }
+        out["web_control_ready"] = {"value": self.ready, "age": 0}
+        return out
 
     def camera_frame(self):
         with self.lock:
@@ -1399,5 +1483,22 @@ refresh();setInterval(refresh,2000);
 </script></body></html>"""
 
 
+def main():
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    server.daemon_threads = True
+
+    def stop_server(_signum, _frame):
+        # HTTPServer.shutdown() must run outside serve_forever's thread.
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+    signal.signal(signal.SIGTERM, stop_server)
+    signal.signal(signal.SIGINT, stop_server)
+    try:
+        server.serve_forever(poll_interval=0.2)
+    finally:
+        server.server_close()
+        ROS.close()
+
+
 if __name__ == "__main__":
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    main()
