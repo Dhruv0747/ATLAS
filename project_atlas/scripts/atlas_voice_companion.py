@@ -73,8 +73,8 @@ class AtlasVoice(Node):
         self.rover = {}
         self.conversation = []
         # Physical forward/default calibration confirmed by Dhruv on 2026-08-02.
-        self.pan_us = 1300
-        self.tilt_us = 2100
+        self.pan_us = 2300
+        self.tilt_us = 1500
         self.pan_feedback_at = 0.0
         self.tilt_feedback_at = 0.0
         self.speech_lock = threading.Lock()
@@ -810,8 +810,8 @@ class AtlasVoice(Node):
         hindi_request = any("\u0900" <= char <= "\u097f" for char in text)
         if camera_named:
             if any(word in lower for word in ("center", "centre", "मध्य", "सीधा")):
-                ok = self.command_servo("pan", 1300)
-                ok = self.command_servo("tilt", 2100) and ok
+                ok = self.command_servo("pan", 2300)
+                ok = self.command_servo("tilt", 1500) and ok
                 if ok:
                     return "कैमरा बीच में कर दिया।" if hindi_request else "Camera centered."
                 return "कैमरा प्रतिक्रिया नहीं दे रहा।" if hindi_request else "Camera did not confirm movement."

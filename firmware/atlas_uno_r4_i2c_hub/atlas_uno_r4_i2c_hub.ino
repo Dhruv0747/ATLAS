@@ -54,8 +54,8 @@ constexpr uint8_t CAMERA_PAN_CHANNEL = 0;
 constexpr uint8_t CAMERA_TILT_CHANNEL = 1;
 constexpr int CAMERA_MIN_PULSE_US = 700;
 constexpr int CAMERA_MAX_PULSE_US = 2300;
-constexpr int CAMERA_PAN_HOME_US = 1300;
-constexpr int CAMERA_TILT_HOME_US = 2100;
+constexpr int CAMERA_PAN_HOME_US = 2300;
+constexpr int CAMERA_TILT_HOME_US = 1500;
 constexpr uint32_t SENSOR_RETRY_MS = 30000;
 
 Adafruit_BME680 *bme = nullptr;

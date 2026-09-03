@@ -11,6 +11,9 @@ from rclpy.executors import ExternalShutdownException
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Bool, Int32, String
 
+CAMERA_PAN_HOME_US = 2300
+CAMERA_TILT_HOME_US = 1500
+
 
 class CameraTracker(Node):
     def __init__(self):
@@ -18,8 +21,8 @@ class CameraTracker(Node):
         # Manual pan/tilt owns the camera after boot. Face following is an
         # explicit operator mode so two controllers never fight the servos.
         self.enabled = False
-        self.pan = 1300
-        self.tilt = 2100
+        self.pan = CAMERA_PAN_HOME_US
+        self.tilt = CAMERA_TILT_HOME_US
         self.last_move = 0.0
         self.last_face = 0.0
         self.last_face_scan = 0.0

@@ -1757,19 +1757,19 @@ def do_touch_action(key):
         DATA.set(face_tracking_enabled=enabled)
         set_toast('Face tracking ' + ('enabled' if enabled else 'disabled'), GREEN if enabled else YELLOW)
     elif key == 'pan_left':
-        target = max(700, int(DATA.get('camera_pan_us', 1300) or 1300) - 160)
+        target = max(700, int(DATA.get('camera_pan_us', 2300) or 2300) - 160)
         _dash_node.touch_pan_pub.publish(Int32(data=target)); DATA.set(camera_pan_us=target)
         set_toast(f'Camera pan {target} us')
     elif key == 'pan_right':
-        target = min(2300, int(DATA.get('camera_pan_us', 1300) or 1300) + 160)
+        target = min(2300, int(DATA.get('camera_pan_us', 2300) or 2300) + 160)
         _dash_node.touch_pan_pub.publish(Int32(data=target)); DATA.set(camera_pan_us=target)
         set_toast(f'Camera pan {target} us')
     elif key == 'tilt_up':
-        target = min(2500, int(DATA.get('camera_tilt_us', 2100) or 2100) + 160)
+        target = min(2500, int(DATA.get('camera_tilt_us', 1500) or 1500) + 160)
         _dash_node.touch_tilt_pub.publish(Int32(data=target)); DATA.set(camera_tilt_us=target)
         set_toast(f'Camera tilt {target} us')
     elif key == 'tilt_down':
-        target = max(500, int(DATA.get('camera_tilt_us', 2100) or 2100) - 160)
+        target = max(500, int(DATA.get('camera_tilt_us', 1500) or 1500) - 160)
         _dash_node.touch_tilt_pub.publish(Int32(data=target)); DATA.set(camera_tilt_us=target)
         set_toast(f'Camera tilt {target} us')
     elif key == 'set_home':

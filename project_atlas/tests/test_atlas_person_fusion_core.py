@@ -14,7 +14,7 @@ class PersonFusionCoreTests(unittest.TestCase):
     def test_camera_person(self):
         person = camera_person({"width": 640, "height": 360, "detections": [
             {"label": "person", "confidence": 0.9, "x1": 280, "x2": 360, "y1": 20, "y2": 340}
-        ]}, 1300)
+        ]}, 2300)
         self.assertAlmostEqual(person["bearing_rad"], 0.0, places=2)
 
     def test_associate_radar(self):

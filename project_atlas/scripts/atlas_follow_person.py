@@ -27,7 +27,7 @@ class AtlasFollowPerson(Node):
         self.front_at = 0.0
         self.lidar_front_m = math.inf
         self.lidar_at = 0.0
-        self.pan_us = 1300
+        self.pan_us = 2300
         self.fused_person = None
         self.fused_at = 0.0
         self.pub = self.create_publisher(Twist, '/cmd_vel_nav', 10)

@@ -43,6 +43,8 @@ GNSS_ENABLED = os.environ.get('ATLAS_GNSS_ENABLED', '1').strip().lower() not in 
     '0', 'false', 'no', 'off',
 )
 CAMERA_ROUTE = os.environ.get('ATLAS_CAMERA_ROUTE', 'jetson').strip().lower()
+CAMERA_PAN_HOME_US = int(os.environ.get('ATLAS_CAMERA_PAN_HOME_US', '2300'))
+CAMERA_TILT_HOME_US = int(os.environ.get('ATLAS_CAMERA_TILT_HOME_US', '1500'))
 CAMERA_SOCKET_PATH = os.environ.get(
     'ATLAS_SENSOR_HUB_CAMERA_SOCKET',
     '/run/user/1000/atlas-sensor-hub-camera.sock',
@@ -215,6 +217,11 @@ class UltrasonicArduinoBridge(Node):
                 # transaction. Camera outputs remain released.
                 self.write_line('PING')
                 self.write_line('PCA?')
+                # Dhruv's commissioned forward pose. Apply it only after the
+                # sensor hub has connected, so every full system power-on and
+                # USB re-enumeration restores the same camera view.
+                self.write_line(f'SERVO,0,{CAMERA_PAN_HOME_US}')
+                self.write_line(f'SERVO,1,{CAMERA_TILT_HOME_US}')
                 # Radar UART is deliberately lazy in firmware so a faulty
                 # peripheral cannot block I2C startup. Enable it only after
                 # the native USB telemetry link is proven alive.

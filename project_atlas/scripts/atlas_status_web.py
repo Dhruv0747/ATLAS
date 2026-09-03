@@ -27,6 +27,8 @@ from std_msgs.msg import Bool, Float32, String, Int32
 PORT = 8088
 CAMERA_PAN_STEP_US = 150
 CAMERA_TILT_STEP_US = 150
+CAMERA_PAN_HOME_US = 2300
+CAMERA_TILT_HOME_US = 1500
 SENSOR_HUB_CAMERA_SOCKET = os.environ.get(
     "ATLAS_SENSOR_HUB_CAMERA_SOCKET",
     "/run/user/1000/atlas-sensor-hub-camera.sock",
@@ -137,10 +139,10 @@ class AtlasRosNode:
         self.tilt_pub = None
         self.camera_tracking_pub = None
         self.ai_pub = None
-        self.pan_us = 1300
-        self.tilt_us = 2100
-        self.actual_pan_us = 1300
-        self.actual_tilt_us = 2100
+        self.pan_us = CAMERA_PAN_HOME_US
+        self.tilt_us = CAMERA_TILT_HOME_US
+        self.actual_pan_us = CAMERA_PAN_HOME_US
+        self.actual_tilt_us = CAMERA_TILT_HOME_US
         self.last_camera_manual = 0.0
         self.last_drive_command = 0.0
         self.drive_active = False
@@ -678,8 +680,8 @@ class AtlasRosNode:
                 if ros_sent or socket_sent:
                     return True, f"manual tilt {self.tilt_us}us"
             if axis == "center":
-                self.pan_us = 1300
-                self.tilt_us = 2100
+                self.pan_us = CAMERA_PAN_HOME_US
+                self.tilt_us = CAMERA_TILT_HOME_US
                 ros_sent = self.pan_pub is not None and self.tilt_pub is not None
                 if self.pan_pub is not None:
                     self.pan_pub.publish(Int32(data=self.pan_us))

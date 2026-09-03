@@ -12,6 +12,8 @@ Environment=ATLAS_SENSOR_HUB_TRANSPORT=uno_r4_i2c_hub
 Environment=ATLAS_NICLA_PRIMARY=0
 Environment=ATLAS_GNSS_ENABLED=0
 Environment=ATLAS_CAMERA_ROUTE=arduino
+Environment=ATLAS_CAMERA_PAN_HOME_US=2300
+Environment=ATLAS_CAMERA_TILT_HOME_US=1500
 Environment=ATLAS_SENSOR_HUB_STATUS_PATH=/run/user/1000/atlas-sensor-hub-status.json
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/ultrasonic_arduino_bridge.py'
 Restart=always

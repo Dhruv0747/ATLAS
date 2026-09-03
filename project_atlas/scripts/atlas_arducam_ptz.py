@@ -36,8 +36,8 @@ class ArducamPTZ(Node):
         self.lock = threading.Lock()
         self.bus = None
         self.active = False
-        self.pan = 1300
-        self.tilt = 2100
+        self.pan = 2300
+        self.tilt = 1500
         self.status_pub = self.create_publisher(String, "/camera/arducam/status", 10)
         self.pan_pub = self.create_publisher(Int32, "/camera/bottom_servo_us", 10)
         self.tilt_pub = self.create_publisher(Int32, "/camera/second_servo_us", 10)

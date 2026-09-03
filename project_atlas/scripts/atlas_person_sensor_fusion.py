@@ -18,7 +18,7 @@ from atlas_vision_lidar_core import associate_detection
 class PersonSensorFusion(Node):
     def __init__(self):
         super().__init__("atlas_person_sensor_fusion")
-        self.pan_us = 1300
+        self.pan_us = 2300
         self.detections = None
         self.detections_at = 0.0
         self.radar = []

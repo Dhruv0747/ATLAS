@@ -32,7 +32,7 @@ def parse_radar_targets(text):
     return targets
 
 
-def camera_person(detections, pan_us, center_us=1300, pan_span_us=700,
+def camera_person(detections, pan_us, center_us=2300, pan_span_us=700,
                   pan_span_rad=math.radians(45), hfov_rad=math.radians(66)):
     width = float(detections.get("width", 0))
     height = float(detections.get("height", 0))

@@ -40,10 +40,10 @@ class AtlasMissionControl(Node):
     )
     CAMERA_PAN_MIN_US = 700
     CAMERA_PAN_MAX_US = 2300
-    CAMERA_PAN_HOME_US = 1300
+    CAMERA_PAN_HOME_US = 2300
     CAMERA_TILT_MIN_US = 500
     CAMERA_TILT_MAX_US = 2500
-    CAMERA_TILT_HOME_US = 2100
+    CAMERA_TILT_HOME_US = 1500
     CAMERA_STEP_US = 160
 
     def __init__(self):
@@ -772,8 +772,8 @@ class AtlasMissionControl(Node):
     def center_camera_for_navigation(self) -> None:
         """Put the pan/tilt camera in its calibrated forward navigation pose."""
         for _ in range(3):
-            self.camera_pan_pub.publish(Int32(data=1300))
-            self.camera_tilt_pub.publish(Int32(data=2100))
+            self.camera_pan_pub.publish(Int32(data=self.CAMERA_PAN_HOME_US))
+            self.camera_tilt_pub.publish(Int32(data=self.CAMERA_TILT_HOME_US))
             time.sleep(0.15)
         self.get_logger().info(
             "Camera centered for LiDAR-confirmed semantic navigation"

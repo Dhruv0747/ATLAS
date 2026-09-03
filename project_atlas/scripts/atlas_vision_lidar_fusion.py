@@ -16,8 +16,8 @@ from std_msgs.msg import Header, Int32, String
 from atlas_vision_lidar_core import associate_detection, pixel_to_bearing
 
 
-FORWARD_PAN_US = 1300
-FORWARD_TILT_US = 2100
+FORWARD_PAN_US = 2300
+FORWARD_TILT_US = 1500
 PAN_TOLERANCE_US = 90
 TILT_TOLERANCE_US = 180
 HORIZONTAL_FOV_RAD = math.radians(66.0)

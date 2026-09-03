@@ -11,10 +11,10 @@ from std_msgs.msg import Int32
 class CameraJoystick(Node):
     def __init__(self):
         super().__init__("camera_joystick")
-        self.pan = 1500
+        self.pan = 2300
         self.tilt = 1500
-        self.minimum = 1100
-        self.maximum = 1900
+        self.minimum = 700
+        self.maximum = 2300
         self.step = 20
         self.tilt_step = 50
         self.last_step = 0.0
@@ -45,7 +45,7 @@ class CameraJoystick(Node):
         buttons = list(message.buttons)
         centre_pressed = len(buttons) > 3 and buttons[3] == 1
         if centre_pressed and not self.last_center:
-            self.pan = 1500
+            self.pan = 2300
             self.tilt = 1500
             self.publish()
         self.last_center = centre_pressed

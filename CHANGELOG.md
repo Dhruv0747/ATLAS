@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-03 - Commission the current camera pose as boot home
+
+- Read the undisturbed live PCA9685 feedback and commissioned that exact pose
+  as pan `2300 us`, tilt `1500 us`.
+- Made the UNO R4 bridge restore the commissioned pose after every system boot
+  or sensor-hub USB reconnect, without requiring face tracking to be enabled.
+- Synchronized dashboard Center, voice Center, remote Center, mission-control
+  navigation pose, person tracking and vision/LiDAR fusion to the same values.
+- Updated the UNO R4 firmware source and user-service environment so future
+  firmware deployments and full power cycles retain the same calibration.
+
 ## 2026-09-03 - Make dashboard camera control deterministic
 
 - Made manual pan/tilt the boot default and require an explicit `FACE FOLLOW`
