@@ -222,6 +222,7 @@ class DashNode(Node):
         S(Float32, '/gps/hdop',                lambda m: DATA.set(gps_hdop=m.data), 10)
         S(String,  '/gps/constellations',      lambda m: DATA.set(gps_const=m.data), 10)
         S(String,  '/gps/arduino_status',      lambda m: DATA.set(gps_arduino_status=m.data), 10)
+        S(String,  '/gps/receiver_status',     lambda m: DATA.set(gps_receiver_status=m.data), 10)
         S(NavSatFix, '/gps/fix',               self._gps_fix, 10)
         # Navigation
         S(LaserScan, '/scan',    self._scan, 10)
@@ -1149,8 +1150,10 @@ def draw_comms_block(x, y, w, h):
     gps_status = DATA.get('gps_status', -1)
     hdop = DATA.get('gps_hdop', 0.0) or 0.0
     counts = parse_constellations(DATA.get('gps_const', ''))
-    gps_uart_status = str(DATA.get('gps_arduino_status', '') or '')
-    gps_uart_live = fresh('gps_arduino_status', 12.0)
+    gps_status_key = ('gps_receiver_status' if fresh('gps_receiver_status', 12.0)
+                      else 'gps_arduino_status')
+    gps_uart_status = str(DATA.get(gps_status_key, '') or '')
+    gps_uart_live = fresh(gps_status_key, 12.0)
     gps_live = fresh('gps_sats', 12.0) or fresh('gps_status', 12.0) or fresh('gps_const', 12.0)
     gps_fix = gps_live and gps_status is not None and gps_status >= 0
     gps_no_bytes = gps_uart_live and 'NO_UART_BYTES' in gps_uart_status
@@ -1581,8 +1584,10 @@ def draw_hud_bottom(x, y, w, h):
 def hardware_health_statuses():
     thermal = DATA.get('thermal_json', {}) or {}
     thermal_ok = isinstance(thermal, dict) and bool(thermal.get('ok')) and fresh('thermal_json', 5.0)
-    gps_uart_status = str(DATA.get('gps_arduino_status', '') or '')
-    gps_uart_live = fresh('gps_arduino_status', 12.0)
+    gps_status_key = ('gps_receiver_status' if fresh('gps_receiver_status', 12.0)
+                      else 'gps_arduino_status')
+    gps_uart_status = str(DATA.get(gps_status_key, '') or '')
+    gps_uart_live = fresh(gps_status_key, 12.0)
     gps_no_bytes = gps_uart_live and 'NO_UART_BYTES' in gps_uart_status
     gps_live = fresh('gps_sats', 12.0)
     gps_sats = int(DATA.get('gps_sats', 0) or 0)

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-03 - Move L76K GNSS to the Jetson J12 UART
+
+- Commissioned Jetson header pins 8/10 as the dedicated L76K route through
+  `/dev/ttyTHS1` at 9600 baud and disabled the obsolete UNO R4 GPS reader.
+- Expanded the GNSS driver with explicit baud configuration, byte/NMEA health,
+  satellite counts, HDOP, constellation discovery and actionable fault state.
+- Added an auto-starting GNSS user service and made both dashboards prefer its
+  live receiver status while retaining the legacy status as a fallback.
+
 ## 2026-09-03 - Diagnose the L76K GNSS UART end to end
 
 - Added a persistent `/gps/arduino_status` health state derived from the UNO R4

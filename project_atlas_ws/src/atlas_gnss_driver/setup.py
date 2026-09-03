@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='jetson',
     maintainer_email='jetson@project-atlas.local',
-    description='Raw NMEA GNSS driver for SIM8230G on Project ATLAS',
+    description='Raw NMEA GNSS driver for the Project ATLAS L76K Jetson UART',
     license='Apache-2.0',
     entry_points={
         'console_scripts': [

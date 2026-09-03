@@ -36,15 +36,18 @@ ATLAS uses its 360-degree LiDAR as the primary navigation and obstacle sensor. U
 - Four-wheel rover with wheel encoders and Yahboom motor controller
 - RPLIDAR A1, calibrated Yahboom motor-board IMU, ultrasonic sensors, and
   RD-03D radar
-- Arduino UNO R4 WiFi sensor hub carries the I2C sensors, L76K GNSS, RD-03D
-  radar, camera PCA9685, and four sequentially sampled ultrasonic channels.
+- Arduino UNO R4 WiFi sensor hub carries the I2C sensors, RD-03D radar,
+  camera PCA9685, and four sequentially sampled ultrasonic channels.
   See [`firmware/atlas_uno_r4_i2c_hub/README.md`](firmware/atlas_uno_r4_i2c_hub/README.md).
+- The L76K GNSS uses the Jetson J12 UART directly: L76K RX to header pin 8
+  (TX), L76K TX to pin 10 (RX), and common ground; Linux exposes it as
+  `/dev/ttyTHS1` at 9600 baud.
 - IMX708 Camera Module 3 on a pan/tilt platform
 - GNSS, BMS, BME680, AMG8833 8x8 thermal sensor, Wi-Fi, and cellular connectivity
 
 The commissioned sensor transport now uses an Arduino UNO R4 WiFi. It forwards
 the PCA9685 (`0x40`) discovery state, BME680 (`0x76`/`0x77`), AMG8833
-(`0x68`/`0x69`), L76K NMEA, RD-03D frames and four
+(`0x68`/`0x69`), RD-03D frames and four
 ultrasonic ranges over a fixed Jetson USB physical path. The Jetson bridge
 republishes the original ROS 2 topic names, so Nav2, EKF, dashboards and
 Foxglove do not depend on the physical bus.

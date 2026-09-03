@@ -11,7 +11,7 @@ over one persistent USB serial connection at 115200 baud.
 | PCA9685 | A4/SDA, A5/SCL, 3.3 V logic, common GND | live at `0x40` |
 | AMG8833 | A4/SDA, A5/SCL, 3.3 V, common GND | live at `0x69` |
 | BME680 | A4/SDA, A5/SCL, 3.3 V, common GND | live at `0x77` |
-| L76K GNSS | module TX to D0/RX, module RX to D1/TX | live at 9600 baud |
+| L76K GNSS | not connected to UNO in the commissioned build | direct Jetson J12 pins 8/10 at 9600 baud; legacy UNO reader retained only for recovery |
 | RD-03D radar | module TX to D12/RX; module RX to D11/TX; common GND | 256000 baud; require valid `AA FF 03 00 … 55 CC` frames |
 | Rear ultrasonic | TRIG D8, ECHO D9 | live |
 | Front ultrasonic | TRIG D2, ECHO D3 | reserved, disabled |
@@ -42,12 +42,13 @@ disabled. The display is diagnostic only and cannot bypass ATLAS motion safety.
 
 - Main A4/A5 scan: `0x40`, `0x69`, `0x77` (the retired `0x4B` device may be
   physically absent and is no longer expected).
-- BME680, AMG8833, L76K GNSS, PCA9685 discovery, and rear ultrasonic telemetry
-  passed their bench checks. Radar UART byte activity alone is not a pass: the
+- BME680, AMG8833, PCA9685 discovery, and rear ultrasonic telemetry passed
+  their bench checks. Radar UART byte activity alone is not a pass: the
   Jetson decoder must report valid 30-byte RD-03D target frames.
 
-The hub owns the environment, thermal, camera controller, GNSS, radar and
-ultrasonic routes only. The Yahboom base process owns `/imu/*`.
+The hub owns the environment, thermal, camera controller, radar and ultrasonic
+routes only. The dedicated Jetson UART service owns GNSS, and the Yahboom base
+process owns `/imu/*`.
 
 ## Jetson deployment
 

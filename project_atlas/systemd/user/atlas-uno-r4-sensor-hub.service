@@ -10,7 +10,7 @@ Type=simple
 Environment=ATLAS_SENSOR_HUB_PORT=/dev/serial/by-id/usb-Arduino_UNO_R4_WiFi_3718211158323232840133334B573038-if00
 Environment=ATLAS_SENSOR_HUB_TRANSPORT=uno_r4_i2c_hub
 Environment=ATLAS_NICLA_PRIMARY=0
-Environment=ATLAS_GNSS_ENABLED=1
+Environment=ATLAS_GNSS_ENABLED=0
 Environment=ATLAS_CAMERA_ROUTE=arduino
 Environment=ATLAS_SENSOR_HUB_STATUS_PATH=/run/user/1000/atlas-sensor-hub-status.json
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/ultrasonic_arduino_bridge.py'
