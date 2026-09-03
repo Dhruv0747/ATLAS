@@ -11,6 +11,9 @@
 - Separated requested and measured servo positions so delayed UNO feedback no
   longer erases held-button steps, and removed duplicate ROS/socket commands
   that unnecessarily filled the sensor-hub serial queue.
+- Increased dashboard pan/tilt increments to 80/90 microseconds and the hold
+  update rate to about 7 Hz, reducing a full sweep from roughly 7-9 seconds to
+  about 3 seconds while retaining the commissioned 700-2300 microsecond limits.
 - Kept the local UNO socket as a startup fallback so camera movement remains
   available while ROS graph discovery is still becoming ready.
 

@@ -25,6 +25,8 @@ from sensor_msgs.msg import NavSatFix, LaserScan, CompressedImage, Joy
 from std_msgs.msg import Bool, Float32, String, Int32
 
 PORT = 8088
+CAMERA_PAN_STEP_US = 80
+CAMERA_TILT_STEP_US = 90
 SENSOR_HUB_CAMERA_SOCKET = os.environ.get(
     "ATLAS_SENSOR_HUB_CAMERA_SOCKET",
     "/run/user/1000/atlas-sensor-hub-camera.sock",
@@ -642,7 +644,9 @@ class AtlasRosNode:
                 self.tilt_us = self.actual_tilt_us
             self.last_camera_manual = now
             if axis == "pan":
-                self.pan_us = max(700, min(2300, self.pan_us + direction * 40))
+                self.pan_us = max(
+                    700, min(2300, self.pan_us + direction * CAMERA_PAN_STEP_US)
+                )
                 ros_sent = self.pan_pub is not None
                 if ros_sent:
                     self.pan_pub.publish(Int32(data=self.pan_us))
@@ -661,7 +665,9 @@ class AtlasRosNode:
                 # down, while a higher pulse points it up. Translate here so even
                 # an already-open/cached dashboard controls the physical direction.
                 direction = -direction
-                self.tilt_us = max(700, min(2300, self.tilt_us + direction * 50))
+                self.tilt_us = max(
+                    700, min(2300, self.tilt_us + direction * CAMERA_TILT_STEP_US)
+                )
                 ros_sent = self.tilt_pub is not None
                 if ros_sent:
                     self.tilt_pub.publish(Int32(data=self.tilt_us))
@@ -1537,7 +1543,7 @@ $('stop').onclick=()=>post({action:'e_stop'});window.addEventListener('blur',()=
 let cameraHold=null,cameraBusy=false;
 function stopCameraHold(){if(cameraHold){clearInterval(cameraHold);cameraHold=null}document.querySelectorAll('[data-cam]').forEach(b=>b.classList.remove('on'))}
 async function cameraStep(b){if(cameraBusy)return;cameraBusy=true;try{await post({action:'camera',axis:b.dataset.cam,direction:b.dataset.dir})}finally{cameraBusy=false}}
-document.querySelectorAll('[data-cam]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();stopCameraHold();b.classList.add('on');b.setPointerCapture(e.pointerId);cameraStep(b);if(b.dataset.cam!=='center')cameraHold=setInterval(()=>cameraStep(b),220)};b.onpointerup=stopCameraHold;b.onpointercancel=stopCameraHold;b.onlostpointercapture=stopCameraHold});
+document.querySelectorAll('[data-cam]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();stopCameraHold();b.classList.add('on');b.setPointerCapture(e.pointerId);cameraStep(b);if(b.dataset.cam!=='center')cameraHold=setInterval(()=>cameraStep(b),140)};b.onpointerup=stopCameraHold;b.onpointercancel=stopCameraHold;b.onlostpointercapture=stopCameraHold});
 window.addEventListener('pointerup',stopCameraHold);window.addEventListener('pointercancel',stopCameraHold);window.addEventListener('blur',stopCameraHold);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCameraHold()});
 document.querySelectorAll('[data-track]').forEach(b=>b.onclick=()=>post({action:'camera_tracking',enabled:b.dataset.track}));
 document.querySelectorAll('[data-ai]').forEach(b=>b.onclick=()=>post({action:'ai_mode',mode:b.dataset.ai}));
