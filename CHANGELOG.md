@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-03 - Diagnose the L76K GNSS UART end to end
+
+- Added a persistent `/gps/arduino_status` health state derived from the UNO R4
+  heartbeat, distinguishing zero UART bytes, invalid NMEA and a live receiver
+  that is merely waiting for satellite lock.
+- Cached that state for dashboard restart resilience and changed the GNSS card
+  from an ambiguous `0 SAT` display to an actionable wiring/protocol diagnosis.
+- Confirmed the live L76K input remained at zero bytes across 4800, 9600,
+  38400, 57600 and 115200 baud; the outstanding fault is therefore the
+  physical GPS power/GND/TX-to-UNO-D0 path, not ROS or dashboard parsing.
+
 ## 2026-09-03 - Explain and recover the companion voice LED state
 
 - Added an in-panel legend for the ATLAS Companion RGB states: blue ready,

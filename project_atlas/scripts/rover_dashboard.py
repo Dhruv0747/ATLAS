@@ -221,6 +221,7 @@ class DashNode(Node):
         S(Float32, '/gps/satellites',          lambda m: DATA.set(gps_sats=m.data), 10)
         S(Float32, '/gps/hdop',                lambda m: DATA.set(gps_hdop=m.data), 10)
         S(String,  '/gps/constellations',      lambda m: DATA.set(gps_const=m.data), 10)
+        S(String,  '/gps/arduino_status',      lambda m: DATA.set(gps_arduino_status=m.data), 10)
         S(NavSatFix, '/gps/fix',               self._gps_fix, 10)
         # Navigation
         S(LaserScan, '/scan',    self._scan, 10)
@@ -1148,9 +1149,12 @@ def draw_comms_block(x, y, w, h):
     gps_status = DATA.get('gps_status', -1)
     hdop = DATA.get('gps_hdop', 0.0) or 0.0
     counts = parse_constellations(DATA.get('gps_const', ''))
+    gps_uart_status = str(DATA.get('gps_arduino_status', '') or '')
+    gps_uart_live = fresh('gps_arduino_status', 12.0)
     gps_live = fresh('gps_sats', 12.0) or fresh('gps_status', 12.0) or fresh('gps_const', 12.0)
     gps_fix = gps_live and gps_status is not None and gps_status >= 0
-    gcol = GREEN if gps_fix else (YELLOW if gps_live else RED)
+    gps_no_bytes = gps_uart_live and 'NO_UART_BYTES' in gps_uart_status
+    gcol = GREEN if gps_fix else (RED if gps_no_bytes or not gps_uart_live else YELLOW)
 
     gap = 8
     box_y = cy
@@ -1193,7 +1197,10 @@ def draw_comms_block(x, y, w, h):
     draw_bar(bx+104, ty+3, box_w-112, 10, ram.percent, GREEN if ram.percent < 70 else YELLOW)
 
     bx, ty = box(3, 'GPS / GNSS', gcol)
-    blit_fit('FIX' if gps_fix else ('SEARCH' if gps_live else 'NO DATA'), F18, gcol, bx+8, ty-3, 90)
+    gps_state = ('FIX' if gps_fix else
+                 ('NO UART' if gps_no_bytes else
+                  ('SEARCH' if gps_uart_live or gps_live else 'NO DATA')))
+    blit_fit(gps_state, F18, gcol, bx+8, ty-3, 90)
     blit_fit(f'{int(sats)} SAT', F22, gcol, bx+102, ty-6, box_w-110)
     ty += 27
     blit_fit(f'HDOP {hdop:.1f}' if hdop > 0 else 'HDOP --', F13, WHITE if gps_live else RED, bx+8, ty, 90)
@@ -1574,6 +1581,9 @@ def draw_hud_bottom(x, y, w, h):
 def hardware_health_statuses():
     thermal = DATA.get('thermal_json', {}) or {}
     thermal_ok = isinstance(thermal, dict) and bool(thermal.get('ok')) and fresh('thermal_json', 5.0)
+    gps_uart_status = str(DATA.get('gps_arduino_status', '') or '')
+    gps_uart_live = fresh('gps_arduino_status', 12.0)
+    gps_no_bytes = gps_uart_live and 'NO_UART_BYTES' in gps_uart_status
     gps_live = fresh('gps_sats', 12.0)
     gps_sats = int(DATA.get('gps_sats', 0) or 0)
     cell_live = fresh('cell_signal', 20.0)
@@ -1600,8 +1610,8 @@ def hardware_health_statuses():
          'LIVE' if fresh('bms_status', 20.0) else 'CHECK BT'),
         ('5G', 'ok' if cell_live else 'fail',
          f'{DATA.get("cell_signal", 0) or 0:.0f}%' if cell_live else 'CHECK MODEM'),
-        ('GNSS', 'ok' if gps_live and gps_sats > 0 else ('warn' if gps_live else 'fail'),
-         f'{gps_sats} SAT' if gps_sats > 0 else ('SEARCHING' if gps_live else 'NO DATA')),
+        ('GNSS', 'ok' if gps_live and gps_sats > 0 else ('fail' if gps_no_bytes or not gps_uart_live else 'warn'),
+         f'{gps_sats} SAT' if gps_sats > 0 else ('0 UART BYTES' if gps_no_bytes else ('SEARCHING' if gps_uart_live else 'NO DATA'))),
         ('ROS', 'ok' if fresh('ros_hb', 3.0) else 'fail',
          'READY' if fresh('ros_hb', 3.0) else 'OFFLINE'),
     ]

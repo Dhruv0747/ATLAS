@@ -147,6 +147,8 @@ class UltrasonicArduinoBridge(Node):
         self.radar_last_rx = 0.0
         self.radar_bytes_total = 0
         self.gps_hdop = math.nan
+        self.gps_last_nmea = 0.0
+        self.gps_bytes_total = 0
         self.gps_constellations = set()
         self.gps_constellation_counts = {
             'GPS': 0, 'GLONASS': 0, 'BEIDOU': 0,
@@ -402,6 +404,7 @@ class UltrasonicArduinoBridge(Node):
         sentence = sentence.strip()
         if not self.valid_nmea_checksum(sentence):
             return
+        self.gps_last_nmea = time.time()
         self.gps_nmea_pub.publish(String(data=sentence))
         fields = sentence.split('*', 1)[0].split(',')
         if not fields or len(fields[0]) < 6:
@@ -706,6 +709,7 @@ class UltrasonicArduinoBridge(Node):
         if raw.startswith('GPSSTAT,'):
             if self.gnss_enabled:
                 self.gps_status_pub.publish(String(data=raw))
+                self.dashboard_cache_set('gps_arduino_status', raw)
             return
         if raw.startswith('RADARHEX,'):
             payload = raw.split(',', 1)[1].strip()
@@ -723,6 +727,27 @@ class UltrasonicArduinoBridge(Node):
             return
         if raw.startswith('HEARTBEAT,'):
             self.status_pub.publish(String(data=raw))
+            gps_match = re.search(r'GPS_BAUD=(\d+),GPS_BYTES=(\d+)', raw)
+            if self.gnss_enabled and gps_match:
+                baud, total = (int(value) for value in gps_match.groups())
+                self.gps_bytes_total = total
+                nmea_age = (time.time() - self.gps_last_nmea
+                            if self.gps_last_nmea else -1.0)
+                if total <= 0:
+                    state = 'NO_UART_BYTES'
+                    action = 'CHECK_GPS_POWER_GND_AND_TX_TO_UNO_D0_RX'
+                elif 0 <= nmea_age < 5.0:
+                    state = 'NMEA_STREAMING'
+                    action = 'WAITING_FOR_FIX' if not self.gps_constellations else 'RECEIVER_LIVE'
+                else:
+                    state = 'UART_BYTES_NO_VALID_NMEA'
+                    action = 'CHECK_TX_RX_WIRING_AND_NMEA_PROTOCOL'
+                gps_status = (
+                    f'UNO_R4_GPS_{state} baud={baud} bytes_total={total} '
+                    f'nmea_age_s={nmea_age:.1f} action={action}'
+                )
+                self.gps_status_pub.publish(String(data=gps_status))
+                self.dashboard_cache_set('gps_arduino_status', gps_status)
             match = re.search(r'RADAR_BAUD=(\d+),RADAR_BYTES=(\d+)', raw)
             if match:
                 baud, total = (int(value) for value in match.groups())

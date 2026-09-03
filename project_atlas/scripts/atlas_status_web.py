@@ -296,6 +296,7 @@ class AtlasRosNode:
             n.create_subscription(Float32, "/gps/satellites", lambda m: self._set("gps_sats", m.data), 10)
             n.create_subscription(Float32, "/gps/hdop", lambda m: self._set("gps_hdop", m.data), 10)
             n.create_subscription(String, "/gps/constellations", lambda m: self._set("gps_const", m.data), 10)
+            n.create_subscription(String, "/gps/arduino_status", lambda m: self._set("gps_arduino_status", m.data), 10)
             n.create_subscription(String, "/imu/dashboard_json", self._imu_dashboard_cb, 10)
             n.create_subscription(Float32, "/yahboom/imu/roll", lambda m: self._set("board_imu_roll", m.data), 10)
             n.create_subscription(Float32, "/yahboom/imu/pitch", lambda m: self._set("board_imu_pitch", m.data), 10)
@@ -1380,7 +1381,7 @@ function renderHealth(r,net){
  let brain={};try{brain=JSON.parse(val(r,'atlas_health','{}')||'{}')}catch(e){}
  let ultrasonicEnabled=brain.ultrasonic_enabled!==false;
  let cellGen=cellGeneration(val(r,'cell_tech',''));
- let gpsLive=recent(r,'gps_sats',12),gpsSats=Number(val(r,'gps_sats',0))||0;
+ let gpsStatus=String(val(r,'gps_arduino_status','')),gpsUartLive=recent(r,'gps_arduino_status',12),gpsLive=recent(r,'gps_sats',12),gpsSats=Number(val(r,'gps_sats',0))||0,gpsNoBytes=gpsUartLive&&gpsStatus.includes('NO_UART_BYTES'),gpsBadNmea=gpsUartLive&&gpsStatus.includes('NO_VALID_NMEA');
  let i2c=i2cInfo(r);
  let items=[
   ['CAMERA',recent(r,'camera_info',4)?'ok':'fail',recent(r,'camera_info',4)?'IMX708 video frames live':'No frames: check CSI ribbon and camera service','camera_info'],
@@ -1396,7 +1397,7 @@ function renderHealth(r,net){
   ['DALY BMS',recent(r,'bms_status',20)?'ok':'fail',recent(r,'bms_status',20)?'Battery telemetry live':'Check BMS Bluetooth connection','bms_status'],
   ['ORIN IO BASE',recent(r,'carrier_status',25)&&carrier.ok?'ok':'fail',carrier.ok?`${carrier.power_mode} • NVMe ${carrier.nvme.free_gb}GB free • ${carrier.usb_devices} USB devices`:'Carrier health service offline','carrier_status'],
   [`${cellGen} MODEM`,recent(r,'cell_signal',20)?'ok':'fail',recent(r,'cell_signal',20)?`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech','')}`:'Check SIM8230G USB and power','cell_signal'],
-  ['GNSS',gpsLive?(gpsSats>0?'ok':'warn'):'fail',gpsLive?(gpsSats>0?`${gpsSats} satellites received`:'Receiver live, antenna has no satellite lock'):'No GNSS messages: check modem/antenna','gps_sats'],
+  ['GNSS',gpsSats>0?'ok':(gpsNoBytes||!gpsUartLive?'fail':'warn'),gpsSats>0?`${gpsSats} satellites used in fix`:(gpsNoBytes?'GPS UART has 0 bytes: check GPS power, common GND and GPS TX → UNO D0/RX':gpsBadNmea?'UART bytes present but no valid NMEA: check TX/RX and protocol':gpsUartLive?'GPS receiver link live; waiting for satellite fix':'No GPS heartbeat from UNO R4'),'gps_arduino_status'],
   ['WEB / TAILSCALE',net&&net.tailscale_ip!='--'?'ok':'warn',net&&net.tailscale_ip!='--'?`Reachable at ${net.tailscale_ip}`:'Tailscale address unavailable',null]
  ];
  let ok=items.filter(x=>x[1]=='ok').length,warn=items.filter(x=>x[1]=='warn').length,fail=items.filter(x=>x[1]=='fail').length;
@@ -1517,7 +1518,7 @@ async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'})
  $('power').innerHTML=card('Main BMS',`${n(val(r,'bms_percent'),0)}%`,`${n(val(r,'bms_voltage'),2)}V ${n(val(r,'bms_current'),2)}A ${n(val(r,'bms_power'),1)}W • CELLS ${n(val(r,'bms_cell1'),3)} / ${n(val(r,'bms_cell2'),3)} / ${n(val(r,'bms_cell3'),3)} / ${n(val(r,'bms_cell4'),3)}`)+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,`${n(val(r,'bat_current'),2)}A`)+card('Jetson INA3221',`${n(val(r,'jetson_power'),1)}W`,`${n(val(r,'jetson_voltage'),3)}V ${n(val(r,'jetson_current'),2)}A • CPU/GPU ${n(val(r,'jetson_cpu_gpu_power'),1)}W • SoC ${n(val(r,'jetson_soc_power'),1)}W`)+card('Jetson / UPS',`${n(val(r,'ups_bat_percent'),0)}%`,`${n(val(r,'ups_bat_voltage'),2)}V ${n(val(r,'ups_bat_power'),1)}W`)+card(`${cellGen} HAT`,`${n(val(r,'hat_power'),1)}W`,`${n(val(r,'hat_voltage'),2)}V ${n(val(r,'hat_current'),2)}A`);
  environment(r);
  $('network').innerHTML=row('Wi-Fi',net.wifi_ip)+row(`${cellGen} data`,`${net.cell_ip} • ${val(r,'cell_operator','--')} • ${n(val(r,'cell_signal'),0)}%`)+row('Tailscale',net.tailscale_ip)+row('Active route',net.route);
- let fix=val(r,'gps_fix',{});$('gnss').innerHTML=row('Cell signal',`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech')} ${val(r,'cell_operator')}`)+row('Satellites used in fix',val(r,'gps_sats'))+row('GPS fix',fix.status>=0?`${n(fix.lat,6)}, ${n(fix.lon,6)}`:'SEARCHING / NO FIX');renderConstellations(val(r,'gps_const',''));
+ let fix=val(r,'gps_fix',{}),gpsStatus=String(val(r,'gps_arduino_status','NO GPS HEARTBEAT'));$('gnss').innerHTML=row('Cell signal',`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech')} ${val(r,'cell_operator')}`)+row('GPS UART',gpsStatus.includes('NO_UART_BYTES')?'OFFLINE — 0 BYTES':gpsStatus.includes('NMEA_STREAMING')?'LIVE — NMEA STREAM':gpsStatus.includes('NO_VALID_NMEA')?'BYTES / INVALID NMEA':'NO HEARTBEAT')+row('Satellites used in fix',val(r,'gps_sats',0))+row('GPS fix',fix.status>=0?`${n(fix.lat,6)}, ${n(fix.lon,6)}`:'NO FIX')+`<div class="constellation-note">${gpsStatus}</div>`;renderConstellations(val(r,'gps_const',''));
  let agent={};try{agent=JSON.parse(val(r,'agent_state','{}')||'{}')}catch(e){}
  let carrier={};try{carrier=JSON.parse(val(r,'carrier_json','{}')||'{}')}catch(e){}
  $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('RAM',s.ram)+row('Jetson temp',s.temp)+row('Carrier',carrier.board||'--')+row('Power mode',carrier.power_mode||'--')+row('NVMe',carrier.nvme?`${carrier.nvme.free_gb} GB free / ${carrier.nvme.total_gb} GB`:'--')+row('Carrier I/O',carrier.ok?`${carrier.usb_devices} USB • ${carrier.i2c_buses} I²C • ${carrier.csi_video_devices} CSI video`:'--')+row('Mission AI',`${agent.mode||'--'} / ${agent.phase||'--'}`)+row('Agent team',val(r,'agent_team_status','starting'))+row('Experience memory',val(r,'experience_status','starting'))+row('Agent decision',val(r,'agent_decision','No mission selected'))+row('Time',d.time);renderDetail();
