@@ -15,8 +15,12 @@
   link with 10 Hz offline messages.
 - Verified automatic recovery after a Jetson reboot: BME680, AMG8833, PCA9685,
   camera servo status, and rear ultrasonic all returned with fresh telemetry.
-  GPS still emits no UART bytes and RD-03D still emits no valid target frame,
-  so those remain separate wiring/protocol gates rather than hub failures.
+  GPS still emits no UART bytes, so it remains a separate wiring/protocol gate
+  rather than a hub failure.
+- Corrected the crossed RD-03D D11/D12 UART wiring and verified continuous
+  multi-target output at about 11 frames per second. The ROS decoder reached
+  `VALID`, published a real target, and remained live alongside every healthy
+  main-bus sensor.
 - Removed the sensor-hub unit's invalid `After=default.target` ordering. Because
   EKF and vision fusion also depend on the hub, that relationship formed a
   user-systemd boot cycle and could leave the bridge inactive after a complete
