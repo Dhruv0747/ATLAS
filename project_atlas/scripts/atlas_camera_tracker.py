@@ -15,7 +15,9 @@ from std_msgs.msg import Bool, Int32, String
 class CameraTracker(Node):
     def __init__(self):
         super().__init__('atlas_camera_tracker')
-        self.enabled = True
+        # Manual pan/tilt owns the camera after boot. Face following is an
+        # explicit operator mode so two controllers never fight the servos.
+        self.enabled = False
         self.pan = 1300
         self.tilt = 2100
         self.last_move = 0.0
@@ -34,7 +36,7 @@ class CameraTracker(Node):
         self.create_subscription(CompressedImage, '/camera/image_raw/compressed', self.face_cb, 1)
         self.create_subscription(Int32, '/camera/bottom_servo_us', lambda m: setattr(self, 'pan', m.data), 10)
         self.create_subscription(Int32, '/camera/second_servo_us', lambda m: setattr(self, 'tilt', m.data), 10)
-        self.status.publish(String(data='ON: face-first camera tracking ready'))
+        self.status.publish(String(data='OFF: manual camera control ready'))
 
     def enable_cb(self, msg):
         self.enabled = bool(msg.data)

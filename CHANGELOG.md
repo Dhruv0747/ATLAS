@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-03 - Make dashboard camera control deterministic
+
+- Made manual pan/tilt the boot default and require an explicit `FACE FOLLOW`
+  selection before the camera tracker may command either servo.
+- Made every dashboard camera touch reclaim manual ownership, preventing the
+  face tracker from immediately overriding an operator command.
+- Reworked touchscreen hold handling to stop on release, cancellation, lost
+  pointer capture, page hiding or focus loss, with only one request in flight.
+- Separated requested and measured servo positions so delayed UNO feedback no
+  longer erases held-button steps, and removed duplicate ROS/socket commands
+  that unnecessarily filled the sensor-hub serial queue.
+- Kept the local UNO socket as a startup fallback so camera movement remains
+  available while ROS graph discovery is still becoming ready.
+
 ## 2026-09-03 - Move L76K GNSS to the Jetson J12 UART
 
 - Commissioned Jetson header pins 8/10 as the dedicated L76K route through

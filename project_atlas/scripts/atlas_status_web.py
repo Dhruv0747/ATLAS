@@ -126,13 +126,20 @@ class AtlasRosNode:
         self.ready = False
         self.data = {}
         self.lock = threading.Lock()
+        # HTTP requests are handled concurrently. Serialize incremental camera
+        # updates so a touch hold cannot race itself and jump several steps.
+        self.camera_lock = threading.Lock()
         self.node = None
         self.pub = None
         self.pan_pub = None
         self.tilt_pub = None
+        self.camera_tracking_pub = None
         self.ai_pub = None
         self.pan_us = 1300
         self.tilt_us = 2100
+        self.actual_pan_us = 1300
+        self.actual_tilt_us = 2100
+        self.last_camera_manual = 0.0
         self.last_drive_command = 0.0
         self.drive_active = False
         self.last_raw_camera_encode = 0.0
@@ -184,6 +191,9 @@ class AtlasRosNode:
             self.tilt_pub = self.node.create_publisher(
                 Int32, "/camera/second_servo_cmd_us", 10
             )
+            self.camera_tracking_pub = self.node.create_publisher(
+                Bool, "/atlas/camera_tracking/enabled", 10
+            )
             self.ai_pub = self.node.create_publisher(
                 Bool, "/atlas/ai_enabled", 10
             )
@@ -205,6 +215,12 @@ class AtlasRosNode:
                 String,
                 "/camera/arducam/status",
                 lambda m: self._set("camera_servo_status", m.data),
+                10,
+            )
+            n.create_subscription(
+                String,
+                "/atlas/camera_tracking/status",
+                lambda m: self._set("camera_tracking_status", m.data),
                 10,
             )
             n.create_subscription(String, "/radar/targets", self._radar_targets_cb, 10)
@@ -344,13 +360,13 @@ class AtlasRosNode:
             n.create_subscription(
                 Int32,
                 "/camera/bottom_servo_us",
-                lambda m: setattr(self, "pan_us", int(m.data)),
+                lambda m: setattr(self, "actual_pan_us", int(m.data)),
                 10,
             )
             n.create_subscription(
                 Int32,
                 "/camera/second_servo_us",
-                lambda m: setattr(self, "tilt_us", int(m.data)),
+                lambda m: setattr(self, "actual_tilt_us", int(m.data)),
                 10,
             )
             n.create_timer(0.1, self._drive_watchdog)
@@ -612,30 +628,76 @@ class AtlasRosNode:
 
     def camera_move(self, axis, direction):
         direction = max(-1, min(1, int(direction)))
-        if axis == "pan" and self.pan_pub is not None:
-            self.pan_us = max(700, min(2300, self.pan_us + direction * 40))
-            self.pan_pub.publish(Int32(data=self.pan_us))
-            self._send_sensor_hub_camera(0, self.pan_us)
-            return True, f"pan {self.pan_us}us"
-        if axis == "tilt" and self.tilt_pub is not None:
-            # The web UI's screen-space direction is opposite the installed
-            # B0283 servo pulse direction: a lower pulse points the camera
-            # down, while a higher pulse points it up. Translate here so even
-            # an already-open/cached dashboard controls the physical direction.
-            direction = -direction
-            self.tilt_us = max(700, min(2300, self.tilt_us + direction * 50))
-            self.tilt_pub.publish(Int32(data=self.tilt_us))
-            self._send_sensor_hub_camera(1, self.tilt_us)
-            return True, f"tilt {self.tilt_us}us"
-        if axis == "center" and self.pan_pub is not None and self.tilt_pub is not None:
-            self.pan_us = 1300
-            self.tilt_us = 2100
-            self.pan_pub.publish(Int32(data=self.pan_us))
-            self.tilt_pub.publish(Int32(data=self.tilt_us))
-            self._send_sensor_hub_camera(0, self.pan_us)
-            self._send_sensor_hub_camera(1, self.tilt_us)
-            return True, "camera centred"
-        return False, "camera publisher unavailable"
+        # A manual touch always takes ownership before changing an axis. This
+        # prevents the face tracker from immediately undoing the operator's
+        # command and makes dashboard direction deterministic.
+        if self.camera_tracking_pub is not None:
+            self.camera_tracking_pub.publish(Bool(data=False))
+        with self.camera_lock:
+            now = time.monotonic()
+            # Start a new tap/gesture from the latest measured position, but do
+            # not let delayed feedback erase steps during a continuous hold.
+            if now - self.last_camera_manual > 0.75:
+                self.pan_us = self.actual_pan_us
+                self.tilt_us = self.actual_tilt_us
+            self.last_camera_manual = now
+            if axis == "pan":
+                self.pan_us = max(700, min(2300, self.pan_us + direction * 40))
+                ros_sent = self.pan_pub is not None
+                if ros_sent:
+                    self.pan_pub.publish(Int32(data=self.pan_us))
+                # Use the socket only as a startup/discovery fallback. Sending
+                # the same command over ROS and the socket doubled the UNO
+                # serial queue and made held-button movement lag behind touch.
+                socket_sent = (
+                    self._send_sensor_hub_camera(0, self.pan_us)
+                    if not ros_sent else False
+                )
+                if ros_sent or socket_sent:
+                    return True, f"manual pan {self.pan_us}us"
+            if axis == "tilt":
+                # The web UI's screen-space direction is opposite the installed
+                # B0283 servo pulse direction: a lower pulse points the camera
+                # down, while a higher pulse points it up. Translate here so even
+                # an already-open/cached dashboard controls the physical direction.
+                direction = -direction
+                self.tilt_us = max(700, min(2300, self.tilt_us + direction * 50))
+                ros_sent = self.tilt_pub is not None
+                if ros_sent:
+                    self.tilt_pub.publish(Int32(data=self.tilt_us))
+                socket_sent = (
+                    self._send_sensor_hub_camera(1, self.tilt_us)
+                    if not ros_sent else False
+                )
+                if ros_sent or socket_sent:
+                    return True, f"manual tilt {self.tilt_us}us"
+            if axis == "center":
+                self.pan_us = 1300
+                self.tilt_us = 2100
+                ros_sent = self.pan_pub is not None and self.tilt_pub is not None
+                if self.pan_pub is not None:
+                    self.pan_pub.publish(Int32(data=self.pan_us))
+                if self.tilt_pub is not None:
+                    self.tilt_pub.publish(Int32(data=self.tilt_us))
+                socket_sent = False
+                if not ros_sent:
+                    socket_sent = self._send_sensor_hub_camera(0, self.pan_us)
+                    socket_sent = self._send_sensor_hub_camera(1, self.tilt_us) or socket_sent
+                if ros_sent or socket_sent:
+                    return True, "manual camera centred"
+        return False, "camera command path unavailable"
+
+    def set_camera_tracking(self, enabled):
+        if self.camera_tracking_pub is None:
+            return False, "camera tracker control unavailable"
+        self.camera_tracking_pub.publish(Bool(data=bool(enabled)))
+        if enabled:
+            # The tracker becomes the position owner until the next manual
+            # camera gesture, which will resynchronise from live feedback.
+            self.last_camera_manual = 0.0
+        mode = "FACE FOLLOW" if enabled else "MANUAL"
+        self._set("camera_tracking_status", f"{mode} requested")
+        return True, f"camera mode: {mode}"
 
     @staticmethod
     def _send_sensor_hub_camera(channel, pulse_us):
@@ -1168,6 +1230,12 @@ class Handler(BaseHTTPRequestHandler):
                 form.get("direction", ["0"])[0],
             )
             json_response(self, 200 if ok else 503, {"ok": ok, "message": msg})
+        elif action == "camera_tracking":
+            enabled = form.get("enabled", ["0"])[0].strip().lower() in {
+                "1", "true", "yes", "on"
+            }
+            ok, msg = ROS.set_camera_tracking(enabled)
+            json_response(self, 200 if ok else 503, {"ok": ok, "message": msg})
         elif action in {"start_mapping", "stop_mapping", "set_home", "return_home", "auto_explore", "cancel_goal"}:
             # Keep the HTTP thread non-blocking.  atlas_mission_control owns the
             # ROS/Nav2 work and its safety checks; the panel only publishes the
@@ -1315,7 +1383,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
   <span></span><button class="btn" data-cam="tilt" data-dir="-1">▲ UP</button><span></span>
   <button class="btn" data-cam="pan" data-dir="-1">◀ LEFT</button><button class="btn" data-cam="center" data-dir="0">CENTER</button><button class="btn" data-cam="pan" data-dir="1">RIGHT ▶</button>
   <span></span><button class="btn" data-cam="tilt" data-dir="1">▼ DOWN</button><span></span>
- </div></div>
+ </div><div class="cards" style="margin-top:8px"><button class="btn" data-track="0">MANUAL CONTROL</button><button class="btn" data-track="1">FACE FOLLOW</button></div><div class="detail" id="cameraTracking">Camera mode checking</div></div>
  <div class="panel"><h2>JETSON AI POWER</h2><div class="cards">
   <button class="btn ai-on" data-ai="object">AI ON</button><button class="btn ai-off" data-ai="eco">AI ECO / OFF</button>
  </div><div class="detail" id="ai">AI status waiting</div></div>
@@ -1466,7 +1534,12 @@ let hold=null;function beginDrive(b){stopDrive(false);b.classList.add('on');let 
 function stopDrive(send=true){if(hold){clearInterval(hold);hold=null}document.querySelectorAll('[data-l]').forEach(b=>b.classList.remove('on'));if(send)stop()}
 document.querySelectorAll('[data-l]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);beginDrive(b)};b.onpointerup=()=>stopDrive();b.onpointercancel=()=>stopDrive();b.onlostpointercapture=()=>stopDrive()});
 $('stop').onclick=()=>post({action:'e_stop'});window.addEventListener('blur',()=>stopDrive());document.addEventListener('visibilitychange',()=>{if(document.hidden)stopDrive()});
-document.querySelectorAll('[data-cam]').forEach(b=>{let timer;b.onpointerdown=e=>{e.preventDefault();let send=()=>post({action:'camera',axis:b.dataset.cam,direction:b.dataset.dir});send();timer=setInterval(send,160)};let end=()=>{clearInterval(timer)};b.onpointerup=end;b.onpointercancel=end;b.onpointerleave=end});
+let cameraHold=null,cameraBusy=false;
+function stopCameraHold(){if(cameraHold){clearInterval(cameraHold);cameraHold=null}document.querySelectorAll('[data-cam]').forEach(b=>b.classList.remove('on'))}
+async function cameraStep(b){if(cameraBusy)return;cameraBusy=true;try{await post({action:'camera',axis:b.dataset.cam,direction:b.dataset.dir})}finally{cameraBusy=false}}
+document.querySelectorAll('[data-cam]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();stopCameraHold();b.classList.add('on');b.setPointerCapture(e.pointerId);cameraStep(b);if(b.dataset.cam!=='center')cameraHold=setInterval(()=>cameraStep(b),220)};b.onpointerup=stopCameraHold;b.onpointercancel=stopCameraHold;b.onlostpointercapture=stopCameraHold});
+window.addEventListener('pointerup',stopCameraHold);window.addEventListener('pointercancel',stopCameraHold);window.addEventListener('blur',stopCameraHold);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCameraHold()});
+document.querySelectorAll('[data-track]').forEach(b=>b.onclick=()=>post({action:'camera_tracking',enabled:b.dataset.track}));
 document.querySelectorAll('[data-ai]').forEach(b=>b.onclick=()=>post({action:'ai_mode',mode:b.dataset.ai}));
 let insideHistory=[],outsideHistory=[];
 const radarTrails={T1:[],T2:[],T3:[]};let radarSweep=0,lastRadarRaw='',radarView='3d',lastRadarTargets=[],lastRadarLive=false,lastRadarLink='';
@@ -1510,6 +1583,10 @@ async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'})
  companion(r,s);
  $('online').textContent='● ONLINE';$('online').style.color='#34e58b';
  $('ai').textContent=val(r,'ai_status','AI waiting');
+ let cameraTracking=String(val(r,'camera_tracking_status','MANUAL CONTROL'));
+ $('cameraTracking').textContent=cameraTracking;
+ let trackingOn=/^(ON:|TRACKING|SEARCHING)/i.test(cameraTracking);
+ document.querySelectorAll('[data-track]').forEach(b=>b.classList.toggle('on',(b.dataset.track==='1')===trackingOn));
  $('motion').innerHTML=row('Web drive',val(r,'web_drive','STOP'))+row('Odometry',JSON.stringify(val(r,'odom',{})))+row('Encoders',`${val(r,'enc_m1')} / ${val(r,'enc_m2')} / ${val(r,'enc_m3')} / ${val(r,'enc_m4')}`);
  let li=val(r,'lidar',{}),radarLive=!!r.radar_count&&r.radar_count.age<2.0,radarHub=!!r.radar_link&&r.radar_link.age<3.0,i2c=i2cInfo(r);
  let radarTitle=radarLive?`${val(r,'radar_count')} targets`:(radarHub?'UART INVALID':'OFFLINE');
