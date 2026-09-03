@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import html
+import glob
 import ipaddress
 import os
 import json
@@ -894,6 +895,28 @@ def cpu_percent():
     return "--"
 
 
+def voice_usb_status():
+    preferred = (
+        "/dev/serial/by-id/"
+        "usb-Espressif_USB_JTAG_serial_debug_unit_28:84:85:57:02:24-if00"
+    )
+    candidates = [preferred, "/dev/atlas-voice"]
+    candidates.extend(sorted(glob.glob("/dev/serial/by-id/*Espressif*USB*JTAG*")))
+    candidates.extend(sorted(glob.glob("/dev/serial/by-id/*ESP32*")))
+    for candidate in dict.fromkeys(candidates):
+        if candidate and os.path.exists(candidate):
+            return {
+                "voice_usb": True,
+                "voice_usb_path": candidate,
+                "voice_usb_reason": "ESP32-S3 voice controller connected",
+            }
+    return {
+        "voice_usb": False,
+        "voice_usb_path": "NOT ENUMERATED",
+        "voice_usb_reason": "Reconnect the ESP32-S3 USB data cable",
+    }
+
+
 def system_status():
     cpu = cpu_percent()
     ram = "--"
@@ -921,9 +944,7 @@ def system_status():
         "ram": ram,
         "ram_percent": ram_percent,
         "temp": temp or "--",
-        "voice_usb": os.path.exists(
-            "/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_28:84:85:57:02:24-if00"
-        ),
+        **voice_usb_status(),
         "openai_configured": os.path.exists("/home/jetson/.config/project-atlas/openai.env"),
     }
 
@@ -1269,6 +1290,7 @@ h2{font-size:11px;letter-spacing:.8px;color:var(--cyan);margin:0 0 7px}.camera{w
 .companionGrid{display:grid;grid-template-columns:1.25fr .75fr;gap:7px}.speech{background:#06131f;border:1px solid #1d4863;border-radius:8px;padding:8px;min-height:62px}.speech.you{border-left:4px solid #18c7ff}.speech.atlas{border-left:4px solid #34e58b}.speechText{font-size:14px;line-height:1.3;margin-top:3px;overflow-wrap:anywhere}
 .thoughts{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px}.thought{background:#071522;border-radius:6px;padding:6px;min-width:0}.thought strong{display:block;font-size:9px;color:var(--muted);margin-bottom:2px}.thought span{font-size:11px;overflow-wrap:anywhere}
 .companionStatus{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:7px}.pill{text-align:center;background:#071522;border:1px solid #24435d;border-radius:6px;padding:5px 3px;font-size:9px}.rgbDot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;background:#198dff;box-shadow:0 0 8px currentColor}
+.voiceLedGuide{margin-top:7px;padding:7px;background:#06131f;border:1px solid #214761;border-radius:7px}.voiceLedTitle{display:flex;justify-content:space-between;gap:8px;font-size:9px;font-weight:900;color:#bcd3e5}.voiceLedNow{color:#ffcc3d;text-align:right;overflow-wrap:anywhere}.voiceLedStates{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px}.voiceLedState{font-size:8px;color:#9fb8ca;line-height:1.2;white-space:nowrap}.voiceLedState b{display:block;color:#eef7ff;font-size:8px}.voiceSwatch{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:3px;box-shadow:0 0 6px currentColor}.voiceUsbReason{margin-top:6px;color:#aac0d1;font-size:9px;line-height:1.25;overflow-wrap:anywhere}
 section.col:nth-of-type(3) .panel:has(#heatmap){order:-3;border-color:#34e58b}
 section.col:nth-of-type(3) .panel:has(#healthGrid){order:-2}
 section.col:nth-of-type(3) .panel:has(#power){order:-1}
@@ -1277,7 +1299,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
 @media(max-width:700px){.detailGrid{grid-template-columns:1fr}.sensorModal{padding:1vh 2vw}.sensorSheet{max-height:98vh}}
 @media(max-width:900px){.grid{display:block;height:auto;width:100%;overflow:hidden}.col,.panel{overflow:visible;margin-bottom:8px;min-width:0}.camera{height:42vh}.envgrid{grid-template-columns:1fr}.heatmap{max-width:180px}canvas{max-width:100%}header .sub{display:none}.headerBtn{padding:7px 9px}.headerText{display:none}}
 @media(min-width:1500px){body{font-size:15px}.grid{grid-template-columns:minmax(300px,20vw) minmax(600px,1fr) minmax(350px,23vw)}.camera{height:min(52vh,610px)}.speechText{font-size:16px}}
-@media(max-width:1150px) and (min-width:901px){.grid{grid-template-columns:265px minmax(390px,1fr) 295px}.companionGrid{grid-template-columns:1fr}.companionStatus{grid-template-columns:1fr 1fr}}
+@media(max-width:1150px) and (min-width:901px){.grid{grid-template-columns:265px minmax(390px,1fr) 295px}.companionGrid{grid-template-columns:1fr}.companionStatus{grid-template-columns:1fr 1fr}.voiceLedStates{grid-template-columns:repeat(3,1fr)}}
 </style></head><body>
 <header><img src="/logo.png"><div><h1>PROJECT ATLAS COMMAND CENTER</h1><div class="sub">Headless rover control • hold-to-drive • automatic stop watchdog</div></div><div class="live" id="online">CONNECTING</div><a class="headerBtn cloud" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/" title="Open the read-only ATLAS Visual Cloud live ROS observability dashboard."><span class="headerIcon">◈</span><span class="headerText">VISUAL CLOUD</span></a><a class="headerBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" title="Open two-way ATLAS intercom. The camera stream closes to preserve call quality and AI Voice pauses during the call."><span class="headerIcon">☎</span><span class="headerText">TALK / LISTEN</span></a></header>
 <main class="grid">
@@ -1311,6 +1333,17 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
   <div class="companionStatus">
    <div class="pill" id="companionMode">LOCAL SAFETY</div><div class="pill" id="companionConfirm">NO CONFIRMATION</div>
    <div class="pill" id="companionCloud">CLOUD OFFLINE</div><div class="pill"><span class="rgbDot" id="rgbDot"></span><span id="companionRgb">BLUE</span></div>
+  </div>
+  <div class="voiceLedGuide">
+   <div class="voiceLedTitle"><span>VOICE LED MEANING</span><span class="voiceLedNow" id="companionLedNow">CHECKING</span></div>
+   <div class="voiceLedStates">
+    <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#198dff;background:#198dff"></i>BLUE</b>Ready / idle</div>
+    <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#34e58b;background:#34e58b"></i>GREEN</b>Listening</div>
+    <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#eef7ff;background:#eef7ff"></i>WHITE</b>Thinking</div>
+    <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#17d5ff;background:#17d5ff"></i>BLUE PULSE</b>Speaking</div>
+    <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#ff4655;background:#ff4655"></i>RED</b>Error / USB offline</div>
+   </div>
+   <div class="voiceUsbReason" id="voiceUsbReason">Checking ESP32-S3 voice USB connection</div>
   </div>
   <div class="detail" style="margin-top:8px;color:#34e58b">☎ Use TALK / LISTEN in the top bar for a secure two-way call. AI Voice pauses automatically during the call.</div>
  </div>
@@ -1455,9 +1488,19 @@ function companion(r,s){
  $('companionIntent').textContent=val(r,'companion_intent','None');$('companionAction').textContent=val(r,'companion_action','No action selected');
  $('companionMode').textContent=val(r,'companion_mode','LOCAL SAFETY');$('companionConfirm').textContent=val(r,'companion_confirmation','NOT REQUIRED');
  $('companionCloud').textContent=val(r,'companion_cloud',s.openai_configured?'KEY READY':'NOT CONNECTED');$('companionRgb').textContent=rgb;
- let colors={BLUE:'#198dff',GREEN:'#34e58b',RED:'#ff4655',YELLOW:'#ffcc3d',PURPLE:'#b275ff',WHITE:'#eef7ff'},color=colors[rgb]||'#71869a';
+ let colors={BLUE:'#198dff','BLUE PULSE':'#17d5ff',GREEN:'#34e58b',RED:'#ff4655',YELLOW:'#ffcc3d',PURPLE:'#b275ff',WHITE:'#eef7ff'},color=colors[rgb]||'#71869a';
  $('rgbDot').style.background=color;$('rgbDot').style.color=color;
- if(!s.voice_usb){$('companionState').textContent='VOICE USB OFFLINE';$('companionState').style.color='#ff4655';$('companionState').style.borderColor='#ff4655'}else{$('companionState').style.color='#17d5ff';$('companionState').style.borderColor='#17d5ff'}
+ $('companionLedNow').textContent=`${rgb} NOW`;
+ $('companionLedNow').style.color=color;
+ if(!s.voice_usb){
+  $('companionState').textContent='VOICE USB OFFLINE';$('companionState').style.color='#ff4655';$('companionState').style.borderColor='#ff4655';
+  $('voiceUsbReason').textContent=`RED: ${s.voice_usb_reason||'Reconnect the ESP32-S3 USB data cable'} • ${s.voice_usb_path||'NOT ENUMERATED'}`;
+  $('voiceUsbReason').style.color='#ff8b94';
+ }else{
+  $('companionState').style.color='#17d5ff';$('companionState').style.borderColor='#17d5ff';
+  $('voiceUsbReason').textContent=`VOICE USB ONLINE • ${s.voice_usb_path||'ESP32-S3 connected'}`;
+  $('voiceUsbReason').style.color='#34e58b';
+ }
 }
 async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'}).then(x=>x.json()),r=d.ros,net=d.network,s=d.system;latestStatus=d;
  let cellGen=cellGeneration(val(r,'cell_tech',''));

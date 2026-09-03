@@ -7,6 +7,7 @@ velocity pulses through the existing watchdog-protected WEB mux channel.
 """
 
 import audioop
+import glob
 import hashlib
 import io
 import json
@@ -42,6 +43,20 @@ DEVICE = os.getenv(
 API_BASE = "https://api.openai.com/v1"
 SAMPLE_RATE = 16000
 PLAY_CHUNK_BYTES = 60000
+
+
+def resolve_voice_device():
+    """Return the live ESP32-S3 voice CDC path, preferring its stable ID."""
+    candidates = [DEVICE, "/dev/atlas-voice"]
+    for pattern in (
+        "/dev/serial/by-id/*Espressif*USB*JTAG*",
+        "/dev/serial/by-id/*ESP32*",
+    ):
+        candidates.extend(sorted(glob.glob(pattern)))
+    for candidate in dict.fromkeys(candidates):
+        if candidate and os.path.exists(candidate):
+            return candidate
+    return ""
 
 
 class AtlasVoice(Node):
@@ -143,6 +158,7 @@ class AtlasVoice(Node):
             )
         self.create_subscription(NavSatFix, "/gps/fix", self.gps_callback, 10)
         self.serial = None
+        self.serial_error_text = ""
         self.serial_lock = threading.Lock()
         self.running = True
         self.audio_q = queue.Queue(maxsize=300)
@@ -284,10 +300,17 @@ class AtlasVoice(Node):
     def serial_loop(self):
         while self.running:
             try:
+                device = resolve_voice_device()
+                if not device:
+                    raise FileNotFoundError(
+                        "ATLAS ESP32-S3 voice USB is not enumerated; "
+                        "reconnect its USB data cable"
+                    )
                 self.serial = serial.Serial(
-                    DEVICE, 921600, timeout=1, write_timeout=2
+                    device, 921600, timeout=1, write_timeout=2
                 )
-                self.publish("cloud", "USB ONLINE")
+                self.serial_error_text = ""
+                self.publish("cloud", f"USB ONLINE: {device}")
                 self.set_state("IDLE")
                 threading.Thread(target=self.announce_ready, daemon=True).start()
                 while self.running:
@@ -310,15 +333,18 @@ class AtlasVoice(Node):
             except Exception as exc:
                 if not self.running:
                     break
-                self.publish("cloud", f"USB OFFLINE: {exc}")
-                self.publish("state", "ERROR")
-                self.publish("rgb", "RED")
+                error_text = f"USB OFFLINE: {exc}"
+                if error_text != self.serial_error_text:
+                    self.serial_error_text = error_text
+                    self.publish("cloud", error_text)
+                    self.publish("state", "ERROR")
+                    self.publish("rgb", "RED")
                 try:
                     if self.serial:
                         self.serial.close()
                 except Exception:
                     pass
-                time.sleep(2)
+                time.sleep(5)
 
     @staticmethod
     def wav_bytes(pcm):

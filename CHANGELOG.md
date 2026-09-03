@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-09-03 - Explain and recover the companion voice LED state
+
+- Added an in-panel legend for the ATLAS Companion RGB states: blue ready,
+  green listening, white thinking, blue pulse speaking and red fault/offline.
+- Added the live ESP32-S3 USB path and a direct recovery instruction to the
+  companion panel, so a red indicator explains its cause instead of showing
+  only a colour name.
+- Made the voice bridge rediscover compatible Espressif USB identities during
+  its existing reconnect loop, allowing it to recover automatically after a
+  device-path change or cable reconnect.
+- Rate-limited repeated missing-device retries so an unplugged speaker cannot
+  flood the journal while the dashboard heartbeat keeps the red state visible.
+
 ## 2026-09-03 - Make UNO sensor telemetry survive dashboard restarts
 
 - Added an atomic, read-only local snapshot from the UNO R4 bridge containing
