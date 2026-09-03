@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-09-03 - Remove the UNO R4 telemetry reset failure
+
+- Moved the commissioned sensor hub from the UNO R4 WiFi ESP32 CMSIS-DAP
+  serial bridge to the RA4M1 native USB CDC endpoint. The old bridge could
+  remain enumerated while silently delivering zero telemetry after a reset.
+- Added native-USB build tooling, the permanent `2341:006d` by-id service path,
+  matching ModemManager exclusion, and `/dev/atlas-sensor-hub` udev alias.
+- Made the ROS bridge resolve the native and recovery USB identities after
+  re-enumeration, removed an unsupported native-USB RTS toggle, and added
+  rate-limited connection errors instead of failing silently.
+- Kept BNO08x and radar initialization isolated from main I2C startup. Radar is
+  enabled only after telemetry is alive; an absent BNO08x no longer floods the
+  link with 10 Hz offline messages.
+- Verified automatic recovery after a Jetson reboot: BME680, AMG8833, PCA9685,
+  camera servo status, and rear ultrasonic all returned with fresh telemetry.
+  GPS still emits no UART bytes and RD-03D still emits no valid target frame,
+  so those remain separate wiring/protocol gates rather than hub failures.
+
 ## 2026-09-02 - Add controlled RD-03D multi-target initialization
 
 - Added the documented RD-03D multi-target request as a controlled

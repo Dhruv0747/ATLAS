@@ -1,3 +1,6 @@
 # Keep ModemManager away from the ATLAS UNO R4 native USB CDC endpoint while
-# retaining ModemManager for the SIMCom 4G/5G modem.
+# retaining ModemManager for the SIMCom 4G/5G modem. The second rule preserves
+# recovery/debug discovery if the board temporarily returns to ESP32 bridge
+# mode; both identities belong to this exact commissioned UNO.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", ATTRS{idProduct}=="006d", ATTRS{serial}=="3718211158323232840133334B573038", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{ID_MM_PORT_IGNORE}="1", GROUP="dialout", MODE="0660", SYMLINK+="atlas-sensor-hub"
 SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", ATTRS{idProduct}=="1002", ATTRS{serial}=="E4B063836708", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{ID_MM_PORT_IGNORE}="1", GROUP="dialout", MODE="0660", SYMLINK+="atlas-sensor-hub"

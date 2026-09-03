@@ -27,7 +27,11 @@
 // Matching UART outputs are D1 / TX -> L76K RX and D11 / TX -> RD-03D RX.
 // D13 cannot replace D11 because it belongs to a different SCI channel.
 //
-// USB CDC is the Jetson telemetry and command connection. The PCA9685 servo
+// Native RA4M1 USB CDC is the Jetson telemetry and command connection. This
+// intentionally bypasses the ESP32 CMSIS-DAP serial bridge, which can remain
+// enumerated while silently dropping UART traffic after a reset. Build with
+// build_native_usb.sh so NO_USB is removed from the UNO R4 WiFi core flags.
+// The PCA9685 servo
 // channels are released at startup so boot/reconnect cannot unexpectedly move
 // the camera or create a servo-rail current surge.
 
@@ -104,6 +108,7 @@ uint32_t radar_bytes = 0;
 uint32_t gps_baud = GPS_DEFAULT_BAUD;
 uint32_t radar_baud = RADAR_DEFAULT_BAUD;
 uint16_t radar_init_count = 0;
+bool radar_started = false;
 char command_buffer[128];
 size_t command_length = 0;
 char gps_buffer[160];
@@ -230,16 +235,10 @@ void scanBus() {
     first = false;
   }
   Serial.println();
-  Serial.print("I2C,BUS=UNO_R4_BNO_QWIIC,ADDRS=");
-  first = true;
-  for (uint8_t address = 1; address < 127; ++address) {
-    if (!probeOn(Wire1, address)) continue;
-    if (!first) Serial.print(';');
-    if (address < 16) Serial.print('0');
-    Serial.print(address, HEX);
-    first = false;
-  }
-  Serial.println();
+  // Never scan the maintenance-only BNO bus during normal startup. A faulty
+  // BNO08x held this shared hub for many seconds per scan and made every good
+  // sensor look offline. BNOINIT is the explicit maintenance entry point.
+  Serial.println("I2C,BUS=UNO_R4_BNO_QWIIC,ADDRS=,DEFERRED=1");
 }
 
 void enableBnoReports() {
@@ -378,10 +377,9 @@ void readBno() {
 }
 
 void reportBno() {
-  if (!bno_online) {
-    Serial.println("BNO,OK=0");
-    return;
-  }
+  // I2CSTAT and HEARTBEAT already report BNO=0. Avoid flooding the serial
+  // link at 10 Hz while this optional, isolated sensor is absent.
+  if (!bno_online) return;
   Serial.print("BNO,A="); Serial.print(bno_addr, HEX);
   Serial.print(",QX="); Serial.print(qx, 6);
   Serial.print(",QY="); Serial.print(qy, 6);
@@ -517,6 +515,7 @@ void forwardGps() {
 }
 
 void forwardRadar() {
+  if (!radar_started) return;
   if (!radar_serial.available()) return;
   Serial.print("RADARHEX,");
   uint8_t count = 0;
@@ -532,6 +531,11 @@ void forwardRadar() {
 }
 
 void initializeRadar() {
+  if (!radar_started) {
+    radar_serial.begin(radar_baud);
+    radar_started = true;
+    delay(20);
+  }
   // Request the RD-03D's documented 30-byte multi-target stream. D11 is the
   // UNO TX connected to radar RX; D12 is the UNO RX connected to radar TX.
   for (size_t index = 0; index < sizeof(RADAR_MULTI_TARGET_COMMAND); ++index) {
@@ -553,8 +557,9 @@ void setGpsBaud(uint32_t baud) {
 void setRadarBaud(uint32_t baud) {
   if (baud < 1200 || baud > 921600) return;
   radar_baud = baud;
-  radar_serial.end();
+  if (radar_started) radar_serial.end();
   radar_serial.begin(radar_baud);
+  radar_started = true;
   Serial.print("ACK,RADARBAUD="); Serial.println(radar_baud);
 }
 
@@ -648,7 +653,6 @@ void readCommands() {
 void setup() {
   Serial.begin(USB_BAUD);
   Serial1.begin(gps_baud);
-  radar_serial.begin(radar_baud);
   for (uint8_t index = 0; index < ULTRASONIC_COUNT; ++index) {
     pinMode(ULTRASONIC_TRIG_PINS[index], OUTPUT);
     digitalWrite(ULTRASONIC_TRIG_PINS[index], LOW);
@@ -656,7 +660,6 @@ void setup() {
   }
   matrix.begin();
   configureSensorWire();
-  configureBnoWire();
   delay(1200);
   Serial.println("ATLAS_UNO_R4_WIFI_I2C_HUB,V=1,BOARD=UNO_R4_WIFI,BUS=A4_A5");
   recoverI2cBus();
@@ -723,6 +726,7 @@ void loop() {
     Serial.print(",GPS_BAUD="); Serial.print(gps_baud);
     Serial.print(",GPS_BYTES="); Serial.print(gps_bytes);
     Serial.print(",RADAR_BAUD="); Serial.print(radar_baud);
+    Serial.print(",RADAR_UART="); Serial.print(radar_started ? 1 : 0);
     Serial.print(",RADAR_BYTES="); Serial.print(radar_bytes);
     Serial.print(",RADAR_INITS="); Serial.print(radar_init_count);
     Serial.print(",PCA="); Serial.print(pca_online ? 1 : 0);

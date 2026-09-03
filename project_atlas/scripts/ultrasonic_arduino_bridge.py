@@ -2,6 +2,7 @@
 import re
 import time
 import os
+import glob
 import math
 import json
 import socket
@@ -22,8 +23,14 @@ else:
 
 PORT = os.environ.get(
     'ATLAS_SENSOR_HUB_PORT',
-    '/dev/serial/by-id/usb-Arduino_UNO_WiFi_R4_CMSIS-DAP_E4B063836708-if01',
+    '/dev/serial/by-id/usb-Arduino_UNO_R4_WiFi_3718211158323232840133334B573038-if00',
 ).strip()
+PORT_FALLBACK_PATTERNS = (
+    '/dev/atlas-sensor-hub',
+    '/dev/serial/by-id/usb-Arduino_UNO_R4_WiFi_*-if00',
+    '/dev/serial/by-id/usb-Arduino_UNO_WiFi_R4_CMSIS-DAP_*-if01',
+    '/dev/ttyACM*',
+)
 BAUD = 115200
 SERIAL_STALE_REOPEN_SECONDS = max(
     5.0, float(os.environ.get('ATLAS_SENSOR_HUB_STALE_REOPEN_SECONDS', '8.0'))
@@ -138,6 +145,7 @@ class UltrasonicArduinoBridge(Node):
         self.last_ok = 0.0
         self.last_serial_rx = 0.0
         self.last_wait_status = 0.0
+        self.last_connect_log = 0.0
         self.radar_last_rx = 0.0
         self.radar_bytes_total = 0
         self.gps_hdop = math.nan
@@ -155,6 +163,7 @@ class UltrasonicArduinoBridge(Node):
         else:
             camera_route = 'Jetson i2c-7 / atlas_arducam_ptz'
         self.hub_transport = HUB_TRANSPORT or 'unknown_sensor_hub'
+        self.active_port = ''
         self.get_logger().info(
             f'ATLAS sensor hub starting on {PORT}; transport: {self.hub_transport}; '
             f'camera route: {camera_route}')
@@ -166,6 +175,10 @@ class UltrasonicArduinoBridge(Node):
             self.status_pub.publish(String(data=f'pyserial_missing {SERIAL_IMPORT_ERROR}'))
             return False
         try:
+            resolved_port = self.resolve_port(PORT)
+            if not resolved_port:
+                self.status_pub.publish(String(data='connect_error sensor_hub_port_not_found'))
+                return False
             # Configure modem-control lines before opening.  The Mega's CH340
             # adapter wires DTR to RESET; pyserial's normal open sequence can
             # therefore reset only the Mega while externally powered I2C
@@ -174,18 +187,17 @@ class UltrasonicArduinoBridge(Node):
             # UNO R4 native USB CDC endpoint instead requires DTR asserted in
             # order to emit Serial telemetry.
             self.ser = serial.Serial()
-            self.ser.port = PORT
+            self.ser.port = resolved_port
             self.ser.baudrate = BAUD
             self.ser.timeout = 0.02
             self.ser.write_timeout = 0.25
             self.ser.dtr = HUB_TRANSPORT != 'mega_2560'
-            self.ser.rts = False
             self.ser.open()
+            self.active_port = resolved_port
             # Apply the final modem-control state after open as well. Linux
             # cdc_acm may not propagate a pre-open DTR assignment to the UNO
             # R4 native USB endpoint on every enumeration.
             self.ser.setDTR(HUB_TRANSPORT != 'mega_2560')
-            self.ser.setRTS(False)
             time.sleep(1.8)
             now = time.time()
             # Give a newly enumerated board a bounded startup grace period.
@@ -194,7 +206,7 @@ class UltrasonicArduinoBridge(Node):
             # arrive before this deadline.
             self.last_ok = now
             self.last_serial_rx = now
-            self.status_pub.publish(String(data='connected'))
+            self.status_pub.publish(String(data=f'connected port={resolved_port}'))
             if HUB_TRANSPORT == 'mega_2560':
                 # Mega firmware scans and initializes during setup. BNO08x's
                 # AVR driver cannot be begin_I2C() initialized twice safely.
@@ -208,6 +220,10 @@ class UltrasonicArduinoBridge(Node):
                 # transaction. Camera outputs remain released.
                 self.write_line('PING')
                 self.write_line('PCA?')
+                # Radar UART is deliberately lazy in firmware so a faulty
+                # peripheral cannot block I2C startup. Enable it only after
+                # the native USB telemetry link is proven alive.
+                self.write_line('RADARINIT')
             else:
                 self.write_line('PCA?')
                 self.write_line('SCAN')
@@ -218,9 +234,29 @@ class UltrasonicArduinoBridge(Node):
                     self.write_line('HOME')
             return True
         except Exception as exc:
+            try:
+                if self.ser is not None:
+                    self.ser.close()
+            except Exception:
+                pass
             self.ser = None
             self.status_pub.publish(String(data=f'connect_error {exc}'))
+            now = time.time()
+            if now - self.last_connect_log >= 5.0:
+                self.last_connect_log = now
+                self.get_logger().warning(f'Sensor hub connect failed: {exc}')
             return False
+
+    @staticmethod
+    def resolve_port(configured_port):
+        """Resolve the commissioned UNO across native-USB and boot/debug IDs."""
+        if configured_port and os.path.exists(configured_port):
+            return configured_port
+        for pattern in PORT_FALLBACK_PATTERNS:
+            for candidate in sorted(glob.glob(pattern)):
+                if os.path.exists(candidate):
+                    return candidate
+        return ''
 
     @staticmethod
     def publish_mm(pub, value):

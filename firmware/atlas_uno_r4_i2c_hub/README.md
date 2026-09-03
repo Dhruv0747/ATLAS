@@ -63,6 +63,13 @@ the IMU channel or orientation redundancy as commissioned.
 
 ## Jetson deployment
 
+Build this sketch with `build_native_usb.sh`. ATLAS uses the RA4M1 native USB
+CDC endpoint (`2341:006d`) rather than the UNO R4 WiFi ESP32 CMSIS-DAP serial
+bridge (`2341:1002`). The bridge can stay visible to Linux while dropping all
+UART telemetry after resets; native USB removes that failure point. The ROS
+bridge resolves the native by-id path first and also falls back across Arduino
+by-id names after re-enumeration.
+
 The UNO is permanently identified by its USB serial number, not by the changing
 `/dev/ttyACM*` index. Install and enable
 `project_atlas/systemd/user/atlas-uno-r4-sensor-hub.service`. Disable the old
