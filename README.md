@@ -203,7 +203,7 @@ without repeatedly opening or disrupting the bus.
 
 The earlier Portenta H7 sensor-hub prototype is retained only as engineering
 history. It is disabled and is not part of the active ATLAS hardware route.
-The commissioned sensor hub is the Mega 2560 described above.
+The commissioned sensor hub is the Arduino UNO R4 WiFi described above.
 
 See [docs/PORTENTA_SENSOR_HUB.md](docs/PORTENTA_SENSOR_HUB.md) only when
 reviewing the superseded prototype and its electrical test record.

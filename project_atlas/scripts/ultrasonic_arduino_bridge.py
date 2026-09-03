@@ -43,7 +43,8 @@ GNSS_ENABLED = os.environ.get('ATLAS_GNSS_ENABLED', '1').strip().lower() not in 
 )
 CAMERA_ROUTE = os.environ.get('ATLAS_CAMERA_ROUTE', 'jetson').strip().lower()
 CAMERA_SOCKET_PATH = os.environ.get(
-    'ATLAS_MEGA_CAMERA_SOCKET', '/run/user/1000/atlas-mega-camera.sock'
+    'ATLAS_SENSOR_HUB_CAMERA_SOCKET',
+    '/run/user/1000/atlas-sensor-hub-camera.sock',
 ).strip()
 LINE_RE = re.compile(
     r'F=(?P<front>-?\d+),L=(?P<left>-?\d+),R=(?P<right>-?\d+)'
@@ -107,11 +108,11 @@ class UltrasonicArduinoBridge(Node):
             self.gps_status_pub = self.create_publisher(String, '/gps/arduino_status', 10)
         self.create_subscription(Int32, '/arduino/pca9685/servo_us', self.servo_cmd_cb, 10)
         self.create_subscription(Int32, '/ultrasonic/left_servo_cmd_us', lambda m: self.send_servo(0, m.data), 10)
-        self.camera_via_arduino = CAMERA_ROUTE in ('arduino', 'mega')
+        self.camera_via_arduino = CAMERA_ROUTE in ('arduino', 'uno_r4')
         if self.camera_via_arduino:
-            # The commissioned Mega and consolidated UNO R4 hub firmware use
-            # channels 0/1. Retain channels 1/2 only for the legacy UNO image.
-            commissioned_hub = HUB_TRANSPORT in ('mega_2560', 'uno_r4_i2c_hub')
+            # The commissioned UNO R4 hub uses channels 0/1. Retain channels
+            # 1/2 only for the legacy UNO image.
+            commissioned_hub = HUB_TRANSPORT == 'uno_r4_i2c_hub'
             self.camera_pan_channel = 0 if commissioned_hub else 1
             self.camera_tilt_channel = 1 if commissioned_hub else 2
             self.create_subscription(
@@ -150,8 +151,7 @@ class UltrasonicArduinoBridge(Node):
         self.bme_started = time.time()
         self.create_timer(0.05, self.tick)
         if self.camera_via_arduino:
-            camera_route = ('Mega 2560 PCA9685' if HUB_TRANSPORT == 'mega_2560'
-                            else 'Arduino UNO R4 PCA9685')
+            camera_route = 'Arduino UNO R4 PCA9685'
         else:
             camera_route = 'Jetson i2c-7 / atlas_arducam_ptz'
         self.hub_transport = HUB_TRANSPORT or 'unknown_sensor_hub'
@@ -171,25 +171,20 @@ class UltrasonicArduinoBridge(Node):
             if not resolved_port:
                 self.status_pub.publish(String(data='connect_error sensor_hub_port_not_found'))
                 return False
-            # Configure modem-control lines before opening.  The Mega's CH340
-            # adapter wires DTR to RESET; pyserial's normal open sequence can
-            # therefore reset only the Mega while externally powered I2C
-            # slaves remain mid-session.  That power-domain mismatch made the
-            # complete I2C bus disappear until a full rover power cycle. The
-            # UNO R4 native USB CDC endpoint instead requires DTR asserted in
+            # The UNO R4 native USB CDC endpoint requires DTR asserted in
             # order to emit Serial telemetry.
             self.ser = serial.Serial()
             self.ser.port = resolved_port
             self.ser.baudrate = BAUD
             self.ser.timeout = 0.02
             self.ser.write_timeout = 0.25
-            self.ser.dtr = HUB_TRANSPORT != 'mega_2560'
+            self.ser.dtr = True
             self.ser.open()
             self.active_port = resolved_port
             # Apply the final modem-control state after open as well. Linux
             # cdc_acm may not propagate a pre-open DTR assignment to the UNO
             # R4 native USB endpoint on every enumeration.
-            self.ser.setDTR(HUB_TRANSPORT != 'mega_2560')
+            self.ser.setDTR(True)
             time.sleep(1.8)
             now = time.time()
             # Give a newly enumerated board a bounded startup grace period.
@@ -199,13 +194,7 @@ class UltrasonicArduinoBridge(Node):
             self.last_ok = now
             self.last_serial_rx = now
             self.status_pub.publish(String(data=f'connected port={resolved_port}'))
-            if HUB_TRANSPORT == 'mega_2560':
-                # Mega firmware scans and initializes during setup. BNO08x's
-                # AVR driver cannot be begin_I2C() initialized twice safely.
-                self.write_line('ID')
-                if self.camera_via_arduino:
-                    self.write_line('PCA?')
-            elif HUB_TRANSPORT == 'uno_r4_i2c_hub':
+            if HUB_TRANSPORT == 'uno_r4_i2c_hub':
                 # Firmware setup already performs the authoritative scan and
                 # bounded initialization. Do not launch a second recovery scan
                 # during a USB reconnect; it can interrupt an in-flight sensor
@@ -616,12 +605,9 @@ class UltrasonicArduinoBridge(Node):
         if (raw.startswith('ATLAS_ULTRASONIC') or
                 raw.startswith('ATLAS_UNO_SENSOR_HUB') or
                 raw.startswith('ATLAS_UNO_R4_WIFI_I2C_HUB') or
-                raw.startswith('ATLAS_PORTENTA_SENSOR_HUB') or
-                raw.startswith('ATLAS_MEGA_2560_SENSOR_HUB')):
+                raw.startswith('ATLAS_PORTENTA_SENSOR_HUB')):
             if raw.startswith('ATLAS_PORTENTA_SENSOR_HUB'):
                 self.hub_transport = 'portenta_h7'
-            elif raw.startswith('ATLAS_MEGA_2560_SENSOR_HUB'):
-                self.hub_transport = 'mega_2560'
             elif raw.startswith('ATLAS_UNO_R4_WIFI_I2C_HUB'):
                 self.hub_transport = 'uno_r4_i2c_hub'
             self.status_pub.publish(String(data=raw))
@@ -693,7 +679,7 @@ class UltrasonicArduinoBridge(Node):
             values['la'], values['ra'], values['c1'], values['c2'], values['pca']
         )
         self.publish_mm(self.front_pub, front)
-        if self.hub_transport in ('portenta_h7', 'mega_2560', 'uno_r4_i2c_hub'):
+        if self.hub_transport in ('portenta_h7', 'uno_r4_i2c_hub'):
             # New sensor-hub harnesses use logical physical-side labels directly.
             self.publish_mm(self.left_pub, left)
             self.publish_mm(self.right_pub, right)

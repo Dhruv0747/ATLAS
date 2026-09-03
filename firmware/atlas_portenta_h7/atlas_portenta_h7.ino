@@ -3,23 +3,13 @@
 #include <Adafruit_AMG88xx.h>
 #include <Adafruit_BME680.h>
 #include <Adafruit_BNO08x.h>
-#ifndef ATLAS_MEGA_2560
 #include <Arduino_NiclaSenseEnv.h>
-#endif
 
-#ifdef ATLAS_MEGA_2560
-#define ATLAS_SENSOR_WIRE Wire
-#define ATLAS_GPS_SERIAL Serial1
-#define ATLAS_RADAR_SERIAL Serial2
-#define ATLAS_HUB_NAME "MEGA_2560"
-#define ATLAS_BOARD_NAME "ARDUINO_MEGA_2560"
-#else
 #define ATLAS_SENSOR_WIRE Wire2
 #define ATLAS_GPS_SERIAL Serial2
 #define ATLAS_RADAR_SERIAL Serial3
 #define ATLAS_HUB_NAME "PORTENTA_H7"
 #define ATLAS_BOARD_NAME "PORTENTA_H7_LITE"
-#endif
 
 // Project ATLAS Portenta H7 Lite sensor hub.
 //
@@ -41,16 +31,6 @@ constexpr uint8_t BME_ADDRS[] = {0x77, 0x76};
 constexpr uint8_t AMG_ADDRS[] = {0x69, 0x68};
 constexpr uint8_t BNO_ADDRS[] = {0x4B, 0x4A};
 constexpr uint8_t ULTRASONIC_COUNT = 4;
-#ifdef ATLAS_MEGA_2560
-constexpr uint8_t FRONT_TRIG = 28;
-constexpr uint8_t FRONT_ECHO = 29;
-constexpr uint8_t LEFT_TRIG = 24;
-constexpr uint8_t LEFT_ECHO = 25;
-constexpr uint8_t RIGHT_TRIG = 26;
-constexpr uint8_t RIGHT_ECHO = 27;
-constexpr uint8_t REAR_TRIG = 23;
-constexpr uint8_t REAR_ECHO = 22;
-#else
 constexpr uint8_t FRONT_TRIG = D0;
 constexpr uint8_t FRONT_ECHO = D1;
 constexpr uint8_t LEFT_TRIG = D2;
@@ -59,7 +39,6 @@ constexpr uint8_t RIGHT_TRIG = D4;
 constexpr uint8_t RIGHT_ECHO = D5;
 constexpr uint8_t REAR_TRIG = D6;
 constexpr uint8_t REAR_ECHO = D7;
-#endif
 constexpr uint32_t ULTRASONIC_ECHO_TIMEOUT_US = 24000;
 constexpr uint32_t ULTRASONIC_SAMPLE_INTERVAL_MS = 40;
 constexpr uint32_t ULTRASONIC_REPORT_INTERVAL_MS = 120;
@@ -67,9 +46,7 @@ constexpr uint32_t ULTRASONIC_REPORT_INTERVAL_MS = 120;
 Adafruit_BME680 *bme = nullptr;
 Adafruit_AMG88xx amg;
 Adafruit_BNO08x bno(-1);
-#ifndef ATLAS_MEGA_2560
 NiclaSenseEnv *nicla = nullptr;
-#endif
 sh2_SensorValue_t bno_value;
 
 bool bme_online = false;
@@ -172,7 +149,6 @@ void initializeSensors() {
   }
 
   nicla_online = false;
-#ifndef ATLAS_MEGA_2560
   if (probe(NICLA_ENV_ADDR)) {
     if (nicla == nullptr) nicla = new NiclaSenseEnv(ATLAS_SENSOR_WIRE, NICLA_ENV_ADDR);
     nicla_online = nicla->begin();
@@ -184,7 +160,6 @@ void initializeSensors() {
       nicla->outdoorAirQualitySensor().setEnabled(true, false);
     }
   }
-#endif
 
   Serial.print("I2CSTAT,HUB="); Serial.print(ATLAS_HUB_NAME);
   Serial.print(",BME="); Serial.print(bme_online ? 1 : 0);
@@ -287,12 +262,6 @@ void reportBno() {
 }
 
 void reportNicla() {
-#ifdef ATLAS_MEGA_2560
-  // Arduino_NiclaSenseEnv depends on std::array, which the AVR toolchain does
-  // not provide. Keep the wire address visible in SCAN/I2CSTAT while avoiding
-  // a false live reading on the Mega transport.
-  Serial.println("NICLAENV,OK=0,REASON=AVR_DRIVER_UNAVAILABLE");
-#else
   if (!nicla_online || nicla == nullptr) {
     Serial.println("NICLAENV,OK=0");
     return;
@@ -312,7 +281,6 @@ void reportNicla() {
   Serial.print(",NO2="); Serial.print(outdoor.NO2(), 2);
   Serial.print(",O3="); Serial.print(outdoor.O3(), 2);
   Serial.println(",OK=1");
-#endif
 }
 
 int readUltrasonicMm(uint8_t trig, uint8_t echo) {
@@ -477,10 +445,8 @@ void loop() {
   }
   if (now - last_scan_ms >= 30000) {
     last_scan_ms = now;
-    bool sensor_offline = !bme_online || !amg_online || !bno_online;
-#ifndef ATLAS_MEGA_2560
-    sensor_offline = sensor_offline || !nicla_online;
-#endif
+    const bool sensor_offline =
+      !bme_online || !amg_online || !bno_online || !nicla_online;
     if (sensor_offline) {
       initializeSensors();
     }

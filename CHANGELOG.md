@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-03 - Retire the Mega 2560 sensor-hub path
+
+- Removed the inactive Mega 2560 firmware, systemd unit, wiring guide and CH340
+  alias from the commissioned ATLAS source.
+- Removed Mega transport handling from the live ROS sensor bridge; the UNO R4
+  WiFi is now the only commissioned Arduino sensor-hub route.
+- Renamed the camera fallback socket to a board-neutral sensor-hub name and
+  deployed both endpoints together so web camera control remains functional.
+- Preserved historical migration notes in Git history and the changelog only.
+
 ## 2026-09-03 - Promote Yahboom IMU and retire BNO08x
 
 - Made the calibrated Yahboom motor-controller IMU the sole canonical owner of

@@ -20,6 +20,6 @@ udevadm control --reload-rules
 udevadm trigger --subsystem-match=tty
 
 echo "Installed fixed ATLAS CH340 port identities:"
-ls -l /dev/atlas-yahboom /dev/atlas-mega 2>/dev/null || true
-echo "Expected: atlas-yahboom -> USB path 2.4; atlas-mega -> USB path 2.2.3"
+ls -l /dev/atlas-yahboom 2>/dev/null || true
+echo "Expected: atlas-yahboom -> commissioned Yahboom motor controller"
 echo "No motor, navigation, or sensor-hub service was enabled or started."
