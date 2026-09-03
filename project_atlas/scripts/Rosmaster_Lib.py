@@ -18,6 +18,9 @@ class Rosmaster(object):
         # com="/dev/ttyUSB0"
         # com="/dev/ttyAMA0"
 
+        # Define this before opening the port so a failed open can be cleaned up
+        # without masking the real serial error from the caller.
+        self.ser = None
         self.ser = serial.Serial(com, 115200)
 
         self.__delay_time = delay
@@ -132,9 +135,9 @@ class Rosmaster(object):
         time.sleep(.002)
 
     def __del__(self):
-        self.ser.close()
+        if self.ser is not None and self.ser.is_open:
+            self.ser.close()
         self.__uart_state = 0
-        print("serial Close!")
 
     # 根据数据帧的类型来做出对应的解析
     # According to the type of data frame to make the corresponding parsing

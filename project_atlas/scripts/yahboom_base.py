@@ -83,10 +83,35 @@ ENCODER_COUNTS_PER_REV = (4048.7, 3300.6, 4080.1, 2697.8)
 # M1/M4 require positive PWM; M2/M3 require negative PWM. Encoder polarity
 # follows those physical-forward raw signs, so normalize them all positive.
 ENCODER_FORWARD_SIGN = (1.0, -1.0, -1.0, 1.0)
-YAHBOOM_PORT = os.environ.get(
-    'ATLAS_YAHBOOM_PORT',
-    '/dev/yahboom',
-)
+YAHBOOM_USB_ID = '/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0'
+
+
+def resolve_yahboom_port():
+    """Find the Yahboom controller by identity, never by ttyUSB number."""
+    configured = os.environ.get('ATLAS_YAHBOOM_PORT', '').strip()
+    candidates = [
+        configured,
+        '/dev/yahboom',
+        '/dev/atlas-yahboom',
+        YAHBOOM_USB_ID,
+    ]
+    by_id = Path('/dev/serial/by-id')
+    if by_id.is_dir():
+        candidates.extend(str(path) for path in sorted(
+            by_id.glob('usb-1a86_USB_Serial*-if00-port0')
+        ))
+
+    seen = set()
+    for candidate in candidates:
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            if Path(candidate).exists():
+                return candidate
+
+    checked = ', '.join(seen)
+    raise RuntimeError(
+        f'Yahboom motor controller not found; checked stable paths: {checked}'
+    )
 YAHBOOM_IMU_CALIBRATION = Path(os.environ.get(
     'ATLAS_YAHBOOM_IMU_CALIBRATION',
     '/home/jetson/project_atlas/config/yahboom_imu_calibration.yaml',
@@ -160,7 +185,8 @@ class YahboomBase(Node):
     def __init__(self):
         super().__init__('yahboom_base')
 
-        self.bot = Rosmaster(car_type=5, com=YAHBOOM_PORT)
+        self.yahboom_port = resolve_yahboom_port()
+        self.bot = Rosmaster(car_type=5, com=self.yahboom_port)
         self.bot.create_receive_threading()
         self.bot.set_car_type(5)
         self.bot.set_auto_report_state(True, False)
@@ -271,7 +297,7 @@ class YahboomBase(Node):
         version = self.bot.get_version()
         car_type = self.bot.get_car_type_from_machine()
         self.get_logger().info(
-            f'Yahboom board ready on {YAHBOOM_PORT}, '
+            f'Yahboom board ready on {self.yahboom_port}, '
             f'firmware={version}, car_type={car_type}'
         )
         self.get_logger().info(

@@ -1,2 +1,3 @@
-# Match the Yahboom base's fixed Jetson USB topology.
-SUBSYSTEM=="tty", ENV{ID_PATH}=="platform-3610000.usb-usb-0:2.2:1.0", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="atlas-yahboom", GROUP="dialout", MODE="0660"
+# Match the commissioned Yahboom CH340 by USB identity, not its changeable
+# Jetson hub topology or ttyUSB number. Keep both historical aliases.
+SUBSYSTEM=="tty", ENV{ID_SERIAL}=="1a86_USB_Serial", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="yahboom atlas-yahboom", GROUP="dialout", MODE="0660"

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-03 - Restore encoder and motor-board IMU telemetry
+
+- Replaced the missing `/dev/yahboom` dependency with the commissioned CH340
+  USB identity, so ttyUSB renumbering no longer takes the base offline.
+- Added safe runtime fallback discovery for the historical Yahboom aliases and
+  stable `by-id` path without ever guessing a numbered ttyUSB device.
+- Corrected the udev rule to use USB identity instead of obsolete hub topology,
+  and retained both historical aliases for maintenance tools.
+- Prevented a failed serial open from emitting a misleading destructor error.
+- Corrected dashboard service health to monitor the active
+  `rover-base-telemetry.service` unit.
+- Verified live `/imu/data`, `/yahboom/odom`, and all four encoder topics with
+  the rover stationary; no motor or steering command was issued.
+
 ## 2026-09-03 - Commission the current camera pose as boot home
 
 - Read the undisturbed live PCA9685 feedback and commissioned that exact pose
