@@ -5,6 +5,7 @@ sketch_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 output_dir=${1:-"$sketch_dir/build-native-usb"}
 
 arduino-cli compile \
+  --clean \
   --fqbn arduino:renesas_uno:unor4wifi \
   --build-property 'build.defines=-DF_CPU=48000000 -DARDUINO_UNOR4_WIFI' \
   --output-dir "$output_dir" \

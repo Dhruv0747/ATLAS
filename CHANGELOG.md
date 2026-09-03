@@ -6,6 +6,8 @@
   `/imu/data`, attitude, dashboard, source and calibration-status topics.
 - Removed BNO08x publication from the active UNO R4 bridge and removed its
   driver, probing, status and LED-matrix page from the commissioned firmware.
+- Forced native-USB firmware builds to discard cached Arduino cores, preventing
+  an older `NO_USB` core from silently suppressing sensor-hub telemetry.
 - Updated both dashboards and fault monitoring to identify Yahboom as the
   primary system IMU; the UNO I2C inventory now correctly expects three devices.
 - Kept IMU input out of the navigation EKF until a recorded left/right yaw sign
