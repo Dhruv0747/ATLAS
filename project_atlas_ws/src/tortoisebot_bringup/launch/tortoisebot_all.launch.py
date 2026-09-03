@@ -19,10 +19,8 @@ def generate_launch_description():
             output="screen", parameters=[{"port": 8765, "capabilities": ["clientPublish", "connectionGraph", "assets", "parameters", "parametersSubscribe", "services"]}], respawn=True, respawn_delay=5.0),
 #         Node(package="tortoisebot_motor_py", executable="motor_node", name="motor_node",
 #             output="screen", respawn=True, respawn_delay=5.0),
-# BNO08X is started by rover-imu.service; old imu_node disabled:         TimerAction(period=15.0, actions=[
-# BNO08X is started by rover-imu.service; old imu_node disabled:             Node(package="tortoisebot_control", executable="imu_node", name="imu_node",
-# BNO08X is started by rover-imu.service; old imu_node disabled:                 output="screen", respawn=True, respawn_delay=10.0)
-# BNO08X is started by rover-imu.service; old imu_node disabled:         ]),
+        # The Yahboom base service owns the canonical /imu/* topics. Do not
+        # launch a second IMU publisher from this aggregate launch file.
         TimerAction(period=25.0, actions=[
             Node(package="slam_toolbox", executable="async_slam_toolbox_node", name="slam_toolbox",
                 output="screen", parameters=[{

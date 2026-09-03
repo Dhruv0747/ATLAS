@@ -2132,8 +2132,8 @@ def draw_live_sensor_detail(rect, name, info):
             ('ACCEL X', imu.get('ax', 0), 'm/s2'), ('ACCEL Y', imu.get('ay', 0), 'm/s2'),
             ('ACCEL Z', imu.get('az', 0), 'm/s2'), ('GYRO X', imu.get('gx', 0), 'rad/s'),
             ('GYRO Y', imu.get('gy', 0), 'rad/s'), ('GYRO Z', imu.get('gz', 0), 'rad/s'),
-            ('MAG X', imu.get('mx', 0), 'uT'), ('MAG Y', imu.get('my', 0), 'uT'),
-            ('MAG Z', imu.get('mz', 0), 'uT'),
+            ('MAG X RAW', imu.get('mx_raw', 0), ''), ('MAG Y RAW', imu.get('my_raw', 0), ''),
+            ('MAG Z RAW', imu.get('mz_raw', 0), ''),
         ]
         cols = 3; gap = 14; left = rect.x+34; top = rect.y+115
         card_w = (rect.w-68-gap*(cols-1))//cols; card_h = 105
@@ -2144,8 +2144,8 @@ def draw_live_sensor_detail(rect, name, info):
             pygame.draw.rect(screen, GREEN if fresh('imu_full', 4) else RED, tile, 1, border_radius=8)
             hud_label(label, tile.x+16, tile.y+13, DIM, F13, tile.w-32)
             hud_label(f'{float(value or 0):+.3f} {unit}', tile.x+16, tile.y+48, WHITE, F17, tile.w-32)
-        hud_label(f'MOTOR-BOARD IMU COMPARISON: roll {float(DATA.get("yb_roll",0) or 0):+.1f} deg  '
-                  f'pitch {float(DATA.get("yb_pitch",0) or 0):+.1f} deg  heading {float(DATA.get("yb_heading",0) or 0):.1f} deg',
+        hud_label('YAHBOOM MOTOR-BOARD IMU: PRIMARY SYSTEM SOURCE • '
+                  f'NAV FUSION {str(imu.get("navigation_fusion", "PENDING DYNAMIC TEST")).upper()}',
                   rect.x+34, rect.bottom-45, ACCENT, F14, rect.w-68)
     elif name == 'lidar':
         plot = pygame.Rect(rect.x+34, rect.y+105, int(rect.w*.60), rect.h-180)

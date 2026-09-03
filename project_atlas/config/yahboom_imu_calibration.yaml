@@ -1,5 +1,6 @@
 yahboom_imu_calibration:
   source: yahboom_motor_controller
+  system_role: primary_imu
   captured_at: "2026-09-03T10:44:00+05:30"
   method: stationary_raw_bias_and_attitude_zero
   duration_s: 30.0
@@ -27,6 +28,7 @@ yahboom_imu_calibration:
   encoders_changed: false
   qualified_for_navigation: false
   qualification_note: >-
-    Stationary zero and stability passed. Keep excluded from the EKF until
+    Stationary zero and stability passed. This is the canonical dashboard,
+    logging and health IMU. Keep it excluded from the navigation EKF until
     gyro bias is measured from the raw stream and clockwise/counter-clockwise
     rotation agrees with encoder yaw in a recorded A/B test.

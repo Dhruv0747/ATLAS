@@ -10,8 +10,7 @@ import socket
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32, String, Int32
-from sensor_msgs.msg import Imu, MagneticField, NavSatFix, NavSatStatus
-from geometry_msgs.msg import Vector3
+from sensor_msgs.msg import NavSatFix, NavSatStatus
 
 try:
     import serial
@@ -98,13 +97,6 @@ class UltrasonicArduinoBridge(Node):
         self.thermal_max_pub = self.create_publisher(Float32, '/thermal/amg8833/max_c', 10)
         self.thermal_avg_pub = self.create_publisher(Float32, '/thermal/amg8833/avg_c', 10)
         self.thermal_center_pub = self.create_publisher(Float32, '/thermal/amg8833/center_c', 10)
-        self.imu_pub = self.create_publisher(Imu, '/imu/data', 20)
-        self.mag_pub = self.create_publisher(MagneticField, '/imu/mag', 20)
-        self.euler_pub = self.create_publisher(Vector3, '/imu/euler', 20)
-        self.roll_pub = self.create_publisher(Float32, '/imu/roll', 20)
-        self.pitch_pub = self.create_publisher(Float32, '/imu/pitch', 20)
-        self.heading_pub = self.create_publisher(Float32, '/imu/heading', 20)
-        self.imu_json_pub = self.create_publisher(String, '/imu/dashboard_json', 10)
         self.gnss_enabled = GNSS_ENABLED
         if self.gnss_enabled:
             self.gps_fix_pub = self.create_publisher(NavSatFix, '/gps/fix', 10)
@@ -530,65 +522,6 @@ class UltrasonicArduinoBridge(Node):
             data=(f'online via={self.hub_transport} '
                   f'min={minimum:.1f} max={maximum:.1f}')))
 
-    @staticmethod
-    def quaternion_to_euler(x, y, z, w):
-        sinr = 2.0 * (w * x + y * z)
-        cosr = 1.0 - 2.0 * (x * x + y * y)
-        roll = math.degrees(math.atan2(sinr, cosr))
-        sinp = 2.0 * (w * y - z * x)
-        pitch = math.degrees(math.asin(max(-1.0, min(1.0, sinp))))
-        siny = 2.0 * (w * z + x * y)
-        cosy = 1.0 - 2.0 * (y * y + z * z)
-        yaw = math.degrees(math.atan2(siny, cosy))
-        return roll, pitch, yaw
-
-    def handle_bno(self, raw):
-        values = self.parse_fields(raw)
-        if values.get('OK') != '1':
-            self.i2c_status_pub.publish(String(
-                data=f'BNO08X_OFFLINE via={self.hub_transport}'))
-            return
-        try:
-            names = ('QX', 'QY', 'QZ', 'QW', 'GX', 'GY', 'GZ', 'AX', 'AY', 'AZ', 'MX', 'MY', 'MZ')
-            data = {name: float(values[name]) for name in names}
-        except (KeyError, ValueError) as exc:
-            self.i2c_status_pub.publish(String(data=f'BNO08X_PARSE_ERROR {exc}'))
-            return
-        roll, pitch, yaw = self.quaternion_to_euler(data['QX'], data['QY'], data['QZ'], data['QW'])
-        now = self.get_clock().now().to_msg()
-        imu = Imu()
-        imu.header.stamp = now
-        imu.header.frame_id = 'base_link'
-        ros_yaw = math.radians(-yaw)
-        imu.orientation.z = math.sin(ros_yaw / 2.0)
-        imu.orientation.w = math.cos(ros_yaw / 2.0)
-        imu.orientation_covariance = [0.002, 0.0, 0.0, 0.0, 0.002, 0.0, 0.0, 0.0, 0.002]
-        imu.angular_velocity.z = -data['GZ']
-        imu.angular_velocity_covariance = [0.001, 0.0, 0.0, 0.0, 0.001, 0.0, 0.0, 0.0, 0.001]
-        imu.linear_acceleration.x = data['AX']
-        imu.linear_acceleration.y = data['AY']
-        imu.linear_acceleration.z = data['AZ']
-        imu.linear_acceleration_covariance = [0.05, 0.0, 0.0, 0.0, 0.05, 0.0, 0.0, 0.0, 0.05]
-        self.imu_pub.publish(imu)
-        mag = MagneticField()
-        mag.header.stamp = now
-        mag.header.frame_id = 'base_link'
-        mag.magnetic_field.x = data['MX'] * 1e-6
-        mag.magnetic_field.y = data['MY'] * 1e-6
-        mag.magnetic_field.z = data['MZ'] * 1e-6
-        self.mag_pub.publish(mag)
-        self.euler_pub.publish(Vector3(x=roll, y=pitch, z=yaw))
-        self.roll_pub.publish(Float32(data=roll))
-        self.pitch_pub.publish(Float32(data=pitch))
-        self.heading_pub.publish(Float32(data=(yaw + 360.0) % 360.0))
-        dashboard = {
-            'roll': round(roll, 3), 'pitch': round(pitch, 3), 'yaw': round(yaw, 3),
-            'heading': round((yaw + 360.0) % 360.0, 3), 'frame': 'base_link',
-            'address': f"0x{values.get('A', '--')}", 'transport': self.hub_transport,
-        }
-        dashboard.update({name.lower(): round(value, 6) for name, value in data.items()})
-        self.imu_json_pub.publish(String(data=json.dumps(dashboard, separators=(',', ':'))))
-
     def handle_nicla_env(self, raw):
         values = self.parse_fields(raw)
         if values.get('OK') != '1':
@@ -701,9 +634,6 @@ class UltrasonicArduinoBridge(Node):
             return
         if raw.startswith('AMG,'):
             self.handle_amg(raw)
-            return
-        if raw.startswith('BNO,'):
-            self.handle_bno(raw)
             return
         if raw.startswith('NICLAENV,'):
             self.handle_nicla_env(raw)

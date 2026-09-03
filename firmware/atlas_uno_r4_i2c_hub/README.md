@@ -11,7 +11,6 @@ over one persistent USB serial connection at 115200 baud.
 | PCA9685 | A4/SDA, A5/SCL, 3.3 V logic, common GND | live at `0x40` |
 | AMG8833 | A4/SDA, A5/SCL, 3.3 V, common GND | live at `0x69` |
 | BME680 | A4/SDA, A5/SCL, 3.3 V, common GND | live at `0x77` |
-| BNO08x | **Qwiic/Wire1 only**, 3.3 V, common GND | move required; expected at `0x4B` |
 | L76K GNSS | module TX to D0/RX, module RX to D1/TX | live at 9600 baud |
 | RD-03D radar | module TX to D12/RX; module RX to D11/TX; common GND | 256000 baud; require valid `AA FF 03 00 … 55 CC` frames |
 | Rear ultrasonic | TRIG D8, ECHO D9 | live |
@@ -23,19 +22,12 @@ All devices must share ground. Do not apply 5 V directly to any 3.3 V-only
 signal input. Use a divider or level shifter if an ultrasonic ECHO output is
 5 V.
 
-The BNO08x must not share A4/A5 with the other sensors. Its I2C behavior can
-hold the shared bus low during initialization. The firmware deliberately
-initializes it only on the isolated Qwiic `Wire1` bus so an IMU fault cannot
-take the environment, thermal, or camera-controller devices offline. The
-BNO08x LED confirms power only; `BNO,OK=1` with changing quaternion/gyro data
-is the functional pass condition.
+The retired BNO08x is not part of this hub firmware. ATLAS now uses the
+calibrated Yahboom motor-controller IMU as its sole canonical system IMU.
 
 ## Serial commands
 
-- `SCAN` scans both I2C buses and retries the main A4/A5 devices.
-- `BNOINIT` explicitly retries the isolated BNO08x after its wiring is fixed;
-  never issue it while the sensor/bus is unhealthy because its driver can
-  block the hub until reset.
+- `SCAN` scans the A4/A5 I2C bus and retries its commissioned devices.
 - `STATUS` prints device, UART, ultrasonic, and bus-health state.
 - `RADARINIT` sends the RD-03D multi-target-mode request during controlled
   maintenance. It is deliberately not sent automatically: a damaged or
@@ -48,18 +40,14 @@ disabled. The display is diagnostic only and cannot bypass ATLAS motion safety.
 
 ## Bench validation, 2026-09-02
 
-- Main A4/A5 scan: `0x40`, `0x4B`, `0x69`, `0x77`.
-- Isolated Qwiic scan: empty because the BNO08x has not yet been moved.
-- BNO08x: powered and acknowledging on the wrong bus, but 0 valid packets from
-  71 reports; not operational until physically moved to Qwiic.
+- Main A4/A5 scan: `0x40`, `0x69`, `0x77` (the retired `0x4B` device may be
+  physically absent and is no longer expected).
 - BME680, AMG8833, L76K GNSS, PCA9685 discovery, and rear ultrasonic telemetry
   passed their bench checks. Radar UART byte activity alone is not a pass: the
   Jetson decoder must report valid 30-byte RD-03D target frames.
 
-It may be installed as the Jetson's authoritative telemetry hub while the
-BNO08x is offline because the commissioned EKF does not currently fuse that
-IMU. Keep the offline state visible and complete the Qwiic move before treating
-the IMU channel or orientation redundancy as commissioned.
+The hub owns the environment, thermal, camera controller, GNSS, radar and
+ultrasonic routes only. The Yahboom base process owns `/imu/*`.
 
 ## Jetson deployment
 
@@ -77,17 +65,11 @@ Mega, Portenta, and direct Jetson PTZ services so only one process owns the
 sensor UART and PCA9685 command path. The ROS bridge asserts DTR for native UNO
 R4 USB CDC, but does not automatically move the camera during a reconnect.
 
-The BNO08x may remain offline temporarily because the commissioned navigation
-EKF currently uses wheel odometry rather than IMU yaw. Autonomous operation
-must continue to report the missing IMU, and the motor-controller attitude
-topics are comparison telemetry—not a silently substituted navigation source.
-While it is absent, firmware never initializes the BNO08x during boot,
-background recovery, or ordinary `SCAN`, because the library can block and
-freeze all UNO telemetry. `BNOINIT` is the deliberate maintenance-only retry
-path after correcting the Qwiic wiring.
-Automatic BME680, AMG8833 and PCA9685 recovery is also fully isolated from the
-BNO08x initializer, so a transient main-bus read error cannot re-enter the
-faulty IMU path and stall the hub later.
+The commissioned navigation EKF still uses wheel odometry only. Yahboom gyro
+fusion remains disabled until a recorded clockwise/counter-clockwise sign and
+magnitude test passes. This is a navigation qualification gate, not a missing
+sensor warning. Automatic BME680, AMG8833 and PCA9685 recovery is independent
+of all IMU handling.
 
 Install `project_atlas/udev/70-project-atlas-uno-r4.rules` with the supplied
 root helper before the final endurance run. It prevents ModemManager from

@@ -22,7 +22,7 @@ KEY SCRIPTS
 JETSON SETUP STEPS
   1. Flash JetPack 6.x (Ubuntu 22.04)
   2. Install ROS2 Humble (NOT Jazzy - not supported on Jetson)
-  3. pip3 install adafruit-circuitpython-bno08x vl53l0x ina260 ssd1306 smbus2
+  3. pip3 install vl53l0x ina260 ssd1306 smbus2
   4. GPIO: replace RPi.GPIO imports with Jetson.GPIO
   5. I2C: check bus numbers with i2cdetect -l
   6. Camera: use GStreamer pipeline - nvarguscamerasrc for CSI camera

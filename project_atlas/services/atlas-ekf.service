@@ -1,5 +1,5 @@
 [Unit]
-Description=Project ATLAS authoritative 2D wheel-odometry and BNO08X EKF
+Description=Project ATLAS authoritative 2D wheel-odometry EKF
 After=network-online.target
 
 [Service]

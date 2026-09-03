@@ -17,7 +17,7 @@ ekf_filter_node:
 
     # Fuse the internally consistent wheel pose and twist. Commissioning bags
     # on 2026-08-24 showed wheel pose-yaw and integrated wheel yaw-rate agreeing
-    # within about one degree, while the BNO08X rotation-vector yaw changed
+    # within about one degree, while the retired BNO08X rotation-vector yaw changed
     # 100-175 degrees with only 1.7-6 degrees of integrated gyro rotation.
     # Relative mode removes the controller's arbitrary startup origin.
     odom0: /yahboom/odom
@@ -30,13 +30,10 @@ ekf_filter_node:
     odom0_relative: true
     odom0_queue_size: 10
 
-    # Keep BNO08X data live for dashboard/diagnostics, but do not fuse its
-    # magnetically corrected rotation-vector yaw into navigation. The rover's
-    # motor currents and steel chassis cause large heading corrections that are
-    # not supported by the gyro. Re-enable only after a clean calibration and
-    # repeatable bag A/B test.
-    # No imu0 input is configured for the navigation EKF. /imu/data remains
-    # published independently for health monitoring and future recalibration.
+    # The calibrated Yahboom board is the canonical /imu/data source for
+    # dashboard, logging and health. No imu0 input is configured yet: its gyro
+    # sign and magnitude must first pass a recorded clockwise/counter-clockwise
+    # comparison against wheel odometry. Do not fuse magnetic absolute heading.
 
     process_noise_covariance: [0.05, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                                0.0,  0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,

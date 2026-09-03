@@ -3,7 +3,6 @@
 #include <Arduino_LED_Matrix.h>
 #include <Adafruit_AMG88xx.h>
 #include <Adafruit_BME680.h>
-#include <Adafruit_BNO08x.h>
 
 // Project ATLAS UNO R4 WiFi I2C sensor hub.
 //
@@ -12,14 +11,11 @@
 //   A5 / SCL -> sensor SCL
 //   3V3      -> sensor logic power
 //   GND      -> common ground
-// The BNO08x is isolated on the UNO R4 Qwiic/Wire1 connector. Its unusual
-// clock-stretching behavior must never be allowed to stop the main sensor bus.
-//
 // Commissioned devices:
 //   0x40 PCA9685 camera pan/tilt controller
-//   0x4B BNO08x IMU
 //   0x69 AMG8833 8x8 thermal array
 //   0x77 BME680 environmental sensor
+// The system IMU is supplied by the Yahboom motor controller, not this hub.
 //
 // UART inputs:
 //   D0 / RX  -> L76K TX (9600 baud, hardware Serial1)
@@ -53,7 +49,6 @@ constexpr uint32_t ULTRASONIC_SAMPLE_MS = 45;
 constexpr uint32_t ULTRASONIC_REPORT_MS = 250;
 constexpr uint8_t BME_ADDRS[] = {0x77, 0x76};
 constexpr uint8_t AMG_ADDRS[] = {0x69, 0x68};
-constexpr uint8_t BNO_ADDRS[] = {0x4B, 0x4A};
 constexpr uint8_t PCA9685_ADDR = 0x40;
 constexpr uint8_t CAMERA_PAN_CHANNEL = 0;
 constexpr uint8_t CAMERA_TILT_CHANNEL = 1;
@@ -62,39 +57,23 @@ constexpr int CAMERA_MAX_PULSE_US = 2300;
 constexpr int CAMERA_PAN_HOME_US = 1300;
 constexpr int CAMERA_TILT_HOME_US = 2100;
 constexpr uint32_t SENSOR_RETRY_MS = 30000;
-// The commissioned BNO08x is currently absent from the isolated Qwiic bus.
-// Re-running begin_I2C() against a missing/faulty BNO08x can block the UNO R4
-// after about 30 seconds and freeze every otherwise healthy telemetry stream.
-// Never probe it automatically. It can only be retried through the explicit
-// BNOINIT maintenance command after its isolated Qwiic wiring is corrected.
-constexpr bool BNO_PERIODIC_RETRY = false;
 
 Adafruit_BME680 *bme = nullptr;
 Adafruit_AMG88xx amg;
-Adafruit_BNO08x bno(-1);
-sh2_SensorValue_t bno_value;
 UART radar_serial(RADAR_TX_PIN, RADAR_RX_PIN);
 ArduinoLEDMatrix matrix;
 
 bool bme_online = false;
 bool amg_online = false;
-bool bno_online = false;
 bool pca_online = false;
 uint8_t bme_addr = 0;
 uint8_t amg_addr = 0;
-uint8_t bno_addr = 0;
 int camera_pan_us = CAMERA_PAN_HOME_US;
 int camera_tilt_us = CAMERA_TILT_HOME_US;
-
-float qx = 0, qy = 0, qz = 0, qw = 1;
-float gx = 0, gy = 0, gz = 0;
-float ax = 0, ay = 0, az = 0;
-float mx = 0, my = 0, mz = 0;
 
 uint32_t last_heartbeat_ms = 0;
 uint32_t last_bme_ms = 0;
 uint32_t last_amg_ms = 0;
-uint32_t last_bno_ms = 0;
 uint32_t last_status_ms = 0;
 uint32_t last_retry_ms = 0;
 uint32_t last_gps_byte_ms = 0;
@@ -125,12 +104,6 @@ void configureSensorWire() {
   Wire.begin();
   Wire.setWireTimeout(25000, true);
   Wire.setClock(I2C_HZ);
-}
-
-void configureBnoWire() {
-  Wire1.begin();
-  Wire1.setWireTimeout(250000, false);
-  Wire1.setClock(400000);
 }
 
 bool probeOn(TwoWire &bus, uint8_t address) {
@@ -235,17 +208,6 @@ void scanBus() {
     first = false;
   }
   Serial.println();
-  // Never scan the maintenance-only BNO bus during normal startup. A faulty
-  // BNO08x held this shared hub for many seconds per scan and made every good
-  // sensor look offline. BNOINIT is the explicit maintenance entry point.
-  Serial.println("I2C,BUS=UNO_R4_BNO_QWIIC,ADDRS=,DEFERRED=1");
-}
-
-void enableBnoReports() {
-  bno.enableReport(SH2_ROTATION_VECTOR, 20000);
-  bno.enableReport(SH2_GYROSCOPE_CALIBRATED, 20000);
-  bno.enableReport(SH2_ACCELEROMETER, 20000);
-  bno.enableReport(SH2_MAGNETIC_FIELD_CALIBRATED, 50000);
 }
 
 void reportStatus() {
@@ -253,27 +215,10 @@ void reportStatus() {
   Serial.print(",PCA="); Serial.print(pca_online ? 1 : 0);
   Serial.print(",BME="); Serial.print(bme_online ? 1 : 0);
   Serial.print(",AMG="); Serial.print(amg_online ? 1 : 0);
-  Serial.print(",BNO="); Serial.print(bno_online ? 1 : 0);
   Serial.print(",NICLA_ENV=0,SDA="); Serial.print(digitalRead(SDA));
-  Serial.print(",SCL="); Serial.print(digitalRead(SCL));
-  Serial.print(",BNO_SDA="); Serial.print(digitalRead(WIRE1_SDA_PIN));
-  Serial.print(",BNO_SCL="); Serial.println(digitalRead(WIRE1_SCL_PIN));
+  Serial.print(",SCL="); Serial.println(digitalRead(SCL));
 }
 
-void initializeBno() {
-  bno_online = false;
-  for (uint8_t address : BNO_ADDRS) {
-    if (probeOn(Wire1, address) && bno.begin_I2C(address, &Wire1)) {
-      bno_addr = address;
-      bno_online = true;
-      enableBnoReports();
-      break;
-    }
-  }
-}
-
-// Initialize only the main A4/A5 bus. The BNO08x lives on isolated Wire1 and
-// must never be part of automatic recovery for these commissioned sensors.
 void initializeMainSensors() {
   initializePca();
 
@@ -346,57 +291,6 @@ void reportAmg() {
   Serial.println(",OK=1");
 }
 
-void readBno() {
-  if (!bno_online) return;
-  if (bno.wasReset()) enableBnoReports();
-  while (bno.getSensorEvent(&bno_value)) {
-    switch (bno_value.sensorId) {
-      case SH2_ROTATION_VECTOR:
-        qx = bno_value.un.rotationVector.i;
-        qy = bno_value.un.rotationVector.j;
-        qz = bno_value.un.rotationVector.k;
-        qw = bno_value.un.rotationVector.real;
-        break;
-      case SH2_GYROSCOPE_CALIBRATED:
-        gx = bno_value.un.gyroscope.x;
-        gy = bno_value.un.gyroscope.y;
-        gz = bno_value.un.gyroscope.z;
-        break;
-      case SH2_ACCELEROMETER:
-        ax = bno_value.un.accelerometer.x;
-        ay = bno_value.un.accelerometer.y;
-        az = bno_value.un.accelerometer.z;
-        break;
-      case SH2_MAGNETIC_FIELD_CALIBRATED:
-        mx = bno_value.un.magneticField.x;
-        my = bno_value.un.magneticField.y;
-        mz = bno_value.un.magneticField.z;
-        break;
-    }
-  }
-}
-
-void reportBno() {
-  // I2CSTAT and HEARTBEAT already report BNO=0. Avoid flooding the serial
-  // link at 10 Hz while this optional, isolated sensor is absent.
-  if (!bno_online) return;
-  Serial.print("BNO,A="); Serial.print(bno_addr, HEX);
-  Serial.print(",QX="); Serial.print(qx, 6);
-  Serial.print(",QY="); Serial.print(qy, 6);
-  Serial.print(",QZ="); Serial.print(qz, 6);
-  Serial.print(",QW="); Serial.print(qw, 6);
-  Serial.print(",GX="); Serial.print(gx, 6);
-  Serial.print(",GY="); Serial.print(gy, 6);
-  Serial.print(",GZ="); Serial.print(gz, 6);
-  Serial.print(",AX="); Serial.print(ax, 6);
-  Serial.print(",AY="); Serial.print(ay, 6);
-  Serial.print(",AZ="); Serial.print(az, 6);
-  Serial.print(",MX="); Serial.print(mx, 6);
-  Serial.print(",MY="); Serial.print(my, 6);
-  Serial.print(",MZ="); Serial.print(mz, 6);
-  Serial.println(",OK=1");
-}
-
 int readUltrasonicMm(uint8_t trig_pin, uint8_t echo_pin) {
   digitalWrite(trig_pin, LOW);
   delayMicroseconds(3);
@@ -457,7 +351,6 @@ void drawGlyph(uint8_t frame[8][12], const uint8_t glyph[7], uint8_t x) {
 const uint8_t GLYPH_P[7] = {30, 17, 17, 30, 16, 16, 16};
 const uint8_t GLYPH_E[7] = {31, 16, 16, 30, 16, 16, 31};
 const uint8_t GLYPH_T[7] = {31, 4, 4, 4, 4, 4, 4};
-const uint8_t GLYPH_I[7] = {31, 4, 4, 4, 4, 4, 31};
 const uint8_t GLYPH_G[7] = {14, 17, 16, 23, 17, 17, 14};
 const uint8_t GLYPH_D[7] = {30, 17, 17, 17, 17, 17, 30};
 const uint8_t GLYPH_F[7] = {31, 16, 16, 30, 16, 16, 16};
@@ -475,23 +368,22 @@ void updateMatrix(uint32_t now) {
     case 0: label = GLYPH_P; state = pca_online; break;
     case 1: label = GLYPH_E; state = bme_online; break;
     case 2: label = GLYPH_T; state = amg_online; break;
-    case 3: label = GLYPH_I; state = bno_online; break;
-    case 4: label = GLYPH_G; state = (last_gps_byte_ms && now - last_gps_byte_ms < 3000); break;
-    case 5: label = GLYPH_D; state = (last_radar_byte_ms && now - last_radar_byte_ms < 3000); break;
-    case 6: label = GLYPH_F; state = ultrasonic_enabled[0] ?
+    case 3: label = GLYPH_G; state = (last_gps_byte_ms && now - last_gps_byte_ms < 3000); break;
+    case 4: label = GLYPH_D; state = (last_radar_byte_ms && now - last_radar_byte_ms < 3000); break;
+    case 5: label = GLYPH_F; state = ultrasonic_enabled[0] ?
       (ultrasonic_last_valid_ms[0] && now - ultrasonic_last_valid_ms[0] < 30000) : 2; break;
-    case 7: label = GLYPH_L; state = ultrasonic_enabled[1] ?
+    case 6: label = GLYPH_L; state = ultrasonic_enabled[1] ?
       (ultrasonic_last_valid_ms[1] && now - ultrasonic_last_valid_ms[1] < 30000) : 2; break;
-    case 8: label = GLYPH_R; state = ultrasonic_enabled[2] ?
+    case 7: label = GLYPH_R; state = ultrasonic_enabled[2] ?
       (ultrasonic_last_valid_ms[2] && now - ultrasonic_last_valid_ms[2] < 30000) : 2; break;
-    case 9: label = GLYPH_B; state = ultrasonic_enabled[3] ?
+    case 8: label = GLYPH_B; state = ultrasonic_enabled[3] ?
       (ultrasonic_last_valid_ms[3] && now - ultrasonic_last_valid_ms[3] < 30000) : 2; break;
   }
   uint8_t frame[8][12] = {};
   drawGlyph(frame, label, 0);
   drawGlyph(frame, state == 1 ? GLYPH_OK : (state == 2 ? GLYPH_OFF : GLYPH_X), 7);
   matrix.renderBitmap(frame, 8, 12);
-  matrix_page = (matrix_page + 1) % 10;
+  matrix_page = (matrix_page + 1) % 9;
 }
 
 void forwardGps() {
@@ -567,18 +459,10 @@ void handleCommand(const char *command) {
   if (!strcmp(command, "PING")) {
     Serial.println("PONG,ATLAS_UNO_R4_WIFI_I2C_HUB");
   } else if (!strcmp(command, "ID")) {
-    Serial.println("ATLAS_UNO_R4_WIFI_I2C_HUB,V=1,BOARD=UNO_R4_WIFI,BUS=A4_A5");
+    Serial.println("ATLAS_UNO_R4_WIFI_I2C_HUB,V=2,BOARD=UNO_R4_WIFI,BUS=A4_A5,IMU=YAHBOOM");
   } else if (!strcmp(command, "SCAN")) {
     scanBus();
     initializeMainSensors();
-  } else if (!strcmp(command, "BNOINIT")) {
-    // Deliberate maintenance-only action: a faulty/absent BNO08x can block
-    // this library call and stop all UNO telemetry until the board is reset.
-    Wire1.end();
-    delay(5);
-    configureBnoWire();
-    initializeBno();
-    reportStatus();
   } else if (!strcmp(command, "PCA?")) {
     if (!pca_online) initializePca();
     Serial.print("ACK,PCA,"); Serial.println(pca_online ? 1 : 0);
@@ -661,12 +545,10 @@ void setup() {
   matrix.begin();
   configureSensorWire();
   delay(1200);
-  Serial.println("ATLAS_UNO_R4_WIFI_I2C_HUB,V=1,BOARD=UNO_R4_WIFI,BUS=A4_A5");
+  Serial.println("ATLAS_UNO_R4_WIFI_I2C_HUB,V=2,BOARD=UNO_R4_WIFI,BUS=A4_A5,IMU=YAHBOOM");
   recoverI2cBus();
   scanBus();
   initializeMainSensors();
-  // Do not initialize the BNO08x here. Its driver can block indefinitely
-  // when the sensor is absent or its Qwiic bus is unhealthy.
   reportStatus();
 }
 
@@ -675,7 +557,6 @@ void loop() {
   readCommands();
   forwardGps();
   forwardRadar();
-  readBno();
 
   if (now - last_ultrasonic_sample_ms >= ULTRASONIC_SAMPLE_MS) {
     last_ultrasonic_sample_ms = now;
@@ -698,10 +579,6 @@ void loop() {
     last_amg_ms = now;
     reportAmg();
   }
-  if (now - last_bno_ms >= 100) {
-    last_bno_ms = now;
-    reportBno();
-  }
   if (now - last_status_ms >= 5000) {
     last_status_ms = now;
     reportStatus();
@@ -711,12 +588,6 @@ void loop() {
     if (!bme_online || !amg_online || !pca_online) {
       recoverI2cBus();
       initializeMainSensors();
-    } else if (BNO_PERIODIC_RETRY && !bno_online) {
-      Wire1.end();
-      delay(5);
-      configureBnoWire();
-      initializeBno();
-      reportStatus();
     }
   }
   if (now - last_heartbeat_ms >= 1000) {
@@ -731,8 +602,7 @@ void loop() {
     Serial.print(",RADAR_INITS="); Serial.print(radar_init_count);
     Serial.print(",PCA="); Serial.print(pca_online ? 1 : 0);
     Serial.print(",BME="); Serial.print(bme_online ? 1 : 0);
-    Serial.print(",AMG="); Serial.print(amg_online ? 1 : 0);
-    Serial.print(",BNO="); Serial.println(bno_online ? 1 : 0);
+    Serial.print(",AMG="); Serial.println(amg_online ? 1 : 0);
   }
   delay(1);
 }

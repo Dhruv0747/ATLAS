@@ -46,12 +46,10 @@ MONITORS = tuple(item for item in (
     Monitor("lidar", "/scan", LaserScan, 5.0, "atlas-lidar.service"),
     Monitor("camera", "/camera/image_raw/compressed", CompressedImage, 8.0,
             "atlas-camera.service"),
-    # The UNO R4 hub is the single owner for the low-bandwidth sensors. Its
-    # firmware performs bounded main-bus recovery and isolates the BNO08x on
-    # Wire1. Diagnose individual stale topics without creating a USB restart
-    # loop; systemd still restarts the bridge if the process itself exits.
+    # The Yahboom motor-controller process owns the canonical IMU stream.
+    # Diagnose it without automatically restarting a locomotion I/O owner.
     Monitor("imu", "/imu/data", Imu, 5.0,
-            "atlas-uno-r4-sensor-hub.service", recover=False),
+            "rover-base-telemetry.service", recover=False),
     Monitor("radar", "/radar/targets", String, 8.0, "rover-radar.service"),
     Monitor("ultrasonic", "/ultrasonic/status", String, 8.0,
             "atlas-uno-r4-sensor-hub.service", recover=False),

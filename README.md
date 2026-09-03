@@ -34,7 +34,8 @@ ATLAS uses its 360-degree LiDAR as the primary navigation and obstacle sensor. U
 ## Hardware
 
 - Four-wheel rover with wheel encoders and Yahboom motor controller
-- RPLIDAR A1, BNO08X IMU, ultrasonic sensors, and RD-03D radar
+- RPLIDAR A1, calibrated Yahboom motor-board IMU, ultrasonic sensors, and
+  RD-03D radar
 - Arduino UNO R4 WiFi sensor hub carries the I2C sensors, L76K GNSS, RD-03D
   radar, camera PCA9685, and four sequentially sampled ultrasonic channels.
   See [`firmware/atlas_uno_r4_i2c_hub/README.md`](firmware/atlas_uno_r4_i2c_hub/README.md).
@@ -43,7 +44,7 @@ ATLAS uses its 360-degree LiDAR as the primary navigation and obstacle sensor. U
 
 The commissioned sensor transport now uses an Arduino UNO R4 WiFi. It forwards
 the PCA9685 (`0x40`) discovery state, BME680 (`0x76`/`0x77`), AMG8833
-(`0x68`/`0x69`), BNO08x (`0x4A`/`0x4B`), L76K NMEA, RD-03D frames and four
+(`0x68`/`0x69`), L76K NMEA, RD-03D frames and four
 ultrasonic ranges over a fixed Jetson USB physical path. The Jetson bridge
 republishes the original ROS 2 topic names, so Nav2, EKF, dashboards and
 Foxglove do not depend on the physical bus.
@@ -139,12 +140,14 @@ The Jetson migration and primary navigation commissioning sequence are complete.
   `base_footprint`; the authoritative static transform is x=-0.05 m, z=0.18 m,
   yaw=pi.
 - `/yahboom/odom` is encoder-distance-derived and is fused by the EKF onto `/odom`.
-- The Yahboom motor-board IMU has a separately recorded stationary calibration.
+- The Yahboom motor-board IMU is the sole canonical system IMU and has a
+  separately recorded stationary calibration.
   Raw controller measurements are available on
   `/yahboom/imu/data_uncalibrated`; software-zeroed attitude, gyro and
   accelerometer measurements are available on `/yahboom/imu/data_calibrated`.
   Its yaw is zeroed relative to each driver start because the controller's
-  absolute magnetic origin is not yet trusted. This backup stream is
+  absolute magnetic origin is not yet trusted. The calibrated values also own
+  the standard `/imu/*` dashboard, logging, and health topics. Gyro data is
   deliberately excluded from the EKF until a recorded
   clockwise/counter-clockwise yaw comparison against wheel odometry passes.
 - Nav2 uses the one-shot fail-stop behavior tree. It does not accumulate recovery

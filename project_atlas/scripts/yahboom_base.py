@@ -17,7 +17,7 @@ import rclpy
 import yaml
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from geometry_msgs.msg import TransformStamped, Twist, Vector3Stamped
+from geometry_msgs.msg import TransformStamped, Twist, Vector3, Vector3Stamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
 from std_msgs.msg import Float32, Int32, String
@@ -227,6 +227,19 @@ class YahboomBase(Node):
         )
         self._pub_imu_calibration_status = self.create_publisher(
             String, '/yahboom/imu/calibration_status', 10
+        )
+        # Canonical system IMU topics. The motor-board IMU is the only active
+        # ATLAS attitude source; the retired BNO08x must not own these names.
+        self._pub_system_imu = self.create_publisher(Imu, '/imu/data', 10)
+        self._pub_system_imu_euler = self.create_publisher(Vector3, '/imu/euler', 10)
+        self._pub_system_imu_roll = self.create_publisher(Float32, '/imu/roll', 10)
+        self._pub_system_imu_pitch = self.create_publisher(Float32, '/imu/pitch', 10)
+        self._pub_system_imu_yaw = self.create_publisher(Float32, '/imu/yaw', 10)
+        self._pub_system_imu_heading = self.create_publisher(Float32, '/imu/heading', 10)
+        self._pub_system_imu_json = self.create_publisher(String, '/imu/dashboard_json', 10)
+        self._pub_system_imu_source = self.create_publisher(String, '/imu/source', 10)
+        self._pub_system_imu_status = self.create_publisher(
+            String, '/imu/calibration_status', 10
         )
 
         self._enc_pubs = [
@@ -489,11 +502,11 @@ class YahboomBase(Node):
         pass  # replaced by keepalive throttle
 
     def _publish_board_imu(self, monotonic_now, roll, pitch, yaw_deg):
-        """Publish isolated raw and software-calibrated motor-board IMU data.
+        """Publish raw, calibrated and canonical motor-board IMU data.
 
-        Neither topic is consumed by the navigation EKF. The calibrated topic
-        is intentionally separate so it can be bag-tested before it receives
-        any navigation authority.
+        Yahboom is the primary system IMU for monitoring, bags and dashboards.
+        It is not fused by the navigation EKF until a recorded left/right yaw
+        sign and magnitude test passes.
         """
         stamp = self.get_clock().now().to_msg()
         ax, ay, az = self.bot.get_accelerometer_data()
@@ -565,15 +578,59 @@ class YahboomBase(Node):
                 message.linear_acceleration_covariance[0] = -1.0
             return message
 
-        self._pub_imu_uncalibrated.publish(make_imu(
+        raw_imu = make_imu(
             raw_q, (gx, gy, gz), (ax, ay, az), False
-        ))
-        self._pub_imu_calibrated.publish(make_imu(
+        )
+        calibrated_gyro = (
+            gx - gyro_bias[0], gy - gyro_bias[1], gz - gyro_bias[2]
+        )
+        calibrated_accel = (
+            ax - accel_bias[0], ay - accel_bias[1], az - accel_bias[2]
+        )
+        calibrated_imu = make_imu(
             calibrated_q,
-            (gx - gyro_bias[0], gy - gyro_bias[1], gz - gyro_bias[2]),
-            (ax - accel_bias[0], ay - accel_bias[1], az - accel_bias[2]),
+            calibrated_gyro,
+            calibrated_accel,
             True,
+        )
+        self._pub_imu_uncalibrated.publish(raw_imu)
+        self._pub_imu_calibrated.publish(calibrated_imu)
+        self._pub_system_imu.publish(calibrated_imu)
+
+        cal_roll, cal_pitch, cal_yaw = calibrated_rpy
+        cal_heading = (cal_yaw + 360.0) % 360.0
+        self._pub_system_imu_euler.publish(Vector3(
+            x=float(cal_roll), y=float(cal_pitch), z=float(cal_yaw)
         ))
+        self._pub_system_imu_roll.publish(Float32(data=float(cal_roll)))
+        self._pub_system_imu_pitch.publish(Float32(data=float(cal_pitch)))
+        self._pub_system_imu_yaw.publish(Float32(data=float(cal_yaw)))
+        self._pub_system_imu_heading.publish(Float32(data=float(cal_heading)))
+        self._pub_system_imu_json.publish(String(data=json.dumps({
+            'source': 'yahboom_motor_controller',
+            'role': 'primary_system_imu',
+            'navigation_fusion': 'disabled_pending_dynamic_yaw_validation',
+            'roll': cal_roll,
+            'pitch': cal_pitch,
+            'yaw': cal_yaw,
+            'heading': cal_heading,
+            'qx': calibrated_q[0],
+            'qy': calibrated_q[1],
+            'qz': calibrated_q[2],
+            'qw': calibrated_q[3],
+            'gx': calibrated_gyro[0],
+            'gy': calibrated_gyro[1],
+            'gz': calibrated_gyro[2],
+            'ax': calibrated_accel[0],
+            'ay': calibrated_accel[1],
+            'az': calibrated_accel[2],
+            'mx_raw': float(mx),
+            'my_raw': float(my),
+            'mz_raw': float(mz),
+            'frame': 'base_link',
+            'heading_reference_mode': str(cal['heading_reference_mode']),
+            'qualified_for_navigation': bool(cal['qualified_for_navigation']),
+        }, separators=(',', ':'))))
 
         # The Yahboom library does not document magnetometer engineering units,
         # so publish them honestly as controller-native raw values rather than
@@ -586,7 +643,7 @@ class YahboomBase(Node):
 
         if monotonic_now - self._last_imu_status >= 1.0:
             self._last_imu_status = monotonic_now
-            self._pub_imu_calibration_status.publish(String(data=json.dumps({
+            status = json.dumps({
                 'source': 'yahboom_motor_controller',
                 'calibration_file': str(YAHBOOM_IMU_CALIBRATION),
                 'roll_zero_deg': float(cal['roll_zero_deg']),
@@ -595,8 +652,15 @@ class YahboomBase(Node):
                 'heading_reference_mode': str(cal['heading_reference_mode']),
                 'runtime_heading_reference_deg': heading_reference,
                 'qualified_for_navigation': bool(cal['qualified_for_navigation']),
-                'role': 'backup_validation_only',
-            }, separators=(',', ':'))))
+                'role': 'primary_system_imu',
+                'navigation_fusion': 'disabled_pending_dynamic_yaw_validation',
+            }, separators=(',', ':'))
+            status_message = String(data=status)
+            self._pub_imu_calibration_status.publish(status_message)
+            self._pub_system_imu_status.publish(status_message)
+            self._pub_system_imu_source.publish(String(
+                data='yahboom_motor_controller'
+            ))
 
     def _publish_board_state(self):
         now = time.monotonic()

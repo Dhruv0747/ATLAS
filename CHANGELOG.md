@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-03 - Promote Yahboom IMU and retire BNO08x
+
+- Made the calibrated Yahboom motor-controller IMU the sole canonical owner of
+  `/imu/data`, attitude, dashboard, source and calibration-status topics.
+- Removed BNO08x publication from the active UNO R4 bridge and removed its
+  driver, probing, status and LED-matrix page from the commissioned firmware.
+- Updated both dashboards and fault monitoring to identify Yahboom as the
+  primary system IMU; the UNO I2C inventory now correctly expects three devices.
+- Kept IMU input out of the navigation EKF until a recorded left/right yaw sign
+  and magnitude test passes. Absolute magnetic heading will not be fused.
+
 ## 2026-09-03 - Calibrate the Yahboom backup IMU without navigation authority
 
 - Recorded 572 stationary motor-board IMU samples over 30 seconds while all
