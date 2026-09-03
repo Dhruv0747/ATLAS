@@ -25,8 +25,8 @@ from sensor_msgs.msg import NavSatFix, LaserScan, CompressedImage, Joy
 from std_msgs.msg import Bool, Float32, String, Int32
 
 PORT = 8088
-CAMERA_PAN_STEP_US = 80
-CAMERA_TILT_STEP_US = 90
+CAMERA_PAN_STEP_US = 150
+CAMERA_TILT_STEP_US = 150
 SENSOR_HUB_CAMERA_SOCKET = os.environ.get(
     "ATLAS_SENSOR_HUB_CAMERA_SOCKET",
     "/run/user/1000/atlas-sensor-hub-camera.sock",
@@ -1543,7 +1543,7 @@ $('stop').onclick=()=>post({action:'e_stop'});window.addEventListener('blur',()=
 let cameraHold=null,cameraBusy=false;
 function stopCameraHold(){if(cameraHold){clearInterval(cameraHold);cameraHold=null}document.querySelectorAll('[data-cam]').forEach(b=>b.classList.remove('on'))}
 async function cameraStep(b){if(cameraBusy)return;cameraBusy=true;try{await post({action:'camera',axis:b.dataset.cam,direction:b.dataset.dir})}finally{cameraBusy=false}}
-document.querySelectorAll('[data-cam]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();stopCameraHold();b.classList.add('on');b.setPointerCapture(e.pointerId);cameraStep(b);if(b.dataset.cam!=='center')cameraHold=setInterval(()=>cameraStep(b),140)};b.onpointerup=stopCameraHold;b.onpointercancel=stopCameraHold;b.onlostpointercapture=stopCameraHold});
+document.querySelectorAll('[data-cam]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();stopCameraHold();b.classList.add('on');b.setPointerCapture(e.pointerId);cameraStep(b);if(b.dataset.cam!=='center')cameraHold=setInterval(()=>cameraStep(b),90)};b.onpointerup=stopCameraHold;b.onpointercancel=stopCameraHold;b.onlostpointercapture=stopCameraHold});
 window.addEventListener('pointerup',stopCameraHold);window.addEventListener('pointercancel',stopCameraHold);window.addEventListener('blur',stopCameraHold);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCameraHold()});
 document.querySelectorAll('[data-track]').forEach(b=>b.onclick=()=>post({action:'camera_tracking',enabled:b.dataset.track}));
 document.querySelectorAll('[data-ai]').forEach(b=>b.onclick=()=>post({action:'ai_mode',mode:b.dataset.ai}));
