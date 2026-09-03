@@ -14,6 +14,9 @@
 - Increased dashboard pan/tilt increments to 150 microseconds and the hold
   update rate to about 11 Hz, reducing a full sweep from roughly 7-9 seconds to
   about one second while retaining the commissioned 700-2300 microsecond limits.
+- Replaced the dashboard's buffered MJPEG viewer with a latest-frame-only
+  10 Hz camera loop. Slow clients now discard old frames instead of displaying
+  a delayed video queue, so physical camera movement is visible in real time.
 - Kept the local UNO socket as a startup fallback so camera movement remains
   available while ROS graph discovery is still becoming ready.
 
