@@ -1,0 +1,32 @@
+yahboom_imu_calibration:
+  source: yahboom_motor_controller
+  captured_at: "2026-09-03T10:44:00+05:30"
+  method: stationary_raw_bias_and_attitude_zero
+  duration_s: 30.0
+  samples: 572
+  roll_zero_deg: -0.19519630
+  pitch_zero_deg: -0.17163692
+  heading_zero_deg: 3.71034246
+  # The controller's magnetically referenced absolute origin is not trusted.
+  # Zero each process at startup and validate only relative yaw changes.
+  heading_reference_mode: startup_relative
+  gyro_bias_rad_s: [-0.000038462, -0.000218531, -0.000080420]
+  accel_bias_m_s2: [0.038548951, -0.031814685, -0.062563287]
+  # Accuracy is deliberately conservative until the dynamic yaw test passes;
+  # stationary repeatability is not the same as absolute heading accuracy.
+  orientation_variance_rad2: 0.25
+  angular_velocity_variance: 0.001
+  linear_acceleration_variance: 0.05
+  stationary_roll_std_deg: 0.03977825
+  stationary_pitch_std_deg: 0.03121892
+  stationary_heading_std_deg: 0.04283044
+  stationary_heading_span_deg: 0.13178029
+  gyro_std_rad_s: [0.007562693, 0.013818863, 0.005582550]
+  accel_std_m_s2: [0.105363139, 0.079509316, 0.082854283]
+  encoder_delta: [0, 0, 0, 0]
+  encoders_changed: false
+  qualified_for_navigation: false
+  qualification_note: >-
+    Stationary zero and stability passed. Keep excluded from the EKF until
+    gyro bias is measured from the raw stream and clockwise/counter-clockwise
+    rotation agrees with encoder yaw in a recorded A/B test.

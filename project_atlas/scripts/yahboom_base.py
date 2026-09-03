@@ -14,10 +14,12 @@ import sys
 import time
 
 import rclpy
+import yaml
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from geometry_msgs.msg import TransformStamped, Twist
+from geometry_msgs.msg import TransformStamped, Twist, Vector3Stamped
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Imu
 from std_msgs.msg import Float32, Int32, String
 from tf2_ros import TransformBroadcaster
 
@@ -85,6 +87,56 @@ YAHBOOM_PORT = os.environ.get(
     'ATLAS_YAHBOOM_PORT',
     '/dev/yahboom',
 )
+YAHBOOM_IMU_CALIBRATION = Path(os.environ.get(
+    'ATLAS_YAHBOOM_IMU_CALIBRATION',
+    '/home/jetson/project_atlas/config/yahboom_imu_calibration.yaml',
+))
+
+
+def _wrap_degrees(angle):
+    """Return an angle in the ROS-friendly [-180, 180) interval."""
+    return (float(angle) + 180.0) % 360.0 - 180.0
+
+
+def _rpy_quaternion(roll_deg, pitch_deg, yaw_deg):
+    """Convert calibrated board roll/pitch/yaw degrees to a quaternion."""
+    roll = math.radians(float(roll_deg))
+    pitch = math.radians(float(pitch_deg))
+    yaw = math.radians(float(yaw_deg))
+    cr, sr = math.cos(roll / 2.0), math.sin(roll / 2.0)
+    cp, sp = math.cos(pitch / 2.0), math.sin(pitch / 2.0)
+    cy, sy = math.cos(yaw / 2.0), math.sin(yaw / 2.0)
+    return (
+        sr * cp * cy - cr * sp * sy,
+        cr * sp * cy + sr * cp * sy,
+        cr * cp * sy - sr * sp * cy,
+        cr * cp * cy + sr * sp * sy,
+    )
+
+
+def _load_imu_calibration(path):
+    """Load software offsets without making motor startup depend on the file."""
+    defaults = {
+        'roll_zero_deg': 0.0,
+        'pitch_zero_deg': 0.0,
+        'heading_zero_deg': 0.0,
+        'heading_reference_mode': 'static',
+        'gyro_bias_rad_s': [0.0, 0.0, 0.0],
+        'accel_bias_m_s2': [0.0, 0.0, 0.0],
+        'orientation_variance_rad2': 0.01,
+        'angular_velocity_variance': 0.01,
+        'linear_acceleration_variance': 0.10,
+        'qualified_for_navigation': False,
+    }
+    try:
+        raw = yaml.safe_load(path.read_text(encoding='utf-8')) or {}
+        values = raw.get('yahboom_imu_calibration', raw)
+        for key in defaults:
+            if key in values:
+                defaults[key] = values[key]
+    except (OSError, ValueError, TypeError, yaml.YAMLError):
+        pass
+    return defaults
 
 
 def systemd_notify(message: str) -> None:
@@ -145,6 +197,9 @@ class YahboomBase(Node):
         self._restore_odom_state()
         self._last_odom_t = time.monotonic()
         self._last_watchdog_ping = 0.0
+        self._imu_calibration = _load_imu_calibration(YAHBOOM_IMU_CALIBRATION)
+        self._imu_heading_reference = None
+        self._last_imu_status = 0.0
 
         self.create_subscription(Twist, '/cmd_vel', self._on_cmd_vel, 10)
 
@@ -161,6 +216,18 @@ class YahboomBase(Node):
         self._pub_roll = self.create_publisher(Float32, '/yahboom/imu/roll', 10)
         self._pub_pitch = self.create_publisher(Float32, '/yahboom/imu/pitch', 10)
         self._pub_heading = self.create_publisher(Float32, '/yahboom/imu/heading', 10)
+        self._pub_imu_uncalibrated = self.create_publisher(
+            Imu, '/yahboom/imu/data_uncalibrated', 10
+        )
+        self._pub_imu_calibrated = self.create_publisher(
+            Imu, '/yahboom/imu/data_calibrated', 10
+        )
+        self._pub_imu_mag_raw = self.create_publisher(
+            Vector3Stamped, '/yahboom/imu/mag_raw', 10
+        )
+        self._pub_imu_calibration_status = self.create_publisher(
+            String, '/yahboom/imu/calibration_status', 10
+        )
 
         self._enc_pubs = [
             self.create_publisher(Int32, '/yahboom/encoder/m1', 10),
@@ -193,6 +260,14 @@ class YahboomBase(Node):
         self.get_logger().info(
             f'Yahboom board ready on {YAHBOOM_PORT}, '
             f'firmware={version}, car_type={car_type}'
+        )
+        self.get_logger().info(
+            'Yahboom IMU calibration loaded: '
+            f"roll_zero={float(self._imu_calibration['roll_zero_deg']):.3f}deg "
+            f"pitch_zero={float(self._imu_calibration['pitch_zero_deg']):.3f}deg "
+            f"heading_zero={float(self._imu_calibration['heading_zero_deg']):.3f}deg; "
+            'navigation qualification=' +
+            str(bool(self._imu_calibration['qualified_for_navigation']))
         )
         systemd_notify(
             "READY=1\n"
@@ -413,6 +488,116 @@ class YahboomBase(Node):
     def _servo_loop(self):
         pass  # replaced by keepalive throttle
 
+    def _publish_board_imu(self, monotonic_now, roll, pitch, yaw_deg):
+        """Publish isolated raw and software-calibrated motor-board IMU data.
+
+        Neither topic is consumed by the navigation EKF. The calibrated topic
+        is intentionally separate so it can be bag-tested before it receives
+        any navigation authority.
+        """
+        stamp = self.get_clock().now().to_msg()
+        ax, ay, az = self.bot.get_accelerometer_data()
+        gx, gy, gz = self.bot.get_gyroscope_data()
+        mx, my, mz = self.bot.get_magnetometer_data()
+
+        raw_q = _rpy_quaternion(roll, pitch, yaw_deg)
+        cal = self._imu_calibration
+        if (
+            cal['heading_reference_mode'] == 'startup_relative'
+            and self._imu_heading_reference is None
+        ):
+            # Motor-board absolute heading is magnetically referenced and can
+            # start at a different compass value after the controller is
+            # reopened. Future EKF experiments need repeatable yaw change, not
+            # an untrusted absolute compass origin.
+            self._imu_heading_reference = float(yaw_deg)
+        heading_reference = (
+            self._imu_heading_reference
+            if self._imu_heading_reference is not None
+            else float(cal['heading_zero_deg'])
+        )
+        calibrated_rpy = (
+            float(roll) - float(cal['roll_zero_deg']),
+            float(pitch) - float(cal['pitch_zero_deg']),
+            _wrap_degrees(float(yaw_deg) - heading_reference),
+        )
+        calibrated_q = _rpy_quaternion(*calibrated_rpy)
+        gyro_bias = [float(v) for v in cal['gyro_bias_rad_s']]
+        accel_bias = [float(v) for v in cal['accel_bias_m_s2']]
+
+        def make_imu(quaternion, gyro, accel, calibrated):
+            message = Imu()
+            message.header.stamp = stamp
+            message.header.frame_id = 'base_link'
+            message.orientation.x = quaternion[0]
+            message.orientation.y = quaternion[1]
+            message.orientation.z = quaternion[2]
+            message.orientation.w = quaternion[3]
+            message.angular_velocity.x = gyro[0]
+            message.angular_velocity.y = gyro[1]
+            message.angular_velocity.z = gyro[2]
+            message.linear_acceleration.x = accel[0]
+            message.linear_acceleration.y = accel[1]
+            message.linear_acceleration.z = accel[2]
+            if calibrated:
+                orientation_variance = float(cal['orientation_variance_rad2'])
+                gyro_variance = float(cal['angular_velocity_variance'])
+                accel_variance = float(cal['linear_acceleration_variance'])
+                message.orientation_covariance = [
+                    orientation_variance, 0.0, 0.0,
+                    0.0, orientation_variance, 0.0,
+                    0.0, 0.0, orientation_variance,
+                ]
+                message.angular_velocity_covariance = [
+                    gyro_variance, 0.0, 0.0,
+                    0.0, gyro_variance, 0.0,
+                    0.0, 0.0, gyro_variance,
+                ]
+                message.linear_acceleration_covariance = [
+                    accel_variance, 0.0, 0.0,
+                    0.0, accel_variance, 0.0,
+                    0.0, 0.0, accel_variance,
+                ]
+            else:
+                # Raw controller values have not yet been accuracy-qualified.
+                message.orientation_covariance[0] = -1.0
+                message.angular_velocity_covariance[0] = -1.0
+                message.linear_acceleration_covariance[0] = -1.0
+            return message
+
+        self._pub_imu_uncalibrated.publish(make_imu(
+            raw_q, (gx, gy, gz), (ax, ay, az), False
+        ))
+        self._pub_imu_calibrated.publish(make_imu(
+            calibrated_q,
+            (gx - gyro_bias[0], gy - gyro_bias[1], gz - gyro_bias[2]),
+            (ax - accel_bias[0], ay - accel_bias[1], az - accel_bias[2]),
+            True,
+        ))
+
+        # The Yahboom library does not document magnetometer engineering units,
+        # so publish them honestly as controller-native raw values rather than
+        # incorrectly labelling them as tesla.
+        mag = Vector3Stamped()
+        mag.header.stamp = stamp
+        mag.header.frame_id = 'base_link'
+        mag.vector.x, mag.vector.y, mag.vector.z = float(mx), float(my), float(mz)
+        self._pub_imu_mag_raw.publish(mag)
+
+        if monotonic_now - self._last_imu_status >= 1.0:
+            self._last_imu_status = monotonic_now
+            self._pub_imu_calibration_status.publish(String(data=json.dumps({
+                'source': 'yahboom_motor_controller',
+                'calibration_file': str(YAHBOOM_IMU_CALIBRATION),
+                'roll_zero_deg': float(cal['roll_zero_deg']),
+                'pitch_zero_deg': float(cal['pitch_zero_deg']),
+                'heading_zero_deg': float(cal['heading_zero_deg']),
+                'heading_reference_mode': str(cal['heading_reference_mode']),
+                'runtime_heading_reference_deg': heading_reference,
+                'qualified_for_navigation': bool(cal['qualified_for_navigation']),
+                'role': 'backup_validation_only',
+            }, separators=(',', ':'))))
+
     def _publish_board_state(self):
         now = time.monotonic()
         vx, vy, vz = self.bot.get_motion_data()
@@ -424,6 +609,7 @@ class YahboomBase(Node):
         self._pub_roll.publish(Float32(data=float(roll)))
         self._pub_pitch.publish(Float32(data=float(pitch)))
         self._pub_heading.publish(Float32(data=float((yaw_deg + 360.0) % 360.0)))
+        self._publish_board_imu(now, roll, pitch, yaw_deg)
 
         enc = self.bot.get_motor_encoder()
         if self._enc_origin is None:

@@ -139,6 +139,14 @@ The Jetson migration and primary navigation commissioning sequence are complete.
   `base_footprint`; the authoritative static transform is x=-0.05 m, z=0.18 m,
   yaw=pi.
 - `/yahboom/odom` is encoder-distance-derived and is fused by the EKF onto `/odom`.
+- The Yahboom motor-board IMU has a separately recorded stationary calibration.
+  Raw controller measurements are available on
+  `/yahboom/imu/data_uncalibrated`; software-zeroed attitude, gyro and
+  accelerometer measurements are available on `/yahboom/imu/data_calibrated`.
+  Its yaw is zeroed relative to each driver start because the controller's
+  absolute magnetic origin is not yet trusted. This backup stream is
+  deliberately excluded from the EKF until a recorded
+  clockwise/counter-clockwise yaw comparison against wheel odometry passes.
 - Nav2 uses the one-shot fail-stop behavior tree. It does not accumulate recovery
   movement after a failed short goal.
 - Explore Lite holds one frontier goal until completion, abort or genuine

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-09-03 - Calibrate the Yahboom backup IMU without navigation authority
+
+- Recorded 572 stationary motor-board IMU samples over 30 seconds while all
+  four encoder deltas remained zero. Heading noise measured 0.043 degrees
+  standard deviation and 0.132 degrees peak-to-peak.
+- Saved level/heading zeros, gyro bias and accelerometer bias in a dedicated
+  calibration file and added isolated raw and calibrated Yahboom IMU topics.
+- Zeroed the experimental yaw stream relative to driver startup; the board's
+  absolute magnetic heading is intentionally not treated as a trusted origin.
+- Kept both new topics outside the navigation EKF. A dynamic yaw-direction and
+  magnitude A/B test is still required before this IMU can receive navigation
+  authority; the known-bad BNO08x remains excluded.
+- Added a zero-PWM stationary calibration utility that rejects a sample if any
+  wheel encoder changes during capture.
+
 ## 2026-09-03 - Remove the UNO R4 telemetry reset failure
 
 - Moved the commissioned sensor hub from the UNO R4 WiFi ESP32 CMSIS-DAP
