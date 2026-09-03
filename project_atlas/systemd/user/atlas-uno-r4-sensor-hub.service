@@ -1,6 +1,9 @@
 [Unit]
 Description=Project ATLAS UNO R4 WiFi sensor hub bridge
-After=default.target
+# This unit is pulled into default.target and is also a dependency of EKF and
+# vision fusion. Ordering it after default.target creates a boot transaction
+# cycle and can leave the sensor hub inactive after a full power cycle.
+After=basic.target
 
 [Service]
 Type=simple

@@ -17,6 +17,11 @@
   camera servo status, and rear ultrasonic all returned with fresh telemetry.
   GPS still emits no UART bytes and RD-03D still emits no valid target frame,
   so those remain separate wiring/protocol gates rather than hub failures.
+- Removed the sensor-hub unit's invalid `After=default.target` ordering. Because
+  EKF and vision fusion also depend on the hub, that relationship formed a
+  user-systemd boot cycle and could leave the bridge inactive after a complete
+  power cycle. The hub now starts after `basic.target` and remains before its
+  actual consumers.
 
 ## 2026-09-02 - Add controlled RD-03D multi-target initialization
 
