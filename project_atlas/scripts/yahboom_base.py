@@ -50,22 +50,24 @@ CMD_ODOM_VX_SCALE = 1.0
 CMD_ODOM_WZ_SCALE = 0.45
 ODOM_STATE_SAVE_PERIOD_S = 0.20
 
-FRONT_STEER_SERVO_ID = 1    # Front steering servo port on Yahboom board (1-4)
-REAR_STEER_SERVO_ID  = 2    # Rear steering servo port on Yahboom board (1-4)
+FRONT_STEER_SERVO_ID = 2    # Physical front confirmed by user 2026-09-09
+REAR_STEER_SERVO_ID  = 1    # Physical rear confirmed by user 2026-09-09
 # Ground trim after the replacement steering motors (2026-08-11).  A 90/90
 # command produced a repeatable left arc.  Four-wheel opposite steering needs
 # equal and opposite centre correction so angular.z=0 is physically straight.
-FRONT_STEER_CENTER   = 83   # Straight-ahead angle (commissioned 2026-08-24)
-REAR_STEER_CENTER    = 106  # Straight-ahead angle (commissioned 2026-08-24)
+FRONT_STEER_CENTER   = 81   # User visually confirmed lifted front center 2026-09-09
+REAR_STEER_CENTER    = 114  # User visually confirmed lifted rear center 2026-09-09
 # Lifted-wheel physical commissioning (2026-08-24). These are independent
 # asymmetric endpoints; do not derive rear limits from the front geometry.
 # Extended right endpoint requested during supervised recommissioning.  This
 # 42-degree setting must be physically validated before autonomous driving;
 # immediately restore 52 if the linkage contacts, strains, or the servo buzzes.
-FRONT_STEER_RIGHT    = 42
-FRONT_STEER_LEFT     = 130
-REAR_STEER_RIGHT     = 58
-REAR_STEER_LEFT      = 142
+# Preserve existing numeric endpoint envelope per physical servo channel.
+# Direction and full-range travel require revalidation after channel correction.
+FRONT_STEER_RIGHT    = 58
+FRONT_STEER_LEFT     = 142
+REAR_STEER_RIGHT     = 42
+REAR_STEER_LEFT      = 130
 BAT_MIN_V = 10.5
 BAT_MAX_V = 12.6
 

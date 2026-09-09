@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-09-09 - Front steering center and physical channel identification
+
+- User identified Yahboom servo 1 as rear and servo 2 as front, opposite the
+  previous software labels. Corrected the driver channel mapping.
+- User visually confirmed front center at channel 2 command 81 degrees.
+- Initially retained channel 1 at 79 degrees; user reported rear too far right.
+  Applied user-requested 35-degree leftward adjustment to 114 degrees; user
+  confirmed both axles centered. Saved rear 114 and front 81 as boot defaults.
+- Kept existing endpoint envelopes attached to their original servo channels.
+  Turn directions, limits and ground drift remain unvalidated;
+  this is not autonomous-driving clearance. Traction remained zero during trim.
+
+
 ## 2026-09-03 - Restore encoder and motor-board IMU telemetry
 
 - Replaced the missing `/dev/yahboom` dependency with the commissioned CH340
