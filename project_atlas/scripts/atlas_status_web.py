@@ -1360,7 +1360,7 @@ h2{font-size:11px;letter-spacing:.8px;color:var(--cyan);margin:0 0 7px}.camera{w
 .healthhead{display:flex;align-items:center;justify-content:space-between;gap:8px}.healthsummary{font-size:11px;font-weight:800}
 .healthgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.healthitem{border:1px solid #24435d;border-left:5px solid #8ca6bb;border-radius:7px;background:#07131f;padding:7px;min-width:0}
 .healthitem.ok{border-left-color:#34e58b}.healthitem.warn{border-left-color:#ffcc3d}.healthitem.fail{border-left-color:#ff4655;background:#211017}
-.healthname{font-size:11px;font-weight:800;display:flex;justify-content:space-between;gap:4px}.healthstate{font-size:9px}.healthhint{font-size:9px;color:#aac0d1;margin-top:3px;line-height:1.25}
+.healthname{font-size:11px;font-weight:800;display:flex;justify-content:space-between;gap:4px}.healthstate{font-size:9px}.healthhint{font-size:9px;color:#aac0d1;margin-top:3px;line-height:1.25}.healthitem.touch{cursor:pointer}.healthitem.touch:hover{border-color:var(--cyan);box-shadow:0 0 14px rgba(23,213,255,.16)}
 .constellation-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px}.constellation{padding:6px;border-radius:6px;background:#07131f;border:1px solid #1d3c54}
 .constellation-top{display:flex;justify-content:space-between;font-size:10px;font-weight:800}.satbar{height:7px;margin-top:5px;background:#1a2a39;border-radius:5px;overflow:hidden}.satfill{height:100%;border-radius:5px}.constellation-note{font-size:9px;color:#8ca6bb;margin-top:6px}
 .companion{border-color:#216f8d;background:linear-gradient(145deg,rgba(10,43,60,.97),rgba(6,19,31,.98));box-shadow:0 0 22px rgba(23,213,255,.08)}
@@ -1369,6 +1369,23 @@ h2{font-size:11px;letter-spacing:.8px;color:var(--cyan);margin:0 0 7px}.camera{w
 .thoughts{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px}.thought{background:#071522;border-radius:6px;padding:6px;min-width:0}.thought strong{display:block;font-size:9px;color:var(--muted);margin-bottom:2px}.thought span{font-size:11px;overflow-wrap:anywhere}
 .companionStatus{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:7px}.pill{text-align:center;background:#071522;border:1px solid #24435d;border-radius:6px;padding:5px 3px;font-size:9px}.rgbDot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;background:#198dff;box-shadow:0 0 8px currentColor}
 .voiceLedGuide{margin-top:7px;padding:7px;background:#06131f;border:1px solid #214761;border-radius:7px}.voiceLedTitle{display:flex;justify-content:space-between;gap:8px;font-size:9px;font-weight:900;color:#bcd3e5}.voiceLedNow{color:#ffcc3d;text-align:right;overflow-wrap:anywhere}.voiceLedStates{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px}.voiceLedState{font-size:8px;color:#9fb8ca;line-height:1.2;white-space:nowrap}.voiceLedState b{display:block;color:#eef7ff;font-size:8px}.voiceSwatch{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:3px;box-shadow:0 0 6px currentColor}.voiceUsbReason{margin-top:6px;color:#aac0d1;font-size:9px;line-height:1.25;overflow-wrap:anywhere}
+/* ATLAS glass cockpit: 30% surface opacity = 70% transparent. */
+body{position:relative;background:
+ linear-gradient(rgba(23,213,255,.075) 1px,transparent 1px),linear-gradient(90deg,rgba(23,213,255,.075) 1px,transparent 1px),
+ radial-gradient(circle at 14% 10%,rgba(23,213,255,.48),transparent 33%),
+ radial-gradient(circle at 86% 18%,rgba(52,229,139,.36),transparent 31%),
+ radial-gradient(circle at 48% 88%,rgba(105,78,255,.42),transparent 39%),#02070d;background-size:34px 34px,34px 34px,auto,auto,auto,auto;background-attachment:fixed}
+body:before{content:"";position:fixed;inset:58px 0 0;pointer-events:none;background:url('/logo.png') center/48vmin no-repeat;opacity:.13;filter:drop-shadow(0 0 45px rgba(23,213,255,.65));z-index:0}
+body>*{position:relative;z-index:1}
+header{background:rgba(5,20,32,.22);backdrop-filter:blur(18px) saturate(155%);-webkit-backdrop-filter:blur(18px) saturate(155%);box-shadow:0 8px 28px rgba(0,0,0,.25)}
+.panel,.companion{background:linear-gradient(145deg,rgba(14,39,59,.20),rgba(2,12,23,.16));backdrop-filter:blur(13px) saturate(155%);-webkit-backdrop-filter:blur(13px) saturate(155%);border-color:rgba(62,181,231,.58);box-shadow:0 10px 32px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.09)}
+.card,.healthitem,.constellation,.speech,.thought,.pill,.voiceLedGuide,.detailTile{background:rgba(4,18,31,.20);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);text-shadow:0 1px 2px #000}
+.healthitem.fail{background:rgba(70,12,23,.38)}
+.btn{background:rgba(16,43,66,.54);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.cameraStatus{display:inline-block;margin-left:8px;font-size:9px;color:var(--muted);font-weight:800}.cameraStatus.ok{color:var(--green)}.cameraStatus.warn{color:#ffcc3d}.cameraStatus.fail{color:var(--red)}
+.selfTestStamp{font-size:9px;color:var(--muted);margin:0 0 7px;line-height:1.35}
+.bootBanner{display:flex;align-items:center;gap:10px;margin:7px 8px 0;padding:8px 12px;border:1px solid rgba(23,213,255,.72);border-radius:10px;background:rgba(4,20,33,.18);backdrop-filter:blur(13px) saturate(160%);-webkit-backdrop-filter:blur(13px) saturate(160%);box-shadow:0 0 24px rgba(23,213,255,.18);font-size:11px;font-weight:800}.bootBanner b{color:var(--cyan)}.bootBanner span{color:#ffcc3d}.buildTag{margin-left:auto;color:#b4d7e9;font:9px ui-monospace,monospace}
+.grid{height:calc(100vh - 99px)}
 section.col:nth-of-type(3) .panel:has(#heatmap){order:-3;border-color:#34e58b}
 section.col:nth-of-type(3) .panel:has(#healthGrid){order:-2}
 section.col:nth-of-type(3) .panel:has(#power){order:-1}
@@ -1380,6 +1397,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
 @media(max-width:1150px) and (min-width:901px){.grid{grid-template-columns:265px minmax(390px,1fr) 295px}.companionGrid{grid-template-columns:1fr}.companionStatus{grid-template-columns:1fr 1fr}.voiceLedStates{grid-template-columns:repeat(3,1fr)}}
 </style></head><body>
 <header><img src="/logo.png"><div><h1>PROJECT ATLAS COMMAND CENTER</h1><div class="sub">Headless rover control • hold-to-drive • automatic stop watchdog</div></div><div class="live" id="online">CONNECTING</div><a class="headerBtn cloud" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/" title="Open the read-only ATLAS Visual Cloud live ROS observability dashboard."><span class="headerIcon">◈</span><span class="headerText">VISUAL CLOUD</span></a><a class="headerBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" title="Open two-way ATLAS intercom. The camera stream closes to preserve call quality and AI Voice pauses during the call."><span class="headerIcon">☎</span><span class="headerText">TALK / LISTEN</span></a></header>
+<div class="bootBanner"><b>AUTOMATIC POST-BOOT SENSOR TEST</b><span id="bootBannerState">COLLECTING LIVE DATA…</span><div class="buildTag">GLASS UI v3 • 70% TRANSPARENT</div></div>
 <main class="grid">
 <section class="col">
  <div class="panel"><h2>ROVER DRIVE — HOLD BUTTON</h2><div class="drive">
@@ -1395,10 +1413,10 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
  <div class="panel"><h2>JETSON AI POWER</h2><div class="cards">
   <button class="btn ai-on" data-ai="object">AI ON</button><button class="btn ai-off" data-ai="eco">AI ECO / OFF</button>
  </div><div class="detail" id="ai">AI status waiting</div></div>
- <div class="panel"><h2>MOTION / ENCODERS</h2><div id="motion"></div></div>
+ <div class="panel card touch" onclick="openDetail('encoders')"><h2>MOTION / ENCODERS — TOUCH FOR ALL FOUR</h2><div id="motion"></div></div>
 </section>
 <section class="col">
- <div class="panel"><h2>LIVE CAMERA — LATEST FRAME / NO BUFFER <button class="btn" style="float:right;padding:5px 9px" onclick="openDetail('camera')">OPEN DATA</button></h2><img class="camera" id="camera" src="/camera.jpg?latest=boot" onclick="openDetail('camera')"></div>
+ <div class="panel"><h2>LIVE CAMERA — LATEST FRAME / NO BUFFER <span class="cameraStatus warn" id="cameraStatus">CONNECTING</span><button class="btn" style="float:right;padding:5px 9px" onclick="openDetail('camera')">OPEN DATA</button></h2><img class="camera" id="camera" src="/camera.jpg?latest=boot" onclick="openDetail('camera')"></div>
  <div class="panel companion"><div class="companionHead"><h2>ATLAS COMPANION / DEVELOPER</h2><div class="companionState" id="companionState">STANDBY</div></div>
   <div class="companionGrid">
    <div class="speech you"><div class="label">YOU SAID / HEARD</div><div class="speechText" id="companionHeard">Waiting for voice service</div></div>
@@ -1426,10 +1444,10 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
   <div class="detail" style="margin-top:8px;color:#34e58b">☎ Use TALK / LISTEN in the top bar for a secure two-way call. AI Voice pauses automatically during the call.</div>
  </div>
  <div class="panel"><h2>RANGE & ATTITUDE</h2><div class="cards" id="sensors"></div></div>
- <div class="panel"><h2>RD-03D LIVE MOTION RADAR</h2><div class="radarViewBar"><button class="btn" id="radar2dBtn" onclick="setRadarView('2d')">2D RADAR</button><button class="btn active" id="radar3dBtn" onclick="setRadarView('3d')">3D PEOPLE</button><span class="radarViewNote">LIVE RD-03D DATA<br>UP TO 3 TARGETS</span></div><canvas class="radarScope radarHidden" id="radarScope" width="720" height="340"></canvas><canvas class="radarScope" id="radarTwin" width="720" height="340"></canvas><div class="detail" id="radarCaption">WAITING FOR RADAR UART DATA</div></div>
+ <div class="panel"><h2>RD-03D LIVE MOTION RADAR — TOUCH DISPLAY FOR DETAILS</h2><div class="radarViewBar"><button class="btn" id="radar2dBtn" onclick="setRadarView('2d')">2D RADAR</button><button class="btn active" id="radar3dBtn" onclick="setRadarView('3d')">3D PEOPLE</button><span class="radarViewNote">LIVE RD-03D DATA<br>UP TO 3 TARGETS</span></div><canvas class="radarScope radarHidden" id="radarScope" width="720" height="340" onclick="openDetail('radar')"></canvas><canvas class="radarScope" id="radarTwin" width="720" height="340" onclick="openDetail('radar')"></canvas><div class="detail" id="radarCaption">WAITING FOR RADAR UART DATA</div></div>
 </section>
 <section class="col">
- <div class="panel"><div class="healthhead"><h2>HARDWARE HEALTH / FAULT FINDER</h2><div class="healthsummary" id="healthSummary">CHECKING</div></div><div class="healthgrid" id="healthGrid"></div></div>
+ <div class="panel"><div class="healthhead"><h2>POST-BOOT SELF-TEST / LIVE HARDWARE HEALTH</h2><div class="healthsummary" id="healthSummary">CHECKING</div></div><div class="selfTestStamp" id="selfTestStamp">Waiting for live sensor messages after dashboard startup…</div><div class="healthgrid" id="healthGrid"></div></div>
  <div class="panel"><h2>POWER</h2><div class="cards" id="power"></div></div>
  <div class="panel"><h2>ENVIRONMENT — INSIDE / OUTSIDE</h2>
   <div class="envgrid"><div class="card touch" onclick="openDetail('thermal')"><div class="heatmap" id="heatmap"></div><div class="detail" id="thermalStats">Inside thermal waiting</div><div class="detail">TOUCH FOR 64-PIXEL DATA</div></div>
@@ -1446,11 +1464,12 @@ const n=(v,d=1)=>Number.isFinite(Number(v))?Number(v).toFixed(d):'--';
 const card=(a,b,c='',key='')=>`<div class="card ${key?'touch':''}" ${key?`onclick="openDetail('${key}')"`:''}><div class="label">${a}</div><div class="value">${b}</div><div class="detail">${c}${key?' • TOUCH FOR LIVE DATA':''}</div></div>`;
 const row=(a,b)=>`<div class="row"><span>${a}</span><span>${b}</span></div>`;
 const age=(r,k)=>r[k]&&Number.isFinite(Number(r[k].age))?Number(r[k].age):9999;
+const dashboardStarted=Date.now();
 const recent=(r,k,seconds)=>age(r,k)<seconds;
 function cellGeneration(raw){let t=String(raw||'').toLowerCase();if(t.includes('5g')||t.includes('nr'))return '5G';if(t.includes('lte'))return '4G';if(t.includes('umts')||t.includes('hspa'))return '3G';if(t.includes('gsm')||t.includes('edge')||t.includes('gprs'))return '2G';return 'CELLULAR'}
-function healthItem(name,state,hint,seconds=null){
+function healthItem(name,state,hint,seconds=null,detailKey=''){
  let ageText=seconds===null?'':seconds<60?`${seconds.toFixed(1)}s`:`${Math.round(seconds/60)}m`;
- return `<div class="healthitem ${state}"><div class="healthname"><span>${name}</span><span class="healthstate">${state.toUpperCase()} ${ageText}</span></div><div class="healthhint">${hint}</div></div>`;
+ return `<div class="healthitem ${state} ${detailKey?'touch':''}" ${detailKey?`onclick="openDetail('${detailKey}')"`:''}><div class="healthname"><span>${name}</span><span class="healthstate">${state.toUpperCase()} ${ageText}</span></div><div class="healthhint">${hint}${detailKey?' • TOUCH FOR DETAILS':''}</div></div>`;
 }
 function renderHealth(r,net){
  let thermal={};try{thermal=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}
@@ -1461,16 +1480,21 @@ function renderHealth(r,net){
  let gpsStatusKey=recent(r,'gps_receiver_status',12)?'gps_receiver_status':'gps_arduino_status',gpsStatus=String(val(r,gpsStatusKey,'')),gpsUartLive=recent(r,gpsStatusKey,12),gpsLive=recent(r,'gps_sats',12),gpsSats=Number(val(r,'gps_sats',0))||0,gpsNoBytes=gpsUartLive&&gpsStatus.includes('NO_UART_BYTES'),gpsBadNmea=gpsUartLive&&gpsStatus.includes('NO_VALID_NMEA');
  let i2c=i2cInfo(r);
  let items=[
-  ['CAMERA',recent(r,'camera_info',4)?'ok':'fail',recent(r,'camera_info',4)?'IMX708 video frames live':'No frames: check CSI ribbon and camera service','camera_info'],
-  ['MOTOR / ENCODERS',recent(r,'enc_m1',4)?'ok':'fail',recent(r,'enc_m1',4)?'Yahboom serial telemetry live':'Check /dev/yahboom USB and motor-board power','enc_m1'],
+  ['CAMERA',recent(r,'camera_info',4)?'ok':'fail',recent(r,'camera_info',4)?'IMX708 video frames live':'No frames: check CSI ribbon and camera service','camera_info','camera'],
+  ['MOTOR BOARD LINK',recent(r,'enc_m1',4)||recent(r,'imu_heading',4)?'ok':'fail',recent(r,'enc_m1',4)||recent(r,'imu_heading',4)?'Yahboom serial telemetry live':'Check /dev/yahboom USB and motor-board power',recent(r,'enc_m1',4)?'enc_m1':'imu_heading'],
+  ['ENCODER M1 • FRONT RIGHT',recent(r,'enc_m1',4)?'ok':'fail',recent(r,'enc_m1',4)?`Live count ${val(r,'enc_m1')} • zero is valid while stopped`:'No current M1 reading','enc_m1','encoders'],
+  ['ENCODER M2 • FRONT LEFT',recent(r,'enc_m2',4)?'ok':'fail',recent(r,'enc_m2',4)?`Live count ${val(r,'enc_m2')} • zero is valid while stopped`:'No current M2 reading','enc_m2','encoders'],
+  ['ENCODER M3 • BACK RIGHT',recent(r,'enc_m3',4)?'ok':'fail',recent(r,'enc_m3',4)?`Live count ${val(r,'enc_m3')} • zero is valid while stopped`:'No current M3 reading','enc_m3','encoders'],
+  ['ENCODER M4 • BACK LEFT',recent(r,'enc_m4',4)?'ok':'fail',recent(r,'enc_m4',4)?`Live count ${val(r,'enc_m4')} • zero is valid while stopped`:'No current M4 reading','enc_m4','encoders'],
   ['XBOX REMOTE',recent(r,'joy',8)?'ok':'warn',recent(r,'joy',8)?'Controller input received':'Wake controller, then press a stick or button','joy'],
-  ['IMU / COMPASS',recent(r,'imu_heading',4)?'ok':'fail',recent(r,'imu_heading',4)?'Calibrated Yahboom motor-board IMU live':'Check Yahboom USB, motor-board power and base service','imu_heading'],
-  ['RPLIDAR',recent(r,'lidar',4)?'ok':'fail',recent(r,'lidar',4)?'Laser scan live':'Check LiDAR USB, motor and cable','lidar'],
-  ['RD-03D RADAR',recent(r,'radar',3)?'ok':'fail',recent(r,'radar',3)?'Valid 30-byte target frames live':(recent(r,'radar_link',3)?`UNO bytes received, but no valid target frame • ${val(r,'radar_decoder_status','decoder checking')}`:'No radar UART bytes: check power, GND, TX → D12 and RX → D11'),'radar'],
+  ['IMU / COMPASS',recent(r,'imu_heading',4)?'ok':'fail',recent(r,'imu_heading',4)?'Calibrated Yahboom motor-board IMU live':'Check Yahboom USB, motor-board power and base service','imu_heading','imu'],
+  ['RPLIDAR',recent(r,'lidar',4)?'ok':'fail',recent(r,'lidar',4)?'Laser scan live':'Check LiDAR USB, motor and cable','lidar','lidar'],
+  ['RD-03D RADAR',recent(r,'radar',3)?'ok':'fail',recent(r,'radar',3)?'Valid 30-byte target frames live':(recent(r,'radar_link',3)?`UNO bytes received, but no valid target frame • ${val(r,'radar_decoder_status','decoder checking')}`:'No radar UART bytes: check power, GND, TX → D12 and RX → D11'),'radar','radar'],
   ['ULTRASONIC',!ultrasonicEnabled?'warn':(recent(r,'us_status',4)||recent(r,'us_front',4)?'ok':'fail'),!ultrasonicEnabled?'Intentionally disabled; LiDAR is primary':(recent(r,'us_status',4)||recent(r,'us_front',4)?'Arduino range data live':'Check Arduino USB and sensor power'),ultrasonicEnabled?(recent(r,'us_status',4)?'us_status':'us_front'):null],
   ['I2C SENSOR BUS',i2c.liveCount?'ok':(i2c.bridgeLive?'warn':'fail'),i2c.liveCount?`${i2c.liveCount}/3 sensor${i2c.liveCount===1?'':'s'} live through ${i2c.route}`:(i2c.bridgeLive?'UNO R4 bridge live, but sensor data is stale':'No live I2C sensor telemetry'),i2c.freshestKey],
   ['INSIDE IR 8x8',thermal.ok&&recent(r,'thermal_json',5)?'ok':'fail',thermal.ok?'AMG8833 heatmap live':'Not detected: check 3.3V, GND, SDA pin 3, SCL pin 5','thermal_json'],
   ['OUTSIDE TEMP',recent(r,'outside_temperature',9)?'ok':'fail',recent(r,'outside_temperature',9)?'BME680 ambient temperature live':'Check BME680 wiring/address 0x77','outside_temperature'],
+  ['CAMERA SERVOS',recent(r,'camera_servo_status',8)||recent(r,'pca_status',8)?'ok':'fail',recent(r,'camera_servo_status',8)||recent(r,'pca_status',8)?`${val(r,'camera_servo_status',val(r,'pca_status','PCA9685 live'))}`:'No PCA9685/servo heartbeat','camera_servo_status'],
   ['DALY BMS',recent(r,'bms_status',20)?'ok':'fail',recent(r,'bms_status',20)?'Battery telemetry live':'Check BMS Bluetooth connection','bms_status'],
   ['ORIN IO BASE',recent(r,'carrier_status',25)&&carrier.ok?'ok':'fail',carrier.ok?`${carrier.power_mode} • NVMe ${carrier.nvme.free_gb}GB free • ${carrier.usb_devices} USB devices`:'Carrier health service offline','carrier_status'],
   [`${cellGen} MODEM`,recent(r,'cell_signal',20)?'ok':'fail',recent(r,'cell_signal',20)?`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech','')}`:'Check SIM8230G USB and power','cell_signal'],
@@ -1480,7 +1504,10 @@ function renderHealth(r,net){
  let ok=items.filter(x=>x[1]=='ok').length,warn=items.filter(x=>x[1]=='warn').length,fail=items.filter(x=>x[1]=='fail').length;
  $('healthSummary').textContent=`${ok} OK / ${warn} WARN / ${fail} FAULT`;
  $('healthSummary').style.color=fail?'#ff4655':warn?'#ffcc3d':'#34e58b';
- $('healthGrid').innerHTML=items.map(x=>healthItem(x[0],x[1],x[2],x[3]?age(r,x[3]):null)).join('');
+ let elapsed=(Date.now()-dashboardStarted)/1000;
+ $('selfTestStamp').textContent=elapsed<8?`POST-BOOT TEST RUNNING • collecting messages for ${Math.ceil(8-elapsed)} more seconds`:`POST-BOOT TEST COMPLETE • continuously monitoring ${items.length} hardware channels • ${new Date().toLocaleTimeString()}`;
+ let banner=$('bootBannerState');banner.textContent=elapsed<8?`RUNNING • ${Math.ceil(8-elapsed)}s • ${ok} LIVE`:`COMPLETE • ${ok} OK / ${warn} WARN / ${fail} FAULT`;banner.style.color=fail?'#ff4655':warn?'#ffcc3d':'#34e58b';
+ $('healthGrid').innerHTML=items.map(x=>healthItem(x[0],x[1],x[2],x[3]?age(r,x[3]):null,x[4]||'')).join('');
 }
 function renderConstellations(raw){
  let counts={GPS:0,GLONASS:0,BEIDOU:0,GALILEO:0,QZSS:0,NAVIC:0};
@@ -1528,6 +1555,9 @@ function i2cInfo(r){
 function renderDetail(){if(!activeDetail||!latestStatus)return;let r=latestStatus.ros,body='',title='LIVE SENSOR',fresh='LIVE';
  if(activeDetail==='ultrasonic'){title='FOUR ULTRASONIC SENSORS';body=`<div class="detailGrid">${rangeTile('LEFT',val(r,'us_left'))}${rangeTile('FRONT',val(r,'us_front'))}${rangeTile('RIGHT',val(r,'us_right'))}${rangeTile('REAR',val(r,'us_rear'))}</div><div class="rawData">STATUS: ${val(r,'us_status','waiting')}\nREFRESH: live ROS values, approximately 5–10 updates/second\nROLE: secondary near-field safety layer; LiDAR remains the primary navigation sensor.</div>`;fresh=Math.max(age(r,'us_left'),age(r,'us_front'),age(r,'us_right'),age(r,'us_rear'))<3?'● LIVE':'STALE';}
  else if(activeDetail==='camera'){title='IMX708 CAMERA — LIVE OUTPUT';let c=val(r,'camera_info',{});body=`<img id="modalCamera" class="modalCamera" src="/camera.jpg?latest=${Date.now()}"><div class="detailGrid" style="margin-top:10px">${tile('SOURCE',c.source||'--')}${tile('JPEG FRAME',c.bytes||'--',' bytes')}${tile('AGE',n(age(r,'camera_info'),1),' s')}</div><div class="rawData">AI: ${val(r,'ai_status','--')}\nMOTION: ${val(r,'motion_state','--')} (${n(val(r,'motion_percent'),1)}%)\nLATEST-FRAME MODE: old video frames are discarded instead of buffered.\nCamera processing remains single-source; this window does not start another detector.</div>`;fresh=age(r,'camera_info')<3?'● LIVE':'STALE';}
+ else if(activeDetail==='radar'){title='RD-03D RADAR — ALL LIVE TARGETS';let targets=parseRadarTargets(val(r,'radar','')),link=String(val(r,'radar_link','--')),targetTiles=targets.length?targets.map(t=>`${tile(t.id+' POSITION',`X ${t.x} / Y ${t.y}`,' mm')}${tile(t.id+' DISTANCE',n(Math.hypot(t.x,t.y)/1000,2),' m')}${tile(t.id+' SPEED',`${t.speed>0?'+':''}${t.speed}`,' cm/s')}`).join(''):tile('TARGETS','0',' detected');body=`<div class="detailGrid">${tile('TARGET COUNT',targets.length)}${tile('NEAREST',n(val(r,'radar_dist'),0),' mm')}${tile('SAFETY ZONE',val(r,'radar_zone','--'))}${targetTiles}</div><div class="rawData">TRACKS: ${val(r,'radar','NO CURRENT TARGETS')}\nUART LINK: ${link}\nDECODER: ${val(r,'radar_decoder_status','--')}\nDATA AGE: ${n(age(r,'radar'),1)} s\n\nT1/T2/T3 are current radar slots, not permanent person identities. Position is radar-relative X/Y; speed sign follows the installed decoder convention.</div>`;fresh=age(r,'radar')<3?'● LIVE':'STALE';}
+ else if(activeDetail==='encoders'){title='MOTOR ENCODERS — ALL FOUR WHEELS';let odom=val(r,'odom',{}),allFresh=['enc_m1','enc_m2','enc_m3','enc_m4'].every(k=>recent(r,k,4));body=`<div class="detailGrid">${tile('M1 • FRONT RIGHT',val(r,'enc_m1'))}${tile('M2 • FRONT LEFT',val(r,'enc_m2'))}${tile('M3 • BACK RIGHT',val(r,'enc_m3'))}${tile('M4 • BACK LEFT',val(r,'enc_m4'))}${tile('LINEAR VELOCITY',n(odom.vx,3),' m/s')}${tile('YAW RATE',n(odom.wz,3),' rad/s')}${tile('ODOM X',n(odom.x,3),' m')}${tile('ODOM Y',n(odom.y,3),' m')}${tile('IMU HEADING',n(val(r,'imu_heading'),2),'°')}</div><div class="rawData">M1 AGE: ${n(age(r,'enc_m1'),1)} s   M2 AGE: ${n(age(r,'enc_m2'),1)} s\nM3 AGE: ${n(age(r,'enc_m3'),1)} s   M4 AGE: ${n(age(r,'enc_m4'),1)} s\nMOTOR SPEED COMMAND: ${n(val(r,'motor_speed'),2)}\nSTEERING: front ${n(val(r,'front_steer'),1)}° • rear ${n(val(r,'rear_steer'),1)}° • ${val(r,'steer_mode','--')}\n\nCounts are cumulative controller readings. Zero movement while ATLAS is stopped is normal; freshness proves that the encoder channel is communicating.</div>`;fresh=allFresh?'● 4/4 LIVE':'STALE / PARTIAL';}
+ else if(activeDetail==='lidar'){title='RPLIDAR — LIVE SCAN DETAILS';let li=val(r,'lidar',{});body=`<div class="detailGrid">${tile('NEAREST RETURN',n(li.nearest_m,3),' m')}${tile('VALID POINTS',li.points||0)}${tile('TOTAL SAMPLES',li.total||0)}${tile('MAX RANGE',n(li.range_max,1),' m')}${tile('FRAME',li.frame||'--')}${tile('DATA AGE',n(age(r,'lidar'),1),' s')}</div><div class="rawData">ROLE: PRIMARY obstacle geometry and navigation ranging.\nTOPIC: /scan\nThe dashboard summary does not modify, filter, or replace the LaserScan used by Nav2.</div>`;fresh=age(r,'lidar')<3?'● LIVE':'STALE';}
  else if(activeDetail==='imu'){title='YAHBOOM MOTOR-BOARD IMU — PRIMARY';let f=val(r,'imu_full',{});body=`<div class="detailGrid">${tile('ROLL',n(val(r,'imu_roll'),2),'°')}${tile('PITCH',n(val(r,'imu_pitch'),2),'°')}${tile('RELATIVE YAW',n(val(r,'imu_yaw'),2),'°')}${tile('ACCEL X',n(f.ax,3),' m/s²')}${tile('ACCEL Y',n(f.ay,3),' m/s²')}${tile('ACCEL Z',n(f.az,3),' m/s²')}${tile('GYRO X',n(f.gx,3),' rad/s')}${tile('GYRO Y',n(f.gy,3),' rad/s')}${tile('GYRO Z',n(f.gz,3),' rad/s')}${tile('MAG X RAW',n(f.mx_raw,2))}${tile('MAG Y RAW',n(f.my_raw,2))}${tile('MAG Z RAW',n(f.mz_raw,2))}</div><div class="rawData">SOURCE: ${f.source||'yahboom_motor_controller'}\nROLE: PRIMARY SYSTEM IMU\nORIENTATION QUATERNION: x ${n(f.qx,5)}  y ${n(f.qy,5)}  z ${n(f.qz,5)}  w ${n(f.qw,5)}\nHEADING MODE: ${f.heading_reference_mode||'startup_relative'}\nNAVIGATION FUSION: ${f.navigation_fusion||'disabled pending dynamic yaw validation'}\n\nThe magnetic values are controller-native raw units; they are not mislabeled as µT.</div>`;fresh=age(r,'imu_full')<3?'● LIVE':'STALE';}
  else if(activeDetail==='thermal'){title='AMG8833 8×8 THERMAL ARRAY';let thermalLive=age(r,'thermal_json')<4;body=heatCells(r)+`<div class="rawData">${thermalLive?'STATUS: LIVE via UNO R4 I²C hub':val(r,'thermal_status','Thermal sensor waiting')}\nEach square is one live infrared temperature pixel. Brightest square is the current hotspot.</div>`;fresh=thermalLive?'● LIVE':'STALE';}
  else if(activeDetail==='environment'){title='BME680 OUTSIDE AIR / GAS';let j={};try{j=JSON.parse(val(r,'bme680_json','{}')||'{}')}catch(e){}body=`<div class="detailGrid">${tile('TEMPERATURE',n(val(r,'outside_temperature'),2),'°C')}${tile('HUMIDITY',n(val(r,'outside_humidity'),1),'% RH')}${tile('PRESSURE',n(val(r,'outside_pressure'),1),' hPa')}${tile('GAS RESISTANCE',n(Number(val(r,'outside_gas'))/1000,1),' kΩ')}${tile('IAQ ESTIMATE',n(j.iaq,0))}${tile('HEATER',j.heat_stable?'STABLE':'WARMING')}</div><div class="rawData">STATUS: ${val(r,'outside_status','waiting')}\nGas resistance is a relative VOC/air-quality signal, not a calibrated safety alarm. Compare its trend and IAQ estimate after the heater becomes stable.</div>`;fresh=age(r,'outside_gas')<8?'● LIVE':'STALE';}
@@ -1549,16 +1579,24 @@ document.querySelectorAll('[data-cam]').forEach(b=>{b.onpointerdown=e=>{e.preven
 window.addEventListener('pointerup',stopCameraHold);window.addEventListener('pointercancel',stopCameraHold);window.addEventListener('blur',stopCameraHold);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCameraHold()});
 document.querySelectorAll('[data-track]').forEach(b=>b.onclick=()=>post({action:'camera_tracking',enabled:b.dataset.track}));
 document.querySelectorAll('[data-ai]').forEach(b=>b.onclick=()=>post({action:'ai_mode',mode:b.dataset.ai}));
-let cameraFrameBusy=false;
-function pollLatestCameraFrame(){
- if(cameraFrameBusy||document.hidden)return;
- cameraFrameBusy=true;
- let next=new Image();
- next.onload=()=>{let main=$('camera'),modal=$('modalCamera');if(main)main.src=next.src;if(modal)modal.src=next.src;cameraFrameBusy=false};
- next.onerror=()=>{cameraFrameBusy=false};
- next.src='/camera.jpg?latest='+Date.now();
+let cameraFrameBusy=false,cameraRequestStarted=0,cameraLastSuccess=0,cameraGeneration=0,cameraFailures=0;
+function cameraState(text,state){let e=$('cameraStatus');if(!e)return;e.textContent=text;e.className=`cameraStatus ${state}`}
+function pollLatestCameraFrame(force=false){
+ if(document.hidden)return;
+ let now=Date.now();
+ // A request that never fires load/error previously froze this loop forever.
+ // Expire it and start a newer generation; a late response cannot overwrite it.
+ if(cameraFrameBusy&&!force&&now-cameraRequestStarted<2200)return;
+ cameraFrameBusy=true;cameraRequestStarted=now;let generation=++cameraGeneration,next=new Image();next.decoding='async';
+ let timer=setTimeout(()=>{if(generation!==cameraGeneration)return;cameraFrameBusy=false;cameraFailures++;cameraState('RECOVERING STREAM','warn');pollLatestCameraFrame(true)},2400);
+ next.onload=()=>{if(generation!==cameraGeneration)return;clearTimeout(timer);let main=$('camera'),modal=$('modalCamera');if(main)main.src=next.src;if(modal)modal.src=next.src;cameraFrameBusy=false;cameraLastSuccess=Date.now();cameraFailures=0;cameraState('LIVE • AUTO REFRESH','ok')};
+ next.onerror=()=>{if(generation!==cameraGeneration)return;clearTimeout(timer);cameraFrameBusy=false;cameraFailures++;cameraState(cameraFailures>3?'CAMERA OFFLINE':'RECONNECTING','fail')};
+ next.src='/camera.jpg?latest='+now+'&generation='+generation;
 }
-setInterval(pollLatestCameraFrame,100);pollLatestCameraFrame();
+setInterval(()=>pollLatestCameraFrame(false),125);
+setInterval(()=>{let now=Date.now();if(!document.hidden&&now-cameraLastSuccess>3000&&(!cameraFrameBusy||now-cameraRequestStarted>2400))pollLatestCameraFrame(true)},1000);
+window.addEventListener('online',()=>pollLatestCameraFrame(true));window.addEventListener('focus',()=>pollLatestCameraFrame(true));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollLatestCameraFrame(true)});pollLatestCameraFrame(true);
 let insideHistory=[],outsideHistory=[];
 const radarTrails={T1:[],T2:[],T3:[]};let radarSweep=0,lastRadarRaw='',radarView='3d',lastRadarTargets=[],lastRadarLive=false,lastRadarLink='';
 function parseRadarTargets(raw){return String(raw||'').split('|').map(part=>{let m=part.trim().match(/^(T\d+):x=(-?\d+)mm,y=(-?\d+)mm,spd=(-?\d+)cm\/s$/);return m?{id:m[1],x:Number(m[2]),y:Number(m[3]),speed:Number(m[4])}:null}).filter(Boolean)}
@@ -1610,7 +1648,7 @@ async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'})
  let radarTitle=radarLive?`${val(r,'radar_count')} targets`:(radarHub?'UART INVALID':'OFFLINE');
  let radarDetail=radarLive?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:(radarHub?String(val(r,'radar_decoder_status','Bytes received; no valid frame')):'Check power/GND • radar TX → UNO D12 • radar RX → UNO D11');
  let imuLive=recent(r,'imu_full',4)||recent(r,'imu_heading',4);
- $('sensors').innerHTML=card('LiDAR',`${n(li.nearest_m,2)} m`,`${li.points||0} points`)+card('Ultrasonic',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')} • B ${val(r,'us_rear')}`,'ultrasonic')+card('RD-03D Radar',radarTitle,radarDetail)+card('Yahboom IMU',imuLive?`${n(val(r,'imu_yaw'),0)}° REL`:'OFFLINE',imuLive?`PRIMARY • roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`:'Check Yahboom USB, motor-board power and base service','imu')+card('I²C Sensor Bus',i2c.liveCount?`${i2c.liveCount}/3 LIVE`:(i2c.bridgeLive?'BRIDGE ONLY':'OFFLINE'),i2c.liveCount?`${i2c.route} • ${i2c.liveSensors.map(x=>x.address).join(' • ')}`:(i2c.bridgeLive?'UNO R4 live; sensor data stale':'No fresh sensor telemetry'),'i2c');
+ $('sensors').innerHTML=card('LiDAR',`${n(li.nearest_m,2)} m`,`${li.points||0} points`,'lidar')+card('Ultrasonic',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')} • B ${val(r,'us_rear')}`,'ultrasonic')+card('RD-03D Radar',radarTitle,radarDetail,'radar')+card('Yahboom IMU',imuLive?`${n(val(r,'imu_yaw'),0)}° REL`:'OFFLINE',imuLive?`PRIMARY • roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`:'Check Yahboom USB, motor-board power and base service','imu')+card('I²C Sensor Bus',i2c.liveCount?`${i2c.liveCount}/3 LIVE`:(i2c.bridgeLive?'BRIDGE ONLY':'OFFLINE'),i2c.liveCount?`${i2c.route} • ${i2c.liveSensors.map(x=>x.address).join(' • ')}`:(i2c.bridgeLive?'UNO R4 live; sensor data stale':'No fresh sensor telemetry'),'i2c');
  $('power').innerHTML=card('Main BMS',`${n(val(r,'bms_percent'),0)}%`,`${n(val(r,'bms_voltage'),2)}V ${n(val(r,'bms_current'),2)}A ${n(val(r,'bms_power'),1)}W • CELLS ${n(val(r,'bms_cell1'),3)} / ${n(val(r,'bms_cell2'),3)} / ${n(val(r,'bms_cell3'),3)} / ${n(val(r,'bms_cell4'),3)}`)+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,`${n(val(r,'bat_current'),2)}A`)+card('Jetson INA3221',`${n(val(r,'jetson_power'),1)}W`,`${n(val(r,'jetson_voltage'),3)}V ${n(val(r,'jetson_current'),2)}A • CPU/GPU ${n(val(r,'jetson_cpu_gpu_power'),1)}W • SoC ${n(val(r,'jetson_soc_power'),1)}W`)+card('Jetson / UPS',`${n(val(r,'ups_bat_percent'),0)}%`,`${n(val(r,'ups_bat_voltage'),2)}V ${n(val(r,'ups_bat_power'),1)}W`)+card(`${cellGen} HAT`,`${n(val(r,'hat_power'),1)}W`,`${n(val(r,'hat_voltage'),2)}V ${n(val(r,'hat_current'),2)}A`);
  environment(r);
  $('network').innerHTML=row('Wi-Fi',net.wifi_ip)+row(`${cellGen} data`,`${net.cell_ip} • ${val(r,'cell_operator','--')} • ${n(val(r,'cell_signal'),0)}%`)+row('Tailscale',net.tailscale_ip)+row('Active route',net.route);

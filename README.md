@@ -31,6 +31,12 @@ published only through authenticated Tailscale HTTPS—not the public Internet.
 
 Project ATLAS is an open robotics development project for a four-wheel autonomous service rover. It runs ROS 2 Humble on Ubuntu 22.04 with an NVIDIA Jetson Orin Nano Super 8GB and combines LiDAR SLAM, Nav2 autonomous navigation, wheel odometry, IMU sensor fusion, bounded recovery behaviours, AI vision, voice control, Foxglove, and wireless dashboards.
 
+The Jetson web command center uses a 70%-transparent glass interface. Its live
+camera automatically reconnects after a stalled frame request, and the hardware
+panel performs a post-boot and continuous health evaluation of sensor feeds,
+including individual M1 front-right, M2 front-left, M3 back-right, and M4
+back-left encoder message age and count readings.
+
 This repository is the searchable engineering record for ATLAS: ROS 2 source code, launch files, robot parameters, hardware integration, safety controls, autonomous mapping, recovery logic, diagnostics, operating documentation, and commissioning evidence.
 
 The read-only [ATLAS Visual Cloud](docs/ATLAS_VISUAL_CLOUD.md) integration adds

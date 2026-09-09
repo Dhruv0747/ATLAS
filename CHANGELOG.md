@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-09-09 - Glass dashboard, camera recovery, and boot self-test
+
+- Restyled the existing command center as a 70%-transparent glass cockpit
+  without changing control placement or emergency-stop behaviour.
+- Added a browser-side live-camera watchdog. A hung or failed JPEG request now
+  expires, reconnects automatically, and reports LIVE, RECOVERING, or OFFLINE.
+- Expanded hardware health into an automatic post-boot/live self-test covering
+  every dashboard sensor channel. M1-M4 now have separate freshness, wheel
+  location, message age, and live count entries; a stationary zero is explicitly
+  reported as valid telemetry rather than motion.
+- Added an always-visible post-boot result banner and glass-grid background so
+  the active v2 interface and its self-test state cannot be mistaken for the
+  cached legacy page.
+- Strengthened the underlying cyan/green/purple aurora, added a faint ATLAS
+  watermark, and reduced pane tint so 70% transparency is visibly apparent in
+  a normal browser rather than blending into a solid black page.
+- Added live detail popups for the IMX708 camera, RD-03D radar, RPLIDAR, and
+  all four named motor encoders. The same popup refresh cycle used by the
+  environment sensors now updates target data, counts, message ages, odometry,
+  IMU context, and camera health while each window remains open.
+
 ## 2026-09-09 - Front steering center and physical channel identification
 
 - Saved user-approved rear-left operating limit at channel 1 command 134
