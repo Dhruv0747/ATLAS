@@ -2,6 +2,10 @@
 
 ## 2026-09-09 - Front steering center and physical channel identification
 
+- Saved user-approved rear-left operating limit at channel 1 command 134
+  degrees after the lifted 114 -> 134 -> 114 check. All four operating endpoints
+  have user approval while lifted; ground turning and drift remain unverified.
+
 - Saved user-approved rear-right operating limit at channel 1 command 64
   degrees after the lifted 114 -> 64 -> 114 check. Rear-left remains pending.
 

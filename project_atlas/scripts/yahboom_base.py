@@ -67,7 +67,7 @@ REAR_STEER_CENTER    = 114  # User visually confirmed lifted rear center 2026-09
 FRONT_STEER_RIGHT    = 50   # User-approved lifted right operating limit 2026-09-09
 FRONT_STEER_LEFT     = 121  # User-approved lifted left operating limit 2026-09-09
 REAR_STEER_RIGHT     = 64   # User-approved lifted right operating limit 2026-09-09
-REAR_STEER_LEFT      = 130
+REAR_STEER_LEFT      = 134  # User-approved lifted left operating limit 2026-09-09
 BAT_MIN_V = 10.5
 BAT_MAX_V = 12.6
 
