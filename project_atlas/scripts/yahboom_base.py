@@ -64,7 +64,7 @@ REAR_STEER_CENTER    = 114  # User visually confirmed lifted rear center 2026-09
 # immediately restore 52 if the linkage contacts, strains, or the servo buzzes.
 # Preserve existing numeric endpoint envelope per physical servo channel.
 # Direction and full-range travel require revalidation after channel correction.
-FRONT_STEER_RIGHT    = 58
+FRONT_STEER_RIGHT    = 50   # User-approved lifted right operating limit 2026-09-09
 FRONT_STEER_LEFT     = 142
 REAR_STEER_RIGHT     = 42
 REAR_STEER_LEFT      = 130

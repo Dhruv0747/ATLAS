@@ -5,6 +5,8 @@
 Physical front steering is Yahboom channel 2, with user-confirmed lifted center
 81 degrees. Physical rear is channel 1, with user-confirmed lifted center
 114 degrees. Both centers are saved in the boot-enabled base driver.
+Front-right operating limit is 50 degrees, approved by the user after the
+lifted 81 -> 50 -> 81 test; this is not a measured mechanical hard stop.
 Front/rear software labels were corrected while
 retaining the existing numeric endpoint envelope per channel. Do not infer that
 turn directions, endpoints or ground drift are validated; keep commissioning

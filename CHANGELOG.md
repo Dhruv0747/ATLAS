@@ -2,6 +2,10 @@
 
 ## 2026-09-09 - Front steering center and physical channel identification
 
+- Subsequently saved user-approved front-right operating limit at channel 2
+  command 50 degrees after the lifted 81 -> 50 -> 81 check. This does not
+  establish the mechanical hard stop or ground wheel steering angle.
+
 - User identified Yahboom servo 1 as rear and servo 2 as front, opposite the
   previous software labels. Corrected the driver channel mapping.
 - User visually confirmed front center at channel 2 command 81 degrees.
