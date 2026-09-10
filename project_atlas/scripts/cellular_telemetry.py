@@ -9,16 +9,10 @@ import threading
 import time
 
 import rclpy
-import smbus2
 from rclpy.node import Node
 from sensor_msgs.msg import NavSatFix, NavSatStatus
 from std_msgs.msg import Bool, Float32, String
 
-INA_BUS = int(os.environ.get("ATLAS_INA219_BUS", "1"), 0)
-INA_ADDR = int(os.environ.get("ATLAS_INA219_ADDRESS", "0x40"), 0)
-INA_ENABLED = os.environ.get("ATLAS_INA219_ENABLED", "1").strip().lower() not in (
-    "0", "false", "no", "off",
-)
 NMEA_PORT = (
     "/dev/serial/by-id/"
     "usb-1a86_USB_Single_Serial_5A99030279-if00"
@@ -26,59 +20,6 @@ NMEA_PORT = (
 GNSS_ENABLED = os.environ.get("ATLAS_GNSS_ENABLED", "1").strip().lower() not in (
     "0", "false", "no", "off",
 )
-
-
-class HatPowerMonitor:
-    CALIBRATION = 26868
-    CURRENT_LSB_MA = 0.1524
-    POWER_LSB_W = 0.003048
-
-    def __init__(self):
-        self.bus = None
-        try:
-            claimed = f"/sys/bus/i2c/devices/{INA_BUS}-{INA_ADDR:04x}/driver"
-            if os.path.exists(claimed):
-                driver = os.path.basename(os.path.realpath(claimed))
-                raise RuntimeError(
-                    f"i2c-{INA_BUS} address=0x{INA_ADDR:02X} is owned by {driver}; "
-                    "set the external INA219 A0 jumper and ATLAS_INA219_ADDRESS=0x41"
-                )
-            self.bus = smbus2.SMBus(INA_BUS)
-            self._write(0x05, self.CALIBRATION)
-            config = (1 << 11) | (0x0D << 7) | (0x0D << 3) | 0x07
-            self._write(0x00, config)
-        except Exception:
-            # SMBus opens a file descriptor before the first transaction.
-            # Close it when an absent INA219 rejects initialization, otherwise
-            # every retry leaks /dev/i2c-1 until modem telemetry also fails.
-            self.close()
-            raise
-
-    def _read(self, register):
-        data = self.bus.read_i2c_block_data(INA_ADDR, register, 2)
-        return (data[0] << 8) | data[1]
-
-    def _write(self, register, value):
-        self.bus.write_i2c_block_data(
-            INA_ADDR, register, [(value >> 8) & 0xFF, value & 0xFF]
-        )
-
-    def read(self):
-        self._write(0x05, self.CALIBRATION)
-        bus_voltage = (self._read(0x02) >> 3) * 0.004
-        current_raw = self._read(0x04)
-        if current_raw >= 0x8000:
-            current_raw -= 0x10000
-        current = current_raw * self.CURRENT_LSB_MA / 1000.0
-        power = self._read(0x03) * self.POWER_LSB_W
-        return bus_voltage, current, power
-
-    def close(self):
-        if self.bus is not None:
-            try:
-                self.bus.close()
-            finally:
-                self.bus = None
 
 
 def parse_key_values(output):
@@ -116,18 +57,6 @@ def nmea_degrees(value, hemisphere):
 class CellularTelemetry(Node):
     def __init__(self):
         super().__init__("cellular_telemetry")
-        self.next_power_retry = 0.0
-        try:
-            if not INA_ENABLED:
-                raise RuntimeError("disabled by ATLAS_INA219_ENABLED=0")
-            self.power = HatPowerMonitor()
-        except Exception as error:
-            self.power = None
-            self.power_error = str(error)
-            self.next_power_retry = time.monotonic() + 30.0
-            self.get_logger().warn(f"HAT power monitor disabled: {error}")
-        else:
-            self.power_error = ""
         self.nmea_fd = None
         self.nmea_buffer = bytearray()
         self.next_nmea_open = 0.0
@@ -140,16 +69,6 @@ class CellularTelemetry(Node):
         self.pub_registration = self.create_publisher(
             String, "/cellular/registration", 10
         )
-        self.pub_hat_voltage = self.create_publisher(
-            Float32, "/cellular/hat_voltage", 10
-        )
-        self.pub_hat_current = self.create_publisher(
-            Float32, "/cellular/hat_current", 10
-        )
-        self.pub_hat_power = self.create_publisher(
-            Float32, "/cellular/hat_power", 10
-        )
-        self.pub_hat_status = self.create_publisher(String, "/cellular/hat_status", 10)
         if self.gnss_enabled:
             self.pub_nmea = self.create_publisher(String, "/gps/nmea", 10)
             self.pub_fix = self.create_publisher(NavSatFix, "/gps/fix", 10)
@@ -158,7 +77,6 @@ class CellularTelemetry(Node):
             self.pub_constellations = self.create_publisher(String, "/gps/constellations", 10)
         self.constellation_counts = {"GPS": 0, "GLONASS": 0, "GALILEO": 0, "BEIDOU": 0, "NAVIC": 0}
 
-        self.create_timer(1.0, self.read_power)
         if self.gnss_enabled:
             self.create_timer(0.1, self.read_nmea)
         else:
@@ -171,37 +89,6 @@ class CellularTelemetry(Node):
             self.read_modem()
             time.sleep(5.0)
 
-    def read_power(self):
-        if self.power is None:
-            now = time.monotonic()
-            if now < self.next_power_retry:
-                return
-            self.next_power_retry = now + 30.0
-            try:
-                self.power = HatPowerMonitor()
-                self.power_error = ""
-            except Exception as error:
-                self.power_error = str(error)
-                self.pub_hat_voltage.publish(Float32(data=0.0))
-                self.pub_hat_current.publish(Float32(data=0.0))
-                self.pub_hat_power.publish(Float32(data=0.0))
-                self.pub_hat_status.publish(String(data=f"INA219_OFFLINE bus={INA_BUS} addr=0x{INA_ADDR:02X} error={error}"))
-                return
-        try:
-            voltage, current, power = self.power.read()
-            self.pub_hat_voltage.publish(Float32(data=float(voltage)))
-            self.pub_hat_current.publish(Float32(data=float(current)))
-            self.pub_hat_power.publish(Float32(data=float(power)))
-            self.pub_hat_status.publish(String(data=f"INA219_OK bus={INA_BUS} addr=0x{INA_ADDR:02X} voltage={voltage:.2f}V current={current:.3f}A power={power:.2f}W"))
-        except Exception as error:
-            self.get_logger().warn(f"INA219 read failed: {error}")
-            self.power_error = str(error)
-            self.pub_hat_status.publish(String(data=f"INA219_OFFLINE bus={INA_BUS} addr=0x{INA_ADDR:02X} error={error}"))
-            try:
-                self.power.close()
-            except Exception:
-                pass
-            self.power = None
     def read_modem(self):
         try:
             output = subprocess.run(

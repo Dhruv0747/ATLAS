@@ -18,14 +18,13 @@ setup(
     zip_safe=True,
     maintainer='dhruv',
     maintainer_email='dhruv@example.com',
-    description='TortoiseBot motor control and IMU',
+    description='Legacy TortoiseBot motor and lidar utilities',
     license='MIT',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'motor_node = tortoisebot_control.motor_node:main',
             'lidar_node = tortoisebot_control.lidar_node:main',
-            'imu_node = tortoisebot_control.imu_node:main',
         ],
     },
 )

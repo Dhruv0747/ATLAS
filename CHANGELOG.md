@@ -2,6 +2,10 @@
 
 ## 2026-09-10 - Stronger remote LIGHT drive mode
 
+- Removed retired Portenta H7, Mega-era, BNO055/BNO08x, external INA219,
+  Pi UPS, legacy direct-radar, and obsolete direct-control artifacts from the
+  deployed Jetson and active repository. The current hardware list now has one
+  authoritative route per function while historical decisions remain below.
 - Added four-channel encoder fault containment. The Yahboom base now detects
   frozen wheel counts under traction, publishes `/atlas/encoder_health`, allows
   one failed channel at 50% autonomous speed for at most five seconds, and

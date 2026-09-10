@@ -54,7 +54,7 @@ MANIFEST_JSON = """{
     {"src": "/logo.png", "sizes": "512x512", "type": "image/png"}
   ]
 }"""
-SERVICES = ["rover-base-telemetry", "rover-teleop", "atlas-uno-r4-sensor-hub", "rover-cellular", "rover-ups", "rover-daly-bms", "rover-atlas-supervisor", "rover-status-web"]
+SERVICES = ["rover-base-telemetry", "rover-teleop", "atlas-uno-r4-sensor-hub", "rover-cellular", "rover-daly-bms", "rover-atlas-supervisor", "rover-status-web"]
 TODO = [
     ("GPS/NavIC", "Move GNSS antenna outside metal body; validate satellites later."),
     ("Encoder odom", "Calibrate Yahboom encoder ticks to real wheel distance."),
@@ -289,8 +289,6 @@ class AtlasRosNode:
             n.create_subscription(Float32, "/bms/cell4_voltage", lambda m: self._set("bms_cell4", m.data), 10)
             n.create_subscription(Float32, "/cellular/hat_voltage", lambda m: self._set("hat_voltage", m.data), 10)
             n.create_subscription(Float32, "/cellular/hat_current", lambda m: self._set("hat_current", m.data), 10)
-            n.create_subscription(Float32, "/cellular/hat_power", lambda m: self._set("hat_power", m.data), 10)
-            n.create_subscription(String, "/cellular/hat_status", lambda m: self._set("hat_status", m.data), 10)
             n.create_subscription(Float32, "/jetson/power/input_voltage", lambda m: self._set("jetson_voltage", m.data), 10)
             n.create_subscription(Float32, "/jetson/power/input_current", lambda m: self._set("jetson_current", m.data), 10)
             n.create_subscription(Float32, "/jetson/power/input_power", lambda m: self._set("jetson_power", m.data), 10)
@@ -299,17 +297,6 @@ class AtlasRosNode:
             n.create_subscription(String, "/jetson/power/status", lambda m: self._set("jetson_power_status", m.data), 10)
             n.create_subscription(String, "/jetson/carrier/json", lambda m: self._set("carrier_json", m.data), 10)
             n.create_subscription(String, "/jetson/carrier/status", lambda m: self._set("carrier_status", m.data), 10)
-            n.create_subscription(String, "/ups/status", lambda m: self._set("ups_status", m.data), 10)
-            n.create_subscription(Float32, "/ups/battery_voltage", lambda m: self._set("ups_bat_voltage", m.data), 10)
-            n.create_subscription(Float32, "/ups/battery_current", lambda m: self._set("ups_bat_current", m.data), 10)
-            n.create_subscription(Float32, "/ups/battery_power", lambda m: self._set("ups_bat_power", m.data), 10)
-            n.create_subscription(Float32, "/ups/battery_percent", lambda m: self._set("ups_bat_percent", m.data), 10)
-            n.create_subscription(Float32, "/ups/vbus_voltage", lambda m: self._set("ups_vbus_voltage", m.data), 10)
-            n.create_subscription(Float32, "/ups/vbus_current", lambda m: self._set("ups_vbus_current", m.data), 10)
-            n.create_subscription(Float32, "/ups/cell1_voltage", lambda m: self._set("ups_cell1", m.data), 10)
-            n.create_subscription(Float32, "/ups/cell2_voltage", lambda m: self._set("ups_cell2", m.data), 10)
-            n.create_subscription(Float32, "/ups/cell3_voltage", lambda m: self._set("ups_cell3", m.data), 10)
-            n.create_subscription(Float32, "/ups/cell4_voltage", lambda m: self._set("ups_cell4", m.data), 10)
             n.create_subscription(Float32, "/cellular/signal_percent", lambda m: self._set("cell_signal", m.data), 10)
             n.create_subscription(String, "/cellular/access_tech", lambda m: self._set("cell_tech", m.data), 10)
             n.create_subscription(String, "/cellular/operator", lambda m: self._set("cell_operator", m.data), 10)
@@ -1652,7 +1639,7 @@ async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'})
  let radarDetail=radarLive?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:(radarHub?String(val(r,'radar_decoder_status','Bytes received; no valid frame')):'Check power/GND • radar TX → UNO D12 • radar RX → UNO D11');
  let imuLive=recent(r,'imu_full',4)||recent(r,'imu_heading',4);
  $('sensors').innerHTML=card('LiDAR',`${n(li.nearest_m,2)} m`,`${li.points||0} points`,'lidar')+card('Ultrasonic',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')} • B ${val(r,'us_rear')}`,'ultrasonic')+card('RD-03D Radar',radarTitle,radarDetail,'radar')+card('Yahboom IMU',imuLive?`${n(val(r,'imu_yaw'),0)}° REL`:'OFFLINE',imuLive?`PRIMARY • roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`:'Check Yahboom USB, motor-board power and base service','imu')+card('I²C Sensor Bus',i2c.liveCount?`${i2c.liveCount}/3 LIVE`:(i2c.bridgeLive?'BRIDGE ONLY':'OFFLINE'),i2c.liveCount?`${i2c.route} • ${i2c.liveSensors.map(x=>x.address).join(' • ')}`:(i2c.bridgeLive?'UNO R4 live; sensor data stale':'No fresh sensor telemetry'),'i2c');
- $('power').innerHTML=card('Main BMS',`${n(val(r,'bms_percent'),0)}%`,`${n(val(r,'bms_voltage'),2)}V ${n(val(r,'bms_current'),2)}A ${n(val(r,'bms_power'),1)}W • CELLS ${n(val(r,'bms_cell1'),3)} / ${n(val(r,'bms_cell2'),3)} / ${n(val(r,'bms_cell3'),3)} / ${n(val(r,'bms_cell4'),3)}`)+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,`${n(val(r,'bat_current'),2)}A`)+card('Jetson INA3221',`${n(val(r,'jetson_power'),1)}W`,`${n(val(r,'jetson_voltage'),3)}V ${n(val(r,'jetson_current'),2)}A • CPU/GPU ${n(val(r,'jetson_cpu_gpu_power'),1)}W • SoC ${n(val(r,'jetson_soc_power'),1)}W`)+card('Jetson / UPS',`${n(val(r,'ups_bat_percent'),0)}%`,`${n(val(r,'ups_bat_voltage'),2)}V ${n(val(r,'ups_bat_power'),1)}W`)+card(`${cellGen} HAT`,`${n(val(r,'hat_power'),1)}W`,`${n(val(r,'hat_voltage'),2)}V ${n(val(r,'hat_current'),2)}A`);
+ $('power').innerHTML=card('Main BMS',`${n(val(r,'bms_percent'),0)}%`,`${n(val(r,'bms_voltage'),2)}V ${n(val(r,'bms_current'),2)}A ${n(val(r,'bms_power'),1)}W • CELLS ${n(val(r,'bms_cell1'),3)} / ${n(val(r,'bms_cell2'),3)} / ${n(val(r,'bms_cell3'),3)} / ${n(val(r,'bms_cell4'),3)}`)+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,`${n(val(r,'bat_current'),2)}A`)+card('Jetson INA3221',`${n(val(r,'jetson_power'),1)}W`,`${n(val(r,'jetson_voltage'),3)}V ${n(val(r,'jetson_current'),2)}A • CPU/GPU ${n(val(r,'jetson_cpu_gpu_power'),1)}W • SoC ${n(val(r,'jetson_soc_power'),1)}W`)+card(`${cellGen} MODEM`,val(r,'cell_registration','--'),`${n(val(r,'cell_signal'),0)}% signal`);
  environment(r);
  $('network').innerHTML=row('Wi-Fi',net.wifi_ip)+row(`${cellGen} data`,`${net.cell_ip} • ${val(r,'cell_operator','--')} • ${n(val(r,'cell_signal'),0)}%`)+row('Tailscale',net.tailscale_ip)+row('Active route',net.route);
  let fix=val(r,'gps_fix',{}),gpsStatusKey=recent(r,'gps_receiver_status',12)?'gps_receiver_status':'gps_arduino_status',gpsStatus=String(val(r,gpsStatusKey,'NO GPS HEARTBEAT'));$('gnss').innerHTML=row('Cell signal',`${n(val(r,'cell_signal'),0)}% ${val(r,'cell_tech')} ${val(r,'cell_operator')}`)+row('GPS route',gpsStatusKey==='gps_receiver_status'?'JETSON J12 PINS 8/10':'UNO R4 D0/D1')+row('GPS UART',gpsStatus.includes('NO_UART_BYTES')?'OFFLINE — 0 BYTES':gpsStatus.includes('NMEA_LIVE')||gpsStatus.includes('NMEA_STREAMING')?'LIVE — NMEA STREAM':gpsStatus.includes('NO_VALID_NMEA')?'BYTES / INVALID NMEA':'NO HEARTBEAT')+row('Satellites used in fix',val(r,'gps_sats',0))+row('GPS fix',fix.status>=0?`${n(fix.lat,6)}, ${n(fix.lon,6)}`:'NO FIX')+`<div class="constellation-note">${gpsStatus}</div>`;renderConstellations(val(r,'gps_const',''));

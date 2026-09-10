@@ -69,6 +69,8 @@ ATLAS uses its 360-degree LiDAR as the primary navigation and obstacle sensor. U
   `/dev/ttyTHS1` at 9600 baud.
 - IMX708 Camera Module 3 on a pan/tilt platform
 - GNSS, BMS, BME680, AMG8833 8x8 thermal sensor, Wi-Fi, and cellular connectivity
+- Jetson onboard INA3221 power telemetry; the removed external INA219 and Pi
+  UPS HAT are not part of the commissioned system.
 
 The commissioned sensor transport now uses an Arduino UNO R4 WiFi. It forwards
 the PCA9685 (`0x40`) discovery state, BME680 (`0x76`/`0x77`), AMG8833
@@ -222,21 +224,9 @@ Useful interfaces:
 - Persistent bounded event memory:
   `~/.config/project_atlas/agent_memory.json`
 
-### INA219 address requirement
+## Retired hardware
 
-The external INA219 must not use its factory-default `0x40` address on ATLAS.
-Jetson I2C bus 1 already reserves `0x40` for NVIDIA's onboard INA3221, and the
-camera-servo PCA9685 also uses `0x40` on the external sensor bus. Set the
-INA219 A0 address jumper to `0x41`, then configure the cellular telemetry
-service with `ATLAS_INA219_ADDRESS=0x41` and the bus to which it is wired.
-The telemetry node detects a kernel-owned address and reports the conflict
-without repeatedly opening or disrupting the bus.
-
-## Archived Portenta H7 migration record
-
-The earlier Portenta H7 sensor-hub prototype is retained only as engineering
-history. It is disabled and is not part of the active ATLAS hardware route.
-The commissioned sensor hub is the Arduino UNO R4 WiFi described above.
-
-See [docs/PORTENTA_SENSOR_HUB.md](docs/PORTENTA_SENSOR_HUB.md) only when
-reviewing the superseded prototype and its electrical test record.
+The Portenta H7, Mega 2560, BNO055/BNO08x, external INA219, Pi UPS HAT, and
+old 11-inch wired display have been removed from the active source and Jetson.
+Their history remains in `CHANGELOG.md`; they must not be reintroduced by an
+installer or used as fallback sensor/control paths.
