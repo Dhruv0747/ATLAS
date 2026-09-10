@@ -77,6 +77,11 @@ MONITORS = tuple(item for item in (
             "rover-base-telemetry.service", recover=False),
     Monitor("encoder_fl", "/yahboom/encoder/m1", Int32, 6.0,
             "rover-base-telemetry.service", recover=False),
+    # The base evaluates all four raw channels under commanded traction. A
+    # critical result has already stopped autonomous output in the mux, so one
+    # bounded base restart is permitted only after the rover is stationary.
+    Monitor("encoder_health", "/atlas/encoder_health", String, 2.0,
+            "rover-base-telemetry.service", recover=True, stopped_only=True),
     Monitor("map", "/map", OccupancyGrid, 20.0,
             "atlas-slam-fast.service", recover=False, required=False),
 ) if (GNSS_ENABLED or item.name != "gps")
@@ -84,7 +89,8 @@ MONITORS = tuple(item for item in (
 
 BAD_WORDS = (
     "offline", "error", "failed", "fault", "disconnected", "not found",
-    "remote i/o", "no device", "unavailable",
+    "remote i/o", "no device", "unavailable", "critical", "invalid",
+    "qualifying",
 )
 STARTUP_GRACE = 30.0
 COOLDOWN = 60.0
@@ -173,6 +179,14 @@ class AtlasRecovery(Node):
 
     def bad_status(self, name):
         value = self.last_value[name].lower()
+        if name == "encoder_health":
+            try:
+                payload = json.loads(self.last_value[name])
+                return str(payload.get("state", "INVALID")).upper() in {
+                    "CRITICAL", "INVALID", "MISSING", "QUALIFYING"
+                }
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return True
         return any(word in value for word in BAD_WORDS)
 
     def schedule_recovery(self, item, reason):

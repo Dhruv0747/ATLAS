@@ -2,6 +2,12 @@
 
 ## 2026-09-10 - Stronger remote LIGHT drive mode
 
+- Added four-channel encoder fault containment. The Yahboom base now detects
+  frozen wheel counts under traction, publishes `/atlas/encoder_health`, allows
+  one failed channel at 50% autonomous speed for at most five seconds, and
+  marks multiple/persistent failures CRITICAL. The mux stops Nav2/recovery on
+  critical or stale feedback; stationary recovery may perform one bounded base
+  restart and requires healthy telemetry before resuming.
 - Fixed recurring false OFFLINE states after selective service restarts by
   standardizing `ROS_LOCALHOST_ONLY=0` in the persisted ROS environment,
   installer, navigation readiness probe and radar tracking unit. Camera,

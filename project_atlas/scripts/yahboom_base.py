@@ -51,6 +51,10 @@ TURN_PWM_BIAS = 8
 CMD_ODOM_VX_SCALE = 1.0
 CMD_ODOM_WZ_SCALE = 0.45
 ODOM_STATE_SAVE_PERIOD_S = 0.20
+ENCODER_FREEZE_S = 1.20
+ENCODER_START_GRACE_S = 0.80
+ENCODER_SINGLE_GRACE_S = 5.0
+ENCODER_LINK_QUALIFY_S = 3.0
 
 FRONT_STEER_SERVO_ID = 2    # Physical front confirmed by user 2026-09-09
 REAR_STEER_SERVO_ID  = 1    # Physical rear confirmed by user 2026-09-09
@@ -218,6 +222,10 @@ class YahboomBase(Node):
         self._last_odom_wheel_distance = None
         self._last_enc_t = time.monotonic()
         self._last_enc_change_t = time.monotonic()
+        self._wheel_last_change_t = [time.monotonic()] * 4
+        self._encoder_motion_started = 0.0
+        self._encoder_fault_since = {}
+        self._encoder_health_started = time.monotonic()
         self._encoder_stale = True
         self._x = 0.0
         self._y = 0.0
@@ -284,6 +292,9 @@ class YahboomBase(Node):
             self.create_publisher(Int32, '/yahboom/encoder/m3', 10),
             self.create_publisher(Int32, '/yahboom/encoder/m4', 10),
         ]
+        self._pub_encoder_health = self.create_publisher(
+            String, '/atlas/encoder_health', 10
+        )
         wheel_names = ('front_right', 'front_left', 'back_right', 'back_left')
         self._wheel_rpm_pubs = [self.create_publisher(Float32, f'/yahboom/wheel/{name}/rpm', 10) for name in wheel_names]
         self._wheel_mps_pubs = [self.create_publisher(Float32, f'/yahboom/wheel/{name}/speed_mps', 10) for name in wheel_names]
@@ -764,11 +775,16 @@ class YahboomBase(Node):
         if self._last_enc is None:
             speeds = [0.0, 0.0, 0.0, 0.0]
             enc_changed = False
+            enc_delta = [0, 0, 0, 0]
         else:
             dt = max(0.001, now - self._last_enc_t)
             enc_delta = [enc[i] - self._last_enc[i] for i in range(4)]
             speeds = [enc_delta[i] / dt for i in range(4)]
             enc_changed = any(abs(v) > 2 for v in enc_delta)
+            for i, delta in enumerate(enc_delta):
+                if abs(delta) > 2:
+                    self._wheel_last_change_t[i] = now
+                    self._encoder_fault_since.pop(i, None)
         for i in range(4):
             # Use a half-second count window.  The board reports encoder data
             # in bursts, so a single 100 ms delta produces misleading spikes.
@@ -801,7 +817,60 @@ class YahboomBase(Node):
         self._pub_right.publish(Float32(data=(fr + rr) / 2.0))
         self._pub_speed.publish(Float32(data=float(vx)))
 
+        self._publish_encoder_health(now)
+
         self._publish_yahboom_odom(vx, vy, vz, now)
+
+    def _publish_encoder_health(self, now):
+        """Detect frozen wheel feedback while traction is actually applied."""
+        traction = abs(self._applied_pwm) > 0
+        if traction:
+            if self._encoder_motion_started <= 0.0:
+                self._encoder_motion_started = now
+            if now - self._encoder_motion_started >= ENCODER_START_GRACE_S:
+                for index, changed_at in enumerate(self._wheel_last_change_t):
+                    if now - changed_at > ENCODER_FREEZE_S:
+                        self._encoder_fault_since.setdefault(index, now)
+        else:
+            self._encoder_motion_started = 0.0
+
+        faults = sorted(self._encoder_fault_since)
+        longest = max(
+            (now - self._encoder_fault_since[i] for i in faults),
+            default=0.0,
+        )
+        qualifying = now - self._encoder_health_started < ENCODER_LINK_QUALIFY_S
+        if qualifying:
+            state = 'QUALIFYING'
+            scale = 0.0
+        elif len(faults) >= 2 or (len(faults) == 1 and longest > ENCODER_SINGLE_GRACE_S):
+            state = 'CRITICAL'
+            scale = 0.0
+        elif len(faults) == 1:
+            state = 'DEGRADED'
+            scale = 0.5
+        else:
+            state = 'HEALTHY' if traction else 'READY'
+            scale = 1.0
+        names = ('M1_FRONT_RIGHT', 'M2_FRONT_LEFT', 'M3_BACK_RIGHT', 'M4_BACK_LEFT')
+        payload = {
+            'state': state,
+            'faults': [names[i] for i in faults],
+            'scale': scale,
+            'traction': traction,
+            'fault_age_s': round(longest, 2),
+            'validation_remaining_s': round(
+                max(0.0, ENCODER_LINK_QUALIFY_S - (now - self._encoder_health_started)), 2
+            ),
+            'last_change_age_s': [
+                round(max(0.0, now - stamp), 2)
+                for stamp in self._wheel_last_change_t
+            ],
+            'policy': 'single=50%_for_5s;multi_or_persistent=stop',
+        }
+        self._pub_encoder_health.publish(
+            String(data=json.dumps(payload, separators=(',', ':')))
+        )
 
     def _publish_yahboom_odom(self, board_vx, board_vy, board_vz, now):
         dt = max(0.0, min(0.5, now - self._last_odom_t))
@@ -813,7 +882,12 @@ class YahboomBase(Node):
         # Use the median so one channel with a different encoder resolution
         # (currently M4) cannot bias navigation distance. Raw values from all
         # four channels remain published for diagnostics and later calibration.
-        wheel_distance = statistics.median(self._wheel_distance_m)
+        # A single diagnosed bad channel is explicitly excluded. Median
+        # filtering already rejects one outlier, but exclusion makes the
+        # containment policy unambiguous and visible in the odometry source.
+        valid_indexes = [i for i in range(4) if i not in self._encoder_fault_since]
+        valid_distances = [self._wheel_distance_m[i] for i in valid_indexes]
+        wheel_distance = statistics.median(valid_distances or self._wheel_distance_m)
         if self._last_odom_wheel_distance is None:
             distance_delta = 0.0
         else:
@@ -833,7 +907,11 @@ class YahboomBase(Node):
             rear_delta = math.radians(self._rear_applied_angle - REAR_STEER_CENTER)
             curvature = (math.tan(front_delta) - math.tan(rear_delta)) / WHEELBASE_M
             vz = vx * curvature
-            source = 'wheel_encoder_delta_4ws'
+            source = (
+                'wheel_encoder_delta_4ws'
+                if len(valid_indexes) == 4
+                else f'wheel_encoder_delta_degraded_{len(valid_indexes)}of4'
+            )
         else:
             vx = 0.0
             vy = 0.0

@@ -171,7 +171,12 @@ class AtlasCmdVelMux(Node):
         self.last_sent = Twist()
         self.radar_gate_enabled = os.environ.get('ATLAS_RADAR_GATE_ENABLED', '0') == '1'
         self.radar_advice, self.radar_rx = {}, 0.0
+        self.encoder_health = {}
+        self.encoder_health_rx = 0.0
         self.create_subscription(String, '/radar/speed_guard', self.on_radar_advice, 10)
+        self.create_subscription(
+            String, '/atlas/encoder_health', self.on_encoder_health, 10
+        )
 
         for channel in self.channels.values():
             self.create_subscription(
@@ -225,6 +230,16 @@ class AtlasCmdVelMux(Node):
             msg.angular.x, msg.angular.y, msg.angular.z
         )
         return out
+
+    def on_encoder_health(self, msg: String) -> None:
+        try:
+            value = json.loads(msg.data)
+            if isinstance(value, dict):
+                self.encoder_health = value
+                self.encoder_health_rx = time.monotonic()
+        except (TypeError, ValueError, json.JSONDecodeError):
+            self.encoder_health = {'state': 'INVALID'}
+            self.encoder_health_rx = time.monotonic()
 
     def on_command(self, name: str, msg: Twist) -> None:
         channel = self.channels[name]
@@ -485,6 +500,22 @@ class AtlasCmdVelMux(Node):
 
         self.active_name = selected.name
         if selected.name in ("RECOVERY", "NAV2"):
+            encoder_age = now - self.encoder_health_rx
+            encoder_state = str(
+                self.encoder_health.get('state', 'MISSING')
+            ).upper()
+            if encoder_age > 1.0 or encoder_state in (
+                'CRITICAL', 'INVALID', 'MISSING', 'QUALIFYING'
+            ):
+                faults = ','.join(self.encoder_health.get('faults', [])) or 'feedback unavailable'
+                self.output.publish(Twist())
+                self.last_sent = Twist()
+                reason = f"AUTONOMY STOP: ENCODER {encoder_state} {faults}"
+                self.safety_output.publish(String(data=reason))
+                if reason != self.last_blocked_reason:
+                    self.get_logger().error(reason)
+                    self.last_blocked_reason = reason
+                return
             blocked_reason = (
                 self.localization_guard(now)
                 if selected.name == "NAV2"
@@ -527,6 +558,18 @@ class AtlasCmdVelMux(Node):
                 )
             )
         command = self.copy_twist(selected.command)
+        if selected.name in ('RECOVERY', 'NAV2') and str(
+            self.encoder_health.get('state', '')
+        ).upper() == 'DEGRADED':
+            scale = max(0.0, min(0.5, float(
+                self.encoder_health.get('scale', 0.5)
+            )))
+            command.linear.x *= scale
+            command.angular.z *= scale
+            faults = ','.join(self.encoder_health.get('faults', []))
+            self.safety_output.publish(String(
+                data=f'AUTONOMY DEGRADED: ENCODER {faults}; SPEED {scale:.0%}'
+            ))
         if self.radar_gate_enabled and selected.name == 'NAV2' and command.linear.x > 0:
             factor = guard_scale(self.radar_advice, now-self.radar_rx)
             command.linear.x *= factor
