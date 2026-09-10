@@ -2,6 +2,11 @@
 
 ## 2026-09-10 - Stronger remote LIGHT drive mode
 
+- Fixed recurring false OFFLINE states after selective service restarts by
+  standardizing `ROS_LOCALHOST_ONLY=0` in the persisted ROS environment,
+  installer, navigation readiness probe and radar tracking unit. Camera,
+  dashboard, carrier telemetry and control services now rejoin one graph.
+
 - Increased Xbox remote LIGHT linear scale from 0.45 m/s to 0.52 m/s after the
   user requested more ground-moving power. BOOST remains 0.65 m/s, angular
   response is unchanged, and the existing command watchdog remains active.

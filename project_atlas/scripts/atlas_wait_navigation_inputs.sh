@@ -21,7 +21,7 @@ done
 source /opt/ros/humble/setup.bash
 source /home/jetson/project_atlas_ws/install/setup.bash
 export FASTDDS_BUILTIN_TRANSPORTS=UDPv4
-export ROS_LOCALHOST_ONLY=1
+export ROS_LOCALHOST_ONLY=0
 
 # A running process is insufficient: require actual fresh odometry and scan
 # messages before AMCL/SLAM construct their TF buffers.  Bypass the ROS CLI
