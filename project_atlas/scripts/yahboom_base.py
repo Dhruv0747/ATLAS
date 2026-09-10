@@ -37,6 +37,7 @@ BOOST_TIME_S = 0.25
 LOW_SPEED_HOLD_PWM = 45
 PWM_RAMP_STEP = 8
 CMD_TIMEOUT_S = 0.45
+REMOTE_STEER_RELEASE_DELAY_S = 0.65
 # Apply smaller steering increments at every 100 ms control tick.  This keeps
 # the commissioned 30 deg/s slew rate while removing the coarse 6-degree jump
 # that made low-speed right steering feel abrupt.
@@ -197,6 +198,7 @@ class YahboomBase(Node):
         self._last_vx = 0.0
         self._last_vz = 0.0
         self._drive_source = 'STOPPED'
+        self._last_remote_traction_time = 0.0
         self._last_cmd_time = 0.0
         self._boost_until = 0.0
         self._applied_pwm = 0
@@ -449,6 +451,14 @@ class YahboomBase(Node):
         return int(self._step_toward(current, target_pwm, PWM_RAMP_STEP))
 
     def _drive_pwm(self, vx, wz):
+        now = time.monotonic()
+        if abs(vx) > 0.02 and self._drive_source == 'REMOTE':
+            self._last_remote_traction_time = now
+        remote_steer_hold = (
+            abs(wz) <= 0.02
+            and now - self._last_remote_traction_time
+            < REMOTE_STEER_RELEASE_DELAY_S
+        )
         drive = max(-1.0, min(1.0, vx))
         if abs(drive) <= 0.02:
             pwm = 0
@@ -461,15 +471,12 @@ class YahboomBase(Node):
                 (MAX_PWM - MIN_RUN_PWM) * abs(drive)
             )
             pwm = magnitude if drive > 0.0 else -magnitude
-        if (
-            abs(vx) > 0.02
-            and abs(wz) <= 0.02
-            and self._drive_source == 'REMOTE'
-        ):
+        if remote_steer_hold:
             # Car-like manual behaviour requested during commissioning: while
             # traction remains held, returning the steering stick to neutral
-            # retains the last commanded wheel angle. Releasing traction sends
-            # vx=0 below, which returns both steering axles to their centres.
+            # retains the last commanded wheel angle. Brief zero packets are
+            # common during reverse joystick operation, so motor power stops
+            # immediately but steering waits briefly before returning home.
             front_angle = self._front_target_angle
             rear_angle = self._rear_target_angle
         elif abs(vx) > 0.02:

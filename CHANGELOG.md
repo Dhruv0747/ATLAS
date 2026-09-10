@@ -13,6 +13,9 @@
   reverse, a neutral steering stick retains the last wheel angle. Both steering
   axles return to their commissioned home positions only when traction is
   released. Nav2 and other command sources keep continuous angular control.
+- Debounced remote steering release by 650 ms so brief zero packets—most
+  noticeable while reversing—stop traction immediately without repeatedly
+  snapping the steering axles home. A sustained release still recentres them.
 
 ## 2026-09-09 - Glass dashboard, camera recovery, and boot self-test
 
