@@ -196,6 +196,7 @@ class YahboomBase(Node):
 
         self._last_vx = 0.0
         self._last_vz = 0.0
+        self._drive_source = 'STOPPED'
         self._last_cmd_time = 0.0
         self._boost_until = 0.0
         self._applied_pwm = 0
@@ -230,6 +231,9 @@ class YahboomBase(Node):
         self._last_imu_status = 0.0
 
         self.create_subscription(Twist, '/cmd_vel', self._on_cmd_vel, 10)
+        self.create_subscription(
+            String, '/atlas/drive_mode', self._on_drive_mode, 10
+        )
 
         self._pub_volt = self.create_publisher(Float32, '/battery/voltage', 10)
         self._pub_curr = self.create_publisher(Float32, '/battery/current', 10)
@@ -390,6 +394,10 @@ class YahboomBase(Node):
             self._applied_pwm = 0
             self.bot.set_motor(0, 0, 0, 0)
 
+    def _on_drive_mode(self, msg: String):
+        """Track mux ownership so manual steering can remain responsive."""
+        self._drive_source = str(msg.data).strip().upper() or 'STOPPED'
+
     def _motor_keepalive(self):
         self._watchdog_ping()
         if time.time() - self._last_cmd_time > CMD_TIMEOUT_S:
@@ -494,10 +502,16 @@ class YahboomBase(Node):
             abs(self._front_target_angle - self._front_applied_angle),
             abs(self._rear_target_angle - self._rear_applied_angle),
         )
-        # Do not move straight while the steering servos are still traveling
-        # toward a tight-curve request. That lag made ATLAS enter the doorway
-        # before its wheels reached the angle assumed by Nav2.
-        if pwm and steering_error > 8:
+        # Nav2/recovery must wait for steering alignment before traction; that
+        # gate prevents the rover entering a doorway on the wrong wheel angle.
+        # For the physical Xbox remote, however, a complete traction cut made
+        # combined forward/reverse + steering nearly unusable.  Keep a bounded
+        # breakaway-speed crawl while the operator holds both sticks, allowing
+        # the wheels and steering servos to move simultaneously.
+        if pwm and steering_error > 8 and self._drive_source == 'REMOTE':
+            sign = 1 if pwm > 0 else -1
+            self._applied_pwm = self._slew_motor_pwm(sign * MIN_RUN_PWM)
+        elif pwm and steering_error > 8:
             self._applied_pwm = 0
         else:
             self._applied_pwm = self._slew_motor_pwm(pwm)

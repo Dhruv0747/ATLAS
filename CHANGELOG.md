@@ -5,6 +5,10 @@
 - Increased Xbox remote LIGHT linear scale from 0.45 m/s to 0.52 m/s after the
   user requested more ground-moving power. BOOST remains 0.65 m/s, angular
   response is unchanged, and the existing command watchdog remains active.
+- Corrected simultaneous manual drive and steering. The Yahboom base now uses
+  mux ownership to permit bounded minimum traction while REMOTE steering servos
+  are travelling; autonomous Nav2/recovery commands retain the steering-aligned
+  traction gate.
 
 ## 2026-09-09 - Glass dashboard, camera recovery, and boot self-test
 
