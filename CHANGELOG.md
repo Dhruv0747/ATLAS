@@ -2,6 +2,10 @@
 
 ## 2026-09-10 - Stronger remote LIGHT drive mode
 
+- Validated encoder safety on the live rover: stable 4/4 stationary feedback,
+  one bounded shared-link restart, pre-resume qualification, and zero mux
+  output for a nonzero Nav2 request while encoder feedback was unavailable.
+  Ground data also exposed repeatable low-speed stopping overshoot for follow-up.
 - Removed retired Portenta H7, Mega-era, BNO055/BNO08x, external INA219,
   Pi UPS, legacy direct-radar, and obsolete direct-control artifacts from the
   deployed Jetson and active repository. The current hardware list now has one
