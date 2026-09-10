@@ -3,6 +3,7 @@
 
 from dataclasses import dataclass, field
 import math
+import json
 import os
 import time
 from typing import Dict, Optional
@@ -12,6 +13,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import Float32, String
+from atlas_radar_core import guard_scale
 
 
 @dataclass
@@ -82,6 +84,7 @@ class AtlasCmdVelMux(Node):
         self.remote_angular_deadband = float(
             self.get_parameter("remote_angular_deadband").value
         )
+        self._remote_held_yaw = 0.0
         self.auto_front_stop_m = float(
             self.get_parameter("auto_front_stop_m").value
         )
@@ -166,6 +169,9 @@ class AtlasCmdVelMux(Node):
         )
         self.active_name: Optional[str] = None
         self.last_sent = Twist()
+        self.radar_gate_enabled = os.environ.get('ATLAS_RADAR_GATE_ENABLED', '0') == '1'
+        self.radar_advice, self.radar_rx = {}, 0.0
+        self.create_subscription(String, '/radar/speed_guard', self.on_radar_advice, 10)
 
         for channel in self.channels.values():
             self.create_subscription(
@@ -233,6 +239,20 @@ class AtlasCmdVelMux(Node):
                 command.linear.x = 0.0
             if abs(command.angular.z) < self.remote_angular_deadband:
                 command.angular.z = 0.0
+            # Car-like remote steering: traction and steering are independent.
+            # Once the operator selects an angle, keep that angle while the
+            # forward/reverse stick remains active.  A centred steering stick
+            # must not straighten the wheels in the middle of a manoeuvre.
+            # Clear the latch only when both drive and steering are released.
+            if abs(command.linear.x) >= self.remote_linear_deadband:
+                if command.angular.z != 0.0:
+                    self._remote_held_yaw = command.angular.z
+                else:
+                    command.angular.z = self._remote_held_yaw
+            elif command.angular.z != 0.0:
+                self._remote_held_yaw = command.angular.z
+            else:
+                self._remote_held_yaw = 0.0
             command.linear.y = 0.0
             command.linear.z = 0.0
             command.angular.x = 0.0
@@ -410,6 +430,16 @@ class AtlasCmdVelMux(Node):
             )
         return None
 
+    def on_radar_advice(self, msg):
+        try:
+            data = json.loads(msg.data)
+            age = self.get_clock().now().nanoseconds/1e9-float(data['stamp_s'])
+            if not -0.05 <= age <= 0.5 or data.get('scope') != 'NAV2_FORWARD_ONLY':
+                return
+            self.radar_advice, self.radar_rx = data, time.monotonic()
+        except (ValueError, TypeError, KeyError):
+            self.radar_advice, self.radar_rx = {}, 0.0
+
     def live_channel(self, now: float) -> Optional[Channel]:
         live = [
             c for c in self.channels.values()
@@ -496,7 +526,15 @@ class AtlasCmdVelMux(Node):
                     )
                 )
             )
-        self.publish(selected.command)
+        command = self.copy_twist(selected.command)
+        if self.radar_gate_enabled and selected.name == 'NAV2' and command.linear.x > 0:
+            factor = guard_scale(self.radar_advice, now-self.radar_rx)
+            command.linear.x *= factor
+            command.angular.z *= factor
+            if factor < 1.:
+                self.safety_output.publish(String(data='RADAR LIMIT: '+str(
+                    self.radar_advice.get('reason', 'GUARD_STALE'))))
+        self.publish(command)
 
     def publish_mode(self) -> None:
         mode = self.active_name or "STOPPED"

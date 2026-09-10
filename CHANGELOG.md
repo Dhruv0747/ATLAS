@@ -20,6 +20,10 @@
   prevents asynchronous `/cmd_vel` and `/atlas/drive_mode` delivery from
   briefly classifying a continuing reverse command as autonomous/stopped and
   commanding the steering home mid-manoeuvre.
+- Moved the authoritative car-style steering latch into the REMOTE mux input:
+  the last deliberate yaw command is now retained for as long as forward or
+  reverse remains active, and is cleared only after both sticks are released.
+  This fixes mid-reverse recentring without changing Web, Foxglove or Nav2.
 
 ## 2026-09-09 - Glass dashboard, camera recovery, and boot self-test
 
