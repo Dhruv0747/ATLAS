@@ -36,6 +36,13 @@ MAX_PWM = 100
 # measured breakaway margin while leaving useful control/headroom.
 MIN_RUN_PWM = 80
 REMOTE_MAX_PWM = 90
+# teleop_twist_joy publishes at most 0.52 in normal mode and 0.65 while its
+# turbo button is held.  Keep high-current traction explicit and momentary:
+# normal manual driving retains the stable range above, while turbo receives
+# the commissioned near-maximum breakaway torque for climbing only.
+REMOTE_BOOST_THRESHOLD = 0.60
+REMOTE_BOOST_MIN_PWM = 94
+REMOTE_BOOST_MAX_PWM = 100
 # Autonomous approach commands need a lower floor than manual driving.  The
 # loaded rover was previously validated at 72 PWM; retaining 90 for every small
 # Nav2 command caused a repeatable 10 cm request to travel 16--19 cm.  Keep the
@@ -479,16 +486,19 @@ class YahboomBase(Node):
             # The remote keeps the commissioned high breakaway floor.  Small
             # autonomous approach commands use the separately validated lower
             # floor so Nav2 can stop accurately without weakening manual drive.
-            min_run_pwm = (
-                MIN_RUN_PWM
-                if self._drive_source == 'REMOTE'
-                else AUTONOMOUS_MIN_RUN_PWM
+            remote_boost = (
+                self._drive_source == 'REMOTE'
+                and abs(drive) >= REMOTE_BOOST_THRESHOLD
             )
-            max_run_pwm = (
-                REMOTE_MAX_PWM
-                if self._drive_source == 'REMOTE'
-                else MAX_PWM
-            )
+            if remote_boost:
+                min_run_pwm = REMOTE_BOOST_MIN_PWM
+                max_run_pwm = REMOTE_BOOST_MAX_PWM
+            elif self._drive_source == 'REMOTE':
+                min_run_pwm = MIN_RUN_PWM
+                max_run_pwm = REMOTE_MAX_PWM
+            else:
+                min_run_pwm = AUTONOMOUS_MIN_RUN_PWM
+                max_run_pwm = MAX_PWM
             magnitude = min_run_pwm + int(
                 (max_run_pwm - min_run_pwm) * abs(drive)
             )
