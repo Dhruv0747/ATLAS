@@ -38,6 +38,7 @@ LOW_SPEED_HOLD_PWM = 45
 PWM_RAMP_STEP = 8
 CMD_TIMEOUT_S = 0.45
 REMOTE_STEER_RELEASE_DELAY_S = 0.65
+REMOTE_SOURCE_GRACE_S = 2.0
 # Apply smaller steering increments at every 100 ms control tick.  This keeps
 # the commissioned 30 deg/s slew rate while removing the coarse 6-degree jump
 # that made low-speed right steering feel abrupt.
@@ -198,6 +199,7 @@ class YahboomBase(Node):
         self._last_vx = 0.0
         self._last_vz = 0.0
         self._drive_source = 'STOPPED'
+        self._last_remote_source_time = 0.0
         self._last_remote_traction_time = 0.0
         self._last_cmd_time = 0.0
         self._boost_until = 0.0
@@ -399,6 +401,8 @@ class YahboomBase(Node):
     def _on_drive_mode(self, msg: String):
         """Track mux ownership so manual steering can remain responsive."""
         self._drive_source = str(msg.data).strip().upper() or 'STOPPED'
+        if self._drive_source == 'REMOTE':
+            self._last_remote_source_time = time.monotonic()
 
     def _motor_keepalive(self):
         self._watchdog_ping()
@@ -452,7 +456,11 @@ class YahboomBase(Node):
 
     def _drive_pwm(self, vx, wz):
         now = time.monotonic()
-        if abs(vx) > 0.02 and self._drive_source == 'REMOTE':
+        remote_source_recent = (
+            self._drive_source == 'REMOTE'
+            or now - self._last_remote_source_time < REMOTE_SOURCE_GRACE_S
+        )
+        if abs(vx) > 0.02 and remote_source_recent:
             self._last_remote_traction_time = now
         remote_steer_hold = (
             abs(wz) <= 0.02

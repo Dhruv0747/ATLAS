@@ -16,6 +16,10 @@
 - Debounced remote steering release by 650 ms so brief zero packets—most
   noticeable while reversing—stop traction immediately without repeatedly
   snapping the steering axles home. A sustained release still recentres them.
+- Latched recent REMOTE mux ownership for two seconds in the base driver. This
+  prevents asynchronous `/cmd_vel` and `/atlas/drive_mode` delivery from
+  briefly classifying a continuing reverse command as autonomous/stopped and
+  commanding the steering home mid-manoeuvre.
 
 ## 2026-09-09 - Glass dashboard, camera recovery, and boot self-test
 
