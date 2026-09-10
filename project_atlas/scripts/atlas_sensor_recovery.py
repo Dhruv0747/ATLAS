@@ -191,6 +191,7 @@ class AtlasRecovery(Node):
 
     def schedule_recovery(self, item, reason):
         now = time.monotonic()
+        attempt_limit = 1 if item.name == "encoder_health" else MAX_ATTEMPTS
         if item.stopped_only and self.motion_active:
             if now - self.last_notice[item.name] >= COOLDOWN:
                 self.last_notice[item.name] = now
@@ -207,22 +208,22 @@ class AtlasRecovery(Node):
                 return
             if recent and now - recent[-1] < COOLDOWN:
                 return
-            if len(recent) >= MAX_ATTEMPTS:
+            if len(recent) >= attempt_limit:
                 if now - self.last_notice[item.name] >= COOLDOWN:
                     self.last_notice[item.name] = now
                     self.publish_status(
                         f"HARDWARE ATTENTION: {item.name} still faulty after "
-                        f"{MAX_ATTEMPTS} bounded recoveries; check power, cable, and device"
+                        f"{attempt_limit} bounded recoveries; check power, cable, and device"
                     )
                 return
             self.attempts[item.name].append(now)
             self.recovering.add(item.name)
         thread = threading.Thread(
-            target=self.recover, args=(item, reason), daemon=True
+            target=self.recover, args=(item, reason, attempt_limit), daemon=True
         )
         thread.start()
 
-    def recover(self, item, reason):
+    def recover(self, item, reason, attempt_limit):
         try:
             # Most peripheral recovery is allowed while stationary or moving
             # because the command watchdog remains authoritative. Components
@@ -230,7 +231,7 @@ class AtlasRecovery(Node):
             attempt = len(self.attempts[item.name])
             self.publish_status(
                 f"RECOVERING: {item.name} ({reason}); restarting "
-                f"{item.service}, attempt {attempt}/{MAX_ATTEMPTS}"
+                f"{item.service}, attempt {attempt}/{attempt_limit}"
             )
             subprocess.run(
                 ["systemctl", "--user", "restart", item.service],
