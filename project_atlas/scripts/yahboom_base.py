@@ -461,7 +461,18 @@ class YahboomBase(Node):
                 (MAX_PWM - MIN_RUN_PWM) * abs(drive)
             )
             pwm = magnitude if drive > 0.0 else -magnitude
-        if abs(vx) > 0.02:
+        if (
+            abs(vx) > 0.02
+            and abs(wz) <= 0.02
+            and self._drive_source == 'REMOTE'
+        ):
+            # Car-like manual behaviour requested during commissioning: while
+            # traction remains held, returning the steering stick to neutral
+            # retains the last commanded wheel angle. Releasing traction sends
+            # vx=0 below, which returns both steering axles to their centres.
+            front_angle = self._front_target_angle
+            rear_angle = self._rear_target_angle
+        elif abs(vx) > 0.02:
             # Four-wheel opposite steering kinematics:
             #   wz = 2 * vx * tan(delta) / wheelbase
             # The former wz/MAX_WZ mapping produced only ~3-6 degrees at
@@ -477,7 +488,8 @@ class YahboomBase(Node):
             rear_angle = REAR_STEER_CENTER - steer_delta
         else:
             # Steering-only operator command: no kinematic curvature exists
-            # at zero speed, so retain proportional wheel positioning.
+            # at zero speed, so retain proportional wheel positioning. A full
+            # zero command therefore returns both axles to their home centres.
             steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
             if steer_norm >= 0.0:
                 front_angle = FRONT_STEER_CENTER + steer_norm * (

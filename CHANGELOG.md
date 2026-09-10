@@ -9,6 +9,10 @@
   mux ownership to permit bounded minimum traction while REMOTE steering servos
   are travelling; autonomous Nav2/recovery commands retain the steering-aligned
   traction gate.
+- Added manual steering hold: while the Xbox remote still commands forward or
+  reverse, a neutral steering stick retains the last wheel angle. Both steering
+  axles return to their commissioned home positions only when traction is
+  released. Nav2 and other command sources keep continuous angular control.
 
 ## 2026-09-09 - Glass dashboard, camera recovery, and boot self-test
 
