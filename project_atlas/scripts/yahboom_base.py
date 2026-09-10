@@ -836,6 +836,11 @@ class YahboomBase(Node):
         if traction:
             if self._encoder_motion_started <= 0.0:
                 self._encoder_motion_started = now
+                # Begin every traction interval with a fresh per-wheel timing
+                # baseline.  Otherwise a wheel that was correctly stationary
+                # between Nav2 pulses inherits an old timestamp and can be
+                # declared frozen immediately when motion resumes.
+                self._wheel_last_change_t = [now] * 4
             if now - self._encoder_motion_started >= ENCODER_START_GRACE_S:
                 for index, changed_at in enumerate(self._wheel_last_change_t):
                     if now - changed_at > ENCODER_FREEZE_S:

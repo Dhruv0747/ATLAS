@@ -18,6 +18,7 @@ from typing import Callable, Optional
 import rclpy
 from action_msgs.srv import CancelGoal
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
+from nav_msgs.msg import OccupancyGrid
 from nav2_msgs.action import NavigateThroughPoses, NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
@@ -153,6 +154,10 @@ class AtlasMissionControl(Node):
             self.update_localization_quality,
             10,
         )
+        self.mapping_map_received_at = 0.0
+        self.mapping_map_subscription = self.create_subscription(
+            OccupancyGrid, "/map_raw", self.update_mapping_map, 1
+        )
         self.nomotion_client = self.create_client(
             EmptyService, "/request_nomotion_update"
         )
@@ -287,6 +292,10 @@ class AtlasMissionControl(Node):
     def update_safety_status(self, msg: String) -> None:
         self.safety_status = msg.data.strip()
 
+    def update_mapping_map(self, _msg: OccupancyGrid) -> None:
+        """Record receipt of a map produced by the running SLAM node."""
+        self.mapping_map_received_at = time.monotonic()
+
     def update_localization_quality(self, msg: PoseWithCovarianceStamped) -> None:
         covariance = msg.pose.covariance
         xy_variance = max(0.0, covariance[0]) + max(0.0, covariance[7])
@@ -327,6 +336,23 @@ class AtlasMissionControl(Node):
         deadlock at mission start. A forced scan update breaks that deadlock
         without relaxing the watchdog.
         """
+        # During an active SLAM mapping session, slam_toolbox owns map->odom and
+        # AMCL is intentionally stopped. Requiring AMCL here deadlocks valid
+        # return-home requests made before the new map is saved. Confirm that
+        # the live SLAM transform is available, then let Nav2 use that pose.
+        if self.active_mapping_session():
+            slam_active = subprocess.run(
+                ["systemctl", "--user", "is-active", "--quiet",
+                 "atlas-slam-fast.service"],
+                check=False,
+                timeout=4,
+            ).returncode == 0
+            if not slam_active:
+                raise RuntimeError(
+                    "active mapping session has no SLAM localization"
+                )
+            self.current_pose()
+            return
         if not self.nomotion_client.wait_for_service(timeout_sec=1.0):
             raise RuntimeError("AMCL no-motion update service is unavailable")
         previous_stamp = (
@@ -789,6 +815,10 @@ class AtlasMissionControl(Node):
             raise RuntimeError(
                 stop.stderr.strip() or "could not stop saved-map localization"
             )
+        # A stopped localization stack can leave a recent map->odom transform
+        # in this node's TF buffer. Require a map received after this new SLAM
+        # start request so that stale transform cannot become the session home.
+        mapping_started_at = time.monotonic()
         start = subprocess.run(
             [
                 "systemctl", "--user", "start",
@@ -812,7 +842,12 @@ class AtlasMissionControl(Node):
                 ).returncode == 0
                 for unit in ("atlas-slam-fast.service", "atlas-nav2.service")
             )
-            if ready and self.nav.wait_for_server(timeout_sec=1.0):
+            fresh_slam_map = self.mapping_map_received_at >= mapping_started_at
+            if (
+                ready
+                and fresh_slam_map
+                and self.nav.wait_for_server(timeout_sec=1.0)
+            ):
                 return
             time.sleep(1.0)
         raise RuntimeError("mapping stack did not become ready within 90 seconds")
