@@ -9,6 +9,10 @@
 - Validated the single-wheel degraded policy without physical movement: a
   simulated M2 failure scaled a 0.10 m/s recovery request to exactly 0.05 m/s,
   followed by a watchdog zero. Production services returned healthy afterward.
+- Separated manual and autonomous minimum motor power. Manual driving retains
+  90 PWM while low-speed autonomous motion uses the tested 60-PWM floor. A
+  lower 50-PWM candidate was rejected after a loaded stall; the accepted value
+  passed 10 cm and 20 cm bidirectional ground tests with healthy encoders.
 - Removed retired Portenta H7, Mega-era, BNO055/BNO08x, external INA219,
   Pi UPS, legacy direct-radar, and obsolete direct-control artifacts from the
   deployed Jetson and active repository. The current hardware list now has one

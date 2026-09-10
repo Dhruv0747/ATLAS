@@ -21,11 +21,25 @@
 - Recorded encoder deltas were M1 -1360, M2 +1529, M3 +1380, M4 -1533.
 - Encoder health was only `HEALTHY` while moving and `READY` while stopped.
 
-The repeatable excess travel is a low-speed actuation/stopping limitation, not
-lost encoder telemetry. ATLAS maps every nonzero motion request to the verified
-72-PWM breakaway floor; at that floor the recorded rover speed and coast distance
-are too large for an exact 0.10 m stop. Do not hide this result by changing
-encoder scale. Treat low-speed stopping control as the next navigation issue.
+The repeatable excess travel was a low-speed actuation/stopping limitation, not
+lost encoder telemetry. ATLAS had mapped every nonzero motion request to the
+90-PWM manual breakaway floor; at that power the recorded rover speed and coast
+distance were too large for an exact 0.10 m stop. Encoder scale was not changed
+to hide the result; manual and autonomous power floors were separated instead.
+
+### Autonomous low-speed calibration
+
+- Separated the manual and autonomous motor floors. Manual remote driving keeps
+  its commissioned 90-PWM floor; Web/Nav2/recovery approach motion now uses 60.
+- At 72 PWM, 0.10 m tests stopped at 0.142 m forward and 0.131 m reverse.
+- At 60 PWM, 0.10 m tests stopped at 0.127 m forward and 0.131 m reverse.
+- A 50-PWM comparison reached 0.104--0.106 m in short tests but then stalled in
+  a longer loaded test and triggered the M3 encoder guard. It was rejected.
+- After restoring 60 PWM and requalifying all encoders, the 0.20 m out-and-back
+  test stopped at 0.234 m forward and 0.219 m reverse. Both legs passed and
+  encoder health returned to `READY`.
+- Encoder scaling was not changed. The accepted result improves close-range
+  control while retaining reliable loaded traction.
 
 ## Shared-link failure and recovery
 
@@ -62,7 +76,5 @@ encoder scale. Treat low-speed stopping control as the next navigation issue.
 
 ## Remaining validation
 
-1. Correct/compensate minimum-speed stopping behavior with one isolated change.
-2. Repeat controlled ground distance and return-home tests.
-3. Continue the room-to-room reliability campaign only after stopping accuracy
-   is acceptable.
+1. Repeat Nav2 return-home accuracy from a saved pose.
+2. Continue the room-to-room mapping and recovery reliability campaign.

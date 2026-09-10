@@ -33,6 +33,11 @@ MAX_PWM = 100
 # keep a usable control range above it instead of forcing every Nav2 request
 # to near-full power.
 MIN_RUN_PWM = 90
+# Autonomous approach commands need a lower floor than manual driving.  The
+# loaded rover was previously validated at 72 PWM; retaining 90 for every small
+# Nav2 command caused a repeatable 10 cm request to travel 16--19 cm.  Keep the
+# stronger manual floor, but use this bounded floor for Web/Nav2/recovery motion.
+AUTONOMOUS_MIN_RUN_PWM = 60
 BOOST_TIME_S = 0.25
 LOW_SPEED_HOLD_PWM = 45
 PWM_RAMP_STEP = 8
@@ -482,12 +487,16 @@ class YahboomBase(Node):
         if abs(drive) <= 0.02:
             pwm = 0
         else:
-            # The loaded rover cannot overcome static friction at the small
-            # percentages produced by Nav2 (e.g. 0.15 -> 15 PWM). Preserve
-            # direction and map every real motion request into the verified
-            # usable 72..100 PWM range.
-            magnitude = MIN_RUN_PWM + int(
-                (MAX_PWM - MIN_RUN_PWM) * abs(drive)
+            # The remote keeps the commissioned high breakaway floor.  Small
+            # autonomous approach commands use the separately validated lower
+            # floor so Nav2 can stop accurately without weakening manual drive.
+            min_run_pwm = (
+                MIN_RUN_PWM
+                if self._drive_source == 'REMOTE'
+                else AUTONOMOUS_MIN_RUN_PWM
+            )
+            magnitude = min_run_pwm + int(
+                (MAX_PWM - min_run_pwm) * abs(drive)
             )
             pwm = magnitude if drive > 0.0 else -magnitude
         if remote_steer_hold:
