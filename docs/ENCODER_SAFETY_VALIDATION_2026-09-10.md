@@ -43,11 +43,26 @@ encoder scale. Treat low-speed stopping control as the next navigation issue.
 - Mux logged `AUTONOMY STOP: ENCODER ... feedback unavailable`.
 - Restored the motor service; encoder health returned to `READY` with no faults.
 
+## One-wheel degraded operation
+
+- Held the physical motor service offline and stopped automatic recovery, so
+  the test could not move the rover.
+- Injected a simulated `M2_FRONT_LEFT` encoder fault with state `DEGRADED` and
+  requested 0.10 m/s through the isolated recovery command channel.
+- The recorded mux output contained 45 samples at exactly 0.05 m/s and one
+  final zero sample. This proves the required 50% command limit and stale-source
+  stop behavior.
+- Recording: `/tmp/encoder_single_fault_bag` on the Jetson (124 messages over
+  5.68 seconds).
+- The ROS CLI graph initially missed command topics. Restarting the ROS CLI
+  daemon restored discovery; the running ATLAS ROS nodes themselves had not
+  failed.
+- Production motor and sensor-recovery services were restored after the test.
+  Encoder health returned to `READY` with four accepted channels.
+
 ## Remaining validation
 
-1. Bench simulation or physical channel isolation for the one-wheel degraded
-   case (50% speed, maximum five seconds).
-2. Correct/compensate minimum-speed stopping behavior with one isolated change.
-3. Repeat controlled ground distance and return-home tests.
-4. Continue the room-to-room reliability campaign only after stopping accuracy
+1. Correct/compensate minimum-speed stopping behavior with one isolated change.
+2. Repeat controlled ground distance and return-home tests.
+3. Continue the room-to-room reliability campaign only after stopping accuracy
    is acceptable.

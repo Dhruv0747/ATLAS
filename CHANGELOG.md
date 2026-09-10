@@ -6,6 +6,9 @@
   one bounded shared-link restart, pre-resume qualification, and zero mux
   output for a nonzero Nav2 request while encoder feedback was unavailable.
   Ground data also exposed repeatable low-speed stopping overshoot for follow-up.
+- Validated the single-wheel degraded policy without physical movement: a
+  simulated M2 failure scaled a 0.10 m/s recovery request to exactly 0.05 m/s,
+  followed by a watchdog zero. Production services returned healthy afterward.
 - Removed retired Portenta H7, Mega-era, BNO055/BNO08x, external INA219,
   Pi UPS, legacy direct-radar, and obsolete direct-control artifacts from the
   deployed Jetson and active repository. The current hardware list now has one
