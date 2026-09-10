@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-10 - Stronger remote LIGHT drive mode
+
+- Increased Xbox remote LIGHT linear scale from 0.45 m/s to 0.52 m/s after the
+  user requested more ground-moving power. BOOST remains 0.65 m/s, angular
+  response is unchanged, and the existing command watchdog remains active.
+
 ## 2026-09-09 - Glass dashboard, camera recovery, and boot self-test
 
 - Restyled the existing command center as a 70%-transparent glass cockpit

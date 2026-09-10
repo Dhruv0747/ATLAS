@@ -6,7 +6,9 @@ teleop_twist_joy_node:
     axis_linear:
       x: 1
     scale_linear:
-      x: 0.45
+      # Commissioned LIGHT mode: modestly above the previous 0.45 m/s so the
+      # loaded rover clears static friction without approaching BOOST speed.
+      x: 0.52
     scale_linear_turbo:
       x: 0.65
     axis_angular:
