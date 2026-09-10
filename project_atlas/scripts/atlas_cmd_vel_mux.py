@@ -40,6 +40,7 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("foxglove_steering_expo", 2.0)
         self.declare_parameter("remote_linear_deadband", 0.06)
         self.declare_parameter("remote_angular_deadband", 0.12)
+        self.declare_parameter("remote_steer_hold_s", 0.35)
         self.declare_parameter("auto_front_stop_m", 0.30)
         self.declare_parameter("auto_rear_stop_m", 0.30)
         # Rover half-width is 0.18 m; preserve the commissioned 0.10 m
@@ -84,7 +85,11 @@ class AtlasCmdVelMux(Node):
         self.remote_angular_deadband = float(
             self.get_parameter("remote_angular_deadband").value
         )
+        self.remote_steer_hold_s = float(
+            self.get_parameter("remote_steer_hold_s").value
+        )
         self._remote_held_yaw = 0.0
+        self._remote_last_steer_rx = 0.0
         self.auto_front_stop_m = float(
             self.get_parameter("auto_front_stop_m").value
         )
@@ -254,18 +259,20 @@ class AtlasCmdVelMux(Node):
                 command.linear.x = 0.0
             if abs(command.angular.z) < self.remote_angular_deadband:
                 command.angular.z = 0.0
-            # Car-like remote steering: traction and steering are independent.
-            # Once the operator selects an angle, keep that angle while the
-            # forward/reverse stick remains active.  A centred steering stick
-            # must not straighten the wheels in the middle of a manoeuvre.
-            # Clear the latch only when both drive and steering are released.
-            if abs(command.linear.x) >= self.remote_linear_deadband:
-                if command.angular.z != 0.0:
-                    self._remote_held_yaw = command.angular.z
-                else:
-                    command.angular.z = self._remote_held_yaw
-            elif command.angular.z != 0.0:
+            # Hold steering only across brief controller zero packets. An
+            # indefinite latch made a full-left/right input persist after the
+            # operator centred the stick, causing wheel scrub and false encoder
+            # stall trips. A deliberate centre now straightens while driving.
+            now = time.monotonic()
+            if command.angular.z != 0.0:
                 self._remote_held_yaw = command.angular.z
+                self._remote_last_steer_rx = now
+            elif (
+                abs(command.linear.x) >= self.remote_linear_deadband
+                and self._remote_held_yaw != 0.0
+                and now - self._remote_last_steer_rx < self.remote_steer_hold_s
+            ):
+                command.angular.z = self._remote_held_yaw
             else:
                 self._remote_held_yaw = 0.0
             command.linear.y = 0.0

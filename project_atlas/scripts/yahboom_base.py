@@ -29,10 +29,13 @@ from Rosmaster_Lib import Rosmaster
 MAX_VX = 1.0
 MAX_WZ = 2.0
 MAX_PWM = 100
-# Loaded-rover breakaway calibration. Commands below this floor only twitch;
-# keep a usable control range above it instead of forcing every Nav2 request
-# to near-full power.
-MIN_RUN_PWM = 90
+# Loaded-rover manual calibration.  The former 90 PWM floor translated an
+# ordinary 0.52 joystick command to 95 PWM and turbo to 96 PWM, effectively
+# running all four channels at the board ceiling.  Ground recordings then
+# showed all four wheels stopping together under sustained load.  Retain the
+# measured breakaway margin while leaving useful control/headroom.
+MIN_RUN_PWM = 80
+REMOTE_MAX_PWM = 90
 # Autonomous approach commands need a lower floor than manual driving.  The
 # loaded rover was previously validated at 72 PWM; retaining 90 for every small
 # Nav2 command caused a repeatable 10 cm request to travel 16--19 cm.  Keep the
@@ -42,7 +45,6 @@ BOOST_TIME_S = 0.25
 LOW_SPEED_HOLD_PWM = 45
 PWM_RAMP_STEP = 8
 CMD_TIMEOUT_S = 0.45
-REMOTE_STEER_RELEASE_DELAY_S = 0.65
 REMOTE_SOURCE_GRACE_S = 2.0
 # Apply smaller steering increments at every 100 ms control tick.  This keeps
 # the commissioned 30 deg/s slew rate while removing the coarse 6-degree jump
@@ -209,7 +211,6 @@ class YahboomBase(Node):
         self._last_vz = 0.0
         self._drive_source = 'STOPPED'
         self._last_remote_source_time = 0.0
-        self._last_remote_traction_time = 0.0
         self._last_cmd_time = 0.0
         self._boost_until = 0.0
         self._applied_pwm = 0
@@ -471,18 +472,6 @@ class YahboomBase(Node):
         return int(self._step_toward(current, target_pwm, PWM_RAMP_STEP))
 
     def _drive_pwm(self, vx, wz):
-        now = time.monotonic()
-        remote_source_recent = (
-            self._drive_source == 'REMOTE'
-            or now - self._last_remote_source_time < REMOTE_SOURCE_GRACE_S
-        )
-        if abs(vx) > 0.02 and remote_source_recent:
-            self._last_remote_traction_time = now
-        remote_steer_hold = (
-            abs(wz) <= 0.02
-            and now - self._last_remote_traction_time
-            < REMOTE_STEER_RELEASE_DELAY_S
-        )
         drive = max(-1.0, min(1.0, vx))
         if abs(drive) <= 0.02:
             pwm = 0
@@ -495,19 +484,16 @@ class YahboomBase(Node):
                 if self._drive_source == 'REMOTE'
                 else AUTONOMOUS_MIN_RUN_PWM
             )
+            max_run_pwm = (
+                REMOTE_MAX_PWM
+                if self._drive_source == 'REMOTE'
+                else MAX_PWM
+            )
             magnitude = min_run_pwm + int(
-                (MAX_PWM - min_run_pwm) * abs(drive)
+                (max_run_pwm - min_run_pwm) * abs(drive)
             )
             pwm = magnitude if drive > 0.0 else -magnitude
-        if remote_steer_hold:
-            # Car-like manual behaviour requested during commissioning: while
-            # traction remains held, returning the steering stick to neutral
-            # retains the last commanded wheel angle. Brief zero packets are
-            # common during reverse joystick operation, so motor power stops
-            # immediately but steering waits briefly before returning home.
-            front_angle = self._front_target_angle
-            rear_angle = self._rear_target_angle
-        elif abs(vx) > 0.02:
+        if abs(vx) > 0.02:
             # Four-wheel opposite steering kinematics:
             #   wz = 2 * vx * tan(delta) / wheelbase
             # The former wz/MAX_WZ mapping produced only ~3-6 degrees at
