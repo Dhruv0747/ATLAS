@@ -1,10 +1,10 @@
 [Unit]
-Description=Project ATLAS L76K GNSS on Jetson J12 UART
+Description=Project ATLAS primary Hiwonder USB GNSS
 After=basic.target
 
 [Service]
 Type=simple
-ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec ros2 run atlas_gnss_driver gnss_node --ros-args -p port:=/dev/ttyTHS1 -p baud:=9600 -p frame_id:=gps_link'
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec ros2 run atlas_gnss_driver gnss_node --ros-args -p port:=/dev/serial/by-path/platform-3610000.usb-usb-0:2.2.4.3:1.0-port0 -p baud:=9600 -p frame_id:=gps_link -p "source_name:=Hiwonder GPS V1 USB"'
 Restart=always
 RestartSec=3
 TimeoutStopSec=8

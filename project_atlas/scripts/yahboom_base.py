@@ -111,6 +111,10 @@ YAHBOOM_USB_ID = '/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0'
 def resolve_yahboom_port():
     """Find the Yahboom controller by identity, never by ttyUSB number."""
     configured = os.environ.get('ATLAS_YAHBOOM_PORT', '').strip()
+    if configured:
+        if not Path(configured).exists():
+            raise RuntimeError(f'Configured Yahboom port absent: {configured}; no fallback permitted')
+        return configured
     candidates = [
         configured,
         '/dev/yahboom',

@@ -1,12 +1,14 @@
 [Unit]
 Description=Project ATLAS Xbox joystick and safe teleop
-After=default.target
+# default.target pulls this unit in and orders itself after its services.
+# Ordering this service after that target creates a boot cycle through camera
+# services which are themselves ordered after atlas-remote.service.
 
 [Service]
 Type=simple
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; ros2 run joy joy_node --ros-args -p device_id:=0 -p deadzone:=0.08 -p autorepeat_rate:=20.0 & joy_pid=$!; trap "kill $joy_pid 2>/dev/null" EXIT; exec ros2 run teleop_twist_joy teleop_node --ros-args --params-file /home/jetson/project_atlas/config/teleop_twist_joy.yaml -r cmd_vel:=/cmd_vel_joy'
 # The operator remote is a safety-critical control path. Restore it even if a
-# child process exits cleanly or the unit is stopped accidentally.
+# main process exits cleanly. An explicit systemctl stop still leaves it stopped.
 Restart=always
 RestartSec=3
 

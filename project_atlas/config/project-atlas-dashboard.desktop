@@ -4,5 +4,6 @@ Name=Project Atlas Legacy HDMI Dashboard
 Comment=Manual fallback only; CrowPanel/web dashboard is the normal operator interface
 Exec=/home/jetson/project_atlas/scripts/project-atlas-dashboard-launch.sh
 Terminal=false
+Hidden=true
 X-GNOME-Autostart-enabled=false
 X-GNOME-Autostart-Delay=4

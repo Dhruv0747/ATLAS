@@ -1,0 +1,26 @@
+[Unit]
+Description=ATLAS Wi-Fi to cellular to local rescue hotspot
+Wants=NetworkManager.service
+After=NetworkManager.service systemd-resolved.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/lib/atlas-network/atlas_network_fallback.py
+ExecStopPost=/usr/bin/python3 /usr/local/lib/atlas-network/atlas_network_fallback.py --cleanup
+Restart=on-failure
+RestartSec=10
+RuntimeDirectory=atlas-network
+RuntimeDirectoryMode=0755
+StateDirectory=atlas-network
+StateDirectoryMode=0700
+UMask=0022
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/etc/NetworkManager/system-connections
+PrivateTmp=yes
+TimeoutStopSec=20
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

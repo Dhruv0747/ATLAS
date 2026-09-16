@@ -1,0 +1,15 @@
+[Unit]
+Description=ATLAS rescue hotspot DHCP / captive DNS (no upstream forwarding/NAT)
+After=NetworkManager.service
+Wants=atlas-hotspot-portal.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/atlas-hotspot-dnsmasq.conf --pid-file=
+Restart=on-failure
+RestartSec=3
+RuntimeDirectory=atlas-hotspot
+RuntimeDirectoryMode=0755
+ExecStartPre=/bin/chown dnsmasq:nogroup /run/atlas-hotspot
+PrivateTmp=yes
+ProtectHome=yes

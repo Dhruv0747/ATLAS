@@ -1,0 +1,4 @@
+# SIM8230 self-dial RNDIS: NetworkManager owns Ethernet DHCP.
+# Keep ModemManager handling the AT port, SIM registration and signal reports.
+# Never ignore the modem device or its serial/GNSS ports.
+ACTION!="remove", SUBSYSTEM=="net", ENV{ID_USB_DRIVER}=="rndis_host", ENV{ID_VENDOR_ID}=="1e0e", ENV{ID_MM_PORT_IGNORE}="1", ENV{ID_MM_CANDIDATE}="0"

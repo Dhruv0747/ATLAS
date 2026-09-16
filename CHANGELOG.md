@@ -1,5 +1,60 @@
 # Changelog
 
+## 2026-09-16 - IM10A / Hiwonder GPS commissioning, incomplete
+
+- After reboot, deployed Hiwonder primary GPS (fix verified), IM10A monitoring,
+  passive encoder monitoring and updated dashboard sources/wheel labels.
+- Separated physical USB paths; explicit missing motor port now fails closed.
+- Persistent commissioning inhibit preserves no-motion state; fusion still off.
+- 11 GNSS and four encoder parser/no-transmit tests passed.
+
+- Staged isolated read-only IM10A ROS observer; no EKF or motor tuning changes.
+- Documented IMU USB timeout blocker and valid GPS communication without fix.
+- Observer compile passed; live acquisition blocked. No autostart enabled.
+
+## 2026-09-15 - Wi-Fi / cellular / local rescue hotspot
+
+- Added local network-only failover with interface-bound authenticated HTTPS
+  checks, three-check Wi-Fi hysteresis and six-check offline hotspot fallback.
+- Configured WPA2 ATLAS-Rescue, local-only DHCP and dashboard address 10.42.0.1.
+  Password exists only in the Jetson NetworkManager profile, never in source.
+- Kept the SIMCOM RNDIS Ethernet port in NetworkManager for persistent DHCP;
+  ModemManager still handles its serial AT/SIM diagnostics, not the net port.
+- Preserved connected hotspot operators during recovery; empty AP retries home
+  Wi-Fi every three minutes. No ROS or driving/control paths changed.
+- Added an AP-only captive DNS/HTTP redirect into the existing dashboard, with
+  four portal tests. Mobile OS may require tapping its network-login notification;
+  actual phone auto-opening is not inferred from server-side checks.
+- Added live network mode/probe/hotspot diagnostics to the existing web dashboard.
+- Passed 12 mocked tests and a supervised stationary test of cellular default
+  routing/DNS, AP broadcasting/DHCP listener/web access, and Wi-Fi restoration.
+  Phone association and a full physical outage/reboot test remain unverified.
+
+## 2026-09-15 - Web diagnostic workbench and retired HDMI dashboard
+
+- Added a read-only diagnostic workbench to the existing web dashboard: 31
+  service entries, restart/exit status, current-boot logs, telemetry filtering,
+  update ages/rates, serial identities, and downloadable JSON snapshots.
+- Added explicit GNSS transport/fix/GSV freshness diagnostics; removed synthetic
+  satellite-detection bars based only on talker IDs. Source is SIM8230G USB.
+- Fixed GNSS EOF/re-enumeration handling, stale fixes/counts, zero-degree
+  coordinates, per-constellation GGA overriding combined GN fixes, and clean shutdown.
+- Distinguished modem registration/session reports from signal and assigned IP;
+  added missing voice USB to hardware health; marked Yahboom current as unmeasured.
+- Kept slow OS diagnostics in one 10-second background cache; no new control path,
+  parameter tuning, automatic recovery, or movement test was added.
+- Disabled legacy HDMI GUI autostart with Hidden=true and a user-unit mask.
+- Deployed to Jetson after 15 Python unit tests, JS regression/syntax checks,
+  and a successful GNSS colcon build. Browser verified live data and log actions.
+
+## 2026-09-15 - Primary SIM8230G GNSS
+
+- Replaced disconnected J12 L76K selection with SIM8230G USB interface 03.
+- Enabled persistent USB serial binding and primary GNSS service at startup.
+- Updated dashboard GPS route and diagnostic guidance.
+- Jetson colcon build and Python compilation passed; ROS receiver status showed
+  408 valid NMEA messages, NO FIX, and no satellites. No motion commands issued.
+
 ## 2026-09-10 - Stronger remote LIGHT drive mode
 
 - Validated encoder safety on the live rover: stable 4/4 stationary feedback,
@@ -899,3 +954,15 @@
   20-second DDS/CUDA warm-up so the AI safety feed survives reboot without
   starving ROS graph discovery; Eco mode can still disable inference through
   `/atlas/ai_enabled`.
+## 2026-09-15 — Live header battery indicator
+- Added phone-style main BMS icon, percentage, charging/discharging/idle state,
+  low-charge colors, and stale-data handling. No charging or motion controls changed.
+## 2026-09-15 — Dashboard shutdown
+- Added explicit-confirmation shutdown button; checks existing sudo permission,
+  requests stop, blocks further web commands while pending, then powers off.
+- Removed placeholder-password shutdown invocation. Actual power-off intentionally
+  not exercised during deployment; operator presses the button when ready.
+## 2026-09-15 — Remote boot dependency fix
+- Removed `After=default.target` from the enabled user remote unit. Boot logs
+  confirmed the camera/remote/default.target cycle caused its start job to be
+  discarded. Dead-man buttons, speed parameters and motor mappings unchanged.

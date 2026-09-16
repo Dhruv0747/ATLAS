@@ -1,5 +1,59 @@
 # Project ATLAS - Autonomous Service Rover
 
+### IM10A commissioning — 2026-09-16
+
+Hiwonder GPS is now the primary live GPS. IM10A and passive four-channel encoder
+monitoring are deployed with autostart and dashboard data. **IMU/navigation
+fusion and driving remain inhibited pending physical commissioning.** USB paths
+are socket-specific; keep devices in their assigned sockets. See
+[commissioning report](docs/IM10A_COMMISSIONING_2026-09-16.md).
+
+### Automatic networking — 2026-09-15
+
+`atlas-network-fallback.service` prefers home Wi-Fi Internet, selects SIM8230G
+RNDIS Internet after repeated Wi-Fi failures, and activates **ATLAS-Rescue** if
+both Internet checks fail repeatedly. The local-only rescue dashboard is
+`http://10.42.0.1:8088/`. Its WPA2 password is provisioned on the Jetson only;
+no password is stored in this repository. The normal dashboard NETWORK panel
+shows the mode, per-interface Internet checks and hotspot state.
+The AP's captive portal opens the dashboard through a supported phone's Wi-Fi
+login prompt; tap **Sign in to network** if it does not open automatically.
+Direct local links still work. No Internet or automatic motion is implied.
+
+The single radio cannot be a Wi-Fi client and AP simultaneously. Rescue clients
+are not disconnected for automatic Wi-Fi recovery; with no clients, home Wi-Fi
+is retried every three minutes. See [network setup and test record](docs/NETWORK_FALLBACK_2026-09-15.md).
+
+### Main operator diagnostics — 2026-09-15
+
+Use `http://100.87.208.71:8088/` (Tailscale) or `http://192.168.1.14:8088/`
+(current LAN address). **DIAGNOSTICS / LOGS** opens the read-only workbench:
+current service state, restart counters, current-boot logs, searchable telemetry,
+last-update age, observed callback rates, USB identities and JSON snapshot export.
+Visual Cloud remains linked for the ROS graph and mission history. Service state
+does not prove sensor validity; a stationary encoder heartbeat is not a motion test.
+
+GNSS now separates communication, satellites in view and position fix. Zero-count
+GSV sentences no longer create misleading "DETECTED" bars. `/gps/diagnostics`
+identifies the current SIM8230G USB receiver, stale data and serial reconnects.
+EOF, changed USB identity and sustained silence reopen only the NMEA reader;
+they do not reset the modem, network, motor board or navigation stack.
+
+The unused legacy HDMI dashboard has `Hidden=true`, autostart disabled, and its
+generated user unit masked on Jetson. Source remains available as a manual fallback.
+The web dashboard and GNSS service remain enabled at boot. Do not expose port 8088
+to the public Internet; use the private LAN or Tailscale. See
+[deployment and test notes](docs/WEB_DIAGNOSTICS_2026-09-15.md).
+
+### Primary GPS — 2026-09-15
+
+SIM8230G USB GNSS now supplies the existing `/gps/*` topics. The disconnected
+L76K/J12 receiver is no longer selected by `atlas-gnss.service`. The NMEA port
+uses its USB by-id identity (interface 03), and `atlas-sim8230-usb.service`
+restores the option driver binding at boot. Dashboard labels follow this source.
+Deployed and built on Jetson; live checksum-validated NMEA verified, but zero
+satellites and no position fix at commissioning. Position accuracy remains unverified.
+
 ### Steering commissioning checkpoint — 2026-09-09
 
 Physical front steering is Yahboom channel 2, with user-confirmed lifted center
@@ -230,3 +284,18 @@ The Portenta H7, Mega 2560, BNO055/BNO08x, external INA219, Pi UPS HAT, and
 old 11-inch wired display have been removed from the active source and Jetson.
 Their history remains in `CHANGELOG.md`; they must not be reintroduced by an
 installer or used as fallback sensor/control paths.
+# Dashboard battery indicator
+
+The web header now displays main DALY BMS percentage and net charging/discharging
+state. Tap it for telemetry details. Missing or stale BMS data is explicitly marked;
+the indicator does not substitute the motor-board voltage estimate.
+# Dashboard shutdown
+
+Use **SHUT DOWN** beside Diagnostics / Logs and confirm to power off the Jetson.
+Wait for shutdown before removing power. Physical motor/battery power is separate.
+This does not reboot or automatically power ATLAS back on.
+# Remote startup dependency
+
+`atlas-remote.service` is enabled under `default.target` but must not be ordered
+after that target. Camera joystick units may start after the remote. An explicit
+service stop is not automatically reversed by `Restart=always`.
