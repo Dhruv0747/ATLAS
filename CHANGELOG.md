@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-16 - IM10A dashboard label correction
+
+- Corrected remaining Yahboom labels in the IMU card, detail popup and route
+  description. IM10A heading is marked sensor-relative to its mounting, not
+  commissioned rover heading; navigation remains unvalidated.
+- Motor-board link health now depends on encoder traffic, not the separate IMU.
+
 ## 2026-09-16 - IM10A / Hiwonder GPS commissioning, incomplete
 
 - After reboot, deployed Hiwonder primary GPS (fix verified), IM10A monitoring,
