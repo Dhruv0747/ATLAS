@@ -30,10 +30,10 @@ ekf_filter_node:
     odom0_relative: true
     odom0_queue_size: 10
 
-    # The calibrated Yahboom board is the canonical /imu/data source for
-    # dashboard, logging and health. No imu0 input is configured yet: its gyro
-    # sign and magnitude must first pass a recorded clockwise/counter-clockwise
-    # comparison against wheel odometry. Do not fuse magnetic absolute heading.
+    # Hiwonder IM10A is the primary IMU candidate for monitoring, not fusion.
+    # Magnetometer and sensor Euler heading are DIAGNOSTICS ONLY on ATLAS.
+    # No imu0 input is configured: gyro sign, magnitude, timing and mounting
+    # require validation first. Do not fuse magnetic absolute heading.
 
     process_noise_covariance: [0.05, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                                0.0,  0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,

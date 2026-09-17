@@ -1,0 +1,7 @@
+# Physical channels: M1 rear-left, M2 rear-right, M3 front-left, M4 front-right.
+# Only the faulty M4 feedback is excluded. All four MOTOR outputs stay enabled.
+excluded_encoders: [4]
+# Set true only after measured low-speed distance/turn/stopping validation.
+# Three encoders are supported; four working encoders are NOT a prerequisite.
+navigation_validated: false
+packet_timeout_s: 1.0

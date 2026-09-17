@@ -1,5 +1,7 @@
 # ROS 2 generated output
 build/
+.build/
+.atlas_camera_check.jpg
 install/
 log/
 node_modules/

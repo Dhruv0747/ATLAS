@@ -1,0 +1,12 @@
+# User photo and direction confirmation, 2026-09-16.
+# Commissioning record only; not loaded by the live EKF or TF broadcaster.
+im10a_mounting:
+  usb_socket_direction: rover_front
+  component_side: up
+  sensor_positive_x: rover_rear
+  sensor_positive_y: rover_right
+  sensor_positive_z: rover_up
+  sensor_to_base_rotation_rpy_rad: [0.0, 0.0, 3.141592653589793]
+  translation_measured: false
+  dynamic_axis_validation_passed: false
+  navigation_fusion_enabled: false

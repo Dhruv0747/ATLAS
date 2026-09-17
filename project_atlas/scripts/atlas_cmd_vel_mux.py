@@ -12,7 +12,11 @@ import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from std_msgs.msg import Float32, String
+from rclpy.qos import qos_profile_sensor_data
+from std_msgs.msg import Empty, Float32, String
+from sensor_msgs.msg import Joy
+from std_srvs.srv import Trigger
+from atlas_remote_stop import RemoteStop
 from atlas_radar_core import guard_scale
 
 
@@ -32,6 +36,15 @@ class AtlasCmdVelMux(Node):
 
     def __init__(self):
         super().__init__("atlas_cmd_vel_mux")
+        self.declare_parameter('remote_reset_button', 4)
+        self.declare_parameter('remote_reset_hold_s', 2.0)
+        self.remote_stop = RemoteStop(
+            reset_button=int(self.get_parameter('remote_reset_button').value),
+            reset_hold_s=max(2.0, float(self.get_parameter('remote_reset_hold_s').value)),
+        )
+        self.manual_only = os.environ.get('ATLAS_MANUAL_ONLY', '0') == '1'
+        self.create_subscription(Joy, '/joy', self.on_stop_joy, qos_profile_sensor_data)
+        self.create_service(Trigger, '/atlas/remote_stop/reset', self.reset_remote_stop)
         self.declare_parameter("watchdog_period", 0.05)
         self.declare_parameter("manual_timeout", 0.35)
         self.declare_parameter("nav_timeout", 0.50)
@@ -172,6 +185,9 @@ class AtlasCmdVelMux(Node):
         self.safety_output = self.create_publisher(
             String, "/atlas/motion_safety", 10
         )
+        self.policy_output = self.create_publisher(String, '/atlas/control_policy', 10)
+        # Additive stop-only interface. Voice never gets a reset or bypass.
+        self.create_subscription(Empty, '/atlas/voice/stop', self.on_voice_stop, 10)
         self.active_name: Optional[str] = None
         self.last_sent = Twist()
         self.radar_gate_enabled = os.environ.get('ATLAS_RADAR_GATE_ENABLED', '0') == '1'
@@ -246,7 +262,42 @@ class AtlasCmdVelMux(Node):
             self.encoder_health = {'state': 'INVALID'}
             self.encoder_health_rx = time.monotonic()
 
+    def on_voice_stop(self, _msg):
+        self.remote_stop.latch('REMOTE STOP: voice stop requested')
+        self.hold_remote_stop()
+
+    def on_stop_joy(self, msg):
+        was_latched = self.remote_stop.latched
+        self.remote_stop.update(msg.axes, msg.buttons, time.monotonic())
+        if self.remote_stop.latched or was_latched:
+            # Also flush at release: no pre-stop command can be replayed.
+            self.hold_remote_stop()
+
+    def hold_remote_stop(self):
+        for channel in self.channels.values():
+            channel.engaged = False
+            channel.command = Twist()
+        self._remote_held_yaw = 0.0
+        self.active_name = None
+        self.output.publish(Twist())
+        self.last_sent = Twist()
+        self.safety_output.publish(String(data=self.remote_stop.reason))
+        self.publish_mode()
+
+    def reset_remote_stop(self, request, response):
+        # Flush commands before releasing; pre-stop commands never replay.
+        self.hold_remote_stop()
+        response.success = self.remote_stop.reset(time.monotonic())
+        response.message = (self.remote_stop.reason if response.success else
+                            'Keep sticks centred and all buttons released for one second')
+        return response
+
     def on_command(self, name: str, msg: Twist) -> None:
+        if self.remote_stop.check(time.monotonic()):
+            self.hold_remote_stop()
+            return
+        if self.manual_only and name != 'REMOTE':
+            return
         channel = self.channels[name]
         channel.last_rx = time.monotonic()
         command = self.copy_twist(msg)
@@ -483,6 +534,9 @@ class AtlasCmdVelMux(Node):
 
     def watchdog(self) -> None:
         now = time.monotonic()
+        if self.remote_stop.check(now):
+            self.hold_remote_stop()
+            return
 
         if self.active_name:
             active = self.channels[self.active_name]
@@ -511,10 +565,10 @@ class AtlasCmdVelMux(Node):
             encoder_state = str(
                 self.encoder_health.get('state', 'MISSING')
             ).upper()
-            if encoder_age > 1.0 or encoder_state in (
+            if self.encoder_health.get('autonomy_ready') is False or encoder_age > 1.0 or encoder_state in (
                 'CRITICAL', 'INVALID', 'MISSING', 'QUALIFYING'
             ):
-                faults = ','.join(self.encoder_health.get('faults', [])) or 'feedback unavailable'
+                faults = ','.join(self.encoder_health.get('faults', [])) or self.encoder_health.get('reason', 'feedback unavailable')
                 self.output.publish(Twist())
                 self.last_sent = Twist()
                 reason = f"AUTONOMY STOP: ENCODER {encoder_state} {faults}"
@@ -589,6 +643,12 @@ class AtlasCmdVelMux(Node):
     def publish_mode(self) -> None:
         mode = self.active_name or "STOPPED"
         self.mode_output.publish(String(data=mode))
+        self.policy_output.publish(String(data=json.dumps({
+            'manual_only': self.manual_only,
+            'stop_latched': self.remote_stop.latched,
+            'stop_reason': self.remote_stop.reason,
+            'source': mode,
+        })))
 
     def shutdown_stop(self) -> None:
         if not rclpy.ok():

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Small front/rear steering test. Keep hands clear of the linkage."""
 import time
+raise SystemExit('Retired: use test_steering_saved_centres.py front or rear with explicit ATLAS_YAHBOOM_PORT')
 from Rosmaster_Lib import Rosmaster
 
 CENTER = 90

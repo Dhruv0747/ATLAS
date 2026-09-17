@@ -1,6 +1,145 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Three-encoder commissioning — 2026-09-17
+
+M1 rear-left, M2 rear-right and M3 front-left are selected for odometry in
+`project_atlas/config/encoder_selection.yaml`. Faulty M4 front-right feedback
+is excluded even if it reports counts again; **its motor still operates**.
+Three healthy encoders can support autonomous navigation. Four are not a Nav2
+requirement, but this changed configuration needs measured distance, turn and
+stopping validation before `navigation_validated` may be enabled. Existing
+manual-only restrictions and remote stop remain in place. IM10A live EKF fusion
+has not been enabled by this change.
+
+Fresh packet age is checked separately from unchanged counts at rest. M4 raw
+counts remain diagnostic and are labelled excluded in the dashboard. A fault
+in another selected channel or loss of shared feedback blocks autonomy.
+Odometry uses per-wheel increments, avoiding cumulative-position jumps when
+channels are rejected/reintroduced; rejected intervals do not catch up later.
+Steering-based yaw and existing encoder scales remain provisional after motor
+replacement. See [commissioning status](docs/THREE_ENCODER_COMMISSIONING_2026-09-17.md).
+
+### Intercom audio and camera USB recovery — 2026-09-17
+
+Intercom playback now sends only valid PCM samples, excluding PyAV plane padding.
+The UNO native sensor-hub driver no longer mistakes its CMSIS-DAP debug interface
+or another USB ACM device for the sensor application. Dashboard camera commands
+require fresh online controller telemetry; an offline report is not a healthy
+heartbeat. See [repair evidence and limitations](docs/INTERCOM_CAMERA_REPAIR_2026-09-17.md).
+
+### Voice companion: useful, truthful status — 2026-09-17
+
+- Say **“Hey ATLAS, battery status”**, **“Hey ATLAS, encoder status”**,
+  **“Hey ATLAS, IMU status”**, **“Hey ATLAS, why are you stopped?”**, or
+  **“Hey ATLAS, बैटरी कितनी है?”**. Answers use fresh local telemetry;
+  recognition of the spoken question still requires cloud transcription.
+- Local Piper English/Hindi speech provides startup and bounded automatic
+  alerts without cloud TTS. Startup distinguishes voice-online from drive-ready;
+  it greets Dhruv once per OS boot, not after every USB reconnect/intercom call.
+- Announcements cover BMS low charge, high SOC with a charger-verification
+  disclaimer, newly stale LiDAR/IM10A/encoder data, remote-stop latch, and
+  allowlisted mission events. A ready encoder link at rest is **not** proof
+  that every wheel encoder works. No imagined arrival or map completion.
+- Dashboard **ATLAS COMPANION → MUTE AI MIC / ENABLE AI MIC** controls a
+  persistent software capture mute. The live acknowledgement is shown below
+  the LED legend; stale status is explicitly unknown. This is not a physical
+  mic disconnect. TALK / LISTEN is a separate explicit intercom session.
+- Blue = voice idle, green = capture, white = processing/buffering, pulsing
+  blue = speech. Red also represents software mute or a live call, so read
+  the dashboard state; colour alone is not a fault diagnosis.
+- Wake phrases are checked **after** cloud transcription; active voiced clips
+  can leave the device before a wake phrase is recognized. Mute discards new
+  microphone audio on the Jetson; an already-sent request cannot be recalled.
+  Speech is AI-generated. The current firmware has no physical privacy-mute
+  button; Key2 long-press retains its existing shutdown function.
+- Voice stop requests use stop-only `/atlas/voice/stop` and latch the existing
+  command mux stop. **Remote B remains the immediate stop**; speech recognition
+  is not a safety-rated emergency stop and may need Internet. Voice cannot
+  reset the latch. Existing neutral/LB-hold/release remote reset is unchanged.
+- Wheel-driving voice actions remain uncommissioned by default
+  (`ATLAS_VOICE_MOTION_ENABLED=0`). Even if separately commissioned, fresh mux
+  policy, no remote latch, autonomous readiness and encoder health are required;
+  existing safety and manual-only restrictions cannot be bypassed.
+
+Tests: `python3 -m unittest discover -s project_atlas/scripts -p test_voice_status.py`.
+`verify_voice_stationary.py` synthesizes both languages with HTTP calls forbidden
+and observes status/command topics; it publishes no goals or velocity commands.
+This feature changes no navigation parameters, IMU authority, or camera firmware.
+
+### IM10A isolated EKF comparison — 2026-09-17
+
+`project_atlas/scripts/atlas_im10a_shadow_test.py` runs a bounded 60-second
+wheel-only versus wheel-plus-gyro comparison in `/atlas_imu_shadow`.
+Both filters disable TF publication; live `/odom` and its EKF configuration
+are unchanged. Only gyro Z is selected; magnetic/Euler heading, acceleration
+and the disabled historical bias correction are not used. Stale, invalid or
+non-increasing IMU messages are rejected. The test stops its own filters on
+exit and saves results outside Git. It is not an autostart service and does
+not qualify ATLAS for autonomous operation with the faulty M4 encoder.
+
+### Camera remote — 2026-09-17
+
+D-pad left/right pans and up/down tilts the camera; Y returns it to saved
+home (pan 2300 us, tilt 1500 us). LB is not required for camera operation.
+Camera commands use a 40 ms minimum interval and only transmit changed axes;
+actual responsiveness depends on joystick delivery, the hub and servo speed.
+Held movement uses bounded 400-us/s increments, and delayed hub reports are
+ignored during an active hold, including at the configured servo limits.
+The hub uses bounded batch reads instead of one serial line per 50 ms.
+`/arduino/serial_diagnostics` exposes unread USB/parser bytes and processed
+line counts. Old pulse reports cannot overwrite a newer unacknowledged target,
+even between button presses. Reported pulses are not physical servo feedback.
+B is exclusively the rover stop and suppresses camera input in that packet.
+Manual camera input pauses automatic camera tracking. Existing 700–2300 us
+limits are preserved; no wheel commands are published by this node.
+Only `atlas-camera-joystick.service` runs; duplicate `atlas-camera-remote.service`
+is disabled. Five mapping tests passed; physical directions need user confirmation.
+
+### Manual commissioning and remote software stop — 2026-09-17
+
+Remote and motor services are enabled at boot. Mux startup is latched stopped:
+Xbox B (verified button index 1) latches a zero-output stop for every mux source.
+Missing joystick messages for 0.5 s also latch stopped. Releasing B does not
+restart motion. Release all buttons and centre sticks, hold LB alone for
+2 seconds, then release it to reset. Press LB again with deliberate stick
+input to drive. All other buttons must remain released throughout; stick
+movement, B, RB or a message gap cancels the gesture. LB is verified Xbox
+joystick index 4 (`remote_reset_button`). The complete physical reset gesture
+still requires operator verification; the earlier Start/Menu reset was replaced.
+Alternatively, after one second fully neutral, deliberately call
+`/atlas/remote_stop/reset` (`std_srvs/srv/Trigger`).
+Hold LB to drive; release LB to stop manual drive. This software stop is NOT
+a substitute for an independent physical motor-power emergency switch.
+
+Live deployment uses `40-manual-commissioning.conf` with
+`ATLAS_MANUAL_ONLY=1`: non-REMOTE sources are rejected while commissioning
+continues. The passive encoder observer is disabled to avoid serial contention;
+the normal base driver publishes feedback. The former commissioning condition
+file was retained as `.conf.disabled` and backed up, not deleted. M4 encoder
+and rear ultrasonic reliability remain unresolved; autonomy is not released.
+Ten stop-state unit tests and live zero-output startup observation passed.
+Physical button-to-wheel stopping and remote motion still require operator
+validation. No powered movement test was issued as part of this deployment.
+
+### Wheel mapping — 2026-09-17
+
+Steering centres are front 91 and rear 89 (visually confirmed). Steering
+limits are unchanged and require checking relative to the new centres.
+
+Confirmed controller order: M1 rear-left, M2 rear-right, M3 front-left,
+M4 front-right. Forward PWM signs are `[-,+,-,+]`; validated encoder forward
+signs for M1–M3 are `[-,+,+]`. M4 encoder remains faulty/unvalidated. Updated
+driver mapping does not authorize driving: commissioning inhibits remain,
+and previous metric encoder scales require revalidation after replacements.
+
 ### IM10A commissioning — 2026-09-16
+
+The initial stationary bias passed a holdout check, but failed a later recheck
+and is now disabled. Magnetometer and sensor Euler heading are diagnostics-only,
+excluded from navigation. Sensor internal fusion mode was not changed. Gyro
+fusion remains disabled pending measured-turn validation. See
+[bias recheck](docs/IM10A_BIAS_RECHECK_2026-09-16.md) and
+[turn review](docs/IM10A_TURN_REVIEW_2026-09-17.md).
 
 Hiwonder GPS is now the primary live GPS. IM10A and passive four-channel encoder
 monitoring are deployed with autostart and dashboard data. **IMU/navigation

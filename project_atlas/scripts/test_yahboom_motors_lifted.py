@@ -2,6 +2,7 @@
 """Short individual Yahboom motor test. Use only with every wheel lifted."""
 import time
 import sys
+import os
 from Rosmaster_Lib import Rosmaster
 
 PWM = int(sys.argv[1]) if len(sys.argv) > 1 else 50
@@ -15,7 +16,8 @@ MOTOR = int(sys.argv[4]) if len(sys.argv) > 4 else 0
 if MOTOR not in (0, 1, 2, 3, 4):
     raise SystemExit('motor must be 0 for all or 1-4 for one motor')
 
-bot = Rosmaster(car_type=5, com="/dev/yahboom")
+bot = Rosmaster(car_type=5, com=os.environ.get(
+    'ATLAS_YAHBOOM_PORT', '/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0'))
 bot.create_receive_threading()
 bot.set_car_type(5)
 bot.set_auto_report_state(True, False)

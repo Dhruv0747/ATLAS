@@ -144,6 +144,7 @@ class AtlasRosNode:
         self.tilt_pub = None
         self.camera_tracking_pub = None
         self.ai_pub = None
+        self.voice_mute_pub = None
         self.pan_us = CAMERA_PAN_HOME_US
         self.tilt_us = CAMERA_TILT_HOME_US
         self.actual_pan_us = CAMERA_PAN_HOME_US
@@ -196,6 +197,7 @@ class AtlasRosNode:
             rclpy.init(args=None)
             self.node = rclpy.create_node("atlas_web_control")
             self.pub = self.node.create_publisher(Twist, "/cmd_vel_web", 10)
+            self.voice_mute_pub = self.node.create_publisher(Bool, '/atlas/voice/mic_mute', 10)
             self.pan_pub = self.node.create_publisher(
                 Int32, "/camera/bottom_servo_cmd_us", 10
             )
@@ -356,6 +358,8 @@ class AtlasRosNode:
             n.create_subscription(String, "/atlas/voice/confirmation", lambda m: self._set("companion_confirmation", m.data), 10)
             n.create_subscription(String, "/atlas/voice/rgb", lambda m: self._set("companion_rgb", m.data), 10)
             n.create_subscription(String, "/atlas/voice/cloud", lambda m: self._set("companion_cloud", m.data), 10)
+            n.create_subscription(String, '/atlas/voice/privacy', lambda m: self._set('companion_privacy', m.data), 10)
+            n.create_subscription(String, '/atlas/voice/alert', lambda m: self._set('companion_alert', m.data), 10)
             n.create_subscription(Joy, "/joy", lambda m: self._set("joy", {
                 "axes": len(m.axes), "buttons": len(m.buttons)
             }), 10)
@@ -629,6 +633,11 @@ class AtlasRosNode:
             self._set("web_drive", "WATCHDOG STOP")
 
     def camera_move(self, axis, direction):
+        with self.lock:
+            feedback = dict(self.data.get('camera_servo_status', {}))
+        age = time.time() - feedback.get('ts', 0)
+        if not (0 <= age <= 2.0 and str(feedback.get('value', '')).startswith('online ')):
+            return False, 'Camera controller offline/stale — check UNO USB link; no movement sent'
         direction = max(-1, min(1, int(direction)))
         # A manual touch always takes ownership before changing an axis. This
         # prevents the face tracker from immediately undoing the operator's
@@ -637,7 +646,7 @@ class AtlasRosNode:
             self.camera_tracking_pub.publish(Bool(data=False))
         with self.camera_lock:
             now = time.monotonic()
-            # Start a new tap/gesture from the latest measured position, but do
+            # Start a new tap/gesture from the latest reported pulse, but do
             # not let delayed feedback erase steps during a continuous hold.
             if now - self.last_camera_manual > 0.75:
                 self.pan_us = self.actual_pan_us
@@ -1269,6 +1278,25 @@ class Handler(BaseHTTPRequestHandler):
         if not self.client_allowed():
             self.send_error(403)
             return
+        if self.path == '/api/voice':
+            if not atlas_wifi_web.same_origin(self.headers):
+                self.send_error(403)
+                return
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 256 or self.headers.get_content_type() != 'application/json':
+                    raise ValueError('Invalid voice request')
+                payload = json.loads(self.rfile.read(length))
+                if not isinstance(payload, dict) or type(payload.get('muted')) is not bool:
+                    raise ValueError('muted must be boolean')
+                if ROS.voice_mute_pub is None:
+                    json_response(self, 503, {'ok': False, 'message': 'ROS voice control unavailable'})
+                    return
+                ROS.voice_mute_pub.publish(Bool(data=payload['muted']))
+                json_response(self, 202, {'ok': True, 'message': 'Mute preference requested; wait for live privacy acknowledgement below.'})
+            except (ValueError, TypeError):
+                json_response(self, 400, {'ok': False, 'message': 'Invalid voice request'})
+            return
         if self.path == '/api/wifi':
             if not atlas_wifi_web.same_origin(self.headers):
                 self.send_error(403)
@@ -1520,15 +1548,18 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
   <div class="voiceLedGuide">
    <div class="voiceLedTitle"><span>VOICE LED MEANING</span><span class="voiceLedNow" id="companionLedNow">CHECKING</span></div>
    <div class="voiceLedStates">
-    <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#198dff;background:#198dff"></i>BLUE</b>Ready / idle</div>
+    <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#198dff;background:#198dff"></i>BLUE</b>Voice idle, not drive readiness</div>
     <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#34e58b;background:#34e58b"></i>GREEN</b>Listening</div>
     <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#eef7ff;background:#eef7ff"></i>WHITE</b>Thinking</div>
     <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#17d5ff;background:#17d5ff"></i>BLUE PULSE</b>Speaking</div>
-    <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#ff4655;background:#ff4655"></i>RED</b>Error / USB offline</div>
+    <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#ff4655;background:#ff4655"></i>RED</b>Muted / error / live call: read status</div>
    </div>
    <div class="voiceUsbReason" id="voiceUsbReason">Checking ESP32-S3 voice USB connection</div>
   </div>
-  <div class="detail" style="margin-top:8px;color:#34e58b">☎ Use TALK / LISTEN in the top bar for a secure two-way call. AI Voice pauses automatically during the call.</div>
+  <div class="detail" style="margin-top:8px" id="companionPrivacy">Privacy status unavailable</div>
+  <div class="detail" id="companionAlert">No recent announcement</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"><button class="btn" onclick="voiceMute(true)">MUTE AI MIC</button><button class="btn" onclick="voiceMute(false)">ENABLE AI MIC</button></div>
+  <div class="detail" style="margin-top:8px;color:#34e58b">☎ TALK / LISTEN opens a separate live call and pauses AI Voice. Software mute is not a physical microphone disconnect. English + Hindi speech is AI-generated. Spoken questions use cloud transcription; automatic alerts use local speech. Use remote B for an immediate stop, not voice.</div>
  </div>
  <div class="panel"><h2>RANGE & ATTITUDE</h2><div class="cards" id="sensors"></div></div>
  <div class="panel"><h2>RD-03D LIVE MOTION RADAR — TOUCH DISPLAY FOR DETAILS</h2><div class="radarViewBar"><button class="btn" id="radar2dBtn" onclick="setRadarView('2d')">2D RADAR</button><button class="btn active" id="radar3dBtn" onclick="setRadarView('3d')">3D PEOPLE</button><span class="radarViewNote">LIVE RD-03D DATA<br>UP TO 3 TARGETS</span></div><canvas class="radarScope radarHidden" id="radarScope" width="720" height="340" onclick="openDetail('radar')"></canvas><canvas class="radarScope" id="radarTwin" width="720" height="340" onclick="openDetail('radar')"></canvas><div class="detail" id="radarCaption">WAITING FOR RADAR UART DATA</div></div>
@@ -1587,12 +1618,12 @@ function renderHealth(r,net){
  let i2c=i2cInfo(r);
  let items=[
   ['CAMERA',recent(r,'camera_info',4)?'ok':'fail',recent(r,'camera_info',4)?'IMX708 video frames live':'No frames: check CSI ribbon and camera service','camera_info','camera'],
-  ['MOTOR BOARD LINK',recent(r,'enc_m1',4)?'ok':'fail',recent(r,'enc_m1',4)?'Yahboom serial telemetry live':'Check /dev/yahboom USB and motor-board power','enc_m1'],
-  ['ENCODER SAFETY',recent(r,'encoder_health',3)&&(encoderHealth.state==='READY'||encoderHealth.state==='HEALTHY')?'ok':(encoderHealth.state==='DEGRADED'||encoderHealth.state==='QUALIFYING'?'warn':'fail'),recent(r,'encoder_health',3)?`${encoderHealth.state||'UNKNOWN'} • ${encoderHealth.faults?.join(', ')||'4/4 channels accepted'}`:'Safety heartbeat stale — autonomy blocked','encoder_health','encoders'],
+  ['MOTOR BOARD LINK',recent(r,'encoder_health',3)&&encoderHealth.packet_fresh===true?'ok':'fail',recent(r,'encoder_health',3)&&encoderHealth.packet_fresh===true?`Encoder packets live • age ${n(encoderHealth.packet_age_s,2)} s`:'No fresh encoder packets: check board power / serial link','encoder_health','encoders'],
+  ['ENCODER SAFETY',recent(r,'encoder_health',3)?(encoderHealth.autonomy_ready===true?'ok':(['DEGRADED','QUALIFYING','READY','HEALTHY'].includes(encoderHealth.state)?'warn':'fail')):'fail',recent(r,'encoder_health',3)?`${encoderHealth.state||'UNKNOWN'} • ${encoderHealth.reason||encoderHealth.faults?.join(', ')||'Validation pending'}`:'Safety heartbeat stale — autonomy blocked','encoder_health','encoders'],
   ['ENCODER M1 • BACK LEFT',recent(r,'enc_m1',4)?'ok':'fail',recent(r,'enc_m1',4)?`Live count ${val(r,'enc_m1')} • zero is valid while stopped`:'No current M1 reading','enc_m1','encoders'],
   ['ENCODER M2 • BACK RIGHT',recent(r,'enc_m2',4)?'ok':'fail',recent(r,'enc_m2',4)?`Live count ${val(r,'enc_m2')} • zero is valid while stopped`:'No current M2 reading','enc_m2','encoders'],
   ['ENCODER M3 • FRONT LEFT',recent(r,'enc_m3',4)?'ok':'fail',recent(r,'enc_m3',4)?`Live count ${val(r,'enc_m3')} • zero is valid while stopped`:'No current M3 reading','enc_m3','encoders'],
-  ['ENCODER M4 • FRONT RIGHT',recent(r,'enc_m4',4)?'ok':'fail',recent(r,'enc_m4',4)?`Live count ${val(r,'enc_m4')} • zero is valid while stopped`:'No current M4 reading','enc_m4','encoders'],
+  ['ENCODER M4 • FRONT RIGHT',(encoderHealth.excluded_encoders||[]).includes(4)?'warn':(recent(r,'enc_m4',4)?'ok':'fail'),(encoderHealth.excluded_encoders||[]).includes(4)?`EXCLUDED / FAULTY • raw ${val(r,'enc_m4','--')} • motor remains enabled`:(recent(r,'enc_m4',4)?`Raw count ${val(r,'enc_m4')}`:'No current M4 reading'),'enc_m4','encoders'],
   ['XBOX REMOTE',recent(r,'joy',8)?'ok':'warn',recent(r,'joy',8)?'Controller input received':'Wake controller, then press a stick or button','joy'],
   ['IMU / COMPASS',recent(r,'imu_heading',4)?'warn':'fail',recent(r,'imu_heading',4)?'Hiwonder IM10A live — navigation fusion not validated':'IM10A USB data stale or disconnected','imu_heading','imu'],
   ['RPLIDAR',recent(r,'lidar',4)?'ok':'fail',recent(r,'lidar',4)?'Laser scan live':'Check LiDAR USB, motor and cable','lidar','lidar'],
@@ -1601,7 +1632,7 @@ function renderHealth(r,net){
   ['I2C SENSOR BUS',i2c.liveCount?'ok':(i2c.bridgeLive?'warn':'fail'),i2c.liveCount?`${i2c.liveCount}/3 sensor${i2c.liveCount===1?'':'s'} live through ${i2c.route}`:(i2c.bridgeLive?'UNO R4 bridge live, but sensor data is stale':'No live I2C sensor telemetry'),i2c.freshestKey,'i2c'],
   ['INSIDE IR 8x8',thermal.ok&&recent(r,'thermal_json',5)?'ok':'fail',thermal.ok?'AMG8833 heatmap live':'Not detected: check 3.3V, GND, SDA pin 3, SCL pin 5','thermal_json','thermal'],
   ['OUTSIDE TEMP',recent(r,'outside_temperature',9)?'ok':'fail',recent(r,'outside_temperature',9)?'BME680 ambient temperature live':'Check BME680 wiring/address 0x77','outside_temperature','environment'],
-  ['CAMERA SERVOS',recent(r,'camera_servo_status',8)||recent(r,'pca_status',8)?'ok':'fail',recent(r,'camera_servo_status',8)||recent(r,'pca_status',8)?`${val(r,'camera_servo_status',val(r,'pca_status','PCA9685 live'))}`:'No PCA9685/servo heartbeat','camera_servo_status'],
+  ['CAMERA SERVOS',cameraControlLive(r)?'ok':'fail',cameraControlLive(r)?`${val(r,'camera_servo_status','')} — commanded pulses, not position feedback`:`Camera control unavailable: ${val(r,'camera_servo_status','no heartbeat')}`,'camera_servo_status'],
   ['DALY BMS',recent(r,'bms_status',20)?'ok':'fail',recent(r,'bms_status',20)?'Battery telemetry live':'Check BMS Bluetooth connection','bms_status'],
   ['ORIN IO BASE',recent(r,'carrier_status',25)&&carrier.ok?'ok':'fail',carrier.ok?`${carrier.power_mode} • NVMe ${carrier.nvme.free_gb}GB free • ${carrier.usb_devices} USB devices`:'Carrier health service offline','carrier_status'],
   [`${cellGen} MODEM`,cellRegistered?'ok':recent(r,'cell_registration',20)?'warn':'fail',`Registration: ${val(r,'cell_registration','NO HEARTBEAT')} • signal report is not an Internet test`,'cell_registration','cellular'],
@@ -1625,13 +1656,14 @@ let latestStatus=null,activeDetail='';
 function tile(label,value,unit=''){return `<div class="detailTile"><b>${label}</b><strong>${value}${unit}</strong></div>`}
 function rangeTile(label,value,seconds){let mm=Number(value),valid=Number.isFinite(mm)&&mm>0&&seconds<4,pct=valid?Math.max(0,Math.min(100,mm/30)):0;return `<div class="detailTile"><b>${label}</b><strong>${valid?mm.toFixed(0)+' mm':'UNAVAILABLE'}</strong><div class="rangeBar"><div class="rangeFill" style="width:${pct}%"></div></div><div class="sensorHint">${valid?(mm<250?'NEAR':mm<500?'CAUTION':'VALID ECHO — not a driving clearance approval'):seconds>=4?'STALE / NOT INSTALLED':'NO VALID ECHO / NOT INSTALLED'} • age ${seconds<9999?seconds+'s':'--'}</div></div>`}
 function heatCells(r){let t={};try{t=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}let p=Array.isArray(t.pixels_c)?t.pixels_c:(Array.isArray(t.pixels)?t.pixels:[]),mn=Number(t.min_c),mx=Number(t.max_c);return `<div class="modalHeat">${Array.from({length:64},(_,i)=>{let v=Number(p[i]),q=Number.isFinite(v)?Math.max(0,Math.min(1,(v-mn)/Math.max(.2,mx-mn))):0;return `<i title="${Number.isFinite(v)?v.toFixed(1)+'°C':'--'}" style="background:${Number.isFinite(v)?`hsl(${220-q*220} 88% ${28+q*28}%)`:'#112436'}"></i>`}).join('')}</div><div class="detailGrid" style="margin-top:10px">${tile('MIN',n(t.min_c,1),'°C')}${tile('AVERAGE',n(t.avg_c,1),'°C')}${tile('MAX / HOTSPOT',n(t.max_c,1),'°C')}</div>`}
+function cameraControlLive(r){return recent(r,'camera_servo_status',2)&&/^online /.test(String(val(r,'camera_servo_status','')))}
 function i2cInfo(r){
  let raw=String(val(r,'i2c_status','')),pcaRaw=String(val(r,'pca_status','')),cameraRaw=String(val(r,'camera_servo_status','')),arduinoBus=(raw.match(/(?:^|,)BUS=([^,]*)/i)||[])[1]||'UNO R4 A4/A5',arduinoAddresses=raw.match(/0x[0-9a-f]{2}/gi)||[];
  arduinoAddresses=[...new Set(arduinoAddresses.map(x=>x.toUpperCase()))];
   let thermalLive=recent(r,'thermal_json',5)||recent(r,'thermal_status',5);
  let outsideLive=recent(r,'outside_temperature',9)||recent(r,'bme680_json',9)||recent(r,'outside_status',9);
- let pcaLive=(recent(r,'pca_status',5)&&(/pca=1|ACK,PCA,1|PCA=1/i.test(pcaRaw)))||recent(r,'camera_servo_status',5);
- let bridgeLive=recent(r,'i2c_status',8)||thermalLive||outsideLive||pcaLive;
+ let pcaLive=(recent(r,'pca_status',5)&&(/pca=1|ACK,PCA,1|PCA=1/i.test(pcaRaw)))||cameraControlLive(r);
+ let bridgeLive=(recent(r,'i2c_status',8)&&!/^offline/i.test(raw))||thermalLive||outsideLive||pcaLive;
   let sensors=[
    {name:'PCA9685 CAMERA',address:'0x40',live:pcaLive,key:pcaLive?'pca_status':'i2c_status'},
    {name:'AMG8833 8x8',address:'0x69',live:thermalLive,key:thermalLive?'thermal_json':'i2c_status'},
@@ -1647,7 +1679,14 @@ function renderDetail(){if(!activeDetail||!latestStatus)return;let r=latestStatu
  else if(activeDetail.startsWith('telemetry:')){let key=activeDetail.slice(10),item=r[key];title='TELEMETRY — '+key;body='<pre class="rawData">'+diagEscape(JSON.stringify(item||{error:'not received'},null,2))+'</pre>';fresh=item&&item.age!==null&&item.age<10?'● RECENT':'OLDER / UNKNOWN';}
  else if(activeDetail==='camera'){title='IMX708 CAMERA — LIVE OUTPUT';let c=val(r,'camera_info',{});body=`<img id="modalCamera" class="modalCamera" src="/camera.jpg?latest=${Date.now()}"><div class="detailGrid" style="margin-top:10px">${tile('SOURCE',c.source||'--')}${tile('JPEG FRAME',c.bytes||'--',' bytes')}${tile('AGE',n(age(r,'camera_info'),1),' s')}</div><div class="rawData">AI: ${val(r,'ai_status','--')}\nMOTION: ${val(r,'motion_state','--')} (${n(val(r,'motion_percent'),1)}%)\nLATEST-FRAME MODE: old video frames are discarded instead of buffered.\nCamera processing remains single-source; this window does not start another detector.</div>`;fresh=age(r,'camera_info')<3?'● LIVE':'STALE';}
  else if(activeDetail==='radar'){title='RD-03D RADAR — ALL LIVE TARGETS';let targets=parseRadarTargets(val(r,'radar','')),link=String(val(r,'radar_link','--')),targetTiles=targets.length?targets.map(t=>`${tile(t.id+' POSITION',`X ${t.x} / Y ${t.y}`,' mm')}${tile(t.id+' DISTANCE',n(Math.hypot(t.x,t.y)/1000,2),' m')}${tile(t.id+' SPEED',`${t.speed>0?'+':''}${t.speed}`,' cm/s')}`).join(''):tile('TARGETS','0',' detected');body=`<div class="detailGrid">${tile('TARGET COUNT',targets.length)}${tile('NEAREST',n(val(r,'radar_dist'),0),' mm')}${tile('SAFETY ZONE',val(r,'radar_zone','--'))}${targetTiles}</div><div class="rawData">TRACKS: ${val(r,'radar','NO CURRENT TARGETS')}\nUART LINK: ${link}\nDECODER: ${val(r,'radar_decoder_status','--')}\nDATA AGE: ${n(age(r,'radar'),1)} s\n\nT1/T2/T3 are current radar slots, not permanent person identities. Position is radar-relative X/Y; speed sign follows the installed decoder convention.</div>`;fresh=age(r,'radar')<3?'● LIVE':'STALE';}
- else if(activeDetail==='encoders'){title='MOTOR ENCODERS — ALL FOUR WHEELS';let odom=val(r,'odom',{}),allFresh=['enc_m1','enc_m2','enc_m3','enc_m4'].every(k=>recent(r,k,4)),eh={};try{eh=JSON.parse(val(r,'encoder_health','{}')||'{}')}catch(e){}body=`<div class="detailGrid">${tile('SAFETY STATE',eh.state||'MISSING')}${tile('AUTONOMY SCALE',n((eh.scale||0)*100,0),'%')}${tile('FAILED CHANNELS',(eh.faults||[]).join(', ')||'NONE')}${tile('M1 • BACK LEFT',val(r,'enc_m1'))}${tile('M2 • BACK RIGHT',val(r,'enc_m2'))}${tile('M3 • FRONT LEFT',val(r,'enc_m3'))}${tile('M4 • FRONT RIGHT',val(r,'enc_m4'))}${tile('LINEAR VELOCITY',n(odom.vx,3),' m/s')}${tile('YAW RATE',n(odom.wz,3),' rad/s')}${tile('ODOM X',n(odom.x,3),' m')}${tile('ODOM Y',n(odom.y,3),' m')}${tile('IMU HEADING',n(val(r,'imu_heading'),2),'°')}</div><div class="rawData">SAFETY HEARTBEAT AGE: ${n(age(r,'encoder_health'),1)} s\nLAST CHANGE AGE M1–M4: ${(eh.last_change_age_s||[]).join(' / ')||'--'} s\nFAULT AGE: ${n(eh.fault_age_s,1)} s   VALIDATION LEFT: ${n(eh.validation_remaining_s,1)} s\nPOLICY: ${eh.policy||'waiting'}\n\nM1 AGE: ${n(age(r,'enc_m1'),1)} s   M2 AGE: ${n(age(r,'enc_m2'),1)} s\nM3 AGE: ${n(age(r,'enc_m3'),1)} s   M4 AGE: ${n(age(r,'enc_m4'),1)} s\nMOTOR SPEED COMMAND: ${n(val(r,'motor_speed'),2)}\nSTEERING: front ${n(val(r,'front_steer'),1)}° • rear ${n(val(r,'rear_steer'),1)}° • ${val(r,'steer_mode','--')}\n\nOne failed channel is rejected for at most five seconds at 50% autonomous speed. Multiple, persistent, stale, or unvalidated feedback stops autonomy. Drive is inhibited during sensor commissioning. Live counts alone do not validate motion.</div>`;fresh=allFresh&&age(r,'encoder_health')<3?'● 4/4 LIVE':'STALE / PARTIAL';}
+ else if(activeDetail==='encoders'){
+  title='MOTOR ENCODERS — SELECTED FEEDBACK';
+  let odom=val(r,'odom',{}),eh={};try{eh=JSON.parse(val(r,'encoder_health','{}')||'{}')}catch(e){}
+  const selected=eh.selected_encoders||[],excluded=eh.excluded_encoders||[];
+  const live=recent(r,'encoder_health',3)&&eh.packet_fresh===true;
+  body=`<div class="detailGrid">${tile('SAFETY STATE',live?(eh.state||'MISSING'):'STALE')}${tile('SELECTED',selected.map(i=>'M'+i).join(', ')||'UNKNOWN')}${tile('EXCLUDED',excluded.map(i=>'M'+i).join(', ')||'NONE')}${tile('AUTONOMY',live&&eh.autonomy_ready===true?'FEEDBACK QUALIFIED':'BLOCKED / VALIDATION')}${tile('FAILED SELECTED CHANNELS',(eh.faults||[]).join(', ')||'NONE')}${tile('ENCODER PACKET AGE',n(eh.packet_age_s,3),' s')}${tile('M1 • BACK LEFT',val(r,'enc_m1'))}${tile('M2 • BACK RIGHT',val(r,'enc_m2'))}${tile('M3 • FRONT LEFT',val(r,'enc_m3'))}${tile(excluded.includes(4)?'M4 • EXCLUDED / RAW ONLY':'M4 • FRONT RIGHT',val(r,'enc_m4'))}${tile('LINEAR VELOCITY',n(odom.vx,3),' m/s')}${tile('YAW RATE',n(odom.wz,3),' rad/s')}${tile('ODOM X',n(odom.x,3),' m')}${tile('ODOM Y',n(odom.y,3),' m')}${tile('IMU HEADING',n(val(r,'imu_heading'),2),'°')}</div><div class="rawData">REASON: ${eh.reason||'waiting'}\nSAFETY HEARTBEAT AGE: ${n(age(r,'encoder_health'),1)} s\nLAST CHANGE AGE M1–M4: ${(eh.last_change_age_s||[]).join(' / ')||'--'} s\nPOLICY: ${eh.policy||'waiting'}\nSTEERING: front ${n(val(r,'front_steer'),1)}° • rear ${n(val(r,'rear_steer'),1)}°\n\nExclusion applies to encoder feedback, NOT the motor. M4 can still drive. A selected encoder fault or stale shared packet blocks autonomous use. Three healthy encoders can support autonomy after measured distance/turn validation. Fresh packets at rest do not prove individual encoder operation.</div>`;
+  fresh=live?`● ${selected.length}/4 SELECTED — ${eh.state||'UNKNOWN'}`:'STALE / NO FEEDBACK';
+ }
  else if(activeDetail==='lidar'){title='RPLIDAR — LIVE SCAN DETAILS';let li=val(r,'lidar',{});body=`<div class="detailGrid">${tile('NEAREST RETURN',n(li.nearest_m,3),' m')}${tile('VALID POINTS',li.points||0)}${tile('TOTAL SAMPLES',li.total||0)}${tile('MAX RANGE',n(li.range_max,1),' m')}${tile('FRAME',li.frame||'--')}${tile('DATA AGE',n(age(r,'lidar'),1),' s')}</div><div class="rawData">ROLE: PRIMARY obstacle geometry and navigation ranging.\nTOPIC: /scan\nThe dashboard summary does not modify, filter, or replace the LaserScan used by Nav2.</div>`;fresh=age(r,'lidar')<3?'● LIVE':'STALE';}
  else if(activeDetail==='imu'){title='HIWONDER IM10A — LIVE MONITORING';let f=val(r,'imu_full',{});body=`<div class="detailGrid">${tile('ROLL',n(val(r,'imu_roll'),2),'°')}${tile('PITCH',n(val(r,'imu_pitch'),2),'°')}${tile('SENSOR YAW',n(val(r,'imu_yaw'),2),'°')}${tile('ACCEL X',n(f.ax,3),' m/s²')}${tile('ACCEL Y',n(f.ay,3),' m/s²')}${tile('ACCEL Z',n(f.az,3),' m/s²')}${tile('GYRO X',n(f.gx,3),' rad/s')}${tile('GYRO Y',n(f.gy,3),' rad/s')}${tile('GYRO Z',n(f.gz,3),' rad/s')}${tile('MAG X RAW',n(f.mx_raw,2))}${tile('MAG Y RAW',n(f.my_raw,2))}${tile('MAG Z RAW',n(f.mz_raw,2))}</div><div class="rawData">SOURCE: ${f.source||'Hiwonder IM10A'}\nROLE: PRIMARY DISPLAY SOURCE — NAVIGATION NOT VALIDATED\nORIENTATION QUATERNION: x ${n(f.qx,5)}  y ${n(f.qy,5)}  z ${n(f.qz,5)}  w ${n(f.qw,5)}\nHEADING MODE: ${f.heading_reference_mode||'sensor heading; mounting unvalidated'}\nNAVIGATION FUSION: ${f.navigation_fusion||'disabled pending dynamic yaw validation'}\n\nThe magnetic values are sensor-native raw units; they are not mislabeled as µT.</div>`;fresh=age(r,'imu_full')<3?'● LIVE':'STALE';}
  else if(activeDetail==='thermal'){title='AMG8833 8×8 THERMAL ARRAY';let thermalLive=age(r,'thermal_json')<4;body=heatCells(r)+`<div class="rawData">${thermalLive?'STATUS: LIVE via UNO R4 I²C hub':val(r,'thermal_status','Thermal sensor waiting')}\nEach square is one live infrared temperature pixel. Brightest square is the current hotspot.</div>`;fresh=thermalLive?'● LIVE':'STALE';}
@@ -1714,6 +1753,9 @@ function companion(r,s){
  $('rgbDot').style.background=color;$('rgbDot').style.color=color;
  $('companionLedNow').textContent=`${rgb} NOW`;
  $('companionLedNow').style.color=color;
+ $('companionPrivacy').textContent=age(r,'companion_privacy')<12?val(r,'companion_privacy','Unknown'):'VOICE PRIVACY STATUS STALE — do not assume the microphone is muted';
+ $('companionAlert').textContent='LATEST ANNOUNCEMENT: '+val(r,'companion_alert','None');
+ if(age(r,'companion_state')>=12){$('companionState').textContent='VOICE SERVICE STALE / POSSIBLY IN CALL'}
  if(!s.voice_usb){
   $('companionState').textContent='VOICE USB OFFLINE';$('companionState').style.color='#ff4655';$('companionState').style.borderColor='#ff4655';
   $('voiceUsbReason').textContent=`RED: ${s.voice_usb_reason||'Reconnect the ESP32-S3 USB data cable'} • ${s.voice_usb_path||'NOT ENUMERATED'}`;
@@ -1724,6 +1766,7 @@ function companion(r,s){
   $('voiceUsbReason').style.color='#34e58b';
  }
 }
+async function voiceMute(muted){try{let res=await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Wifi':'1'},body:JSON.stringify({muted})}),d=await res.json();$('companionPrivacy').textContent=d.message}catch(e){$('companionPrivacy').textContent='Mute request failed. Current microphone state is unknown.'}}
 async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'}).then(x=>x.json()),r=d.ros,net=d.network,s=d.system;latestStatus=d;
  updateBatteryBadge(r);
  let cellGen=cellGeneration(val(r,'cell_tech',''));

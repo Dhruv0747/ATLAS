@@ -95,6 +95,9 @@ class Rosmaster(object):
         self.__encoder_m2 = 0
         self.__encoder_m3 = 0
         self.__encoder_m4 = 0
+        # Counts + arrival time are replaced atomically after a valid packet.
+        # Cached zero counts alone cannot distinguish stationary from offline.
+        self._encoder_sample = ((0, 0, 0, 0), 0.0)
 
         self.__read_id = 0
         self.__read_val = 0
@@ -197,6 +200,10 @@ class Rosmaster(object):
             self.__encoder_m2 = struct.unpack('i', bytearray(ext_data[4:8]))[0]
             self.__encoder_m3 = struct.unpack('i', bytearray(ext_data[8:12]))[0]
             self.__encoder_m4 = struct.unpack('i', bytearray(ext_data[12:16]))[0]
+            self._encoder_sample = (
+                (self.__encoder_m1, self.__encoder_m2,
+                 self.__encoder_m3, self.__encoder_m4), time.monotonic()
+            )
 
         else:
             if ext_type == self.FUNC_UART_SERVO:
@@ -1161,6 +1168,10 @@ class Rosmaster(object):
         m1, m2, m3, m4 = self.__encoder_m1, self.__encoder_m2, self.__encoder_m3, self.__encoder_m4
         # self.__encoder_m1, self.__encoder_m2, self.__encoder_m3, self.__encoder_m4 = 0, 0, 0, 0
         return m1, m2, m3, m4
+
+    def get_motor_encoder_sample(self):
+        """Return the last complete encoder packet and monotonic receipt time."""
+        return self._encoder_sample
 
     # 获取小车的运动PID参数, 返回[kp, ki, kd]
     # Get the motion PID parameters of the dolly and return [kp, ki, kd]

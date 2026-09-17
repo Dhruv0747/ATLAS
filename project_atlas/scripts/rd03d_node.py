@@ -4,6 +4,8 @@
 import struct
 import time
 import os
+import json
+from atlas_radar_core import Decoder, ENABLE_CONFIG, QUERY_VERSION, END_CONFIG
 
 import rclpy
 import serial
@@ -25,6 +27,8 @@ class RD03DNode(Node):
     def __init__(self):
         super().__init__("rd03d")
         self.pub = self.create_publisher(String, "/radar/targets", 10)
+        self.frames_pub = self.create_publisher(String, '/radar/frames', 10)
+        self.decoder = Decoder()
         self.pub_count = self.create_publisher(Float32, "/radar/target_count", 10)
         self.pub_nearest = self.create_publisher(Float32, "/radar/nearest_distance", 10)
         self.pub_nearest_x = self.create_publisher(Float32, "/radar/nearest_x", 10)
@@ -55,12 +59,17 @@ class RD03DNode(Node):
                 self.port, 256000, timeout=0, rtscts=False, dsrdtr=False
             )
             time.sleep(0.5)
-            self.ser.write(MULTI_TARGET_CMD)
+            # V2 commands require entering configuration first. ACKs are
+            # exposed by Decoder; a transmitted command is not proof of mode.
+            for command in (ENABLE_CONFIG, QUERY_VERSION, MULTI_TARGET_CMD, END_CONFIG):
+                self.ser.write(command)
+                self.ser.flush()
+                time.sleep(0.10)
             self.ser.flush()
             time.sleep(0.2)
             self.timer = self.create_timer(0.05, self.read_cb)
             self.get_logger().info(
-                f"RD03D multi-target mode started on {self.port}"
+                f"RD03D configuration requested on {self.port}; awaiting ACK"
             )
         self.status_timer = self.create_timer(1.0, self.publish_decoder_status)
 
@@ -84,38 +93,26 @@ class RD03DNode(Node):
         self.parse_frames()
 
     def parse_frames(self):
-
-        while len(self.buf) >= FRAME_LEN:
-            index = self.buf.find(HEADER)
-            if index < 0:
-                # Retain a possible partial header split across UART chunks.
-                keep = min(len(HEADER) - 1, len(self.buf))
-                self.discarded_bytes += len(self.buf) - keep
-                self.buf = self.buf[-keep:] if keep else b""
-                return
-            if index > 0:
-                self.discarded_bytes += index
-                self.buf = self.buf[index:]
-            if len(self.buf) < FRAME_LEN:
-                return
-
-            frame = self.buf[:FRAME_LEN]
-            self.buf = self.buf[FRAME_LEN:]
-            if frame[-2:] != FOOTER:
-                self.bad_footers += 1
-                self.buf = frame[1:] + self.buf
-                continue
-
+        decoded = self.decoder.feed(self.buf)
+        self.buf = b''
+        self.bad_footers = self.decoder.bad
+        self.discarded_bytes = self.decoder.discarded
+        for targets in decoded:
             self.valid_frames += 1
             self.last_valid_frame_at = time.monotonic()
-
+            self.frames_pub.publish(String(data=json.dumps({
+                'sequence': self.valid_frames,
+                'stamp_s': self.get_clock().now().nanoseconds/1e9,
+                'timestamp_source': 'jetson_receive_no_sensor_clock',
+                'protocol': 'AAFF0300_3x8_55CC', 'targets': targets,
+                'hardware_revision': 'unverified',
+                'firmware_acks': self.decoder.acks,
+            }, allow_nan=False)))
             target_strings = []
             target_values = []
-            for target_index, offset in enumerate((4, 12, 20), start=1):
-                x_raw, y_raw, speed_raw, _ = struct.unpack_from("<HHHH", frame, offset)
-                x = decode_signed_magnitude(x_raw)
-                y = decode_signed_magnitude(y_raw)
-                speed = decode_signed_magnitude(speed_raw)
+            for target in targets:
+                target_index = target['slot']
+                x, y, speed = target['x_mm'], target['y_mm'], target['speed_cm_s']
                 if y > 0:
                     distance = (x * x + y * y) ** 0.5
                     target_values.append((distance, x, y, speed))
@@ -158,6 +155,15 @@ class RD03DNode(Node):
             f"sample={self.last_chunk_hex or 'NONE'}"
         )
         self.pub_decoder_status.publish(String(data=status))
+        if state != 'VALID':
+            # Clear legacy display consumers on disconnection, too.
+            self.pub.publish(String(data=''))
+            self.pub_count.publish(Float32(data=0.0))
+            self.pub_nearest.publish(Float32(data=-1.0))
+            self.pub_nearest_x.publish(Float32(data=0.0))
+            self.pub_nearest_y.publish(Float32(data=0.0))
+            self.pub_nearest_speed.publish(Float32(data=0.0))
+            self.pub_zone.publish(String(data='STALE'))
 
 
 def main():

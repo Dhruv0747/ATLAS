@@ -11,10 +11,24 @@ def packet(kind,payload=b"",sequence=0):
     if len(payload)>65535: raise ValueError("payload is too large")
     return HEADER.pack(MAGIC,kind,0,len(payload),sequence)+payload
 
+def packed_mono_pcm(frame):
+    """Return samples only, not PyAV's aligned plane padding.
+
+    At 16 kHz a 20-ms s16 mono frame is 640 bytes. PyAV may allocate
+    768 bytes for that plane; sending the padding adds noise and latency.
+    """
+    if frame.format.name != 's16' or frame.layout.name != 'mono':
+        raise ValueError('expected packed s16 mono audio')
+    raw = bytes(frame.planes[0])
+    count = frame.samples * 2
+    if len(raw) < count:
+        raise ValueError('audio plane shorter than its sample count')
+    return raw[:count]
+
 class AudioOwner:
     """AI voice and Live Call can never own the serial device together."""
     def __init__(self,device=SERIAL_DEFAULT):
-        self.device=device; self.serial=None; self.mode="ai_voice"; self.loop=None; self.queue=None; self.lock=threading.Lock()
+        self.device=device; self.serial=None; self.mode="ai_voice"; self.loop=None; self.queue=None; self.lock=threading.Lock(); self.write_lock=threading.Lock()
     @staticmethod
     def service(verb):
         return subprocess.run(["systemctl","--user",verb,"atlas-voice-companion.service"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=10).returncode==0
@@ -24,7 +38,7 @@ class AudioOwner:
             if self.mode=="live_call": return
             if not self.service("stop"): raise RuntimeError("AI voice did not release audio")
             try:
-                self.serial=serial.Serial(self.device,921600,timeout=.2); self.loop=loop; self.queue=queue; self.mode="live_call"
+                self.serial=serial.Serial(self.device,921600,timeout=.2,write_timeout=.5); self.loop=loop; self.queue=queue; self.mode="live_call"
                 self.write(COMMAND,b"STATE CALL")
                 threading.Thread(target=self.read_loop,daemon=True).start()
             except Exception:
@@ -37,7 +51,8 @@ class AudioOwner:
             self.serial=None; self.mode="ai_voice"
         self.service("start")
     def write(self,kind,payload):
-        if self.serial: self.serial.write(packet(kind,payload))
+        with self.write_lock:
+            if self.serial: self.serial.write(packet(kind,payload))
     def read_loop(self):
         data=bytearray()
         while self.mode=="live_call" and self.serial:
@@ -56,7 +71,7 @@ class AudioOwner:
             except asyncio.QueueEmpty: pass
         self.queue.put_nowait(payload)
 
-PAGE='''<!doctype html><meta name=viewport content="width=device-width,initial-scale=1"><style>body{background:#030914;color:#def7ff;font:16px system-ui;text-align:center}.c{max-width:650px;margin:5vh auto;padding:25px;border:1px solid #16bfff;border-radius:18px;background:#071528}button,.back{display:inline-block;font-size:18px;padding:16px 24px;margin:8px;border:0;border-radius:12px;color:white;background:#087cca;text-decoration:none}.end{background:#c24}.back{background:#26394e}audio{width:100%}</style><div class=c><h1>ATLAS LIVE CALL</h1><p id=s>AI Voice mode — microphone private</p><audio id=a autoplay></audio><button id=b>Start secure call</button><button id=e class=end disabled>End call</button><br><a class=back href="http://100.87.208.71:8088/">Back to Dashboard</a><p style="font-size:13px;color:#8ca6bb">For the cleanest audio, test from another room or lower the phone and rover speaker volume.</p></div><script>let pc,st;b.onclick=async()=>{try{st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});pc=new RTCPeerConnection();st.getTracks().forEach(t=>pc.addTrack(t,st));pc.ontrack=x=>a.srcObject=x.streams[0];await fetch('/api/start',{method:'POST'});let o=await pc.createOffer();await pc.setLocalDescription(o);await new Promise(r=>{if(pc.iceGatheringState==='complete')r();else pc.onicegatheringstatechange=()=>pc.iceGatheringState==='complete'&&r()});let z=await fetch('/offer',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(pc.localDescription)}).then(x=>x.json());await pc.setRemoteDescription(z);s.textContent='LIVE — rover microphone and speaker active';s.style.color='#ff4058';b.disabled=true;e.disabled=false}catch(x){s.textContent='Call failed: '+x;fetch('/api/stop',{method:'POST'})}};e.onclick=async()=>{if(pc)pc.close();if(st)st.getTracks().forEach(t=>t.stop());await fetch('/api/stop',{method:'POST'});s.textContent='AI Voice mode — microphone private';s.style.color='';b.disabled=false;e.disabled=true};onbeforeunload=()=>navigator.sendBeacon('/api/stop')</script>'''
+PAGE='''<!doctype html><meta name=viewport content="width=device-width,initial-scale=1"><style>body{background:#030914;color:#def7ff;font:16px system-ui;text-align:center}.c{max-width:650px;margin:5vh auto;padding:25px;border:1px solid #16bfff;border-radius:18px;background:#071528}button,.back{display:inline-block;font-size:18px;padding:16px 24px;margin:8px;border:0;border-radius:12px;color:white;background:#087cca;text-decoration:none}.end{background:#c24}.back{background:#26394e}audio{width:100%}</style><div class=c><h1>ATLAS LIVE CALL</h1><p id=s>No live call. AI Voice may be listening — check the dashboard microphone privacy control.</p><audio id=a autoplay></audio><button id=b>Start secure call</button><button id=e class=end disabled>End call</button><br><a class=back href="http://100.87.208.71:8088/">Back to Dashboard</a><p style="font-size:13px;color:#8ca6bb">For the cleanest audio, test from another room or lower the phone and rover speaker volume.</p></div><script>let pc,st;b.onclick=async()=>{try{st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});pc=new RTCPeerConnection();st.getTracks().forEach(t=>pc.addTrack(t,st));pc.ontrack=x=>a.srcObject=x.streams[0];await fetch('/api/start',{method:'POST'});let o=await pc.createOffer();await pc.setLocalDescription(o);await new Promise(r=>{if(pc.iceGatheringState==='complete')r();else pc.onicegatheringstatechange=()=>pc.iceGatheringState==='complete'&&r()});let z=await fetch('/offer',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(pc.localDescription)}).then(x=>x.json());await pc.setRemoteDescription(z);s.textContent='LIVE — rover microphone and speaker active';s.style.color='#ff4058';b.disabled=true;e.disabled=false}catch(x){s.textContent='Call failed: '+x;fetch('/api/stop',{method:'POST'})}};e.onclick=async()=>{if(pc)pc.close();if(st)st.getTracks().forEach(t=>t.stop());await fetch('/api/stop',{method:'POST'});s.textContent='No live call. AI Voice may be listening — check the dashboard microphone privacy control.';s.style.color='';b.disabled=false;e.disabled=true};onbeforeunload=()=>navigator.sendBeacon('/api/stop')</script>'''
 
 async def create_app(owner):
     from aiohttp import web
@@ -70,7 +85,11 @@ async def create_app(owner):
             pcm=await mic.get(); f=AudioFrame(format="s16",layout="mono",samples=len(pcm)//2); f.planes[0].update(pcm); f.sample_rate=SAMPLE_RATE; f.time_base=Fraction(1,SAMPLE_RATE); f.pts=self.pos; self.pos+=len(pcm)//2; return f
     async def index(_): return web.Response(text=PAGE,content_type="text/html")
     async def state(_): return web.json_response({"mode":owner.mode,"privacy_led":owner.mode=="live_call"})
-    async def start(_): owner.start(asyncio.get_running_loop(),mic); return web.json_response({"ok":True})
+    async def start(_):
+        if owner.mode != 'live_call':
+            while not mic.empty(): mic.get_nowait()
+        owner.start(asyncio.get_running_loop(),mic)
+        return web.json_response({"ok":True})
     async def stop(_):
         for pc in list(peers): await pc.close()
         peers.clear(); owner.stop(); return web.json_response({"ok":True})
@@ -79,7 +98,7 @@ async def create_app(owner):
         rs=AudioResampler(format="s16",layout="mono",rate=SAMPLE_RATE)
         while owner.mode=="live_call":
             try:
-                for f in rs.resample(await track.recv()): owner.write(PLAY_STREAM,bytes(f.planes[0]))
+                for f in rs.resample(await track.recv()): owner.write(PLAY_STREAM,packed_mono_pcm(f))
             except Exception: break
     async def offer(req):
         d=await req.json(); pc=RTCPeerConnection(); peers.add(pc); pc.addTrack(RoverMic())

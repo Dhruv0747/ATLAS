@@ -27,9 +27,11 @@ import serial
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from sensor_msgs.msg import NavSatFix
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import Imu, LaserScan, NavSatFix
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool, Empty, Float32, Int32, String
+from atlas_voice_status import FreshValues, Announcements, as_object, motion_block, startup_reply, status_reply
 
 
 MAGIC = 0x534C5441
@@ -66,11 +68,23 @@ class AtlasVoice(Node):
             name: self.create_publisher(String, f"/atlas/voice/{name}", 10)
             for name in (
                 "state", "mode", "transcript", "intent", "action",
-                "response", "confirmation", "rgb", "cloud",
+                "response", "confirmation", "rgb", "cloud", "privacy", "alert",
             )
         }
         self.last_values = {}
-        self.rover = {}
+        self.rover = FreshValues()
+        # Commissioning gate is fail-closed and does not modify the mux policy.
+        self.voice_motion_enabled = os.getenv('ATLAS_VOICE_MOTION_ENABLED', '0') == '1'
+        self.state_dir = os.path.expanduser('~/.local/state/atlas-voice')
+        os.makedirs(self.state_dir, exist_ok=True)
+        self.mute_path = os.path.join(self.state_dir, 'microphone-muted')
+        self.mic_muted = os.path.exists(self.mute_path)
+        self.privacy_epoch = 0
+        self.alerts = Announcements()
+        self.alert_q = queue.Queue(maxsize=4)
+        self.last_alert_at = {}
+        self.last_spoken_alert = 0.0
+        self.greeting_lock = threading.Lock()
         self.conversation = []
         # Physical forward/default calibration confirmed by Dhruv on 2026-08-02.
         self.pan_us = 2300
@@ -104,6 +118,8 @@ class AtlasVoice(Node):
         # This publisher is used only to send a zero-velocity shutdown stop.
         self.stop_pub = self.create_publisher(Twist, "/cmd_vel_joy", 10)
         self.voice_drive_pub = self.create_publisher(Twist, "/cmd_vel_web", 10)
+        self.voice_stop_pub = self.create_publisher(Empty, '/atlas/voice/stop', 10)
+        self.create_subscription(Bool, '/atlas/voice/mic_mute', self.mute_callback, 10)
         self.create_subscription(
             Int32, "/camera/bottom_servo_us",
             self.pan_feedback_callback, 10,
@@ -131,6 +147,7 @@ class AtlasVoice(Node):
             ("/ultrasonic/front_mm", "ultrasonic_front_mm"),
             ("/ultrasonic/left_mm", "ultrasonic_left_mm"),
             ("/ultrasonic/right_mm", "ultrasonic_right_mm"),
+            ("/ultrasonic/rear_mm", "ultrasonic_rear_mm"),
         ):
             self.create_subscription(
                 Float32, topic,
@@ -150,6 +167,13 @@ class AtlasVoice(Node):
             ("/camera/detections/json", "camera_detections"),
             ("/camera/faces/json", "camera_faces"),
             ("/atlas/camera_tracking/status", "camera_tracking_status"),
+            ("/atlas/encoder_health", "encoder_health"),
+            ("/atlas/control_policy", "control_policy"),
+            ("/atlas/motion_safety", "motion_safety"),
+            ("/atlas/mission_status", "mission_status"),
+            ("/radar/targets", "radar_targets"),
+            ("/environment/bme680/json", "environment_data"),
+            ("/thermal/amg8833/json", "thermal_data"),
         ):
             self.create_subscription(
                 String, topic,
@@ -157,6 +181,8 @@ class AtlasVoice(Node):
                 10,
             )
         self.create_subscription(NavSatFix, "/gps/fix", self.gps_callback, 10)
+        self.create_subscription(LaserScan, '/scan', lambda m: self.rover.__setitem__('lidar_live', True), qos_profile_sensor_data)
+        self.create_subscription(Imu, '/im10a/imu/unvalidated', lambda m: self.rover.__setitem__('imu_live', True), qos_profile_sensor_data)
         self.serial = None
         self.serial_error_text = ""
         self.serial_lock = threading.Lock()
@@ -168,34 +194,102 @@ class AtlasVoice(Node):
         self.awake_until = 0.0
         self.publish("mode", "AUTO ENGLISH + HINDI")
         self.publish("state", "STARTING")
-        self.publish("confirmation", "Motion commands require confirmation")
+        self.publish("confirmation", "Motion commands require confirmation" if self.voice_motion_enabled else 'Voice driving NOT COMMISSIONED — use remote')
+        self.publish('response', 'Voice online. Say Hey ATLAS followed by your question.')
         self.worker = threading.Thread(target=self.voice_loop, daemon=True)
         self.reader = threading.Thread(target=self.serial_loop, daemon=True)
+        self.announcer = threading.Thread(target=self.announcement_loop, daemon=True)
+        self.create_timer(1.0, self.collect_announcements)
         self.worker.start()
         self.reader.start()
+        self.announcer.start()
 
-    @staticmethod
-    def time_greeting():
-        hour = time.localtime().tm_hour
-        if 5 <= hour < 12:
-            return "Good morning Dhruv. ATLAS is online, safe, and ready to work."
-        if 12 <= hour < 17:
-            return "Good afternoon Dhruv. ATLAS is online, safe, and ready to work."
-        if 17 <= hour < 22:
-            return "Good evening Dhruv. ATLAS is online, safe, and ready to work."
-        return "Good night Dhruv. ATLAS is online, safe, and ready to work."
+    def time_greeting(self):
+        return startup_reply(self.rover, time.localtime().tm_hour, self.voice_motion_enabled)
+
+    def mute_callback(self, msg):
+        self.mic_muted = bool(msg.data)
+        self.privacy_epoch += 1
+        self.pending_agent_action = None
+        self.pending_agent_deadline = 0.0
+        self.awake_until = 0.0
+        try:
+            if self.mic_muted:
+                with open(self.mute_path, 'w', encoding='utf-8') as output:
+                    output.write('software capture muted\n')
+            elif os.path.exists(self.mute_path):
+                os.unlink(self.mute_path)
+        except OSError as exc:
+            self.publish('alert', 'Privacy preference could not be saved: ' + str(exc))
+        while not self.audio_q.empty():
+            try:
+                self.audio_q.get_nowait()
+            except queue.Empty:
+                break
+        self.publish_privacy()
+        self.set_state('IDLE')
+
+    def publish_privacy(self):
+        text = ('MUTED: software discards microphone audio; intercom is separate' if self.mic_muted else
+                'ACTIVE: voiced clips sent to cloud transcription; wake phrase checked after transcription; AI-generated voice')
+        if self.last_values.get('privacy') != text:
+            self.publish('privacy', text)
+
+    def collect_announcements(self):
+        self.publish_privacy()
+        for key, text in self.alerts.evaluate(self.rover):
+            now = time.monotonic()
+            if now - self.last_alert_at.get(key, -1000) < 60:
+                continue
+            self.last_alert_at[key] = now
+            self.publish('alert', text)
+            try:
+                self.alert_q.put_nowait((now, text))
+            except queue.Full:
+                pass  # Dashboard keeps latest; never grow a speech backlog.
+
+    def announcement_loop(self):
+        while self.running:
+            try:
+                stamp, text = self.alert_q.get(timeout=1)
+            except queue.Empty:
+                continue
+            # Drop obsolete alerts and do not interrupt questions or calls.
+            if time.monotonic() - stamp > 10 or not self.serial or not self.serial.is_open:
+                continue
+            if time.monotonic() - self.last_spoken_alert < 10 or not self.speech_lock.acquire(blocking=False):
+                continue
+            try:
+                self.last_spoken_alert = time.monotonic()
+                self.publish('response', text)
+                self.play(self.local_speech(text, offline_only=True))
+            except Exception as exc:
+                self.publish('alert', 'Local alert audio unavailable: ' + str(exc))
+            finally:
+                self.set_state('IDLE')
+                self.speech_lock.release()
 
     def announce_ready(self):
         # Give ROS, the USB speaker and safety topics time to become available.
         time.sleep(10)
         if not self.running:
             return
-        with self.speech_lock:
+        # Survive service/intercom/USB restarts, but greet once on each OS boot.
+        with self.greeting_lock, self.speech_lock:
             try:
+                with open('/proc/sys/kernel/random/boot_id', encoding='ascii') as source:
+                    boot_id = source.read().strip()
+                marker = os.path.join(self.state_dir, 'greeted-boot')
+                if os.path.exists(marker):
+                    with open(marker, encoding='ascii') as source:
+                        if source.read().strip() == boot_id:
+                            return
                 greeting = self.time_greeting()
                 self.publish("response", greeting)
-                self.publish("action", "ATLAS READY")
-                self.play(self.local_speech(greeting))
+                self.publish("action", "STARTUP STATUS — NO MOTION")
+                self.play(self.local_speech(greeting, offline_only=True))
+                with open(marker, 'w', encoding='ascii') as output:
+                    output.write(boot_id)
                 self.publish("action", "NONE")
                 self.set_state("IDLE")
             except Exception as exc:
@@ -207,6 +301,7 @@ class AtlasVoice(Node):
             return
         try:
             self.publish("intent", "SAFE SHUTDOWN")
+            self.voice_stop_pub.publish(Empty())
             self.publish("action", "STOPPING ROVER - KEY 2")
             stop = Twist()
             for _ in range(3):
@@ -214,7 +309,7 @@ class AtlasVoice(Node):
                 time.sleep(0.1)
             text = "Dhruv, ATLAS is shutting down safely. Please wait before removing power."
             self.publish("response", text)
-            self.play(self.local_speech(text))
+            self.play(self.local_speech(text, offline_only=True))
             self.publish("action", "SHUTDOWN REQUESTED")
             result = subprocess.run(
                 ["/usr/bin/sudo", "-n", "/sbin/shutdown", "-h", "now"],
@@ -242,7 +337,8 @@ class AtlasVoice(Node):
 
     def publish_heartbeat(self):
         """Refresh status for dashboards opened after this node started."""
-        for name in ("state", "mode", "confirmation", "rgb", "cloud"):
+        for name in ("state", "mode", "confirmation", "rgb", "cloud", "privacy", "alert",
+                     "response", "transcript", "intent", "action"):
             if name in self.last_values:
                 msg = String()
                 msg.data = self.last_values[name]
@@ -281,13 +377,15 @@ class AtlasVoice(Node):
             return False
 
     def set_state(self, state):
+        if state == 'IDLE' and self.mic_muted:
+            state = 'MUTED'
         rgb = {
             "IDLE": "BLUE", "LISTENING": "GREEN", "THINKING": "WHITE",
-            "SPEAKING": "BLUE PULSE", "ERROR": "RED",
+            "SPEAKING": "BLUE PULSE", "ERROR": "RED", "MUTED": "RED",
         }.get(state, state)
         self.publish("state", state)
         self.publish("rgb", rgb)
-        self.send_packet(STATE, f"STATE {state}".encode())
+        self.send_packet(STATE, f"STATE {'ERROR' if state == 'MUTED' else state}".encode())
 
     def read_exact(self, count):
         data = bytearray()
@@ -323,6 +421,8 @@ class AtlasVoice(Node):
                         continue
                     payload = self.read_exact(length)
                     if packet_type == MIC_PCM:
+                        if self.mic_muted:
+                            continue
                         try:
                             self.audio_q.put_nowait(payload)
                         except queue.Full:
@@ -372,6 +472,9 @@ class AtlasVoice(Node):
         ):
             self.rover["latitude"] = msg.latitude
             self.rover["longitude"] = msg.longitude
+        else:
+            self.rover['latitude'] = None
+            self.rover['longitude'] = None
 
     def pan_feedback_callback(self, msg):
         self.pan_us = int(msg.data)
@@ -384,12 +487,6 @@ class AtlasVoice(Node):
     @staticmethod
     def asks_weather(text):
         lower = text.lower()
-        if any(term in lower for term in ("start tracking", "track person", "follow camera", "tracking on")):
-            self.tracker_pub.publish(Bool(data=True))
-            return "Camera person tracking enabled. Rover wheels remain stopped."
-        if any(term in lower for term in ("stop tracking", "tracking off")):
-            self.tracker_pub.publish(Bool(data=False))
-            return "Camera person tracking stopped."
         return any(word in lower for word in (
             "weather", "temperature outside", "rain", "forecast",
             "मौसम", "बारिश", "बाहर का तापमान",
@@ -429,6 +526,7 @@ class AtlasVoice(Node):
         return any(word in lower for word in (
             "atlas status", "rover status", "battery", "sensor", "gps",
             "5g", "temperature", "fault", "problem", "recovery", "diagnostic",
+            "encoder", "imu", "lidar", "why did you stop", "why are you stopped",
             "एटलस", "रोवर", "बैटरी", "सेंसर",
             "जीपीएस", "तापमान",
         ))
@@ -460,6 +558,8 @@ class AtlasVoice(Node):
 
     def vision_reply(self, text):
         hindi = any("\u0900" <= char <= "\u097f" for char in text)
+        if self.rover.get('camera_detections') is None and self.rover.get('camera_faces') is None:
+            return 'कैमरे की ताज़ा पहचान उपलब्ध नहीं है।' if hindi else 'Fresh camera perception is unavailable; I cannot describe the current scene.'
         try:
             objects = json.loads(
                 self.rover.get("camera_detections", "{}") or "{}"
@@ -489,9 +589,9 @@ class AtlasVoice(Node):
             joined = ", ".join(labels[:5])
             return (f"कैमरे में अभी {joined} दिखाई दे रहा है।" if hindi else
                     f"I can currently see {joined} through the camera.")
-        return ("कैमरा चालू है, लेकिन अभी कोई चेहरा या पहचानी गई वस्तु नहीं दिख रही।"
+        return ("ताज़ा पहचान डेटा में अभी कोई चेहरा या पहचानी गई वस्तु नहीं है।"
                 if hindi else
-                "The camera is live, but I do not currently detect a face or a recognized object.")
+                "Recent perception messages contain no recognized face or object.")
 
     def online_weather(self):
         lat = self.rover.get("latitude")
@@ -547,16 +647,16 @@ class AtlasVoice(Node):
             "Reply in the same language as the user: Hindi for Hindi, English "
             "for English, natural Hinglish for mixed speech. Limit replies to "
             "two short sentences. Never claim a physical action occurred. "
-            "You have live camera perception through ATLAS ROS topics. Never "
-            "say that you cannot see; describe only supplied camera perception "
-            "or say that no recognized object is currently detected. "
+            "Describe only the fresh supplied telemetry. Missing data means unknown, "
+            "not healthy. Never invent a camera view, completed action or repair. "
+            "You cannot install packages, edit code or clear safety stops. "
             "Driving, navigation, follow-me, shell, package installation, and "
             "hardware changes require explicit confirmation. Autonomous motion "
             "requires a separate confirmation handled by the ATLAS safety bridge."
         )
         live_context = {}
         if self.asks_atlas_status(text):
-            live_context["atlas_ros"] = dict(self.rover)
+            live_context["atlas_ros"] = self.rover.context()
         if self.asks_vision(text):
             live_context["camera_perception"] = {
                 "detections": self.rover.get("camera_detections", "{}"),
@@ -632,7 +732,7 @@ class AtlasVoice(Node):
             cached.write(pcm16)
         return pcm16
 
-    def local_speech(self, text):
+    def local_speech(self, text, offline_only=False):
         """Generate low-latency bilingual speech locally with Piper."""
         piper_root = os.path.expanduser("~/project_atlas/vendor/piper")
         binary = os.path.join(piper_root, "piper", "piper")
@@ -672,6 +772,8 @@ class AtlasVoice(Node):
             self.publish("cloud", f"HYBRID: LOCAL {language} SPEECH")
             return pcm16
         except Exception as exc:
+            if offline_only:
+                raise RuntimeError('Offline speech failed') from exc
             self.publish("cloud", f"LOCAL TTS FALLBACK: {exc}")
             return self.speech(text)
 
@@ -782,7 +884,9 @@ class AtlasVoice(Node):
 
     def command_servo(self, axis, target, timeout=1.5):
         # Arducam B0283 180-degree servos: reserve mechanical end-stop margin.
-        target = max(500, min(2500, int(target)))
+        if self.mic_muted:
+            return False
+        target = max(700, min(2300, int(target)))
         started = time.monotonic()
         publisher = self.pan_pub if axis == "pan" else self.tilt_pub
         publisher.publish(Int32(data=target))
@@ -800,54 +904,61 @@ class AtlasVoice(Node):
         """Execute only bounded camera/AI actions; never wheel motion."""
         lower = text.lower()
         # Match Hindi inflections such as कैमरा, कैमरे and कैमरे को.
-        direction_words = (
-            "up", "down", "ऊपर", "नीचे", "اوپر", "نیچے",
-        )
         camera_named = (
             "camera" in lower or "कैमर" in lower or "کیمر" in lower
-            or any(word in lower for word in direction_words)
         )
+        if any(term in lower for term in ('start tracking', 'track person', 'follow camera', 'tracking on')):
+            self.tracker_pub.publish(Bool(data=True))
+            return 'Camera tracking requested; no wheel command was sent.'
+        if any(term in lower for term in ('stop tracking', 'tracking off')):
+            self.tracker_pub.publish(Bool(data=False))
+            return 'Camera tracking stop requested.'
         hindi_request = any("\u0900" <= char <= "\u097f" for char in text)
         if camera_named:
             if any(word in lower for word in ("center", "centre", "मध्य", "सीधा")):
                 ok = self.command_servo("pan", 2300)
                 ok = self.command_servo("tilt", 1500) and ok
                 if ok:
-                    return "कैमरा बीच में कर दिया।" if hindi_request else "Camera centered."
+                    return "कैमरा सेंटर कमांड स्वीकार हुई।" if hindi_request else "Camera center command acknowledged; physical position is not measured."
                 return "कैमरा प्रतिक्रिया नहीं दे रहा।" if hindi_request else "Camera did not confirm movement."
             if any(word in lower for word in ("left", "बाएं", "बायें")):
                 if self.command_servo("pan", self.pan_us - 160):
-                    return "कैमरा बाईं ओर कर दिया।" if hindi_request else "Camera moved left."
+                    return "कैमरा बाएं कमांड स्वीकार हुई।" if hindi_request else "Camera left command acknowledged."
                 return "कैमरा प्रतिक्रिया नहीं दे रहा।" if hindi_request else "Camera did not confirm movement."
             if any(word in lower for word in ("right", "दाएं", "दायें")):
                 if self.command_servo("pan", self.pan_us + 160):
-                    return "कैमरा दाईं ओर कर दिया।" if hindi_request else "Camera moved right."
+                    return "कैमरा दाएं कमांड स्वीकार हुई।" if hindi_request else "Camera right command acknowledged."
                 return "कैमरा प्रतिक्रिया नहीं दे रहा।" if hindi_request else "Camera did not confirm movement."
             if any(word in lower for word in ("up", "ऊपर", "اوپر")):
-                if self.tilt_us >= 2500:
+                if self.tilt_us >= 2300:
                     return "कैमरा पहले से सबसे ऊपर है।" if hindi_request else "Camera is already at its upper limit."
                 if self.command_servo("tilt", self.tilt_us + 180):
-                    return "कैमरा ऊपर कर दिया।" if hindi_request else "Camera moved up."
+                    return "कैमरा ऊपर कमांड स्वीकार हुई।" if hindi_request else "Camera up command acknowledged."
                 return "कैमरा प्रतिक्रिया नहीं दे रहा।" if hindi_request else "Camera did not confirm movement."
             if any(word in lower for word in ("down", "नीचे", "نیچے")):
                 if self.tilt_us <= 700:
                     return "कैमरा पहले से सबसे नीचे है।" if hindi_request else "Camera is already at its lower limit."
                 if self.command_servo("tilt", self.tilt_us - 180):
-                    return "कैमरा नीचे कर दिया।" if hindi_request else "Camera moved down."
+                    return "कैमरा नीचे कमांड स्वीकार हुई।" if hindi_request else "Camera down command acknowledged."
                 return "कैमरा प्रतिक्रिया नहीं दे रहा।" if hindi_request else "Camera did not confirm movement."
         ai_named = any(term in lower for term in (
             "object detection", "ai camera", "ऑब्जेक्ट डिटेक्शन", "एआई कैमरा",
         ))
         if ai_named and any(term in lower for term in (" on", "enable", "चालू")):
             self.ai_pub.publish(Bool(data=True))
-            return "AI object detection enabled."
+            return "AI object detection enable requested."
         if ai_named and any(term in lower for term in (" off", "disable", "बंद")):
             self.ai_pub.publish(Bool(data=False))
-            return "AI object detection disabled."
+            return "AI object detection disable requested."
         return None
 
     def execute_agent_action(self, action):
         """Publish only allowlisted high-level requests; never raw motor commands."""
+        if action not in ('stop_following', 'stop_exploration', 'set_home'):
+            blocked = motion_block(self.rover, self.voice_motion_enabled)
+            if blocked or self.mic_muted:
+                self.publish('action', 'BLOCKED: ' + (blocked or 'microphone muted'))
+                return blocked or 'Microphone muted; command cancelled.'
         if action.startswith("voice_"):
             return self.execute_voice_motion(action)
         if action == "follow_person":
@@ -855,7 +966,7 @@ class AtlasVoice(Node):
             self.tracker_pub.publish(Bool(data=True))
             self.follow_pub.publish(Bool(data=True))
             self.publish("action", "AGENT TOOL: follow_person")
-            return "Follow mode started at low speed. Say stop following at any time."
+            return "Follow mode requested. Movement is not confirmed."
         if action == "stop_following":
             self.follow_pub.publish(Bool(data=False))
             self.publish_voice_stop()
@@ -867,7 +978,7 @@ class AtlasVoice(Node):
         publisher.publish(Empty())
         labels = {
             "start_exploration": "Autonomous mapping requested.",
-            "stop_exploration": "Autonomous motion and mapping goals stopped.",
+            "stop_exploration": "Autonomous mapping stop requested.",
             "set_home": "Current location requested as home.",
             "return_home": "Safe return-home navigation requested.",
         }
@@ -883,6 +994,9 @@ class AtlasVoice(Node):
 
     def execute_voice_motion(self, action):
         """Execute one low-speed, time-limited motion through the safety mux."""
+        blocked = motion_block(self.rover, self.voice_motion_enabled)
+        if blocked or self.mic_muted:
+            return blocked or 'Microphone muted; command cancelled.'
         commands = {
             "voice_forward": (0.18, 0.0, 0.70, "Moving forward briefly."),
             "voice_backward": (-0.12, 0.0, 0.60, "Moving backward briefly."),
@@ -903,16 +1017,30 @@ class AtlasVoice(Node):
         self.publish("action", f"EXECUTING: {action} for {duration:.2f}s")
         try:
             while time.monotonic() < deadline:
+                if self.mic_muted or motion_block(self.rover, self.voice_motion_enabled):
+                    break
                 self.voice_drive_pub.publish(command)
                 time.sleep(0.08)
         finally:
             self.publish_voice_stop()
-        return reply
+        return 'Bounded motion request sent through the safety mux; physical movement is not confirmed.'
 
     def handle_agent_request(self, text):
         """Two-step voice gate for motion-capable autonomy tools."""
         lower = text.lower().strip()
         now = time.monotonic()
+        # Stop always takes precedence over cancelling a pending confirmation.
+        if lower in ('stop', 'रुको', 'रुक जाओ') or any(phrase in lower for phrase in (
+                'emergency stop', 'stop rover', 'stop now', 'stop mapping',
+                'stop exploration', 'stop autonomous', 'stop following', 'मैपिंग बंद')):
+            self.pending_agent_action = None
+            self.pending_agent_deadline = 0.0
+            self.voice_stop_pub.publish(Empty())
+            self.follow_pub.publish(Bool(data=False))
+            self.publish_voice_stop()
+            self.execute_agent_action('stop_exploration')
+            self.publish('confirmation', 'STOP REQUESTED — REMOTE RESET ONLY')
+            return 'Latched stop requested. Check the rover and use the remote B button if needed. Voice cannot release the stop.'
         confirm_words = (
             "confirm", "yes confirm", "yes", "proceed", "go ahead",
             "haan confirm", "ha confirm", "haan", "हाँ", "हां", "पुष्टि", "हाँ पुष्टि",
@@ -938,7 +1066,7 @@ class AtlasVoice(Node):
             self.publish("confirmation", "CANCELLED")
             return "The pending autonomous action was cancelled."
 
-        if self.pending_agent_action and any(word in lower for word in confirm_words):
+        if self.pending_agent_action and lower.strip(' .,!।') in confirm_words:
             action = self.pending_agent_action
             self.pending_agent_action = None
             self.pending_agent_deadline = 0.0
@@ -956,7 +1084,8 @@ class AtlasVoice(Node):
             self.follow_pub.publish(Bool(data=False))
             self.publish_voice_stop()
             self.execute_agent_action("stop_exploration")
-            return "ATLAS motion and follow mode stopped."
+            self.voice_stop_pub.publish(Empty())
+            return "Latched stop requested. Voice cannot release the stop."
 
         if any(phrase in lower for phrase in (
             "set home", "save home", "this is home", "घर सेट", "होम सेट",
@@ -1001,6 +1130,10 @@ class AtlasVoice(Node):
             requested = "follow_person"
 
         if requested:
+            blocked = motion_block(self.rover, self.voice_motion_enabled)
+            if blocked:
+                self.publish('action', 'BLOCKED: ' + blocked)
+                return blocked
             self.pending_agent_action = requested
             self.pending_agent_deadline = now + 45.0
             self.publish("confirmation", f"WAITING: {requested}")
@@ -1011,14 +1144,19 @@ class AtlasVoice(Node):
         return None
 
     def process_utterance(self, pcm):
+        epoch = self.privacy_epoch
+        if self.mic_muted:
+            return
         try:
             self.set_state("THINKING")
             self.publish("cloud", "TRANSCRIBING")
             text = self.transcribe(pcm)
+            if self.mic_muted or epoch != self.privacy_epoch:
+                self.set_state('IDLE')
+                return
             if not text:
                 self.set_state("IDLE")
                 return
-            self.publish("transcript", text)
             wake_found, command_text = self.remove_wake_phrase(text)
             if wake_found and not command_text:
                 self.awake_until = time.monotonic() + 8.0
@@ -1032,13 +1170,14 @@ class AtlasVoice(Node):
                     "here it is", "there it is", "thank you",
                     "thanks for watching", "you", "bye",
                 }
-                if normalized in false_silence:
-                    self.publish("intent", "IGNORED - SILENCE/NOISE")
+                if normalized in false_silence or not self.pending_agent_action:
+                    self.publish("intent", "IGNORED - SAY HEY ATLAS")
                     self.set_state("IDLE")
                     return
             if command_text:
                 text = command_text
-            self.awake_until = 0.0
+            self.publish('transcript', text)
+            self.awake_until = time.monotonic() + 15.0
             agent_reply = self.handle_agent_request(text)
             safe_reply = None if agent_reply else self.handle_safe_hardware_request(text)
             if agent_reply:
@@ -1062,6 +1201,9 @@ class AtlasVoice(Node):
             elif self.asks_time(text):
                 self.publish("intent", "TIME")
                 reply = self.local_time_reply()
+            elif self.asks_atlas_status(text):
+                self.publish('intent', 'FRESH LOCAL TELEMETRY')
+                reply = status_reply(self.rover, text)
             elif self.asks_weather(text):
                 self.publish("intent", "LIVE WEATHER")
                 try:
@@ -1073,6 +1215,9 @@ class AtlasVoice(Node):
                 self.publish("intent", "CONVERSATION")
                 self.publish("cloud", "OPENAI ONLINE")
                 reply = self.answer(text)
+            if self.mic_muted or epoch != self.privacy_epoch:
+                self.set_state('IDLE')
+                return
             self.publish("response", reply)
             # The speech API can generate slower than real time on the rover's
             # connection. Buffering fully prevents audible gaps and stutter.
@@ -1083,7 +1228,13 @@ class AtlasVoice(Node):
             self.publish("cloud", f"API ERROR: {exc}")
             self.ignore_mic_until = time.monotonic() + 1.0
             self.set_state("ERROR")
-            time.sleep(1)
+            if not self.mic_muted:
+                try:
+                    text = 'Dhruv, the online voice service is unavailable. Local alerts still work. Please use the dashboard or remote.'
+                    self.publish('response', text)
+                    self.play(self.local_speech(text, offline_only=True))
+                except Exception:
+                    pass
             self.set_state("IDLE")
 
     def voice_loop(self):
@@ -1099,7 +1250,10 @@ class AtlasVoice(Node):
                 continue
             if len(frame) < 2:
                 continue
-            if time.monotonic() < self.ignore_mic_until:
+            if self.mic_muted or time.monotonic() < self.ignore_mic_until or self.speech_lock.locked():
+                pre_roll, recording = [], []
+                active = False
+                speaking_frames = silent_frames = 0
                 continue
             rms = audioop.rms(frame, 2)
             if time.monotonic() < self.calibrate_until:

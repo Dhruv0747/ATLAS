@@ -6,6 +6,7 @@ import glob
 import math
 import json
 import socket
+from atlas_serial_lines import SerialLines
 
 import rclpy
 from rclpy.executors import ExternalShutdownException
@@ -108,10 +109,10 @@ class UltrasonicArduinoBridge(Node):
             self.camera_tilt_channel = 1 if commissioned_hub else 2
             self.create_subscription(
                 Int32, '/camera/bottom_servo_cmd_us',
-                lambda m: self.send_servo(self.camera_pan_channel, m.data), 10)
+                lambda m: self.send_servo(self.camera_pan_channel, m.data), 1)
             self.create_subscription(
                 Int32, '/camera/second_servo_cmd_us',
-                lambda m: self.send_servo(self.camera_tilt_channel, m.data), 10)
+                lambda m: self.send_servo(self.camera_tilt_channel, m.data), 1)
         self.create_subscription(Int32, '/ultrasonic/right_servo_cmd_us', lambda m: self.send_servo(3, m.data), 10)
         self.ser = None
         self.camera_socket = None
@@ -130,6 +131,7 @@ class UltrasonicArduinoBridge(Node):
         self.last_serial_rx = 0.0
         self.last_wait_status = 0.0
         self.last_connect_log = 0.0
+        self.next_connect_attempt = 0.0
         self.radar_last_rx = 0.0
         self.radar_bytes_total = 0
         self.gps_hdop = math.nan
@@ -149,7 +151,12 @@ class UltrasonicArduinoBridge(Node):
         self.dashboard_cache = {}
         self.last_dashboard_cache_flush = 0.0
         self.last_dashboard_cache_error = 0.0
-        self.create_timer(0.05, self.tick)
+        self.rx_lines = SerialLines()
+        self.rx_processed = 0
+        self.rx_high_water = 0
+        self.rx_diag_time = 0.0
+        self.rx_diag_pub = self.create_publisher(String, '/arduino/serial_diagnostics', 10)
+        self.create_timer(0.01, self.tick)
         if self.camera_via_arduino:
             camera_route = 'Arduino UNO R4 PCA9685'
         else:
@@ -169,7 +176,12 @@ class UltrasonicArduinoBridge(Node):
         try:
             resolved_port = self.resolve_port(PORT)
             if not resolved_port:
-                self.status_pub.publish(String(data='connect_error sensor_hub_port_not_found'))
+                debug_only = bool(glob.glob('/dev/serial/by-id/usb-Arduino_UNO_WiFi_R4_CMSIS-DAP_*-if01'))
+                reason = ('UNO_DEBUG_INTERFACE_ONLY: sensor firmware native USB absent; reset UNO once'
+                          if debug_only else 'sensor_hub_port_not_found')
+                self.status_pub.publish(String(data=f'connect_error {reason}'))
+                self.dashboard_cache_set('camera_servo_status', f'offline: {reason}')
+                self.dashboard_cache_set('i2c_status', f'offline: {reason}')
                 return False
             # The UNO R4 native USB CDC endpoint requires DTR asserted in
             # order to emit Serial telemetry.
@@ -180,6 +192,7 @@ class UltrasonicArduinoBridge(Node):
             self.ser.write_timeout = 0.25
             self.ser.dtr = True
             self.ser.open()
+            self.rx_lines = SerialLines()  # never combine bytes across reconnects
             self.active_port = resolved_port
             # Apply the final modem-control state after open as well. Linux
             # cdc_acm may not propagate a pre-open DTR assignment to the UNO
@@ -235,7 +248,15 @@ class UltrasonicArduinoBridge(Node):
 
     @staticmethod
     def resolve_port(configured_port):
-        """Resolve the commissioned UNO across native-USB and boot/debug IDs."""
+        """Never send native-hub commands to the debug bridge or another ACM device."""
+        if HUB_TRANSPORT == 'uno_r4_i2c_hub':
+            native = sorted(p for p in glob.glob(
+                '/dev/serial/by-id/usb-Arduino_UNO_R4_WiFi_*-if00') if os.path.exists(p))
+            # Even /dev/atlas-sensor-hub can point at CMSIS-DAP after a reset.
+            if configured_port and os.path.exists(configured_port):
+                if any(os.path.realpath(configured_port) == os.path.realpath(p) for p in native):
+                    return configured_port
+            return native[0] if len(native) == 1 else ''
         if configured_port and os.path.exists(configured_port):
             return configured_port
         for pattern in PORT_FALLBACK_PATTERNS:
@@ -582,10 +603,36 @@ class UltrasonicArduinoBridge(Node):
         self.flush_dashboard_cache()
         self.read_local_camera_commands()
         if self.ser is None:
-            self.connect()
+            now = time.monotonic()
+            if now >= getattr(self, 'next_connect_attempt', 0.0):
+                self.next_connect_attempt = now + 2.0
+                self.connect()
             return
         try:
-            raw = self.ser.readline().decode(errors='replace').strip()
+            waiting = self.ser.in_waiting
+            self.rx_high_water = max(self.rx_high_water, waiting)
+            if waiting:
+                # Read ONLY available bytes. Keep partial lines for next tick.
+                self.rx_lines.feed(self.ser.read(min(waiting, 8192)))
+                self.last_serial_rx = time.time()
+            deadline = time.monotonic()+0.008
+            processed = 0
+            while processed < 128 and time.monotonic() < deadline:
+                raw = self.rx_lines.pop()
+                if raw is None:
+                    break
+                if raw:
+                    self.handle_line(raw)
+                processed += 1
+            self.rx_processed += processed
+            if time.monotonic()-self.rx_diag_time >= 1.0:
+                self.rx_diag_time = time.monotonic()
+                self.rx_diag_pub.publish(String(data=json.dumps({
+                    'usb_pending_bytes': self.ser.in_waiting,
+                    'parser_pending_bytes': len(self.rx_lines.data),
+                    'high_water_bytes': self.rx_high_water,
+                    'lines_processed': self.rx_processed,
+                })))
         except Exception as exc:
             self.status_pub.publish(String(data=f'read_error {exc}'))
             try:
@@ -594,7 +641,7 @@ class UltrasonicArduinoBridge(Node):
                 pass
             self.ser = None
             return
-        if not raw:
+        if not waiting and not processed:
             now = time.time()
             if now - self.last_serial_rx >= SERIAL_STALE_REOPEN_SECONDS:
                 self.status_pub.publish(String(
@@ -612,7 +659,8 @@ class UltrasonicArduinoBridge(Node):
                 self.last_wait_status = now
                 self.status_pub.publish(String(data='waiting_for_data'))
             return
-        self.last_serial_rx = time.time()
+    def handle_line(self, raw):
+        """Existing sensor decoders, one complete line at a time."""
         if (raw.startswith('ATLAS_ULTRASONIC') or
                 raw.startswith('ATLAS_UNO_SENSOR_HUB') or
                 raw.startswith('ATLAS_UNO_R4_WIFI_I2C_HUB')):

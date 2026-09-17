@@ -1,5 +1,141 @@
 # Changelog
 
+## 2026-09-17 - Explicit three-encoder configuration
+
+- Select M1/M2/M3 and exclude faulty M4 feedback, not its motor output.
+- Fix physical wheel-topic order to rear-left, rear-right, front-left, front-right.
+- Add atomic encoder packet timestamps, stale-link checks and no fallback to
+  rejected feedback; stop autonomous use if another selected encoder fails.
+- Use per-wheel distance increments to avoid channel-selection position jumps.
+- Expose selection, packet age, exclusion reason and commissioning state on the
+  dashboard. Preserve existing remote stop and manual-only operation.
+- Three-encoder autonomy is supported after validation; it is not blocked on
+  replacing M4. Ground accuracy/turn validation remains outstanding. Historical
+  entries mentioning mandatory M4 replacement are superseded by this plan.
+
+## 2026-09-17 - Truthful bilingual voice status and privacy controls
+
+- Added timestamped telemetry, explicit stale/unknown answers, and local English/
+  Hindi battery/GPS/encoder/IMU/status replies. Invalid GPS fixes clear old position.
+- Removed unconditional boot-ready claims and repeated reconnect greetings;
+  added bounded, debounced local announcements for verified telemetry events.
+- Added persistent software microphone mute with dashboard live acknowledgement,
+  firmware-compatible LED meanings, and cloud-transcription/privacy disclosure.
+- Added a stop-only voice mux input and read-only control-policy heartbeat;
+  retained manual-only and remote-stop precedence, no voice reset, and an explicit
+  fail-closed voice-driving commissioning gate. Added regression tests.
+- Fixed the weather classifier's accidental camera actions, substring confirmation
+  acceptance, generic “up/down” camera matching, and false completed-action claims.
+- Preserved intercom ownership, working buffered playback, and Key2 shutdown;
+  corrected misleading intercom “microphone private” text. No firmware flash,
+  navigation tuning or wheel movement is part of this update.
+
+## 2026-09-17 - Isolated IM10A gyro EKF comparison
+
+- Added bounded, non-authoritative wheel-only and gyro-fused test filters.
+- Disabled test TF publication, separated output topics and retained live EKF.
+- Added gyro mounting rotation, input validity/age checks and provisional
+  test-only covariance. No magnetic heading, acceleration or saved bias fused.
+- Added isolation and invalid-input unit tests. No motor commands or autostart
+  changes; dynamic qualification and M4 replacement remain outstanding.
+
+## 2026-09-17 - Camera serial backlog and historical-target fix
+
+- Trace showed pan command 1770 us at 13.977 s reported at 25.301 s, then
+  stale pulse reports altered targets between D-pad gestures.
+- Replaced single-line/50-ms reads with available-byte reads, preserved partial
+  lines, and bounded parsing (128 lines / 8 ms per 10-ms tick). Sensor decoders
+  remain unchanged. Added queue-depth diagnostics and latest-only camera input.
+- Camera reply guards reject reports preceding the latest commanded target.
+- Six serial/guard tests and six camera mapping/rate tests passed on Jetson;
+  deployment verified zero pending bytes and 22–30 processed lines/s at idle.
+- Camera online reports resumed with zero service restarts after deployment.
+  Physical smoothness and latency under D-pad load still need user validation.
+
+## 2026-09-17 - Camera held-limit feedback regression
+
+- Keep manual camera target ownership while D-pad remains held, even at a
+  limit; delayed hub reports previously could overwrite the held target.
+- Replace 50-us-per-packet jumps with elapsed-time steps at 400 us/s, capped
+  at 60 ms per step so delayed packets never trigger large catch-up jumps.
+- Six mapping/rate tests passed and camera node redeployed. This addresses a
+  code-level defect; physical smoothness and transport latency remain to verify.
+
+## 2026-09-17 - Faster D-pad camera commands
+
+- Reduced camera command interval from 120 ms to 40 ms (actual rate bounded
+  by joystick delivery). Fresh presses respond without the previous cooldown.
+- Publish only changed axes with latest-only publisher history; suppress
+  redundant commands at limits. Servo limits and drive controls unchanged.
+- Five mapping tests and compilation passed; deployed camera node only.
+  Physical end-to-end latency/video latency not measured or guaranteed.
+
+## 2026-09-17 - Nonconflicting D-pad camera control
+
+- Disabled duplicate camera remote process; retained one boot-enabled service.
+- Removed A/B tilt bindings, reserving B for rover stop. D-pad directions now
+  match the dashboard; Y uses existing home values, existing limits retained.
+- Manual camera input pauses tracking; stale joystick packets are ignored and
+  delayed position reports cannot undo consecutive held-button steps.
+- Five mapping tests passed; deployed without scripted servo/wheel movement.
+
+## 2026-09-17 - LB hold-and-release reset
+
+- Replaced unverified Start/Menu mapping with verified LB index 4 at user request.
+- Unlock requires neutral sticks, no other buttons, LB held for two seconds,
+  then released; a separate LB press enables driving. B remains authoritative.
+- Ten updated tests passed on Jetson. Read-only capture confirmed 152 joystick
+  messages with maximum 0.132-second gap. Prior Start failure cause not proven.
+- Deployed helper/mux/tests; manual-only restriction remains. No movement
+  command issued. Operator validation of the new gesture is pending.
+
+## 2026-09-17 - Deliberate remote stop release
+
+- Added neutral-only Start/Menu hold for 2 seconds, then release to reset.
+- B, other buttons, stick deflection, invalid data or communication gaps
+  prevent release. A held Start at boot/reconnect cannot unlock movement.
+- Flush all queued commands on reset. Ten tests pass on Jetson; deployed to
+  the running mux. Physical Start/Menu mapping/gesture awaits user validation.
+
+## 2026-09-17 - Restore manual remote with latched software stop
+
+- Added verified Xbox B stop at the mux, neutral-only explicit reset, stale
+  joystick stop, command flushing, and stopped-on-start behavior.
+- Deployed manual-only commissioning mode; restored base/remote startup and
+  disabled the competing passive observer. Preserved old condition backup.
+- Five pure-state tests passed; live startup output remained zero. Physical
+  stop and motion verification remain pending. No autonomy release or Git push.
+
+## 2026-09-17 - Rear steering centre correction
+
+- User confirmed rear centre at command 89 after staged 114 -> 94 -> 89 checks.
+- Saved centre only; existing steering limits and drive inhibits unchanged.
+- User subsequently confirmed front centre 91; saved alongside rear 89.
+
+## 2026-09-17 - Correct replaced-motor channel mapping
+
+- Retire the old steering test with reversed labels/default 90-degree centres;
+  use an explicit one-axle +/-8 command-unit check from saved driver centres.
+
+- Apply observed RL/RR/FL/FR channel order and forward PWM [-,+,-,+].
+- Correct M1–M3 encoder polarity and physical wheel topic/fault labels.
+- Keep M4 fault, old metric calibration gate, and drive commissioning inhibits;
+  no degraded-driving bypass or navigation enablement.
+
+## 2026-09-17 - IM10A magnetic heading diagnostics-only
+
+- Explicitly label sensor heading as excluded from navigation in live IMU
+  status and dashboard heading-mode metadata. Keep raw magnetic data available.
+- Confirm existing ROS IMU orientation exclusion and no EKF IMU input; correct
+  stale Yahboom-primary configuration comments. No sensor firmware-mode change.
+- Disable obsolete saved gyro bias; measured-turn validation remains pending.
+
+## 2026-09-16 - IM10A stationary bias candidate
+
+- Recorded USB-forward/up mounting and independent stationary bias validation.
+- Added isolated bias-corrected, base-aligned gyro candidate; raw readings kept.
+- No EKF fusion enabled; two arithmetic tests passed, rotation tests pending.
+
 ## 2026-09-16 - IM10A dashboard label correction
 
 - Corrected remaining Yahboom labels in the IMU card, detail popup and route
@@ -973,3 +1109,17 @@
 - Removed `After=default.target` from the enabled user remote unit. Boot logs
   confirmed the camera/remote/default.target cycle caused its start job to be
   discarded. Dead-man buttons, speed parameters and motor mappings unchanged.
+## 2026-09-17 - Intercom PCM padding and camera USB recovery
+
+- Trim resampled s16 mono audio to its sample count; serialize speaker packets
+  and bound serial writes. Drain previous-session microphone queue on call start.
+- Restrict the native UNO sensor-hub backend to the native firmware interface,
+  including when a stable symlink incorrectly points to CMSIS-DAP. Throttle
+  missing-device retries and expose an explicit offline diagnostic.
+- Dashboard rejects camera commands with stale/offline controller feedback;
+  health indicators no longer classify fresh offline reports as healthy.
+- Reset the existing UNO application through its USB boot interface without
+  erase/write/flash. Restored PCA9685, BME680, AMG8833 and radar telemetry.
+- 24 targeted tests passed on Jetson (18 repair/serial tests plus six existing
+  camera tests); synthetic WebRTC and bounded camera command checks passed.
+  Physical two-room audio and servo motion confirmation remain user checks.

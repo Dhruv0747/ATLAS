@@ -1,0 +1,12 @@
+{
+  "enabled": false,
+  "disabled_reason": "2026-09-16 stationary recheck: raw Z gyro zero; saved bias introduced 13.83 degrees/minute false rotation. Dynamic validation required.",
+  "sensor_frame_bias_rad_s": [-0.0002441968308511195, 0.0012528359148013958, 0.004025708624538384],
+  "mounting": "usb_forward_components_up",
+  "training_samples": 602,
+  "independent_validation_samples": 601,
+  "validation_residual_yaw_deg": -0.05333758295015687,
+  "validation_duration_s": 60,
+  "navigation_qualified": false,
+  "note": "Stationary software gyro correction only. Temperature and dynamic validation pending. Does not correct sensor Euler heading."
+}

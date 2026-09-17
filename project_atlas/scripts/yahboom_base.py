@@ -25,6 +25,10 @@ from tf2_ros import TransformBroadcaster
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from Rosmaster_Lib import Rosmaster
+from atlas_encoder_selection import (
+    ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator,
+    feedback_state, validate_selection,
+)
 
 MAX_VX = 1.0
 MAX_WZ = 2.0
@@ -75,8 +79,8 @@ REAR_STEER_SERVO_ID  = 1    # Physical rear confirmed by user 2026-09-09
 # Ground trim after the replacement steering motors (2026-08-11).  A 90/90
 # command produced a repeatable left arc.  Four-wheel opposite steering needs
 # equal and opposite centre correction so angular.z=0 is physically straight.
-FRONT_STEER_CENTER   = 81   # User visually confirmed lifted front center 2026-09-09
-REAR_STEER_CENTER    = 114  # User visually confirmed lifted rear center 2026-09-09
+FRONT_STEER_CENTER   = 91   # User visually confirmed lifted front center 2026-09-17
+REAR_STEER_CENTER    = 89   # User visually confirmed lifted rear center 2026-09-17
 # Lifted-wheel physical commissioning (2026-08-24). These are independent
 # asymmetric endpoints; do not derive rear limits from the front geometry.
 # Extended right endpoint requested during supervised recommissioning.  This
@@ -92,7 +96,7 @@ BAT_MIN_V = 10.5
 BAT_MAX_V = 12.6
 
 # Verified ATLAS wheel geometry and provisional per-channel calibration.
-# Physical order is the controller order: M1 FR, M2 FL, M3 BR, M4 BL.
+# Physical controller order verified 2026-09-17: M1 RL, M2 RR, M3 FL, M4 FR.
 WHEEL_CIRCUMFERENCE_M = 0.392699
 WHEELBASE_M = 0.367
 # Ground calibration (2026-08-05): a nominal 0.0508 m odometry move covered
@@ -101,11 +105,16 @@ WHEELBASE_M = 0.367
 # A measured 0.20 m straight run is used independently for every channel;
 # the controller's four encoder channels have materially different scales.
 ENCODER_COUNTS_PER_REV = (4048.7, 3300.6, 4080.1, 2697.8)
-# Individually verified physical-forward polarity (wheels lifted, 2026-08-05):
-# M1/M4 require positive PWM; M2/M3 require negative PWM. Encoder polarity
-# follows those physical-forward raw signs, so normalize them all positive.
-ENCODER_FORWARD_SIGN = (1.0, -1.0, -1.0, 1.0)
+# Lifted forward signs verified for M1-M3, 2026-09-17. M4 encoder is faulty:
+# its retained sign is UNVALIDATED, not inferred from PWM. Metric calibration
+# above predates motor replacement and requires revalidation before driving.
+ENCODER_FORWARD_SIGN = (-1.0, 1.0, 1.0, 1.0)
 YAHBOOM_USB_ID = '/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0'
+
+
+def motor_outputs(left_pwm, right_pwm):
+    """Physical-forward side commands to verified controller PWM channels."""
+    return (-left_pwm, right_pwm, -left_pwm, right_pwm)
 
 
 def resolve_yahboom_port():
@@ -211,6 +220,14 @@ class YahboomBase(Node):
     def __init__(self):
         super().__init__('yahboom_base')
 
+        # Validate BEFORE opening the hardware. Missing/bad config must not
+        # silently reinstate the known faulty encoder.
+        selection_path = Path(__file__).resolve().parent.parent / 'config' / 'encoder_selection.yaml'
+        with selection_path.open(encoding='utf-8') as stream:
+            self._excluded_encoders, self._encoder_navigation_validated, self._encoder_packet_timeout = validate_selection(yaml.safe_load(stream))
+        self._encoder_packet_stamp = 0.0
+        self._encoder_packet_fresh = False
+        self._encoder_delta_estimator = EncoderDeltaEstimator()
         self.yahboom_port = resolve_yahboom_port()
         self.bot = Rosmaster(car_type=5, com=self.yahboom_port)
         self.bot.create_receive_threading()
@@ -312,7 +329,7 @@ class YahboomBase(Node):
         self._pub_encoder_health = self.create_publisher(
             String, '/atlas/encoder_health', 10
         )
-        wheel_names = ('front_right', 'front_left', 'back_right', 'back_left')
+        wheel_names = WHEEL_NAMES
         self._wheel_rpm_pubs = [self.create_publisher(Float32, f'/yahboom/wheel/{name}/rpm', 10) for name in wheel_names]
         self._wheel_mps_pubs = [self.create_publisher(Float32, f'/yahboom/wheel/{name}/speed_mps', 10) for name in wheel_names]
         self._wheel_distance_pubs = [self.create_publisher(Float32, f'/yahboom/wheel/{name}/distance_m', 10) for name in wheel_names]
@@ -577,12 +594,7 @@ class YahboomBase(Node):
                 left_pwm, right_pwm = sign * inside, sign * outside
             else:  # right-curving path: right wheels are inside
                 right_pwm, left_pwm = sign * inside, sign * outside
-        self.bot.set_motor(
-            right_pwm,   # M1 front-right
-            -left_pwm,   # M2 front-left
-            -right_pwm,  # M3 back-right
-            left_pwm,    # M4 back-left
-        )
+        self.bot.set_motor(*motor_outputs(left_pwm, right_pwm))
         self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
         self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))
         self._pub_steer_mode.publish(String(data='four_wheel_opposite'))
@@ -764,7 +776,12 @@ class YahboomBase(Node):
         self._pub_heading.publish(Float32(data=float((yaw_deg + 360.0) % 360.0)))
         self._publish_board_imu(now, roll, pitch, yaw_deg)
 
-        enc = self.bot.get_motor_encoder()
+        enc, self._encoder_packet_stamp = self.bot.get_motor_encoder_sample()
+        now = time.monotonic()
+        self._encoder_packet_fresh = (
+            self._encoder_packet_stamp > 0.0
+            and 0.0 <= now - self._encoder_packet_stamp <= self._encoder_packet_timeout
+        )
         if self._enc_origin is None:
             self._enc_origin = tuple(enc)
         if self._enc_rate_anchor is None:
@@ -813,17 +830,17 @@ class YahboomBase(Node):
         self._last_enc = enc
         self._last_enc_t = now
 
-        # Verified physical motor mapping (2026-08-04):
-        # M1=front-right, M2=front-left, M3=back-right, M4=back-left.
+        # Verified physical motor mapping (2026-09-17):
+        # M1=rear-left, M2=rear-right, M3=front-left, M4=front-right.
         # Keep ROS wheel topics physical-position based even though the
         # controller exposes channels in a different order.
-        fr, fl, rr, rl = [float(v) for v in speeds]
+        rl, rr, fl, fr = [float(v) for v in speeds]
         self._pub_fl.publish(Float32(data=fl))
         self._pub_fr.publish(Float32(data=fr))
         self._pub_rl.publish(Float32(data=rl))
         self._pub_rr.publish(Float32(data=rr))
         self._pub_left.publish(Float32(data=(fl + rl) / 2.0))
-        self._pub_right.publish(Float32(data=(fr + rr) / 2.0))
+        self._pub_right.publish(Float32(data=rr if 3 in self._excluded_encoders else (fr + rr) / 2.0))
         self._pub_speed.publish(Float32(data=float(vx)))
 
         self._publish_encoder_health(now)
@@ -843,33 +860,32 @@ class YahboomBase(Node):
                 self._wheel_last_change_t = [now] * 4
             if now - self._encoder_motion_started >= ENCODER_START_GRACE_S:
                 for index, changed_at in enumerate(self._wheel_last_change_t):
-                    if now - changed_at > ENCODER_FREEZE_S:
+                    if index not in self._excluded_encoders and now - changed_at > ENCODER_FREEZE_S:
                         self._encoder_fault_since.setdefault(index, now)
         else:
             self._encoder_motion_started = 0.0
 
-        faults = sorted(self._encoder_fault_since)
+        faults = sorted(i for i in self._encoder_fault_since if i not in self._excluded_encoders)
         longest = max(
             (now - self._encoder_fault_since[i] for i in faults),
             default=0.0,
         )
         qualifying = now - self._encoder_health_started < ENCODER_LINK_QUALIFY_S
-        if qualifying:
-            state = 'QUALIFYING'
-            scale = 0.0
-        elif len(faults) >= 2 or (len(faults) == 1 and longest > ENCODER_SINGLE_GRACE_S):
-            state = 'CRITICAL'
-            scale = 0.0
-        elif len(faults) == 1:
-            state = 'DEGRADED'
-            scale = 0.5
-        else:
-            state = 'HEALTHY' if traction else 'READY'
-            scale = 1.0
-        names = ('M1_FRONT_RIGHT', 'M2_FRONT_LEFT', 'M3_BACK_RIGHT', 'M4_BACK_LEFT')
+        state, scale, reason = feedback_state(
+            self._excluded_encoders, faults, self._encoder_packet_fresh,
+            qualifying, traction, longest,
+        )
+        names = ENCODER_NAMES
         payload = {
             'state': state,
             'faults': [names[i] for i in faults],
+            'excluded_encoders': [i + 1 for i in self._excluded_encoders],
+            'selected_encoders': [i + 1 for i in range(4) if i not in self._excluded_encoders],
+            'packet_age_s': round(max(0.0, now - self._encoder_packet_stamp), 3) if self._encoder_packet_stamp > 0.0 else None,
+            'packet_fresh': self._encoder_packet_fresh,
+            'navigation_validated': self._encoder_navigation_validated,
+            'autonomy_ready': self._encoder_navigation_validated and scale > 0.0,
+            'reason': reason if self._encoder_navigation_validated else reason + '; ground distance/turn validation pending',
             'scale': scale,
             'traction': traction,
             'fault_age_s': round(longest, 2),
@@ -880,7 +896,7 @@ class YahboomBase(Node):
                 round(max(0.0, now - stamp), 2)
                 for stamp in self._wheel_last_change_t
             ],
-            'policy': 'single=50%_for_5s;multi_or_persistent=stop',
+            'policy': 'M4_excluded;selected_fault_or_stale=autonomy_stop;validation_required' if self._excluded_encoders else 'single=50%_for_5s;multi_or_persistent=stop',
         }
         self._pub_encoder_health.publish(
             String(data=json.dumps(payload, separators=(',', ':')))
@@ -893,20 +909,16 @@ class YahboomBase(Node):
         # Integrate measured encoder position deltas, not a delayed speed
         # estimate. The controller reports counts in bursts; integrating the
         # half-second CPS estimate lost the beginning and end of short moves.
-        # Use the median so one channel with a different encoder resolution
-        # (currently M4) cannot bias navigation distance. Raw values from all
-        # four channels remain published for diagnostics and later calibration.
-        # A single diagnosed bad channel is explicitly excluded. Median
-        # filtering already rejects one outlier, but exclusion makes the
-        # containment policy unambiguous and visible in the odometry source.
-        valid_indexes = [i for i in range(4) if i not in self._encoder_fault_since]
-        valid_distances = [self._wheel_distance_m[i] for i in valid_indexes]
-        wheel_distance = statistics.median(valid_distances or self._wheel_distance_m)
-        if self._last_odom_wheel_distance is None:
-            distance_delta = 0.0
-        else:
-            distance_delta = wheel_distance - self._last_odom_wheel_distance
-        self._last_odom_wheel_distance = wheel_distance
+        # Deliberate exclusions never rejoin merely because counts reappear.
+        # Raw M4 remains diagnostic only. No fallback to rejected channels.
+        valid_indexes = [i for i in range(4)
+                         if i not in self._excluded_encoders
+                         and i not in self._encoder_fault_since]
+        if not self._encoder_packet_fresh:
+            valid_indexes = []
+        distance_delta = self._encoder_delta_estimator.update(
+            self._wheel_distance_m, valid_indexes
+        )
 
         encoder_motion = abs(distance_delta) > 1.0e-6 and dt > 0.0
         if encoder_motion:
@@ -931,7 +943,9 @@ class YahboomBase(Node):
             vy = 0.0
             vz = 0.0
             curvature = 0.0
-            source = 'stopped'
+            source = 'feedback_unavailable' if len(valid_indexes) < 3 else (
+                'stopped_M1_M2_M3_M4_excluded' if self._excluded_encoders else 'stopped'
+            )
 
         self._last_odom_source = source
         self._pub_odom_source.publish(String(data=source))
@@ -964,6 +978,12 @@ class YahboomBase(Node):
         msg.twist.covariance[0] = 0.10
         msg.twist.covariance[7] = 0.10
         msg.twist.covariance[35] = 0.20
+        if len(valid_indexes) < 4:
+            # Conservative provisional uncertainty, not a measured accuracy.
+            factor = 4.0 if len(valid_indexes) == 3 else 1000.0
+            for index in (0, 7, 35):
+                msg.pose.covariance[index] *= factor
+                msg.twist.covariance[index] *= factor
         self._pub_odom.publish(msg)
 
     def _publish_battery(self):

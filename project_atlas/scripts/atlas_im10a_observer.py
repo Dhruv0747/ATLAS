@@ -4,6 +4,7 @@ import math
 import json
 import struct
 import time
+from pathlib import Path
 import serial
 import rclpy
 from rclpy.node import Node
@@ -13,11 +14,28 @@ from geometry_msgs.msg import Vector3Stamped
 from std_msgs.msg import String
 
 
+def corrected_gyro(raw, bias):
+    # Confirmed mounting: sensor X rear, Y right, Z up (180 deg yaw).
+    return (-(raw[0] - bias[0]), -(raw[1] - bias[1]), raw[2] - bias[2])
+
+
 class Observer(Node):
     def __init__(self):
         super().__init__('atlas_im10a_observer')
         self.declare_parameter('port', '/dev/serial/by-path/platform-3610000.usb-usb-0:2.2.4.1:1.0-port0')
         self.pub = self.create_publisher(Imu, '/im10a/imu/unvalidated', 10)
+        self.corrected = self.create_publisher(Imu, '/im10a/imu/bias_corrected_candidate', 10)
+        self.bias = None
+        try:
+            config = json.loads(Path('/home/jetson/project_atlas/config/im10a_gyro_bias.json').read_text())
+            if config.get('enabled') is not True:
+                raise ValueError('Bias correction disabled pending revalidation')
+            values = config['sensor_frame_bias_rad_s']
+            if config['mounting'] != 'usb_forward_components_up' or len(values) != 3 or not all(math.isfinite(x) and abs(x) < .05 for x in values):
+                raise ValueError('Invalid bias or mounting')
+            self.bias = values
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            self.get_logger().warning(f'Corrected candidate disabled: {exc}')
         self.mag = self.create_publisher(Vector3Stamped, '/im10a/magnetic_raw', 10)
         self.status = self.create_publisher(String, '/im10a/status', 10)
         self.dashboard = self.create_publisher(String, '/im10a/dashboard_json', 10)
@@ -35,7 +53,7 @@ class Observer(Node):
     def health(self):
         age = time.monotonic() - self.last
         state = 'LIVE_UNVALIDATED' if age < .5 else 'STALE'
-        self.status.publish(String(data=f'{state}; age={age:.2f}s; checksum_errors={self.errors}; EKF disabled'))
+        self.status.publish(String(data=f'{state}; age={age:.2f}s; checksum_errors={self.errors}; EKF disabled; magnetic heading diagnostics-only'))
 
     def read(self):
         now = time.monotonic()
@@ -76,11 +94,25 @@ class Observer(Node):
                     m.linear_acceleration.x, m.linear_acceleration.y, m.linear_acceleration.z = self.accel[1]
                     # Zero covariance means unknown; this topic MUST NOT feed EKF yet.
                     self.pub.publish(m)
+                    if self.bias is not None:
+                        c = Imu()
+                        c.header.stamp = m.header.stamp
+                        c.header.frame_id = 'im10a_base_aligned_candidate'
+                        c.orientation_covariance[0] = -1.
+                        c.linear_acceleration_covariance[0] = -1.
+                        c.angular_velocity.x, c.angular_velocity.y, c.angular_velocity.z = corrected_gyro(
+                            (m.angular_velocity.x, m.angular_velocity.y, m.angular_velocity.z), self.bias)
+                        # Conservative provisional variance, NOT navigation-qualified.
+                        c.angular_velocity_covariance = [.0001, 0., 0., 0., .0001, 0., 0., 0., .0001]
+                        self.corrected.publish(c)
                     self.last = now
                     data = {
                         'source': 'Hiwonder IM10A', 'role': 'primary candidate / monitoring',
                         'frame': m.header.frame_id, 'qualified_for_navigation': False,
                         'navigation_fusion': 'DISABLED: mounting and dynamic tests pending',
+                        'heading_reference_mode': 'DIAGNOSTICS ONLY: sensor heading excluded from navigation',
+                        'magnetic_heading_used_for_navigation': False,
+                        'sensor_internal_fusion_mode': 'not verified; unchanged',
                         'gx': m.angular_velocity.x, 'gy': m.angular_velocity.y,
                         'gz': m.angular_velocity.z,
                         'ax': m.linear_acceleration.x, 'ay': m.linear_acceleration.y,
