@@ -26,5 +26,13 @@ class VisualCloudCoreTests(unittest.TestCase):
         self.assertEqual(value["hz"], 2.0)
         self.assertEqual(value["health"], "HEALTHY")
 
+    def test_retained_map_not_false_stopped_or_live(self):
+        value = MODULE.topic_stat([10.0], now=4000., expected_hz=.05, retained=True)
+        self.assertEqual(value['health'], 'CACHED')
+        self.assertEqual(value['age_s'], 3990.)
+        self.assertEqual(value['hz'], 0.)
+        self.assertEqual(MODULE.topic_stat([], retained=True)['health'], 'STOPPED')
+        self.assertEqual(MODULE.topic_stat([10.], now=4000., expected_hz=10)['health'], 'STOPPED')
+
 
 if __name__ == "__main__": unittest.main()

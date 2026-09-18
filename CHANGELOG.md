@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-09-18 - Stopped-only, on-demand local conversation
+
+- Add a read-only local model broker with owner-only Unix socket, loopback
+  inference, no tools, one request, hard deadline, bounded context/output,
+  memory/temperature admission, and automatic idle/motion/stale-data unloading.
+- Ordinary voice conversation tries local inference before existing cloud
+  fallback. Deterministic sensor replies and all existing command/safety gates
+  remain unchanged. Expose the reply source and `/atlas/local_llm/state`.
+- Pin the CUDA runtime source and official model artifact/checksum; keep models
+  out of Git. No offline ASR, autonomous authority, firmware or navigation tuning.
+- Document checks, limitations, reproducible installation and rollback separately
+  from deployment claims. Include the preceding audit repairs in this sync.
+
+## 2026-09-17 - Audit-driven recovery, voice and observability corrections
+
+- Preserve complete bounded encoder-health JSON for validation; malformed,
+  oversized and unknown states fail closed. Limit text only for display/logging.
+  This removes false motor-base restart requests caused by 240-character JSON truncation.
+- Require sustained fresh zero commands for stopped-only restarts, plus fresh
+  stop-latch telemetry for motor I/O; recheck in the worker and cancel unnecessary
+  recovery when data has already returned. No change to remote-stop precedence.
+- Add cached bilingual wake acknowledgement; start the command window after
+  playback, and avoid expiring captured commands during transcription latency.
+  Clear stale transcription indicators and preserve detailed local speech errors.
+- Make the agent role board report existing autonomy restrictions instead of
+  treating fresh role heartbeats as unconditional READY.
+- Use transient-local subscriptions for the Visual Cloud map/static TF and
+  explicitly label retained snapshots CACHED. Mark unaligned map overlays as
+  diagnostic previews, not collision-clearance evidence.
+- Add targeted offline regressions; record stationary deployment verification.
+  No local LLM was installed, no navigation calibration was changed, and no
+  motor/steering/goal command was issued. Legacy root camera service retirement
+  remains pending administrator authentication.
+
 ## 2026-09-17 - Explicit three-encoder configuration
 
 - Select M1/M2/M3 and exclude faulty M4 feedback, not its motor output.

@@ -20,6 +20,7 @@ visual-cloud-test.sqlite3*
 *.onnx
 *.pt
 *.plan
+*.gguf
 *.log
 
 # Credentials and local environment

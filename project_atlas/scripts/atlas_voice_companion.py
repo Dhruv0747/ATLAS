@@ -32,6 +32,7 @@ from sensor_msgs.msg import Imu, LaserScan, NavSatFix
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool, Empty, Float32, Int32, String
 from atlas_voice_status import FreshValues, Announcements, as_object, motion_block, startup_reply, status_reply
+from atlas_local_llm_client import request_local
 
 
 MAGIC = 0x534C5441
@@ -642,6 +643,25 @@ class AtlasVoice(Node):
         return text
 
     def answer(self, text):
+        # Only the already-classified conversation branch uses an LLM. Its text
+        # is never reinterpreted as an agent/hardware command. Local inference
+        # has a separate stopped-only resource gate; existing cloud fallback
+        # remains available when that gate rejects a request.
+        if os.getenv('ATLAS_LOCAL_LLM_ENABLED', '0') == '1':
+            self.publish('cloud', 'LOCAL LLM: checking stopped-only admission')
+            try:
+                result = request_local(text, self.rover.context(), self.conversation[-2:])
+                reply = result['reply']
+                if not isinstance(reply, str) or not reply.strip():
+                    raise ValueError('empty local reply')
+                self.last_answer_engine = 'LOCAL LLM (read-only)'
+                self.conversation.extend([{'role': 'user', 'content': text},
+                                          {'role': 'assistant', 'content': reply}])
+                self.conversation = self.conversation[-6:]
+                return reply
+            except (OSError, ValueError, RuntimeError, KeyError) as exc:
+                self.publish('cloud', 'LOCAL UNAVAILABLE: ' + str(exc)[:140] + '; trying cloud')
+        self.last_answer_engine = 'CLOUD LLM'
         system = (
             "You are ATLAS, a friendly concise bilingual rover companion. "
             "Reply in the same language as the user: Hindi for Hindi, English "
@@ -773,7 +793,7 @@ class AtlasVoice(Node):
             return pcm16
         except Exception as exc:
             if offline_only:
-                raise RuntimeError('Offline speech failed') from exc
+                raise RuntimeError(f'Offline speech failed: {type(exc).__name__}: {exc}') from exc
             self.publish("cloud", f"LOCAL TTS FALLBACK: {exc}")
             return self.speech(text)
 
@@ -1144,7 +1164,9 @@ class AtlasVoice(Node):
         return None
 
     def process_utterance(self, pcm):
+        self.last_answer_engine = 'LOCAL RULES'
         epoch = self.privacy_epoch
+        captured_at = time.monotonic()
         if self.mic_muted:
             return
         try:
@@ -1152,19 +1174,34 @@ class AtlasVoice(Node):
             self.publish("cloud", "TRANSCRIBING")
             text = self.transcribe(pcm)
             if self.mic_muted or epoch != self.privacy_epoch:
+                self.publish('cloud', 'IDLE: recording discarded after privacy change')
                 self.set_state('IDLE')
                 return
             if not text:
+                self.publish('cloud', 'IDLE: no speech recognized')
                 self.set_state("IDLE")
                 return
             wake_found, command_text = self.remove_wake_phrase(text)
             if wake_found and not command_text:
-                self.awake_until = time.monotonic() + 8.0
                 self.publish("intent", "WAKE WORD")
-                self.publish("response", "Listening for command")
+                reply = ('हाँ ध्रुव, बोलिए।' if any('\u0900' <= c <= '\u097f' for c in text)
+                         else "Yes Dhruv, I'm listening.")
+                self.publish('response', reply)
+                # Cached local speech, not another cloud request. Start the
+                # command window AFTER playback and echo suppression finish.
+                audio = self.local_speech(reply, offline_only=True)
+                if self.mic_muted or epoch != self.privacy_epoch:
+                    self.publish('cloud', 'IDLE: wake reply canceled after privacy change')
+                    self.set_state('IDLE')
+                    return
+                self.play(audio)
+                self.awake_until = max(time.monotonic(), self.ignore_mic_until) + 8.0
+                self.publish('cloud', 'READY: waiting for command; speech recognition requires internet')
                 self.set_state("IDLE")
                 return
-            if not wake_found and time.monotonic() > self.awake_until:
+            # Network transcription latency must not expire a command that
+            # was captured while the listening window was still open.
+            if not wake_found and captured_at > self.awake_until:
                 normalized = text.lower().strip(" \t\r\n,.:;!?।")
                 false_silence = {
                     "here it is", "there it is", "thank you",
@@ -1172,6 +1209,7 @@ class AtlasVoice(Node):
                 }
                 if normalized in false_silence or not self.pending_agent_action:
                     self.publish("intent", "IGNORED - SAY HEY ATLAS")
+                    self.publish('cloud', 'IDLE: waiting for Hey ATLAS')
                     self.set_state("IDLE")
                     return
             if command_text:
@@ -1213,28 +1251,36 @@ class AtlasVoice(Node):
                     reply = "I cannot reach the live weather service right now."
             else:
                 self.publish("intent", "CONVERSATION")
-                self.publish("cloud", "OPENAI ONLINE")
                 reply = self.answer(text)
             if self.mic_muted or epoch != self.privacy_epoch:
+                self.publish('cloud', 'IDLE: reply canceled after privacy change')
                 self.set_state('IDLE')
                 return
             self.publish("response", reply)
             # The speech API can generate slower than real time on the rover's
             # connection. Buffering fully prevents audible gaps and stutter.
-            self.play(self.local_speech(reply))
+            audio = self.local_speech(reply)
+            if self.mic_muted or epoch != self.privacy_epoch:
+                self.publish('cloud', 'IDLE: speech canceled after privacy change')
+                self.set_state('IDLE')
+                return
+            self.play(audio)
             self.publish("action", "NONE")
+            self.publish('cloud', 'READY: ' + self.last_answer_engine + '; speech recognition requires internet')
             self.set_state("IDLE")
         except Exception as exc:
-            self.publish("cloud", f"API ERROR: {exc}")
+            error = f"VOICE ERROR: {type(exc).__name__}: {exc}"
+            self.publish("cloud", error)
             self.ignore_mic_until = time.monotonic() + 1.0
             self.set_state("ERROR")
             if not self.mic_muted:
                 try:
-                    text = 'Dhruv, the online voice service is unavailable. Local alerts still work. Please use the dashboard or remote.'
+                    text = 'Dhruv, I could not complete that voice request. Please check the dashboard or use the remote.'
                     self.publish('response', text)
                     self.play(self.local_speech(text, offline_only=True))
                 except Exception:
                     pass
+            self.publish('cloud', error)
             self.set_state("IDLE")
 
     def voice_loop(self):

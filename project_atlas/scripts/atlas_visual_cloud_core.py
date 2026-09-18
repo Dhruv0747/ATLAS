@@ -48,7 +48,7 @@ def classify_failure(text):
     return "UNKNOWN"
 
 
-def topic_stat(samples, now=None, expected_hz=0.0):
+def topic_stat(samples, now=None, expected_hz=0.0, retained=False):
     """Summarize monotonic receive timestamps into Hz, age and health."""
     now = time.monotonic() if now is None else float(now)
     samples = list(samples)
@@ -59,6 +59,7 @@ def topic_stat(samples, now=None, expected_hz=0.0):
     return {
         "hz": round(hz, 2),
         "age_s": None if age is None else round(age, 3),
-        "health": link_health(age, expected_hz, hz),
+        # Retained map/static-TF data is event-driven, not a live heartbeat.
+        # Keep the real receipt age and explicitly label cached data.
+        "health": "CACHED" if retained and samples else link_health(age, expected_hz, hz),
     }
-

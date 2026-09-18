@@ -2,12 +2,13 @@
 """Bounded Project ATLAS fault diagnosis and safe peripheral recovery.
 
 This node never publishes velocity, servo, navigation-goal, or mission commands.
-Motor control and Nav2 are diagnosis-only because restarting either while the
-rover may be moving is unsafe. Peripheral restarts are serialized, rate-limited,
-and stop after repeated failures so hardware faults cannot create restart loops.
+Nav2 is not restarted here. A bounded motor-link recovery additionally requires
+a fresh latched stop and sustained zero commands. Peripheral restarts are
+serialized and rate-limited so faults cannot create rapid restart loops.
 """
 
 import json
+import math
 import os
 import subprocess
 import threading
@@ -97,6 +98,10 @@ COOLDOWN = 60.0
 ATTEMPT_WINDOW = 600.0
 MAX_ATTEMPTS = 3
 RECOVERY_CONFIRM_TIMEOUT = 25.0
+MAX_STATUS_CHARS = 16384
+DISPLAY_STATUS_CHARS = 240
+STOP_COMMAND_MAX_AGE = 1.0
+STOP_COMMAND_SETTLE = 2.0
 
 
 class AtlasRecovery(Node):
@@ -111,8 +116,11 @@ class AtlasRecovery(Node):
         self.recovering = set()
         self.lock = threading.Lock()
         self.service_cache = {}
-        self.motion_last_seen = now
+        self.motion_last_seen = None
+        self.motion_zero_since = None
         self.motion_active = False
+        self.stop_latched = False
+        self.stop_latch_seen = None
         self.status_pub = self.create_publisher(
             String, "/atlas/recovery_status", 10
         )
@@ -127,6 +135,7 @@ class AtlasRecovery(Node):
                 10,
             )
         self.create_subscription(Twist, "/cmd_vel", self.on_velocity, 10)
+        self.create_subscription(String, "/atlas/control_policy", self.on_control_policy, 10)
         self.create_timer(2.0, self.check)
         self.create_timer(5.0, self.publish_state)
         suffix = (
@@ -140,18 +149,58 @@ class AtlasRecovery(Node):
         self.get_logger().info(text)
 
     def on_velocity(self, msg):
-        self.motion_last_seen = time.monotonic()
-        self.motion_active = (
-            abs(msg.linear.x) > 0.01
-            or abs(msg.linear.y) > 0.01
-            or abs(msg.angular.z) > 0.01
+        now = time.monotonic()
+        if self.motion_last_seen is None or now - self.motion_last_seen > STOP_COMMAND_MAX_AGE:
+            self.motion_zero_since = None
+        self.motion_last_seen = now
+        values = (msg.linear.x, msg.linear.y, msg.angular.z)
+        self.motion_active = any(not math.isfinite(v) or abs(v) > 0.01 for v in values)
+        if self.motion_active:
+            self.motion_zero_since = None
+        elif self.motion_zero_since is None:
+            self.motion_zero_since = self.motion_last_seen
+
+    def on_control_policy(self, msg):
+        self.stop_latched = False
+        self.stop_latch_seen = time.monotonic()
+        try:
+            payload = json.loads(msg.data) if len(msg.data) <= MAX_STATUS_CHARS else None
+            self.stop_latched = isinstance(payload, dict) and payload.get('stop_latched') is True
+        except (ValueError, TypeError):
+            pass
+
+    def stop_command_confirmed(self):
+        """Fresh sustained zero command; not a physical wheel-stop assertion."""
+        now = time.monotonic()
+        return (
+            not self.motion_active
+            and self.motion_last_seen is not None
+            and self.motion_zero_since is not None
+            and 0 <= now - self.motion_last_seen <= STOP_COMMAND_MAX_AGE
+            and now - self.motion_zero_since >= STOP_COMMAND_SETTLE
         )
+
+    def restart_allowed(self, item):
+        if not item.stopped_only:
+            return True
+        if not self.stop_command_confirmed():
+            return False
+        if item.service == 'rover-base-telemetry.service':
+            return (self.stop_latched and self.stop_latch_seen is not None
+                    and 0 <= time.monotonic() - self.stop_latch_seen <= STOP_COMMAND_MAX_AGE)
+        return True
 
     def on_message(self, name, msg):
         now = time.monotonic()
         self.last_seen[name] = now
         if isinstance(msg, String):
-            value = msg.data.strip()[:240]
+            # Parse complete structured status. Truncating JSON before parsing
+            # made a valid ~475-character DEGRADED report look like a fault and
+            # unnecessarily restarted the motor-board service. Bound storage,
+            # but only shorten normal messages at the display/log boundary.
+            value = msg.data.strip()
+            if len(value) > MAX_STATUS_CHARS:
+                value = "INVALID: status payload exceeds size limit"
         elif isinstance(msg, NavSatFix):
             value = f"status={msg.status.status} lat={msg.latitude:.6f} lon={msg.longitude:.6f}"
         else:
@@ -178,13 +227,15 @@ class AtlasRecovery(Node):
         return active
 
     def bad_status(self, name):
-        value = self.last_value[name].lower()
+        # Preserve the legacy text-monitor scope; JSON keys such as
+        # "faults":[] in a BMS payload are not themselves evidence of failure.
+        value = self.last_value[name][:DISPLAY_STATUS_CHARS].lower()
         if name == "encoder_health":
             try:
                 payload = json.loads(self.last_value[name])
-                return str(payload.get("state", "INVALID")).upper() in {
-                    "CRITICAL", "INVALID", "MISSING", "QUALIFYING"
-                }
+                return not isinstance(payload, dict) or str(
+                    payload.get("state", "INVALID")
+                ).upper() not in {"READY", "HEALTHY", "DEGRADED"}
             except (TypeError, ValueError, json.JSONDecodeError):
                 return True
         return any(word in value for word in BAD_WORDS)
@@ -192,12 +243,12 @@ class AtlasRecovery(Node):
     def schedule_recovery(self, item, reason):
         now = time.monotonic()
         attempt_limit = 1 if item.name == "encoder_health" else MAX_ATTEMPTS
-        if item.stopped_only and self.motion_active:
+        if not self.restart_allowed(item):
             if now - self.last_notice[item.name] >= COOLDOWN:
                 self.last_notice[item.name] = now
                 self.publish_status(
                     f"STOP REQUIRED: {item.name} {reason}; automatic restart "
-                    "is inhibited while motion is active"
+                    "requires fresh zero commands and, for motor I/O, a latched stop"
                 )
             return
         with self.lock:
@@ -225,9 +276,19 @@ class AtlasRecovery(Node):
 
     def recover(self, item, reason, attempt_limit):
         try:
-            # Most peripheral recovery is allowed while stationary or moving
-            # because the command watchdog remains authoritative. Components
-            # marked stopped_only are gated before this worker is scheduled.
+            # Recheck in the worker: command freshness can change after the
+            # timer schedules this thread. Never infer stopped from stale data.
+            if not self.restart_allowed(item):
+                self.publish_status(f"RECOVERY CANCELED: {item.name}; stop command not confirmed")
+                return
+            if self.classify(item, time.monotonic())[0] == "HEALTHY":
+                self.publish_status(f"RECOVERY CANCELED: {item.name}; data recovered without restart")
+                return
+            # Classification may query systemd. Recheck after that potentially
+            # slow call as well, directly before the restart operation.
+            if not self.restart_allowed(item):
+                self.publish_status(f"RECOVERY CANCELED: {item.name}; stop guard changed")
+                return
             attempt = len(self.attempts[item.name])
             self.publish_status(
                 f"RECOVERING: {item.name} ({reason}); restarting "
@@ -260,14 +321,14 @@ class AtlasRecovery(Node):
     def classify(self, item, now):
         age = now - self.last_seen[item.name]
         if self.bad_status(item.name):
-            return "FAULT", age, self.last_value[item.name]
+            return "FAULT", age, self.last_value[item.name][:DISPLAY_STATUS_CHARS]
         if age > item.stale_after:
             return "STALE", age, f"no data for {age:.1f}s"
         if item.name == "gps" and self.last_value[item.name].startswith("status=-1"):
             return "NO_FIX", age, "receiver online; waiting for satellite fix"
         if item.service and not self.service_active(item.service):
             return "SERVICE_DOWN", age, f"{item.service} inactive"
-        return "HEALTHY", age, self.last_value[item.name]
+        return "HEALTHY", age, self.last_value[item.name][:DISPLAY_STATUS_CHARS]
 
     def check(self):
         now = time.monotonic()
@@ -313,6 +374,7 @@ class AtlasRecovery(Node):
         payload = {
             "overall": overall,
             "motion_active": self.motion_active,
+            "stop_command_confirmed": self.stop_command_confirmed(),
             "recovering": sorted(self.recovering),
             "systems": systems,
         }

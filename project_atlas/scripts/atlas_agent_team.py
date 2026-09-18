@@ -32,6 +32,9 @@ class AtlasAgentTeam(Node):
             "recovery_specialist": "/atlas/recovery_state",
             "experience_recorder": "/atlas/experience/status",
             "voice_interface": "/atlas/voice/state",
+            "control_policy": "/atlas/control_policy",
+            "encoder_health": "/atlas/encoder_health",
+            "readiness": "/atlas/readiness",
         }
         self.command_subscriptions = [
             self.create_subscription(
@@ -50,7 +53,8 @@ class AtlasAgentTeam(Node):
         self.get_logger().info("ATLAS specialist role board is online")
 
     def update(self, role, value):
-        self.values[role] = str(value)[:500]
+        text = str(value)
+        self.values[role] = text if len(text) <= 16384 else 'INVALID: oversized status'
         self.seen[role] = time.monotonic()
 
     def snapshot(self):
@@ -66,11 +70,41 @@ class AtlasAgentTeam(Node):
             roles[role] = {
                 "state": "ONLINE" if fresh else "STALE",
                 "age_s": round(age, 1) if age is not None else None,
-                "evidence": self.values.get(role, "waiting for first report"),
+                "evidence": self.values.get(role, "waiting for first report")[:500],
             }
         offline = [role for role in critical if roles[role]["state"] != "ONLINE"]
+        # Fresh heartbeats prove communication, not readiness to drive. Keep
+        # this role board read-only and report the existing safety gates.
+        def fresh_value(role):
+            age = now - self.seen.get(role, -100.)
+            return self.values.get(role) if 0 <= age <= 6. else None
+
+        def report(role):
+            try:
+                value = json.loads(fresh_value(role) or 'null')
+                return value if isinstance(value, dict) else {}
+            except (ValueError, TypeError):
+                return {}
+
+        policy, enc = report('control_policy'), report('encoder_health')
+        blocked = []
+        if offline:
+            blocked.append('critical role evidence missing or stale')
+        if policy.get('manual_only') is not False:
+            blocked.append('manual-only mode or control policy unavailable')
+        if policy.get('stop_latched') is not False:
+            blocked.append('stop latched or stop state unavailable')
+        if fresh_value('readiness') != 'AUTO_READY':
+            blocked.append('autonomous readiness not confirmed')
+        if enc.get('autonomy_ready') is not True:
+            blocked.append('encoder navigation qualification not confirmed')
+        if report('recovery_specialist').get('overall') != 'HEALTHY':
+            blocked.append('recovery diagnostics degraded, faulty or unavailable')
         return {
-            "overall": "READY" if not offline else "DEGRADED",
+            "overall": "READY" if not blocked else "DEGRADED",
+            "communications_online": not offline,
+            "autonomy_ready": not blocked,
+            "readiness_reasons": blocked,
             "offline_critical_roles": sorted(offline),
             "roles": roles,
             "architecture": "one planner; deterministic specialist roles; offline-first",
@@ -81,7 +115,8 @@ class AtlasAgentTeam(Node):
         state = self.snapshot()
         self.state_pub.publish(String(data=json.dumps(state, separators=(",", ":"))))
         offline = ",".join(state["offline_critical_roles"]) or "none"
-        self.status_pub.publish(String(data=f"{state['overall']}: critical_offline={offline}"))
+        reasons = '; '.join(state['readiness_reasons']) or 'existing readiness gates passed'
+        self.status_pub.publish(String(data=f"{state['overall']}: critical_offline={offline}; {reasons}"))
 
     def status_service(self, _request, response):
         state = self.snapshot()

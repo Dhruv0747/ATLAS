@@ -1,5 +1,33 @@
 # Project ATLAS - Autonomous Service Rover
 
+### On-demand local companion — 2026-09-18
+
+Added a stopped-only, read-only local conversation backend with automatic model
+unloading and explicit resource limits. Existing deterministic telemetry replies,
+remote emergency stop, navigation gates and cloud fallback are preserved. The
+local model has no action tools or motor-command path. Voice recognition still
+needs internet; this is **not a fully offline voice assistant**.
+See [installation, current deployment evidence and limitations](docs/LOCAL_LLM_2026-09-18.md).
+
+### Audit-driven reliability repairs — 2026-09-17
+
+The recovery monitor now parses complete encoder-health JSON instead of treating
+truncated messages as faults. Motor-link recovery additionally requires fresh,
+sustained zero commands and a fresh latched stop. A fresh, explicitly degraded
+three-encoder report is not a serial failure or permission for autonomous driving.
+The agent role board now distinguishes communication from autonomous readiness.
+
+“Hey ATLAS” alone now gets a cached local English/Hindi acknowledgement after
+recognition. Cloud speech recognition is **still required**; that September 17
+repair did not install a local LLM or offline wake-word recognizer. Empty/ignored recordings clear the
+transcription stage, and microphone privacy is rechecked before playback.
+
+Visual Cloud now receives retained maps/static-TF after late startup and labels
+these snapshots `CACHED`, not live traffic. Its map overlay remains a preview:
+map/odom/scan frame alignment and a complete buffered TF tree are still pending.
+No navigation tuning, wheel motion, IMU fusion or encoder qualification changed.
+See [deployment evidence, limits and local-LLM decision](docs/AUDIT_REPAIRS_2026-09-17.md).
+
 ### Three-encoder commissioning — 2026-09-17
 
 M1 rear-left, M2 rear-right and M3 front-left are selected for odometry in

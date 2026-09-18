@@ -1,0 +1,14 @@
+{
+  "binary": "~/.local/share/atlas-llm/llama.cpp/build/bin/llama-server",
+  "model": "~/.local/share/atlas-llm/models/Qwen3-1.7B-Q4_K_M.gguf",
+  "model_label": "Qwen3-1.7B Q4_K_M",
+  "port": 8098,
+  "context_tokens": 2048,
+  "reply_tokens": 128,
+  "threads": 2,
+  "idle_unload_s": 15,
+  "request_deadline_s": 25,
+  "minimum_available_mb": 1900,
+  "resident_reserve_mb": 700,
+  "maximum_temperature_c": 78
+}

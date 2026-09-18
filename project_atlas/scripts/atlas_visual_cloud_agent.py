@@ -19,13 +19,14 @@ import sqlite3
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data, QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from rosidl_runtime_py.utilities import get_message
 
 from atlas_visual_cloud_core import classify_failure, topic_stat
 
 
 DEFAULT_CONFIG = Path("/home/jetson/project_atlas/config/atlas_visual_cloud.json")
+RETAINED_TOPICS = {"/map", "/tf_static"}
 
 
 def git_version():
@@ -77,6 +78,7 @@ class VisualCloudAgent(Node):
     def __init__(self, config):
         super().__init__("atlas_visual_cloud_agent")
         self.config = config
+        self.config['topics'].setdefault('/tf_static', 0.0)
         self.lock = threading.Lock()
         self.samples = {name: collections.deque(maxlen=100) for name in config["topics"]}
         self.values = {}
@@ -106,7 +108,13 @@ class VisualCloudAgent(Node):
                 continue
             try:
                 cls = get_message(names[0])
-                sub = self.create_subscription(cls, topic, lambda m, t=topic: self.on_message(t, m), qos_profile_sensor_data)
+                qos = qos_profile_sensor_data
+                if topic in RETAINED_TOPICS:
+                    # Nav2 map_server/static broadcasters retain their last
+                    # sample. A volatile late subscriber misses that sample.
+                    qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                                     reliability=ReliabilityPolicy.RELIABLE)
+                sub = self.create_subscription(cls, topic, lambda m, t=topic: self.on_message(t, m), qos)
                 self.subscriptions_live.append(sub)
                 self.subscribed_topics.add(topic)
             except Exception as exc:
@@ -179,7 +187,10 @@ class VisualCloudAgent(Node):
             self.mission_evidence = self.read_mission_evidence()
             self.last_mission_read = now_mono
         with self.lock:
-            traffic = {name: {**topic_stat(self.samples[name], now_mono, hz), "expected_hz": hz, "value": self.values.get(name)} for name, hz in self.config["topics"].items()}
+            traffic = {name: {**topic_stat(self.samples[name], now_mono, hz, retained=name in RETAINED_TOPICS),
+                              "expected_hz": hz, "value": self.values.get(name),
+                              "data_mode": "retained snapshot" if name in RETAINED_TOPICS else "live stream"}
+                       for name, hz in self.config["topics"].items()}
         mission = str((traffic.get("/atlas/mission_status") or {}).get("value") or "")
         return {
             "schema": 1, "robot_id": self.config["robot_id"], "observed_at": time.time(),

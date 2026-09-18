@@ -266,5 +266,74 @@ class VoiceControlTest(unittest.TestCase):
         mux.hold_remote_stop.assert_called_once()
 
 
+class WakeResponseTest(unittest.TestCase):
+    def setUp(self):
+        import re
+        cls = isolated_methods('atlas_voice_companion.py',
+                               {'process_utterance', 'remove_wake_phrase'},
+                               {'time': time, 're': re, 'status_reply': status_reply})
+        self.node = cls()
+        self.node.privacy_epoch = 0
+        self.node.mic_muted = False
+        self.node.awake_until = 0
+        self.node.ignore_mic_until = 0
+        self.node.pending_agent_action = None
+        self.node.publish = Mock()
+        self.node.set_state = Mock()
+        self.node.transcribe = Mock(return_value='Hey ATLAS')
+        self.node.local_speech = Mock(return_value=b'ack')
+        self.node.play = Mock()
+        self.node.handle_agent_request = Mock(return_value=None)
+        self.node.handle_safe_hardware_request = Mock(return_value=None)
+
+    def test_wake_gets_local_ack_not_motion(self):
+        for wake, expected in (('Hey ATLAS', "Yes Dhruv, I'm listening."),
+                               ('हे एटलस', 'हाँ ध्रुव, बोलिए।')):
+            self.node.transcribe.return_value = wake
+            self.node.process_utterance(b'captured')
+            self.node.local_speech.assert_called_with(expected, offline_only=True)
+            self.node.play.assert_called_with(b'ack')
+            self.assertGreater(self.node.awake_until, time.monotonic() + 7)
+        self.node.handle_agent_request.assert_not_called()
+        self.node.handle_safe_hardware_request.assert_not_called()
+
+    def test_command_window_starts_after_playback(self):
+        self.node.play.side_effect = lambda _: setattr(self.node, 'ignore_mic_until', time.monotonic() + 2)
+        self.node.process_utterance(b'captured')
+        self.assertGreaterEqual(self.node.awake_until, self.node.ignore_mic_until + 8)
+
+    def test_no_transcribing_stuck_for_empty_or_ignored_audio(self):
+        for text in ('', 'thanks for watching'):
+            self.node.transcribe.return_value = text
+            self.node.process_utterance(b'captured')
+            stages = [c.args[1] for c in self.node.publish.call_args_list if c.args[0] == 'cloud']
+            self.assertTrue(stages[-1].startswith('IDLE:'))
+        self.node.play.assert_not_called()
+
+    def test_privacy_change_during_ack_prevents_play(self):
+        def synth(*args, **kwargs):
+            self.node.privacy_epoch += 1
+            return b'private'
+        self.node.local_speech.side_effect = synth
+        self.node.process_utterance(b'captured')
+        self.node.play.assert_not_called()
+        self.assertEqual(self.node.awake_until, 0)
+
+    def test_muted_audio_never_sent_to_transcription(self):
+        self.node.mic_muted = True
+        self.node.process_utterance(b'captured')
+        self.node.transcribe.assert_not_called()
+
+    def test_transcription_delay_does_not_expire_captured_command(self):
+        from unittest.mock import patch
+        self.node.awake_until = 10.
+        self.node.transcribe.return_value = 'battery status'
+        self.node.handle_agent_request.return_value = 'Test status reply'
+        with patch('time.monotonic', side_effect=[0., 30.]):
+            self.node.process_utterance(b'captured')
+        self.node.handle_agent_request.assert_called_once_with('battery status')
+        self.node.play.assert_called_once()
+
+
 if __name__ == '__main__':
     unittest.main()

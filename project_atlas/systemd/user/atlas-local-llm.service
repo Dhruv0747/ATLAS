@@ -1,0 +1,20 @@
+[Unit]
+Description=ATLAS on-demand read-only local language model (stopped only)
+After=rover-base-telemetry.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec /usr/bin/python3 %h/project_atlas/scripts/atlas_local_llm.py --config %h/project_atlas/config/local_llm.json'
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=5
+Nice=15
+UMask=0077
+NoNewPrivileges=yes
+MemoryMax=2300M
+TasksMax=64
+LimitNOFILE=256
+
+[Install]
+WantedBy=default.target
