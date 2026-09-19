@@ -76,11 +76,11 @@ ENCODER_LINK_QUALIFY_S = 3.0
 
 FRONT_STEER_SERVO_ID = 2    # Physical front confirmed by user 2026-09-09
 REAR_STEER_SERVO_ID  = 1    # Physical rear confirmed by user 2026-09-09
-# Ground trim after the replacement steering motors (2026-08-11).  A 90/90
-# command produced a repeatable left arc.  Four-wheel opposite steering needs
-# equal and opposite centre correction so angular.z=0 is physically straight.
-FRONT_STEER_CENTER   = 91   # User visually confirmed lifted front center 2026-09-17
-REAR_STEER_CENTER    = 89   # User visually confirmed lifted rear center 2026-09-17
+# User requested 90/90 neutral with all wheels lifted (2026-09-18).
+# Previous visually confirmed trim was front=91, rear=89. Servo commands are
+# not measured wheel angles; straight-ground travel needs rechecking at 90/90.
+FRONT_STEER_CENTER   = 90
+REAR_STEER_CENTER    = 90
 # Lifted-wheel physical commissioning (2026-08-24). These are independent
 # asymmetric endpoints; do not derive rear limits from the front geometry.
 # Extended right endpoint requested during supervised recommissioning.  This

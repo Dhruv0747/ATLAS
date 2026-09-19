@@ -37,6 +37,7 @@ SERIAL_STALE_REOPEN_SECONDS = max(
     5.0, float(os.environ.get('ATLAS_SENSOR_HUB_STALE_REOPEN_SECONDS', '8.0'))
 )
 HUB_TRANSPORT = os.environ.get('ATLAS_SENSOR_HUB_TRANSPORT', 'arduino_uno_r4').strip()
+FRONT_ULTRASONIC_ENABLED = os.environ.get('ATLAS_FRONT_ULTRASONIC_ENABLED', '0').strip() == '1'
 GNSS_ENABLED = os.environ.get('ATLAS_GNSS_ENABLED', '1').strip().lower() not in (
     '0', 'false', 'no', 'off',
 )
@@ -214,6 +215,9 @@ class UltrasonicArduinoBridge(Node):
                 # transaction. Camera outputs remain released.
                 self.write_line('PING')
                 self.write_line('PCA?')
+                # Reapply the installed front sensor after USB reconnect/reset.
+                # Leave the other three channel selections untouched.
+                self.write_line('USENABLE,F,' + ('1' if FRONT_ULTRASONIC_ENABLED else '0'))
                 # Dhruv's commissioned forward pose. Apply it only after the
                 # sensor hub has connected, so every full system power-on and
                 # USB re-enumeration restores the same camera view.

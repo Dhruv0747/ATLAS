@@ -14,13 +14,19 @@ over one persistent USB serial connection at 115200 baud.
 | L76K GNSS | not connected to UNO in the commissioned build | direct Jetson J12 pins 8/10 at 9600 baud; legacy UNO reader retained only for recovery |
 | RD-03D radar | module TX to D12/RX; module RX to D11/TX; common GND | 256000 baud; require valid `AA FF 03 00 … 55 CC` frames |
 | Rear ultrasonic | TRIG D8, ECHO D9 | live |
-| Front ultrasonic | TRIG D2, ECHO D3 | reserved, disabled |
+| Front ultrasonic | TRIG D2, ECHO D3 | enabled by Jetson bridge drop-in; live readings verified 2026-09-19 |
 | Left ultrasonic | TRIG D4, ECHO D5 | reserved, disabled |
 | Right ultrasonic | TRIG D6, ECHO D7 | reserved, disabled |
 
 All devices must share ground. Do not apply 5 V directly to any 3.3 V-only
 signal input. Use a divider or level shifter if an ultrasonic ECHO output is
 5 V.
+
+The sketch still defaults the front channel to disabled. Install
+`project_atlas/systemd/user/atlas-uno-r4-sensor-hub.service.d/front-ultrasonic.conf`
+with the current bridge to reapply `USENABLE,F,1` after connection/reboot.
+Front readings of 925–962 mm and rear ONLINE were verified on 2026-09-19;
+this is a telemetry check, not autonomous obstacle-avoidance qualification.
 
 The retired BNO08x is not part of this hub firmware. ATLAS now uses the
 calibrated Yahboom motor-controller IMU as its sole canonical system IMU.

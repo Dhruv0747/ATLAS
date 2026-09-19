@@ -1157,3 +1157,16 @@
 - 24 targeted tests passed on Jetson (18 repair/serial tests plus six existing
   camera tests); synthetic WebRTC and bounded camera command checks passed.
   Physical two-room audio and servo motion confirmation remain user checks.
+
+# 2026-09-18 — User-requested steering neutral
+
+- Set front and rear servo neutral commands to 90 degrees, replacing 91/89,
+  with the user confirming all wheels lifted and hands clear. Endpoint limits
+  remain unchanged. These are commanded positions, not measured wheel alignment;
+  straight-ground driving has not been revalidated with this new neutral.
+
+# 2026-09-19 — Front ultrasonic telemetry
+
+- Add an opt-in front-channel setting to the existing UNO serial owner. Reapply
+  `USENABLE,F,1` on connection with the installed drop-in; preserve rear/left/right
+  settings and all navigation safety configuration. No firmware flash required.

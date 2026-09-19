@@ -1,5 +1,17 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Front ultrasonic — 2026-09-19
+
+UNO R4 front TRIG D2 / ECHO D3 is enabled by the sensor-hub
+`front-ultrasonic.conf` drop-in and reapplied after USB reconnect. This enables
+telemetry only; navigation qualification and safety policy are unchanged.
+
+### Steering neutral — 2026-09-18
+
+User-requested servo neutral is now front **90°**, rear **90°** (previously
+91°/89°). Existing endpoint limits are unchanged. Commanded neutral is not proof
+of physical wheel alignment; straight-ground driving needs revalidation.
+
 ### On-demand local companion — 2026-09-18
 
 Added a stopped-only, read-only local conversation backend with automatic model
