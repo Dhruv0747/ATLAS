@@ -1,5 +1,17 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Phase 2: evidence and next-step commissioning — 2026-09-20
+
+On `/commissioning`, use **CONTINUE ATLAS COMMISSIONING** to open the next
+unresolved gate. It never starts motion. The same SQLite database now retains
+scoped test evidence, explains retests after relevant changes, and preserves
+valid results across restart. Old telemetry checks do not become physical PASS.
+Steering has explicit **RECORD VERIFIED FRONT/REAR SAVED RANGE** controls after
+the operator physically verifies and saves through the existing motor owner.
+No navigation, encoder-selection, camera-home or IMU-fusion setting is changed.
+This is the first bounded Phase 2 increment, not completion of all physical or
+fallback work. See [audit, remaining gates and validation](docs/COMMISSIONING_PHASE2_2026-09-20.md).
+
 Camera startup home selected by user on 2026-09-20: pan **1725 µs**, tilt
 **1500 µs**. UNO reconnect/startup, web Home, tracker and mission defaults match.
 

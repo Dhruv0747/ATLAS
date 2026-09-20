@@ -16,6 +16,7 @@ import time
 import uuid
 
 from atlas_encoder_selection import WHEEL_NAMES
+from atlas_commissioning_evidence import EvidenceLedger, observation_gate, readiness
 
 
 def finite(value):
@@ -61,7 +62,9 @@ def constants(path):
 def configuration(root):
     files = ['scripts/yahboom_base.py', 'scripts/atlas_status_web.py',
              'config/encoder_selection.yaml', 'config/atlas_ekf.yaml',
-             'config/im10a_mounting.yaml', 'config/im10a_gyro_bias.json']
+             'config/im10a_mounting.yaml', 'config/im10a_gyro_bias.json',
+             'config/steering_calibration.json',
+             'systemd/user/atlas-uno-r4-sensor-hub.service.d/camera-home.conf']
     hashes = {}
     for name in files:
         path = root / name
@@ -148,6 +151,7 @@ def imu_result(samples, duration=10):
 
 class Console:
     def __init__(self, root, database, snapshot):
+        self.root=Path(root)
         try:
             self.config=configuration(Path(root))
         except (OSError, ValueError, SyntaxError) as exc:
@@ -159,6 +163,57 @@ class Console:
         self.active=None
         self.last=None
         self.last_start=0.
+        self.evidence_error=None
+        self.ledger=None
+        try:
+            self.ledger=EvidenceLedger(self.root,self.database)
+            self.ledger.import_direction_observation()
+            self.ledger.import_configured_exclusion()
+        except (OSError, ValueError, sqlite3.Error) as exc:
+            self.evidence_error=str(exc)
+
+    def evidence(self):
+        if self.evidence_error or self.ledger is None:
+            raise ValueError('Evidence storage unavailable; no physical test is authorized')
+        with self.lock:
+            active_id=self.active.get('id') if self.active else None
+        records=self.ledger.current(active_id)
+        return {'records':records,'readiness':readiness(records,self.snapshot()),
+                'scope':'Evidence/guidance only; actuator configuration and navigation gates are unchanged.'}
+
+    def confirm_steering(self,side,expected_hash,confirmation):
+        """Witness an already-saved calibration. No actuator write or motion."""
+        if side not in ('front','rear') or not isinstance(confirmation,str) or not 12<=len(confirmation.strip())<=500:
+            raise ValueError('Confirm the physical centre and both safe endpoints (12–500 characters)')
+        if self.ledger is None or self.evidence_error:
+            raise ValueError('Evidence storage unavailable')
+        gate='steering_'+side
+        sig=self.ledger.signature(gate)
+        if expected_hash!=sig['hash']:
+            raise ValueError('Configuration changed; reload and review the saved positions')
+        data=self.snapshot()
+        owner=decoded(data,'steering_calibration')
+        policy=decoded(data,'control_policy')
+        if not fresh(data,'steering_calibration',1) or not fresh(data,'control_policy',1) or policy.get('stop_latched') is not True:
+            raise ValueError('Fresh owner telemetry and latched drive stop required')
+        if owner.get('saving') or owner.get('error'):
+            raise ValueError('Wait for a successful owner-side save')
+        path=self.root/'config/steering_calibration.json'
+        if not path.exists():
+            raise ValueError('No saved calibration exists; defaults are not physical verification')
+        saved=json.loads(path.read_text(encoding='utf-8'))
+        if not isinstance(saved,dict) or not isinstance(saved.get('steering'),dict):
+            raise ValueError('Invalid saved steering configuration')
+        points=saved.get('steering',{}).get(side,{})
+        if not isinstance(points,dict) or not all(type(points.get(k)) is int for k in ('center','left','right')) or not points['right']<points['center']<points['left']:
+            raise ValueError('Saved points are invalid')
+        if points!=owner.get('saved',{}).get(side) or not saved.get('saved_at'):
+            raise ValueError('Saved file does not match the live owner')
+        if self.ledger.signature(gate)!=sig:
+            raise ValueError('Calibration changed during review; reload')
+        return self.ledger.record(gate,'PASS',{'servo_commands_deg':points,'saved_at':saved['saved_at'],
+                    'physical_feedback':'NOT INSTALLED','scope':'Operator-verified safe range, not tyre-angle measurement or ground alignment'},
+                    'explicit operator witness + saved file + live owner agreement',confirmation.strip(),sig)
 
     def history(self):
         if not self.database.exists():
@@ -175,12 +230,17 @@ class Console:
             db.execute('INSERT INTO results(payload) VALUES (?)',(json.dumps(result,allow_nan=False),))
             db.execute('DELETE FROM results WHERE id NOT IN (SELECT id FROM results ORDER BY id DESC LIMIT 500)')
             db.commit()
+        gate=observation_gate(result.get('kind'),result.get('side'))
+        if gate and self.ledger is not None:
+            status='FAIL' if result.get('state')=='FAIL' else 'WARNING' if result.get('state') in ('WARNING','ATTENTION REQUIRED') else 'OBSERVED'
+            self.ledger.record(gate,status,result,'bounded cached telemetry observation',
+                               signature=result.get('evidence_configuration'))
         return result
 
     def state(self):
         with self.lock:
             return {'active':dict(self.active) if self.active else None,'last':self.last,
-                    'actuator_mode':'LOCKED — owner-side commissioning lease not installed',
+                    'actuator_mode':'Steering uses existing owner lease; individual motor commissioning is not implemented',
                     'calibration_writes_enabled':False}
 
     def start(self,kind,side=None,known_mm=None):
@@ -197,6 +257,16 @@ class Console:
             self.last_start=now
             self.active={'id':uuid.uuid4().hex,'kind':kind,'side':side,'duration_s':0 if kind=='hardware' else 10,'started_monotonic':now}
             job=dict(self.active)
+            try:
+                if self.ledger is None or self.evidence_error:
+                    raise ValueError('Evidence storage unavailable')
+                gate=observation_gate(kind,side)
+                job['evidence_configuration']=self.ledger.signature(gate)
+                self.ledger.record(gate,'IN_PROGRESS',{'observation_id':job['id']},'bounded cached telemetry observation',
+                                   signature=job['evidence_configuration'])
+            except Exception:
+                self.active=None
+                raise
         threading.Thread(target=self._run,args=(job,known_mm),daemon=True).start()
         return job
 
@@ -236,5 +306,12 @@ class Console:
             result=self.save({**job,**result})
         except Exception as exc:
             result={**job,'state':'FAIL','reason':str(exc),'physical_calibration_pass':False}
+            if self.ledger is not None:
+                try:
+                    self.ledger.record(observation_gate(job['kind'],job.get('side')),'FAIL',result,
+                                       'observation failed; no qualification granted',
+                                       signature=job.get('evidence_configuration'))
+                except Exception:
+                    self.evidence_error='Evidence persistence failed; repair storage before testing'
         with self.lock:
             self.last=result;self.active=None

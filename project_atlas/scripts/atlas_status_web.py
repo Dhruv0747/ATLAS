@@ -16,6 +16,7 @@ import signal
 from collections import deque
 from atlas_web_diagnostics import DiagnosticCache, service_logs
 from atlas_commissioning import Console, hardware_check
+import sqlite3
 
 import cv2
 import numpy as np
@@ -1163,7 +1164,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         commissioning_assets = {'/commissioning': ('atlas_commissioning.html', 'text/html'),
                                 '/commissioning.js': ('atlas_commissioning_ui.js', 'application/javascript'),
-                                '/steering-commissioning.js': ('atlas_steering_ui.js', 'application/javascript')}
+                                '/steering-commissioning.js': ('atlas_steering_ui.js', 'application/javascript'),
+                                '/commissioning-evidence.js': ('atlas_evidence_ui.js', 'application/javascript')}
         if self.path in commissioning_assets:
             name, mime = commissioning_assets[self.path]
             try:
@@ -1186,9 +1188,17 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == '/api/commissioning/history':
             try:
-                json_response(self, 200, {'history': COMMISSIONING.history()})
+                json_response(self, 200, {'history': COMMISSIONING.history(),
+                                         'evidence': COMMISSIONING.ledger.history() if COMMISSIONING.ledger else [],
+                                         'evidence_error': COMMISSIONING.evidence_error})
             except Exception:
                 json_response(self, 503, {'error': 'History storage unavailable'})
+            return
+        if self.path == '/api/commissioning/evidence':
+            try:
+                json_response(self, 200, COMMISSIONING.evidence())
+            except Exception:
+                json_response(self, 503, {'error': 'Evidence unavailable — autonomy blocked; restore evidence storage before testing'})
             return
         if self.path == '/wifi':
             body = atlas_wifi_web.PAGE.encode()
@@ -1361,10 +1371,20 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('Shutdown pending')
                     result = COMMISSIONING.start(payload.get('kind'), payload.get('side'), payload.get('known_mm'))
                     json_response(self, 202, result)
+                elif payload.get('action') == 'verify_steering':
+                    result = COMMISSIONING.confirm_steering(payload.get('side'), payload.get('configuration_hash'), payload.get('confirmation'))
+                    json_response(self, 200, result)
+                elif payload.get('action') == 'invalidate_evidence':
+                    if COMMISSIONING.ledger is None or COMMISSIONING.evidence_error:
+                        raise ValueError('Evidence storage unavailable')
+                    result = COMMISSIONING.ledger.invalidate(payload.get('gate'), payload.get('reason'), payload.get('test_id'))
+                    json_response(self, 200, result)
                 else:
                     json_response(self, 403, {'error': 'Actuator commissioning and calibration writes are locked; no command sent'})
-            except (ValueError, TypeError):
-                json_response(self, 400, {'error': 'Invalid or busy non-motion test request'})
+            except (ValueError, TypeError) as exc:
+                json_response(self, 400, {'error': str(exc)[:300] or 'Invalid commissioning request'})
+            except (OSError, sqlite3.Error):
+                json_response(self, 503, {'error': 'Evidence/configuration storage unavailable; nothing authorized'})
             return
         if self.path == '/api/voice':
             if not atlas_wifi_web.same_origin(self.headers):

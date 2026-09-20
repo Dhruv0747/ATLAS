@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-20 — Phase 2 evidence-first commissioning
+
+- Add versioned evidence in the existing bounded SQLite store, preserving old
+  observations and pinning each gate's latest evidence independently of pruning.
+- Retain prior M1–M3 direction observation without inventing metric calibration.
+  Relevant source changes or explicit hardware-change reports require a reasoned
+  retest; UI-only changes do not invalidate encoder physical evidence.
+- Add the next-unresolved-gate workflow and operator witnessing of an already
+  saved, live-owner-matched steering range. No general HTTP physical-PASS setter.
+- Fail closed on evidence storage errors; do not release traction locks, change
+  calibration, enable gyro fusion, reintroduce M4 or start autonomous motion.
+- Document the current runtime audit and the remaining Phase 2 implementation;
+  no completed physical tests or prevalidated fallback profiles are invented.
+
 - 2026-09-20: Save user-selected camera home pan 1725 µs / tilt 1500 µs from
   fresh UNO pulse reports; synchronize startup and application home defaults.
 
