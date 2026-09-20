@@ -1,5 +1,14 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Ultrasonic validity increment — built/tested, not activated (2026-09-20)
+
+The staged UNO firmware adds atomic sample sequence/age reports; bridge, mux
+and the read-only capability view consume `/ultrasonic/validity`. Legacy ONLINE,
+no echo, stale/default ranges cannot grant directional safety validity. Existing
+LiDAR, manual remote, B-stop/reset, encoder exclusion and autonomy locks remain.
+Firmware installation, stationary fault checks and physical stopping tests are
+**still pending**. See [results, limits and activation prerequisites](docs/ULTRASONIC_VALIDITY_2026-09-20.md).
+
 ### Capability-aware fallback — read-only first increment, 2026-09-20
 
 Open `/commissioning` → **Sensor authority & fallback readiness** for configured

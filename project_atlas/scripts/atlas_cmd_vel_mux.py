@@ -18,6 +18,7 @@ from sensor_msgs.msg import Joy
 from std_srvs.srv import Trigger
 from atlas_remote_stop import RemoteStop
 from atlas_radar_core import guard_scale
+from atlas_ultrasonic_validity import ValidityWindow
 
 
 @dataclass
@@ -165,6 +166,7 @@ class AtlasCmdVelMux(Node):
         self.ultrasonic_rx = {
             "front": 0.0, "left": 0.0, "right": 0.0, "rear": 0.0,
         }
+        self.ultrasonic_validity = ValidityWindow(self.ultrasonic_timeout)
         self.channels: Dict[str, Channel] = {
             "REMOTE": Channel("REMOTE", "/cmd_vel_joy", 1, manual_timeout),
             # Recovery has an independent channel so dashboard zero-heartbeats
@@ -213,6 +215,7 @@ class AtlasCmdVelMux(Node):
                 lambda msg, sensor=side: self.on_ultrasonic(sensor, msg),
                 10,
             )
+        self.create_subscription(String, '/ultrasonic/validity', self.on_ultrasonic_validity, 1)
         self.create_subscription(
             String, "/atlas/mode", self.on_operating_mode, 10
         )
@@ -368,10 +371,22 @@ class AtlasCmdVelMux(Node):
                 self.publish_stop(f"{name} released")
 
     def on_ultrasonic(self, sensor: str, msg: Float32) -> None:
+        # Legacy display/debug only; bare floats never grant safety validity.
         value_m = float(msg.data) / 1000.0
-        if value_m > 0.0:
+        if math.isfinite(value_m) and 0.02 <= value_m <= 4.2:
             self.ultrasonic[sensor] = value_m
             self.ultrasonic_rx[sensor] = time.monotonic()
+        else:
+            self.ultrasonic[sensor] = float('inf')
+            self.ultrasonic_rx[sensor] = 0.0
+
+    def on_ultrasonic_validity(self, msg: String) -> None:
+        try:
+            data = json.loads(msg.data)
+        except (ValueError, TypeError):
+            self.ultrasonic_validity.reject('INVALID_JSON')
+            return
+        self.ultrasonic_validity.ingest(data, time.monotonic())
 
     def on_operating_mode(self, msg: String) -> None:
         self.operating_mode = msg.data.strip().upper() or "UNKNOWN"
@@ -441,15 +456,10 @@ class AtlasCmdVelMux(Node):
         return None
 
     def autonomous_guard(self, command: Twist, now: float) -> Optional[str]:
-        # Ultrasonics supplement the LiDAR/Nav2 costmaps. A disconnected side
-        # sensor must not deadlock all autonomy; only a fresh positive reading
-        # may veto motion. Sensor health is still published below as DEGRADED.
+        # LiDAR remains primary. Required directional near-field data must be
+        # valid; stale/no-echo/stub reports are never interpreted as clearance.
         if not self.ultrasonic_enabled:
             return None
-        fresh = {
-            name: stamp > 0.0 and now - stamp <= self.ultrasonic_timeout
-            for name, stamp in self.ultrasonic_rx.items()
-        }
         # Account for the distance travelled while ROS, the motor controller,
         # and the drivetrain react. The fixed floor protects low-speed motion;
         # the dynamic term grows automatically if autonomy is later made faster.
@@ -463,45 +473,9 @@ class AtlasCmdVelMux(Node):
             abs(command.linear.x) * self.auto_reaction_time_s
             + self.auto_stop_margin_m,
         )
-        if (
-            command.linear.x < 0.0
-            and fresh["rear"]
-            and self.ultrasonic["rear"] < rear_stop_m
-        ):
-            return (
-                "AUTONOMY BLOCKED: REAR "
-                f"{self.ultrasonic['rear']:.2f} m "
-                f"(stop {rear_stop_m:.2f} m)"
-            )
-        if (
-            command.linear.x > 0.0
-            and fresh["front"]
-            and self.ultrasonic["front"] < front_stop_m
-        ):
-            return (
-                "AUTONOMY BLOCKED: FRONT "
-                f"{self.ultrasonic['front']:.2f} m "
-                f"(stop {front_stop_m:.2f} m)"
-            )
-        if (
-            command.angular.z > 0.05
-            and fresh["left"]
-            and self.ultrasonic["left"] < self.auto_side_stop_m
-        ):
-            return (
-                "AUTONOMY BLOCKED: LEFT "
-                f"{self.ultrasonic['left']:.2f} m"
-            )
-        if (
-            command.angular.z < -0.05
-            and fresh["right"]
-            and self.ultrasonic["right"] < self.auto_side_stop_m
-        ):
-            return (
-                "AUTONOMY BLOCKED: RIGHT "
-                f"{self.ultrasonic['right']:.2f} m"
-            )
-        return None
+        return self.ultrasonic_validity.veto(
+            command.linear.x, command.angular.z, now,
+            front_stop_m, rear_stop_m, self.auto_side_stop_m)
 
     def on_radar_advice(self, msg):
         try:
@@ -594,27 +568,17 @@ class AtlasCmdVelMux(Node):
                     self.last_blocked_reason = blocked_reason
                 return
             self.last_blocked_reason = None
-            stale = [
-                name for name, stamp in self.ultrasonic_rx.items()
-                if stamp <= 0.0 or now - stamp > self.ultrasonic_timeout
-            ] if self.ultrasonic_enabled else []
-            health = (
-                "AUTONOMY DEGRADED: ULTRASONIC STALE " + ",".join(stale)
-                if stale
-                else (
-                    "AUTONOMY CLEAR: ULTRASONIC DISABLED; LIDAR PRIMARY"
-                    if not self.ultrasonic_enabled
-                    else "AUTONOMY CLEAR:"
-                )
-            )
+            samples = {side: self.ultrasonic_validity.reading(side, now)
+                       for side in ('front', 'left', 'right', 'rear')}
+            health = ('ULTRASONIC DIRECTIONAL VETO: no veto; NOT a path-clear guarantee; LIDAR PRIMARY'
+                      if self.ultrasonic_enabled else 'ULTRASONIC DISABLED; LIDAR PRIMARY')
             self.safety_output.publish(
                 String(
                     data=(
                         f"{health} "
-                        f"F {self.ultrasonic['front']:.2f} m "
-                        f"L {self.ultrasonic['left']:.2f} m "
-                        f"R {self.ultrasonic['right']:.2f} m "
-                        f"B {self.ultrasonic['rear']:.2f} m"
+                        + '; '.join(f'{side}: {state}' if distance is None
+                                    else f'{side}: {distance:.2f} m VALID'
+                                    for side, (distance, state) in samples.items())
                     )
                 )
             )

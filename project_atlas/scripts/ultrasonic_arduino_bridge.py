@@ -6,7 +6,9 @@ import glob
 import math
 import json
 import socket
+import uuid
 from atlas_serial_lines import SerialLines
+from atlas_ultrasonic_validity import parse_frame, invalid_snapshot
 
 import rclpy
 from rclpy.executors import ExternalShutdownException
@@ -68,6 +70,11 @@ class UltrasonicArduinoBridge(Node):
         self.right_pub = self.create_publisher(Float32, '/ultrasonic/right_mm', 10)
         self.rear_pub = self.create_publisher(Float32, '/ultrasonic/rear_mm', 10)
         self.status_pub = self.create_publisher(String, '/ultrasonic/status', 10)
+        self.validity_pub = self.create_publisher(String, '/ultrasonic/validity', 1)
+        self.validity_stream = uuid.uuid4().hex
+        self.validity_pending = None
+        self.validity_last_frame = 0.0
+        self.validity_last_invalid = 0.0
         self.pca_status_pub = self.create_publisher(String, '/arduino/pca9685/status', 10)
         self.left_servo_pub = self.create_publisher(Int32, '/ultrasonic/left_servo_us', 10)
         self.right_servo_pub = self.create_publisher(Int32, '/ultrasonic/right_servo_us', 10)
@@ -171,6 +178,10 @@ class UltrasonicArduinoBridge(Node):
             self.get_logger().info('Arduino GNSS forwarding disabled by ATLAS_GNSS_ENABLED=0')
 
     def connect(self):
+        self.validity_stream = uuid.uuid4().hex
+        self.validity_pending = None
+        self.validity_last_frame = 0.0
+        self.invalidate_ultrasonic('RECONNECTING')
         if serial is None:
             self.status_pub.publish(String(data=f'pyserial_missing {SERIAL_IMPORT_ERROR}'))
             return False
@@ -603,7 +614,20 @@ class UltrasonicArduinoBridge(Node):
         self.dashboard_cache_set('thermal_json', payload_json, timestamp)
         self.dashboard_cache_set('thermal_status', status, timestamp)
 
+    def publish_ultrasonic_validity(self, payload):
+        text = json.dumps(payload, allow_nan=False, separators=(',', ':'))
+        self.validity_pub.publish(String(data=text))
+        self.dashboard_cache_set('us_validity', text)
+
+    def invalidate_ultrasonic(self, reason):
+        self.validity_last_invalid = time.monotonic()
+        self.publish_ultrasonic_validity(invalid_snapshot(
+            reason, self.validity_stream, self.validity_last_invalid))
+
     def tick(self):
+        now_mono = time.monotonic()
+        if now_mono - self.validity_last_frame > 1.0 and now_mono - self.validity_last_invalid > 0.5:
+            self.invalidate_ultrasonic('MISSING_UVALID1_FIRMWARE_OR_STALE')
         self.flush_dashboard_cache()
         self.read_local_camera_commands()
         if self.ser is None:
@@ -629,6 +653,19 @@ class UltrasonicArduinoBridge(Node):
                     self.handle_line(raw)
                 processed += 1
             self.rx_processed += processed
+            # Only publish the latest atomic report once the backlog is drained.
+            if self.validity_pending is not None:
+                if self.ser.in_waiting or self.rx_lines.data:
+                    self.invalidate_ultrasonic('SERIAL_BACKLOG')
+                else:
+                    raw_validity, received_at = self.validity_pending
+                    self.validity_pending = None
+                    try:
+                        payload = parse_frame(raw_validity, self.validity_stream, received_at)
+                    except (ValueError, TypeError):
+                        self.invalidate_ultrasonic('MALFORMED_UVALID1')
+                    else:
+                        self.publish_ultrasonic_validity(payload)
             if time.monotonic()-self.rx_diag_time >= 1.0:
                 self.rx_diag_time = time.monotonic()
                 self.rx_diag_pub.publish(String(data=json.dumps({
@@ -639,6 +676,7 @@ class UltrasonicArduinoBridge(Node):
                 })))
         except Exception as exc:
             self.status_pub.publish(String(data=f'read_error {exc}'))
+            self.invalidate_ultrasonic('SERIAL_READ_ERROR')
             try:
                 self.ser.close()
             except Exception:
@@ -665,11 +703,19 @@ class UltrasonicArduinoBridge(Node):
             return
     def handle_line(self, raw):
         """Existing sensor decoders, one complete line at a time."""
+        if raw.startswith('UVALID1'):
+            self.validity_last_frame = time.monotonic()
+            self.validity_pending = (raw, self.validity_last_frame)
+            return
         if (raw.startswith('ATLAS_ULTRASONIC') or
                 raw.startswith('ATLAS_UNO_SENSOR_HUB') or
                 raw.startswith('ATLAS_UNO_R4_WIFI_I2C_HUB')):
             if raw.startswith('ATLAS_UNO_R4_WIFI_I2C_HUB'):
                 self.hub_transport = 'uno_r4_i2c_hub'
+            self.validity_stream = uuid.uuid4().hex
+            self.validity_pending = None
+            self.validity_last_frame = 0.0
+            self.invalidate_ultrasonic('MCU_RESTART')
             self.status_pub.publish(String(data=raw))
             return
         if raw.startswith('I2C,') or raw.startswith('I2CSTAT,'):
@@ -760,6 +806,8 @@ class UltrasonicArduinoBridge(Node):
         left = int(values['left'])
         right = int(values['right'])
         rear = int(values['rear']) if values['rear'] is not None else -1
+        if values['ok'] != '1':
+            front = left = right = rear = -1
         la, ra, c1, c2, pca = (
             values['la'], values['ra'], values['c1'], values['c2'], values['pca']
         )

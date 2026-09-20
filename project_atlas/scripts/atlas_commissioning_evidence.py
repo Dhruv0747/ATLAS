@@ -21,7 +21,8 @@ STEERING = BASE + ('scripts/atlas_steering_commission.py', 'config/steering_cali
 ENCODER = BASE + ('scripts/atlas_encoder_selection.py', 'config/encoder_selection.yaml')
 IMU = ('scripts/atlas_im10a_observer.py', 'config/im10a_mounting.yaml',
        'config/im10a_gyro_bias.json')
-SAFETY = ('scripts/atlas_cmd_vel_mux.py', 'config/nav2_params.yaml')
+ULTRASONIC = ('scripts/ultrasonic_arduino_bridge.py', 'scripts/atlas_ultrasonic_validity.py')
+SAFETY = ('scripts/atlas_cmd_vel_mux.py', 'scripts/atlas_ultrasonic_validity.py', 'config/nav2_params.yaml')
 # Ordered gates, one next action. No hard dependency on M4 or on an unfused IMU.
 GATES = {
     'steering_front': ('steering', 'Front safe centre / left / right', STEERING,
@@ -35,7 +36,7 @@ GATES = {
     'stopping': ('encoders', 'Physical stopping response', ENCODER + SAFETY,
                  'After metric validation, measure stopping response and physical stopping distance separately.'),
     'ultrasonic_safety': ('distance', 'Secondary near-field safety qualification',
-                          ('scripts/ultrasonic_arduino_bridge.py',) + SAFETY,
+                          ULTRASONIC + SAFETY,
                           'Qualify valid echoes, noise, stale/disconnected data and actual directional stop inhibition; LiDAR stays primary.'),
     'localization': ('system', 'Localization / TF reliability',
                      ENCODER + ('config/atlas_ekf.yaml', 'config/nav2_params.yaml'),
@@ -54,7 +55,7 @@ GATES = {
     'telemetry_imu': ('imu', 'Stationary IMU observation', IMU, 'Observe bias/noise without qualifying dynamic fusion.'),
     'telemetry_gnss': ('gnss', 'GNSS observation', (), 'Fresh NMEA is not position accuracy.'),
     **{'distance_' + side: ('distance', side + ' known-distance observation',
-        ('scripts/ultrasonic_arduino_bridge.py',), 'Compare a known target and record error, not a safety PASS.')
+        ULTRASONIC, 'Compare a known target and record error, not a safety PASS.')
        for side in ('front', 'rear', 'left', 'right')},
 }
 MANDATORY = ('steering_front', 'steering_rear', 'encoder_direction', 'encoder_metric',

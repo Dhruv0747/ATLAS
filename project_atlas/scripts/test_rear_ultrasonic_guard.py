@@ -15,6 +15,7 @@ import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from std_msgs.msg import Float32, String
+from atlas_ultrasonic_validity import parse_frame
 
 
 class RearGuardCheck(Node):
@@ -23,6 +24,8 @@ class RearGuardCheck(Node):
         self.rear_pub = self.create_publisher(
             Float32, "/ultrasonic/rear_mm", 10
         )
+        self.proof_pub = self.create_publisher(String, '/ultrasonic/validity', 1)
+        self.sample_sequence = 0
         self.command_pub = self.create_publisher(
             Twist, "/cmd_vel_recovery", 10
         )
@@ -40,6 +43,13 @@ class RearGuardCheck(Node):
         if time.monotonic() - self.started < 1.5:
             return
         self.rear_pub.publish(Float32(data=200.0))
+        self.sample_sequence += 1
+        now = time.monotonic()
+        seq = self.sample_sequence
+        proof = parse_frame(
+            f'UVALID1,T={int(now * 1000) % 4294967296},F=1:1000:{seq}:0,'
+            f'L=0:-1:0:-1,R=0:-1:0:-1,B=1:200:{seq}:0', 'ISOLATED_TEST_ONLY', now)
+        self.proof_pub.publish(String(data=json.dumps(proof)))
         command = Twist()
         command.linear.x = -0.12
         self.command_pub.publish(command)
@@ -78,7 +88,9 @@ def main():
         rclpy.spin_once(node, timeout_sec=0.1)
 
     nonzero = [sample for sample in node.outputs if any(abs(v) > 1e-4 for v in sample)]
-    rear_reasons = [reason for reason in node.reasons if "REAR" in reason]
+    # Missing sensor/encoder/stop-latch blocks must NOT pass an obstacle test.
+    rear_reasons = [reason for reason in node.reasons
+                    if reason.startswith('AUTONOMY BLOCKED: REAR 0.20 m (stop ')]
     result = {
         "passed": bool(node.outputs) and not nonzero and bool(rear_reasons),
         "output_samples": len(node.outputs),

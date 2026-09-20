@@ -94,6 +94,8 @@ char gps_buffer[160];
 size_t gps_length = 0;
 int ultrasonic_mm[ULTRASONIC_COUNT] = {-1, -1, -1, -1};
 uint32_t ultrasonic_last_valid_ms[ULTRASONIC_COUNT] = {0, 0, 0, 0};
+uint32_t ultrasonic_sample_ms[ULTRASONIC_COUNT] = {0, 0, 0, 0};
+uint32_t ultrasonic_sample_seq[ULTRASONIC_COUNT] = {0, 0, 0, 0};
 // ATLAS currently has only the rear sensor fitted. The remaining channels are
 // commissioned in software but disabled until their hardware is installed.
 bool ultrasonic_enabled[ULTRASONIC_COUNT] = {false, false, false, true};
@@ -311,6 +313,8 @@ void sampleNextUltrasonic(uint32_t now) {
     ultrasonic_mm[next_ultrasonic] = readUltrasonicMm(
       ULTRASONIC_TRIG_PINS[next_ultrasonic],
       ULTRASONIC_ECHO_PINS[next_ultrasonic]);
+    ultrasonic_sample_ms[next_ultrasonic] = millis();
+    if (++ultrasonic_sample_seq[next_ultrasonic] == 0) ++ultrasonic_sample_seq[next_ultrasonic];
     if (ultrasonic_mm[next_ultrasonic] > 0) {
       ultrasonic_last_valid_ms[next_ultrasonic] = now;
     }
@@ -338,6 +342,21 @@ void reportUltrasonics(uint32_t now) {
   Serial.print(",L="); Serial.print(ultrasonicState(1, now));
   Serial.print(",R="); Serial.print(ultrasonicState(2, now));
   Serial.print(",B="); Serial.println(ultrasonicState(3, now));
+  // Atomic sample proof, additive to legacy range / 30-second ONLINE display.
+  // Sequence advances on EVERY attempt, including no echo. Age is since the
+  // actual attempt, never since the last successful echo or telemetry report.
+  const uint32_t report_ms = millis();
+  const char codes[] = {'F', 'L', 'R', 'B'};
+  Serial.print("UVALID1,T="); Serial.print(report_ms);
+  for (uint8_t i = 0; i < ULTRASONIC_COUNT; ++i) {
+    Serial.print(','); Serial.print(codes[i]); Serial.print('=');
+    Serial.print(ultrasonic_enabled[i] ? 1 : 0); Serial.print(':');
+    Serial.print(ultrasonic_mm[i]); Serial.print(':');
+    Serial.print(ultrasonic_sample_seq[i]); Serial.print(':');
+    if (!ultrasonic_enabled[i] || !ultrasonic_sample_seq[i]) Serial.print(-1);
+    else Serial.print(static_cast<uint32_t>(report_ms - ultrasonic_sample_ms[i]));
+  }
+  Serial.println();
 }
 
 void drawGlyph(uint8_t frame[8][12], const uint8_t glyph[7], uint8_t x) {
@@ -545,7 +564,7 @@ void setup() {
   matrix.begin();
   configureSensorWire();
   delay(1200);
-  Serial.println("ATLAS_UNO_R4_WIFI_I2C_HUB,V=2,BOARD=UNO_R4_WIFI,BUS=A4_A5,IMU=YAHBOOM");
+  Serial.println("ATLAS_UNO_R4_WIFI_I2C_HUB,V=2,BOARD=UNO_R4_WIFI,BUS=A4_A5,IMU=YAHBOOM,US_VALIDITY=1");
   recoverI2cBus();
   scanBus();
   initializeMainSensors();

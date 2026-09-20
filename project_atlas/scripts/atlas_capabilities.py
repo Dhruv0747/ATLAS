@@ -8,6 +8,7 @@ import json
 import math
 from pathlib import Path
 import re
+from atlas_ultrasonic_validity import ValidityWindow
 
 
 def finite(value):
@@ -102,20 +103,23 @@ def sensor_health(sensor, data):
     elif check == 'camera':
         valid = finite(obj.get('bytes')) and obj['bytes'] > 0
     elif check == 'ultrasonic':
-        if not fresh(data, 'us_status', 1):
-            return 'INVALID', 'No fresh per-sensor validity status; distance alone is insufficient'
-        status = str(entry(data, 'us_status').get('value', ''))
-        if not status.startswith('USTAT,'):
-            return 'INVALID', 'Missing MCU validity status; stub/default range is not clearance'
-        states = dict(re.findall(r'(?:^|,)([FLRB])=([A-Z_]+)(?=,|$)', status))
-        state = states.get(sensor['code'])
+        if not fresh(data, 'us_validity', 1):
+            return 'INVALID', 'Missing/stale UVALID1 sample proof; legacy ONLINE or range alone is insufficient'
+        proof = decoded(data, 'us_validity')
+        stamp = proof.get('host_monotonic_s')
+        if not finite(stamp):
+            return 'INVALID', 'Invalid sample envelope'
+        # Read-only projection from cache age; persistent mux checks sequences
+        # and same-host monotonic age independently. This grants no authority.
+        window = ValidityWindow()
+        window.ingest(proof, stamp + entry(data, 'us_validity')['age'])
+        side = {'F': 'front', 'L': 'left', 'R': 'right', 'B': 'rear'}[sensor['code']]
+        distance, state = window.reading(side, stamp + entry(data, 'us_validity')['age'])
         if state == 'DISABLED':
-            return 'DISABLED', 'Channel disabled in current MCU status'
-        if state != 'ONLINE':
-            return 'INVALID', 'MCU state ' + str(state) + '; no clear-path claim'
-        # Display only: the MCU/bridge still needs end-to-end provenance and
-        # qualified range limits. Never grant safety authority on this predicate.
-        valid = finite(value) and 0 < value < 10000
+            return 'DISABLED', 'Channel disabled; not clearance'
+        if state != 'VALID':
+            return 'INVALID', 'Sample ' + state + '; not clearance'
+        return 'DATA_PRESENT', f'Atomic MCU echo {distance:.3f} m; physical safety qualification still required'
     elif check == 'gps':
         gps = decoded(data, key)
         if gps.get('transport_open') is not True:

@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from atlas_capabilities import load_registry, report
 from atlas_commissioning import Console
+from atlas_ultrasonic_validity import parse_frame
 
 
 class CapabilityTests(unittest.TestCase):
@@ -34,6 +35,11 @@ class CapabilityTests(unittest.TestCase):
 
     def sensor(self, name):
         return next(s for s in self.result()['sensors'] if s['id'] == name)
+
+    def ultrasonic_proof(self):
+        proof = parse_frame('UVALID1,T=10000,F=1:500:1:20,L=0:-1:0:-1,R=0:-1:0:-1,B=1:500:1:20', 'test', 10)
+        self.set_value('us_validity', proof)
+        return proof
 
     def test_stationary_constant_counts_not_failed(self):
         for name in ('m1', 'm2', 'm3'):
@@ -104,16 +110,30 @@ class CapabilityTests(unittest.TestCase):
         self.assertEqual(self.sensor('ultrasonic_front')['health'], 'INVALID')
         self.set_value('us_status', 'STUB,front=4000')
         self.assertEqual(self.sensor('ultrasonic_front')['health'], 'INVALID')
+        self.set_value('us_status', 'USTAT,F=ONLINE,L=DISABLED,R=DISABLED,B=ONLINE')
+        self.assertEqual(self.sensor('ultrasonic_front')['health'], 'INVALID')
+
+    def test_fresh_display_cannot_hide_stale_mcu_sample(self):
+        proof = self.ultrasonic_proof()
+        self.set_value('us_front', 500)
+        proof['sensors']['front']['sample_age_s'] = 3
+        self.assertEqual(self.sensor('ultrasonic_front')['health'], 'INVALID')
+        proof['sensors']['front']['sample_age_s'] = 0
+        self.data['us_validity']['age'] = 3
+        self.assertEqual(self.sensor('ultrasonic_front')['health'], 'INVALID')
 
     def test_disabled_and_invalid_echoes(self):
+        proof = self.ultrasonic_proof()
         self.set_value('us_status', 'USTAT,F=ONLINE,L=DISABLED,R=DISABLED,B=ONLINE')
         self.set_value('us_left', 1500)
         self.assertEqual(self.sensor('ultrasonic_left')['health'], 'DISABLED')
         for value in (-1, 0, 10000, float('inf'), float('nan')):
+            proof['sensors']['front']['range_mm'] = value
             self.set_value('us_front', value)
             self.assertEqual(self.sensor('ultrasonic_front')['health'], 'INVALID')
 
     def test_positive_echo_still_not_qualified_safety(self):
+        self.ultrasonic_proof()
         self.set_value('us_status', 'USTAT,F=ONLINE,L=DISABLED,R=DISABLED,B=ONLINE')
         self.set_value('us_front', 500)
         s = self.sensor('ultrasonic_front')
@@ -160,6 +180,7 @@ class CapabilityTests(unittest.TestCase):
         self.assertIn('UNKNOWN', self.result()['current_goal_report'])
 
     def test_near_field_components_do_not_imply_full_clearance(self):
+        self.ultrasonic_proof()
         self.set_value('us_status', 'USTAT,F=ONLINE,L=DISABLED,R=DISABLED,B=ONLINE')
         self.set_value('us_front', 500)
         c = next(c for c in self.result()['capabilities'] if c['capability'] == 'NEAR_FIELD_PROTECTION')

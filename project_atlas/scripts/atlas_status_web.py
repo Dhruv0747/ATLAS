@@ -90,7 +90,7 @@ SENSOR_HUB_CACHE_KEYS = {
     "outside_temperature", "outside_humidity", "outside_pressure",
     "outside_gas", "outside_status", "bme680_json",
     "thermal_status", "thermal_json",
-    "us_status", "us_front", "us_left", "us_right", "us_rear",
+    "us_status", "us_validity", "us_front", "us_left", "us_right", "us_rear",
     "radar_link",
 }
 _sensor_hub_cache_lock = threading.Lock()
@@ -221,6 +221,7 @@ class AtlasRosNode:
             )
             n = self.node
             n.create_subscription(String, "/ultrasonic/status", self._ultrasonic_status_cb, 10)
+            n.create_subscription(String, "/ultrasonic/validity", lambda m: self._set('us_validity', m.data), 1)
             n.create_subscription(
                 String,
                 "/arduino/i2c/status",

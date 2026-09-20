@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-20 — Ultrasonic sample validity, staged candidate
+
+- Add additive UNO `UVALID1` per-attempt sequence/age; retain legacy telemetry.
+- Add atomic `/ultrasonic/validity` via the existing owner, including reconnect,
+  malformed-frame, missing-firmware and USB/parser-backlog diagnostics.
+- Autonomous directional veto requires fresh front/rear proof; raw Float32,
+  no echo, disabled, stale and replayed samples cannot imply clear space.
+  Keep manual remote, stop priority, LiDAR and other deterministic gates.
+- Capability view uses the new contract; evidence hashes include its helper.
+  The isolated rear-guard test now requires the actual 0.20 m veto, not any stop.
+- 104 offline checks passed on Jetson staging; native-USB UNO build passed.
+  NOT flashed, NOT installed into active service paths, no motion issued.
+  Physical sensor/stopping qualification and autonomous resume remain pending.
+
 ## 2026-09-20 — Capability inventory and advisory assessment
 
 - Reuse commissioning evidence/cache for source roles, goal requirements, data

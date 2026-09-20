@@ -32,10 +32,12 @@ or mission-resumption endpoint. Loss of this web view cannot change local safety
 
 1. **DONE in source:** registry, goal-requirements assessment, sensor-authority
    view and offline failure tests, reusing cache/evidence. Deployment evidence below.
-2. **PENDING:** end-to-end ultrasonic validity contract. Trace UNO status and
-   range frames through bridge/mux; reject NaN, stale, disabled, synthetic and
-   default/max-range data. Do not equate a no-echo to clear space. Decide a
-   direction-specific degraded policy only after physical qualification.
+2. **SOURCE BUILT / NOT ACTIVATED:** atomic UNO `UVALID1` sample age/sequence,
+   bridge `/ultrasonic/validity`, directional mux checks and offline tests.
+   Legacy/default ranges cannot grant clearance; missing front/rear proof
+   blocks the corresponding autonomous direction. Firmware installation and
+   physical qualification remain pending; no degraded continuation is approved.
+   See [increment 2 validation/deployment boundary](ULTRASONIC_VALIDITY_2026-09-20.md).
 3. **PENDING:** deterministic profile selector and mission-owner checkpoint.
    Profiles need exact configuration-bound evidence, healthy source requirements,
    bounded speeds, entry/exit criteria, hysteresis and localization verification.
@@ -119,9 +121,9 @@ data is shown UNKNOWN. Goal preservation/resumption is explicitly not claimed.
   from a selected-channel fault. Constant stopped counts are not a failure.
 - LiDAR summary needs finite positive usable returns; it does not certify
   scan timestamp/TF latency, pose covariance or lack of occlusion.
-- Ultrasound needs fresh `USTAT` ONLINE plus a plausible positive range before
-  displaying DATA_PRESENT. This **still grants no PATH CLEAR/safety authority**;
-  complete provenance and transducer-specific range thresholds remain work item 2.
+- Increment 2 replaces the legacy `USTAT` projection with fresh atomic `UVALID1`
+  sample proof. Legacy ONLINE is not echo validity. Physical transducer range,
+  blind zones, mounting and stopping distance still require qualification.
 - Fresh GNSS status cannot hide stale NMEA/GGA or NO FIX.
 - A diagnostic registry failure does not hide the independent evidence ledger.
 - Browser polling failure/expiry clears the capability view instead of leaving
