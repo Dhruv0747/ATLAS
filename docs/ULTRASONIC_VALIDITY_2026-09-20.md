@@ -309,6 +309,22 @@ After target repositioning, a third 15-sample window measured 301–311 mm with
 interval. This cleanly confirms the rear close-obstacle role while preserving
 the earlier variability as evidence rather than deleting it.
 
+Physical rear failure/recovery was then checked with drive-motor and camera-servo
+power confirmed OFF. Before disconnect, rear was stably valid at 316 mm. After
+the operator unplugged only the rear ultrasonic connector, ten consecutive fresh
+reports were `NO_ECHO` with `range_mm=null`; front remained valid and velocity
+commands remained zero. The old 316 mm value was never presented as current.
+
+After reconnect, rear automatically returned to valid 330–331 mm reports with
+increasing sample sequence. The bridge exposed a new stream identity, so the
+validity owner treated the restarted source explicitly rather than accepting a
+replayed pre-disconnect sample. A following 30.14-second direct ROS observation
+recorded 103 reports: 102 valid per active channel, one fail-closed backlog,
+zero parse errors and rear range 310–337 mm. Raw evidence remains on the Jetson
+as `rear_reconnect_stability.json`. One dashboard API request timed out during
+the reconnect window; direct ROS evidence showed the sensor stream itself was
+healthy. This passes rear physical disconnect and automatic-recovery behavior.
+
 ## Deployment records and guarded follow-up
 
 Staging, backup and local evidence directory (not committed telemetry):
@@ -364,9 +380,8 @@ No over-the-wire CRC was added. Cross-talk, angles, blind zones, wiring noise,
 actual reporting latency, braking distance and firmware-load regression remain
 unqualified. An offline PASS is not a physical sensor or stopping PASS.
 
-Next: perform physical no-echo/disconnection and reconnect; sustained
-camera/radar/I2C workload;
-then isolated stop-output validation. Ground testing follows only after existing
+Next: perform sustained camera/radar/I2C workload, then isolated stop-output
+validation. Ground testing follows only after existing
 steering, measured encoder distance, stopping, localization and remote-stop gates
 are satisfied. Do not repeat previously recorded direction tests without a
 relevant change. Profile selection, goal preservation/resumption and room missions

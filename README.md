@@ -35,8 +35,8 @@ and beam geometry prevent treating those values as interchangeable.
 
 A further 120.15-second passive run produced **418 valid front/rear reports,
 6 fail-closed backlog events and zero parse errors**. Ultrasound remains a
-secondary close-range source; LiDAR remains primary. Physical no-echo/disconnect
-and controlled stopping tests are still pending.
+secondary close-range source; LiDAR remains primary. Controlled stopping is the
+remaining ultrasonic safety test.
 The front sensor has now passed stationary close-range screening: all 15 fresh
 samples at an operator-set 30–35 cm target measured 31.7–33.2 cm (median 32.8 cm).
 It is qualified only for the intended secondary close-range role; the variable
@@ -49,6 +49,14 @@ measured 28.6–30.7 cm (median 30.6 cm) and the repeated window measured
 earlier. After target repositioning, a confirmation window placed all 15 samples
 inside 30–35 cm, measuring 30.1–31.1 cm (median 31.1 cm). Rear close-obstacle
 detection passes; this is still not full-range precision. LiDAR remains authoritative.
+
+Physical rear disconnect/reconnect now passes fail-closed behavior. Disconnect
+changed rear from valid 31.6 cm to fresh `NO_ECHO` with no retained range while
+front stayed valid and motion remained zero. Reconnect created a new sensor-stream
+identity and automatically restored fresh rear readings. A subsequent 30.14-second
+direct ROS check recorded 102 valid front/rear reports, one fail-closed backlog
+report and zero parse errors; rear remained 31.0–33.7 cm. One dashboard request
+timed out during recovery, but the direct sensor stream was healthy.
 
 ### Capability-aware fallback — read-only first increment, 2026-09-20
 

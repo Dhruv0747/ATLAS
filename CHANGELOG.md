@@ -35,6 +35,15 @@
   and must not replace LiDAR. After target repositioning, confirm 15/15 samples
   inside 30–35 cm, range 30.1–31.1 cm and median 31.1 cm. No calibration or
   safety threshold was altered.
+- Physically disconnect the rear sensor with drive-motor and camera-servo power
+  OFF. Its state changed from valid 31.6 cm to fresh `NO_ECHO` with a null range;
+  front remained valid and commanded velocity remained zero. Reconnect produced
+  a new stream identity and automatically restored valid 33.0–33.1 cm readings,
+  demonstrating no stale-range replay.
+- Follow reconnect with a 30.14-second direct ROS observation: 102 valid reports
+  per active channel, one fail-closed SERIAL_BACKLOG report, zero parse errors,
+  one stream identity and rear range 31.0–33.7 cm. A dashboard API request timed
+  out during recovery, so retain that separately from the healthy direct stream.
 
 ## 2026-09-20 — Activate bounded ultrasonic bridge receive correction
 
