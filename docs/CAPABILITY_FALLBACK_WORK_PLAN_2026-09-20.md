@@ -32,11 +32,14 @@ or mission-resumption endpoint. Loss of this web view cannot change local safety
 
 1. **DONE in source:** registry, goal-requirements assessment, sensor-authority
    view and offline failure tests, reusing cache/evidence. Deployment evidence below.
-2. **SOURCE BUILT / NOT ACTIVATED:** atomic UNO `UVALID1` sample age/sequence,
+2. **INSTALLED / STATIONARY FOLLOW-UP OPEN:** atomic UNO `UVALID1` sample age/sequence,
    bridge `/ultrasonic/validity`, directional mux checks and offline tests.
    Legacy/default ranges cannot grant clearance; missing front/rear proof
-   blocks the corresponding autonomous direction. Firmware installation and
-   physical qualification remain pending; no degraded continuation is approved.
+   blocks the corresponding autonomous direction. Firmware and paired runtime
+   installation plus operator power-cycle autostart are observed. Passive checks
+   found intermittent serial backlog; a trailing-fragment correction is tested
+   but not yet deployed. Fault/stability and physical qualification remain open;
+   no degraded continuation is approved.
    See [increment 2 validation/deployment boundary](ULTRASONIC_VALIDITY_2026-09-20.md).
 3. **PENDING:** deterministic profile selector and mission-owner checkpoint.
    Profiles need exact configuration-bound evidence, healthy source requirements,

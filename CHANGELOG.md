@@ -1,6 +1,28 @@
 # Changelog
 
+## 2026-09-20 — UNO validity installed; reboot observed; parser follow-up staged
+
+- Operator double-reset resolved the earlier bootloader block. Standard UNO R4
+  upload wrote the 68,904-byte artifact successfully; 28 UVALID1 frames parsed
+  in the subsequent 8-second direct serial observation. Raw flash readback is
+  unavailable and is not claimed.
+- Install the paired six Jetson Python files and firmware source from candidate
+  `16ff10c`; preserve calibration, camera home, manual-only and latched stop.
+  Hub, recovery, mux and web remain enabled and returned automatically after
+  the operator's complete power cycle. No movement test or motor restart issued.
+- Two passive 60-second ROS observations found live data but intermittent
+  SERIAL_BACKLOG rejection (105/301 then 69/276 status messages). Do not claim
+  stable autonomous sensor qualification from fresh dashboard samples alone.
+- Stage a narrow bridge correction: a trailing partial next line is not a
+  complete queued message. USB bytes and complete parser backlog still block;
+  original receive/sample timestamps and expiry are preserved. Add three offline
+  regression tests and a complete-line count diagnostic. 107/107 Jetson staging
+  tests pass; 106 pass/one optional-PyYAML skip on Windows. This follow-up is NOT
+  installed pending renewed motor/servo-power-OFF confirmation after reboot.
+
 ## 2026-09-20 — UNO installation blocked; recovery pending
+
+Historical first attempt; the later successful installation is recorded above.
 
 - Record the exact-board bootloader-entry failure with motor/servo power OFF.
   No firmware erase/write, active-source deployment or drive command occurred.

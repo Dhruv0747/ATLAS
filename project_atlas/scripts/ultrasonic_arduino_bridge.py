@@ -653,9 +653,13 @@ class UltrasonicArduinoBridge(Node):
                     self.handle_line(raw)
                 processed += 1
             self.rx_processed += processed
-            # Only publish the latest atomic report once the backlog is drained.
+            # Only publish the latest atomic report once complete queued lines
+            # and USB bytes have drained. A trailing partial line belongs to the
+            # NEXT message, not an unprocessed report preceding this one. Keep
+            # that fragment for the next tick without revoking this complete
+            # report. Its original receive stamp/sample age still expire normally.
             if self.validity_pending is not None:
-                if self.ser.in_waiting or self.rx_lines.data:
+                if self.ser.in_waiting or b'\n' in self.rx_lines.data:
                     self.invalidate_ultrasonic('SERIAL_BACKLOG')
                 else:
                     raw_validity, received_at = self.validity_pending
@@ -671,6 +675,7 @@ class UltrasonicArduinoBridge(Node):
                 self.rx_diag_pub.publish(String(data=json.dumps({
                     'usb_pending_bytes': self.ser.in_waiting,
                     'parser_pending_bytes': len(self.rx_lines.data),
+                    'parser_complete_lines': self.rx_lines.data.count(b'\n'),
                     'high_water_bytes': self.rx_high_water,
                     'lines_processed': self.rx_processed,
                 })))

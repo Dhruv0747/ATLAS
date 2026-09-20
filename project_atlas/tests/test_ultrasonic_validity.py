@@ -270,10 +270,44 @@ class BridgeIntegrationTests(unittest.TestCase):
 
     def test_parser_backlog_not_fresh_safety(self):
         self.bridge.handle_line(self.frame())
-        self.bridge.rx_lines.data = b'partial'
+        self.bridge.rx_lines.data = b'queued_complete_line\npartial'
         self.bridge.tick()
         self.assertEqual(self.published()['reason'], 'SERIAL_BACKLOG')
         self.assertIsNotNone(self.bridge.validity_pending)
+
+    def test_trailing_partial_line_does_not_revoke_complete_report(self):
+        self.bridge.handle_line(self.frame())
+        self.bridge.rx_lines.data = b'RADARHEX,AAFF'
+        self.bridge.tick()
+        self.assertEqual(self.published()['reason'], 'SAMPLE_REPORT')
+        self.assertIsNone(self.bridge.validity_pending)
+        self.assertEqual(self.bridge.rx_lines.data, b'RADARHEX,AAFF')
+        window = ValidityWindow()
+        window.ingest(self.published(), 10)
+        self.assertEqual(window.reading('front', 10), (.5, 'VALID'))
+        self.assertEqual(window.reading('front', 11.1)[1], 'STALE_REPORT')
+
+    def test_usb_bytes_arriving_during_parse_still_block(self):
+        class Serial:
+            @property
+            def in_waiting(self):
+                self.reads += 1
+                return 0 if self.reads == 1 else 30
+            reads = 0
+        self.bridge.ser = Serial()
+        self.bridge.handle_line(self.frame())
+        self.bridge.tick()
+        self.assertEqual(self.published()['reason'], 'SERIAL_BACKLOG')
+        self.assertIsNotNone(self.bridge.validity_pending)
+
+    def test_draining_backlog_never_restamps_held_report(self):
+        self.bridge.validity_pending = (self.frame(), 8.0)
+        self.bridge.rx_lines.data = b'RADARHEX,AAFF'
+        self.bridge.tick()
+        self.assertEqual(self.published()['host_monotonic_s'], 8.0)
+        window = ValidityWindow()
+        window.ingest(self.published(), 10)
+        self.assertEqual(window.reading('front', 10)[1], 'INVALID_OR_STALE_ENVELOPE')
 
     def test_malformed_line_invalidates(self):
         self.bridge.handle_line('UVALID1,bad')

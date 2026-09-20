@@ -1,20 +1,22 @@
 # Project ATLAS - Autonomous Service Rover
 
-### Ultrasonic validity increment — built/tested, not activated (2026-09-20)
+### Ultrasonic validity increment — installed; stationary follow-up open (2026-09-20)
 
-The staged UNO firmware adds atomic sample sequence/age reports; bridge, mux
+The installed UNO firmware adds atomic sample sequence/age reports; bridge, mux
 and the read-only capability view consume `/ultrasonic/validity`. Legacy ONLINE,
 no echo, stale/default ranges cannot grant directional safety validity. Existing
 LiDAR, manual remote, B-stop/reset, encoder exclusion and autonomy locks remain.
-Firmware installation, stationary fault checks and physical stopping tests are
-**still pending**. See [results, limits and activation prerequisites](docs/ULTRASONIC_VALIDITY_2026-09-20.md).
+Firmware upload and the paired Jetson deployment succeeded after the operator
+entered the bootloader. A subsequent operator power cycle verified autostart and
+fresh front/rear ultrasound, BME680, AMG8833, PCA9685 and decoded radar telemetry.
+Manual-only, latched stop, zero velocity and M4 exclusion remain unchanged.
 
-Installation attempt: software bootloader entry failed; **no firmware was
-written**. Existing hub/recovery services were restarted, but USB I/O errors
-prevented fresh UNO sensor data. Neither RESET nor its cable can currently be
-reached safely, so installation is paused. Recovery needs safe access and a
-fresh-data recheck; old displayed readings are not proof of live sensors. Keep motor
-and camera-servo power OFF until the recovery check is complete.
+Stationary observation exposed intermittent serial-backlog rejection; this is
+**not a stability or navigation PASS**. A narrow trailing-partial-line correction
+is tested in source/staging (107/107 Jetson offline checks), but not yet installed.
+Restarting the hub normally reapplies camera home, so deployment awaits renewed
+motor/servo-power-OFF confirmation after the power cycle. No additional flash is
+needed. See [evidence, limitations and remaining tests](docs/ULTRASONIC_VALIDITY_2026-09-20.md).
 
 ### Capability-aware fallback — read-only first increment, 2026-09-20
 

@@ -2,19 +2,26 @@
 
 ## Status
 
-Built and tested in source and an isolated Jetson staging directory. **Not
-activated:** the subsequent installation attempt could not enter the UNO
-bootloader. No firmware erase/write or active source replacement occurred.
-The hub/recovery services were temporarily stopped and restarted; no motor
-service restart, drive command, map command or autonomy enable was performed.
-Their restart is not proof that sensor communication recovered; see below.
+**Firmware and paired runtime installed from candidate `16ff10c`.** Operator
+double-reset enabled the upload, and a later full operator power cycle verified
+startup of the hub, recovery, mux and web services without manual service starts.
+Fresh ultrasound, environmental/thermal, PCA9685 and decoded radar data returned.
+No motor-service restart, drive/map command or autonomy enable was issued during
+installation or checking. Runtime restarts were limited to hub, recovery, mux and
+web; existing hub reconnect initialization reapplies the saved camera-home command.
+
+**Stationary stability is NOT passed.** Two passive observations detected frequent
+serial-backlog rejection. A narrow partial-line handling correction is built and
+tested separately, but not yet deployed pending renewed motor/servo-power-OFF
+confirmation following the power cycle. Do not reflash the UNO for that Python
+correction. Physical fault/clearance/stopping tests remain pending.
 
 Baseline: `d3f2d87`. The live check found manual-only=true, stop_latched=true,
 zero commanded velocity, selected encoders M1/M2/M3, excluded M4, and
 navigation_validated=false. Front/rear telemetry was arriving; this is not a
 physical reliability PASS. Saved steering geometry and camera home are untouched.
 
-## Installation attempt / recovery boundary
+## Installation evidence and recovery history
 
 On 2026-09-20 the operator confirmed that drive-motor and camera-servo power
 were OFF, with Jetson/UNO powered. The exact Arduino application device was
@@ -24,29 +31,38 @@ Previous live source files were backed up under the staging directory's
 `backup/`, including the old firmware source and a manifest. A matching raw
 installed-flash backup was **not obtained**.
 
-Native USB 1200-baud bootloader entry did not succeed. A subsequent DTR
-transition returned a broken-pipe error; read-only `bossac -i` could not find
-a bootloader. No erase/write command was run. The device remained enumerated
-as the Arduino application. The operator cannot reach the reset button, and
-targeted USB-device reset needs administrator access unavailable to this
-session; it was not attempted. No other USB device or hub was reset.
+The **first attempt** at native USB 1200-baud bootloader entry did not succeed.
+A subsequent DTR transition returned a broken-pipe error; `bossac -i` could not
+find a bootloader. That attempt performed no erase/write. Restarted old services
+reported active but had USB I/O errors, so recovery was not claimed. No USB hub,
+controller or unrelated device was reset by the installer.
 
-`atlas-uno-r4-sensor-hub.service` and `atlas-sensor-recovery.service` were
-restarted with their existing software/configuration. Both reported active,
-but the hub then reported USB input/output errors and no fresh sensor data.
-Last-known radar, BME680, AMG8833 and ultrasound readings are **stale**, not
-recovered live readings. Manual-only and latched stop remained true with fresh
-zero commanded velocity. Keep motor/servo power OFF. Existing hub reconnect
-initialization can issue saved camera-home commands; no physical servo test
-was requested or claimed.
+The operator subsequently reached RESET and double-tapped it. Upload-mode device
+`2341:1002`, serial `E4B063836708`, was identified before using the installed
+Arduino core's standard bossac write/reset procedure. The 68,904-byte binary was
+written successfully in 4.251 seconds. The application re-enumerated as
+`2341:006d`, serial `3718211158323232840133334B573038`.
 
-The operator also confirmed that the UNO cable cannot be safely reached.
-Further installation/reset attempts are therefore stopped. Do not reach inside
-the rover. Safe access to the UNO reset/power connection, or an explicitly
-authorized administrator-assisted targeted recovery, is needed before another
-attempt. Recheck fresh sensor samples before declaring the old runtime restored.
-Firmware installation remains blocked until safe bootloader access is available;
-do not deploy the new mux by itself.
+Direct serial observation then received 28 UVALID1 frames in eight seconds with
+zero parsing errors, alongside legacy ranges, USTAT, BME, AMG and heartbeat
+frames. Front enabling and radar initialization belong to the existing bridge
+startup and were not expected in this pre-bridge capture. This proves the new
+protocol ran, **not bit-for-bit flash readback verification**. Bootloader readback
+was unavailable; the retained previous build is explicitly NOT a verified image
+of the former installed flash.
+
+The six paired Python files and firmware source were installed, without changing
+service environments, steering calibration, camera home (1725/1500 microseconds),
+M1/M2/M3 selection, M4 exclusion or IMU fusion. All 104 original offline tests
+passed again on Jetson staging before installation. A subsequent network outage
+prevented immediate end-to-end checking; the operator then power-cycled ATLAS.
+
+After that reboot, all four affected services were enabled and active with
+`NRestarts=0`. ROS graph discovery using `--no-daemon` succeeded. Fresh API data
+showed `manual_only=true`, `stop_latched=true`, zero linear/angular commands and
+`navigation_validated=false`. Fresh board packets are not a physical encoder
+test. Two passive ROS observations below exposed the remaining timing issue.
+Keep motor/servo power OFF; no additional board RESET is required.
 
 ## What already worked / defect found
 
@@ -90,7 +106,8 @@ display message therefore did not prove a fresh echo or a clear route.
 ## Validation
 
 - UNO R4 WiFi native-USB build, installed Arduino renesas_uno core 1.6.0:
-  **68,896 bytes flash (26%), 10,984 bytes global RAM (33%)**. Build only.
+  compiler reports **68,896 bytes flash (26%), 10,984 bytes global RAM (33%)**.
+  The upload artifact is 68,904 bytes; upload and observed protocol are recorded above.
 - 30 new offline checks: framing, bounds, no echo, disabled, missing, stale,
   malformed JSON, nonfinite data, replay/repeated sequence, MCU reset, added USB
   delay, front/rear and side vetoes, speed margin, legacy OK bit, backlog,
@@ -104,27 +121,77 @@ display message therefore did not prove a fresh echo or a clear route.
   explicitly armed/motor-service-off only and now requires an actual 0.20 m
   obstacle reason; a missing-data/encoder/e-stop block cannot falsely pass it.
 
-## Staging and activation
+### Passive post-reboot observations — no motion publications
 
-Candidate only:
+The temporary subscriber used same-Jetson monotonic time and the deployed
+ValidityWindow. Status-message counts include invalidation events and are NOT
+the physical ultrasonic sample rate.
+
+| Observation | Duration | Status messages | Accepted sample reports | SERIAL_BACKLOG | Parse errors | Maximum receive gap |
+|---|---:|---:|---:|---:|---:|---:|
+| Startup | 60.13 s | 301 | 195 | 105 | 0 | 0.782 s |
+| Later stationary window | 60.02 s | 276 | 207 | 69 | 0 | 0.644 s |
+
+Startup also had one missing/stale report and one stale rear sample. The later
+window had 207 valid front/rear samples and disabled left/right samples. Observed
+front ranges were 1319–2391 mm and rear 222–258 mm; these are uncalibrated
+observations, not proof of measurement accuracy. Neither window changed stream ID.
+The later 59 serial diagnostic reports included USB pending bytes on six reports
+(maximum 152) and parser pending bytes on seven (maximum 71). Nonempty data can
+be genuine queued work or just the next incomplete line; it must be distinguished.
+
+Fresh I2C status reported PCA=1, BME=1, AMG=1, SDA=1, SCL=1. BME measurements and
+the thermal matrix/status arrived. Radar produced valid decoded frames; its
+counter included three bad footers, so zero decoder corruption is not claimed.
+These checks do not establish long-run reliability for every sensor. Startup
+logs also included a camera-command write timeout and a LiDAR recovery attempt;
+their physical behavior was not tested. No fault is hidden by a general PASS.
+
+### Staged parser follow-up — NOT installed
+
+The bridge incorrectly treated any trailing partial line as unprocessed backlog
+preceding the completed UVALID1 report. The correction leaves that fragment for
+the next tick while allowing the already complete report through. Complete
+queued lines and pending USB bytes still invalidate; original receive time,
+source age, sequence checks and all mux thresholds remain unchanged. Diagnostics
+gain `parser_complete_lines` to distinguish these cases. No firmware change.
+
+Three added offline cases cover partial tails, new USB bytes during parsing and
+preserving the original timestamp when a held report drains. Jetson staging:
+**107/107 pass**. Windows: **106 pass / one optional-PyYAML skip**. Retest after
+deployment is still required; this correction does not prove real load-related
+backlogs are solved. Deployment awaits renewed motor/servo-power-OFF confirmation.
+
+## Deployment records and guarded follow-up
+
+Staging, backup and local evidence directory (not committed telemetry):
 `/home/jetson/project-atlas-migration/ultrasonic-validity-20260920/`
 
 Firmware binary SHA-256:
 `989dd795e8474977f43b0f47f01548e0c9f802056be44fb67d951dff22222c81`
 
-Before activation, obtain fresh confirmation that drive-motor and camera-servo
+Before any follow-up bridge restart, obtain fresh confirmation that drive-motor and camera-servo
 power are off, with Jetson/UNO USB still powered. Reconnect currently sends camera
 home commands; lifted wheels alone do not address that hazard. Identify the UNO
 device afresh and back up live files plus the matching old firmware artifact.
-Do not flash or restart from this document without that confirmation.
+Do not flash or restart from this document without that confirmation. Firmware
+installation is already done; do not reflash it for the trailing-line correction.
 
-Deploy the paired firmware + helper + bridge + mux + read-only dashboard/audit
-files together while stopped. A new mux with old firmware deliberately blocks
+The paired firmware + helper + bridge + mux + read-only dashboard/audit
+files were installed together while stopped. A new mux with old firmware deliberately blocks
 autonomous translation; old raw ranges are not a fallback. Preserve service
 environment, home, manual-only/stop latch, steering locks and all calibration.
-Record installed binary/source hashes; a source build does not prove flash
-contents. Verify every expected sensor still streams after startup. Roll back
-the paired candidate if stationary validation fails; do not unlock autonomy.
+Evidence retained locally: `flash_result.json`, `flash_upload.log`,
+`new_firmware_telemetry.json`, `runtime_result.json`, `passive_observation_60s.json`
+and `passive_settled_60s.json`. Runtime source hashes are in `runtime_result.json`.
+The old source and manifest are under `backup/`; the previous binary is named
+`previous_native_build_NOT_flash_readback.bin`. Source builds and uploader success
+are not matching flash readbacks. The staged Python correction is under
+`fragment-fix/project_atlas/`; the installed bridge remains the `16ff10c` version.
+
+Do not use the old raw-range behavior to bypass a validity rejection or unlock
+autonomy. If rollback is required, keep motion physically inhibited and review
+the paired firmware/runtime versions; never weaken a gate just to get a PASS.
 
 ## Remaining limits / next tests
 
@@ -141,7 +208,8 @@ No over-the-wire CRC was added. Cross-talk, angles, blind zones, wiring noise,
 actual reporting latency, braking distance and firmware-load regression remain
 unqualified. An offline PASS is not a physical sensor or stopping PASS.
 
-Next: paired installation with motor/servo power off; known-distance front/rear
+Next: confirm motor/servo power off, deploy/test the narrow parser correction;
+known-distance front/rear
 targets; no echo/disconnection and reconnect; sustained camera/radar/I2C workload;
 then isolated stop-output validation. Ground testing follows only after existing
 steering, measured encoder distance, stopping, localization and remote-stop gates
