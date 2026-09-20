@@ -287,6 +287,15 @@ rear. This is sustained stationary communication evidence, not physical sensor,
 braking or autonomous-navigation qualification. Raw evidence is
 `final_stationary_stability.json` on the Jetson.
 
+The front sensor was then checked at its relevant close-protection distance.
+With an operator-set flat target 30–35 cm from the transducer face, 15/15 fresh
+samples were valid and inside that interval: minimum 317 mm, median 328 mm,
+maximum 332 mm. ATLAS remained manual-only, stop-latched and at zero commanded
+velocity. This passes stationary screening for the **front secondary close-range
+role only**. It does not qualify long-range precision, physical braking distance,
+failure recovery or ultrasound as a LiDAR replacement. No threshold, scale or
+calibration value was changed to obtain the result.
+
 ## Deployment records and guarded follow-up
 
 Staging, backup and local evidence directory (not committed telemetry):
@@ -342,7 +351,7 @@ No over-the-wire CRC was added. Cross-talk, angles, blind zones, wiring noise,
 actual reporting latency, braking distance and firmware-load regression remain
 unqualified. An offline PASS is not a physical sensor or stopping PASS.
 
-Next: perform controlled known-distance front and rear targets; physical no-echo/
+Next: perform the controlled rear known-distance target; physical no-echo/
 disconnection and reconnect; sustained camera/radar/I2C workload;
 then isolated stop-output validation. Ground testing follows only after existing
 steering, measured encoder distance, stopping, localization and remote-stop gates

@@ -23,6 +23,11 @@
   channel, six fail-closed SERIAL_BACKLOG reports, zero parse errors, one stream
   identity and maximum 0.538-second report gap. Keep physical no-echo/cable,
   known-distance accuracy and controlled stopping qualification open.
+- Qualify the front ultrasonic only for its intended secondary close-range role:
+  an operator-set 30–35 cm flat target produced 15/15 valid readings within that
+  interval, range 31.7–33.2 cm and median 32.8 cm, while stopped. Do not promote
+  ultrasound over LiDAR or claim long-range precision; rear reference, physical
+  failure/reconnect and controlled stopping tests remain open.
 
 ## 2026-09-20 — Activate bounded ultrasonic bridge receive correction
 
