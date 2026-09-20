@@ -3,13 +3,50 @@
 ## Status
 
 Built and tested in source and an isolated Jetson staging directory. **Not
-activated:** no firmware upload, sensor-owner restart, motor restart, servo
-command, drive command, map command or autonomy enable was performed.
+activated:** the subsequent installation attempt could not enter the UNO
+bootloader. No firmware erase/write or active source replacement occurred.
+The hub/recovery services were temporarily stopped and restarted; no motor
+service restart, drive command, map command or autonomy enable was performed.
+Their restart is not proof that sensor communication recovered; see below.
 
 Baseline: `d3f2d87`. The live check found manual-only=true, stop_latched=true,
 zero commanded velocity, selected encoders M1/M2/M3, excluded M4, and
 navigation_validated=false. Front/rear telemetry was arriving; this is not a
 physical reliability PASS. Saved steering geometry and camera home are untouched.
+
+## Installation attempt / recovery boundary
+
+On 2026-09-20 the operator confirmed that drive-motor and camera-servo power
+were OFF, with Jetson/UNO powered. The exact Arduino application device was
+identified (VID:PID `2341:006d`). Candidate binary hash, live baseline source
+hashes and fresh manual-only/latched-stop/zero-command state were verified.
+Previous live source files were backed up under the staging directory's
+`backup/`, including the old firmware source and a manifest. A matching raw
+installed-flash backup was **not obtained**.
+
+Native USB 1200-baud bootloader entry did not succeed. A subsequent DTR
+transition returned a broken-pipe error; read-only `bossac -i` could not find
+a bootloader. No erase/write command was run. The device remained enumerated
+as the Arduino application. The operator cannot reach the reset button, and
+targeted USB-device reset needs administrator access unavailable to this
+session; it was not attempted. No other USB device or hub was reset.
+
+`atlas-uno-r4-sensor-hub.service` and `atlas-sensor-recovery.service` were
+restarted with their existing software/configuration. Both reported active,
+but the hub then reported USB input/output errors and no fresh sensor data.
+Last-known radar, BME680, AMG8833 and ultrasound readings are **stale**, not
+recovered live readings. Manual-only and latched stop remained true with fresh
+zero commanded velocity. Keep motor/servo power OFF. Existing hub reconnect
+initialization can issue saved camera-home commands; no physical servo test
+was requested or claimed.
+
+The operator also confirmed that the UNO cable cannot be safely reached.
+Further installation/reset attempts are therefore stopped. Do not reach inside
+the rover. Safe access to the UNO reset/power connection, or an explicitly
+authorized administrator-assisted targeted recovery, is needed before another
+attempt. Recheck fresh sensor samples before declaring the old runtime restored.
+Firmware installation remains blocked until safe bootloader access is available;
+do not deploy the new mux by itself.
 
 ## What already worked / defect found
 

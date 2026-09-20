@@ -9,6 +9,13 @@ LiDAR, manual remote, B-stop/reset, encoder exclusion and autonomy locks remain.
 Firmware installation, stationary fault checks and physical stopping tests are
 **still pending**. See [results, limits and activation prerequisites](docs/ULTRASONIC_VALIDITY_2026-09-20.md).
 
+Installation attempt: software bootloader entry failed; **no firmware was
+written**. Existing hub/recovery services were restarted, but USB I/O errors
+prevented fresh UNO sensor data. Neither RESET nor its cable can currently be
+reached safely, so installation is paused. Recovery needs safe access and a
+fresh-data recheck; old displayed readings are not proof of live sensors. Keep motor
+and camera-servo power OFF until the recovery check is complete.
+
 ### Capability-aware fallback — read-only first increment, 2026-09-20
 
 Open `/commissioning` → **Sensor authority & fallback readiness** for configured

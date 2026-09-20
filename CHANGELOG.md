@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-20 — UNO installation blocked; recovery pending
+
+- Record the exact-board bootloader-entry failure with motor/servo power OFF.
+  No firmware erase/write, active-source deployment or drive command occurred.
+- Restart the previously active hub/recovery services using existing software;
+  USB I/O errors still prevent fresh sensor telemetry. Do not mark restoration
+  complete from systemd active state or stale dashboard readings.
+- Keep the paired update staged and autonomy locked. Operator cannot safely
+  reach RESET or the UNO cable; further installation attempts are stopped.
+
 ## 2026-09-20 — Ultrasonic sample validity, staged candidate
 
 - Add additive UNO `UVALID1` per-attempt sequence/age; retain legacy telemetry.
