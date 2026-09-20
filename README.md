@@ -35,12 +35,20 @@ and beam geometry prevent treating those values as interchangeable.
 
 A further 120.15-second passive run produced **418 valid front/rear reports,
 6 fail-closed backlog events and zero parse errors**. Ultrasound remains a
-secondary close-range source; LiDAR remains primary. Physical no-echo/disconnect,
-rear known-distance accuracy and controlled stopping tests are still pending.
+secondary close-range source; LiDAR remains primary. Physical no-echo/disconnect
+and controlled stopping tests are still pending.
 The front sensor has now passed stationary close-range screening: all 15 fresh
 samples at an operator-set 30–35 cm target measured 31.7–33.2 cm (median 32.8 cm).
 It is qualified only for the intended secondary close-range role; the variable
 long-range response is advisory. No scale factor or safety limit was changed.
+
+The rear sensor also passes the intended secondary close-obstacle role, with an
+accuracy limitation. At an operator-confirmed 30–35 cm target, the first window
+measured 28.6–30.7 cm (median 30.6 cm) and the repeated window measured
+27.2–28.2 cm (median 28.1 cm). The conservative short bias can trigger warning
+earlier. After target repositioning, a confirmation window placed all 15 samples
+inside 30–35 cm, measuring 30.1–31.1 cm (median 31.1 cm). Rear close-obstacle
+detection passes; this is still not full-range precision. LiDAR remains authoritative.
 
 ### Capability-aware fallback — read-only first increment, 2026-09-20
 

@@ -28,6 +28,13 @@
   interval, range 31.7–33.2 cm and median 32.8 cm, while stopped. Do not promote
   ultrasound over LiDAR or claim long-range precision; rear reference, physical
   failure/reconnect and controlled stopping tests remain open.
+- Qualify rear ultrasound only for conservative secondary close-obstacle
+  detection. With the operator-confirmed target at 30–35 cm, two 15-sample
+  windows measured 28.6–30.7 cm (median 30.6 cm) and 27.2–28.2 cm (median
+  28.1 cm). Record the short bias as an accuracy limitation; it warns earlier
+  and must not replace LiDAR. After target repositioning, confirm 15/15 samples
+  inside 30–35 cm, range 30.1–31.1 cm and median 31.1 cm. No calibration or
+  safety threshold was altered.
 
 ## 2026-09-20 — Activate bounded ultrasonic bridge receive correction
 

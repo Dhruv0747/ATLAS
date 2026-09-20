@@ -296,6 +296,19 @@ role only**. It does not qualify long-range precision, physical braking distance
 failure recovery or ultrasound as a LiDAR replacement. No threshold, scale or
 calibration value was changed to obtain the result.
 
+The rear sensor was checked with an operator-confirmed flat target 30–35 cm from
+its transducer face. The first 15-sample window was entirely valid, measuring
+286–307 mm with 306 mm median (13/15 inside the stated interval). A repeated
+15-sample window was also entirely valid but measured 272–282 mm with 281 mm
+median. This passes **conservative secondary close-obstacle detection**, because
+the observed bias reports the obstacle closer and therefore warns earlier. It
+does not pass as a precision range instrument. LiDAR remains primary and the
+short bias is retained as an explicit limitation; no scale or threshold changed.
+After target repositioning, a third 15-sample window measured 301–311 mm with
+311 mm median; all 15 readings were inside the operator-confirmed 300–350 mm
+interval. This cleanly confirms the rear close-obstacle role while preserving
+the earlier variability as evidence rather than deleting it.
+
 ## Deployment records and guarded follow-up
 
 Staging, backup and local evidence directory (not committed telemetry):
@@ -351,8 +364,8 @@ No over-the-wire CRC was added. Cross-talk, angles, blind zones, wiring noise,
 actual reporting latency, braking distance and firmware-load regression remain
 unqualified. An offline PASS is not a physical sensor or stopping PASS.
 
-Next: perform the controlled rear known-distance target; physical no-echo/
-disconnection and reconnect; sustained camera/radar/I2C workload;
+Next: perform physical no-echo/disconnection and reconnect; sustained
+camera/radar/I2C workload;
 then isolated stop-output validation. Ground testing follows only after existing
 steering, measured encoder distance, stopping, localization and remote-stop gates
 are satisfied. Do not repeat previously recorded direction tests without a
