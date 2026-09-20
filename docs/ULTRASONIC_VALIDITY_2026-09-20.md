@@ -325,6 +325,14 @@ as `rear_reconnect_stability.json`. One dashboard API request timed out during
 the reconnect window; direct ROS evidence showed the sensor stream itself was
 healthy. This passes rear physical disconnect and automatic-recovery behavior.
 
+The isolated validity/mux guard suite was then repeated: 38/38 checks passed on
+Windows and 38/38 on the Jetson staging copy. It covers close, stale, missing,
+no-echo and direction-specific veto behavior, including the speed-dependent stop
+margin. It is not a physical braking-distance result. Manual remote commands do
+not pass through the autonomous ultrasonic guard, so manually approaching an
+obstacle would not qualify the NAV2/recovery stop path. Live autonomous sources
+remain gated by the unresolved encoder ground validation.
+
 ## Deployment records and guarded follow-up
 
 Staging, backup and local evidence directory (not committed telemetry):

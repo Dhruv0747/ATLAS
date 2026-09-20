@@ -58,6 +58,11 @@ direct ROS check recorded 102 valid front/rear reports, one fail-closed backlog
 report and zero parse errors; rear remained 31.0–33.7 cm. One dashboard request
 timed out during recovery, but the direct sensor stream was healthy.
 
+The isolated directional-veto suite also passes **38/38** on Windows and Jetson
+staging. Close, missing, stale and no-echo directional data block the applicable
+autonomous command. This is logic validation only; the physical stopping-distance
+test remains blocked by the existing encoder/autonomy ground-validation gate.
+
 ### Capability-aware fallback — read-only first increment, 2026-09-20
 
 Open `/commissioning` → **Sensor authority & fallback readiness** for configured

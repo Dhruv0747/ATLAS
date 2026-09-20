@@ -44,6 +44,10 @@
   per active channel, one fail-closed SERIAL_BACKLOG report, zero parse errors,
   one stream identity and rear range 31.0–33.7 cm. A dashboard API request timed
   out during recovery, so retain that separately from the healthy direct stream.
+- Re-run the isolated ultrasonic validity/mux guard suite on Windows and Jetson
+  staging: 38/38 pass in both environments. This confirms directional veto logic,
+  not physical braking. Do not use manual remote motion as a substitute because
+  the ultrasonic guard is intentionally applied to NAV2/recovery commands.
 
 ## 2026-09-20 — Activate bounded ultrasonic bridge receive correction
 
