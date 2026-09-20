@@ -239,8 +239,8 @@ This does not prove a physical cable disconnect, electrical fault, no-echo state
 or actual stopping distance. The permanent stop latch stayed active, so zero
 motor output must NOT be attributed specifically to the ultrasonic guard.
 
-The operator next confirmed a flat target 500 mm from the FRONT transducer.
-A separate 30.03-second passive observation found:
+The initial exchange was interpreted as confirmation of a flat target 500 mm
+from the FRONT transducer. A separate 30.03-second passive observation found:
 
 | Measurement | Front | Rear (no reference target requested) |
 |---|---:|---:|
@@ -248,22 +248,44 @@ A separate 30.03-second passive observation found:
 | Median | 1352 mm | 243 mm |
 | Minimum–maximum | 1324–1406 mm | 222–244 mm |
 
-Front median error versus the operator reference is **+852 mm**. None of the
-105 front readings fell within a deliberately broad 450–550 mm screening band;
-this band is not a manufacturer's accuracy specification. The physical target
-position has not been independently verified. The data is fresh, but the test
-does **not** establish that the intended front target was measured.
+The operator later clarified that there was no verified 500 mm reference target;
+the actual scene was roughly 2.5 m open in front and 0.2 m behind. Therefore the
+computed +852 mm "error" and screening-band result are void as an accuracy test.
+The raw capture is retained as historical evidence, not calibration evidence.
 
-Result: **front distance qualification not passed; cause unresolved**. A photo
-showing the sensor faces and target was requested to inspect beam height, angle,
-obstruction and physical channel identification. Firmware channel mapping remains
+Result: **front known-distance qualification remains open**, rather than failed
+against a valid reference. Firmware channel mapping remains
 front TRIG D2 / ECHO D3, rear D8 / D9. The source uses round-trip echo time
 `duration * 0.343 / 2` in millimetres; no unit/scale or pin change was made.
-Do not relabel the fresh echo as accurate, apply an arbitrary scale factor, or
-start autonomous movement. Rear reference testing is still pending.
+Do not apply an arbitrary scale factor or start autonomous movement from this
+stationary evidence. Front and rear reference testing is still pending.
 
 Raw observation stays on Jetson as
 `reference_front_500mm_1789885159.json`; only this result summary is committed.
+
+The operator subsequently confirmed that the live ultrasonic readings themselves
+were plausible for the scene. A simultaneous 20.03-second stationary comparison
+with the existing measured LiDAR transform and +/-0.25 m chassis extent found:
+
+| Source | Front | Rear |
+|---|---:|---:|
+| Ultrasonic median | 1.347 m | 0.243 m |
+| LiDAR median nearest range, +/-5 degrees | 2.755 m | 0.514 m |
+| LiDAR estimated clearance from chassis edge | 2.454 m | 0.314 m |
+
+LiDAR and ultrasound are at different origins and heights and have different
+beam geometry. The comparison confirms live data, not identical surfaces or
+precision calibration. LiDAR remains primary for mapping/navigation; ultrasound
+is secondary close-range evidence and may not silently convert uncertain data to
+clearance. Raw evidence is `lidar_comparison_1789885934.json` on the Jetson.
+
+A final 120.15-second passive stability window recorded 424 reports: 418 valid
+front/rear samples, six fail-closed `SERIAL_BACKLOG` reports, zero parse errors,
+one stream identity, maximum 0.538-second report gap and maximum accepted sample
+age 0.404 seconds. Observed ranges were 0.988–2.378 m front and 0.222–0.244 m
+rear. This is sustained stationary communication evidence, not physical sensor,
+braking or autonomous-navigation qualification. Raw evidence is
+`final_stationary_stability.json` on the Jetson.
 
 ## Deployment records and guarded follow-up
 
@@ -320,9 +342,8 @@ No over-the-wire CRC was added. Cross-talk, angles, blind zones, wiring noise,
 actual reporting latency, braking distance and firmware-load regression remain
 unqualified. An offline PASS is not a physical sensor or stopping PASS.
 
-Next: inspect the front target/sensor alignment and identify the measured surface;
-repeat the front reference check only after that clarification. Then known-distance rear
-targets; no echo/disconnection and reconnect; sustained camera/radar/I2C workload;
+Next: perform controlled known-distance front and rear targets; physical no-echo/
+disconnection and reconnect; sustained camera/radar/I2C workload;
 then isolated stop-output validation. Ground testing follows only after existing
 steering, measured encoder distance, stopping, localization and remote-stop gates
 are satisfied. Do not repeat previously recorded direction tests without a

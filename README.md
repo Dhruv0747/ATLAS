@@ -26,10 +26,18 @@ not fault-free certification. No motor/servo movement test was run.
 
 Follow-up stationary check: a software communication pause correctly expired
 front/rear readings and the commissioning view marked them stale; data returned
-after resume. However, an operator-reported **50 cm front target measured
-132.4–140.6 cm** (105 fresh reports). Front distance qualification is **not passed**;
-target alignment, mounting and channel identification need inspection. No scale
-factor or safety limit was changed to disguise the mismatch.
+after resume. The earlier 50 cm reference was a communication misunderstanding,
+not verified ground truth. The operator subsequently confirmed the observed
+ultrasonic clearances of approximately **1.35 m front / 0.24 m rear** as plausible.
+A simultaneous 20-second comparison measured LiDAR clearance near **2.45 m front /
+0.31 m rear** after applying the existing footprint. Different origins, heights
+and beam geometry prevent treating those values as interchangeable.
+
+A further 120.15-second passive run produced **418 valid front/rear reports,
+6 fail-closed backlog events and zero parse errors**. Ultrasound remains a
+secondary close-range source; LiDAR remains primary. Physical no-echo/disconnect,
+known-distance accuracy and controlled stopping tests are still pending. No scale
+factor or safety limit was changed.
 
 ### Capability-aware fallback — read-only first increment, 2026-09-20
 

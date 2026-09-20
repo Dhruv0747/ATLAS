@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-09-20 — Stationary expiry check and unresolved front-distance mismatch
+## 2026-09-20 — Stationary ultrasonic/LiDAR comparison and sustained observation
 
 - With motor/servo power kept OFF, briefly SIGSTOP/SIGCONT only the exact sensor
   bridge process; pause the existing recovery owner during the test and restore
@@ -11,10 +11,18 @@
   with the same stream identity, zero parse errors and stop/manual-only preserved.
   This is software communication-pause coverage, not physical cable-pull or
   sensor-no-echo qualification, nor a claim that ultrasound alone stopped motors.
-- Operator confirmed a 50 cm front target. Passive 30-second capture returned
-  105 fresh front reports, median 1352 mm, range 1324–1406 mm; none within
-  450–550 mm. Record the mismatch without changing calibration or thresholds.
-  Await photo/target alignment and channel inspection before further qualification.
+- Correct the earlier 50 cm-reference misunderstanding after the operator
+  confirmed that approximately 1.35 m front / 0.24 m rear ultrasonic readings
+  were plausible for the actual stationary scene.
+- Compare both sources without movement for 20 seconds. LiDAR estimated about
+  2.45 m front and 0.31 m rear clearance from the existing chassis footprint;
+  ultrasound measured median 1.347 m front and 0.243 m rear. Preserve the
+  distinction between sensor origin/height/beam geometry; do not calibrate one
+  source to the other. LiDAR remains primary and ultrasound secondary.
+- Run a further 120.15-second passive observation: 418 valid reports per active
+  channel, six fail-closed SERIAL_BACKLOG reports, zero parse errors, one stream
+  identity and maximum 0.538-second report gap. Keep physical no-echo/cable,
+  known-distance accuracy and controlled stopping qualification open.
 
 ## 2026-09-20 — Activate bounded ultrasonic bridge receive correction
 
