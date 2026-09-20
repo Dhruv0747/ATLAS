@@ -1,5 +1,32 @@
 # Changelog
 
+- 2026-09-20: Save user-selected camera home pan 1725 µs / tilt 1500 µs from
+  fresh UNO pulse reports; synchronize startup and application home defaults.
+
+- 2026-09-20: Add commissioning camera direction buttons and fine steps through
+  the existing manual camera path; no new serial owner or automatic motion.
+
+- 2026-09-20: Add no-motion steering draft Master Reset and use live saved centres
+  in the diagram. Sixteen steering unit tests pass. No PWM torque-release claim.
+
+- 2026-09-20: Correct reversed left/right wheel rotation in commissioning SVG;
+  no actuator configuration or movement changes.
+
+- 2026-09-20: Extend only front-left commissioning envelope to 126°, by user
+  request; retain the 121° operating default until an explicit calibration save.
+
+## 2026-09-20 - Manual steering commissioning
+
+- Add independent bounded steering jog/mark/save UI and existing-owner lease.
+- Inhibit all traction while leased or expired; freeze adjustment on timeout,
+  remote B, stop request or loss of the fresh mux stop latch. No auto stop reset.
+- Persist reviewed calibration atomically in a background worker and load at
+  startup. No endpoint envelope expansion or physical feedback claims.
+- Fourteen pure safety/persistence tests pass. Web and motor owner deployed
+  after lifted-wheel confirmation; live entry, timeout and explicit exit verified
+  without jogging or saving new calibration. Stop remains latched; physical
+  direction/range verification is still required.
+
 ## 2026-09-20 - Commissioning console, observation-only first increment
 
 - Add same-server subsystem pages, existing cached camera view, source ages,

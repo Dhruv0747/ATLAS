@@ -12,6 +12,7 @@ from rclpy.executors import ExternalShutdownException
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Vector3Stamped
 from std_msgs.msg import String
+from atlas_usb_identity import open_verified
 
 
 def corrected_gyro(raw, bias):
@@ -23,6 +24,7 @@ class Observer(Node):
     def __init__(self):
         super().__init__('atlas_im10a_observer')
         self.declare_parameter('port', '/dev/serial/by-path/platform-3610000.usb-usb-0:2.2.4.1:1.0-port0')
+        self.declare_parameter('auto_usb', False)
         self.pub = self.create_publisher(Imu, '/im10a/imu/unvalidated', 10)
         self.corrected = self.create_publisher(Imu, '/im10a/imu/bias_corrected_candidate', 10)
         self.bias = None
@@ -47,13 +49,17 @@ class Observer(Node):
         self.link = None
         self.retry = 0.0
         self.errors = 0
+        self.opened_at = 0.
         self.create_timer(.02, self.read)
         self.create_timer(1., self.health)
 
     def health(self):
         age = time.monotonic() - self.last
         state = 'LIVE_UNVALIDATED' if age < .5 else 'STALE'
-        self.status.publish(String(data=f'{state}; age={age:.2f}s; checksum_errors={self.errors}; EKF disabled; magnetic heading diagnostics-only'))
+        self.status.publish(String(data=f'{state}; age={age:.2f}s; port={self.link.port if self.link else "disconnected"}; checksum_errors={self.errors}; EKF disabled; magnetic heading diagnostics-only'))
+        if self.link and time.monotonic() - max(self.last, self.opened_at) > 4:
+            self.link.close()
+            self.link = None
 
     def read(self):
         now = time.monotonic()
@@ -62,14 +68,19 @@ class Observer(Node):
                 if now < self.retry:
                     return
                 self.retry = now + 3.
-                s = serial.Serial(port=None, baudrate=9600, timeout=0, exclusive=True)
-                s.dtr = False
-                s.rts = False
-                s.port = self.get_parameter('port').value
-                s.open()
+                if self.get_parameter('auto_usb').value:
+                    s = open_verified('imu', self.get_parameter('port').value)
+                else:
+                    s = serial.Serial(port=None, baudrate=9600, timeout=0, exclusive=True)
+                    s.dtr = False
+                    s.rts = False
+                    s.port = self.get_parameter('port').value
+                    s.open()
                 self.link = s
+                self.opened_at = time.monotonic()
                 self.buffer.clear()
                 self.accel = None
+                self.euler = self.magnetic = None
             self.buffer.extend(self.link.read(min(self.link.in_waiting, 4096)))
             while len(self.buffer) >= 11:
                 if self.buffer[0] != 0x55:

@@ -1,5 +1,40 @@
 # Project ATLAS - Autonomous Service Rover
 
+Camera startup home selected by user on 2026-09-20: pan **1725 µs**, tilt
+**1500 µs**. UNO reconnect/startup, web Home, tracker and mission defaults match.
+
+Commissioning Camera page now includes manual left/right/up/down one-tap controls,
+25/50/100 µs steps and return to configured home. It reuses the existing camera
+owner, stale-controller gate and pulse bounds; it does not set a new boot home.
+
+Steering Master Reset discards unsaved marks only: it preserves saved
+calibration, target positions and traction inhibition. The diagram uses live
+owner-saved centres; it cannot measure hand-moved wheel positions. PWM servo
+torque release is not verified and no UART torque-off command is used.
+
+Steering diagram correction (2026-09-20): top-view wheel rotation now uses
+counterclockwise SVG rotation for increasing/left servo commands. This is a
+display-only correction, not a change to motor direction or physical feedback.
+
+### Manual steering commissioning — deployed 2026-09-20
+
+Front-left calibration travel is now bounded at 126° (previously 121°).
+The normal operating endpoint remains unchanged until the operator marks and
+saves a verified limit. Rear and right-side bounds are unchanged.
+
+The commissioning **Steering** page now has independent front/rear 1°/5°
+command jogs, mark centre/left/right, explicit permanent save, and exit to saved
+centres. It requires the new motor owner online, a fresh latched drive stop and
+operator confirmation that wheels are lifted. Browser loss freezes adjustments
+after 1.5 seconds and keeps traction inhibited. Re-enter then explicitly exit;
+the page never resets the drive stop. Existing endpoint envelopes cannot be
+expanded here. Servo command degrees are not physical tyre-angle feedback.
+Calibration lives in `project_atlas/config/steering_calibration.json` and is
+loaded by the motor owner at startup. Do not edit it while the owner is running.
+Web controls and motor owner deployed after lifted-wheel confirmation. Live
+enter/timeout/re-enter/exit verified with centres unchanged and stop latched.
+Physical jog directions/ranges and operator calibration remain to be checked.
+
 ### Commissioning console — 2026-09-20 (first increment)
 
 Open `/commissioning` on the existing dashboard server, or use its

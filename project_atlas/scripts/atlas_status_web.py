@@ -32,7 +32,7 @@ from std_msgs.msg import Bool, Float32, String, Int32, Empty
 PORT = 8088
 CAMERA_PAN_STEP_US = 150
 CAMERA_TILT_STEP_US = 150
-CAMERA_PAN_HOME_US = 2300
+CAMERA_PAN_HOME_US = 1725
 CAMERA_TILT_HOME_US = 1500
 SENSOR_HUB_CAMERA_SOCKET = os.environ.get(
     "ATLAS_SENSOR_HUB_CAMERA_SOCKET",
@@ -147,6 +147,7 @@ class AtlasRosNode:
         self.ai_pub = None
         self.voice_mute_pub = None
         self.commissioning_stop_pub = None
+        self.steering_cal_pub = None
         self.pan_us = CAMERA_PAN_HOME_US
         self.tilt_us = CAMERA_TILT_HOME_US
         self.actual_pan_us = CAMERA_PAN_HOME_US
@@ -202,6 +203,8 @@ class AtlasRosNode:
             self.voice_mute_pub = self.node.create_publisher(Bool, '/atlas/voice/mic_mute', 10)
             # Reuse the existing mux latch; never create a second motor path.
             self.commissioning_stop_pub = self.node.create_publisher(Empty, '/atlas/voice/stop', 10)
+            self.steering_cal_pub = self.node.create_publisher(String, '/atlas/steering_calibration/request', 10)
+            self.node.create_subscription(String, '/atlas/steering_calibration/status', lambda m: self._set('steering_calibration', m.data), 10)
             self.node.create_subscription(String, '/atlas/control_policy', lambda m: self._set('control_policy', m.data), 10)
             self.pan_pub = self.node.create_publisher(
                 Int32, "/camera/bottom_servo_cmd_us", 10
@@ -637,7 +640,9 @@ class AtlasRosNode:
             self.drive_active = False
             self._set("web_drive", "WATCHDOG STOP")
 
-    def camera_move(self, axis, direction):
+    def camera_move(self, axis, direction, step_us=None):
+        if step_us is not None and (type(step_us) is not int or step_us not in (25, 50, 100)):
+            return False, 'Invalid camera step'
         with self.lock:
             feedback = dict(self.data.get('camera_servo_status', {}))
         age = time.time() - feedback.get('ts', 0)
@@ -659,7 +664,7 @@ class AtlasRosNode:
             self.last_camera_manual = now
             if axis == "pan":
                 self.pan_us = max(
-                    700, min(2300, self.pan_us + direction * CAMERA_PAN_STEP_US)
+                    700, min(2300, self.pan_us + direction * (step_us or CAMERA_PAN_STEP_US))
                 )
                 ros_sent = self.pan_pub is not None
                 if ros_sent:
@@ -680,7 +685,7 @@ class AtlasRosNode:
                 # an already-open/cached dashboard controls the physical direction.
                 direction = -direction
                 self.tilt_us = max(
-                    700, min(2300, self.tilt_us + direction * CAMERA_TILT_STEP_US)
+                    700, min(2300, self.tilt_us + direction * (step_us or CAMERA_TILT_STEP_US))
                 )
                 ros_sent = self.tilt_pub is not None
                 if ros_sent:
@@ -1157,7 +1162,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(403)
             return
         commissioning_assets = {'/commissioning': ('atlas_commissioning.html', 'text/html'),
-                                '/commissioning.js': ('atlas_commissioning_ui.js', 'application/javascript')}
+                                '/commissioning.js': ('atlas_commissioning_ui.js', 'application/javascript'),
+                                '/steering-commissioning.js': ('atlas_steering_ui.js', 'application/javascript')}
         if self.path in commissioning_assets:
             name, mime = commissioning_assets[self.path]
             try:
@@ -1334,6 +1340,22 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         ROS.commissioning_stop_pub.publish(Empty())
                         json_response(self, 202, {'message': 'Mux latch requested, not physical stop confirmation'})
+                elif payload.get('action') == 'camera':
+                    if SHUTDOWN_PENDING.is_set():
+                        raise ValueError('Shutdown pending')
+                    axis, direction = payload.get('axis'), payload.get('direction')
+                    if axis not in ('pan', 'tilt', 'center') or type(direction) is not int or direction not in (-1, 0, 1):
+                        raise ValueError('Invalid camera direction')
+                    ok, message = ROS.camera_move(axis, direction, payload.get('step_us', 25))
+                    json_response(self, 200 if ok else 503, {'ok': ok, 'message': message})
+                elif payload.get('action') == 'steering':
+                    if SHUTDOWN_PENDING.is_set() or not ROS.ready or ROS.steering_cal_pub is None:
+                        raise ValueError('Steering owner unavailable')
+                    command = payload.get('command')
+                    if not isinstance(command, dict) or command.get('op') not in ('enter','heartbeat','jog','mark','save','exit','reset_draft'):
+                        raise ValueError('Invalid steering request')
+                    ROS.steering_cal_pub.publish(String(data=json.dumps(command)))
+                    json_response(self, 202, {'message': 'Requested; check owner acknowledgement, not physical feedback'})
                 elif payload.get('action') == 'test':
                     if SHUTDOWN_PENDING.is_set():
                         raise ValueError('Shutdown pending')

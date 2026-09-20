@@ -19,12 +19,15 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from geometry_msgs.msg import TransformStamped, Twist, Vector3, Vector3Stamped
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Imu
-from std_msgs.msg import Float32, Int32, String
+from sensor_msgs.msg import Imu, Joy
+from std_msgs.msg import Float32, Int32, String, Empty
+from rclpy.qos import qos_profile_sensor_data
 from tf2_ros import TransformBroadcaster
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from Rosmaster_Lib import Rosmaster
+from atlas_usb_identity import open_verified
+from atlas_steering_commission import SteeringCommission
 from atlas_encoder_selection import (
     ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator,
     feedback_state, validate_selection,
@@ -228,8 +231,14 @@ class YahboomBase(Node):
         self._encoder_packet_stamp = 0.0
         self._encoder_packet_fresh = False
         self._encoder_delta_estimator = EncoderDeltaEstimator()
-        self.yahboom_port = resolve_yahboom_port()
-        self.bot = Rosmaster(car_type=5, com=self.yahboom_port)
+        if os.environ.get('ATLAS_YAHBOOM_AUTO_USB', '0') == '1':
+            # No library initialization/write until receive protocol is proven.
+            link = open_verified('yahboom', os.environ.get('ATLAS_YAHBOOM_PORT', ''))
+            self.yahboom_port = link.port
+            self.bot = Rosmaster(car_type=5, com=self.yahboom_port, serial_link=link)
+        else:
+            self.yahboom_port = resolve_yahboom_port()
+            self.bot = Rosmaster(car_type=5, com=self.yahboom_port)
         self.bot.create_receive_threading()
         self.bot.set_car_type(5)
         self.bot.set_auto_report_state(True, False)
@@ -242,6 +251,13 @@ class YahboomBase(Node):
         self._last_cmd_time = 0.0
         self._boost_until = 0.0
         self._applied_pwm = 0
+        self._steering_cal = SteeringCommission(
+            Path(__file__).resolve().parents[1] / 'config' / 'steering_calibration.json',
+            {'front': {'center': FRONT_STEER_CENTER, 'left': FRONT_STEER_LEFT, 'right': FRONT_STEER_RIGHT},
+             'rear': {'center': REAR_STEER_CENTER, 'left': REAR_STEER_LEFT, 'right': REAR_STEER_RIGHT}})
+        self._apply_steering_calibration()
+        self._cal_policy_time = 0.0
+        self._cal_stop_latched = False
         self._front_target_angle = FRONT_STEER_CENTER
         self._rear_target_angle = REAR_STEER_CENTER
         self._front_applied_angle = FRONT_STEER_CENTER
@@ -343,6 +359,11 @@ class YahboomBase(Node):
         self._pub_front_steer = self.create_publisher(Float32, '/steering/front_angle_deg', 10)
         self._pub_rear_steer = self.create_publisher(Float32, '/steering/rear_angle_deg', 10)
         self._pub_steer_mode = self.create_publisher(String, '/steering/mode', 10)
+        self._cal_status_pub = self.create_publisher(String, '/atlas/steering_calibration/status', 10)
+        self.create_subscription(String, '/atlas/steering_calibration/request', self._cal_request, 10)
+        self.create_subscription(String, '/atlas/control_policy', self._cal_policy, 10)
+        self.create_subscription(Empty, '/atlas/voice/stop', lambda _: self._cal_abort('Stop requested'), 10)
+        self.create_subscription(Joy, '/joy', self._cal_joy, qos_profile_sensor_data)
 
         self.create_timer(0.1, self._motor_keepalive)
         self.create_timer(0.1, self._publish_board_state)
@@ -428,7 +449,48 @@ class YahboomBase(Node):
             f"STATUS=Base online; odom source={getattr(self, '_last_odom_source', 'starting')}"
         )
 
+    def _apply_steering_calibration(self):
+        global FRONT_STEER_CENTER, FRONT_STEER_LEFT, FRONT_STEER_RIGHT
+        global REAR_STEER_CENTER, REAR_STEER_LEFT, REAR_STEER_RIGHT
+        f, r = self._steering_cal.saved['front'], self._steering_cal.saved['rear']
+        FRONT_STEER_CENTER, FRONT_STEER_LEFT, FRONT_STEER_RIGHT = f['center'], f['left'], f['right']
+        REAR_STEER_CENTER, REAR_STEER_LEFT, REAR_STEER_RIGHT = r['center'], r['left'], r['right']
+
+    def _cal_applied(self):
+        return {'front': self._front_applied_angle, 'rear': self._rear_applied_angle}
+
+    def _cal_policy(self, msg):
+        try:
+            self._cal_stop_latched = json.loads(msg.data).get('stop_latched') is True
+            self._cal_policy_time = time.monotonic()
+        except (ValueError, AttributeError):
+            self._cal_stop_latched = False
+
+    def _cal_safe(self):
+        return (self._cal_stop_latched and time.monotonic() - self._cal_policy_time < 1.0
+                and self._applied_pwm == 0 and self._last_vx == 0 and self._last_vz == 0)
+
+    def _cal_abort(self, reason):
+        self._steering_cal.freeze(self._cal_applied(), reason)
+
+    def _cal_joy(self, msg):
+        if len(msg.buttons) > 1 and msg.buttons[1]:
+            self._cal_abort('Remote B stop')
+
+    def _cal_request(self, msg):
+        try:
+            if len(msg.data) > 1024:
+                raise ValueError('Oversized request')
+            self._steering_cal.command(json.loads(msg.data), time.monotonic(), self._cal_applied(), self._cal_safe())
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            self._steering_cal.result = 'REJECTED: ' + str(exc)
+
     def _on_cmd_vel(self, msg: Twist):
+        if self._steering_cal.locked:
+            self._last_vx = self._last_vz = 0.0
+            self._applied_pwm = 0
+            self.bot.set_motor(0, 0, 0, 0)
+            return
         vx = max(-1.0, min(1.0, msg.linear.x / MAX_VX))
         vz = max(-5.0, min(5.0, msg.angular.z))
         # Zero commands must stop immediately. Never ignore a stop packet.
@@ -451,10 +513,23 @@ class YahboomBase(Node):
 
     def _motor_keepalive(self):
         self._watchdog_ping()
+        self._steering_cal.tick(time.monotonic(), self._cal_applied(), self._cal_safe())
+        self._apply_steering_calibration()
+        self._cal_status_pub.publish(String(data=json.dumps(self._steering_cal.status())))
         if time.time() - self._last_cmd_time > CMD_TIMEOUT_S:
             self._last_vx = 0.0
             self._last_vz = 0.0
-        self._drive_pwm(self._last_vx, self._last_vz)
+        if self._steering_cal.locked:
+            self._last_vx = self._last_vz = 0.0
+            self._applied_pwm = 0
+            self.bot.set_motor(0, 0, 0, 0)
+            self._front_target_angle = self._steering_cal.targets['front']
+            self._rear_target_angle = self._steering_cal.targets['rear']
+            self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
+            self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))
+            self._pub_steer_mode.publish(String(data='steering_calibration_traction_inhibited'))
+        else:
+            self._drive_pwm(self._last_vx, self._last_vz)
         self._servo_tick = getattr(self, '_servo_tick', 0) + 1
         if self._servo_tick >= SERVO_UPDATE_TICKS:
             self._servo_tick = 0

@@ -58,9 +58,12 @@ class GnssNode(Node):
         self.declare_parameter('frame_id', 'gps_link')
         self.declare_parameter('poll_hz', 20.0)
         self.declare_parameter('source_name', 'SIM8230G USB GNSS')
+        self.declare_parameter('auto_usb', False)
         self.source_name = str(self.get_parameter('source_name').value)
 
         self.port = str(self.get_parameter('port').value)
+        self.preferred_port = self.port
+        self.usb_link = None
         self.baud = int(self.get_parameter('baud').value)
         self.frame_id = str(self.get_parameter('frame_id').value)
         poll_hz = float(self.get_parameter('poll_hz').value)
@@ -112,9 +115,16 @@ class GnssNode(Node):
         self.last_open_attempt = now
         self._close_port()
         try:
-            self.fd = open_raw_serial(self.port, self.baud)
+            if self.get_parameter('auto_usb').value:
+                from atlas_usb_identity import open_verified
+                self.usb_link = open_verified('gps', self.preferred_port)
+                self.port = self.usb_link.port
+                self.fd = self.usb_link.fileno()
+            else:
+                self.fd = open_raw_serial(self.port, self.baud)
             self.opened_at = now
             self.open_count += 1
+            self.last_error = ''
         except (OSError, ValueError) as exc:
             self.get_logger().warning(f'GNSS UART open failed: {exc}')
             self.last_error = str(exc)
@@ -123,10 +133,14 @@ class GnssNode(Node):
     def _close_port(self, publish_invalid=True):
         if self.fd is not None:
             try:
-                os.close(self.fd)
+                if self.usb_link is not None:
+                    self.usb_link.close()
+                else:
+                    os.close(self.fd)
             except OSError:
                 pass
         self.fd = None
+        self.usb_link = None
         self.buffer = b''
         self.last_byte = self.last_nmea = self.last_fix = self.last_gga = 0.0
         self.last_combined_gga = 0.0
@@ -154,7 +168,15 @@ class GnssNode(Node):
             self._open_port()
             return
         try:
-            chunk = os.read(self.fd, 4096)
+            # PySerial timeout=0 returns empty between NMEA bursts, not EOF.
+            # Its read detects actual disconnects; existing freshness watchdog
+            # also handles silent devices.
+            if self.usb_link is not None:
+                chunk = self.usb_link.read(4096)
+                if not chunk:
+                    return
+            else:
+                chunk = os.read(self.fd, 4096)
         except BlockingIOError:
             return
         except OSError as exc:

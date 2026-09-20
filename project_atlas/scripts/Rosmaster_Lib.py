@@ -12,7 +12,7 @@ import os
 class Rosmaster(object):
     __uart_state = 0
 
-    def __init__(self, car_type=1, com="/dev/myserial", delay=.002, debug=False):
+    def __init__(self, car_type=1, com="/dev/myserial", delay=.002, debug=False, serial_link=None):
         # com = "COM30"
         # com="/dev/ttyTHS1"
         # com="/dev/ttyUSB0"
@@ -21,7 +21,7 @@ class Rosmaster(object):
         # Define this before opening the port so a failed open can be cleaned up
         # without masking the real serial error from the caller.
         self.ser = None
-        self.ser = serial.Serial(com, 115200)
+        self.ser = serial_link if serial_link is not None else serial.Serial(com, 115200)
 
         self.__delay_time = delay
         self.__debug = debug

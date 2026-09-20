@@ -42,7 +42,7 @@ GNSS_ENABLED = os.environ.get('ATLAS_GNSS_ENABLED', '1').strip().lower() not in 
     '0', 'false', 'no', 'off',
 )
 CAMERA_ROUTE = os.environ.get('ATLAS_CAMERA_ROUTE', 'jetson').strip().lower()
-CAMERA_PAN_HOME_US = int(os.environ.get('ATLAS_CAMERA_PAN_HOME_US', '2300'))
+CAMERA_PAN_HOME_US = int(os.environ.get('ATLAS_CAMERA_PAN_HOME_US', '1725'))
 CAMERA_TILT_HOME_US = int(os.environ.get('ATLAS_CAMERA_TILT_HOME_US', '1500'))
 CAMERA_SOCKET_PATH = os.environ.get(
     'ATLAS_SENSOR_HUB_CAMERA_SOCKET',

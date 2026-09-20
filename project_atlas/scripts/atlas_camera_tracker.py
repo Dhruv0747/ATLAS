@@ -11,7 +11,7 @@ from rclpy.executors import ExternalShutdownException
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Bool, Int32, String
 
-CAMERA_PAN_HOME_US = 2300
+CAMERA_PAN_HOME_US = 1725
 CAMERA_TILT_HOME_US = 1500
 
 
