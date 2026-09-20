@@ -1,5 +1,16 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Commissioning console — 2026-09-20 (first increment)
+
+Open `/commissioning` on the existing dashboard server, or use its
+**COMMISSIONING / HARDWARE CHECK** link. Live subsystem pages distinguish
+commanded, reported and calculated values. Non-motion hardware checks and
+bounded IMU/GNSS/distance observations have persistent result history.
+Actuator commissioning and calibration writes remain locked: an exclusive
+owner-side control lease and physical verification are still required.
+See [plan](docs/WEB_COMMISSIONING_PLAN.md) and
+[validation report](docs/WEB_COMMISSIONING_VALIDATION_2026-09-20.md).
+
 ### Front ultrasonic — 2026-09-19
 
 UNO R4 front TRIG D2 / ECHO D3 is enabled by the sensor-hub

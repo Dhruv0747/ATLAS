@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-20 - Commissioning console, observation-only first increment
+
+- Add same-server subsystem pages, existing cached camera view, source ages,
+  observed rates, configuration hashes and bounded SQLite observation history.
+- Add non-motion telemetry checks and stationary observation workflows; no
+  physical calibration PASS, actuator jogging or calibration writes are enabled.
+- Reuse existing latched drive-stop topic without adding a reset or bypass.
+- Preserve navigation parameters, serial ownership and existing remote controls.
+- Validate 14 commissioning unit cases plus 16 camera/remote regression cases;
+  deploy to Jetson and verify live browser telemetry and API rejection of
+  unsupported motor/calibration requests. Full commissioning remains pending.
+
 ## 2026-09-18 - Stopped-only, on-demand local conversation
 
 - Add a read-only local model broker with owner-only Unix socket, loopback

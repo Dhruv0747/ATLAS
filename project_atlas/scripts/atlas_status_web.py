@@ -15,6 +15,7 @@ import time
 import signal
 from collections import deque
 from atlas_web_diagnostics import DiagnosticCache, service_logs
+from atlas_commissioning import Console, hardware_check
 
 import cv2
 import numpy as np
@@ -26,7 +27,7 @@ from rclpy.qos import qos_profile_sensor_data
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import NavSatFix, LaserScan, CompressedImage, Joy
-from std_msgs.msg import Bool, Float32, String, Int32
+from std_msgs.msg import Bool, Float32, String, Int32, Empty
 
 PORT = 8088
 CAMERA_PAN_STEP_US = 150
@@ -145,6 +146,7 @@ class AtlasRosNode:
         self.camera_tracking_pub = None
         self.ai_pub = None
         self.voice_mute_pub = None
+        self.commissioning_stop_pub = None
         self.pan_us = CAMERA_PAN_HOME_US
         self.tilt_us = CAMERA_TILT_HOME_US
         self.actual_pan_us = CAMERA_PAN_HOME_US
@@ -198,6 +200,9 @@ class AtlasRosNode:
             self.node = rclpy.create_node("atlas_web_control")
             self.pub = self.node.create_publisher(Twist, "/cmd_vel_web", 10)
             self.voice_mute_pub = self.node.create_publisher(Bool, '/atlas/voice/mic_mute', 10)
+            # Reuse the existing mux latch; never create a second motor path.
+            self.commissioning_stop_pub = self.node.create_publisher(Empty, '/atlas/voice/stop', 10)
+            self.node.create_subscription(String, '/atlas/control_policy', lambda m: self._set('control_policy', m.data), 10)
             self.pan_pub = self.node.create_publisher(
                 Int32, "/camera/bottom_servo_cmd_us", 10
             )
@@ -810,6 +815,7 @@ class AtlasRosNode:
             if k in {"camera_frame", "ai_camera_frame"}:
                 continue
             out[k] = {"value": v["value"], "age": round(max(0, now - v["ts"]), 1),
+                      "sample_time": v["ts"],
                       "source": v.get("source", "web telemetry callback"),
                       "observed_hz": rates.get(k) if "source" not in v else None}
             if k == 'bat_current':
@@ -911,6 +917,11 @@ class AtlasRosNode:
 
 ROS = AtlasRosNode()
 DIAGNOSTICS = DiagnosticCache()
+COMMISSIONING = Console(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    os.environ.get('ATLAS_COMMISSIONING_DB', '/home/jetson/project_atlas/data/commissioning/results.sqlite3'),
+    ROS.snapshot,
+)
 
 
 def network_status():
@@ -1145,6 +1156,34 @@ class Handler(BaseHTTPRequestHandler):
         if not self.client_allowed():
             self.send_error(403)
             return
+        commissioning_assets = {'/commissioning': ('atlas_commissioning.html', 'text/html'),
+                                '/commissioning.js': ('atlas_commissioning_ui.js', 'application/javascript')}
+        if self.path in commissioning_assets:
+            name, mime = commissioning_assets[self.path]
+            try:
+                with open(os.path.join(os.path.dirname(__file__), name), 'rb') as stream:
+                    body = stream.read()
+                self.send_response(200)
+                self.send_header('Content-Type', mime + '; charset=utf-8')
+                self.send_header('Cache-Control', 'no-store')
+                self.send_header('X-Content-Type-Options', 'nosniff')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except OSError:
+                self.send_error(404)
+            return
+        if self.path == '/api/commissioning':
+            data = ROS.snapshot()
+            json_response(self, 200, {'ros': data, 'configuration': COMMISSIONING.config,
+                                     'check': hardware_check(data), 'state': COMMISSIONING.state()})
+            return
+        if self.path == '/api/commissioning/history':
+            try:
+                json_response(self, 200, {'history': COMMISSIONING.history()})
+            except Exception:
+                json_response(self, 503, {'error': 'History storage unavailable'})
+            return
         if self.path == '/wifi':
             body = atlas_wifi_web.PAGE.encode()
             self.send_response(200)
@@ -1277,6 +1316,33 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.client_allowed():
             self.send_error(403)
+            return
+        if self.path.startswith('/api/commissioning'):
+            if self.path != '/api/commissioning' or not atlas_wifi_web.same_origin(self.headers):
+                self.send_error(403)
+                return
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 1024 or self.headers.get_content_type() != 'application/json':
+                    raise ValueError('Invalid request')
+                payload = json.loads(self.rfile.read(length))
+                if not isinstance(payload, dict):
+                    raise ValueError('Expected object')
+                if payload.get('action') == 'stop':
+                    if ROS.commissioning_stop_pub is None or not ROS.ready:
+                        json_response(self, 503, {'error': 'Stop publisher unavailable; use remote stop'})
+                    else:
+                        ROS.commissioning_stop_pub.publish(Empty())
+                        json_response(self, 202, {'message': 'Mux latch requested, not physical stop confirmation'})
+                elif payload.get('action') == 'test':
+                    if SHUTDOWN_PENDING.is_set():
+                        raise ValueError('Shutdown pending')
+                    result = COMMISSIONING.start(payload.get('kind'), payload.get('side'), payload.get('known_mm'))
+                    json_response(self, 202, result)
+                else:
+                    json_response(self, 403, {'error': 'Actuator commissioning and calibration writes are locked; no command sent'})
+            except (ValueError, TypeError):
+                json_response(self, 400, {'error': 'Invalid or busy non-motion test request'})
             return
         if self.path == '/api/voice':
             if not atlas_wifi_web.same_origin(self.headers):
@@ -1512,7 +1578,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
 @media(max-width:1150px) and (min-width:901px){.grid{grid-template-columns:265px minmax(390px,1fr) 295px}.companionGrid{grid-template-columns:1fr}.companionStatus{grid-template-columns:1fr 1fr}.voiceLedStates{grid-template-columns:repeat(3,1fr)}}
 </style></head><body>
 <header><img src="/logo.png"><div><h1>PROJECT ATLAS COMMAND CENTER</h1><div class="sub">Headless rover control • hold-to-drive • automatic stop watchdog</div></div><div class="live" id="online">CONNECTING</div><a class="headerBtn cloud" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/" title="Open the read-only ATLAS Visual Cloud live ROS observability dashboard."><span class="headerIcon">◈</span><span class="headerText">VISUAL CLOUD</span></a><a class="headerBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" title="Open two-way ATLAS intercom. The camera stream closes to preserve call quality and AI Voice pauses during the call."><span class="headerIcon">☎</span><span class="headerText">TALK / LISTEN</span></a></header>
-<div class="bootBanner"><b>LIVE TELEMETRY CHECK</b><a class="btn" href="#diagnosticsPanel" onclick="document.getElementById('diagnosticsPanel').open=true;refreshDiagnostics(true)">DIAGNOSTICS / LOGS</a><button class="btn" id="shutdownButton" style="border-color:#ff5966;color:#ffbdc4" onclick="shutdownAtlas()">⏻ SHUT DOWN</button><span id="bootBannerState">COLLECTING LIVE DATA…</span><div class="buildTag">WEB DIAGNOSTICS v4</div></div>
+<div class="bootBanner"><b>LIVE TELEMETRY CHECK</b><a class="btn" href="/commissioning">COMMISSIONING / HARDWARE CHECK</a><a class="btn" href="#diagnosticsPanel" onclick="document.getElementById('diagnosticsPanel').open=true;refreshDiagnostics(true)">DIAGNOSTICS / LOGS</a><button class="btn" id="shutdownButton" style="border-color:#ff5966;color:#ffbdc4" onclick="shutdownAtlas()">⏻ SHUT DOWN</button><span id="bootBannerState">COLLECTING LIVE DATA…</span><div class="buildTag">WEB DIAGNOSTICS v4</div></div>
 <main class="grid">
 <section class="col">
  <div class="panel"><h2>ROVER DRIVE — HOLD BUTTON</h2><div class="drive">
