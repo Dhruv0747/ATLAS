@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-20 — Capability inventory and advisory assessment
+
+- Reuse commissioning evidence/cache for source roles, goal requirements, data
+  age, plausibility and missing validation; add read-only sensor-authority view.
+- Document disabled candidate profiles, ordered remaining work and next physical
+  gate. No profile activation, safety bypass, new sensor owner or motion command.
+- Distinguish stationary counts, shared-link failure, excluded M4, unvalidated
+  IMU, camera-not-VO, invalid ultrasound and stale GNSS fixes. Existing controller
+  behavior is unchanged; end-to-end fallback/resume remains pending.
+- Keep evidence available if the advisory registry fails; expire browser data.
+
 ## 2026-09-20 — Phase 2 evidence-first commissioning
 
 - Add versioned evidence in the existing bounded SQLite store, preserving old

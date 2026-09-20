@@ -17,6 +17,7 @@ import uuid
 
 from atlas_encoder_selection import WHEEL_NAMES
 from atlas_commissioning_evidence import EvidenceLedger, observation_gate, readiness
+from atlas_capabilities import load_registry, report as capability_report
 
 
 def finite(value):
@@ -178,7 +179,17 @@ class Console:
         with self.lock:
             active_id=self.active.get('id') if self.active else None
         records=self.ledger.current(active_id)
-        return {'records':records,'readiness':readiness(records,self.snapshot()),
+        data=self.snapshot()
+        try:
+            capabilities=capability_report(load_registry(self.root),records,data)
+        except (OSError, ValueError, KeyError, TypeError):
+            # A missing/bad advisory registry must neither grant authority nor
+            # hide the independently usable commissioning evidence/history.
+            capabilities={'error':'Capability registry or telemetry unavailable/invalid',
+                          'mode':'ADVISORY_ONLY','motion_authorized':False,
+                          'resume_authorized':False,'approved_profiles':[]}
+        return {'records':records,'readiness':readiness(records,data),
+                'capabilities':capabilities,
                 'scope':'Evidence/guidance only; actuator configuration and navigation gates are unchanged.'}
 
     def confirm_steering(self,side,expected_hash,confirmation):

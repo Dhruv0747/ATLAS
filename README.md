@@ -1,5 +1,14 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Capability-aware fallback — read-only first increment, 2026-09-20
+
+Open `/commissioning` → **Sensor authority & fallback readiness** for configured
+sensor roles, live cached data age, evidence status and blocked capabilities.
+This reuses the existing cache/ledger: no new driver, fusion or control path.
+Camera VO is NOT AVAILABLE; IM10A remains unfused; M4 feedback remains excluded.
+No alternate profile or automatic goal resumption is approved. See the
+[ordered remaining-work list, audit and safety boundary](docs/CAPABILITY_FALLBACK_WORK_PLAN_2026-09-20.md).
+
 ### Phase 2: evidence and next-step commissioning — 2026-09-20
 
 On `/commissioning`, use **CONTINUE ATLAS COMMISSIONING** to open the next

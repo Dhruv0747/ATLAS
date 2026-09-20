@@ -12,12 +12,27 @@ function renderEvidence(){
  const selection=$('invalidateGate').value;
  $('invalidateGate').innerHTML=evidence.records.map(r=>`<option value="${esc(r.gate)}">${esc(r.title)}</option>`).join('');
  if(selection)$('invalidateGate').value=selection;
+ renderCapabilities();
+}
+function capabilitiesUnavailable(message){
+ $('capabilitySummary').textContent=message+' — no movement authority.';
+ for(const id of ['capabilityGoal','capabilityRequirements','capabilityRows','capabilityProfiles'])$(id).textContent='';
+}
+function renderCapabilities(){
+ const c=evidence?.capabilities;
+ if(!c||!evidenceFresh())return capabilitiesUnavailable('Capability evidence stale or unavailable');
+ if(c.error)return capabilitiesUnavailable(c.error);
+ $('capabilitySummary').textContent=`READ-ONLY · ${c.decision} · snapshot ${new Date(evidenceReceived).toLocaleTimeString()}. ${c.runtime_restrictions.join('; ')}`;
+ $('capabilityGoal').textContent=`Goal reported by agent: ${c.current_goal_report}. Assessment scenario: ${c.assessment_goal_type} (not a dispatched mission). ${c.goal_retention}.`;
+ $('capabilityRequirements').innerHTML='<h3>Required capabilities — room navigation</h3><table><tr><th>Capability</th><th>Observed source components</th><th>Qualification</th></tr>'+c.capabilities.map(r=>`<tr><td>${esc(r.capability)}</td><td>${esc(r.observed_sources.join(', ')||'None verified in this snapshot')}</td><td>${esc(r.state)}<br>${esc(r.reason)}</td></tr>`).join('')+'</table>';
+ $('capabilityRows').innerHTML='<h3>Configured sensor usage — telemetry is not authority</h3><table><tr><th>Source / role</th><th>Data / age at snapshot</th><th>Validation</th><th>Consumer / authority</th></tr>'+c.sensors.map(r=>`<tr><td>${esc(r.name)}<br><span class="muted">${esc(r.role)}</span></td><td>${esc(r.health)} · ${r.age_s===null?'unknown':esc(r.age_s.toFixed(2))+' s'}<br>${esc(r.reason)}</td><td>${esc(r.validation)}<br>${esc(r.missing_evidence.join(', '))}</td><td>${esc(r.topic)}<br>${esc(r.consumer)}<br>${esc(r.authority)}</td></tr>`).join('')+'</table>';
+ $('capabilityProfiles').textContent=`Approved fallback profiles: NONE. Candidates only: ${c.candidate_profiles.map(p=>p.id+' — '+p.approval).join('; ')}. Authorized speed from this view: 0 m/s. ${c.reason}`;
 }
 async function pollEvidence(){
  if(evidenceBusy||document.hidden)return;
  evidenceBusy=true;
  try{const r=await fetch('/api/commissioning/evidence',{cache:'no-store',signal:AbortSignal.timeout(5000)});const body=await r.json();if(!r.ok)throw Error(body.error||'Evidence unavailable');evidence=body;evidenceReceived=Date.now();renderEvidence();}
- catch(e){evidence=null;evidenceReceived=0;$('readinessSummary').textContent='EVIDENCE UNAVAILABLE — autonomy blocked';$('evidenceSummary').textContent=e.message;$('continueCommissioning').disabled=true;$('invalidateEvidence').disabled=true;}
+ catch(e){evidence=null;evidenceReceived=0;$('readinessSummary').textContent='EVIDENCE UNAVAILABLE — autonomy blocked';$('evidenceSummary').textContent=e.message;$('continueCommissioning').disabled=true;$('invalidateEvidence').disabled=true;capabilitiesUnavailable('Capability evidence unavailable');}
  finally{evidenceBusy=false;}
 }
 $('continueCommissioning').onclick=()=>{
@@ -42,3 +57,4 @@ async function witnessSteering(side){
 }
 pollEvidence();setInterval(pollEvidence,5000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollEvidence();});
+setInterval(()=>{if(!evidenceFresh()){capabilitiesUnavailable('Capability evidence stale');$('continueCommissioning').disabled=true;$('invalidateEvidence').disabled=true;}},1000);
