@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-20 — Stationary expiry check and unresolved front-distance mismatch
+
+- With motor/servo power kept OFF, briefly SIGSTOP/SIGCONT only the exact sensor
+  bridge process; pause the existing recovery owner during the test and restore
+  it afterward. An independent bounded resume guard protects against a lost
+  testing connection. No actuator or ROS velocity command was published.
+- Both local validity readings expired as STALE_REPORT; the commissioning view
+  reported STALE_OR_MISSING at 3.8 s age. Fresh samples returned after resume,
+  with the same stream identity, zero parse errors and stop/manual-only preserved.
+  This is software communication-pause coverage, not physical cable-pull or
+  sensor-no-echo qualification, nor a claim that ultrasound alone stopped motors.
+- Operator confirmed a 50 cm front target. Passive 30-second capture returned
+  105 fresh front reports, median 1352 mm, range 1324–1406 mm; none within
+  450–550 mm. Record the mismatch without changing calibration or thresholds.
+  Await photo/target alignment and channel inspection before further qualification.
+
 ## 2026-09-20 — Activate bounded ultrasonic bridge receive correction
 
 - With renewed motor/servo-power-OFF confirmation, install the partial-line

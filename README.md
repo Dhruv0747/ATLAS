@@ -24,6 +24,13 @@ Final passive 120-second window: **421 valid front/rear reports, 3 fail-closed
 backlog events, zero parse errors/reconnects**. This is improved communication,
 not fault-free certification. No motor/servo movement test was run.
 
+Follow-up stationary check: a software communication pause correctly expired
+front/rear readings and the commissioning view marked them stale; data returned
+after resume. However, an operator-reported **50 cm front target measured
+132.4–140.6 cm** (105 fresh reports). Front distance qualification is **not passed**;
+target alignment, mounting and channel identification need inspection. No scale
+factor or safety limit was changed to disguise the mismatch.
+
 ### Capability-aware fallback — read-only first increment, 2026-09-20
 
 Open `/commissioning` → **Sensor authority & fallback readiness** for configured

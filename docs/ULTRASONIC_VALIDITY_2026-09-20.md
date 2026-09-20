@@ -217,6 +217,54 @@ During the deliberate first hub stop, the old process logged an rclpy invalid
 context while publishing during shutdown; the replacement started normally.
 This shutdown traceback is not counted as a spontaneous sensor disconnect.
 
+### Follow-up: communication expiry and operator distance reference
+
+Motor and servo power remained OFF under the operator's confirmation. The
+read-only check identified the exact bridge PID/command line and verified a fresh
+latched stop, manual-only and zero command. It temporarily stopped only the
+recovery owner, then used SIGSTOP for 3.5 seconds on the bridge. A detached
+eight-second PID/start-time-checked resume guard was armed first; normal finally
+handling also restores the bridge and recovery. No serial device was opened by
+the observer and no ROS/actuator command was published.
+
+Both deployed ValidityWindow readings became `STALE_REPORT`. The existing
+commissioning API showed front/rear `STALE_OR_MISSING`, age 3.8 s. After SIGCONT,
+fresh readings returned within the six-second observation window with the same
+stream ID. The test received 44 frames with zero parse errors; hub and recovery
+were active afterward, stop/manual-only still true. Evidence:
+`software_pause_check.json` in the staging/evidence directory.
+
+**Scope:** successful software communication-pause expiry and resume check.
+This does not prove a physical cable disconnect, electrical fault, no-echo state,
+or actual stopping distance. The permanent stop latch stayed active, so zero
+motor output must NOT be attributed specifically to the ultrasonic guard.
+
+The operator next confirmed a flat target 500 mm from the FRONT transducer.
+A separate 30.03-second passive observation found:
+
+| Measurement | Front | Rear (no reference target requested) |
+|---|---:|---:|
+| Fresh valid reports | 105 | 105 |
+| Median | 1352 mm | 243 mm |
+| Minimum–maximum | 1324–1406 mm | 222–244 mm |
+
+Front median error versus the operator reference is **+852 mm**. None of the
+105 front readings fell within a deliberately broad 450–550 mm screening band;
+this band is not a manufacturer's accuracy specification. The physical target
+position has not been independently verified. The data is fresh, but the test
+does **not** establish that the intended front target was measured.
+
+Result: **front distance qualification not passed; cause unresolved**. A photo
+showing the sensor faces and target was requested to inspect beam height, angle,
+obstruction and physical channel identification. Firmware channel mapping remains
+front TRIG D2 / ECHO D3, rear D8 / D9. The source uses round-trip echo time
+`duration * 0.343 / 2` in millimetres; no unit/scale or pin change was made.
+Do not relabel the fresh echo as accurate, apply an arbitrary scale factor, or
+start autonomous movement. Rear reference testing is still pending.
+
+Raw observation stays on Jetson as
+`reference_front_500mm_1789885159.json`; only this result summary is committed.
+
 ## Deployment records and guarded follow-up
 
 Staging, backup and local evidence directory (not committed telemetry):
@@ -272,7 +320,8 @@ No over-the-wire CRC was added. Cross-talk, angles, blind zones, wiring noise,
 actual reporting latency, braking distance and firmware-load regression remain
 unqualified. An offline PASS is not a physical sensor or stopping PASS.
 
-Next: complete bounded stationary timing/fault checks; known-distance front/rear
+Next: inspect the front target/sensor alignment and identify the measured surface;
+repeat the front reference check only after that clarification. Then known-distance rear
 targets; no echo/disconnection and reconnect; sustained camera/radar/I2C workload;
 then isolated stop-output validation. Ground testing follows only after existing
 steering, measured encoder distance, stopping, localization and remote-stop gates
