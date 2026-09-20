@@ -18,6 +18,10 @@ class SteeringCommission:
         # Supervised front-left calibration extension approved 2026-09-20.
         # This does NOT change the operating endpoint until explicitly saved.
         self.envelope['front']['left'] = 126
+        # Supervised rear-right extension approved 2026-09-20.  Expand only
+        # five servo degrees at a time and require operator visual confirmation
+        # before the operating endpoint can be saved.
+        self.envelope['rear']['right'] = 59
         self.saved = copy.deepcopy(defaults)
         self.error = ''
         if self.path.exists():

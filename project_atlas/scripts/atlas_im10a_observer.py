@@ -108,7 +108,10 @@ class Observer(Node):
                     if self.bias is not None:
                         c = Imu()
                         c.header.stamp = m.header.stamp
-                        c.header.frame_id = 'im10a_base_aligned_candidate'
+                        # corrected_gyro() has already rotated the free vector
+                        # into the rover body axes. Publish in base_link so the
+                        # live EKF does not reject it for a missing candidate TF.
+                        c.header.frame_id = 'base_link'
                         c.orientation_covariance[0] = -1.
                         c.linear_acceleration_covariance[0] = -1.
                         c.angular_velocity.x, c.angular_velocity.y, c.angular_velocity.z = corrected_gyro(
@@ -118,9 +121,10 @@ class Observer(Node):
                         self.corrected.publish(c)
                     self.last = now
                     data = {
-                        'source': 'Hiwonder IM10A', 'role': 'primary candidate / monitoring',
-                        'frame': m.header.frame_id, 'qualified_for_navigation': False,
-                        'navigation_fusion': 'DISABLED: mounting and dynamic tests pending',
+                        'source': 'Hiwonder IM10A', 'role': 'primary yaw-rate IMU',
+                        'frame': m.header.frame_id, 'qualified_for_navigation': self.bias is not None,
+                        'navigation_fusion': ('ENABLED: corrected gyro Z only' if self.bias is not None
+                                              else 'DISABLED: bias correction unavailable'),
                         'heading_reference_mode': 'DIAGNOSTICS ONLY: sensor heading excluded from navigation',
                         'magnetic_heading_used_for_navigation': False,
                         'sensor_internal_fusion_mode': 'not verified; unchanged',

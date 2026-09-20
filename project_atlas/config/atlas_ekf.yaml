@@ -15,25 +15,35 @@ ekf_filter_node:
     base_link_frame: base_link
     world_frame: odom
 
-    # Fuse the internally consistent wheel pose and twist. Commissioning bags
-    # on 2026-08-24 showed wheel pose-yaw and integrated wheel yaw-rate agreeing
-    # within about one degree, while the retired BNO08X rotation-vector yaw changed
-    # 100-175 degrees with only 1.7-6 degrees of integrated gyro rotation.
+    # Wheel translation remains useful, but current commissioning found the
+    # wheel-derived yaw and yaw-rate can remain at zero during a real chassis
+    # turn and overpower the validated IM10A gyro. Do not fuse those two fields.
     # Relative mode removes the controller's arbitrary startup origin.
     odom0: /yahboom/odom
     odom0_config: [true,  true,  false,
-                   false, false, true,
+                   false, false, false,
                    true,  true,  false,
-                   false, false, true,
+                   false, false, false,
                    false, false, false]
     odom0_differential: false
     odom0_relative: true
     odom0_queue_size: 10
 
-    # Hiwonder IM10A is the primary IMU candidate for monitoring, not fusion.
-    # Magnetometer and sensor Euler heading are DIAGNOSTICS ONLY on ATLAS.
-    # No imu0 input is configured: gyro sign, magnitude, timing and mounting
-    # require validation first. Do not fuse magnetic absolute heading.
+    # Hiwonder IM10A corrected gyro Z is the commissioned yaw-rate source.
+    # 2026-09-20 physical 90-degree tests measured +90.22/-86.45 degrees;
+    # corrected gyro-authority shadow EKF measured +87.96 degrees with zero
+    # false translation and 620/620 samples accepted. Orientation, Euler and
+    # magnetic heading remain excluded because the metal chassis distorts them.
+    imu0: /im10a/imu/bias_corrected_candidate
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: false
 
     process_noise_covariance: [0.05, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                                0.0,  0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,

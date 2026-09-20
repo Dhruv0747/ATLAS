@@ -13,10 +13,13 @@ class BiasTests(unittest.TestCase):
         self.assertIn('c.orientation_covariance[0] = -1.', source)
         self.assertIn("'magnetic_heading_used_for_navigation': False", source)
 
-    def test_no_ekf_imu_input_enabled(self):
-        import re
+    def test_ekf_uses_only_corrected_yaw_rate(self):
         config=Path(__file__).parents[1]/'config'/'atlas_ekf.yaml'
-        self.assertIsNone(re.search(r'^\s*imu\d+\s*:',config.read_text(),re.M))
+        text=config.read_text()
+        self.assertIn('imu0: /im10a/imu/bias_corrected_candidate', text)
+        self.assertIn('false, false, true,\n                  false, false, false]', text)
+        # Wheel pose-yaw and yaw-rate entries are intentionally both false.
+        self.assertGreaterEqual(text.count('false, false, false,'), 4)
 
     def test_zero_at_bias(self):
         self.assertEqual(ns['corrected_gyro']([.01,.02,.03],[.01,.02,.03]),(0.,0.,0.))

@@ -64,7 +64,10 @@ REMOTE_SOURCE_GRACE_S = 2.0
 # the commissioned 30 deg/s slew rate while removing the coarse 6-degree jump
 # that made low-speed right steering feel abrupt.
 SERVO_UPDATE_TICKS = 1
-STEER_RAMP_STEP_DEG = 3
+# Two degrees per 100 ms gives a smooth 20 deg/s manual steering slew while
+# remaining responsive.  The former 3-degree steps were visible as shaking on
+# the large installed steering linkage.
+STEER_RAMP_STEP_DEG = 2
 # Four equal wheel speeds force the tyres to scrub during a 4WS turn.  Keep
 # every powered wheel at or above the commissioned breakaway PWM, but give the
 # outside pair a small speed advantage and the inside pair a small reduction.
@@ -91,9 +94,12 @@ REAR_STEER_CENTER    = 90
 # immediately restore 52 if the linkage contacts, strains, or the servo buzzes.
 # Preserve existing numeric endpoint envelope per physical servo channel.
 # Direction and full-range travel require revalidation after channel correction.
-FRONT_STEER_RIGHT    = 50   # User-approved lifted right operating limit 2026-09-09
-FRONT_STEER_LEFT     = 121  # User-approved lifted left operating limit 2026-09-09
-REAR_STEER_RIGHT     = 64   # User-approved lifted right operating limit 2026-09-09
+# These names are retained for configuration-file compatibility.  Physical
+# commissioning on 2026-09-20 confirmed that the installed front linkage is
+# reversed: servo-low (50) is physical LEFT and servo-high (121) is RIGHT.
+FRONT_STEER_RIGHT    = 50   # servo-low endpoint; physical front-left
+FRONT_STEER_LEFT     = 121  # servo-high endpoint; physical front-right
+REAR_STEER_RIGHT     = 59   # User-approved lifted right operating limit 2026-09-20
 REAR_STEER_LEFT      = 134  # User-approved lifted left operating limit 2026-09-09
 BAT_MIN_V = 10.5
 BAT_MAX_V = 12.6
@@ -599,7 +605,29 @@ class YahboomBase(Node):
                 (max_run_pwm - min_run_pwm) * abs(drive)
             )
             pwm = magnitude if drive > 0.0 else -magnitude
-        if abs(vx) > 0.02:
+        if self._drive_source == 'REMOTE':
+            # A physical joystick requests wheel position, not chassis yaw
+            # rate.  Feeding remote input through the car-like wz/vx model
+            # made the target jump near zero speed and reverse direction while
+            # backing up.  Use direct, speed-independent four-wheel steering
+            # for the operator; the servo slew limiter below keeps it smooth.
+            steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
+            if steer_norm >= 0.0:
+                front_angle = FRONT_STEER_CENTER + steer_norm * (
+                    FRONT_STEER_RIGHT - FRONT_STEER_CENTER
+                )
+                rear_angle = REAR_STEER_CENTER + steer_norm * (
+                    REAR_STEER_RIGHT - REAR_STEER_CENTER
+                )
+            else:
+                turn = -steer_norm
+                front_angle = FRONT_STEER_CENTER + turn * (
+                    FRONT_STEER_LEFT - FRONT_STEER_CENTER
+                )
+                rear_angle = REAR_STEER_CENTER + turn * (
+                    REAR_STEER_LEFT - REAR_STEER_CENTER
+                )
+        elif abs(vx) > 0.02:
             # Four-wheel opposite steering kinematics:
             #   wz = 2 * vx * tan(delta) / wheelbase
             # The former wz/MAX_WZ mapping produced only ~3-6 degrees at
@@ -611,7 +639,11 @@ class YahboomBase(Node):
                 (WHEELBASE_M * wz) / (2.0 * vx)
             ))
             steer_delta = max(-35.0, min(35.0, steer_delta))
-            front_angle = FRONT_STEER_CENTER + steer_delta
+            # Installed front linkage is servo-reversed: decreasing command
+            # angle is physical left. Rear already decreases for physical
+            # right, so a positive left-curving command decreases both servo
+            # command angles.
+            front_angle = FRONT_STEER_CENTER - steer_delta
             rear_angle = REAR_STEER_CENTER - steer_delta
         else:
             # Steering-only operator command: no kinematic curvature exists
@@ -620,7 +652,7 @@ class YahboomBase(Node):
             steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
             if steer_norm >= 0.0:
                 front_angle = FRONT_STEER_CENTER + steer_norm * (
-                    FRONT_STEER_LEFT - FRONT_STEER_CENTER
+                    FRONT_STEER_RIGHT - FRONT_STEER_CENTER
                 )
                 rear_angle = REAR_STEER_CENTER + steer_norm * (
                     REAR_STEER_RIGHT - REAR_STEER_CENTER
@@ -628,7 +660,7 @@ class YahboomBase(Node):
             else:
                 turn = -steer_norm
                 front_angle = FRONT_STEER_CENTER + turn * (
-                    FRONT_STEER_RIGHT - FRONT_STEER_CENTER
+                    FRONT_STEER_LEFT - FRONT_STEER_CENTER
                 )
                 rear_angle = REAR_STEER_CENTER + turn * (
                     REAR_STEER_LEFT - REAR_STEER_CENTER
@@ -999,12 +1031,10 @@ class YahboomBase(Node):
         if encoder_motion:
             vx = distance_delta / dt
             vy = 0.0
-            # Servo commissioning defines increasing front angle as physical
-            # left and decreasing rear angle as physical right. Therefore a
-            # positive ROS left command must produce positive curvature.
-            # The previous centre-minus-applied convention inverted measured
-            # yaw: a physically observed left arc was published as -7.24 deg.
-            front_delta = math.radians(self._front_applied_angle - FRONT_STEER_CENTER)
+            # Front linkage is servo-reversed: decreasing command angle is
+            # physical left. Convert it to the conventional positive-left
+            # wheel angle before calculating four-wheel-steering curvature.
+            front_delta = math.radians(FRONT_STEER_CENTER - self._front_applied_angle)
             rear_delta = math.radians(self._rear_applied_angle - REAR_STEER_CENTER)
             curvature = (math.tan(front_delta) - math.tan(rear_delta)) / WHEELBASE_M
             vz = vx * curvature

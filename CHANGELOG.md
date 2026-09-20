@@ -1352,3 +1352,22 @@ Historical first attempt; the later successful installation is recorded above.
 - Add an opt-in front-channel setting to the existing UNO serial owner. Reapply
   `USENABLE,F,1` on connection with the installed drop-in; preserve rear/left/right
   settings and all navigation safety configuration. No firmware flash required.
+## 2026-09-20 - IM10A gyro-Z commissioned for EKF yaw rate
+
+- Validated physical 90-degree turns in both directions: +90.22 degrees and
+  -86.45 degrees from the raw gyro integration.
+- Confirmed magnetic/Euler heading is chassis-distorted and remains excluded.
+- Revalidated the saved Z-bias against the current stationary sensor state.
+- Corrected gyro-authority shadow EKF measured +87.96 degrees for a physical
+  +90-degree turn, accepted 620/620 samples, and produced zero translation.
+- Live EKF now fuses only `/im10a/imu/bias_corrected_candidate` yaw rate;
+  unreliable wheel-derived pose yaw and yaw rate are excluded. A rollback copy
+  was retained on the Jetson. M4 encoder safety restrictions remain unchanged.
+- Corrected the candidate message frame from an unconnected commissioning frame
+  to `base_link`; a ground bag showed the otherwise valid gyro was being ignored
+  by the live EKF because no TF existed for the old frame.
+- Recommissioned steering at 90-degree front/rear centres, confirmed the
+  installed front linkage is servo-reversed, set its physical-left endpoint to
+  50 degrees, and extended the visually confirmed rear-right endpoint to 59
+  degrees. Manual steering now uses smooth direct wheel-angle control while
+  Nav2 retains car-like kinematics; odometry uses the corrected physical sign.

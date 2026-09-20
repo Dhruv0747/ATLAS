@@ -68,7 +68,8 @@ test remains blocked by the existing encoder/autonomy ground-validation gate.
 Open `/commissioning` → **Sensor authority & fallback readiness** for configured
 sensor roles, live cached data age, evidence status and blocked capabilities.
 This reuses the existing cache/ledger: no new driver, fusion or control path.
-Camera VO is NOT AVAILABLE; IM10A remains unfused; M4 feedback remains excluded.
+Camera VO is NOT AVAILABLE; IM10A corrected gyro Z is fused as the EKF yaw-rate
+source; magnetic heading remains excluded; M4 feedback remains excluded.
 No alternate profile or automatic goal resumption is approved. See the
 [ordered remaining-work list, audit and safety boundary](docs/CAPABILITY_FALLBACK_WORK_PLAN_2026-09-20.md).
 

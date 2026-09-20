@@ -11,23 +11,42 @@ import time
 ROOT = '/atlas_imu_shadow'
 
 
-def parameters(live, fused):
+def parameters(live, mode):
+    # Preserve the original boolean test/API while supporting named candidates.
+    if mode is True:
+        mode = 'fused'
+    elif mode is False:
+        mode = 'baseline'
     p = copy.deepcopy(live)
     for key in list(p):
         if key.startswith('imu'):
             del p[key]
     p.update(publish_tf=False, publish_acceleration=False,
              transform_time_offset=0.0, print_diagnostics=False)
-    if fused:
+    if mode in ('fused', 'gyro_authority'):
         p.update(imu0=ROOT + '/gyro',
                  imu0_config=[False]*11 + [True] + [False]*3,
                  imu0_queue_size=2, imu0_differential=False,
                  imu0_relative=False, imu0_remove_gravitational_acceleration=False)
+    if mode == 'gyro_authority':
+        # Commissioning candidate only: do not let unreliable wheel-derived
+        # pose yaw or yaw-rate overpower the independently validated gyro Z.
+        # Linear wheel pose/twist remain available; live EKF is untouched.
+        wheel = list(p['odom0_config'])
+        wheel[5] = False   # yaw pose
+        wheel[11] = False  # yaw rate
+        p['odom0_config'] = wheel
     return p
 
 
 def accepted_gyro(frame, stamp, now, previous, xyz):
     return (frame == 'im10a_sensor_unvalidated' and stamp > previous
+            and 0 <= now-stamp <= .2
+            and all(math.isfinite(v) and abs(v) <= math.radians(2000) for v in xyz))
+
+
+def accepted_corrected_gyro(frame, stamp, now, previous, xyz):
+    return (frame == 'base_link' and stamp > previous
             and 0 <= now-stamp <= .2
             and all(math.isfinite(v) and abs(v) <= math.radians(2000) for v in xyz))
 
@@ -45,7 +64,7 @@ def main():
     directory = Path(tempfile.mkdtemp(prefix='im10a_shadow_', dir='/home/jetson/project-atlas-migration'))
     processes = []
     handles = []
-    rows = {name: [] for name in ('baseline', 'fused')}
+    rows = {name: [] for name in ('baseline', 'fused', 'gyro_authority')}
     counts = dict(accepted=0, rejected=0)
     previous = 0.0
     last_imu = None
@@ -57,7 +76,7 @@ def main():
         nonlocal previous, last_imu
         stamp = m.header.stamp.sec + m.header.stamp.nanosec/1e9
         xyz = (m.angular_velocity.x, m.angular_velocity.y, m.angular_velocity.z)
-        if not accepted_gyro(m.header.frame_id, stamp, n.get_clock().now().nanoseconds/1e9, previous, xyz):
+        if not accepted_corrected_gyro(m.header.frame_id, stamp, n.get_clock().now().nanoseconds/1e9, previous, xyz):
             counts['rejected'] += 1
             return
         previous = stamp
@@ -65,10 +84,9 @@ def main():
         counts['accepted'] += 1
         out = Imu()
         out.header.stamp = m.header.stamp
-        # Gyro is a free vector: rotate X/Y by pi, Z unchanged. No lever-arm
-        # correction needed for angular velocity; no acceleration is fused.
+        # The candidate topic is already bias-corrected and base-aligned.
         out.header.frame_id = live['base_link_frame']
-        out.angular_velocity.x, out.angular_velocity.y, out.angular_velocity.z = -xyz[0], -xyz[1], xyz[2]
+        out.angular_velocity.x, out.angular_velocity.y, out.angular_velocity.z = xyz
         out.orientation_covariance[0] = -1.0
         out.linear_acceleration_covariance[0] = -1.0
         # Provisional test variance only; deliberately above stationary noise.
@@ -89,7 +107,7 @@ def main():
                               yaw=yaw, wz=m.twist.twist.angular.z,
                               yaw_variance=m.pose.covariance[35]))
 
-    n.create_subscription(Imu, '/im10a/imu/unvalidated', receive, 2)
+    n.create_subscription(Imu, '/im10a/imu/bias_corrected_candidate', receive, 2)
     n.create_subscription(Odometry, live['odom0'], wheel, 5)
     try:
         # Avoid duplicate shadow runs. Never stop an existing node automatically.
@@ -100,7 +118,7 @@ def main():
             raise RuntimeError('Existing shadow namespace detected; refusing duplicate test')
         for name in rows:
             cfg = directory / (name + '.yaml')
-            cfg.write_text(yaml.safe_dump({'/**': {'ros__parameters': parameters(live, name=='fused')}}))
+            cfg.write_text(yaml.safe_dump({'/**': {'ros__parameters': parameters(live, name)}}))
             log = (directory/(name+'.log')).open('w')
             handles.append(log)
             processes.append(subprocess.Popen([

@@ -54,6 +54,7 @@ def main():
     types = {item.name: item.type for item in reader.get_all_topics_and_types()}
     wanted = {
         "/odom", "/yahboom/odom", "/imu/data",
+        "/im10a/imu/bias_corrected_candidate",
         "/steering/front_angle_deg", "/steering/rear_angle_deg",
     }
     messages = {name: get_message(types[name]) for name in wanted if name in types}
@@ -80,6 +81,12 @@ def main():
             stamp = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
             stamp_lag_ms["imu"].append((recorded - stamp) / 1_000_000.0)
             frames["imu"] = {"frame": msg.header.frame_id}
+        elif topic in ("/imu/data", "/im10a/imu/bias_corrected_candidate"):
+            key = "imu"
+            yaw_rate[key].append((recorded, float(msg.angular_velocity.z)))
+            stamp = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+            stamp_lag_ms[key].append((recorded - stamp) / 1_000_000.0)
+            frames[key] = {"frame": msg.header.frame_id}
         else:
             key = "front" if "front" in topic else "rear"
             steering[key].append(float(msg.data))

@@ -34,13 +34,14 @@ class SteeringTests(unittest.TestCase):
     def test_clamp(self):
         self.enter()
         for _ in range(40): self.send('jog',side='rear',step=-5)
-        self.assertEqual(self.c.targets['rear'],64)
-    def test_front_left_calibration_extension_only(self):
+        self.assertEqual(self.c.targets['rear'],59)
+    def test_supervised_calibration_extensions_do_not_change_saved_limits(self):
         self.enter()
         for _ in range(40): self.send('jog',side='front',step=5)
         self.assertEqual(self.c.targets['front'],126)
         self.assertEqual(self.c.saved['front']['left'],121)
-        self.assertEqual(self.c.envelope['rear'],DEFAULTS['rear'])
+        self.assertEqual(self.c.envelope['rear']['right'],59)
+        self.assertEqual(self.c.saved['rear']['right'],64)
     def test_expiry_freezes_keeps_traction_locked(self):
         self.enter();self.send('jog',side='front',step=5)
         self.c.tick(2,self.applied,True)
