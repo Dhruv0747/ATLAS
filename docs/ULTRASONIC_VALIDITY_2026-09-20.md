@@ -10,11 +10,12 @@ No motor-service restart, drive/map command or autonomy enable was issued during
 installation or checking. Runtime restarts were limited to hub, recovery, mux and
 web; existing hub reconnect initialization reapplies the saved camera-home command.
 
-**Stationary stability is NOT passed.** Two passive observations detected frequent
-serial-backlog rejection. A narrow partial-line handling correction is built and
-tested separately, but not yet deployed pending renewed motor/servo-power-OFF
-confirmation following the power cycle. Do not reflash the UNO for that Python
-correction. Physical fault/clearance/stopping tests remain pending.
+**Full sensor stability/safety qualification is NOT passed.** Two passive
+observations detected frequent serial-backlog rejection. After renewed
+motor/servo-power-OFF confirmation, partial-line handling and bounded same-tick
+receive draining were installed. No additional UNO flash was needed. See the
+limited post-change observations below; physical fault/clearance/stopping tests
+remain pending.
 
 Baseline: `d3f2d87`. The live check found manual-only=true, stop_latched=true,
 zero commanded velocity, selected encoders M1/M2/M3, excluded M4, and
@@ -147,7 +148,7 @@ These checks do not establish long-run reliability for every sensor. Startup
 logs also included a camera-command write timeout and a LiDAR recovery attempt;
 their physical behavior was not tested. No fault is hidden by a general PASS.
 
-### Staged parser follow-up — NOT installed
+### Parser follow-up — installed with motor/servo power OFF
 
 The bridge incorrectly treated any trailing partial line as unprocessed backlog
 preceding the completed UVALID1 report. The correction leaves that fragment for
@@ -158,9 +159,63 @@ gain `parser_complete_lines` to distinguish these cases. No firmware change.
 
 Three added offline cases cover partial tails, new USB bytes during parsing and
 preserving the original timestamp when a held report drains. Jetson staging:
-**107/107 pass**. Windows: **106 pass / one optional-PyYAML skip**. Retest after
-deployment is still required; this correction does not prove real load-related
-backlogs are solved. Deployment awaits renewed motor/servo-power-OFF confirmation.
+**107/107 pass**. Windows: **106 pass / one optional-PyYAML skip**.
+
+The operator then confirmed both motor and camera-servo power OFF. The installed
+bridge SHA-256 was checked, backed up and atomically replaced. Only hub/recovery
+were stopped/started. The first corrected 60.18-second observation received 241
+status messages: 199 valid front/rear reports and 42 backlog invalidations, zero
+parse errors and no stream change. Maximum message gap was 0.540 seconds and
+maximum reported source sample age 0.481 seconds. This was an improvement in the
+observed window, not a controlled CPU-load comparison or complete resolution.
+
+The original reader performed one USB read, decoded lines, then rejected pending
+reports if more bytes had arrived during decoding. The next bounded correction
+drains newly arrived bytes in the same callback, within the existing 8192-byte,
+128-line and 8-ms processing budgets. These are cooperative processing budgets,
+not a hard realtime guarantee for an individual ROS publish or USB call. Actual
+remaining USB/complete-line backlog still fails closed; no sensor age threshold
+or autonomous safety policy was relaxed.
+
+Five additional offline cases verify same-tick bursts, byte/line/time budgets and
+empty reads. All **112 tests pass on Jetson staging**; Windows has **111 passes
+and one optional-PyYAML skip**. The initial staging run needed the unchanged
+`atlas_serial_lines.py` fixture copied into the isolated test directory. The
+drain correction was then deployed through the same stopped, hash-checked,
+backup-and-replace procedure. Calibration and service environments are untouched.
+
+### Final bounded-drain stationary observation
+
+- Duration: **120.03 s**; 424 validity/status messages, of which **421 were valid
+  front/rear sample reports** and **3 were fail-closed SERIAL_BACKLOG events**.
+- Zero parse errors, zero stream-ID changes and no stale accepted samples in
+  this observation. Left/right remained DISABLED, not assumed clear.
+- Maximum receive gap **0.551 s**, maximum host-envelope delivery age **0.136 s**,
+  maximum MCU-reported sample age **0.481 s**. Those are observed maxima, not
+  certified worst-case latency or safety thresholds.
+- Of 119 periodic serial diagnostics, none showed a complete line still queued
+  at that sampling instant; 13 had a partial fragment and two had USB bytes
+  pending (maximum 25). Event-level backlog rejection remained active.
+- Front echoes ranged **1314–2362 mm**, rear **222–245 mm**. The broad front
+  variation requires known-distance/reflector testing; no accuracy claim.
+- Hub/recovery active with NRestarts=0; hub/recovery/mux/web remain enabled for
+  startup. Fresh dashboard/commissioning data included ultrasound, BME680,
+  AMG8833, PCA9685 and decoded radar. BME gas quality can still report WARMING;
+  camera pulse reports are not physical servo feedback.
+- Manual-only and latched stop remained true, with zero command. M1/M2/M3
+  selected, M4 excluded, navigation unvalidated. No fusion or motion permission.
+
+Compared with the earlier windows (69 backlog events/60 s, then 42/60 s), the
+final window had three/120 s. These were sequential observations at varying CPU
+load, not a randomized controlled benchmark. Jetson CPU snapshots remained about
+91–97.5%; no claim that the receive correction optimized the whole system.
+The three remaining queue events, prolonged-load/fault cases, echo accuracy and
+physical stopping still require investigation/qualification. Do not hide them or
+claim that autonomous navigation is now commissioned.
+
+During the deliberate first hub stop, the old process logged an rclpy invalid
+context while publishing during shutdown; the replacement started normally.
+This shutdown traceback is not counted as a spontaneous sensor disconnect.
 
 ## Deployment records and guarded follow-up
 
@@ -186,8 +241,17 @@ Evidence retained locally: `flash_result.json`, `flash_upload.log`,
 and `passive_settled_60s.json`. Runtime source hashes are in `runtime_result.json`.
 The old source and manifest are under `backup/`; the previous binary is named
 `previous_native_build_NOT_flash_readback.bin`. Source builds and uploader success
-are not matching flash readbacks. The staged Python correction is under
-`fragment-fix/project_atlas/`; the installed bridge remains the `16ff10c` version.
+are not matching flash readbacks. Follow-up source snapshots are under
+`fragment-fix/project_atlas/` and `bounded-drain-fix/project_atlas/`.
+
+Current installed bridge SHA-256:
+`32f6f662bcfd504a66356cf0b4bc32ccc229e846056ea16a837854f27ca06345`
+
+Follow-up records: `fragment_fix_deployment.json`, `bounded_drain_deployment.json`,
+`passive_fragment_fix_60s.json`, `passive_bounded_drain_120s.json`. The two previous
+bridge sources are retained as `backup/bridge_before_fragment_fix.py` and
+`backup/bridge_before_bounded_drain_fix.py`. Original candidate `16ff10c` remains
+the firmware/mux/helper baseline; the bridge has the later receive correction.
 
 Do not use the old raw-range behavior to bypass a validity rejection or unlock
 autonomy. If rollback is required, keep motion physically inhibited and review
@@ -208,8 +272,7 @@ No over-the-wire CRC was added. Cross-talk, angles, blind zones, wiring noise,
 actual reporting latency, braking distance and firmware-load regression remain
 unqualified. An offline PASS is not a physical sensor or stopping PASS.
 
-Next: confirm motor/servo power off, deploy/test the narrow parser correction;
-known-distance front/rear
+Next: complete bounded stationary timing/fault checks; known-distance front/rear
 targets; no echo/disconnection and reconnect; sustained camera/radar/I2C workload;
 then isolated stop-output validation. Ground testing follows only after existing
 steering, measured encoder distance, stopping, localization and remote-stop gates

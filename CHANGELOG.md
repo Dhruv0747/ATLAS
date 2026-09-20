@@ -1,6 +1,29 @@
 # Changelog
 
+## 2026-09-20 — Activate bounded ultrasonic bridge receive correction
+
+- With renewed motor/servo-power-OFF confirmation, install the partial-line
+  correction. Its 60-second passive check retained 199 valid reports and still
+  observed 42 backlog invalidations; do not call that fully resolved.
+- Drain newly arriving serial bytes within the existing per-tick 8192-byte,
+  128-line and 8-ms processing budgets instead of unnecessarily waiting for the
+  next tick. Keep incomplete lines, old receipt stamps, source-age expiry and
+  fail-closed behavior for complete queued work/pending USB bytes.
+- Add five offline cases for same-tick draining, byte/line/time budgets and empty
+  reads. Jetson staging: 112/112 pass; Windows: 111 pass/one optional-PyYAML skip.
+  The first staging test lacked the unchanged SerialLines fixture; including it
+  resolved the test setup error without importing any physical driver.
+- Deploy only the bridge; briefly stop/resume the existing recovery owner around
+  replacement. No firmware reflash, motor/mux/web restart, movement command,
+  navigation setting, camera-home or steering/encoder-policy change.
+- Final 120.03-second passive run: 421 valid front/rear reports, three guarded
+  backlog events, zero parse errors or stream changes; maximum message gap
+  0.551 s. Services remain enabled, with no automatic restarts. Communication
+  improved, but load/fault and physical safety qualification are still open.
+
 ## 2026-09-20 — UNO validity installed; reboot observed; parser follow-up staged
+
+Historical staged state; the bounded receive follow-up was subsequently installed above.
 
 - Operator double-reset resolved the earlier bootloader block. Standard UNO R4
   upload wrote the 68,904-byte artifact successfully; 28 UVALID1 frames parsed

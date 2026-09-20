@@ -2,6 +2,7 @@
 import ast
 import copy
 import json
+import itertools
 import math
 import re
 import uuid
@@ -14,6 +15,7 @@ from unittest.mock import Mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from atlas_ultrasonic_validity import parse_frame, invalid_snapshot, ValidityWindow
+from atlas_serial_lines import SerialLines
 
 
 def report(now=10.0, seq=1, front=1000, rear=1000, age=20, uptime=None, stream='test'):
@@ -308,6 +310,66 @@ class BridgeIntegrationTests(unittest.TestCase):
         window = ValidityWindow()
         window.ingest(self.published(), 10)
         self.assertEqual(window.reading('front', 10)[1], 'INVALID_OR_STALE_ENVELOPE')
+
+    def test_new_bytes_drain_within_same_tick(self):
+        chunks = [(self.frame() + '\n').encode(), b'\n']
+        class Serial:
+            @property
+            def in_waiting(self):
+                return len(chunks[0]) if chunks else 0
+            def read(self, size):
+                chunk = chunks.pop(0)
+                self.assert_size = size
+                return chunk
+        self.bridge.ser = Serial()
+        self.bridge.rx_lines = SerialLines()
+        self.bridge.tick()
+        self.assertEqual(chunks, [])
+        self.assertEqual(self.published()['reason'], 'SAMPLE_REPORT')
+        self.assertEqual(self.bridge.rx_processed, 2)
+
+    def test_continuous_bytes_cannot_exceed_per_tick_byte_budget(self):
+        class Serial:
+            in_waiting = 100000
+            read_sizes = []
+            def read(self, size):
+                self.read_sizes.append(size)
+                return b'x' * size
+        self.bridge.ser = Serial()
+        self.bridge.rx_lines = SerialLines()
+        self.bridge.handle_line(self.frame())
+        self.bridge.tick()
+        self.assertEqual(sum(self.bridge.ser.read_sizes), 8192)
+        self.assertEqual(self.published()['reason'], 'SERIAL_BACKLOG')
+
+    def test_complete_lines_cannot_exceed_per_tick_line_budget(self):
+        self.bridge.rx_lines = SerialLines()
+        self.bridge.rx_lines.feed(b'\n' * 200)
+        self.bridge.handle_line(self.frame())
+        self.bridge.tick()
+        self.assertEqual(self.bridge.rx_processed, 128)
+        self.assertEqual(self.bridge.rx_lines.data.count(b'\n'), 72)
+        self.assertEqual(self.published()['reason'], 'SERIAL_BACKLOG')
+
+    def test_empty_read_does_not_spin_on_reported_waiting_bytes(self):
+        self.bridge.ser = NS(in_waiting=50, read=Mock(return_value=b''))
+        self.bridge.rx_lines = SerialLines()
+        self.bridge.handle_line(self.frame())
+        self.bridge.tick()
+        self.bridge.ser.read.assert_called_once_with(50)
+        self.assertEqual(self.published()['reason'], 'SERIAL_BACKLOG')
+
+    def test_time_budget_leaves_backlog_blocked(self):
+        clock = itertools.chain([10.0, 10.0, 10.004], itertools.repeat(10.010))
+        self.bridge.tick.__func__.__globals__['time'] = NS(
+            monotonic=lambda: next(clock), time=lambda: 1000.0)
+        self.bridge.rx_lines = SerialLines()
+        self.bridge.rx_lines.feed(b'\n' * 20)
+        self.bridge.validity_pending = (self.frame(), 10.0)
+        self.bridge.tick()
+        self.assertEqual(self.bridge.rx_processed, 1)
+        self.assertEqual(self.bridge.rx_lines.data.count(b'\n'), 19)
+        self.assertEqual(self.published()['reason'], 'SERIAL_BACKLOG')
 
     def test_malformed_line_invalidates(self):
         self.bridge.handle_line('UVALID1,bad')

@@ -637,18 +637,28 @@ class UltrasonicArduinoBridge(Node):
                 self.connect()
             return
         try:
-            waiting = self.ser.in_waiting
-            self.rx_high_water = max(self.rx_high_water, waiting)
-            if waiting:
-                # Read ONLY available bytes. Keep partial lines for next tick.
-                self.rx_lines.feed(self.ser.read(min(waiting, 8192)))
-                self.last_serial_rx = time.time()
             deadline = time.monotonic()+0.008
             processed = 0
+            received = 0
             while processed < 128 and time.monotonic() < deadline:
                 raw = self.rx_lines.pop()
                 if raw is None:
-                    break
+                    # Drain newly arrived bytes within the SAME bounded tick.
+                    # One initial read followed by ROS decoding can leave a new
+                    # radar/ultrasonic burst waiting unnecessarily until next
+                    # tick. Keep the existing 8192-byte / 128-line / 8-ms caps;
+                    # never wait for a newline or monopolize command callbacks.
+                    waiting = self.ser.in_waiting
+                    self.rx_high_water = max(self.rx_high_water, waiting)
+                    if not waiting or received >= 8192:
+                        break
+                    chunk = self.ser.read(min(waiting, 8192-received))
+                    if not chunk:
+                        break
+                    self.rx_lines.feed(chunk)
+                    received += len(chunk)
+                    self.last_serial_rx = time.time()
+                    continue
                 if raw:
                     self.handle_line(raw)
                 processed += 1
@@ -688,7 +698,7 @@ class UltrasonicArduinoBridge(Node):
                 pass
             self.ser = None
             return
-        if not waiting and not processed:
+        if not received and not processed:
             now = time.time()
             if now - self.last_serial_rx >= SERIAL_STALE_REOPEN_SECONDS:
                 self.status_pub.publish(String(

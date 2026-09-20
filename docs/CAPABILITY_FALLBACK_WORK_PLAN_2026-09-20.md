@@ -37,8 +37,9 @@ or mission-resumption endpoint. Loss of this web view cannot change local safety
    Legacy/default ranges cannot grant clearance; missing front/rear proof
    blocks the corresponding autonomous direction. Firmware and paired runtime
    installation plus operator power-cycle autostart are observed. Passive checks
-   found intermittent serial backlog; a trailing-fragment correction is tested
-   but not yet deployed. Fault/stability and physical qualification remain open;
+   found intermittent serial backlog; trailing-fragment handling and bounded
+   same-tick receive draining are now installed after renewed power-OFF
+   confirmation (112/112 offline tests). Fault/stability and physical qualification remain open;
    no degraded continuation is approved.
    See [increment 2 validation/deployment boundary](ULTRASONIC_VALIDITY_2026-09-20.md).
 3. **PENDING:** deterministic profile selector and mission-owner checkpoint.
