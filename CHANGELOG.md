@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-09-21: Corrected radar health rendering so a fresh, valid 30-byte
+  RD-03D frame containing zero targets is shown as **LIVE / NO CURRENT TARGET**
+  instead of being conflated with an offline radar. UART-link and decoder
+  health remain separate from whether a person is currently detected.
+
 - 2026-09-21: Added a live **SAVE CURRENT AS HOME** camera control. It accepts
   only fresh PCA9685 feedback, atomically persists the current pan/tilt pulses
   in the UNO R4 service drop-in, updates the running dashboard home, and makes
