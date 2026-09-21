@@ -1,5 +1,16 @@
 # Changelog
 
+- 2026-09-21: Added a live **SAVE CURRENT AS HOME** camera control. It accepts
+  only fresh PCA9685 feedback, atomically persists the current pan/tilt pulses
+  in the UNO R4 service drop-in, updates the running dashboard home, and makes
+  **GO TO SAVED HOME** use that position without restarting the rover.
+
+- 2026-09-21: Restored fail-safe UNO R4 reconnect behaviour: USB recovery no
+  longer energises both PCA9685 camera axes automatically. This removes the
+  regression that could create a servo-current/USB reconnect loop and take the
+  shared PCA9685, BME680 and AMG8833 I2C bus offline. Saved camera home remains
+  available only through an explicit operator command.
+
 ## 2026-09-20 — Stationary ultrasonic/LiDAR comparison and sustained observation
 
 - With motor/servo power kept OFF, briefly SIGSTOP/SIGCONT only the exact sensor

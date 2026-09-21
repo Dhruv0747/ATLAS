@@ -229,11 +229,12 @@ class UltrasonicArduinoBridge(Node):
                 # Reapply the installed front sensor after USB reconnect/reset.
                 # Leave the other three channel selections untouched.
                 self.write_line('USENABLE,F,' + ('1' if FRONT_ULTRASONIC_ENABLED else '0'))
-                # Dhruv's commissioned forward pose. Apply it only after the
-                # sensor hub has connected, so every full system power-on and
-                # USB re-enumeration restores the same camera view.
-                self.write_line(f'SERVO,0,{CAMERA_PAN_HOME_US}')
-                self.write_line(f'SERVO,1,{CAMERA_TILT_HOME_US}')
+                # Keep camera outputs released during every USB reconnect.
+                # Automatically energising both axes here previously produced
+                # a servo-current surge/reconnect loop that took PCA9685,
+                # BME680 and AMG8833 offline together.  The saved home remains
+                # available through the explicit dashboard/ROS camera command;
+                # recovery must never move hardware by itself.
                 # Radar UART is deliberately lazy in firmware so a faulty
                 # peripheral cannot block I2C startup. Enable it only after
                 # the native USB telemetry link is proven alive.

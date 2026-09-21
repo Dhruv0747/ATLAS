@@ -35,6 +35,10 @@ CAMERA_PAN_STEP_US = 150
 CAMERA_TILT_STEP_US = 150
 CAMERA_PAN_HOME_US = 1725
 CAMERA_TILT_HOME_US = 1500
+CAMERA_HOME_CONFIG = os.environ.get(
+    "ATLAS_CAMERA_HOME_CONFIG",
+    "/home/jetson/.config/systemd/user/atlas-uno-r4-sensor-hub.service.d/camera-home.conf",
+)
 SENSOR_HUB_CAMERA_SOCKET = os.environ.get(
     "ATLAS_SENSOR_HUB_CAMERA_SOCKET",
     "/run/user/1000/atlas-sensor-hub-camera.sock",
@@ -151,6 +155,11 @@ class AtlasRosNode:
         self.steering_cal_pub = None
         self.pan_us = CAMERA_PAN_HOME_US
         self.tilt_us = CAMERA_TILT_HOME_US
+        self.camera_home_pan_us = CAMERA_PAN_HOME_US
+        self.camera_home_tilt_us = CAMERA_TILT_HOME_US
+        self._load_camera_home()
+        self.pan_us = self.camera_home_pan_us
+        self.tilt_us = self.camera_home_tilt_us
         self.actual_pan_us = CAMERA_PAN_HOME_US
         self.actual_tilt_us = CAMERA_TILT_HOME_US
         self.last_camera_manual = 0.0
@@ -699,8 +708,8 @@ class AtlasRosNode:
                 if ros_sent or socket_sent:
                     return True, f"manual tilt {self.tilt_us}us"
             if axis == "center":
-                self.pan_us = CAMERA_PAN_HOME_US
-                self.tilt_us = CAMERA_TILT_HOME_US
+                self.pan_us = self.camera_home_pan_us
+                self.tilt_us = self.camera_home_tilt_us
                 ros_sent = self.pan_pub is not None and self.tilt_pub is not None
                 if self.pan_pub is not None:
                     self.pan_pub.publish(Int32(data=self.pan_us))
@@ -713,6 +722,53 @@ class AtlasRosNode:
                 if ros_sent or socket_sent:
                     return True, "manual camera centred"
         return False, "camera command path unavailable"
+
+    def _load_camera_home(self):
+        try:
+            text = open(CAMERA_HOME_CONFIG, encoding="utf-8").read()
+        except OSError:
+            return
+        pan = re.search(r"ATLAS_CAMERA_PAN_HOME_US=(\d+)", text)
+        tilt = re.search(r"ATLAS_CAMERA_TILT_HOME_US=(\d+)", text)
+        if pan and 700 <= int(pan.group(1)) <= 2300:
+            self.camera_home_pan_us = int(pan.group(1))
+        if tilt and 700 <= int(tilt.group(1)) <= 2300:
+            self.camera_home_tilt_us = int(tilt.group(1))
+
+    def save_camera_home(self):
+        with self.lock:
+            feedback = dict(self.data.get("camera_servo_status", {}))
+        age = time.time() - feedback.get("ts", 0)
+        if not (0 <= age <= 2.0 and str(feedback.get("value", "")).startswith("online ")):
+            return False, "Camera controller offline/stale; home was not changed"
+        with self.camera_lock:
+            pan = int(self.actual_pan_us)
+            tilt = int(self.actual_tilt_us)
+            if not (700 <= pan <= 2300 and 700 <= tilt <= 2300):
+                return False, "Invalid live camera position; home was not changed"
+            directory = os.path.dirname(CAMERA_HOME_CONFIG)
+            temp_path = CAMERA_HOME_CONFIG + ".tmp"
+            try:
+                os.makedirs(directory, exist_ok=True)
+                with open(temp_path, "w", encoding="utf-8") as output:
+                    output.write(
+                        "[Service]\n"
+                        "# Saved from the ATLAS web dashboard using fresh PCA9685 feedback.\n"
+                        f"Environment=ATLAS_CAMERA_PAN_HOME_US={pan}\n"
+                        f"Environment=ATLAS_CAMERA_TILT_HOME_US={tilt}\n"
+                    )
+                os.replace(temp_path, CAMERA_HOME_CONFIG)
+            except OSError as exc:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+                return False, f"Could not save camera home: {exc}"
+            self.camera_home_pan_us = pan
+            self.camera_home_tilt_us = tilt
+            self.pan_us = pan
+            self.tilt_us = tilt
+        return True, f"Camera home saved: pan {pan}us, tilt {tilt}us"
 
     def set_camera_tracking(self, enabled):
         if self.camera_tracking_pub is None:
@@ -1359,6 +1415,11 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('Invalid camera direction')
                     ok, message = ROS.camera_move(axis, direction, payload.get('step_us', 25))
                     json_response(self, 200 if ok else 503, {'ok': ok, 'message': message})
+                elif payload.get('action') == 'camera_home_save':
+                    if SHUTDOWN_PENDING.is_set():
+                        raise ValueError('Shutdown pending')
+                    ok, message = ROS.save_camera_home()
+                    json_response(self, 200 if ok else 503, {'ok': ok, 'message': message})
                 elif payload.get('action') == 'steering':
                     if SHUTDOWN_PENDING.is_set() or not ROS.ready or ROS.steering_cal_pub is None:
                         raise ValueError('Steering owner unavailable')
@@ -1445,6 +1506,9 @@ class Handler(BaseHTTPRequestHandler):
                 form.get("axis", [""])[0],
                 form.get("direction", ["0"])[0],
             )
+            json_response(self, 200 if ok else 503, {"ok": ok, "message": msg})
+        elif action == "camera_home_save":
+            ok, msg = ROS.save_camera_home()
             json_response(self, 200 if ok else 503, {"ok": ok, "message": msg})
         elif action == "camera_tracking":
             enabled = form.get("enabled", ["0"])[0].strip().lower() in {
@@ -1633,7 +1697,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
   <span></span><button class="btn" data-cam="tilt" data-dir="-1">▲ UP</button><span></span>
   <button class="btn" data-cam="pan" data-dir="-1">◀ LEFT</button><button class="btn" data-cam="center" data-dir="0">CENTER</button><button class="btn" data-cam="pan" data-dir="1">RIGHT ▶</button>
   <span></span><button class="btn" data-cam="tilt" data-dir="1">▼ DOWN</button><span></span>
- </div><div class="cards" style="margin-top:8px"><button class="btn" data-track="0">MANUAL CONTROL</button><button class="btn" data-track="1">FACE FOLLOW</button></div><div class="detail" id="cameraTracking">Camera mode checking</div></div>
+  </div><div class="cards" style="margin-top:8px"><button class="btn" data-track="0">MANUAL CONTROL</button><button class="btn" data-track="1">FACE FOLLOW</button><button class="btn" id="saveCameraHome">SAVE CURRENT AS HOME</button><button class="btn" data-cam="center" data-dir="0">GO TO SAVED HOME</button></div><div class="detail" id="cameraTracking">Camera mode checking</div></div>
  <div class="panel"><h2>JETSON AI POWER</h2><div class="cards">
   <button class="btn ai-on" data-ai="object">AI ON</button><button class="btn ai-off" data-ai="eco">AI ECO / OFF</button>
  </div><div class="detail" id="ai">AI status waiting</div></div>
@@ -1816,7 +1880,8 @@ function stopCameraHold(){if(cameraHold){clearInterval(cameraHold);cameraHold=nu
 async function cameraStep(b){if(cameraBusy)return;cameraBusy=true;try{await post({action:'camera',axis:b.dataset.cam,direction:b.dataset.dir})}finally{cameraBusy=false}}
 document.querySelectorAll('[data-cam]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();stopCameraHold();b.classList.add('on');b.setPointerCapture(e.pointerId);cameraStep(b);if(b.dataset.cam!=='center')cameraHold=setInterval(()=>cameraStep(b),90)};b.onpointerup=stopCameraHold;b.onpointercancel=stopCameraHold;b.onlostpointercapture=stopCameraHold});
 window.addEventListener('pointerup',stopCameraHold);window.addEventListener('pointercancel',stopCameraHold);window.addEventListener('blur',stopCameraHold);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCameraHold()});
-document.querySelectorAll('[data-track]').forEach(b=>b.onclick=()=>post({action:'camera_tracking',enabled:b.dataset.track}));
+ document.querySelectorAll('[data-track]').forEach(b=>b.onclick=()=>post({action:'camera_tracking',enabled:b.dataset.track}));
+ $('saveCameraHome').onclick=async()=>{let r=await post({action:'camera_home_save'});toast(r.message||r.error||'Camera home request complete')};
 document.querySelectorAll('[data-ai]').forEach(b=>b.onclick=()=>post({action:'ai_mode',mode:b.dataset.ai}));
 let cameraFrameBusy=false,cameraRequestStarted=0,cameraLastSuccess=0,cameraGeneration=0,cameraFailures=0;
 function cameraState(text,state){let e=$('cameraStatus');if(!e)return;e.textContent=text;e.className=`cameraStatus ${state}`}
