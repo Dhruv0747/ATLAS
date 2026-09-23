@@ -1,0 +1,84 @@
+# ATLAS low-level wheel-speed and bounded yaw controller.
+#
+# SAFETY: this file intentionally ships disabled. Do not set enabled or
+# hardware_commissioned true until all four matching motors/encoders, measured
+# track width, counts/revolution, directions, stopping and E-stop tests pass.
+atlas_drive_pid:
+  enabled: false
+  hardware_commissioned: false
+  navigation_validated: false
+  excluded_encoders: [4]
+
+  geometry:
+    wheelbase_m: 0.367       # measured wheel-centre front-to-rear spacing
+    track_width_m: null      # REQUIRED: measure left-to-right wheel centres
+    wheel_diameter_m: 0.125
+    max_wheel_speed_mps: 0.35
+    max_steering_deg: 35.0
+
+  safety:
+    command_timeout_s: 0.45
+    encoder_timeout_s: 0.35
+    owner_timeout_s: 0.75
+    max_encoder_jump_mps: 1.5
+    reverse_speed_threshold_mps: 0.03
+    reverse_fault_s: 0.40
+    frozen_speed_threshold_mps: 0.015
+    frozen_fault_s: 0.80
+    require_all_four_encoders: true
+    require_yaw_autonomous: true
+
+  yaw_control:
+    enabled_manual: false
+    enabled_autonomous: true
+    # Untuned safe placeholders. Physical tuning starts only after wheel PID.
+    kp: 0.0
+    ki: 0.0
+    kd: 0.0
+    correction_limit_deg: 4.0
+    integral_limit: 1.0
+    deadband_rad_s: 0.03
+    derivative_alpha: 0.2
+    rate_limit_deg_s: 8.0
+    low_pass_alpha: 0.25
+    feedback_timeout_s: 0.30
+
+  # Physical controller map verified 2026-09-17/21:
+  # M1 rear-left, M2 rear-right, M3 front-left, M4 front-right.
+  # Existing counts/revolution predate final all-motor replacement and must be
+  # recommissioned. Zero gains prevent accidental untuned closed-loop output.
+  wheels:
+    m1: &wheel_m1
+      position: rear_left
+      encoder_sign: -1.0
+      output_sign: -1.0
+      counts_per_revolution: 4048.7
+      pid: &pid_defaults
+        kp: 0.0
+        ki: 0.0
+        kd: 0.0
+        feed_forward: 0.0
+        static_feed_forward: 0.0
+        output_limit: 60.0
+        integral_limit: 1.0
+        derivative_alpha: 0.2
+        slew_per_s: 80.0
+        target_deadband: 0.01
+    m2:
+      position: rear_right
+      encoder_sign: 1.0
+      output_sign: 1.0
+      counts_per_revolution: 3300.6
+      pid: *pid_defaults
+    m3:
+      position: front_left
+      encoder_sign: 1.0
+      output_sign: -1.0
+      counts_per_revolution: 4080.1
+      pid: *pid_defaults
+    m4:
+      position: front_right
+      encoder_sign: 1.0       # UNVALIDATED: M4 currently reports zero counts
+      output_sign: 1.0
+      counts_per_revolution: 2697.8
+      pid: *pid_defaults

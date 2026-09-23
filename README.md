@@ -1,5 +1,16 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Closed-loop drive PID — implemented, safely disabled (2026-09-23)
+
+ATLAS now has a hardware-independent four-wheel-speed PID core, bounded yaw-rate
+steering correction, fail-closed state machine, live per-wheel diagnostics and a
+staged evidence recorder. It is integrated into the existing sole motor owner;
+there is no second `/cmd_vel` or motor-control path. Repository defaults retain
+open-loop operation: PID disabled, hardware/navigation uncommissioned, track
+width unset, zero gains and M4 encoder excluded. This is implementation and
+simulation coverage, not physical authorization. See the
+[architecture, tests, commissioning gates and rollback](docs/CLOSED_LOOP_DRIVE_PID.md).
+
 ### Ultrasonic validity increment — installed; stationary follow-up open (2026-09-20)
 
 The installed UNO firmware adds atomic sample sequence/age reports; bridge, mux

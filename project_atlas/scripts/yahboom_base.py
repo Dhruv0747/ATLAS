@@ -32,6 +32,7 @@ from atlas_encoder_selection import (
     ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator,
     feedback_state, validate_selection,
 )
+from atlas_closed_loop_control import AtlasClosedLoopController, load_drive_config
 
 MAX_VX = 1.0
 MAX_WZ = 2.0
@@ -126,6 +127,11 @@ def motor_outputs(left_pwm, right_pwm):
     return (-left_pwm, right_pwm, -left_pwm, right_pwm)
 
 
+def _clamp_servo(value, endpoint_a, endpoint_b):
+    lower, upper = sorted((float(endpoint_a), float(endpoint_b)))
+    return max(lower, min(upper, float(value)))
+
+
 def resolve_yahboom_port():
     """Find the Yahboom controller by identity, never by ttyUSB number."""
     configured = os.environ.get('ATLAS_YAHBOOM_PORT', '').strip()
@@ -159,6 +165,10 @@ def resolve_yahboom_port():
 YAHBOOM_IMU_CALIBRATION = Path(os.environ.get(
     'ATLAS_YAHBOOM_IMU_CALIBRATION',
     '/home/jetson/project_atlas/config/yahboom_imu_calibration.yaml',
+))
+DRIVE_PID_CONFIG = Path(os.environ.get(
+    'ATLAS_DRIVE_PID_CONFIG',
+    '/home/jetson/project_atlas/config/drive_pid.yaml',
 ))
 
 
@@ -251,8 +261,10 @@ class YahboomBase(Node):
         time.sleep(1.0)
 
         self._last_vx = 0.0
+        self._last_vy = 0.0
         self._last_vz = 0.0
         self._drive_source = 'STOPPED'
+        self._drive_source_time = 0.0
         self._last_remote_source_time = 0.0
         self._last_cmd_time = 0.0
         self._boost_until = 0.0
@@ -297,11 +309,24 @@ class YahboomBase(Node):
         self._imu_calibration = _load_imu_calibration(YAHBOOM_IMU_CALIBRATION)
         self._imu_heading_reference = None
         self._last_imu_status = 0.0
+        self._authoritative_yaw_rate = None
+        self._authoritative_yaw_time = 0.0
+        self._drive_pid_error = ''
+        try:
+            self._drive_pid_config = load_drive_config(DRIVE_PID_CONFIG)
+            self._drive_pid = AtlasClosedLoopController(self._drive_pid_config)
+        except Exception as exc:
+            # Closed-loop control must fail disabled without taking the proven
+            # legacy/manual driver away from the operator.
+            self._drive_pid_config = None
+            self._drive_pid = None
+            self._drive_pid_error = f'configuration_error:{exc}'
 
         self.create_subscription(Twist, '/cmd_vel', self._on_cmd_vel, 10)
         self.create_subscription(
             String, '/atlas/drive_mode', self._on_drive_mode, 10
         )
+        self.create_subscription(Odometry, '/odom', self._on_authoritative_odom, 10)
 
         self._pub_volt = self.create_publisher(Float32, '/battery/voltage', 10)
         self._pub_curr = self.create_publisher(Float32, '/battery/current', 10)
@@ -350,6 +375,12 @@ class YahboomBase(Node):
         ]
         self._pub_encoder_health = self.create_publisher(
             String, '/atlas/encoder_health', 10
+        )
+        self._pub_drive_pid = self.create_publisher(
+            String, '/atlas/drive_pid/diagnostics', 10
+        )
+        self.create_subscription(
+            Empty, '/atlas/drive_pid/reset', self._on_drive_pid_reset, 10
         )
         wheel_names = WHEEL_NAMES
         self._wheel_rpm_pubs = [self.create_publisher(Float32, f'/yahboom/wheel/{name}/rpm', 10) for name in wheel_names]
@@ -472,6 +503,22 @@ class YahboomBase(Node):
         except (ValueError, AttributeError):
             self._cal_stop_latched = False
 
+    def _on_authoritative_odom(self, msg):
+        value = float(msg.twist.twist.angular.z)
+        if math.isfinite(value):
+            self._authoritative_yaw_rate = value
+            self._authoritative_yaw_time = time.monotonic()
+
+    def _on_drive_pid_reset(self, _msg):
+        if self._drive_pid is None:
+            return
+        command_zero = self._last_vx == 0.0 and self._last_vy == 0.0 and self._last_vz == 0.0
+        if not command_zero or self._applied_pwm != 0 or self._cal_stop_latched:
+            self.get_logger().warn('Rejected drive PID reset: rover is not safely stopped')
+            return
+        if self._drive_pid.clear_fault(True):
+            self.get_logger().info('Drive PID fault latch cleared while safely stopped')
+
     def _cal_safe(self):
         return (self._cal_stop_latched and time.monotonic() - self._cal_policy_time < 1.0
                 and self._applied_pwm == 0 and self._last_vx == 0 and self._last_vz == 0)
@@ -493,11 +540,12 @@ class YahboomBase(Node):
 
     def _on_cmd_vel(self, msg: Twist):
         if self._steering_cal.locked:
-            self._last_vx = self._last_vz = 0.0
+            self._last_vx = self._last_vy = self._last_vz = 0.0
             self._applied_pwm = 0
             self.bot.set_motor(0, 0, 0, 0)
             return
         vx = max(-1.0, min(1.0, msg.linear.x / MAX_VX))
+        vy = float(msg.linear.y)
         vz = max(-5.0, min(5.0, msg.angular.z))
         # Zero commands must stop immediately. Never ignore a stop packet.
         if abs(vx) <= 0.02:
@@ -505,6 +553,7 @@ class YahboomBase(Node):
         if abs(vz) <= 0.02:
             vz = 0.0
         self._last_vx = vx
+        self._last_vy = vy
         self._last_vz = vz
         self._last_cmd_time = time.time()
         if vx == 0.0 and vz == 0.0:
@@ -514,6 +563,7 @@ class YahboomBase(Node):
     def _on_drive_mode(self, msg: String):
         """Track mux ownership so manual steering can remain responsive."""
         self._drive_source = str(msg.data).strip().upper() or 'STOPPED'
+        self._drive_source_time = time.monotonic()
         if self._drive_source == 'REMOTE':
             self._last_remote_source_time = time.monotonic()
 
@@ -524,9 +574,10 @@ class YahboomBase(Node):
         self._cal_status_pub.publish(String(data=json.dumps(self._steering_cal.status())))
         if time.time() - self._last_cmd_time > CMD_TIMEOUT_S:
             self._last_vx = 0.0
+            self._last_vy = 0.0
             self._last_vz = 0.0
         if self._steering_cal.locked:
-            self._last_vx = self._last_vz = 0.0
+            self._last_vx = self._last_vy = self._last_vz = 0.0
             self._applied_pwm = 0
             self.bot.set_motor(0, 0, 0, 0)
             self._front_target_angle = self._steering_cal.targets['front']
@@ -673,6 +724,28 @@ class YahboomBase(Node):
             abs(self._front_target_angle - self._front_applied_angle),
             abs(self._rear_target_angle - self._rear_applied_angle),
         )
+        closed_loop = self._closed_loop_update(vx, wz, steering_error <= 8)
+        if closed_loop is not None:
+            if closed_loop.active:
+                correction = float(closed_loop.steering_correction_deg)
+                self._front_target_angle = int(round(_clamp_servo(
+                    self._front_target_angle - correction,
+                    FRONT_STEER_RIGHT, FRONT_STEER_LEFT,
+                )))
+                self._rear_target_angle = int(round(_clamp_servo(
+                    self._rear_target_angle - correction,
+                    REAR_STEER_RIGHT, REAR_STEER_LEFT,
+                )))
+                outputs = tuple(int(round(value)) for value in closed_loop.motor_outputs)
+                self._applied_pwm = max(abs(value) for value in outputs)
+                self.bot.set_motor(*outputs)
+            else:
+                self._applied_pwm = 0
+                self.bot.set_motor(0, 0, 0, 0)
+            self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
+            self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))
+            self._pub_steer_mode.publish(String(data='four_wheel_opposite_closed_loop'))
+            return
         # Nav2/recovery must wait for steering alignment before traction; that
         # gate prevents the rover entering a doorway on the wrong wheel angle.
         # For the physical Xbox remote, however, a complete traction cut made
@@ -705,6 +778,45 @@ class YahboomBase(Node):
         self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
         self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))
         self._pub_steer_mode.publish(String(data='four_wheel_opposite'))
+
+    def _closed_loop_update(self, vx, wz, steering_aligned):
+        """Return a result only when PID owns output; otherwise legacy remains owner."""
+        if self._drive_pid is None or self._drive_pid_config is None:
+            payload = json.dumps({
+                'schema': 1, 'state': 'DISABLED', 'active': False,
+                'inhibited_reason': self._drive_pid_error or 'not_configured',
+            }, separators=(',', ':'))
+            self._pub_drive_pid.publish(String(data=payload))
+            return None
+        now = time.monotonic()
+        packet_age = max(0.0, now - self._encoder_packet_stamp) if self._encoder_packet_stamp else 1.0e9
+        encoder_ages = (packet_age,) * 4
+        encoder_valid = tuple(
+            self._encoder_packet_fresh
+            and index not in self._encoder_fault_since
+            and index not in self._excluded_encoders
+            for index in range(4)
+        )
+        yaw_age = max(0.0, now - self._authoritative_yaw_time) if self._authoritative_yaw_time else 1.0e9
+        result = self._drive_pid.update(
+            linear_x=float(vx), linear_y=float(self._last_vy), angular_z=float(wz),
+            source=self._drive_source,
+            command_age_s=max(0.0, time.time() - self._last_cmd_time),
+            owner_age_s=max(0.0, now - self._drive_source_time) if self._drive_source_time else 1.0e9,
+            measured_speeds=tuple(self._wheel_mps), encoder_ages=encoder_ages,
+            encoder_valid=encoder_valid,
+            measured_yaw_rate=self._authoritative_yaw_rate, yaw_age_s=yaw_age,
+            controller_link_ok=self._encoder_packet_fresh,
+            emergency_stop=self._cal_stop_latched,
+            commissioning=self._steering_cal.locked,
+            steering_aligned=steering_aligned, dt=0.1,
+        )
+        self._pub_drive_pid.publish(String(data=result.diagnostic(encoder_ages, encoder_valid)))
+        # A disabled/uncommissioned controller is strictly diagnostic and does
+        # not become a second hardware owner. The existing driver stays active.
+        if not self._drive_pid_config.enabled or not self._drive_pid_config.hardware_commissioned:
+            return None
+        return result
 
     def _servo_loop(self):
         pass  # replaced by keepalive throttle

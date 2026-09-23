@@ -1,5 +1,14 @@
 # Changelog
 
+- 2026-09-23: Added a safety-gated host-side closed-loop drive controller for
+  ATLAS's real 4WS geometry. It provides per-wheel PID/feed-forward, bounded
+  yaw-rate steering correction, anti-windup, slew limiting, explicit controller
+  ownership, latched fail-stop behavior and live Web diagnostics. It is integrated
+  into the existing sole Yahboom hardware owner and deliberately ships disabled,
+  uncommissioned, with zero gains, no guessed track width and M4 still excluded.
+  Added offline regression tests and a non-actuating staged commissioning/evidence
+  tool. No autonomous capability has been enabled and no physical test is claimed.
+
 - 2026-09-21: Corrected radar health rendering so a fresh, valid 30-byte
   RD-03D frame containing zero targets is shown as **LIVE / NO CURRENT TARGET**
   instead of being conflated with an offline radar. UART-link and decoder
