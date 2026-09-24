@@ -1,5 +1,16 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Live diagnostics refresh — 2026-09-25
+
+The Web dashboard now separates a fresh offline I2C report from a genuinely
+live BME680/AMG8833 measurement, derives radar approach/retreat direction from
+the target's live range history, and labels each encoder as moving, stopped,
+excluded, faulty or stale. The Yahboom service discovers its verified protocol
+instead of assuming a CH340 USB index that can change after reconnects. A
+supervised lifted check produced changing raw counts from M1–M4; this is useful
+hardware evidence but is not metric ground validation. M4 remains excluded and
+closed-loop/autonomous gates remain unchanged.
+
 ### Closed-loop drive PID — implemented, safely disabled (2026-09-23)
 
 ATLAS now has a hardware-independent four-wheel-speed PID core, bounded yaw-rate

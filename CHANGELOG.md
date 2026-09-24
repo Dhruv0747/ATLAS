@@ -1,5 +1,17 @@
 # Changelog
 
+- 2026-09-25: Improved the live Web diagnostics without changing any motor,
+  navigation or safety authority. Fresh-but-offline BME680/AMG8833 reports no
+  longer make the shared I2C panel look healthy; radar targets now show
+  distance-derived approaching/moving-away/stationary state and radial speed;
+  and each encoder tile distinguishes a changing count from a merely live,
+  stopped packet. The radar display continues to label T1/T2/T3 as temporary
+  slots, not permanent people identities. Updated the Yahboom user service to
+  discover its verified packet protocol rather than rely on a mutable CH340 USB
+  path. A supervised lifted test observed raw count deltas on all four channels
+  (M1 +1589, M2 +1804, M3 +1316, M4 -1221), but M4 remains excluded and the
+  closed-loop PID remains disabled until metric ground commissioning passes.
+
 - 2026-09-23: Added a safety-gated host-side closed-loop drive controller for
   ATLAS's real 4WS geometry. It provides per-wheel PID/feed-forward, bounded
   yaw-rate steering correction, anti-windup, slew limiting, explicit controller

@@ -128,6 +128,12 @@ M4 repair; counts/revolution after motor replacements; polarity; lifted directio
 low-speed response; stopping distance; E-stop; sustained forward/reverse; turning;
 reboot recovery; and low-battery behavior.
 
+On 2026-09-25 a supervised lifted diagnostic produced raw deltas on every
+channel (M1 +1589, M2 +1804, M3 +1316 and M4 -1221). This proves that M4 was not
+statically zero during that observation; it does **not** prove its sign, scale,
+ground reliability or suitability for closed-loop control. Keep M4 excluded and
+all PID commissioning gates closed until the recorded metric stages pass.
+
 ## Before/after verification result
 
 | Area | Before | After this change |

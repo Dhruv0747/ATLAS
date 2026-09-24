@@ -13,7 +13,10 @@ KillMode=control-group
 SendSIGKILL=yes
 NotifyAccess=main
 Environment=PYTHONUNBUFFERED=1
-Environment=ATLAS_YAHBOOM_PORT=/dev/serial/by-path/platform-3610000.usb-usb-0:2.4:1.0-port0
+# The Yahboom, IM10A and GNSS adapters use identical serial-number-less CH340
+# bridges.  Discover the motor board passively from its verified packet
+# protocol instead of binding it to a USB socket that may change after wiring.
+Environment=ATLAS_YAHBOOM_AUTO_USB=1
 
 [Install]
 WantedBy=default.target
