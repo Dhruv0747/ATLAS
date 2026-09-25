@@ -55,13 +55,13 @@ def update(controller, **overrides):
 
 
 class ClosedLoopControlTests(unittest.TestCase):
-    def test_repository_config_is_safely_disabled_and_m3_excluded(self):
+    def test_repository_config_is_safely_disabled_with_dynamic_candidates(self):
         if importlib.util.find_spec("yaml"):
             config = load_drive_config(CONFIG)
             self.assertFalse(config.enabled)
             self.assertFalse(config.hardware_commissioned)
             self.assertFalse(config.navigation_validated)
-            self.assertEqual(config.excluded_encoders, (3,))
+            self.assertEqual(config.excluded_encoders, ())
             self.assertIsNone(config.geometry.track_width_m)
         else:
             # The Windows development Python does not ship PyYAML. Preserve a
@@ -70,7 +70,7 @@ class ClosedLoopControlTests(unittest.TestCase):
             text = CONFIG.read_text(encoding="utf-8")
             for expected in (
                 "enabled: false", "hardware_commissioned: false",
-                "navigation_validated: false", "excluded_encoders: [3]",
+                "navigation_validated: false", "excluded_encoders: []",
                 "track_width_m: null",
             ):
                 self.assertIn(expected, text)

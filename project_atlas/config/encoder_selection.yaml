@@ -1,8 +1,9 @@
 # Physical channels: M1 rear-left, M2 rear-right, M3 front-left, M4 front-right.
-# The 2026-09-25 measured 20 cm ground run showed M3 changing only 162 counts
-# while M1/M2/M4 changed 869-931 counts. M3 feedback is therefore excluded;
-# all four MOTOR outputs remain enabled.
-excluded_encoders: [3]
+# Recorded ground runs proved that the weak front channel can alternate between
+# M3 and M4.  Keep all four as candidates and use dynamic 3-of-4 consensus.
+# A sample interval with fewer than three mutually coherent channels contributes
+# zero odometry and keeps autonomous navigation fail-closed.
+excluded_encoders: []
 # Set true only after measured low-speed distance/turn/stopping validation.
 # Three encoders are supported; four working encoders are NOT a prerequisite.
 navigation_validated: false

@@ -46,16 +46,44 @@ def feedback_state(excluded, faults, packet_fresh, qualifying, traction, fault_a
 
 
 class EncoderDeltaEstimator:
-    """Median of per-wheel increments, never a jump between cumulative medians.
+    """Dynamic three-of-four consensus over per-wheel increments.
 
-    At least three channels must be valid in BOTH samples. Invalid intervals
-    are rebased, not integrated later as a catch-up jump. This remains a wheel
-    distance approximation; steering geometry and metric scales need ground
-    validation and are not magically corrected by rejecting M4.
+    Every non-statically-excluded channel remains a candidate.  For each sample
+    interval the largest group of at least three mutually coherent wheel deltas
+    is selected and its median is integrated.  A weak/intermittent channel can
+    therefore move between M3 and M4 without silently corrupting odometry.
+    A two-versus-two split fails closed. Invalid intervals are rebased, not
+    integrated later as a catch-up jump.
     """
-    def __init__(self):
+    def __init__(self, relative_tolerance=0.45, absolute_tolerance_m=0.002):
         self.previous = None
         self.previous_valid = set()
+        self.relative_tolerance = float(relative_tolerance)
+        self.absolute_tolerance_m = float(absolute_tolerance_m)
+        self.last_accepted = ()
+        self.last_rejected = ()
+        self.last_deltas = (0.0, 0.0, 0.0, 0.0)
+
+    def _cluster(self, deltas):
+        best = ()
+        for center_index, center in deltas.items():
+            group = []
+            for index, value in deltas.items():
+                tolerance = max(
+                    self.absolute_tolerance_m,
+                    self.relative_tolerance * max(abs(center), abs(value)),
+                )
+                if abs(value - center) <= tolerance:
+                    group.append(index)
+            candidate = tuple(sorted(group))
+            if len(candidate) > len(best):
+                best = candidate
+            elif len(candidate) == len(best) and candidate:
+                current_spread = max(deltas[i] for i in candidate) - min(deltas[i] for i in candidate)
+                best_spread = max(deltas[i] for i in best) - min(deltas[i] for i in best)
+                if current_spread < best_spread:
+                    best = candidate
+        return best
 
     def update(self, distances, valid_indexes):
         if len(distances) != 4:
@@ -64,8 +92,20 @@ class EncoderDeltaEstimator:
         valid = {i for i in valid_indexes if 0 <= i < 4 and math.isfinite(current[i])}
         common = valid & self.previous_valid
         delta = 0.0
+        accepted = ()
+        deltas = {}
         if self.previous is not None and len(common) >= 3:
-            delta = statistics.median(current[i] - self.previous[i] for i in common)
+            deltas = {i: current[i] - self.previous[i] for i in common}
+            accepted = self._cluster(deltas)
+            if len(accepted) >= 3:
+                delta = statistics.median(deltas[i] for i in accepted)
+            else:
+                accepted = ()
+        self.last_accepted = accepted
+        self.last_rejected = tuple(sorted(common - set(accepted))) if accepted else tuple(sorted(common))
+        self.last_deltas = tuple(
+            deltas.get(i, 0.0) for i in range(4)
+        )
         self.previous = current
         self.previous_valid = valid
         return delta

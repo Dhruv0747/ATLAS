@@ -1,5 +1,15 @@
 # Changelog
 
+- 2026-09-25: Replaced the fixed single-channel encoder exclusion with a
+  fail-closed dynamic 3-of-4 consensus estimator. Every wheel remains a
+  candidate; the largest coherent group of at least three interval deltas is
+  integrated, a moving outlier is reported, and a two-versus-two split yields
+  zero odometry. Applied provisional per-wheel CPR values from the clean 20 cm
+  forward and ~70 cm reverse evidence. Offline replay now estimates 0.1975 m
+  for the measured 0.20 m run and -0.6999 m for the measured ~0.70 m reverse
+  run. Navigation and closed-loop PID gates remain false pending a fresh
+  deployment validation run.
+
 - 2026-09-25: Added segment-aware analysis for measured manual ground runs so
   forward and reverse legs in one bag are not incorrectly reduced to one net
   displacement. A clean operator-measured ~70 cm reverse run recorded M1

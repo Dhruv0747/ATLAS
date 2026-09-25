@@ -347,6 +347,7 @@ class YahboomBase(Node):
         self._wheel_last_change_t = [time.monotonic()] * 4
         self._encoder_motion_started = 0.0
         self._encoder_fault_since = {}
+        self._dynamic_encoder_rejected = set()
         self._encoder_health_started = time.monotonic()
         self._encoder_stale = True
         self._x = 0.0
@@ -1663,9 +1664,8 @@ class YahboomBase(Node):
         self._pub_right.publish(Float32(data=rr if 3 in self._excluded_encoders else (fr + rr) / 2.0))
         self._pub_speed.publish(Float32(data=float(vx)))
 
-        self._publish_encoder_health(now)
-
         self._publish_yahboom_odom(vx, vy, vz, now)
+        self._publish_encoder_health(now)
 
     def _publish_encoder_health(self, now):
         """Detect frozen wheel feedback while traction is actually applied."""
@@ -1685,9 +1685,12 @@ class YahboomBase(Node):
         else:
             self._encoder_motion_started = 0.0
 
-        faults = sorted(i for i in self._encoder_fault_since if i not in self._excluded_encoders)
+        hardware_faults = {
+            i for i in self._encoder_fault_since if i not in self._excluded_encoders
+        }
+        faults = sorted(hardware_faults | self._dynamic_encoder_rejected)
         longest = max(
-            (now - self._encoder_fault_since[i] for i in faults),
+            (now - self._encoder_fault_since[i] for i in hardware_faults),
             default=0.0,
         )
         qualifying = now - self._encoder_health_started < ENCODER_LINK_QUALIFY_S
@@ -1700,7 +1703,16 @@ class YahboomBase(Node):
             'state': state,
             'faults': [names[i] for i in faults],
             'excluded_encoders': [i + 1 for i in self._excluded_encoders],
-            'selected_encoders': [i + 1 for i in range(4) if i not in self._excluded_encoders],
+            'selected_encoders': [
+                i + 1 for i in self._encoder_delta_estimator.last_accepted
+            ],
+            'consensus_rejected_encoders': [
+                i + 1 for i in sorted(self._dynamic_encoder_rejected)
+            ],
+            'encoder_interval_delta_m': [
+                round(value, 6)
+                for value in self._encoder_delta_estimator.last_deltas
+            ],
             'packet_age_s': round(max(0.0, now - self._encoder_packet_stamp), 3) if self._encoder_packet_stamp > 0.0 else None,
             'packet_fresh': self._encoder_packet_fresh,
             'navigation_validated': self._encoder_navigation_validated,
@@ -1716,13 +1728,7 @@ class YahboomBase(Node):
                 round(max(0.0, now - stamp), 2)
                 for stamp in self._wheel_last_change_t
             ],
-            'policy': (
-                'excluded=' + ','.join(
-                    f'M{i + 1}' for i in sorted(self._excluded_encoders)
-                ) + ';selected_fault_or_stale=autonomy_stop;validation_required'
-                if self._excluded_encoders
-                else 'single=50%_for_5s;multi_or_persistent=stop'
-            ),
+            'policy': 'dynamic_3of4_consensus;fewer_than_3=stop;validation_required',
         }
         self._pub_encoder_health.publish(
             String(data=json.dumps(payload, separators=(',', ':')))
@@ -1745,6 +1751,10 @@ class YahboomBase(Node):
         distance_delta = self._encoder_delta_estimator.update(
             self._wheel_distance_m, valid_indexes
         )
+        accepted_indexes = list(self._encoder_delta_estimator.last_accepted)
+        self._dynamic_encoder_rejected = set(
+            self._encoder_delta_estimator.last_rejected
+        )
 
         encoder_motion = abs(distance_delta) > 1.0e-6 and dt > 0.0
         if encoder_motion:
@@ -1761,18 +1771,18 @@ class YahboomBase(Node):
             vz = vx * curvature
             source = (
                 'wheel_encoder_delta_4ws'
-                if len(valid_indexes) == 4
-                else f'wheel_encoder_delta_degraded_{len(valid_indexes)}of4'
+                if len(accepted_indexes) == 4
+                else f'wheel_encoder_consensus_{len(accepted_indexes)}of4'
             )
         else:
             vx = 0.0
             vy = 0.0
             vz = 0.0
             curvature = 0.0
-            source = 'feedback_unavailable' if len(valid_indexes) < 3 else (
+            source = 'feedback_unavailable' if len(accepted_indexes) < 3 else (
                 'stopped_' + '_'.join(
-                    f'M{i + 1}' for i in valid_indexes
-                ) + '_degraded' if self._excluded_encoders else 'stopped'
+                    f'M{i + 1}' for i in accepted_indexes
+                ) + '_consensus' if len(accepted_indexes) < 4 else 'stopped'
             )
 
         self._last_odom_source = source
@@ -1806,9 +1816,9 @@ class YahboomBase(Node):
         msg.twist.covariance[0] = 0.10
         msg.twist.covariance[7] = 0.10
         msg.twist.covariance[35] = 0.20
-        if len(valid_indexes) < 4:
+        if len(accepted_indexes) < 4:
             # Conservative provisional uncertainty, not a measured accuracy.
-            factor = 4.0 if len(valid_indexes) == 3 else 1000.0
+            factor = 4.0 if len(accepted_indexes) == 3 else 1000.0
             for index in (0, 7, 35):
                 msg.pose.covariance[index] *= factor
                 msg.twist.covariance[index] *= factor

@@ -12,29 +12,30 @@ encoder_calibration:
   motors:
     m1:
       position: rear_left
-      # 2026-09-25 measured forward run: raw count increased by 926.
+      # Combined clean 20 cm forward and ~70 cm reverse evidence.
       encoder_sign: 1.0
-      counts_per_revolution: 4048.7
-      confidence: revalidation_required
-      method: retained_pre_motor_replacement_ground_calibration
+      counts_per_revolution: 2238.4
+      confidence: measured_provisional
+      method: measured_20cm_forward_plus_70cm_reverse
     m2:
       position: rear_right
-      # 2026-09-25 measured forward run: raw count decreased by 931.
+      # Combined clean 20 cm forward and ~70 cm reverse evidence.
       encoder_sign: -1.0
-      counts_per_revolution: 3300.6
-      confidence: revalidation_required
-      method: retained_pre_motor_replacement_ground_calibration
+      counts_per_revolution: 2215.0
+      confidence: measured_provisional
+      method: measured_20cm_forward_plus_70cm_reverse
     m3:
       position: front_left
       encoder_sign: 1.0
-      counts_per_revolution: 4080.1
-      confidence: unvalidated_excluded
-      method: weak_feedback_162_counts_during_20cm_ground_run
+      counts_per_revolution: 2199.1
+      confidence: intermittent_measured_provisional
+      method: measured_when_coherent_70cm_reverse_dynamic_candidate
     m4:
       position: front_right
       # 2026-09-25 measured forward run: raw count decreased by 869 and tracked
-      # M1/M2 closely, so M4 replaces weak M3 in the selected feedback set.
+      # M4 tracked M1/M2 in the clean 20 cm run but was weak later; dynamic
+      # consensus rejects it only during incoherent intervals.
       encoder_sign: -1.0
-      counts_per_revolution: 2697.8
-      confidence: revalidation_required
-      method: measured_forward_ground_response_selected_for_revalidation
+      counts_per_revolution: 2230.5
+      confidence: intermittent_measured_provisional
+      method: measured_when_coherent_20cm_forward_dynamic_candidate

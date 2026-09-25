@@ -207,16 +207,19 @@ map/odom/scan frame alignment and a complete buffered TF tree are still pending.
 No navigation tuning, wheel motion, IMU fusion or encoder qualification changed.
 See [deployment evidence, limits and local-LLM decision](docs/AUDIT_REPAIRS_2026-09-17.md).
 
-### Three-encoder commissioning — 2026-09-17
+### Dynamic encoder commissioning — updated 2026-09-25
 
-M1 rear-left, M2 rear-right and M3 front-left are selected for odometry in
-`project_atlas/config/encoder_selection.yaml`. Faulty M4 front-right feedback
-is excluded even if it reports counts again; **its motor still operates**.
-Three healthy encoders can support autonomous navigation. Four are not a Nav2
-requirement, but this changed configuration needs measured distance, turn and
-stopping validation before `navigation_validated` may be enabled. Existing
-manual-only restrictions and remote stop remain in place. IM10A live EKF fusion
-has not been enabled by this change.
+M1 rear-left, M2 rear-right, M3 front-left and M4 front-right remain dynamic
+odometry candidates. Recorded ground tests showed that weak feedback can move
+between M3 and M4, so ATLAS no longer permanently trusts or excludes either
+front channel. Each interval uses the median of the largest coherent group of
+at least three wheels. A single outlier is rejected; fewer than three agreeing
+channels produces zero odometry and keeps autonomy fail-closed. **All four
+motors still operate.** Provisional measured CPR values replay the 20 cm and
+~70 cm evidence within about 1.3% and 0.1%, respectively, but a fresh distance,
+turn and stopping validation is still required before `navigation_validated`
+may be enabled. Manual-only restrictions and the remote stop remain in place.
+IM10A live EKF fusion has not been enabled by this change.
 
 On 2026-09-25, a fresh stationary bag measured a constant -0.00403 rad/s on
 the corrected IM10A topic and about -6.6 degrees of false yaw in 29 seconds.

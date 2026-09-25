@@ -6,10 +6,14 @@ import bisect
 import json
 import math
 from collections import defaultdict
+from pathlib import Path
 
 import rosbag2_py
+import yaml
 from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
+
+from atlas_encoder_selection import EncoderDeltaEstimator
 
 
 ENCODER_TOPICS = tuple(f"/yahboom/encoder/m{index}" for index in range(1, 5))
@@ -52,6 +56,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("bag")
     parser.add_argument("--measured-distance-m", type=float)
+    parser.add_argument("--encoder-calibration")
     args = parser.parse_args()
 
     reader = rosbag2_py.SequentialReader()
@@ -66,6 +71,17 @@ def main() -> None:
     commands = defaultdict(list)
     odometry = defaultdict(list)
     imu_yaw = []
+    replay_raw = {}
+    replay_seen = set()
+    replay_estimator = EncoderDeltaEstimator()
+    replay_distance = 0.0
+    replay_rejections = defaultdict(int)
+    calibration = None
+    if args.encoder_calibration:
+        calibration = yaml.safe_load(
+            Path(args.encoder_calibration).read_text(encoding="utf-8")
+        )["encoder_calibration"]
+        circumference = float(calibration["wheel_circumference_m"])
 
     while reader.has_next():
         topic, raw, recorded_ns = reader.read_next()
@@ -74,6 +90,23 @@ def main() -> None:
         msg = deserialize_message(raw, messages[topic])
         if topic in ENCODER_TOPICS:
             encoders[topic].append((recorded_ns, int(msg.data)))
+            if calibration is not None:
+                replay_raw[topic] = int(msg.data)
+                replay_seen.add(topic)
+                if replay_seen == set(ENCODER_TOPICS):
+                    distances = []
+                    for motor_index, encoder_topic in enumerate(ENCODER_TOPICS, start=1):
+                        motor = calibration["motors"][f"m{motor_index}"]
+                        distances.append(
+                            replay_raw[encoder_topic]
+                            * float(motor["encoder_sign"])
+                            * circumference
+                            / float(motor["counts_per_revolution"])
+                        )
+                    replay_distance += replay_estimator.update(distances, range(4))
+                    for rejected in replay_estimator.last_rejected:
+                        replay_rejections[rejected] += 1
+                    replay_seen.clear()
         elif topic in ("/cmd_vel", "/cmd_vel_joy"):
             commands[topic].append((recorded_ns, float(msg.linear.x), float(msg.angular.z)))
         elif topic in ("/odom", "/yahboom/odom"):
@@ -163,6 +196,14 @@ def main() -> None:
             "samples": len(imu_yaw),
             "yaw_change_deg": round(math.degrees(imu_yaw[-1][1] - imu_yaw[0][1]), 3),
             "yaw_span_deg": round(math.degrees(max(yaw for _, yaw in imu_yaw) - min(yaw for _, yaw in imu_yaw)), 3),
+        }
+    if calibration is not None:
+        result["consensus_replay"] = {
+            "integrated_distance_m": round(replay_distance, 4),
+            "last_accepted_encoders": [i + 1 for i in replay_estimator.last_accepted],
+            "rejected_intervals_by_encoder": {
+                f"M{index + 1}": replay_rejections[index] for index in range(4)
+            },
         }
     print(json.dumps(result, indent=2, sort_keys=True))
 
