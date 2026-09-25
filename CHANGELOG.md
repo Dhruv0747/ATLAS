@@ -1449,3 +1449,11 @@ Historical first attempt; the later successful installation is recorded above.
   29 seconds. Raw monitoring remains live; the corrected candidate is now
   fail-closed until a fresh bias and dynamic turn revalidation explicitly set
   both `enabled` and `navigation_qualified` true.
+## 2026-09-25 - Measured ground encoder repeat
+
+- Added `atlas_analyze_manual_run.py` to summarize per-wheel encoder deltas,
+  command timing, odometry, and IMU stability from measured ground rosbag runs.
+- The post-mapping 20 cm repeat confirmed M1/M2/M4 direction agreement and
+  matched counts within 0.7%; M3 remained weak and excluded.
+- Retained the existing distance scale pending one more independently measured
+  run because the two nominal 20 cm trials produced materially different counts.
