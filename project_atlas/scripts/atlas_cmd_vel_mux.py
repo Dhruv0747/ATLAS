@@ -422,7 +422,11 @@ class AtlasCmdVelMux(Node):
             command.linear.z = 0.0
             command.angular.x = 0.0
             command.angular.y = 0.0
-            command.angular.z = 0.0
+            # Permit only a small, explicitly armed steering command for the
+            # bounded ground-arc validator.  The same short lease, physical
+            # remote priority, encoder guard, obstacle guard and watchdog that
+            # protect straight commissioning remain authoritative.
+            command.angular.z = max(-0.15, min(0.15, command.angular.z))
         elif name == "FOXGLOVE":
             command.linear.x = max(
                 -self.foxglove_max_linear,

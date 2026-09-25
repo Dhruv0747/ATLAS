@@ -1,5 +1,23 @@
 # Changelog
 
+- 2026-09-25: Added an explicitly armed bounded ground-arc commissioning path.
+  Commissioning steering is clamped to +/-0.15 rad/s and retains the existing
+  20-second lease, physical-remote priority, LiDAR/ultrasonic guards, encoder
+  fail-closed policy, stale-command watchdog and explicit disarm. The arc tool
+  now uses `/cmd_vel_commission`, waits for fresh wheel odometry, gated LiDAR
+  odometry, scan and encoder health, and stops on stale or critical feedback.
+  Fast DDS service discovery under the full workload sometimes exceeded the
+  former three-second client wait; the clients now wait up to 12 seconds, but
+  no motion authority begins until the arm service actually succeeds. Ten
+  focused tests passed and the scripts compiled before deployment. The first
+  5 cm / 0.06 m/s / 0.10 rad/s right-arc attempt moved only about 3 mm before
+  the mux revoked its lease on `ENCODER CRITICAL`; ATLAS stopped and disarmed.
+  This exposed the still-open measured-track-width gate: straight-line
+  equal-delta clustering cannot validate the natural inside/outside wheel
+  distance split of a turn. No track width was guessed and autonomy remains
+  locked pending physical left-to-right wheel-centre measurement and
+  turn-aware encoder normalization.
+
 - 2026-09-25: Extended the fail-closed straight-distance commissioning harness
   to support both forward and reverse LiDAR corridor progress, wait for a
   successful commissioning arm plus initial encoder/health samples before

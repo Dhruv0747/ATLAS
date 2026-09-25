@@ -101,7 +101,10 @@ class StraightTest(Node):
         ]
 
     def arm(self) -> tuple[bool, str]:
-        if not self.arm_client.wait_for_service(timeout_sec=3.0):
+        # A fresh Fast DDS participant can need several seconds to discover
+        # the already-running mux on a loaded Jetson.  This wait grants no
+        # motion authority; the lease still begins only after Trigger succeeds.
+        if not self.arm_client.wait_for_service(timeout_sec=12.0):
             return False, "commissioning arm service unavailable"
         future = self.arm_client.call_async(Trigger.Request())
         rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
