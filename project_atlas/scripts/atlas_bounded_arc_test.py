@@ -25,7 +25,10 @@ class ArcTest(Node):
         self.target, self.speed, self.angular, self.timeout = distance, speed, angular, timeout
         self.start = self.pose = None
         self.odom_at = self.lidar_odom_at = self.scan_at = self.started = 0.0
-        self.lidar_distance = IncrementalPlanarDistance()
+        # At this low commissioning speed, a 3 cm inter-sample pose change is
+        # already implausible. Reject RF2O jumps instead of treating them as
+        # achieved physical travel.
+        self.lidar_distance = IncrementalPlanarDistance(max_step_m=0.03)
         self.encoder_health = {}
         self.encoder_health_at = 0.0
         self.clearance = math.inf
@@ -102,11 +105,13 @@ class ArcTest(Node):
         self.clearance = min(values) if values else math.inf
         self.scan_at = time.monotonic()
 
-    def distance(self):
-        wheel = 0.0 if self.start is None or self.pose is None else math.hypot(
+    def wheel_distance(self):
+        return 0.0 if self.start is None or self.pose is None else math.hypot(
             self.pose[0] - self.start[0], self.pose[1] - self.start[1]
         )
-        return max(wheel, self.lidar_distance.distance_m)
+
+    def distance(self):
+        return max(self.wheel_distance(), self.lidar_distance.distance_m)
 
     def stop(self, reason):
         self.result = reason
@@ -163,6 +168,8 @@ def main():
             node.pub.publish(Twist()); rclpy.spin_once(node, timeout_sec=0.05)
         print(f"RESULT {node.result} distance={node.distance():.3f}m "
               f"lidar_distance={node.lidar_distance.distance_m:.3f}m "
+              f"wheel_distance={node.wheel_distance():.3f}m "
+              f"lidar_rejected={node.lidar_distance.rejected_updates} "
               f"clearance={node.clearance:.3f}m "
               f"encoder_state={node.encoder_health.get('state', 'MISSING')}", flush=True)
     finally:

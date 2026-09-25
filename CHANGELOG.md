@@ -1,5 +1,20 @@
 # Changelog
 
+- 2026-09-25: Recorded the operator-measured 0.260 m front tyre-centre track
+  width without altering the saved 90-degree steering centres or steering
+  endpoints. Encoder increments are now normalized by four-wheel-steering
+  path geometry before dynamic three-of-four consensus, so valid inside and
+  outside wheel distances no longer form a false two-versus-two failure.
+  Offline tests prove both a valid curved four-wheel interval and rejection of
+  one weak channel after normalization; 51 focused tests passed. The repeated
+  right-arc run retained encoder state `READY`, confirming the former false
+  consensus abort was removed. Its apparent 0.190 m RF2O increment at very low
+  speed was physically implausible, so that run is not accepted as a distance
+  pass. The arc validator now rejects inter-sample LiDAR-odometry jumps above
+  0.03 m and separately reports wheel/LiDAR distance. ATLAS ended stopped,
+  disarmed, and with both steering commands back at the unchanged 90-degree
+  centres.
+
 - 2026-09-25: Added an explicitly armed bounded ground-arc commissioning path.
   Commissioning steering is clamped to +/-0.15 rad/s and retains the existing
   20-second lease, physical-remote priority, LiDAR/ultrasonic guards, encoder

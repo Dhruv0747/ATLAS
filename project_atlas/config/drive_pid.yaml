@@ -14,7 +14,7 @@ atlas_drive_pid:
 
   geometry:
     wheelbase_m: 0.367       # measured wheel-centre front-to-rear spacing
-    track_width_m: null      # REQUIRED: measure left-to-right wheel centres
+    track_width_m: 0.260     # measured front left/right tyre-centre spacing
     wheel_diameter_m: 0.125
     max_wheel_speed_mps: 0.35
     max_steering_deg: 35.0

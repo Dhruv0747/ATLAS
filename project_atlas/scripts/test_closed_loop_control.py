@@ -62,7 +62,7 @@ class ClosedLoopControlTests(unittest.TestCase):
             self.assertFalse(config.hardware_commissioned)
             self.assertFalse(config.navigation_validated)
             self.assertEqual(config.excluded_encoders, ())
-            self.assertIsNone(config.geometry.track_width_m)
+            self.assertAlmostEqual(config.geometry.track_width_m, 0.260)
         else:
             # The Windows development Python does not ship PyYAML. Preserve a
             # deterministic safety-default check here; the Jetson static stage
@@ -71,7 +71,7 @@ class ClosedLoopControlTests(unittest.TestCase):
             for expected in (
                 "enabled: false", "hardware_commissioned: false",
                 "navigation_validated: false", "excluded_encoders: []",
-                "track_width_m: null",
+                "track_width_m: 0.260",
             ):
                 self.assertIn(expected, text)
 

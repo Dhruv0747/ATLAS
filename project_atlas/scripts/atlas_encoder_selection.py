@@ -6,6 +6,32 @@ WHEEL_NAMES = ('back_left', 'back_right', 'front_left', 'front_right')
 ENCODER_NAMES = ('M1_REAR_LEFT', 'M2_REAR_RIGHT', 'M3_FRONT_LEFT', 'M4_FRONT_RIGHT')
 
 
+def four_wheel_path_scales(curvature, wheelbase_m, track_width_m, positions):
+    """Return wheel-path/body-centre ratios for four-wheel steering."""
+    curvature = float(curvature)
+    wheelbase_m = float(wheelbase_m)
+    track_width_m = float(track_width_m)
+    if (not math.isfinite(curvature) or not math.isfinite(wheelbase_m)
+            or not math.isfinite(track_width_m) or wheelbase_m <= 0.0
+            or track_width_m <= 0.0 or len(positions) != 4):
+        raise ValueError(
+            'valid curvature, wheelbase, track width and four positions required'
+        )
+    half_l, half_t = wheelbase_m / 2.0, track_width_m / 2.0
+    coordinates = {
+        'rear_left': (-half_l, half_t), 'back_left': (-half_l, half_t),
+        'rear_right': (-half_l, -half_t), 'back_right': (-half_l, -half_t),
+        'front_left': (half_l, half_t), 'front_right': (half_l, -half_t),
+    }
+    scales = []
+    for position in positions:
+        if position not in coordinates:
+            raise ValueError(f'unknown wheel position: {position}')
+        x_m, y_m = coordinates[position]
+        scales.append(math.hypot(1.0 - curvature * y_m, curvature * x_m))
+    return tuple(scales)
+
+
 class EncoderLinkMonitor:
     """Track shared controller-packet loss and post-recovery qualification.
 
@@ -128,17 +154,25 @@ class EncoderDeltaEstimator:
                     best = candidate
         return best
 
-    def update(self, distances, valid_indexes):
+    def update(self, distances, valid_indexes, normalization_scales=None):
         if len(distances) != 4:
             raise ValueError('four raw diagnostic distances required')
         current = tuple(float(d) for d in distances)
+        scales = ((1.0,) * 4 if normalization_scales is None
+                  else tuple(float(value) for value in normalization_scales))
+        if len(scales) != 4 or any(
+                not math.isfinite(value) or value <= 0.0 for value in scales):
+            raise ValueError('four positive finite normalization scales required')
         valid = {i for i in valid_indexes if 0 <= i < 4 and math.isfinite(current[i])}
         common = valid & self.previous_valid
         delta = 0.0
         accepted = ()
         deltas = {}
         if self.previous is not None and len(common) >= 3:
-            deltas = {i: current[i] - self.previous[i] for i in common}
+            deltas = {
+                i: (current[i] - self.previous[i]) / scales[i]
+                for i in common
+            }
             accepted = self._cluster(deltas)
             if len(accepted) >= 3:
                 delta = statistics.median(deltas[i] for i in accepted)

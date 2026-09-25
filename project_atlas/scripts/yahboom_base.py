@@ -34,7 +34,7 @@ from atlas_usb_identity import open_verified
 from atlas_steering_commission import SteeringCommission
 from atlas_encoder_selection import (
     ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator, EncoderLinkMonitor,
-    feedback_state, validate_selection,
+    feedback_state, four_wheel_path_scales, validate_selection,
 )
 from atlas_encoder_calibration import load_encoder_calibration
 from atlas_closed_loop_control import AtlasClosedLoopController, load_drive_config
@@ -1790,8 +1790,30 @@ class YahboomBase(Node):
                          and i not in self._encoder_fault_since]
         if not self._encoder_packet_fresh:
             valid_indexes = []
+        # Normalize the naturally different inside/outside wheel path lengths
+        # to body-centre distance before applying three-of-four consensus.
+        # This uses measured geometry and does not change steering commands.
+        front_delta = math.radians(
+            FRONT_STEER_CENTER - self._front_applied_angle
+        )
+        rear_delta = math.radians(
+            self._rear_applied_angle - REAR_STEER_CENTER
+        )
+        curvature = (
+            math.tan(front_delta) - math.tan(rear_delta)
+        ) / self._wheelbase_m
+        track_width_m = (
+            None if self._drive_pid_config is None
+            else self._drive_pid_config.geometry.track_width_m
+        )
+        path_scales = (
+            None if track_width_m is None else four_wheel_path_scales(
+                curvature, self._wheelbase_m, track_width_m,
+                self._encoder_positions,
+            )
+        )
         distance_delta = self._encoder_delta_estimator.update(
-            self._wheel_distance_m, valid_indexes
+            self._wheel_distance_m, valid_indexes, path_scales
         )
         accepted_indexes = list(self._encoder_delta_estimator.last_accepted)
         self._dynamic_encoder_rejected = set(
@@ -1805,11 +1827,6 @@ class YahboomBase(Node):
             # Front linkage is servo-reversed: decreasing command angle is
             # physical left. Convert it to the conventional positive-left
             # wheel angle before calculating four-wheel-steering curvature.
-            front_delta = math.radians(FRONT_STEER_CENTER - self._front_applied_angle)
-            rear_delta = math.radians(self._rear_applied_angle - REAR_STEER_CENTER)
-            curvature = (
-                math.tan(front_delta) - math.tan(rear_delta)
-            ) / self._wheelbase_m
             vz = vx * curvature
             source = (
                 'wheel_encoder_delta_4ws'

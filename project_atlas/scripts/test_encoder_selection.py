@@ -7,7 +7,7 @@ import unittest
 
 from atlas_encoder_selection import (
     WHEEL_NAMES, EncoderDeltaEstimator, EncoderLinkMonitor, feedback_state,
-    validate_selection,
+    four_wheel_path_scales, validate_selection,
 )
 
 
@@ -51,6 +51,28 @@ class EncoderSelectionTests(unittest.TestCase):
         self.assertEqual(estimator.update([.1, .1, 0, 0], range(4)), 0.0)
         self.assertEqual(estimator.last_accepted, ())
         self.assertEqual(estimator.last_rejected, (0, 1, 2, 3))
+
+    def test_turn_geometry_normalizes_inside_and_outside_wheels(self):
+        positions = ('rear_left', 'rear_right', 'front_left', 'front_right')
+        scales = four_wheel_path_scales(2.0, 0.367, 0.260, positions)
+        self.assertAlmostEqual(scales[0], scales[2])
+        self.assertAlmostEqual(scales[1], scales[3])
+        self.assertLess(scales[0], scales[1])
+        estimator = EncoderDeltaEstimator()
+        estimator.update([0.0] * 4, range(4), scales)
+        raw = [0.1 * value for value in scales]
+        self.assertAlmostEqual(estimator.update(raw, range(4), scales), 0.1)
+        self.assertEqual(estimator.last_accepted, (0, 1, 2, 3))
+
+    def test_turn_geometry_still_rejects_one_weak_channel(self):
+        positions = ('rear_left', 'rear_right', 'front_left', 'front_right')
+        scales = four_wheel_path_scales(-1.5, 0.367, 0.260, positions)
+        estimator = EncoderDeltaEstimator()
+        estimator.update([0.0] * 4, range(4), scales)
+        raw = [0.1 * value for value in scales]
+        raw[2] *= 0.1
+        self.assertAlmostEqual(estimator.update(raw, range(4), scales), 0.1)
+        self.assertEqual(estimator.last_rejected, (2,))
 
     def test_reverse(self):
         estimator = EncoderDeltaEstimator()

@@ -10,7 +10,7 @@ retain all current safety gates:
 - `hardware_commissioned: false`
 - `navigation_validated: false`
 - M4 encoder excluded
-- measured track width unset
+- measured front tyre-centre track width: 0.260 m
 - wheel and yaw PID gains/feed-forward zero
 
 Consequently, this commit does not authorize autonomous motion and does not
@@ -178,7 +178,7 @@ stale/frozen/reversed/jump feedback, communication and command timeouts, E-stop,
 owner transitions, restart with no stale command, saturation, anti-windup,
 steering-alignment gating, commissioning inhibition and diagnostic completeness.
 
-Physical proof still required: measured track width; fresh M1–M4 encoder counts;
+Physical proof still required: fresh M1–M4 encoder counts;
 M4 repair; counts/revolution after motor replacements; polarity; lifted direction;
 low-speed response; stopping distance; E-stop; sustained forward/reverse; turning;
 reboot recovery; and low-battery behavior.
