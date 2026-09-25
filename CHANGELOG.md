@@ -1,5 +1,12 @@
 # Changelog
 
+- 2026-09-25: After explicit operator approval, activated the evidence-backed
+  three-encoder navigation policy: M1 rear-left, M2 rear-right and M4
+  front-right are selected; weak M3 front-left remains raw diagnostic data.
+  Navigation feedback is speed-degraded and fails closed if any additional
+  selected channel becomes invalid. This does not enable closed-loop PID and
+  does not change the saved steering calibration.
+
 - 2026-09-25: Completed the available-space turn-feedback gate. A read-only
   eight-sector LiDAR snapshot measured front 1.19 m, left 0.74 m, front-left
   0.81 m and rear-left 0.63 m minimum; the right side was correctly rejected

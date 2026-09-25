@@ -1,8 +1,9 @@
 # Physical channels: M1 rear-left, M2 rear-right, M3 front-left, M4 front-right.
-# Recorded ground runs show M3 is currently the weak channel while M1/M2/M4
-# remain responsive. Keep autonomy locked until the operator explicitly
-# approves the proposed M3 exclusion after reviewing the limited turn evidence.
-excluded_encoders: []
-# Three encoders are supported, but activation requires explicit approval.
-navigation_validated: false
+# Repeated ground runs show M3 is currently the weak channel while M1/M2/M4
+# remain responsive. The operator explicitly approved the M3 exclusion on
+# 2026-09-25; raw M3 remains visible for diagnostics only.
+excluded_encoders: [3]
+# Granted after low-speed forward/reverse distance, stopping and turn-aware
+# ground validation. PID remains separately disabled and uncommissioned.
+navigation_validated: true
 packet_timeout_s: 1.0
