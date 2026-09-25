@@ -25,6 +25,10 @@ class CommissioningChannelSourceTest(unittest.TestCase):
         self.assertIn('"/atlas/commission/disarm"', self.test)
         self.assertIn('"/cmd_vel_commission"', self.test)
         self.assertIn("node.disarm()", self.test)
+        self.assertIn("if not self.armed:", self.test)
+        self.assertIn(
+            "any(value is None for value in self.encoder_counts)", self.test
+        )
 
     def test_every_safety_intervention_revokes_the_lease(self):
         self.assertIn("self.commission_until = 0.0", self.mux)

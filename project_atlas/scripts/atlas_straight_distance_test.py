@@ -2,6 +2,7 @@
 """Bounded straight-distance commissioning test with a LiDAR stop guard."""
 
 import argparse
+import json
 import math
 import time
 
@@ -11,13 +12,14 @@ from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Int32, String
 from std_srvs.srv import Trigger
 
 from atlas_scan_geometry import ray_in_base_sector
 from atlas_straight_distance_core import (
     IncrementalPlanarDistance,
     conservative_progress,
-    forward_clearance_progress,
+    corridor_clearance_progress,
     robust_corridor_range,
 )
 
@@ -58,13 +60,45 @@ class StraightTest(Node):
         self.cycle_start_distance_m = 0.0
         self.active_pulse_s = pulse_on_s
         self.result = "WAITING"
+        self.encoder_counts = [None, None, None, None]
+        self.encoder_start_counts = None
+        self.encoder_health = {}
+        self.armed = False
         self.pub = self.create_publisher(Twist, "/cmd_vel_commission", 10)
         self.arm_client = self.create_client(Trigger, "/atlas/commission/arm")
         self.disarm_client = self.create_client(Trigger, "/atlas/commission/disarm")
         self.create_subscription(Odometry, "/yahboom/odom", self.on_wheel_odom, 20)
         self.create_subscription(Odometry, "/lidar/odom", self.on_lidar_odom, 20)
         self.create_subscription(LaserScan, "/scan", self.on_scan, qos_profile_sensor_data)
+        for index in range(4):
+            self.create_subscription(
+                Int32,
+                f"/yahboom/encoder/m{index + 1}",
+                lambda msg, i=index: self.on_encoder(i, msg),
+                20,
+            )
+        self.create_subscription(
+            String, "/atlas/encoder_health", self.on_encoder_health, 20
+        )
         self.create_timer(0.05, self.tick)
+
+    def on_encoder(self, index: int, msg: Int32) -> None:
+        self.encoder_counts[index] = int(msg.data)
+
+    def on_encoder_health(self, msg: String) -> None:
+        try:
+            value = json.loads(msg.data)
+            self.encoder_health = value if isinstance(value, dict) else {}
+        except (TypeError, ValueError, json.JSONDecodeError):
+            self.encoder_health = {}
+
+    def encoder_deltas(self) -> list[int | None]:
+        if self.encoder_start_counts is None:
+            return [None, None, None, None]
+        return [
+            None if current is None or start is None else current - start
+            for start, current in zip(self.encoder_start_counts, self.encoder_counts)
+        ]
 
     def arm(self) -> tuple[bool, str]:
         if not self.arm_client.wait_for_service(timeout_sec=3.0):
@@ -74,9 +108,11 @@ class StraightTest(Node):
         response = future.result()
         if response is None:
             return False, "commissioning arm request timed out"
-        return bool(response.success), str(response.message)
+        self.armed = bool(response.success)
+        return self.armed, str(response.message)
 
     def disarm(self) -> None:
+        self.armed = False
         if not self.disarm_client.wait_for_service(timeout_sec=0.5):
             return
         future = self.disarm_client.call_async(Trigger.Request())
@@ -124,9 +160,7 @@ class StraightTest(Node):
         )
 
     def clearance_distance(self) -> float:
-        if self.speed < 0.0:
-            return 0.0
-        return forward_clearance_progress(
+        return corridor_clearance_progress(
             self.start_corridor_range_m, self.corridor_range_m
         )
 
@@ -137,6 +171,8 @@ class StraightTest(Node):
 
     def tick(self) -> None:
         now = time.monotonic()
+        if not self.armed:
+            return
         if self.result != "WAITING" and self.result != "RUNNING":
             self.pub.publish(Twist())
             return
@@ -144,6 +180,9 @@ class StraightTest(Node):
             self.wheel_start_xy is None
             or self.lidar_distance.previous is None
             or self.scan_time == 0.0
+            or any(value is None for value in self.encoder_counts)
+            or str(self.encoder_health.get("state", "MISSING")).upper()
+            not in ("READY", "HEALTHY", "DEGRADED")
         ):
             return
         if self.started == 0.0:
@@ -153,6 +192,7 @@ class StraightTest(Node):
             self.phase_started = now
             self.start_clearance_m = self.clearance_m
             self.start_corridor_range_m = self.corridor_range_m
+            self.encoder_start_counts = list(self.encoder_counts)
             self.cycle_start_distance_m = self.control_distance()
             direction = "forward" if self.speed >= 0.0 else "reverse"
             print(
@@ -170,6 +210,13 @@ class StraightTest(Node):
                 f"wheel={now - self.wheel_odom_time:.3f}s_"
                 f"lidar={now - self.lidar_odom_time:.3f}s_"
                 f"scan={now - self.scan_time:.3f}s"
+            )
+        elif str(self.encoder_health.get("state", "MISSING")).upper() in (
+            "CRITICAL", "INVALID", "MISSING", "QUALIFYING"
+        ):
+            self.stop(
+                "STOP_ENCODER_"
+                + str(self.encoder_health.get("state", "MISSING")).upper()
             )
         elif self.clearance_m < 0.55:
             self.stop(f"STOP_LIDAR_{self.clearance_m:.3f}M")
@@ -248,7 +295,10 @@ def main() -> None:
             f"wheel_distance={node.wheel_distance():.3f}m "
             f"clearance_start={node.start_clearance_m:.3f}m "
             f"clearance_end={node.clearance_m:.3f}m "
-            f"lidar_rejected={node.lidar_distance.rejected_updates}",
+            f"lidar_rejected={node.lidar_distance.rejected_updates} "
+            f"encoder_deltas={node.encoder_deltas()} "
+            f"encoder_state={node.encoder_health.get('state', 'MISSING')} "
+            f"consensus={node.encoder_health.get('consensus_state', 'MISSING')}",
             flush=True,
         )
     finally:

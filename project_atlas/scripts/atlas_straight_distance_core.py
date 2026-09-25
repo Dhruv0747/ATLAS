@@ -15,11 +15,15 @@ def robust_corridor_range(ranges_m: list[float]) -> float:
     return float(statistics.median(valid))
 
 
-def forward_clearance_progress(start_m: float, current_m: float) -> float:
-    """Infer forward travel from a stable LiDAR corridor range."""
+def corridor_clearance_progress(start_m: float, current_m: float) -> float:
+    """Infer travel toward the selected front or rear LiDAR corridor."""
     if not math.isfinite(start_m) or not math.isfinite(current_m):
         return 0.0
     return max(0.0, start_m - current_m)
+
+
+# Compatibility name used by recorded commissioning analysis.
+forward_clearance_progress = corridor_clearance_progress
 
 
 def conservative_progress(lidar_odom_m: float, clearance_progress_m: float) -> float:

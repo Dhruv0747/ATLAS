@@ -1,5 +1,25 @@
 # Changelog
 
+- 2026-09-25: Extended the fail-closed straight-distance commissioning harness
+  to support both forward and reverse LiDAR corridor progress, wait for a
+  successful commissioning arm plus initial encoder/health samples before
+  starting its timer, and report raw M1-M4 deltas with encoder consensus state.
+  Six distance-core tests, three commissioning source tests and Python
+  compilation passed locally and on the Jetson. Ground validation produced a
+  safe reverse `PASS_TARGET_SETTLED` (4.8 cm LiDAR odometry, 2.8 cm rear
+  corridor change, all four raw channels changed, encoder state `READY`). A
+  subsequent forward request stopped on its bounded timeout with 14.4 cm
+  corridor progress; the operator confirmed the physical forward and reverse
+  distances were correct, while wheel odometry continued to under-report.
+  M3 counted only 55 ticks versus approximately 491/494/668 on M1/M2/M4, so
+  the remaining navigation gate is still three-of-four ground validation, not
+  unconditional four-wheel trust. A full Jetson reboot cleared accumulated
+  Fast DDS discovery failure: `/atlas_cmd_vel_mux` and both commissioning
+  services became discoverable again. After reboot the Yahboom base recovered
+  firmware 3.6 with a live encoder stream; 26,432 valid packets and 6,608
+  encoder packets were observed with one checksum error and no write errors.
+  ATLAS remained manual-only, stopped and commissioning-disarmed.
+
 - 2026-09-25: Corrected encoder-fault classification after the bounded ground
   tests. The Yahboom USB device remained exclusively owned and its packet
   stream recovered as `READY`; recorded failing intervals were a real

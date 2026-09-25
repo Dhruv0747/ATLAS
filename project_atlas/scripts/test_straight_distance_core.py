@@ -5,6 +5,7 @@ import unittest
 
 from atlas_straight_distance_core import (
     IncrementalPlanarDistance,
+    corridor_clearance_progress,
     conservative_progress,
     forward_clearance_progress,
     robust_corridor_range,
@@ -39,6 +40,9 @@ class IncrementalPlanarDistanceTest(unittest.TestCase):
         self.assertAlmostEqual(forward_clearance_progress(2.0, 1.73), 0.27)
         self.assertEqual(forward_clearance_progress(2.0, 2.1), 0.0)
         self.assertEqual(forward_clearance_progress(math.inf, 2.1), 0.0)
+
+    def test_same_corridor_progress_supports_rear_sector(self):
+        self.assertAlmostEqual(corridor_clearance_progress(1.50, 1.31), 0.19)
 
     def test_conservative_progress_uses_farther_measurement(self):
         self.assertAlmostEqual(conservative_progress(0.173, 0.284), 0.284)
