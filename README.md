@@ -10,6 +10,10 @@ instead of assuming a CH340 USB index that can change after reconnects. A
 supervised lifted check produced changing raw counts from M1–M4; this is useful
 hardware evidence but is not metric ground validation. M4 remains excluded and
 closed-loop/autonomous gates remain unchanged.
+Physical channel identity, forward encoder sign and retained CPR now have one
+validated source, `project_atlas/config/encoder_calibration.yaml`, consumed by
+both live Yahboom telemetry and the optional PID. Its numeric CPR values are
+unchanged and explicitly remain provisional after motor replacement.
 
 ### Closed-loop drive PID — implemented, safely disabled (2026-09-23)
 
@@ -21,6 +25,14 @@ open-loop operation: PID disabled, hardware/navigation uncommissioned, track
 width unset, zero gains and M4 encoder excluded. This is implementation and
 simulation coverage, not physical authorization. See the
 [architecture, tests, commissioning gates and rollback](docs/CLOSED_LOOP_DRIVE_PID.md).
+
+A new sole-owner lifted harness can request one bounded raw motor-channel pulse
+and record post-zero encoder evidence, but it is also default off and never
+authorizes PID. It requires independent physical-cutoff confirmation, fresh
+STOPPED/zero/link/stationary state, Jetson temperature below 80 C, and healthy
+fresh 4S BMS cells within 3.00–3.65 V and 0.10 V spread. The presently observed
+88 C Jetson and roughly 0.356 V cell spread are explicit blockers. See the same
+document for the dry-run client, exact stage gates, evidence, and safe release.
 
 ### Ultrasonic validity increment — installed; stationary follow-up open (2026-09-20)
 
@@ -90,8 +102,10 @@ test remains blocked by the existing encoder/autonomy ground-validation gate.
 Open `/commissioning` → **Sensor authority & fallback readiness** for configured
 sensor roles, live cached data age, evidence status and blocked capabilities.
 This reuses the existing cache/ledger: no new driver, fusion or control path.
-Camera VO is NOT AVAILABLE; IM10A corrected gyro Z is fused as the EKF yaw-rate
-source; magnetic heading remains excluded; M4 feedback remains excluded.
+Camera VO is NOT AVAILABLE; IM10A corrected gyro Z is configured as the EKF
+yaw-rate source but its authority is currently revoked pending revalidation
+after a stationary drift regression; magnetic heading remains excluded; M4
+feedback remains excluded.
 No alternate profile or automatic goal resumption is approved. See the
 [ordered remaining-work list, audit and safety boundary](docs/CAPABILITY_FALLBACK_WORK_PLAN_2026-09-20.md).
 
@@ -203,6 +217,13 @@ requirement, but this changed configuration needs measured distance, turn and
 stopping validation before `navigation_validated` may be enabled. Existing
 manual-only restrictions and remote stop remain in place. IM10A live EKF fusion
 has not been enabled by this change.
+
+On 2026-09-25, a fresh stationary bag measured a constant -0.00403 rad/s on
+the corrected IM10A topic and about -6.6 degrees of false yaw in 29 seconds.
+The saved bias is therefore disabled and no corrected candidate is published.
+Raw IM10A monitoring remains live. A repeat test with IM10A authority removed
+held EKF yaw at 0.0 degrees over 30 seconds; IM10A requires fresh stationary
+bias plus controlled bidirectional turn validation before fusion is restored.
 
 Fresh packet age is checked separately from unchanged counts at rest. M4 raw
 counts remain diagnostic and are labelled excluded in the dashboard. A fault

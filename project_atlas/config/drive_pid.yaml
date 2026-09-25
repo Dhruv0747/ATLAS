@@ -8,6 +8,9 @@ atlas_drive_pid:
   hardware_commissioned: false
   navigation_validated: false
   excluded_encoders: [4]
+  # Physical channel position, encoder sign and counts/revolution are loaded
+  # exclusively from this canonical file. Do not duplicate them below.
+  encoder_calibration_file: encoder_calibration.yaml
 
   geometry:
     wheelbase_m: 0.367       # measured wheel-centre front-to-rear spacing
@@ -43,16 +46,12 @@ atlas_drive_pid:
     low_pass_alpha: 0.25
     feedback_timeout_s: 0.30
 
-  # Physical controller map verified 2026-09-17/21:
-  # M1 rear-left, M2 rear-right, M3 front-left, M4 front-right.
-  # Existing counts/revolution predate final all-motor replacement and must be
-  # recommissioned. Zero gains prevent accidental untuned closed-loop output.
+  # Output polarity and controller tuning remain PID-specific. Physical wheel
+  # identity and encoder calibration come from encoder_calibration.yaml.
+  # Zero gains prevent accidental untuned closed-loop output.
   wheels:
     m1: &wheel_m1
-      position: rear_left
-      encoder_sign: -1.0
-      output_sign: -1.0
-      counts_per_revolution: 4048.7
+      output_sign: 1.0
       pid: &pid_defaults
         kp: 0.0
         ki: 0.0
@@ -65,20 +64,12 @@ atlas_drive_pid:
         slew_per_s: 80.0
         target_deadband: 0.01
     m2:
-      position: rear_right
-      encoder_sign: 1.0
-      output_sign: 1.0
-      counts_per_revolution: 3300.6
+      output_sign: -1.0
       pid: *pid_defaults
     m3:
-      position: front_left
-      encoder_sign: 1.0
-      output_sign: -1.0
-      counts_per_revolution: 4080.1
+      output_sign: 1.0
       pid: *pid_defaults
     m4:
-      position: front_right
-      encoder_sign: 1.0       # UNVALIDATED: M4 currently reports zero counts
-      output_sign: 1.0
-      counts_per_revolution: 2697.8
+      # Physical forward was reverified after motor replacement: raw negative.
+      output_sign: -1.0
       pid: *pid_defaults

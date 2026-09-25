@@ -11,9 +11,10 @@ sys.path.insert(0,str(SCRIPTS))
 from atlas_commissioning import Console, configuration, distance_result, fresh, hardware_check, imu_result
 
 class CommissioningTests(unittest.TestCase):
-    def test_configuration_uses_driver_not_obsolete_yaml(self):
+    @unittest.skipUnless(importlib.util.find_spec('yaml'), 'PyYAML is required')
+    def test_configuration_uses_canonical_encoder_yaml(self):
         c=configuration(SCRIPTS.parent)
-        self.assertEqual(c['motor_locations'],['back_left','back_right','front_left','front_right'])
+        self.assertEqual(c['motor_locations'],['rear_left','rear_right','front_left','front_right'])
         self.assertEqual(c['steering']['front']['servo_id'],2)
         self.assertEqual(c['steering']['rear']['servo_id'],1)
         self.assertFalse(c['actuator_commissioning_enabled'])

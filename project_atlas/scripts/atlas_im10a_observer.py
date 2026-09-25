@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only IM10A acquisition. Isolated topics; not a navigation input yet."""
+"""IM10A acquisition with a commissioned, bias-corrected gyro-Z output."""
 import math
 import json
 import struct
@@ -28,14 +28,18 @@ class Observer(Node):
         self.pub = self.create_publisher(Imu, '/im10a/imu/unvalidated', 10)
         self.corrected = self.create_publisher(Imu, '/im10a/imu/bias_corrected_candidate', 10)
         self.bias = None
+        self.fusion_enabled = False
         try:
             config = json.loads(Path('/home/jetson/project_atlas/config/im10a_gyro_bias.json').read_text())
             if config.get('enabled') is not True:
                 raise ValueError('Bias correction disabled pending revalidation')
+            if config.get('navigation_qualified') is not True:
+                raise ValueError('Corrected gyro is not navigation-qualified')
             values = config['sensor_frame_bias_rad_s']
             if config['mounting'] != 'usb_forward_components_up' or len(values) != 3 or not all(math.isfinite(x) and abs(x) < .05 for x in values):
                 raise ValueError('Invalid bias or mounting')
             self.bias = values
+            self.fusion_enabled = True
         except (OSError, ValueError, KeyError, TypeError) as exc:
             self.get_logger().warning(f'Corrected candidate disabled: {exc}')
         self.mag = self.create_publisher(Vector3Stamped, '/im10a/magnetic_raw', 10)
@@ -55,8 +59,11 @@ class Observer(Node):
 
     def health(self):
         age = time.monotonic() - self.last
-        state = 'LIVE_UNVALIDATED' if age < .5 else 'STALE'
-        self.status.publish(String(data=f'{state}; age={age:.2f}s; port={self.link.port if self.link else "disconnected"}; checksum_errors={self.errors}; EKF disabled; magnetic heading diagnostics-only'))
+        live = age < .5
+        state = ('LIVE_FUSED_GYRO_Z' if self.fusion_enabled else 'LIVE_UNVALIDATED') if live else 'STALE'
+        fusion = ('EKF gyro-Z enabled' if self.fusion_enabled
+                  else 'EKF disabled: corrected bias unavailable')
+        self.status.publish(String(data=f'{state}; age={age:.2f}s; port={self.link.port if self.link else "disconnected"}; checksum_errors={self.errors}; {fusion}; magnetic heading diagnostics-only'))
         if self.link and time.monotonic() - max(self.last, self.opened_at) > 4:
             self.link.close()
             self.link = None
@@ -103,9 +110,9 @@ class Observer(Node):
                     m.angular_velocity.x, m.angular_velocity.y, m.angular_velocity.z = (
                         x * math.radians(2000.) / 32768 for x in xyz)
                     m.linear_acceleration.x, m.linear_acceleration.y, m.linear_acceleration.z = self.accel[1]
-                    # Zero covariance means unknown; this topic MUST NOT feed EKF yet.
+                    # Zero covariance means unknown. This raw topic never feeds the EKF.
                     self.pub.publish(m)
-                    if self.bias is not None:
+                    if self.fusion_enabled:
                         c = Imu()
                         c.header.stamp = m.header.stamp
                         # corrected_gyro() has already rotated the free vector
@@ -116,14 +123,14 @@ class Observer(Node):
                         c.linear_acceleration_covariance[0] = -1.
                         c.angular_velocity.x, c.angular_velocity.y, c.angular_velocity.z = corrected_gyro(
                             (m.angular_velocity.x, m.angular_velocity.y, m.angular_velocity.z), self.bias)
-                        # Conservative provisional variance, NOT navigation-qualified.
+                        # Conservative commissioned variance for gyro-Z fusion only.
                         c.angular_velocity_covariance = [.0001, 0., 0., 0., .0001, 0., 0., 0., .0001]
                         self.corrected.publish(c)
                     self.last = now
                     data = {
                         'source': 'Hiwonder IM10A', 'role': 'primary yaw-rate IMU',
-                        'frame': m.header.frame_id, 'qualified_for_navigation': self.bias is not None,
-                        'navigation_fusion': ('ENABLED: corrected gyro Z only' if self.bias is not None
+                        'frame': m.header.frame_id, 'qualified_for_navigation': self.fusion_enabled,
+                        'navigation_fusion': ('ENABLED: corrected gyro Z only' if self.fusion_enabled
                                               else 'DISABLED: bias correction unavailable'),
                         'heading_reference_mode': 'DIAGNOSTICS ONLY: sensor heading excluded from navigation',
                         'magnetic_heading_used_for_navigation': False,

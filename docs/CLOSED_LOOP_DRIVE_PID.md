@@ -33,6 +33,10 @@ manual, Web, Foxglove, Nav2, recovery, watchdog and emergency-stop arbitration.
 - M1 rear-left, M2 rear-right, M3 front-left, M4 front-right.
 - Wheelbase: 0.367 m; wheel diameter: 0.125 m.
 - Track width is not yet measured and must not be guessed.
+- `config/encoder_calibration.yaml` is the single validated source for physical
+  channel position, encoder-forward sign and retained counts/revolution. Both
+  `yahboom_base.py` telemetry conversion and the PID loader consume it;
+  `drive_pid.yaml` contains only PID-specific output polarity and tuning.
 - Per-wheel speed is derived by the existing base driver from encoder deltas.
 - `/odom` angular Z is the authoritative fused yaw-rate feedback. The existing
   EKF uses corrected IM10A gyro Z; magnetic heading remains excluded.
@@ -76,6 +80,57 @@ inhibits traction.
 The Web dashboard shows a DRIVE PID health item and touch/click detail view.
 
 ## Staged commissioning
+
+### Owner-integrated lifted raw-pulse harness
+
+The sole hardware owner now contains a separate, lease-bound commissioning
+adapter on `/atlas/drive_pid/lifted/request` and
+`/atlas/drive_pid/lifted/status`. It is source-only and **default off**:
+
+- `ATLAS_PID_LIFTED_RAW_ENABLED=1` is required for one process lifetime.
+- `ATLAS_PID_LIFTED_PHYSICAL_CUTOFF_READY=1` separately records the operator's
+  confirmation that a reachable physical motor-power cut-off is ready. This is
+  not a safety-rated or electrically sensed interlock.
+- Production `enabled`, `hardware_commissioned`, and `navigation_validated`
+  must all remain false. The owner rejects every PID pulse mode regardless of
+  calibration confidence; only one raw M1–M4 channel may receive PWM.
+- A pulse is limited to `abs(PWM) <= 50` and 0.20–0.50 seconds, with a 0.50
+  second heartbeat lease and at least one second of zero-output rest.
+- Entry, arm, pulse, and release require fresh zero commands, STOPPED ownership,
+  a live controller/encoder packet, and at least 0.50 seconds with all measured
+  wheel speeds at or below 0.02 m/s. Release additionally requires a fresh,
+  re-latched software stop.
+- Missing thermal or battery data fails closed. Jetson temperature must be
+  below 80 C; coherent Daly JSON must be at most 10 seconds old and healthy;
+  all four 4S LiFePO4 cells must be 3.00–3.65 V with spread at most 0.10 V.
+- Remote B, voice stop, nonzero `/cmd_vel`, ownership change, stale telemetry,
+  lease expiry, service shutdown, or any rejected active request synchronously
+  requests `(0,0,0,0)` and latches `ABORTED`. A process or controller failure
+  can still leave PWM latched, which is why the physical cut-off is mandatory.
+
+The client is dry-run by default and publishes no ROS message:
+
+```bash
+python3 scripts/atlas_drive_pid_lifted_client.py \
+  --wheel 1 --pwm 20 --duration 0.20
+```
+
+An executing invocation may request exactly one pulse and requires the exact
+phrase `LIFTED CLEAR PHYSICAL POWER CUT READY`. It keeps a private 0600 runtime
+session record for crash recovery and writes JSONL evidence. The owner reports
+only a SHA-256 session fingerprint, never the session secret. After zero is
+written, the next fresh controller packet produces exactly one observation:
+`MATCH`, `REVERSED`, `NO_DELTA`, or `UNAVAILABLE`. Every result remains review
+evidence only; no result updates encoder confidence, PID gains, or a production
+gate automatically.
+
+Do not execute while the observed Jetson temperature is 88 C or while cells are
+3.341/3.695/3.697/3.342 V (about 0.356 V spread): both conditions violate the
+above bounds. Cool the Jetson and inspect/balance the pack before reconsidering
+any lifted pulse. No ground test is authorized by this harness.
+
+The older commissioning recorder below remains non-actuating. It records the
+review decisions required before any later PID or ground stage.
 
 The commissioning recorder never commands a motor:
 
@@ -143,7 +198,7 @@ all PID commissioning gates closed until the recorded metric stages pass.
 | Yaw correction | Nav2/high-level steering only | Bounded EKF-yaw-rate correction implemented, zero-gain and disabled |
 | Fault handling | Existing mux, stop latch and watchdogs | Existing safety retained plus controller-local latched fault reasons |
 | Diagnostics | Encoder health/count/speed | Per-wheel target/measured/error/P/I/D/FF/output/age plus yaw/state |
-| Offline result | Not applicable | 20 controller tests pass; 34 relevant existing safety/dashboard tests pass; dashboard JS syntax passes |
+| Offline result | Not applicable | 20 controller tests and 58 lifted core/owner/client tests pass; broader safety suites remain green apart from unavailable optional Windows dependencies |
 | Physical result | Existing historical evidence only | Not run and not claimed; M4/geometry/tuning gates remain open |
 
 The Windows development Python lacks PyYAML, so its repository-default test uses

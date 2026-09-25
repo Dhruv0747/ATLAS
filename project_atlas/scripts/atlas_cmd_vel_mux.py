@@ -104,6 +104,8 @@ class AtlasCmdVelMux(Node):
         )
         self._remote_held_yaw = 0.0
         self._remote_last_steer_rx = 0.0
+        self._remote_raw_steer = 0.0
+        self._remote_raw_steer_rx = 0.0
         self.auto_front_stop_m = float(
             self.get_parameter("auto_front_stop_m").value
         )
@@ -270,8 +272,17 @@ class AtlasCmdVelMux(Node):
         self.hold_remote_stop()
 
     def on_stop_joy(self, msg):
+        now = time.monotonic()
+        # Keep the physical stick state independent of teleop_twist_joy.  The
+        # commissioned controller occasionally emitted a zero Twist for one
+        # or more packets even while axis 3 remained held.  Without this
+        # continuity check the base driver interpreted that gap as a request
+        # to return both steering axles to centre, especially in reverse.
+        if len(msg.axes) > 3:
+            self._remote_raw_steer = float(msg.axes[3])
+            self._remote_raw_steer_rx = now
         was_latched = self.remote_stop.latched
-        self.remote_stop.update(msg.axes, msg.buttons, time.monotonic())
+        self.remote_stop.update(msg.axes, msg.buttons, now)
         if self.remote_stop.latched or was_latched:
             # Also flush at release: no pre-stop command can be replayed.
             self.hold_remote_stop()
@@ -324,7 +335,15 @@ class AtlasCmdVelMux(Node):
             elif (
                 abs(command.linear.x) >= self.remote_linear_deadband
                 and self._remote_held_yaw != 0.0
-                and now - self._remote_last_steer_rx < self.remote_steer_hold_s
+                and (
+                    (
+                        now - self._remote_raw_steer_rx < 0.25
+                        and abs(self._remote_raw_steer)
+                        >= self.remote_angular_deadband
+                    )
+                    or now - self._remote_last_steer_rx
+                    < self.remote_steer_hold_s
+                )
             ):
                 command.angular.z = self._remote_held_yaw
             else:

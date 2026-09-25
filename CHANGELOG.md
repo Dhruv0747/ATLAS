@@ -1,5 +1,26 @@
 # Changelog
 
+- 2026-09-25: Added a default-off, sole-owner lifted drive harness for one
+  bounded raw motor-channel pulse (`abs(PWM) <= 50`, 0.20–0.50 s) with a
+  0.50-second heartbeat lease, automatic zero/rest, authenticated abort/exit,
+  live per-channel output tracking and post-zero encoder observations. PID
+  pulse modes remain owner-rejected and all production PID gates remain false.
+  Entry and runtime now fail closed on stale/nonzero ownership state, missing
+  stationary dwell, controller/encoder loss, Jetson temperature at or above
+  80 C, stale/unhealthy Daly BMS data, cells outside 3.00–3.65 V or spread over
+  0.10 V. Current 88 C / ~0.356 V-spread evidence therefore blocks physical
+  activation. Added a dry-run-by-default client, crash-release protocol and
+  focused pure/owner/client tests; no deployment or physical pulse was run.
+
+- 2026-09-25: Unified encoder channel position, forward sign and retained
+  counts/revolution in `config/encoder_calibration.yaml`. Corrected its stale
+  physical labels to M1 rear-left, M2 rear-right, M3 front-left and M4
+  front-right. Yahboom telemetry conversion and the optional drive PID now
+  consume the same validated source; PID-specific output polarity and tuning
+  remain in `drive_pid.yaml`. Numeric calibration is unchanged and marked for
+  post-motor-replacement revalidation. PID/hardware/navigation gates remain
+  false, M4 remains excluded, track width remains unset and gains remain zero.
+
 - 2026-09-25: Improved the live Web diagnostics without changing any motor,
   navigation or safety authority. Fresh-but-offline BME680/AMG8833 reports no
   longer make the shared I2C panel look healthy; radar targets now show
@@ -1408,3 +1429,12 @@ Historical first attempt; the later successful installation is recorded above.
   50 degrees, and extended the visually confirmed rear-right endpoint to 59
   degrees. Manual steering now uses smooth direct wheel-angle control while
   Nav2 retains car-like kinematics; odometry uses the corrected physical sign.
+- Corrected stale IM10A status/dashboard wording that still reported EKF fusion
+  as disabled. Runtime inspection confirms the EKF subscribes to the
+  bias-corrected candidate and fuses gyro-Z only; magnetic/Euler heading remains
+  diagnostics-only.
+- Revoked IM10A EKF authority after a fresh stationary bag measured a constant
+  -0.00403 rad/s corrected yaw rate, causing about -6.6 degrees of false turn in
+  29 seconds. Raw monitoring remains live; the corrected candidate is now
+  fail-closed until a fresh bias and dynamic turn revalidation explicitly set
+  both `enabled` and `navigation_qualified` true.

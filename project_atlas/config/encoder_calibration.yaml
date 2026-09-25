@@ -1,7 +1,9 @@
 # Project ATLAS encoder calibration
-# Wheels were lifted. Physical mapping was visually verified on 2026-08-04.
-# Commissioned encoder counts per wheel revolution. These values are the
-# single source shared with yahboom_base.py after measured ground validation.
+# Physical controller mapping was reverified on 2026-09-17/21.
+# This is the single source for physical position, forward sign and retained
+# counts/revolution used by both yahboom_base.py and drive_pid.yaml. The numeric
+# CPR values predate final motor replacement and require per-wheel ground
+# revalidation; retaining them here is not a renewed commissioning claim.
 encoder_calibration:
   wheelbase_m: 0.367
   wheel_diameter_m: 0.125
@@ -9,22 +11,28 @@ encoder_calibration:
   wheel_source: https://www.amrobotics.in/products/125mm-heavy-duty-high-density-rc-rubber-wheel-with-flange-for-6mm-shaft-motors
   motors:
     m1:
-      position: front_right
+      position: rear_left
+      encoder_sign: -1.0
       counts_per_revolution: 4048.7
-      confidence: commissioned
-      method: measured_ground_calibration
+      confidence: revalidation_required
+      method: retained_pre_motor_replacement_ground_calibration
     m2:
-      position: front_left
+      position: rear_right
+      encoder_sign: 1.0
       counts_per_revolution: 3300.6
-      confidence: commissioned
-      method: measured_ground_calibration
+      confidence: revalidation_required
+      method: retained_pre_motor_replacement_ground_calibration
     m3:
-      position: back_right
+      position: front_left
+      encoder_sign: 1.0
       counts_per_revolution: 4080.1
-      confidence: commissioned
-      method: measured_ground_calibration
+      confidence: revalidation_required
+      method: retained_pre_motor_replacement_ground_calibration
     m4:
-      position: back_left
+      position: front_right
+      # Forward pulses decreased the raw count (-28, -33); reverse feedback is
+      # still unreliable, so M4 remains excluded despite this corrected sign.
+      encoder_sign: -1.0
       counts_per_revolution: 2697.8
-      confidence: commissioned
-      method: measured_ground_calibration
+      confidence: unvalidated_excluded
+      method: lifted_forward_sign_verified_reverse_feedback_faulty

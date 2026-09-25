@@ -15,6 +15,10 @@ import math
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from atlas_encoder_calibration import (
+    EXPECTED_POSITIONS, EncoderCalibration, load_encoder_calibration,
+)
+
 WHEEL_NAMES = ("M1_REAR_LEFT", "M2_REAR_RIGHT", "M3_FRONT_LEFT", "M4_FRONT_RIGHT")
 
 
@@ -456,18 +460,49 @@ def _sign(value: float, name: str) -> float:
     return value
 
 
-def load_drive_config(path: Path | str) -> DriveConfig:
+def load_drive_config(
+    path: Path | str,
+    *,
+    encoder_calibration: Optional[EncoderCalibration] = None,
+) -> DriveConfig:
     import yaml
-    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    config_path = Path(path)
+    raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     root = raw.get("atlas_drive_pid", {})
+    if encoder_calibration is None:
+        calibration_ref = root.get("encoder_calibration_file")
+        if not isinstance(calibration_ref, str) or not calibration_ref.strip():
+            raise ValueError("encoder_calibration_file must name the canonical YAML file")
+        calibration_path = Path(calibration_ref)
+        if not calibration_path.is_absolute():
+            calibration_path = config_path.parent / calibration_path
+        encoder_calibration = load_encoder_calibration(calibration_path)
     geometry_raw = root.get("geometry", {})
     track = geometry_raw.get("track_width_m")
     if track is not None and not _finite(track):
         raise ValueError("track_width_m must be a measured number or null")
+    wheelbase_m = _number(geometry_raw, "wheelbase_m", positive=True)
+    wheel_diameter_m = _number(
+        geometry_raw, "wheel_diameter_m", positive=True
+    )
+    if not math.isclose(
+        wheelbase_m, encoder_calibration.wheelbase_m,
+        rel_tol=0.0, abs_tol=1.0e-9,
+    ):
+        raise ValueError(
+            "geometry.wheelbase_m must match canonical encoder calibration"
+        )
+    if not math.isclose(
+        wheel_diameter_m, encoder_calibration.wheel_diameter_m,
+        rel_tol=0.0, abs_tol=1.0e-9,
+    ):
+        raise ValueError(
+            "geometry.wheel_diameter_m must match canonical encoder calibration"
+        )
     geometry = GeometryConfig(
-        _number(geometry_raw, "wheelbase_m", positive=True),
+        wheelbase_m,
         None if track is None else float(track),
-        _number(geometry_raw, "wheel_diameter_m", positive=True),
+        wheel_diameter_m,
         _number(geometry_raw, "max_wheel_speed_mps", positive=True),
         _number(geometry_raw, "max_steering_deg", positive=True),
     )
@@ -500,6 +535,7 @@ def load_drive_config(path: Path | str) -> DriveConfig:
     wheels = []
     for index, canonical in enumerate(WHEEL_NAMES, 1):
         item = wheels_raw.get(f"m{index}", {})
+        encoder = encoder_calibration.motors[index - 1]
         pid_raw = item.get("pid", {})
         pid = PIDConfig(
             _number(pid_raw, "kp"), _number(pid_raw, "ki"), _number(pid_raw, "kd"),
@@ -510,15 +546,13 @@ def load_drive_config(path: Path | str) -> DriveConfig:
             _number(pid_raw, "target_deadband"),
         )
         wheels.append(WheelConfig(
-            canonical, str(item.get("position", "")),
-            _sign(_number(item, "encoder_sign"), f"m{index}.encoder_sign"),
+            canonical, encoder.position, encoder.encoder_sign,
             _sign(_number(item, "output_sign"), f"m{index}.output_sign"),
-            _number(item, "counts_per_revolution", positive=True), pid,
+            encoder.counts_per_revolution, pid,
         ))
         _unit_interval(pid.derivative_alpha, f"m{index}.pid.derivative_alpha")
-    expected_positions = ("rear_left", "rear_right", "front_left", "front_right")
-    if tuple(wheel.position for wheel in wheels) != expected_positions:
-        raise ValueError(f"wheel positions must be {expected_positions}")
+    if tuple(wheel.position for wheel in wheels) != EXPECTED_POSITIONS:
+        raise ValueError(f"wheel positions must be {EXPECTED_POSITIONS}")
     excluded = tuple(sorted(int(value) for value in root.get("excluded_encoders", [])))
     if any(value not in (1, 2, 3, 4) for value in excluded):
         raise ValueError("excluded_encoders must contain only M1..M4 numbers")

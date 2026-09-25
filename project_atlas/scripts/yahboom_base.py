@@ -4,6 +4,7 @@ Yahboom ROS robot control board driver -- ROS2 Jazzy.
 Subscribes : /cmd_vel
 Publishes  : battery, board motion, board IMU, encoder, and Yahboom odom topics.
 """
+import hashlib
 import math
 import os
 import json
@@ -21,7 +22,10 @@ from geometry_msgs.msg import TransformStamped, Twist, Vector3, Vector3Stamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu, Joy
 from std_msgs.msg import Float32, Int32, String, Empty
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import (
+    DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy,
+    qos_profile_sensor_data,
+)
 from tf2_ros import TransformBroadcaster
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -32,7 +36,22 @@ from atlas_encoder_selection import (
     ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator,
     feedback_state, validate_selection,
 )
+from atlas_encoder_calibration import load_encoder_calibration
 from atlas_closed_loop_control import AtlasClosedLoopController, load_drive_config
+from atlas_drive_pid_lifted import (
+    MAX_BMS_AGE_S,
+    MAX_BMS_CELL_SPREAD_V,
+    MAX_BMS_CELL_V,
+    MAX_JETSON_TEMP_C,
+    MAX_RAW_PWM,
+    MAX_STATIONARY_SPEED_MPS,
+    MIN_BMS_CELL_V,
+    CommissioningRejected,
+    LiftedDriveCommission,
+    LiftedState,
+    PulseMode,
+    SafetySnapshot,
+)
 
 MAX_VX = 1.0
 MAX_WZ = 2.0
@@ -105,31 +124,49 @@ REAR_STEER_LEFT      = 134  # User-approved lifted left operating limit 2026-09-
 BAT_MIN_V = 10.5
 BAT_MAX_V = 12.6
 
-# Verified ATLAS wheel geometry and provisional per-channel calibration.
-# Physical controller order verified 2026-09-17: M1 RL, M2 RR, M3 FL, M4 FR.
-WHEEL_CIRCUMFERENCE_M = 0.392699
-WHEELBASE_M = 0.367
-# Ground calibration (2026-08-05): a nominal 0.0508 m odometry move covered
-# approximately 0.30 m physically, establishing a 5.91x distance correction.
-# Calibrated on the ground with the installed 125 mm wheels and final shafts.
-# A measured 0.20 m straight run is used independently for every channel;
-# the controller's four encoder channels have materially different scales.
-ENCODER_COUNTS_PER_REV = (4048.7, 3300.6, 4080.1, 2697.8)
-# Lifted forward signs verified for M1-M3, 2026-09-17. M4 encoder is faulty:
-# its retained sign is UNVALIDATED, not inferred from PWM. Metric calibration
-# above predates motor replacement and requires revalidation before driving.
-ENCODER_FORWARD_SIGN = (-1.0, 1.0, 1.0, 1.0)
 YAHBOOM_USB_ID = '/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0'
 
 
 def motor_outputs(left_pwm, right_pwm):
     """Physical-forward side commands to verified controller PWM channels."""
-    return (-left_pwm, right_pwm, -left_pwm, right_pwm)
+    # Physical direction was recommissioned after the 2026-09-25 motor work.
+    # Raw positive drives M1/M3 forward; raw negative drives M2/M4 forward.
+    # Keep positive ROS linear.x equal to physical rover-forward for every
+    # command source (remote, Nav2, web and recovery).
+    return (left_pwm, -right_pwm, left_pwm, -right_pwm)
 
 
 def _clamp_servo(value, endpoint_a, endpoint_b):
     lower, upper = sorted((float(endpoint_a), float(endpoint_b)))
     return max(lower, min(upper, float(value)))
+
+
+def opposite_steering_targets(steer_norm):
+    """Return front/rear servo targets for normal counter-phase 4WS.
+
+    The installed front and rear linkages now respond in the same physical
+    direction for the same endpoint selection.  Normal car-like four-wheel
+    steering therefore requires the rear axle to use the endpoint opposite
+    the front axle.  Keeping this conversion in one helper prevents remote,
+    Nav2 and stationary steering from silently acquiring different geometry.
+    """
+    steer_norm = max(-1.0, min(1.0, float(steer_norm)))
+    if steer_norm >= 0.0:
+        front = FRONT_STEER_CENTER + steer_norm * (
+            FRONT_STEER_RIGHT - FRONT_STEER_CENTER
+        )
+        rear = REAR_STEER_CENTER + steer_norm * (
+            REAR_STEER_LEFT - REAR_STEER_CENTER
+        )
+    else:
+        turn = -steer_norm
+        front = FRONT_STEER_CENTER + turn * (
+            FRONT_STEER_LEFT - FRONT_STEER_CENTER
+        )
+        rear = REAR_STEER_CENTER + turn * (
+            REAR_STEER_RIGHT - REAR_STEER_CENTER
+        )
+    return front, rear
 
 
 def resolve_yahboom_port():
@@ -169,6 +206,14 @@ YAHBOOM_IMU_CALIBRATION = Path(os.environ.get(
 DRIVE_PID_CONFIG = Path(os.environ.get(
     'ATLAS_DRIVE_PID_CONFIG',
     '/home/jetson/project_atlas/config/drive_pid.yaml',
+))
+ENCODER_CALIBRATION_CONFIG = Path(os.environ.get(
+    'ATLAS_ENCODER_CALIBRATION_CONFIG',
+    str(Path(__file__).resolve().parents[1] / 'config' / 'encoder_calibration.yaml'),
+))
+JETSON_TEMPERATURE_PATH = Path(os.environ.get(
+    'ATLAS_JETSON_TEMPERATURE_PATH',
+    '/sys/devices/virtual/thermal/thermal_zone0/temp',
 ))
 
 
@@ -244,6 +289,14 @@ class YahboomBase(Node):
         selection_path = Path(__file__).resolve().parent.parent / 'config' / 'encoder_selection.yaml'
         with selection_path.open(encoding='utf-8') as stream:
             self._excluded_encoders, self._encoder_navigation_validated, self._encoder_packet_timeout = validate_selection(yaml.safe_load(stream))
+        # Load the physical wheel identity, direction and scale before opening
+        # hardware. Bad or missing calibration must fail closed rather than
+        # silently falling back to stale source-code constants.
+        self._encoder_calibration = load_encoder_calibration(
+            ENCODER_CALIBRATION_CONFIG
+        )
+        self._encoder_positions = self._encoder_calibration.positions
+        self._wheelbase_m = self._encoder_calibration.wheelbase_m
         self._encoder_packet_stamp = 0.0
         self._encoder_packet_fresh = False
         self._encoder_delta_estimator = EncoderDeltaEstimator()
@@ -269,6 +322,7 @@ class YahboomBase(Node):
         self._last_cmd_time = 0.0
         self._boost_until = 0.0
         self._applied_pwm = 0
+        self._applied_motor_outputs = (0.0, 0.0, 0.0, 0.0)
         self._steering_cal = SteeringCommission(
             Path(__file__).resolve().parents[1] / 'config' / 'steering_calibration.json',
             {'front': {'center': FRONT_STEER_CENTER, 'left': FRONT_STEER_LEFT, 'right': FRONT_STEER_RIGHT},
@@ -313,7 +367,10 @@ class YahboomBase(Node):
         self._authoritative_yaw_time = 0.0
         self._drive_pid_error = ''
         try:
-            self._drive_pid_config = load_drive_config(DRIVE_PID_CONFIG)
+            self._drive_pid_config = load_drive_config(
+                DRIVE_PID_CONFIG,
+                encoder_calibration=self._encoder_calibration,
+            )
             self._drive_pid = AtlasClosedLoopController(self._drive_pid_config)
         except Exception as exc:
             # Closed-loop control must fail disabled without taking the proven
@@ -321,6 +378,42 @@ class YahboomBase(Node):
             self._drive_pid_config = None
             self._drive_pid = None
             self._drive_pid_error = f'configuration_error:{exc}'
+
+        # This source-only commissioning interface is deliberately off after
+        # install/restart.  Enabling it grants only short raw, single-channel
+        # pulses through this sole hardware owner; it never grants PID output.
+        self._lifted_raw_enabled = (
+            os.environ.get('ATLAS_PID_LIFTED_RAW_ENABLED', '0') == '1'
+        )
+        self._lifted_physical_cut_ready = (
+            os.environ.get('ATLAS_PID_LIFTED_PHYSICAL_CUTOFF_READY', '0') == '1'
+        )
+        # Only an explicit evidence-backed confidence value can open a review
+        # gate.  The current revalidation_required/unvalidated_excluded values
+        # therefore remain false; request payloads cannot alter these flags.
+        reviewed_wheels = tuple(
+            motor.confidence == 'pid_evidence_reviewed'
+            for motor in self._encoder_calibration.motors
+        )
+        self._lifted_commission = LiftedDriveCommission(
+            mapping_reviewed=all(reviewed_wheels),
+            single_wheel_reviewed=reviewed_wheels,
+        )
+        self._lifted_result = 'IDLE'
+        self._lifted_last_sequence_ack = -1
+        self._lifted_remote_b_stop = False
+        self._lifted_encoder_baseline = None
+        self._lifted_pulse_wheel = None
+        self._lifted_pulse_pwm = 0
+        self._lifted_expected_sign = None
+        self._lifted_pulse_observation = None
+        self._lifted_observation_pending = False
+        self._lifted_observation_zero_packet_stamp = 0.0
+        self._lifted_bms_ok = False
+        self._lifted_bms_at = 0.0
+        self._lifted_bms_cells = None
+        self._lifted_last_temperature_c = None
+        self._lifted_stationary_since = 0.0
 
         self.create_subscription(Twist, '/cmd_vel', self._on_cmd_vel, 10)
         self.create_subscription(
@@ -379,9 +472,23 @@ class YahboomBase(Node):
         self._pub_drive_pid = self.create_publisher(
             String, '/atlas/drive_pid/diagnostics', 10
         )
+        lifted_status_qos = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=20,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self._pub_lifted_status = self.create_publisher(
+            String, '/atlas/drive_pid/lifted/status', lifted_status_qos
+        )
         self.create_subscription(
             Empty, '/atlas/drive_pid/reset', self._on_drive_pid_reset, 10
         )
+        self.create_subscription(
+            String, '/atlas/drive_pid/lifted/request',
+            self._on_lifted_request, 10,
+        )
+        self.create_subscription(String, '/bms/json', self._on_lifted_bms, 10)
         wheel_names = WHEEL_NAMES
         self._wheel_rpm_pubs = [self.create_publisher(Float32, f'/yahboom/wheel/{name}/rpm', 10) for name in wheel_names]
         self._wheel_mps_pubs = [self.create_publisher(Float32, f'/yahboom/wheel/{name}/speed_mps', 10) for name in wheel_names]
@@ -399,7 +506,7 @@ class YahboomBase(Node):
         self._cal_status_pub = self.create_publisher(String, '/atlas/steering_calibration/status', 10)
         self.create_subscription(String, '/atlas/steering_calibration/request', self._cal_request, 10)
         self.create_subscription(String, '/atlas/control_policy', self._cal_policy, 10)
-        self.create_subscription(Empty, '/atlas/voice/stop', lambda _: self._cal_abort('Stop requested'), 10)
+        self.create_subscription(Empty, '/atlas/voice/stop', self._on_voice_stop, 10)
         self.create_subscription(Joy, '/joy', self._cal_joy, qos_profile_sensor_data)
 
         self.create_timer(0.1, self._motor_keepalive)
@@ -502,6 +609,460 @@ class YahboomBase(Node):
             self._cal_policy_time = time.monotonic()
         except (ValueError, AttributeError):
             self._cal_stop_latched = False
+            self._cal_policy_time = 0.0
+
+        if self._lifted_commission.locked:
+            self._service_lifted_commission()
+
+    def _write_motor_outputs(self, outputs):
+        """Perform the sole board motor write and retain the exact channels."""
+        if (
+            not isinstance(outputs, (tuple, list))
+            or len(outputs) != 4
+            or any(
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                for value in outputs
+            )
+        ):
+            raise ValueError('motor outputs must be four finite numbers')
+        values = tuple(int(round(float(value))) for value in outputs)
+        if any(abs(value) > MAX_PWM for value in values):
+            raise ValueError('motor output exceeds board limit')
+        self.bot.set_motor(*values)
+        self._applied_motor_outputs = values
+
+    def _force_motor_zero(self, reason):
+        """Synchronously request zero and preserve uncertainty on I/O failure."""
+        self._last_vx = self._last_vy = self._last_vz = 0.0
+        try:
+            self._write_motor_outputs((0, 0, 0, 0))
+            self._applied_pwm = 0
+            return True
+        except Exception as exc:
+            self._applied_pwm = max(
+                abs(float(value)) for value in self._applied_motor_outputs
+            )
+            self.get_logger().error(
+                f'FAILED TO ZERO MOTOR OUTPUTS ({reason}): {exc}'
+            )
+            return False
+
+    def _read_jetson_temperature_c(self):
+        """Read the live SoC thermal zone; any failure is an unsafe value."""
+        try:
+            value = float(JETSON_TEMPERATURE_PATH.read_text(encoding='utf-8').strip())
+            if abs(value) >= 1000.0:
+                value /= 1000.0
+            if math.isfinite(value):
+                self._lifted_last_temperature_c = value
+                return value
+        except (OSError, ValueError, TypeError):
+            pass
+        self._lifted_last_temperature_c = None
+        return float('nan')
+
+    def _on_lifted_bms(self, msg):
+        """Capture one coherent Daly snapshot rather than mixing topic ages."""
+        now = time.monotonic()
+        self._lifted_bms_at = now
+        self._lifted_bms_ok = False
+        self._lifted_bms_cells = None
+        try:
+            payload = json.loads(msg.data)
+            cells = payload.get('cells_v')
+            if (
+                not isinstance(payload, dict)
+                or payload.get('ok') is not True
+                or not isinstance(cells, list)
+                or len(cells) != 4
+            ):
+                raise ValueError('incomplete or unhealthy BMS snapshot')
+            values = tuple(float(value) for value in cells)
+            if not all(math.isfinite(value) for value in values):
+                raise ValueError('non-finite BMS cell voltage')
+            self._lifted_bms_cells = values
+            self._lifted_bms_ok = True
+        except (ValueError, TypeError, AttributeError):
+            pass
+        if self._lifted_commission.locked:
+            self._service_lifted_commission(now)
+
+    def _lifted_snapshot(self, now=None, **priority):
+        now = time.monotonic() if now is None else float(now)
+        policy_age = (
+            max(0.0, now - self._cal_policy_time)
+            if self._cal_policy_time else 1.0e9
+        )
+        packet_age = (
+            max(0.0, now - self._encoder_packet_stamp)
+            if self._encoder_packet_stamp else 1.0e9
+        )
+        owner_timeout = 0.75
+        if self._drive_pid_config is not None:
+            owner_timeout = float(self._drive_pid_config.safety.owner_timeout_s)
+        drive_mode = self._drive_source
+        if (
+            not self._drive_source_time
+            or now - self._drive_source_time > owner_timeout
+        ):
+            drive_mode = 'STALE'
+        controller_link_ok = bool(
+            self._encoder_packet_fresh and packet_age <= 0.35
+        )
+        encoder_sample = self._last_enc
+        encoder_faults = getattr(self, '_encoder_fault_since', {})
+        encoder_valid = tuple(
+            controller_link_ok
+            and isinstance(encoder_sample, (tuple, list))
+            and len(encoder_sample) == 4
+            and isinstance(encoder_sample[index], (int, float))
+            and not isinstance(encoder_sample[index], bool)
+            and math.isfinite(float(encoder_sample[index]))
+            and math.isfinite(float(self._wheel_mps[index]))
+            and index not in encoder_faults
+            for index in range(4)
+        )
+        if self._lifted_bms_cells is None:
+            bms_cells = (float('nan'),) * 4
+        else:
+            bms_cells = tuple(self._lifted_bms_cells)
+        bms_age = (
+            max(0.0, now - self._lifted_bms_at)
+            if self._lifted_bms_at else 1.0e9
+        )
+        stationary_duration = (
+            max(0.0, now - self._lifted_stationary_since)
+            if self._lifted_stationary_since else 0.0
+        )
+        return SafetySnapshot(
+            stop_latched=bool(self._cal_stop_latched),
+            policy_age_s=policy_age,
+            drive_mode=drive_mode,
+            cmd_vel=(self._last_vx, self._last_vy, self._last_vz),
+            applied_pwm=tuple(self._applied_motor_outputs),
+            controller_link_ok=controller_link_ok,
+            encoder_valid=encoder_valid,
+            encoder_ages_s=(packet_age,) * 4,
+            measured_speeds_mps=tuple(float(value) for value in self._wheel_mps),
+            jetson_temp_c=self._read_jetson_temperature_c(),
+            bms_ok=bool(self._lifted_bms_ok),
+            bms_age_s=bms_age,
+            bms_cell_voltages_v=bms_cells,
+            stationary_duration_s=stationary_duration,
+            physical_power_cut_ready=bool(self._lifted_physical_cut_ready),
+            remote_b_stop=bool(
+                self._lifted_remote_b_stop
+                or priority.get('remote_b_stop', False)
+            ),
+            emergency_stop=bool(priority.get('emergency_stop', False)),
+            voice_stop=bool(priority.get('voice_stop', False)),
+            shutdown=bool(priority.get('shutdown', False)),
+        )
+
+    def _lifted_owner_gate(self):
+        if not self._lifted_raw_enabled:
+            return 'raw_lifted_interface_disabled'
+        if not self._lifted_physical_cut_ready:
+            return 'physical_power_cut_not_confirmed'
+        if self._drive_pid_config is None:
+            return 'drive_pid_configuration_unavailable'
+        if (
+            self._drive_pid_config.enabled
+            or self._drive_pid_config.hardware_commissioned
+            or self._drive_pid_config.navigation_validated
+        ):
+            return 'production_pid_gates_must_remain_disabled'
+        if self._steering_cal.locked:
+            return 'steering_commissioning_already_locked'
+        return ''
+
+    def _start_lifted_pulse_observation(self, wheel, pwm, baseline):
+        self._lifted_pulse_wheel = int(wheel)
+        self._lifted_pulse_pwm = int(pwm)
+        self._lifted_encoder_baseline = baseline
+        self._lifted_expected_sign = None
+        self._lifted_pulse_observation = None
+        try:
+            index = self._lifted_pulse_wheel - 1
+            output_sign = float(self._drive_pid_config.wheels[index].output_sign)
+            encoder_sign = float(
+                self._encoder_calibration.motors[index].encoder_sign
+            )
+            product = self._lifted_pulse_pwm * output_sign * encoder_sign
+            if product != 0.0 and math.isfinite(product):
+                self._lifted_expected_sign = 1 if product > 0.0 else -1
+        except (AttributeError, IndexError, TypeError, ValueError):
+            self._lifted_expected_sign = None
+
+    def _schedule_lifted_pulse_observation(self):
+        if self._lifted_pulse_wheel in (1, 2, 3, 4):
+            # Final counts must come from a controller packet received after
+            # the owner has written zero, never from the pulse request time.
+            self._lifted_observation_zero_packet_stamp = float(
+                self._encoder_packet_stamp
+            )
+            self._lifted_observation_pending = True
+
+    def _finalize_lifted_pulse_observation(self):
+        wheel = self._lifted_pulse_wheel
+        baseline_count = None
+        final_count = None
+        delta_count = None
+        observed_sign = None
+        result = 'UNAVAILABLE'
+        if (
+            wheel in (1, 2, 3, 4)
+            and isinstance(self._lifted_encoder_baseline, (tuple, list))
+            and len(self._lifted_encoder_baseline) == 4
+            and isinstance(self._last_enc, (tuple, list))
+            and len(self._last_enc) == 4
+            and self._encoder_packet_fresh
+        ):
+            index = wheel - 1
+            try:
+                baseline_count = int(self._lifted_encoder_baseline[index])
+                final_count = int(self._last_enc[index])
+                delta_count = final_count - baseline_count
+                observed_sign = (
+                    0 if abs(delta_count) <= 2
+                    else (1 if delta_count > 0 else -1)
+                )
+                if observed_sign == 0:
+                    result = 'NO_DELTA'
+                elif self._lifted_expected_sign is None:
+                    result = 'UNAVAILABLE'
+                elif observed_sign == self._lifted_expected_sign:
+                    result = 'MATCH'
+                else:
+                    result = 'REVERSED'
+            except (TypeError, ValueError, OverflowError):
+                result = 'UNAVAILABLE'
+        self._lifted_pulse_observation = {
+            'wheel': wheel,
+            'baseline_count': baseline_count,
+            'final_count': final_count,
+            'delta_count': delta_count,
+            'expected_sign': self._lifted_expected_sign,
+            'observed_sign': observed_sign,
+            'result': result,
+        }
+        self._lifted_observation_pending = False
+
+    def _publish_lifted_status(self, snapshot=None):
+        now = time.monotonic()
+        payload = dict(self._lifted_commission.status())
+        cells = self._lifted_bms_cells
+        bms_age = (
+            round(max(0.0, now - self._lifted_bms_at), 3)
+            if self._lifted_bms_at else None
+        )
+        cell_spread = (
+            round(max(cells) - min(cells), 4) if cells is not None else None
+        )
+        try:
+            counts = (
+                [int(value) for value in self._last_enc]
+                if self._last_enc is not None else None
+            )
+        except (TypeError, ValueError, OverflowError):
+            counts = None
+        measured_speeds = [
+            round(float(value), 5) if math.isfinite(float(value)) else None
+            for value in self._wheel_mps
+        ]
+        config = self._drive_pid_config
+        arm_ready = False
+        if snapshot is not None and self._lifted_commission.state == LiftedState.LOCKED:
+            arm_ready = (
+                self._lifted_owner_gate() == ''
+                and snapshot.stop_latched is False
+                and self._lifted_commission._snapshot_problem(snapshot, None) == ''
+                and self._lifted_commission._stationary_problem(snapshot) == ''
+            )
+        exit_ready = bool(
+            snapshot is not None
+            and self._lifted_commission.locked
+            and self._lifted_commission._release_problem(snapshot) == ''
+        )
+        session_fingerprint = None
+        if self._lifted_commission.session is not None:
+            session_fingerprint = hashlib.sha256(
+                self._lifted_commission.session.encode('ascii')
+            ).hexdigest()
+        payload.update({
+            'schema': 1,
+            'result': self._lifted_result,
+            'raw_interface_enabled': self._lifted_raw_enabled,
+            'physical_power_cut_confirmed': self._lifted_physical_cut_ready,
+            'physical_power_cut_is_safety_rated': False,
+            'raw_single_wheel_only': True,
+            'pid_modes_authorized': False,
+            'arm_ready': arm_ready,
+            'exit_ready': exit_ready,
+            'stop_latched': bool(self._cal_stop_latched),
+            'remote_b_stop': bool(self._lifted_remote_b_stop),
+            'sequence': self._lifted_last_sequence_ack,
+            'sequence_ack': self._lifted_last_sequence_ack,
+            'session_fingerprint': session_fingerprint,
+            'final_zero': all(
+                float(value) == 0.0 for value in self._applied_motor_outputs
+            ),
+            'applied_motor_outputs': list(self._applied_motor_outputs),
+            'jetson_temperature_c': self._lifted_last_temperature_c,
+            'bms_ok': bool(self._lifted_bms_ok),
+            'bms_age_s': bms_age,
+            'bms_cells_v': list(cells) if cells is not None else None,
+            'bms_cell_spread_v': cell_spread,
+            'stationary_duration_s': (
+                round(max(0.0, now - self._lifted_stationary_since), 3)
+                if self._lifted_stationary_since else 0.0
+            ),
+            'encoder_counts': counts,
+            'measured_speeds_mps': measured_speeds,
+            'pulse_observation': self._lifted_pulse_observation,
+            'evidence_promotion_authorized': False,
+            'reviewed_single_wheels': list(
+                self._lifted_commission.single_wheel_reviewed
+            ),
+            'mapping_sign_cpr_reviewed': self._lifted_commission.mapping_reviewed,
+            'production_pid_gates': {
+                'enabled': None if config is None else config.enabled,
+                'hardware_commissioned': (
+                    None if config is None else config.hardware_commissioned
+                ),
+                'navigation_validated': (
+                    None if config is None else config.navigation_validated
+                ),
+            },
+            'limits': {
+                'max_raw_pwm': MAX_RAW_PWM,
+                'max_jetson_temperature_c_exclusive': MAX_JETSON_TEMP_C,
+                'max_bms_age_s': MAX_BMS_AGE_S,
+                'bms_cell_voltage_v': [MIN_BMS_CELL_V, MAX_BMS_CELL_V],
+                'max_bms_cell_spread_v': MAX_BMS_CELL_SPREAD_V,
+            },
+            'warning': 'physical motor-power cut-off remains mandatory',
+        })
+        self._pub_lifted_status.publish(String(
+            data=json.dumps(payload, separators=(',', ':'), allow_nan=False)
+        ))
+
+    def _abort_lifted(self, reason):
+        reason = str(reason).strip() or 'external_abort'
+        was_pulse = self._lifted_commission.state == LiftedState.PULSE
+        self._lifted_commission.abort(reason)
+        zeroed = self._force_motor_zero(reason)
+        if was_pulse:
+            self._schedule_lifted_pulse_observation()
+        self._lifted_result = 'ABORTED: ' + reason
+        if not zeroed:
+            self._lifted_result += '; zero_write_failed'
+        self._publish_lifted_status()
+
+    def _apply_lifted_demand(self, demand):
+        outputs = (0, 0, 0, 0)
+        if demand.state == LiftedState.PULSE:
+            if demand.mode != PulseMode.RAW_PULSE:
+                self._abort_lifted('pid_modes_not_authorized_by_hardware_owner')
+                return False
+            candidate = tuple(float(value) for value in demand.motor_pwm)
+            nonzero = [index for index, value in enumerate(candidate) if value != 0.0]
+            if len(nonzero) != 1 or any(abs(value) > MAX_RAW_PWM for value in candidate):
+                self._abort_lifted('invalid_raw_single_wheel_demand')
+                return False
+            outputs = tuple(int(round(value)) for value in candidate)
+        try:
+            self._write_motor_outputs(outputs)
+            self._applied_pwm = max(abs(value) for value in outputs)
+            return True
+        except Exception as exc:
+            was_pulse = demand.state == LiftedState.PULSE
+            self._lifted_commission.abort('motor_write_failed')
+            zeroed = self._force_motor_zero('motor_write_failed')
+            if was_pulse:
+                self._schedule_lifted_pulse_observation()
+            self._lifted_result = f'ABORTED: motor_write_failed:{exc}'
+            if not zeroed:
+                self._lifted_result += '; zero_write_failed'
+            self._publish_lifted_status()
+            return False
+
+    def _service_lifted_commission(self, now=None):
+        if not self._lifted_commission.locked:
+            return
+        now = time.monotonic() if now is None else float(now)
+        snapshot = self._lifted_snapshot(now)
+        previous_state = self._lifted_commission.state
+        try:
+            demand = self._lifted_commission.tick(now, snapshot)
+        except CommissioningRejected as exc:
+            self._abort_lifted(str(exc))
+            return
+        if not self._apply_lifted_demand(demand):
+            return
+        if previous_state == LiftedState.PULSE and demand.state != LiftedState.PULSE:
+            self._schedule_lifted_pulse_observation()
+        if demand.state == LiftedState.ABORTED:
+            self._lifted_result = 'ABORTED: ' + demand.fault_reason
+        self._publish_lifted_status(snapshot)
+
+    def _on_lifted_request(self, msg):
+        snapshot = None
+        previous_state = self._lifted_commission.state
+        try:
+            if len(msg.data) > 1024:
+                raise CommissioningRejected('oversized_request')
+            request = json.loads(msg.data)
+            if not isinstance(request, dict):
+                raise CommissioningRejected('request_not_mapping')
+            action = request.get('op')
+            if action not in ('exit', 'abort'):
+                owner_problem = self._lifted_owner_gate()
+                if owner_problem:
+                    raise CommissioningRejected(owner_problem)
+            if action == 'pulse' and request.get('mode') != PulseMode.RAW_PULSE.value:
+                raise CommissioningRejected('pid_modes_not_authorized_by_hardware_owner')
+            now = time.monotonic()
+            if action == 'exit' and not self._force_motor_zero('pre_exit_zero'):
+                raise CommissioningRejected('exit_zero_write_failed')
+            snapshot = self._lifted_snapshot(now)
+            pulse_baseline = (
+                tuple(self._last_enc)
+                if action == 'pulse' and self._last_enc is not None else None
+            )
+            demand = self._lifted_commission.command(request, now, snapshot)
+            self._lifted_last_sequence_ack = int(request['seq'])
+            if action == 'enter':
+                self._lifted_encoder_baseline = None
+                self._lifted_pulse_observation = None
+                self._lifted_observation_pending = False
+                self._front_target_angle = self._front_applied_angle
+                self._rear_target_angle = self._rear_applied_angle
+            elif action == 'pulse':
+                self._start_lifted_pulse_observation(
+                    request['wheel'], request['pwm'], pulse_baseline
+                )
+            if not self._apply_lifted_demand(demand):
+                return
+            if previous_state == LiftedState.PULSE and demand.state != LiftedState.PULSE:
+                self._schedule_lifted_pulse_observation()
+            if action == 'abort':
+                self._lifted_result = 'ABORTED: ' + demand.fault_reason
+            else:
+                self._lifted_result = 'ACCEPTED: ' + str(action)
+        except (CommissioningRejected, ValueError, TypeError, KeyError, AttributeError) as exc:
+            was_pulse = previous_state == LiftedState.PULSE
+            if self._lifted_commission.locked:
+                self._lifted_commission.abort(str(exc))
+            zeroed = self._force_motor_zero('lifted_request_rejected')
+            if was_pulse:
+                self._schedule_lifted_pulse_observation()
+            self._lifted_result = 'REJECTED: ' + str(exc)
+            if not zeroed:
+                self._lifted_result += '; zero_write_failed'
+        self._publish_lifted_status(snapshot)
 
     def _on_authoritative_odom(self, msg):
         value = float(msg.twist.twist.angular.z)
@@ -513,7 +1074,12 @@ class YahboomBase(Node):
         if self._drive_pid is None:
             return
         command_zero = self._last_vx == 0.0 and self._last_vy == 0.0 and self._last_vz == 0.0
-        if not command_zero or self._applied_pwm != 0 or self._cal_stop_latched:
+        if (
+            not command_zero
+            or any(value != 0 for value in self._applied_motor_outputs)
+            or self._cal_stop_latched
+            or self._lifted_commission.locked
+        ):
             self.get_logger().warn('Rejected drive PID reset: rover is not safely stopped')
             return
         if self._drive_pid.clear_fault(True):
@@ -521,17 +1087,30 @@ class YahboomBase(Node):
 
     def _cal_safe(self):
         return (self._cal_stop_latched and time.monotonic() - self._cal_policy_time < 1.0
-                and self._applied_pwm == 0 and self._last_vx == 0 and self._last_vz == 0)
+                and all(value == 0 for value in self._applied_motor_outputs)
+                and not self._lifted_commission.locked
+                and self._last_vx == 0 and self._last_vz == 0)
 
     def _cal_abort(self, reason):
         self._steering_cal.freeze(self._cal_applied(), reason)
 
     def _cal_joy(self, msg):
-        if len(msg.buttons) > 1 and msg.buttons[1]:
+        pressed = bool(len(msg.buttons) > 1 and msg.buttons[1])
+        self._lifted_remote_b_stop = pressed
+        if pressed:
             self._cal_abort('Remote B stop')
+            self._abort_lifted('remote_b_stop')
+        elif self._lifted_commission.locked:
+            self._service_lifted_commission()
+
+    def _on_voice_stop(self, _msg):
+        self._cal_abort('Stop requested')
+        self._abort_lifted('voice_stop')
 
     def _cal_request(self, msg):
         try:
+            if self._lifted_commission.locked:
+                raise ValueError('Lifted drive commissioning owns the safety lock')
             if len(msg.data) > 1024:
                 raise ValueError('Oversized request')
             self._steering_cal.command(json.loads(msg.data), time.monotonic(), self._cal_applied(), self._cal_safe())
@@ -539,10 +1118,26 @@ class YahboomBase(Node):
             self._steering_cal.result = 'REJECTED: ' + str(exc)
 
     def _on_cmd_vel(self, msg: Twist):
+        components = (
+            msg.linear.x, msg.linear.y, msg.linear.z,
+            msg.angular.x, msg.angular.y, msg.angular.z,
+        )
+        if self._lifted_commission.locked:
+            if (
+                not all(math.isfinite(float(value)) for value in components)
+                or any(float(value) != 0.0 for value in components)
+            ):
+                self._abort_lifted('nonzero_or_invalid_cmd_vel')
+            else:
+                self._last_vx = self._last_vy = self._last_vz = 0.0
+                self._last_cmd_time = time.time()
+            return
         if self._steering_cal.locked:
             self._last_vx = self._last_vy = self._last_vz = 0.0
-            self._applied_pwm = 0
-            self.bot.set_motor(0, 0, 0, 0)
+            self._force_motor_zero('steering_commissioning_lock')
+            return
+        if not all(math.isfinite(float(value)) for value in components):
+            self._force_motor_zero('invalid_cmd_vel')
             return
         vx = max(-1.0, min(1.0, msg.linear.x / MAX_VX))
         vy = float(msg.linear.y)
@@ -557,8 +1152,7 @@ class YahboomBase(Node):
         self._last_vz = vz
         self._last_cmd_time = time.time()
         if vx == 0.0 and vz == 0.0:
-            self._applied_pwm = 0
-            self.bot.set_motor(0, 0, 0, 0)
+            self._force_motor_zero('zero_cmd_vel')
 
     def _on_drive_mode(self, msg: String):
         """Track mux ownership so manual steering can remain responsive."""
@@ -566,10 +1160,13 @@ class YahboomBase(Node):
         self._drive_source_time = time.monotonic()
         if self._drive_source == 'REMOTE':
             self._last_remote_source_time = time.monotonic()
+        if self._lifted_commission.locked:
+            self._service_lifted_commission(self._drive_source_time)
 
     def _motor_keepalive(self):
         self._watchdog_ping()
-        self._steering_cal.tick(time.monotonic(), self._cal_applied(), self._cal_safe())
+        now = time.monotonic()
+        self._steering_cal.tick(now, self._cal_applied(), self._cal_safe())
         self._apply_steering_calibration()
         self._cal_status_pub.publish(String(data=json.dumps(self._steering_cal.status())))
         if time.time() - self._last_cmd_time > CMD_TIMEOUT_S:
@@ -577,16 +1174,25 @@ class YahboomBase(Node):
             self._last_vy = 0.0
             self._last_vz = 0.0
         if self._steering_cal.locked:
+            if self._lifted_commission.locked:
+                self._abort_lifted('conflicting_steering_commissioning_lock')
             self._last_vx = self._last_vy = self._last_vz = 0.0
-            self._applied_pwm = 0
-            self.bot.set_motor(0, 0, 0, 0)
+            self._force_motor_zero('steering_commissioning_lock')
             self._front_target_angle = self._steering_cal.targets['front']
             self._rear_target_angle = self._steering_cal.targets['rear']
             self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
             self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))
             self._pub_steer_mode.publish(String(data='steering_calibration_traction_inhibited'))
+        elif self._lifted_commission.locked:
+            self._front_target_angle = self._front_applied_angle
+            self._rear_target_angle = self._rear_applied_angle
+            self._service_lifted_commission(now)
+            self._pub_steer_mode.publish(String(
+                data='lifted_drive_commissioning_steering_frozen'
+            ))
         else:
             self._drive_pwm(self._last_vx, self._last_vz)
+            self._publish_lifted_status()
         self._servo_tick = getattr(self, '_servo_tick', 0) + 1
         if self._servo_tick >= SERVO_UPDATE_TICKS:
             self._servo_tick = 0
@@ -663,21 +1269,7 @@ class YahboomBase(Node):
             # backing up.  Use direct, speed-independent four-wheel steering
             # for the operator; the servo slew limiter below keeps it smooth.
             steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
-            if steer_norm >= 0.0:
-                front_angle = FRONT_STEER_CENTER + steer_norm * (
-                    FRONT_STEER_RIGHT - FRONT_STEER_CENTER
-                )
-                rear_angle = REAR_STEER_CENTER + steer_norm * (
-                    REAR_STEER_RIGHT - REAR_STEER_CENTER
-                )
-            else:
-                turn = -steer_norm
-                front_angle = FRONT_STEER_CENTER + turn * (
-                    FRONT_STEER_LEFT - FRONT_STEER_CENTER
-                )
-                rear_angle = REAR_STEER_CENTER + turn * (
-                    REAR_STEER_LEFT - REAR_STEER_CENTER
-                )
+            front_angle, rear_angle = opposite_steering_targets(steer_norm)
         elif abs(vx) > 0.02:
             # Four-wheel opposite steering kinematics:
             #   wz = 2 * vx * tan(delta) / wheelbase
@@ -687,35 +1279,18 @@ class YahboomBase(Node):
             # Signed vx is essential: the wheel angle must reverse when the
             # same yaw rate is requested while backing up.
             steer_delta = math.degrees(math.atan(
-                (WHEELBASE_M * wz) / (2.0 * vx)
+                (self._wheelbase_m * wz) / (2.0 * vx)
             ))
             steer_delta = max(-35.0, min(35.0, steer_delta))
-            # Installed front linkage is servo-reversed: decreasing command
-            # angle is physical left. Rear already decreases for physical
-            # right, so a positive left-curving command decreases both servo
-            # command angles.
-            front_angle = FRONT_STEER_CENTER - steer_delta
-            rear_angle = REAR_STEER_CENTER - steer_delta
+            front_angle, rear_angle = opposite_steering_targets(
+                steer_delta / 35.0
+            )
         else:
             # Steering-only operator command: no kinematic curvature exists
             # at zero speed, so retain proportional wheel positioning. A full
             # zero command therefore returns both axles to their home centres.
             steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
-            if steer_norm >= 0.0:
-                front_angle = FRONT_STEER_CENTER + steer_norm * (
-                    FRONT_STEER_RIGHT - FRONT_STEER_CENTER
-                )
-                rear_angle = REAR_STEER_CENTER + steer_norm * (
-                    REAR_STEER_RIGHT - REAR_STEER_CENTER
-                )
-            else:
-                turn = -steer_norm
-                front_angle = FRONT_STEER_CENTER + turn * (
-                    FRONT_STEER_LEFT - FRONT_STEER_CENTER
-                )
-                rear_angle = REAR_STEER_CENTER + turn * (
-                    REAR_STEER_LEFT - REAR_STEER_CENTER
-                )
+            front_angle, rear_angle = opposite_steering_targets(steer_norm)
         front_angle = max(FRONT_STEER_RIGHT, min(FRONT_STEER_LEFT, front_angle))
         rear_angle = max(REAR_STEER_RIGHT, min(REAR_STEER_LEFT, rear_angle))
         self._front_target_angle = int(round(front_angle))
@@ -733,15 +1308,15 @@ class YahboomBase(Node):
                     FRONT_STEER_RIGHT, FRONT_STEER_LEFT,
                 )))
                 self._rear_target_angle = int(round(_clamp_servo(
-                    self._rear_target_angle - correction,
+                    self._rear_target_angle + correction,
                     REAR_STEER_RIGHT, REAR_STEER_LEFT,
                 )))
                 outputs = tuple(int(round(value)) for value in closed_loop.motor_outputs)
                 self._applied_pwm = max(abs(value) for value in outputs)
-                self.bot.set_motor(*outputs)
+                self._write_motor_outputs(outputs)
             else:
                 self._applied_pwm = 0
-                self.bot.set_motor(0, 0, 0, 0)
+                self._write_motor_outputs((0, 0, 0, 0))
             self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
             self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))
             self._pub_steer_mode.publish(String(data='four_wheel_opposite_closed_loop'))
@@ -774,7 +1349,7 @@ class YahboomBase(Node):
                 left_pwm, right_pwm = sign * inside, sign * outside
             else:  # right-curving path: right wheels are inside
                 right_pwm, left_pwm = sign * inside, sign * outside
-        self.bot.set_motor(*motor_outputs(left_pwm, right_pwm))
+        self._write_motor_outputs(motor_outputs(left_pwm, right_pwm))
         self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
         self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))
         self._pub_steer_mode.publish(String(data='four_wheel_opposite'))
@@ -1033,27 +1608,53 @@ class YahboomBase(Node):
         for i in range(4):
             # Use a half-second count window.  The board reports encoder data
             # in bursts, so a single 100 ms delta produces misleading spikes.
-            signed_cps = float(self._wheel_cps[i]) * ENCODER_FORWARD_SIGN[i]
-            rpm = signed_cps * 60.0 / ENCODER_COUNTS_PER_REV[i]
-            speed_mps = signed_cps * WHEEL_CIRCUMFERENCE_M / ENCODER_COUNTS_PER_REV[i]
+            rpm, speed_mps, distance_m = self._encoder_calibration.telemetry(
+                i,
+                self._wheel_cps[i],
+                float(enc[i]) - float(self._enc_origin[i]),
+            )
             self._wheel_mps[i] = speed_mps
-            signed_counts = (float(enc[i]) - float(self._enc_origin[i])) * ENCODER_FORWARD_SIGN[i]
-            distance_m = signed_counts * WHEEL_CIRCUMFERENCE_M / ENCODER_COUNTS_PER_REV[i]
             self._wheel_distance_m[i] = distance_m
             self._wheel_rpm_pubs[i].publish(Float32(data=rpm))
             self._wheel_mps_pubs[i].publish(Float32(data=speed_mps))
             self._wheel_distance_pubs[i].publish(Float32(data=distance_m))
+        stationary = (
+            self._encoder_packet_fresh
+            and all(
+                math.isfinite(float(speed))
+                and abs(float(speed)) <= MAX_STATIONARY_SPEED_MPS
+                for speed in self._wheel_mps
+            )
+            and all(value == 0 for value in self._applied_motor_outputs)
+        )
+        if stationary:
+            if not self._lifted_stationary_since:
+                self._lifted_stationary_since = now
+        else:
+            self._lifted_stationary_since = 0.0
         if enc_changed:
             self._last_enc_change_t = now
             self._encoder_stale = False
         self._last_enc = enc
         self._last_enc_t = now
+        if (
+            self._lifted_observation_pending
+            and self._encoder_packet_fresh
+            and self._encoder_packet_stamp
+            > self._lifted_observation_zero_packet_stamp
+        ):
+            self._finalize_lifted_pulse_observation()
+            self._publish_lifted_status()
 
-        # Verified physical motor mapping (2026-09-17):
-        # M1=rear-left, M2=rear-right, M3=front-left, M4=front-right.
-        # Keep ROS wheel topics physical-position based even though the
-        # controller exposes channels in a different order.
-        rl, rr, fl, fr = [float(v) for v in speeds]
+        # Keep ROS wheel topics physical-position based. Channel identity comes
+        # from the same validated calibration used by the optional PID.
+        speed_by_position = dict(zip(
+            self._encoder_positions, (float(value) for value in speeds)
+        ))
+        rl = speed_by_position['rear_left']
+        rr = speed_by_position['rear_right']
+        fl = speed_by_position['front_left']
+        fr = speed_by_position['front_right']
         self._pub_fl.publish(Float32(data=fl))
         self._pub_fr.publish(Float32(data=fr))
         self._pub_rl.publish(Float32(data=rl))
@@ -1148,7 +1749,9 @@ class YahboomBase(Node):
             # wheel angle before calculating four-wheel-steering curvature.
             front_delta = math.radians(FRONT_STEER_CENTER - self._front_applied_angle)
             rear_delta = math.radians(self._rear_applied_angle - REAR_STEER_CENTER)
-            curvature = (math.tan(front_delta) - math.tan(rear_delta)) / WHEELBASE_M
+            curvature = (
+                math.tan(front_delta) - math.tan(rear_delta)
+            ) / self._wheelbase_m
             vz = vx * curvature
             source = (
                 'wheel_encoder_delta_4ws'
@@ -1224,8 +1827,9 @@ class YahboomBase(Node):
     def stop(self):
         systemd_notify("STOPPING=1\nSTATUS=Stopping Yahboom base")
         self._save_odom_state(time.monotonic() + ODOM_STATE_SAVE_PERIOD_S)
-        self._applied_pwm = 0
-        self.bot.set_motor(0, 0, 0, 0)
+        if self._lifted_commission.locked:
+            self._lifted_commission.abort('service_shutdown')
+        self._force_motor_zero('service_shutdown')
 
 
 def main():

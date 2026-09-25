@@ -1,12 +1,12 @@
 {
-  "enabled": true,
-  "disabled_reason": "",
+  "enabled": false,
+  "disabled_reason": "2026-09-25 stationary bag measured -0.00403 rad/s corrected yaw and -6.6 deg false rotation in 29 s after reboot; fresh bias and dynamic turn revalidation required",
   "sensor_frame_bias_rad_s": [-0.0002441968308511195, 0.0012528359148013958, 0.004025708624538384],
   "mounting": "usb_forward_components_up",
   "training_samples": 602,
   "independent_validation_samples": 601,
   "validation_residual_yaw_deg": -0.05333758295015687,
   "validation_duration_s": 60,
-  "navigation_qualified": true,
-  "note": "Gyro Z qualified on 2026-09-20 after bidirectional 90-degree validation, stationary confirmation, and corrected moving shadow-EKF pass. Magnetic/Euler heading stays excluded."
+  "navigation_qualified": false,
+  "note": "Prior 2026-09-20 qualification is revoked by the 2026-09-25 stationary regression. Magnetic/Euler heading stays excluded."
 }
