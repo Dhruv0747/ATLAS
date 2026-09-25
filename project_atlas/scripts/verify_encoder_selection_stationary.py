@@ -14,6 +14,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seconds', type=float, default=12.0)
     parser.add_argument('--expect-three', action='store_true')
+    parser.add_argument('--excluded', type=int, default=3)
     args = parser.parse_args()
     if not 3 <= args.seconds <= 45:
         parser.error('observation duration must be 3–45 seconds')
@@ -54,13 +55,16 @@ def main():
         node.destroy_node()
         rclpy.shutdown()
     health = state['health'] or {}
-    state['pass_stationary'] = (state['commands'] > 0 and state['nonzero_commands'] == 0
+    # A stopped mux is allowed to publish no Twist messages at all. Requiring
+    # a zero heartbeat falsely failed a healthy, quiet command channel.
+    state['pass_stationary'] = (state['nonzero_commands'] == 0
         and state['odometry_messages'] > 0 and state['invalid_odometry'] == 0
         and state['max_displacement_m'] < .001)
     if args.expect_three:
+        expected_selected = [i for i in range(1, 5) if i != args.excluded]
         state['pass_stationary'] = state['pass_stationary'] and (
-            health.get('selected_encoders') == [1, 2, 3]
-            and health.get('excluded_encoders') == [4]
+            health.get('selected_encoders') == expected_selected
+            and health.get('excluded_encoders') == [args.excluded]
             and health.get('packet_fresh') is True
             and health.get('state') == 'DEGRADED'
             and health.get('autonomy_ready') is False)

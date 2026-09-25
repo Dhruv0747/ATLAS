@@ -13,8 +13,10 @@ def validate_selection(config):
     excluded = config.get('excluded_encoders')
     if not isinstance(excluded, list) or any(type(i) is not int for i in excluded):
         raise ValueError('excluded_encoders must be an explicit list of channel numbers')
-    if excluded not in ([], [4]):
-        raise ValueError('only all-four or explicitly commissioned M1/M2/M3 is supported')
+    if excluded != sorted(set(excluded)) or any(i not in (1, 2, 3, 4) for i in excluded):
+        raise ValueError('excluded_encoders must contain unique M1..M4 channel numbers')
+    if len(excluded) > 1:
+        raise ValueError('at least three explicitly commissioned encoder channels are required')
     validated = config.get('navigation_validated')
     if type(validated) is not bool:
         raise ValueError('navigation_validated must be explicitly true or false')
@@ -32,7 +34,10 @@ def feedback_state(excluded, faults, packet_fresh, qualifying, traction, fault_a
     if excluded:
         if faults:
             return 'CRITICAL', 0.0, 'additional selected encoder failed'
-        return 'DEGRADED', 0.5, 'M1/M2/M3 selected; M4 feedback excluded'
+        selected = [f'M{i + 1}' for i in range(4) if i not in excluded]
+        rejected = [f'M{i + 1}' for i in excluded]
+        return ('DEGRADED', 0.5,
+                f'{"/".join(selected)} selected; {"/".join(rejected)} feedback excluded')
     if len(faults) >= 2 or (faults and fault_age > 5.0):
         return 'CRITICAL', 0.0, 'multiple or persistent encoder fault'
     if faults:

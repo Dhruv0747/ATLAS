@@ -1716,7 +1716,13 @@ class YahboomBase(Node):
                 round(max(0.0, now - stamp), 2)
                 for stamp in self._wheel_last_change_t
             ],
-            'policy': 'M4_excluded;selected_fault_or_stale=autonomy_stop;validation_required' if self._excluded_encoders else 'single=50%_for_5s;multi_or_persistent=stop',
+            'policy': (
+                'excluded=' + ','.join(
+                    f'M{i + 1}' for i in sorted(self._excluded_encoders)
+                ) + ';selected_fault_or_stale=autonomy_stop;validation_required'
+                if self._excluded_encoders
+                else 'single=50%_for_5s;multi_or_persistent=stop'
+            ),
         }
         self._pub_encoder_health.publish(
             String(data=json.dumps(payload, separators=(',', ':')))
@@ -1764,7 +1770,9 @@ class YahboomBase(Node):
             vz = 0.0
             curvature = 0.0
             source = 'feedback_unavailable' if len(valid_indexes) < 3 else (
-                'stopped_M1_M2_M3_M4_excluded' if self._excluded_encoders else 'stopped'
+                'stopped_' + '_'.join(
+                    f'M{i + 1}' for i in valid_indexes
+                ) + '_degraded' if self._excluded_encoders else 'stopped'
             )
 
         self._last_odom_source = source

@@ -1,5 +1,16 @@
 # Changelog
 
+- 2026-09-25: Corrected the active three-encoder policy after a recorded,
+  operator-measured 20 cm forward ground run. Raw deltas were M1 +926,
+  M2 -931, M3 +162 and M4 -869 counts: M1/M2 forward signs were stale, M3
+  was the weak channel, and the replaced M4 tracked the healthy rear channels.
+  M1/M2 signs are now corrected and M3 replaces M4 as the single excluded
+  feedback channel; all four drive-motor outputs remain enabled. Selection,
+  capability and evidence logic now describes the configured single exclusion
+  rather than hard-coding M4. Metric CPR values were deliberately left
+  unchanged pending an independent repeat run, and navigation/PID validation
+  remains false.
+
 - 2026-09-25: Added a default-off, sole-owner lifted drive harness for one
   bounded raw motor-channel pulse (`abs(PWM) <= 50`, 0.20–0.50 s) with a
   0.50-second heartbeat lease, automatic zero/rest, authenticated abort/exit,

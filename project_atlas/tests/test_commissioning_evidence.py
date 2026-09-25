@@ -123,11 +123,11 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(c.history(),[])
 
     @unittest.skipUnless(importlib.util.find_spec('yaml'), 'PyYAML provided by ROS runtime')
-    def test_m4_configuration_is_excluded_not_a_physical_pass(self):
-        (self.root/'config/encoder_selection.yaml').write_text('excluded_encoders: [4]\nnavigation_validated: false\n')
+    def test_configured_channel_is_excluded_not_a_physical_pass(self):
+        (self.root/'config/encoder_selection.yaml').write_text('excluded_encoders: [3]\nnavigation_validated: false\n')
         self.ledger.import_configured_exclusion()
         self.ledger.import_configured_exclusion()
-        self.assertEqual(self.row('m4_feedback')['status'],'EXCLUDED')
+        self.assertEqual(self.row('encoder_exclusion')['status'],'EXCLUDED')
         self.assertEqual(len(self.ledger.history()),1)
 
     def test_arbitrary_state_gate_nonfinite_and_empty_pass_rejected(self):

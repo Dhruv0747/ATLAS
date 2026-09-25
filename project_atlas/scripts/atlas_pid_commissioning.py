@@ -42,7 +42,7 @@ def static_check() -> dict:
         "enabled_is_false": not cfg.enabled,
         "hardware_commissioned_is_false": not cfg.hardware_commissioned,
         "navigation_validated_is_false": not cfg.navigation_validated,
-        "m4_remains_excluded": 4 in cfg.excluded_encoders,
+        "m3_is_current_excluded_channel": cfg.excluded_encoders == (3,),
         "track_width_still_requires_measurement": cfg.geometry.track_width_m is None,
         "all_gains_are_zero": all(
             wheel.pid.kp == wheel.pid.ki == wheel.pid.kd == 0.0

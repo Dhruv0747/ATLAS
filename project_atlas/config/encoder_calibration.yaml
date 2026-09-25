@@ -12,13 +12,15 @@ encoder_calibration:
   motors:
     m1:
       position: rear_left
-      encoder_sign: -1.0
+      # 2026-09-25 measured forward run: raw count increased by 926.
+      encoder_sign: 1.0
       counts_per_revolution: 4048.7
       confidence: revalidation_required
       method: retained_pre_motor_replacement_ground_calibration
     m2:
       position: rear_right
-      encoder_sign: 1.0
+      # 2026-09-25 measured forward run: raw count decreased by 931.
+      encoder_sign: -1.0
       counts_per_revolution: 3300.6
       confidence: revalidation_required
       method: retained_pre_motor_replacement_ground_calibration
@@ -26,13 +28,13 @@ encoder_calibration:
       position: front_left
       encoder_sign: 1.0
       counts_per_revolution: 4080.1
-      confidence: revalidation_required
-      method: retained_pre_motor_replacement_ground_calibration
+      confidence: unvalidated_excluded
+      method: weak_feedback_162_counts_during_20cm_ground_run
     m4:
       position: front_right
-      # Forward pulses decreased the raw count (-28, -33); reverse feedback is
-      # still unreliable, so M4 remains excluded despite this corrected sign.
+      # 2026-09-25 measured forward run: raw count decreased by 869 and tracked
+      # M1/M2 closely, so M4 replaces weak M3 in the selected feedback set.
       encoder_sign: -1.0
       counts_per_revolution: 2697.8
-      confidence: unvalidated_excluded
-      method: lifted_forward_sign_verified_reverse_feedback_faulty
+      confidence: revalidation_required
+      method: measured_forward_ground_response_selected_for_revalidation

@@ -19,7 +19,7 @@ class CapabilityTests(unittest.TestCase):
         self.data = {}
         self.records = []
         self.enc = {'state': 'DEGRADED', 'packet_fresh': True, 'packet_age_s': .01,
-                    'selected_encoders': [1, 2, 3], 'excluded_encoders': [4],
+                    'selected_encoders': [1, 2, 4], 'excluded_encoders': [3],
                     'faults': [], 'traction': False, 'last_change_age_s': [999] * 4,
                     'navigation_validated': False, 'autonomy_ready': False}
         self.set_value('encoder_health', self.enc)
@@ -42,9 +42,9 @@ class CapabilityTests(unittest.TestCase):
         return proof
 
     def test_stationary_constant_counts_not_failed(self):
-        for name in ('m1', 'm2', 'm3'):
+        for name in ('m1', 'm2', 'm4'):
             self.assertEqual(self.sensor(name)['health'], 'DATA_PRESENT')
-        self.assertEqual(self.sensor('m4')['health'], 'EXCLUDED')
+        self.assertEqual(self.sensor('m3')['health'], 'EXCLUDED')
         self.assertFalse(self.result()['motion_authorized'])
 
     def test_stale_shared_link_blocks_all_selected(self):

@@ -49,8 +49,8 @@ GATES = {
     'camera_bounds': ('camera', 'Physical camera bounds',
                        ('scripts/ultrasonic_arduino_bridge.py', 'systemd/user/atlas-uno-r4-sensor-hub.service.d/camera-home.conf'),
                        'Verify safe pan/tilt endpoints with the existing owner; PWM limits are not mechanical limits.'),
-    'm4_feedback': ('encoders', 'M4 feedback exclusion', ('config/encoder_selection.yaml',),
-                    'Keep excluded feedback out of odometry; the drive motor is separate.'),
+    'encoder_exclusion': ('encoders', 'Configured encoder feedback exclusion', ('config/encoder_selection.yaml',),
+                          'Keep excluded feedback out of odometry; the drive motor is separate.'),
     'telemetry_hardware': ('system', 'Non-motion hardware observation', (), 'Inspect live sensor reports.'),
     'telemetry_imu': ('imu', 'Stationary IMU observation', IMU, 'Observe bias/noise without qualifying dynamic fusion.'),
     'telemetry_gnss': ('gnss', 'GNSS observation', (), 'Fresh NMEA is not position accuracy.'),
@@ -183,15 +183,17 @@ class EvidenceLedger:
             # parser or dependency install on offline development machines.
             return
         config = yaml.safe_load(path.read_text(encoding='utf-8'))
-        if not isinstance(config, dict) or config.get('excluded_encoders') != [4]:
+        excluded = config.get('excluded_encoders') if isinstance(config, dict) else None
+        if (not isinstance(excluded, list) or len(excluded) != 1
+                or excluded[0] not in (1, 2, 3, 4)):
             return
         with self.connect() as db:
-            if db.execute("SELECT 1 FROM evidence_current WHERE gate='m4_feedback'").fetchone():
+            if db.execute("SELECT 1 FROM evidence_current WHERE gate='encoder_exclusion'").fetchone():
                 return
-            r = self._record('m4_feedback', 'EXCLUDED',
-                             {'excluded_feedback': [4], 'drive_motor': 'not disabled by encoder selection'},
+            r = self._record('encoder_exclusion', 'EXCLUDED',
+                             {'excluded_feedback': excluded, 'drive_motor': 'not disabled by encoder selection'},
                              'config/encoder_selection.yaml; configuration only, not a motor test',
-                             None, self.signature('m4_feedback'))
+                             None, self.signature('encoder_exclusion'))
             self._append(db, r)
             db.commit()
 

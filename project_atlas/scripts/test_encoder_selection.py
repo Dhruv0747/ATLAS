@@ -11,26 +11,27 @@ from atlas_encoder_selection import (
 
 
 class EncoderSelectionTests(unittest.TestCase):
-    def test_explicit_m4_exclusion(self):
+    def test_explicit_single_channel_exclusion(self):
+        self.assertEqual(validate_selection(dict(excluded_encoders=[3], navigation_validated=False, packet_timeout_s=1)), ((2,), False, 1.0))
         self.assertEqual(validate_selection(dict(excluded_encoders=[4], navigation_validated=False, packet_timeout_s=1)), ((3,), False, 1.0))
 
     def test_bad_config_fails_closed(self):
-        for conf in (None, {}, dict(excluded_encoders=[3, 4]), dict(excluded_encoders=[True]), dict(excluded_encoders=[4], navigation_validated='false', packet_timeout_s=1), dict(excluded_encoders=[4], navigation_validated=False, packet_timeout_s=2)):
+        for conf in (None, {}, dict(excluded_encoders=[3, 4]), dict(excluded_encoders=[True]), dict(excluded_encoders=[5]), dict(excluded_encoders=[3, 3]), dict(excluded_encoders=[4], navigation_validated='false', packet_timeout_s=1), dict(excluded_encoders=[4], navigation_validated=False, packet_timeout_s=2)):
             with self.assertRaises(ValueError): validate_selection(conf)
 
     def test_three_can_be_qualified_without_four(self):
-        excluded, valid, _ = validate_selection(dict(excluded_encoders=[4], navigation_validated=True, packet_timeout_s=1))
+        excluded, valid, _ = validate_selection(dict(excluded_encoders=[3], navigation_validated=True, packet_timeout_s=1))
         self.assertTrue(valid)
         self.assertEqual(feedback_state(excluded, [], True, False, True, 0)[:2], ('DEGRADED', .5))
 
     def test_physical_mapping(self):
         self.assertEqual(WHEEL_NAMES, ('back_left', 'back_right', 'front_left', 'front_right'))
 
-    def test_dead_or_noisy_m4_has_no_effect(self):
-        for m4 in (0, 100000, -100000, math.nan):
+    def test_dead_or_noisy_m3_has_no_effect(self):
+        for m3 in (0, 100000, -100000, math.nan):
             estimator = EncoderDeltaEstimator()
-            estimator.update([0, 0, 0, 0], [0, 1, 2])
-            self.assertAlmostEqual(estimator.update([.1, .1, .1, m4], [0, 1, 2]), .1)
+            estimator.update([0, 0, 0, 0], [0, 1, 3])
+            self.assertAlmostEqual(estimator.update([.1, .1, m3, .1], [0, 1, 3]), .1)
 
     def test_reverse(self):
         estimator = EncoderDeltaEstimator()

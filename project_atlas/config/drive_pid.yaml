@@ -7,7 +7,7 @@ atlas_drive_pid:
   enabled: false
   hardware_commissioned: false
   navigation_validated: false
-  excluded_encoders: [4]
+  excluded_encoders: [3]
   # Physical channel position, encoder sign and counts/revolution are loaded
   # exclusively from this canonical file. Do not duplicate them below.
   encoder_calibration_file: encoder_calibration.yaml

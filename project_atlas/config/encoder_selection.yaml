@@ -1,6 +1,8 @@
 # Physical channels: M1 rear-left, M2 rear-right, M3 front-left, M4 front-right.
-# Only the faulty M4 feedback is excluded. All four MOTOR outputs stay enabled.
-excluded_encoders: [4]
+# The 2026-09-25 measured 20 cm ground run showed M3 changing only 162 counts
+# while M1/M2/M4 changed 869-931 counts. M3 feedback is therefore excluded;
+# all four MOTOR outputs remain enabled.
+excluded_encoders: [3]
 # Set true only after measured low-speed distance/turn/stopping validation.
 # Three encoders are supported; four working encoders are NOT a prerequisite.
 navigation_validated: false

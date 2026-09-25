@@ -55,13 +55,13 @@ def update(controller, **overrides):
 
 
 class ClosedLoopControlTests(unittest.TestCase):
-    def test_repository_config_is_safely_disabled_and_m4_excluded(self):
+    def test_repository_config_is_safely_disabled_and_m3_excluded(self):
         if importlib.util.find_spec("yaml"):
             config = load_drive_config(CONFIG)
             self.assertFalse(config.enabled)
             self.assertFalse(config.hardware_commissioned)
             self.assertFalse(config.navigation_validated)
-            self.assertEqual(config.excluded_encoders, (4,))
+            self.assertEqual(config.excluded_encoders, (3,))
             self.assertIsNone(config.geometry.track_width_m)
         else:
             # The Windows development Python does not ship PyYAML. Preserve a
@@ -70,7 +70,7 @@ class ClosedLoopControlTests(unittest.TestCase):
             text = CONFIG.read_text(encoding="utf-8")
             for expected in (
                 "enabled: false", "hardware_commissioned: false",
-                "navigation_validated: false", "excluded_encoders: [4]",
+                "navigation_validated: false", "excluded_encoders: [3]",
                 "track_width_m: null",
             ):
                 self.assertIn(expected, text)
@@ -93,8 +93,8 @@ class ClosedLoopControlTests(unittest.TestCase):
         self.assertEqual(update(AtlasClosedLoopController(config)).fault_reason,
                          "track_width_not_commissioned")
 
-    def test_m4_exclusion_prevents_four_wheel_pid(self):
-        config = armed_config(); object.__setattr__(config, "excluded_encoders", (4,))
+    def test_any_exclusion_prevents_four_wheel_pid(self):
+        config = armed_config(); object.__setattr__(config, "excluded_encoders", (3,))
         self.assertEqual(update(AtlasClosedLoopController(config)).fault_reason,
                          "required_encoder_excluded")
 
