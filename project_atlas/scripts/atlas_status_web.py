@@ -14,6 +14,7 @@ SHUTDOWN_PENDING = threading.Event()
 import time
 import signal
 from collections import deque
+from pathlib import Path
 from atlas_web_diagnostics import DiagnosticCache, service_logs
 from atlas_commissioning import Console, hardware_check
 import sqlite3
