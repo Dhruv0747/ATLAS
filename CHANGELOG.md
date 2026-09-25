@@ -1,5 +1,14 @@
 # Changelog
 
+- 2026-09-25: Added segment-aware analysis for measured manual ground runs so
+  forward and reverse legs in one bag are not incorrectly reduced to one net
+  displacement. A clean operator-measured ~70 cm reverse run recorded M1
+  -4000, M2 +3937, M3 -3920 and M4 only +294 raw counts. M1/M2/M3 therefore
+  agreed at roughly 5,600-5,714 counts/m while M4 was weak in this run. This
+  also disproves a permanent fixed-M3 exclusion: the weak front channel has
+  alternated between M3 and M4. No navigation gate was enabled and no metric
+  scale was promoted; a dynamic three-of-four consensus policy is required.
+
 - 2026-09-25: Corrected the active three-encoder policy after a recorded,
   operator-measured 20 cm forward ground run. Raw deltas were M1 +926,
   M2 -931, M3 +162 and M4 -869 counts: M1/M2 forward signs were stale, M3

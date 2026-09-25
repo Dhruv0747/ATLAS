@@ -2,6 +2,7 @@
 """Summarize a manually measured ATLAS ground-drive rosbag."""
 
 import argparse
+import bisect
 import json
 import math
 from collections import defaultdict
@@ -19,6 +20,32 @@ def yaw_of(q) -> float:
         2.0 * (q.w * q.z + q.x * q.y),
         1.0 - 2.0 * (q.y * q.y + q.z * q.z),
     )
+
+
+def value_at(samples, timestamp_ns):
+    if not samples:
+        return None
+    index = bisect.bisect_right([sample[0] for sample in samples], timestamp_ns) - 1
+    return samples[max(0, index)][1]
+
+
+def motion_segments(samples, gap_s=0.75):
+    moving = [sample for sample in samples if abs(sample[1]) > 1.0e-4]
+    if not moving:
+        return []
+    segments = []
+    current = [moving[0]]
+    for sample in moving[1:]:
+        previous = current[-1]
+        same_direction = (sample[1] > 0) == (previous[1] > 0)
+        close = (sample[0] - previous[0]) / 1e9 <= gap_s
+        if same_direction and close:
+            current.append(sample)
+        else:
+            segments.append(current)
+            current = [sample]
+    segments.append(current)
+    return segments
 
 
 def main() -> None:
@@ -91,6 +118,36 @@ def main() -> None:
             "final_linear": round(values[-1][1], 3) if values else None,
             "final_angular": round(values[-1][2], 3) if values else None,
         }
+
+    command_source = commands.get("/cmd_vel_joy") or commands.get("/cmd_vel") or []
+    result["motion_segments"] = []
+    for index, segment in enumerate(motion_segments(command_source), start=1):
+        start_ns, end_ns = segment[0][0], segment[-1][0]
+        item = {
+            "index": index,
+            "direction": "forward" if segment[0][1] > 0 else "reverse",
+            "duration_s": round((end_ns - start_ns) / 1e9, 3),
+            "command_samples": len(segment),
+            "encoder_delta": {},
+        }
+        for topic in ENCODER_TOPICS:
+            start_value = value_at(encoders.get(topic, []), start_ns)
+            end_value = value_at(encoders.get(topic, []), end_ns)
+            item["encoder_delta"][topic] = (
+                end_value - start_value if start_value is not None and end_value is not None else None
+            )
+        for topic, values in odometry.items():
+            xs = [(stamp, x) for stamp, x, _ in values]
+            ys = [(stamp, y) for stamp, _, y in values]
+            start_x, end_x = value_at(xs, start_ns), value_at(xs, end_ns)
+            start_y, end_y = value_at(ys, start_ns), value_at(ys, end_ns)
+            if None not in (start_x, end_x, start_y, end_y):
+                item[topic] = {
+                    "delta_x_m": round(end_x - start_x, 4),
+                    "delta_y_m": round(end_y - start_y, 4),
+                    "distance_m": round(math.hypot(end_x - start_x, end_y - start_y), 4),
+                }
+        result["motion_segments"].append(item)
 
     for topic, values in odometry.items():
         first, last = values[0], values[-1]
