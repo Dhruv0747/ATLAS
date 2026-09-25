@@ -5,6 +5,7 @@ import argparse
 import bisect
 import json
 import math
+import statistics
 from collections import defaultdict
 from pathlib import Path
 
@@ -57,6 +58,7 @@ def main() -> None:
     parser.add_argument("bag")
     parser.add_argument("--measured-distance-m", type=float)
     parser.add_argument("--encoder-calibration")
+    parser.add_argument("--laser-yaw-deg", type=float, default=180.0)
     args = parser.parse_args()
 
     reader = rosbag2_py.SequentialReader()
@@ -65,12 +67,13 @@ def main() -> None:
         rosbag2_py.ConverterOptions("", ""),
     )
     topic_types = {item.name: item.type for item in reader.get_all_topics_and_types()}
-    wanted = set(ENCODER_TOPICS) | {"/cmd_vel", "/cmd_vel_joy", "/odom", "/yahboom/odom", "/imu/data"}
+    wanted = set(ENCODER_TOPICS) | {"/cmd_vel", "/cmd_vel_joy", "/odom", "/yahboom/odom", "/imu/data", "/scan"}
     messages = {name: get_message(topic_types[name]) for name in wanted if name in topic_types}
     encoders = defaultdict(list)
     commands = defaultdict(list)
     odometry = defaultdict(list)
     imu_yaw = []
+    lidar_sectors = []
     replay_raw = {}
     replay_seen = set()
     replay_estimator = EncoderDeltaEstimator()
@@ -114,6 +117,20 @@ def main() -> None:
             odometry[topic].append((recorded_ns, float(pose.position.x), float(pose.position.y)))
         elif topic == "/imu/data":
             imu_yaw.append((recorded_ns, yaw_of(msg.orientation)))
+        elif topic == "/scan":
+            nearest = {"front": math.inf, "rear": math.inf}
+            for scan_index, value in enumerate(msg.ranges):
+                if not math.isfinite(value) or value < msg.range_min or value > msg.range_max:
+                    continue
+                raw_degrees = math.degrees(msg.angle_min + scan_index * msg.angle_increment)
+                base_degrees = raw_degrees + args.laser_yaw_deg
+                front_error = abs((base_degrees + 180.0) % 360.0 - 180.0)
+                rear_error = abs((base_degrees - 180.0 + 180.0) % 360.0 - 180.0)
+                if front_error <= 17.5:
+                    nearest["front"] = min(nearest["front"], value)
+                if rear_error <= 17.5:
+                    nearest["rear"] = min(nearest["rear"], value)
+            lidar_sectors.append((recorded_ns, nearest["front"], nearest["rear"]))
 
     result = {"encoders": {}, "commands": {}, "odometry": {}}
     for topic in ENCODER_TOPICS:
@@ -196,6 +213,31 @@ def main() -> None:
             "samples": len(imu_yaw),
             "yaw_change_deg": round(math.degrees(imu_yaw[-1][1] - imu_yaw[0][1]), 3),
             "yaw_span_deg": round(math.degrees(max(yaw for _, yaw in imu_yaw) - min(yaw for _, yaw in imu_yaw)), 3),
+        }
+    if lidar_sectors:
+        window = min(20, max(1, len(lidar_sectors) // 4))
+        first_window = lidar_sectors[:window]
+        last_window = lidar_sectors[-window:]
+        def sector_median(samples, index):
+            values = [sample[index] for sample in samples if math.isfinite(sample[index])]
+            return statistics.median(values) if values else None
+        front_start = sector_median(first_window, 1)
+        front_end = sector_median(last_window, 1)
+        rear_start = sector_median(first_window, 2)
+        rear_end = sector_median(last_window, 2)
+        front_change = front_start - front_end if None not in (front_start, front_end) else None
+        rear_change = rear_end - rear_start if None not in (rear_start, rear_end) else None
+        estimates = [value for value in (front_change, rear_change) if value is not None and value > 0]
+        result["lidar_scene_check"] = {
+            "laser_yaw_deg": args.laser_yaw_deg,
+            "front_start_m": round(front_start, 3) if front_start is not None else None,
+            "front_end_m": round(front_end, 3) if front_end is not None else None,
+            "front_forward_change_m": round(front_change, 3) if front_change is not None else None,
+            "rear_start_m": round(rear_start, 3) if rear_start is not None else None,
+            "rear_end_m": round(rear_end, 3) if rear_end is not None else None,
+            "rear_forward_change_m": round(rear_change, 3) if rear_change is not None else None,
+            "scene_displacement_estimate_m": round(statistics.median(estimates), 3) if estimates else None,
+            "warning": "Scene-sector change is a cross-check, not LiDAR scan-matching odometry.",
         }
     if calibration is not None:
         result["consensus_replay"] = {

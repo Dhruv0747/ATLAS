@@ -1,0 +1,52 @@
+atlas_ekf_lidar_candidate:
+  ros__parameters:
+    frequency: 10.0
+    sensor_timeout: 0.5
+    transform_time_offset: 0.0
+    two_d_mode: true
+    publish_tf: false
+    publish_acceleration: false
+    print_diagnostics: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+
+    # Wheel feedback supplies only body velocity. Its absolute distance scale
+    # is not authoritative after the 2026-09-25 30 cm ground comparison.
+    odom0: /yahboom/odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
+                   false, false, false,
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+    odom0_queue_size: 10
+
+    # Gated RF2O scan matching supplies relative planar translation only.
+    # The saved 30 cm straight replay measured 27.93 cm, but RF2O also reported
+    # a false -17.6 degree yaw change. Keep heading authority with the IMU.
+    odom1: /lidar/odom
+    odom1_config: [true,  true,  false,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false]
+    odom1_differential: false
+    odom1_relative: true
+    odom1_queue_size: 10
+    odom1_pose_rejection_threshold: 2.5
+
+    # Preserve the currently commissioned gyro-Z source. Magnetic and Euler
+    # headings remain excluded on the metal chassis.
+    imu0: /im10a/imu/bias_corrected_candidate
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: false

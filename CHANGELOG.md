@@ -1,5 +1,18 @@
 # Changelog
 
+- 2026-09-25: Added a default-shadow RF2O LiDAR-odometry path for inaccurate
+  wheel-distance conditions. RF2O publishes no TF; an ATLAS validation gate
+  rejects invalid/jump data, assigns explicit covariance and rebases raw scan
+  drift whenever fresh final command and wheel-motion evidence say the rover is
+  stopped. A separate no-TF EKF fuses gated LiDAR X/Y, wheel velocity and the
+  configured IMU yaw-rate into `/odom/lidar_fused_candidate`. A 20-second
+  stationary run held the gated and fused candidate at 0.00 m / 0.00 degrees
+  while raw RF2O drifted 0.0048 m / 7.32 degrees. Isolated replay of the saved
+  operator-measured 0.30 m run estimated 0.2793 m translation, but false RF2O
+  yaw of -17.6 degrees; LiDAR yaw is therefore excluded. The candidate is
+  installed and auto-started but does not yet own `/odom` or Nav2 TF. A fresh
+  low-speed ground validation is required before promotion.
+
 - 2026-09-25: Replaced the fixed single-channel encoder exclusion with a
   fail-closed dynamic 3-of-4 consensus estimator. Every wheel remains a
   candidate; the largest coherent group of at least three interval deltas is
