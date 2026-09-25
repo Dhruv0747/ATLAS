@@ -1,5 +1,12 @@
 # Changelog
 
+- 2026-09-25: Ground evidence refined the shadow LiDAR fusion from planar pose
+  to signed body-forward speed. A low-power supervised run measured about
+  0.019 m by LiDAR but 0.0095 m by wheel consensus; RF2O pose direction was
+  inconsistent because its yaw was already known invalid. The gate now derives
+  speed from scan displacement magnitude, direction from fresh final-command
+  or wheel evidence, and leaves all heading authority with the IMU.
+
 - 2026-09-25: Added a default-shadow RF2O LiDAR-odometry path for inaccurate
   wheel-distance conditions. RF2O publishes no TF; an ATLAS validation gate
   rejects invalid/jump data, assigns explicit covariance and rebases raw scan

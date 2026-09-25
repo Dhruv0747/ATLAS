@@ -3,13 +3,13 @@
 ### LiDAR odometry fusion candidate — installed, shadow-only (2026-09-25)
 
 ATLAS now runs RF2O scan-matching odometry through a fail-closed validation
-gate and a separate shadow EKF. The candidate combines gated LiDAR X/Y,
-dynamic-consensus wheel velocity and the configured IMU yaw-rate on
+gate and a separate shadow EKF. The candidate combines gated, signed LiDAR
+body-forward speed, dynamic-consensus wheel velocity and configured IMU yaw-rate on
 `/odom/lidar_fused_candidate`. It deliberately publishes no TF and does not
 replace the authoritative `/odom` used by Nav2 yet. Stationary drift protection
 held gated/fused output at zero for 20 seconds. An isolated replay measured
-27.93 cm for the operator-measured 30 cm run; RF2O's false -17.6-degree yaw was
-excluded, leaving heading authority with the IMU. Promotion requires a fresh
+27.93 cm for the operator-measured 30 cm run; RF2O's false heading and pose
+direction are excluded, leaving heading authority with the IMU. Promotion requires a fresh
 supervised straight/turn/return validation; autonomy remains locked.
 The dependency and services can be reproduced with
 `project_atlas/scripts/install_lidar_odometry.sh`; RF2O is pinned to the tested

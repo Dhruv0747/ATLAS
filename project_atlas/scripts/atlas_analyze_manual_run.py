@@ -18,6 +18,13 @@ from atlas_encoder_selection import EncoderDeltaEstimator
 
 
 ENCODER_TOPICS = tuple(f"/yahboom/encoder/m{index}" for index in range(1, 5))
+ODOMETRY_TOPICS = (
+    "/odom",
+    "/yahboom/odom",
+    "/lidar/odom_raw",
+    "/lidar/odom",
+    "/odom/lidar_fused_candidate",
+)
 
 
 def yaw_of(q) -> float:
@@ -67,7 +74,13 @@ def main() -> None:
         rosbag2_py.ConverterOptions("", ""),
     )
     topic_types = {item.name: item.type for item in reader.get_all_topics_and_types()}
-    wanted = set(ENCODER_TOPICS) | {"/cmd_vel", "/cmd_vel_joy", "/odom", "/yahboom/odom", "/imu/data", "/scan"}
+    wanted = set(ENCODER_TOPICS) | {
+        "/cmd_vel",
+        "/cmd_vel_joy",
+        "/cmd_vel_web",
+        "/imu/data",
+        "/scan",
+    } | set(ODOMETRY_TOPICS)
     messages = {name: get_message(topic_types[name]) for name in wanted if name in topic_types}
     encoders = defaultdict(list)
     commands = defaultdict(list)
@@ -110,9 +123,9 @@ def main() -> None:
                     for rejected in replay_estimator.last_rejected:
                         replay_rejections[rejected] += 1
                     replay_seen.clear()
-        elif topic in ("/cmd_vel", "/cmd_vel_joy"):
+        elif topic in ("/cmd_vel", "/cmd_vel_joy", "/cmd_vel_web"):
             commands[topic].append((recorded_ns, float(msg.linear.x), float(msg.angular.z)))
-        elif topic in ("/odom", "/yahboom/odom"):
+        elif topic in ODOMETRY_TOPICS:
             pose = msg.pose.pose
             odometry[topic].append((recorded_ns, float(pose.position.x), float(pose.position.y)))
         elif topic == "/imu/data":

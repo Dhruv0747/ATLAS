@@ -10,6 +10,29 @@ def wrap_angle(value: float) -> float:
     return math.atan2(math.sin(value), math.cos(value))
 
 
+def signed_lidar_speed(
+    distance_m: float,
+    dt_s: float,
+    command_linear_mps: float,
+    wheel_linear_mps: float,
+    max_speed_mps: float = 1.2,
+) -> float:
+    """Convert scan-matching displacement magnitude to signed body speed.
+
+    RF2O translation magnitude is useful on ATLAS, but its accumulated yaw is
+    not. Prefer the final command direction, then fresh wheel direction, and
+    never infer direction from RF2O yaw.
+    """
+    values = (distance_m, dt_s, command_linear_mps, wheel_linear_mps)
+    if not all(math.isfinite(value) for value in values) or dt_s <= 0.0:
+        return 0.0
+    direction = command_linear_mps if abs(command_linear_mps) >= 0.01 else wheel_linear_mps
+    if abs(direction) < 0.01:
+        return 0.0
+    magnitude = min(max(0.0, distance_m / dt_s), max(0.0, max_speed_mps))
+    return math.copysign(magnitude, direction)
+
+
 @dataclass(frozen=True)
 class GateDecision:
     accepted: bool

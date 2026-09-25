@@ -13,7 +13,11 @@ from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from std_msgs.msg import String
 
-from atlas_lidar_odom_gate_core import LidarOdomGate, StationaryPoseStabilizer
+from atlas_lidar_odom_gate_core import (
+    LidarOdomGate,
+    StationaryPoseStabilizer,
+    signed_lidar_speed,
+)
 
 
 def yaw_of(orientation) -> float:
@@ -52,16 +56,22 @@ class AtlasLidarOdomGateNode(Node):
         self.last_command_at = 0.0
         self.wheel_motion = 0.0
         self.command_motion = 0.0
+        self.wheel_linear = 0.0
+        self.command_linear = 0.0
+        self.last_accepted_stamp = None
+        self.lidar_forward_speed = 0.0
         self.stationary_lock = False
 
     def on_wheel_odom(self, message: Odometry) -> None:
         self.last_wheel_at = time.monotonic()
+        self.wheel_linear = float(message.twist.twist.linear.x)
         self.wheel_motion = max(
             abs(message.twist.twist.linear.x), abs(message.twist.twist.angular.z)
         )
 
     def on_command(self, message: Twist) -> None:
         self.last_command_at = time.monotonic()
+        self.command_linear = float(message.linear.x)
         self.command_motion = max(abs(message.linear.x), abs(message.angular.z))
 
     def on_odom(self, message: Odometry) -> None:
@@ -80,6 +90,13 @@ class AtlasLidarOdomGateNode(Node):
         if not decision.accepted:
             self.rejected += 1
             return
+
+        dt_s = (
+            stamp_s - self.last_accepted_stamp
+            if self.last_accepted_stamp is not None
+            else 0.0
+        )
+        self.last_accepted_stamp = stamp_s
 
         wheel_fresh = now - self.last_wheel_at <= 0.6
         command_fresh = now - self.last_command_at <= 0.6
@@ -100,9 +117,22 @@ class AtlasLidarOdomGateNode(Node):
         message.pose.pose.orientation.z = math.sin(yaw_rad / 2.0)
         message.pose.pose.orientation.w = math.cos(yaw_rad / 2.0)
         if self.stationary_lock:
-            message.twist.twist.linear.x = 0.0
-            message.twist.twist.linear.y = 0.0
-            message.twist.twist.angular.z = 0.0
+            self.lidar_forward_speed = 0.0
+        else:
+            measured_speed = signed_lidar_speed(
+                decision.translation_delta_m,
+                dt_s,
+                self.command_linear if command_fresh else 0.0,
+                self.wheel_linear if wheel_fresh else 0.0,
+            )
+            # A light low-pass removes scan-to-scan velocity spikes without
+            # introducing pose/yaw assumptions.
+            self.lidar_forward_speed = (
+                0.4 * measured_speed + 0.6 * self.lidar_forward_speed
+            )
+        message.twist.twist.linear.x = self.lidar_forward_speed
+        message.twist.twist.linear.y = 0.0
+        message.twist.twist.angular.z = 0.0
         message.header.frame_id = "odom"
         message.child_frame_id = "base_link"
         message.pose.covariance = covariance(0.01, 0.01, 0.03)
@@ -133,6 +163,8 @@ class AtlasLidarOdomGateNode(Node):
             "stationary_lock": self.stationary_lock,
             "wheel_motion": self.wheel_motion,
             "command_motion": self.command_motion,
+            "lidar_forward_speed_mps": self.lidar_forward_speed,
+            "fusion_quantity": "SIGNED_BODY_FORWARD_SPEED",
             "authority": "SHADOW_CANDIDATE",
         }
         self.health.publish(String(data=json.dumps(payload, sort_keys=True)))

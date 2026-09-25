@@ -5,7 +5,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from atlas_lidar_odom_gate_core import LidarOdomGate, StationaryPoseStabilizer  # noqa: E402
+from atlas_lidar_odom_gate_core import (  # noqa: E402
+    LidarOdomGate,
+    StationaryPoseStabilizer,
+    signed_lidar_speed,
+)
 
 
 class LidarOdomGateTests(unittest.TestCase):
@@ -54,6 +58,19 @@ class StationaryPoseStabilizerTests(unittest.TestCase):
         x_m, y_m, yaw = stabilizer.update(0.2, 0.01, 0.1, False)
         self.assertAlmostEqual(math.hypot(x_m, y_m), math.hypot(0.1, 0.01), places=6)
         self.assertAlmostEqual(yaw, 0.0, places=6)
+
+
+class SignedLidarSpeedTests(unittest.TestCase):
+    def test_uses_command_direction_without_rf2o_yaw(self):
+        self.assertAlmostEqual(signed_lidar_speed(0.02, 0.2, 0.08, 0.0), 0.1)
+        self.assertAlmostEqual(signed_lidar_speed(0.02, 0.2, -0.08, 0.0), -0.1)
+
+    def test_falls_back_to_wheel_direction(self):
+        self.assertAlmostEqual(signed_lidar_speed(0.03, 0.3, 0.0, -0.05), -0.1)
+
+    def test_has_no_direction_when_stopped_or_invalid(self):
+        self.assertEqual(signed_lidar_speed(0.02, 0.2, 0.0, 0.0), 0.0)
+        self.assertEqual(signed_lidar_speed(0.02, 0.0, 0.1, 0.1), 0.0)
 
 
 if __name__ == "__main__":

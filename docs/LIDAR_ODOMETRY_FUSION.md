@@ -2,7 +2,7 @@
 
 ## Architecture
 
-`/scan` -> RF2O -> `/lidar/odom_raw` -> ATLAS gate -> `/lidar/odom` -> shadow EKF -> `/odom/lidar_fused_candidate`
+`/scan` -> RF2O -> `/lidar/odom_raw` -> ATLAS gate -> signed forward speed -> shadow EKF -> `/odom/lidar_fused_candidate`
 
 The shadow EKF also consumes wheel velocity from `/yahboom/odom` and the
 configured IMU yaw-rate. It publishes no TF. The existing authoritative EKF,
@@ -24,8 +24,10 @@ bash /home/jetson/project_atlas/scripts/install_lidar_odometry.sh
 - When fresh wheel and final-command evidence indicate the rover is stopped,
   the gate rebases raw RF2O drift and publishes a fixed pose with zero twist.
 - Stale input stops gated publication; it cannot invent continued movement.
-- LiDAR yaw is excluded from EKF fusion because a straight-run replay produced
-  a false -17.6-degree yaw change. The configured IMU retains yaw-rate authority.
+- LiDAR yaw and pose direction are excluded from EKF fusion because tests
+  produced false heading. Only scan-matched displacement magnitude becomes a
+  signed body-forward speed; command/wheel evidence supplies direction and the
+  configured IMU retains yaw-rate authority.
 - The candidate has no Nav2 authority until physical commissioning passes.
 
 ## Evidence on 2026-09-25
@@ -35,6 +37,9 @@ bash /home/jetson/project_atlas/scripts/install_lidar_odometry.sh
 - Isolated replay of an operator-measured 0.30 m straight run: RF2O translation
   0.2793 m (6.9% low). The same run's wheel odometry was 0.192 m.
 - Replay included only `/scan`; no motor or joystick command topic was played.
+- A supervised low-power ground run on 2026-09-25 moved about 0.019 m by LiDAR
+  scene/RF2O while wheel consensus measured 0.0095 m. It also proved RF2O pose
+  direction was unsafe, motivating the body-speed-only fusion above.
 
 ## Promotion gate
 
