@@ -1,5 +1,59 @@
 # Changelog
 
+- 2026-09-25: Corrected encoder-fault classification after the bounded ground
+  tests. The Yahboom USB device remained exclusively owned and its packet
+  stream recovered as `READY`; recorded failing intervals were a real
+  two-versus-two wheel disagreement (rear deltas changed while both front
+  deltas were near zero), not proof that all four encoders or the USB link had
+  failed. Hardware freeze faults, dynamic consensus rejection, and shared
+  serial-link loss are now reported separately. Added packet, checksum and
+  write-error counters plus exact serial errors. A real packet loss now resets
+  a three-second link-qualification gate before motion feedback can be trusted
+  again. The existing three-of-four requirement and autonomy lock remain; the
+  software does not fabricate distance from two agreeing wheels. Deployed to
+  the Jetson and restarted while the remote stop was latched. A stationary
+  ~139-second verification received 13,717 valid board packets and 3,429
+  encoder packets with zero stale events, checksum errors or write errors;
+  `/cmd_vel` and motor speed remained zero.
+
+- 2026-09-25: Corrected the bounded straight-distance commissioning test after
+  a commanded 0.20 m run physically travelled about 0.50 m while wheel odometry
+  reported 0.294 m. The test now accumulates accepted gated `/lidar/odom` pose
+  increments as its stopping authority, retains `/yahboom/odom` only as a
+  comparison measurement, fails closed if either stream or `/scan` is stale,
+  and reports LiDAR distance, wheel distance, clearance change and rejected
+  LiDAR updates. A follow-up run confirmed the LiDAR result (39.7 cm reported,
+  about 39 cm observed) but exposed drivetrain coast after the stop trigger.
+  Short bounded drive pulses now alternate with zero-command settling periods;
+  success is declared only after settled distance is within tolerance. Added
+  pure tests for heading-independent accumulation and invalid/jump rejection.
+  Replaced the unsafe runtime manual-only override with a dedicated
+  `/cmd_vel_commission` channel: it requires a fresh, neutral, released remote,
+  expires inside the mux after 20 seconds, is speed-clamped to 0.12 m/s,
+  cannot steer, retains encoder/obstacle guards and remains subordinate to the
+  physical remote stop. The test explicitly arms and disarms this lease. This
+  does not promote LiDAR odometry into Nav2. Deployed to the Jetson on
+  2026-09-25; four focused tests and Python compilation passed locally and on
+  the Jetson. After the user-service restart, manual-only remained enabled,
+  the commissioning lease was disarmed, the remote stop was latched, and the
+  live `/cmd_vel` output was zero. A later ground run from a LiDAR-verified
+  2.05 m corridor produced a nominal `PASS_TARGET_SETTLED` result of 0.173 m
+  gated LiDAR odometry and 0.192 m wheel odometry, but the operator's measured
+  physical travel was 0.27 m. The raw forward-clearance change was 0.284 m and
+  agreed with the physical measurement. That nominal pass is therefore
+  invalidated: RF2O distance alone is not accepted as ground truth, and the
+  experimental 0.30 s pulse was not made the default. The lease still disarmed
+  automatically and the mux returned to `STOPPED` after the run. Added a
+  robust median forward-corridor LiDAR measurement as a second conservative
+  stopping source. A subsequent run exposed a more important safety defect:
+  an intermittent all-encoder CRITICAL state stopped output, but the still
+  armed commissioning publisher could resume pulses after encoder recovery,
+  causing about 5 cm of delayed motion. Commissioning now fails closed: remote
+  stop, stale commands, encoder faults, and obstacle/safety guards permanently
+  revoke the lease and require explicit re-arming. Eight focused tests passed
+  locally and on the Jetson; after deployment and mux restart, the remote stop
+  was latched, commissioning was disarmed, and command/motor speed were zero.
+
 - 2026-09-25: Ground evidence refined the shadow LiDAR fusion from planar pose
   to signed body-forward speed. A low-power supervised run measured about
   0.019 m by LiDAR but 0.0095 m by wheel consensus; RF2O pose direction was

@@ -33,7 +33,7 @@ from Rosmaster_Lib import Rosmaster
 from atlas_usb_identity import open_verified
 from atlas_steering_commission import SteeringCommission
 from atlas_encoder_selection import (
-    ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator,
+    ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator, EncoderLinkMonitor,
     feedback_state, validate_selection,
 )
 from atlas_encoder_calibration import load_encoder_calibration
@@ -299,6 +299,10 @@ class YahboomBase(Node):
         self._wheelbase_m = self._encoder_calibration.wheelbase_m
         self._encoder_packet_stamp = 0.0
         self._encoder_packet_fresh = False
+        self._encoder_link_qualifying = True
+        self._encoder_link_monitor = EncoderLinkMonitor(
+            self._encoder_packet_timeout, ENCODER_LINK_QUALIFY_S
+        )
         self._encoder_delta_estimator = EncoderDeltaEstimator()
         if os.environ.get('ATLAS_YAHBOOM_AUTO_USB', '0') == '1':
             # No library initialization/write until receive protocol is proven.
@@ -348,7 +352,6 @@ class YahboomBase(Node):
         self._encoder_motion_started = 0.0
         self._encoder_fault_since = {}
         self._dynamic_encoder_rejected = set()
-        self._encoder_health_started = time.monotonic()
         self._encoder_stale = True
         self._x = 0.0
         self._y = 0.0
@@ -1573,10 +1576,18 @@ class YahboomBase(Node):
 
         enc, self._encoder_packet_stamp = self.bot.get_motor_encoder_sample()
         now = time.monotonic()
-        self._encoder_packet_fresh = (
-            self._encoder_packet_stamp > 0.0
-            and 0.0 <= now - self._encoder_packet_stamp <= self._encoder_packet_timeout
+        was_fresh = self._encoder_packet_fresh
+        self._encoder_packet_fresh, self._encoder_link_qualifying = (
+            self._encoder_link_monitor.update(self._encoder_packet_stamp, now)
         )
+        if was_fresh and not self._encoder_packet_fresh:
+            self.get_logger().error(
+                'Yahboom encoder packet stream became stale; motion feedback is unsafe'
+            )
+        elif not was_fresh and self._encoder_packet_fresh:
+            self.get_logger().warn(
+                'Yahboom encoder packet stream recovered; requalifying before use'
+            )
         if self._enc_origin is None:
             self._enc_origin = tuple(enc)
         if self._enc_rate_anchor is None:
@@ -1688,16 +1699,27 @@ class YahboomBase(Node):
         hardware_faults = {
             i for i in self._encoder_fault_since if i not in self._excluded_encoders
         }
-        faults = sorted(hardware_faults | self._dynamic_encoder_rejected)
+        faults = sorted(hardware_faults)
+        consensus_rejected = sorted(self._dynamic_encoder_rejected)
+        consensus_failed = bool(
+            traction
+            and len(self._encoder_delta_estimator.last_accepted) < 3
+            and len(consensus_rejected) >= 3
+        )
         longest = max(
             (now - self._encoder_fault_since[i] for i in hardware_faults),
             default=0.0,
         )
-        qualifying = now - self._encoder_health_started < ENCODER_LINK_QUALIFY_S
+        qualifying = self._encoder_link_qualifying
         state, scale, reason = feedback_state(
             self._excluded_encoders, faults, self._encoder_packet_fresh,
             qualifying, traction, longest,
         )
+        if consensus_failed and self._encoder_packet_fresh and not qualifying:
+            state = 'CRITICAL'
+            scale = 0.0
+            reason = 'encoder consensus unavailable; fewer than three wheel channels agree'
+        serial_diagnostics = self.bot.get_serial_diagnostics()
         names = ENCODER_NAMES
         payload = {
             'state': state,
@@ -1707,14 +1729,26 @@ class YahboomBase(Node):
                 i + 1 for i in self._encoder_delta_estimator.last_accepted
             ],
             'consensus_rejected_encoders': [
-                i + 1 for i in sorted(self._dynamic_encoder_rejected)
+                i + 1 for i in consensus_rejected
             ],
+            'consensus_state': 'UNAVAILABLE' if consensus_failed else 'AVAILABLE',
             'encoder_interval_delta_m': [
                 round(value, 6)
                 for value in self._encoder_delta_estimator.last_deltas
             ],
             'packet_age_s': round(max(0.0, now - self._encoder_packet_stamp), 3) if self._encoder_packet_stamp > 0.0 else None,
             'packet_fresh': self._encoder_packet_fresh,
+            'link_state': (
+                'STALE' if not self._encoder_packet_fresh
+                else ('QUALIFYING' if qualifying else 'LIVE')
+            ),
+            'link_stale_events': self._encoder_link_monitor.stale_events,
+            'link_recoveries': self._encoder_link_monitor.recoveries,
+            'serial_valid_packets': serial_diagnostics['valid_packets'],
+            'serial_encoder_packets': serial_diagnostics['encoder_packets'],
+            'serial_checksum_errors': serial_diagnostics['checksum_errors'],
+            'serial_write_errors': serial_diagnostics['write_errors'],
+            'serial_last_error': serial_diagnostics['last_error'],
             'navigation_validated': self._encoder_navigation_validated,
             'autonomy_ready': self._encoder_navigation_validated and scale > 0.0,
             'reason': reason if self._encoder_navigation_validated else reason + '; ground distance/turn validation pending',
@@ -1722,7 +1756,15 @@ class YahboomBase(Node):
             'traction': traction,
             'fault_age_s': round(longest, 2),
             'validation_remaining_s': round(
-                max(0.0, ENCODER_LINK_QUALIFY_S - (now - self._encoder_health_started)), 2
+                max(
+                    0.0,
+                    ENCODER_LINK_QUALIFY_S
+                    - (
+                        now - self._encoder_link_monitor.healthy_since
+                        if self._encoder_link_monitor.healthy_since > 0.0
+                        else 0.0
+                    ),
+                ), 2
             ),
             'last_change_age_s': [
                 round(max(0.0, now - stamp), 2)

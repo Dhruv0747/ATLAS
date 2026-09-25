@@ -6,6 +6,49 @@ WHEEL_NAMES = ('back_left', 'back_right', 'front_left', 'front_right')
 ENCODER_NAMES = ('M1_REAR_LEFT', 'M2_REAR_RIGHT', 'M3_FRONT_LEFT', 'M4_FRONT_RIGHT')
 
 
+class EncoderLinkMonitor:
+    """Track shared controller-packet loss and post-recovery qualification.
+
+    Wheel disagreement is deliberately handled separately by
+    ``EncoderDeltaEstimator``.  Mixing those two failure classes made a
+    two-versus-two wheel disagreement look like all four encoders had vanished.
+    """
+
+    def __init__(self, timeout_s, qualify_s=3.0):
+        self.timeout_s = float(timeout_s)
+        self.qualify_s = float(qualify_s)
+        self.fresh = False
+        self.healthy_since = 0.0
+        self.stale_events = 0
+        self.recoveries = 0
+        self.ever_fresh = False
+
+    def update(self, packet_stamp, now):
+        packet_stamp = float(packet_stamp)
+        now = float(now)
+        fresh = (
+            packet_stamp > 0.0
+            and 0.0 <= now - packet_stamp <= self.timeout_s
+        )
+        if fresh and not self.fresh:
+            if self.ever_fresh:
+                self.recoveries += 1
+            self.healthy_since = now
+            self.ever_fresh = True
+        elif not fresh and self.fresh:
+            self.stale_events += 1
+            self.healthy_since = 0.0
+        self.fresh = fresh
+        qualifying = (
+            fresh
+            and (
+                self.healthy_since <= 0.0
+                or now - self.healthy_since < self.qualify_s
+            )
+        )
+        return fresh, qualifying
+
+
 def validate_selection(config):
     """Fail closed on missing/invalid commissioning configuration."""
     if not isinstance(config, dict):

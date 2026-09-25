@@ -98,6 +98,15 @@ class Rosmaster(object):
         # Counts + arrival time are replaced atomically after a valid packet.
         # Cached zero counts alone cannot distinguish stationary from offline.
         self._encoder_sample = ((0, 0, 0, 0), 0.0)
+        self._serial_diagnostics = {
+            'valid_packets': 0,
+            'encoder_packets': 0,
+            'checksum_errors': 0,
+            'write_errors': 0,
+            'last_valid_packet_stamp': 0.0,
+            'last_encoder_packet_stamp': 0.0,
+            'last_error': '',
+        }
 
         self.__read_id = 0
         self.__read_val = 0
@@ -204,6 +213,8 @@ class Rosmaster(object):
                 (self.__encoder_m1, self.__encoder_m2,
                  self.__encoder_m3, self.__encoder_m4), time.monotonic()
             )
+            self._serial_diagnostics['encoder_packets'] += 1
+            self._serial_diagnostics['last_encoder_packet_stamp'] = self._encoder_sample[1]
 
         else:
             if ext_type == self.FUNC_UART_SERVO:
@@ -267,10 +278,13 @@ class Rosmaster(object):
     def __receive_data(self):
         try:
             self.__receive_data_loop()
-        except (serial.SerialException, OSError, IndexError) as exc:
+        except Exception as exc:
             # A dead receive loop leaves the ROS node alive but with frozen
             # encoder/odometry data. Exit so systemd reopens the USB device.
             print(f"FATAL: Yahboom serial receive stopped: {exc}", flush=True)
+            self._serial_diagnostics['last_error'] = (
+                f'{type(exc).__name__}: {exc}'
+            )
             try:
                 self.ser.close()
             finally:
@@ -297,8 +311,11 @@ class Rosmaster(object):
                         else:
                             check_sum = check_sum + value
                     if check_sum % 256 == rx_check_num:
+                        self._serial_diagnostics['valid_packets'] += 1
+                        self._serial_diagnostics['last_valid_packet_stamp'] = time.monotonic()
                         self.__parse_data(ext_type, ext_data)
                     else:
+                        self._serial_diagnostics['checksum_errors'] += 1
                         if self.__debug:
                             print("check sum error:", ext_len, ext_type, ext_data)
 
@@ -541,8 +558,12 @@ class Rosmaster(object):
             if self.__debug:
                 print("motor:", cmd)
             time.sleep(self.__delay_time)
-        except:
-            print('---set_motor error!---')
+        except Exception as exc:
+            self._serial_diagnostics['write_errors'] += 1
+            self._serial_diagnostics['last_error'] = (
+                f'{type(exc).__name__}: {exc}'
+            )
+            print(f'---set_motor error: {type(exc).__name__}: {exc}---', flush=True)
             pass
 
 
@@ -1172,6 +1193,10 @@ class Rosmaster(object):
     def get_motor_encoder_sample(self):
         """Return the last complete encoder packet and monotonic receipt time."""
         return self._encoder_sample
+
+    def get_serial_diagnostics(self):
+        """Return a snapshot that distinguishes transport loss from bad wheels."""
+        return dict(self._serial_diagnostics)
 
     # 获取小车的运动PID参数, 返回[kp, ki, kd]
     # Get the motion PID parameters of the dolly and return [kp, ki, kd]

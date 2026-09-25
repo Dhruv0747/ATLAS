@@ -1,5 +1,18 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Encoder diagnostics — transport and wheel consensus separated (2026-09-25)
+
+The motor-board health report now distinguishes a shared Yahboom serial-link
+loss from physical wheel-feedback disagreement. It exposes link state, packet
+age, packet/checksum/write counters, explicit hardware faults, and separately
+lists channels rejected by the dynamic three-of-four distance consensus. Any
+real link loss still stops motion immediately and now requires three continuous
+seconds of fresh packets before feedback can qualify again. A two-versus-two
+wheel split remains fail-closed; LiDAR is not used to hide missing close-range
+wheel feedback. Ground commissioning remains locked until at least three wheel
+channels agree reliably under traction and the measured distance/turn tests
+pass.
+
 ### LiDAR odometry fusion candidate — installed, shadow-only (2026-09-25)
 
 ATLAS now runs RF2O scan-matching odometry through a fail-closed validation
@@ -10,7 +23,13 @@ replace the authoritative `/odom` used by Nav2 yet. Stationary drift protection
 held gated/fused output at zero for 20 seconds. An isolated replay measured
 27.93 cm for the operator-measured 30 cm run; RF2O's false heading and pose
 direction are excluded, leaving heading authority with the IMU. Promotion requires a fresh
-supervised straight/turn/return validation; autonomy remains locked.
+supervised straight/turn/return validation; autonomy remains locked. The bounded
+straight-distance tool now stops from gated LiDAR displacement and reports
+wheel odometry separately; the 2026-09-25 20 cm request travelled about 50 cm
+while wheel odometry reported 29.4 cm, so the corrected controller still
+requires a fresh supervised ground validation before use or promotion. Its
+motion path is a 20-second, speed-clamped commissioning lease inside the mux;
+manual-only remains enabled and the physical remote stop retains priority.
 The dependency and services can be reproduced with
 `project_atlas/scripts/install_lidar_odometry.sh`; RF2O is pinned to the tested
 upstream Humble commit.

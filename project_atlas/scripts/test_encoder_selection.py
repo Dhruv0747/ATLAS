@@ -6,7 +6,8 @@ from types import SimpleNamespace
 import unittest
 
 from atlas_encoder_selection import (
-    WHEEL_NAMES, EncoderDeltaEstimator, feedback_state, validate_selection,
+    WHEEL_NAMES, EncoderDeltaEstimator, EncoderLinkMonitor, feedback_state,
+    validate_selection,
 )
 
 
@@ -77,6 +78,26 @@ class EncoderSelectionTests(unittest.TestCase):
     def test_shared_stale_stops_even_at_rest(self):
         self.assertEqual(feedback_state((3,), [], False, False, False, 0)[:2], ('CRITICAL', 0))
 
+    def test_link_requalifies_after_real_packet_loss(self):
+        monitor = EncoderLinkMonitor(1.0, 3.0)
+        self.assertEqual(monitor.update(10.0, 10.1), (True, True))
+        self.assertEqual(monitor.update(12.9, 13.1), (True, False))
+        self.assertEqual(monitor.update(12.9, 14.1), (False, False))
+        self.assertEqual(monitor.stale_events, 1)
+        self.assertEqual(monitor.update(14.2, 14.2), (True, True))
+        self.assertEqual(monitor.recoveries, 1)
+        self.assertEqual(monitor.update(17.2, 17.2), (True, False))
+
+    def test_consensus_failure_is_not_transport_loss(self):
+        estimator = EncoderDeltaEstimator()
+        estimator.update([0, 0, 0, 0], range(4))
+        estimator.update([.1, .1, 0, 0], range(4))
+        self.assertEqual(estimator.last_accepted, ())
+        self.assertEqual(estimator.last_rejected, (0, 1, 2, 3))
+        monitor = EncoderLinkMonitor(1.0, 0.0)
+        self.assertEqual(monitor.update(5.0, 5.01), (True, False))
+        self.assertEqual(monitor.stale_events, 0)
+
     def test_qualifying(self):
         self.assertEqual(feedback_state((3,), [], True, True, False, 0)[:2], ('QUALIFYING', 0))
 
@@ -108,7 +129,8 @@ class EncoderSelectionTests(unittest.TestCase):
         code = compile(ast.Expression(guard), '<mux guard>', 'eval')
         def blocked(ready, state='DEGRADED', age=.1):
             return eval(code, {'self': SimpleNamespace(encoder_health={'autonomy_ready': ready}),
-                               'encoder_state': state, 'encoder_age': age})
+                               'encoder_state': state, 'encoder_age': age,
+                               'selected': SimpleNamespace(name='NAV2')})
         self.assertTrue(blocked(False))
         self.assertFalse(blocked(True))
         self.assertTrue(blocked(True, age=2))

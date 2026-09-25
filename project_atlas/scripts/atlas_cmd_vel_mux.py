@@ -44,8 +44,11 @@ class AtlasCmdVelMux(Node):
             reset_hold_s=max(2.0, float(self.get_parameter('remote_reset_hold_s').value)),
         )
         self.manual_only = os.environ.get('ATLAS_MANUAL_ONLY', '0') == '1'
+        self.commission_until = 0.0
         self.create_subscription(Joy, '/joy', self.on_stop_joy, qos_profile_sensor_data)
         self.create_service(Trigger, '/atlas/remote_stop/reset', self.reset_remote_stop)
+        self.create_service(Trigger, '/atlas/commission/arm', self.arm_commission)
+        self.create_service(Trigger, '/atlas/commission/disarm', self.disarm_commission)
         self.declare_parameter("watchdog_period", 0.05)
         self.declare_parameter("manual_timeout", 0.35)
         self.declare_parameter("nav_timeout", 0.50)
@@ -171,17 +174,23 @@ class AtlasCmdVelMux(Node):
         self.ultrasonic_validity = ValidityWindow(self.ultrasonic_timeout)
         self.channels: Dict[str, Channel] = {
             "REMOTE": Channel("REMOTE", "/cmd_vel_joy", 1, manual_timeout),
+            # A short, locally armed commissioning lease allows a bounded
+            # measurement script to run while the normal manual-only policy
+            # remains enabled. The physical remote always has higher priority.
+            "COMMISSION": Channel(
+                "COMMISSION", "/cmd_vel_commission", 2, manual_timeout
+            ),
             # Recovery has an independent channel so dashboard zero-heartbeats
             # cannot cancel a bounded autonomous escape manoeuvre. The physical
             # remote remains the only command source allowed to pre-empt it.
             "RECOVERY": Channel(
-                "RECOVERY", "/cmd_vel_recovery", 2, manual_timeout
+                "RECOVERY", "/cmd_vel_recovery", 3, manual_timeout
             ),
-            "WEB": Channel("WEB", "/cmd_vel_web", 3, manual_timeout),
+            "WEB": Channel("WEB", "/cmd_vel_web", 4, manual_timeout),
             "FOXGLOVE": Channel(
-                "FOXGLOVE", "/cmd_vel_teleop", 4, manual_timeout
+                "FOXGLOVE", "/cmd_vel_teleop", 5, manual_timeout
             ),
-            "NAV2": Channel("NAV2", "/cmd_vel_nav", 5, nav_timeout),
+            "NAV2": Channel("NAV2", "/cmd_vel_nav", 6, nav_timeout),
         }
 
         self.output = self.create_publisher(Twist, "/cmd_vel", 10)
@@ -288,6 +297,10 @@ class AtlasCmdVelMux(Node):
             self.hold_remote_stop()
 
     def hold_remote_stop(self):
+        # A remote/voice stop permanently revokes a commissioning lease. The
+        # test must be explicitly re-armed after the operator releases stop;
+        # queued pulses can never resume by themselves.
+        self.commission_until = 0.0
         for channel in self.channels.values():
             channel.engaged = False
             channel.command = Twist()
@@ -306,11 +319,62 @@ class AtlasCmdVelMux(Node):
                             'Keep sticks centred and all buttons released for one second')
         return response
 
+    def arm_commission(self, request, response):
+        del request
+        now = time.monotonic()
+        if self.remote_stop.check(now):
+            response.success = False
+            response.message = self.remote_stop.reason
+            return response
+        if (
+            self.remote_stop.neutral_since is None
+            or now - self.remote_stop.neutral_since < 1.0
+        ):
+            response.success = False
+            response.message = 'Remote must remain neutral for one second'
+            return response
+        if self.moving(self.last_sent):
+            response.success = False
+            response.message = 'Rover must be stopped before commissioning'
+            return response
+        self.commission_until = now + 20.0
+        response.success = True
+        response.message = 'Commissioning channel armed for 20 seconds'
+        self.publish_mode()
+        return response
+
+    def disarm_commission(self, request, response):
+        del request
+        self.commission_until = 0.0
+        channel = self.channels['COMMISSION']
+        channel.engaged = False
+        channel.command = Twist()
+        self.publish_stop('commissioning channel disarmed')
+        response.success = True
+        response.message = 'Commissioning channel disarmed and stopped'
+        return response
+
+    def revoke_commission(self, reason: str) -> None:
+        """Fail a commissioning lease closed after any safety intervention."""
+        self.commission_until = 0.0
+        channel = self.channels['COMMISSION']
+        channel.engaged = False
+        channel.command = Twist()
+        self.output.publish(Twist())
+        self.last_sent = Twist()
+        self.active_name = None
+        self.safety_output.publish(String(data=reason))
+        self.get_logger().error(reason)
+        self.publish_mode()
+
     def on_command(self, name: str, msg: Twist) -> None:
-        if self.remote_stop.check(time.monotonic()):
+        now = time.monotonic()
+        if self.remote_stop.check(now):
             self.hold_remote_stop()
             return
-        if self.manual_only and name != 'REMOTE':
+        if self.manual_only and name not in ('REMOTE', 'COMMISSION'):
+            return
+        if name == 'COMMISSION' and now > self.commission_until:
             return
         channel = self.channels[name]
         channel.last_rx = time.monotonic()
@@ -352,6 +416,13 @@ class AtlasCmdVelMux(Node):
             command.linear.z = 0.0
             command.angular.x = 0.0
             command.angular.y = 0.0
+        elif name == "COMMISSION":
+            command.linear.x = max(-0.12, min(0.12, command.linear.x))
+            command.linear.y = 0.0
+            command.linear.z = 0.0
+            command.angular.x = 0.0
+            command.angular.y = 0.0
+            command.angular.z = 0.0
         elif name == "FOXGLOVE":
             command.linear.x = max(
                 -self.foxglove_max_linear,
@@ -531,9 +602,25 @@ class AtlasCmdVelMux(Node):
             self.hold_remote_stop()
             return
 
+        commission = self.channels['COMMISSION']
+        if now > self.commission_until and (
+            commission.engaged or self.active_name == 'COMMISSION'
+        ):
+            self.commission_until = 0.0
+            commission.engaged = False
+            commission.command = Twist()
+            self.publish_stop('commissioning lease expired')
+            return
+
         if self.active_name:
             active = self.channels[self.active_name]
             if active.engaged and (now - active.last_rx) > active.timeout:
+                if active.name == 'COMMISSION':
+                    self.revoke_commission(
+                        f'COMMISSION ABORT: stale for '
+                        f'{now - active.last_rx:.3f}s'
+                    )
+                    return
                 active.engaged = False
                 # Stop in this cycle. A lower-priority source can take control
                 # only on the next watchdog cycle.
@@ -553,18 +640,27 @@ class AtlasCmdVelMux(Node):
             return
 
         self.active_name = selected.name
-        if selected.name in ("RECOVERY", "NAV2"):
+        if selected.name in ("COMMISSION", "RECOVERY", "NAV2"):
             encoder_age = now - self.encoder_health_rx
             encoder_state = str(
                 self.encoder_health.get('state', 'MISSING')
             ).upper()
-            if self.encoder_health.get('autonomy_ready') is False or encoder_age > 1.0 or encoder_state in (
+            if (
+                (selected.name != 'COMMISSION'
+                 and self.encoder_health.get('autonomy_ready') is False)
+                or encoder_age > 1.0 or encoder_state in (
                 'CRITICAL', 'INVALID', 'MISSING', 'QUALIFYING'
+                )
             ):
                 faults = ','.join(self.encoder_health.get('faults', [])) or self.encoder_health.get('reason', 'feedback unavailable')
+                reason = f"AUTONOMY STOP: ENCODER {encoder_state} {faults}"
+                if selected.name == 'COMMISSION':
+                    self.revoke_commission(
+                        f'COMMISSION ABORT: ENCODER {encoder_state} {faults}'
+                    )
+                    return
                 self.output.publish(Twist())
                 self.last_sent = Twist()
-                reason = f"AUTONOMY STOP: ENCODER {encoder_state} {faults}"
                 self.safety_output.publish(String(data=reason))
                 if reason != self.last_blocked_reason:
                     self.get_logger().error(reason)
@@ -579,6 +675,11 @@ class AtlasCmdVelMux(Node):
                 selected.command, now
             )
             if blocked_reason:
+                if selected.name == 'COMMISSION':
+                    self.revoke_commission(
+                        f'COMMISSION ABORT: {blocked_reason}'
+                    )
+                    return
                 self.output.publish(Twist())
                 self.last_sent = Twist()
                 self.safety_output.publish(String(data=blocked_reason))
@@ -602,7 +703,7 @@ class AtlasCmdVelMux(Node):
                 )
             )
         command = self.copy_twist(selected.command)
-        if selected.name in ('RECOVERY', 'NAV2') and str(
+        if selected.name in ('COMMISSION', 'RECOVERY', 'NAV2') and str(
             self.encoder_health.get('state', '')
         ).upper() == 'DEGRADED':
             scale = max(0.0, min(0.5, float(
@@ -628,6 +729,10 @@ class AtlasCmdVelMux(Node):
         self.mode_output.publish(String(data=mode))
         self.policy_output.publish(String(data=json.dumps({
             'manual_only': self.manual_only,
+            'commission_armed': time.monotonic() < self.commission_until,
+            'commission_remaining_s': max(
+                0.0, self.commission_until - time.monotonic()
+            ),
             'stop_latched': self.remote_stop.latched,
             'stop_reason': self.remote_stop.reason,
             'source': mode,
