@@ -1,5 +1,18 @@
 # Changelog
 
+- 2026-09-25: Completed the available-space turn-feedback gate. A read-only
+  eight-sector LiDAR snapshot measured front 1.19 m, left 0.74 m, front-left
+  0.81 m and rear-left 0.63 m minimum; the right side was correctly rejected
+  at only 0.48 m. A bounded left arc retained safe clearance and completed
+  with 0.078 m wheel distance, 0.050 m accepted LiDAR distance and five RF2O
+  jumps rejected. Raw encoder changes were M1 `431`, M2 `-576`, M3 `64`, M4
+  `-408`: M3 was again the weak front-left channel while M1/M2/M4 responded.
+  M1/M2/M4 are therefore the evidence-backed candidate navigation set, with M3
+  proposed for diagnostic-only exclusion. Activation was deliberately not
+  performed: the saved encoder policy remains `navigation_validated: false`
+  pending explicit operator approval of that safety-setting change. Closed-loop
+  PID remains disabled and uncommissioned; steering calibration is unchanged.
+
 - 2026-09-25: Recorded the operator-measured 0.260 m front tyre-centre track
   width without altering the saved 90-degree steering centres or steering
   endpoints. Encoder increments are now normalized by four-wheel-steering

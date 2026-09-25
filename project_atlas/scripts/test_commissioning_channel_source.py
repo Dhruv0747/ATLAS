@@ -46,6 +46,8 @@ class CommissioningChannelSourceTest(unittest.TestCase):
         self.assertIn('"/atlas/commission/arm"', self.arc)
         self.assertIn('"/atlas/commission/disarm"', self.arc)
         self.assertIn('"/atlas/encoder_health"', self.arc)
+        self.assertIn('f"/yahboom/encoder/m{index + 1}"', self.arc)
+        self.assertIn("critical_health=", self.arc)
         self.assertIn('"/lidar/odom"', self.arc)
         self.assertIn("IncrementalPlanarDistance(max_step_m=0.03)", self.arc)
         self.assertIn("node.disarm()", self.arc)

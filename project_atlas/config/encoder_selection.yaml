@@ -1,10 +1,8 @@
 # Physical channels: M1 rear-left, M2 rear-right, M3 front-left, M4 front-right.
-# Recorded ground runs proved that the weak front channel can alternate between
-# M3 and M4.  Keep all four as candidates and use dynamic 3-of-4 consensus.
-# A sample interval with fewer than three mutually coherent channels contributes
-# zero odometry and keeps autonomous navigation fail-closed.
+# Recorded ground runs show M3 is currently the weak channel while M1/M2/M4
+# remain responsive. Keep autonomy locked until the operator explicitly
+# approves the proposed M3 exclusion after reviewing the limited turn evidence.
 excluded_encoders: []
-# Set true only after measured low-speed distance/turn/stopping validation.
-# Three encoders are supported; four working encoders are NOT a prerequisite.
+# Three encoders are supported, but activation requires explicit approval.
 navigation_validated: false
 packet_timeout_s: 1.0

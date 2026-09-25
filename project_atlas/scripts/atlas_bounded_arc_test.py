@@ -12,7 +12,7 @@ from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import String
+from std_msgs.msg import Int32, String
 from std_srvs.srv import Trigger
 
 from atlas_scan_geometry import ray_in_base_sector
@@ -30,7 +30,10 @@ class ArcTest(Node):
         # achieved physical travel.
         self.lidar_distance = IncrementalPlanarDistance(max_step_m=0.03)
         self.encoder_health = {}
+        self.last_critical_health = {}
         self.encoder_health_at = 0.0
+        self.encoder_counts = [None, None, None, None]
+        self.encoder_start_counts = None
         self.clearance = math.inf
         self.result = "WAITING"
         self.armed = False
@@ -41,7 +44,25 @@ class ArcTest(Node):
         self.create_subscription(Odometry, "/lidar/odom", self.on_lidar_odom, 20)
         self.create_subscription(LaserScan, "/scan", self.on_scan, qos_profile_sensor_data)
         self.create_subscription(String, "/atlas/encoder_health", self.on_encoder_health, 20)
+        for index in range(4):
+            self.create_subscription(
+                Int32,
+                f"/yahboom/encoder/m{index + 1}",
+                lambda msg, i=index: self.on_encoder(i, msg),
+                20,
+            )
         self.create_timer(0.05, self.tick)
+
+    def on_encoder(self, index, msg):
+        self.encoder_counts[index] = int(msg.data)
+
+    def encoder_deltas(self):
+        if self.encoder_start_counts is None:
+            return [None, None, None, None]
+        return [
+            None if current is None or start is None else current - start
+            for start, current in zip(self.encoder_start_counts, self.encoder_counts)
+        ]
 
     def arm(self):
         # Discovery may be slow under the full ATLAS workload. Waiting longer
@@ -81,6 +102,8 @@ class ArcTest(Node):
             self.encoder_health = value if isinstance(value, dict) else {}
         except (TypeError, ValueError, json.JSONDecodeError):
             self.encoder_health = {}
+        if str(self.encoder_health.get("state", "")).upper() == "CRITICAL":
+            self.last_critical_health = dict(self.encoder_health)
         self.encoder_health_at = time.monotonic()
 
     def on_scan(self, msg):
@@ -124,10 +147,12 @@ class ArcTest(Node):
         if self.result not in ("WAITING", "RUNNING"):
             self.pub.publish(Twist()); return
         if (self.start is None or not self.scan_at or not self.lidar_odom_at
-                or not self.encoder_health_at):
+                or not self.encoder_health_at
+                or any(value is None for value in self.encoder_counts)):
             return
         if not self.started:
             self.started, self.result = now, "RUNNING"
+            self.encoder_start_counts = list(self.encoder_counts)
             print(f"START clearance={self.clearance:.3f}m target={self.target:.3f}m", flush=True)
         encoder_state = str(self.encoder_health.get("state", "MISSING")).upper()
         if (now - self.odom_at > 0.6 or now - self.lidar_odom_at > 0.6
@@ -171,7 +196,10 @@ def main():
               f"wheel_distance={node.wheel_distance():.3f}m "
               f"lidar_rejected={node.lidar_distance.rejected_updates} "
               f"clearance={node.clearance:.3f}m "
-              f"encoder_state={node.encoder_health.get('state', 'MISSING')}", flush=True)
+              f"encoder_state={node.encoder_health.get('state', 'MISSING')} "
+              f"encoder_deltas={node.encoder_deltas()} "
+              f"critical_health={json.dumps(node.last_critical_health, sort_keys=True)}",
+              flush=True)
     finally:
         node.pub.publish(Twist())
         node.disarm()
