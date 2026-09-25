@@ -1063,6 +1063,33 @@ def cpu_percent():
     return "--"
 
 
+def gpu_status():
+    """Read Orin GPU utilisation/frequency without starting tegrastats."""
+    roots = (
+        "/sys/devices/platform/17000000.gpu/devfreq/17000000.gpu",
+        "/sys/class/devfreq/17000000.gpu",
+    )
+    for root in roots:
+        try:
+            raw_load = Path(root, "load").read_text(encoding="utf-8").strip()
+            # NVIDIA's devfreq load is normally per-mille (0..1000).
+            load_value = float(raw_load)
+            load_percent = load_value / 10.0
+            load_percent = round(max(0.0, min(100.0, load_percent)), 1)
+        except (OSError, ValueError):
+            continue
+        frequency_mhz = None
+        try:
+            raw_frequency = float(
+                Path(root, "cur_freq").read_text(encoding="utf-8").strip()
+            )
+            frequency_mhz = round(raw_frequency / 1_000_000.0, 1)
+        except (OSError, ValueError):
+            pass
+        return {"gpu_percent": load_percent, "gpu_frequency_mhz": frequency_mhz}
+    return {"gpu_percent": None, "gpu_frequency_mhz": None}
+
+
 def voice_usb_status():
     preferred = (
         "/dev/serial/by-id/"
@@ -1109,6 +1136,7 @@ def system_status():
         temp = f"{int(temp) / 1000:.0f} C"
     return {
         "cpu_percent": cpu,
+        **gpu_status(),
         "ram": ram,
         "ram_percent": ram_percent,
         "temp": temp or "--",
@@ -1679,7 +1707,7 @@ section.col:nth-of-type(3) .panel:has(#heatmap){order:-3;border-color:#34e58b}
 section.col:nth-of-type(3) .panel:has(#healthGrid){order:-2}
 section.col:nth-of-type(3) .panel:has(#power){order:-1}
 #toast{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:#122b40;border:1px solid var(--cyan);padding:8px 14px;border-radius:20px;display:none;z-index:8}
-.diagTable{width:100%;border-collapse:collapse;font-size:12px}.diagTable th,.diagTable td{text-align:left;padding:9px;border-bottom:1px solid #25475b;vertical-align:top}.diagTable th{color:#17d5ff}.diagTable tr:hover{background:#122b3d}.rawData{overflow-wrap:anywhere}.sensorModal{display:none;position:fixed;inset:0;z-index:20;background:rgba(0,5,10,.88);padding:3vh 3vw}.sensorModal.open{display:flex}.sensorSheet{width:min(980px,94vw);max-height:94vh;margin:auto;overflow:auto;background:#07131f;border:2px solid var(--cyan);border-radius:14px;padding:14px;box-shadow:0 0 38px rgba(23,213,255,.28)}.sensorHead{display:flex;align-items:center;gap:10px;border-bottom:1px solid #214761;padding-bottom:9px;margin-bottom:10px}.sensorHead h2{font-size:18px;margin:0}.closeDetail{margin-left:auto;background:#7f1722;border:1px solid #ff5966;color:#fff;border-radius:8px;padding:10px 18px;font-weight:800}.detailGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.detailTile{background:#0b1d2c;border:1px solid #214761;border-radius:9px;padding:10px}.detailTile b{display:block;color:var(--cyan);font-size:11px}.detailTile strong{display:block;font-size:22px;margin-top:5px}.rangeBar{height:18px;background:#13283a;border-radius:9px;overflow:hidden;margin-top:8px}.rangeFill{height:100%;background:linear-gradient(90deg,#ff4655,#ffcc3d,#34e58b);transition:width .25s}.modalCamera{width:100%;max-height:65vh;object-fit:contain;background:#000;border-radius:8px}.modalHeat{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;max-width:460px;aspect-ratio:1;margin:auto}.modalHeat i{display:block;border-radius:3px}.rawData{font:12px ui-monospace,monospace;white-space:pre-wrap;color:#bcd3e5;background:#040a12;border-radius:8px;padding:10px;margin-top:9px}.sensorHint{color:#8ca6bb;font-size:11px;margin-top:8px}
+.diagTable{width:100%;border-collapse:collapse;font-size:12px}.diagTable th,.diagTable td{text-align:left;padding:9px;border-bottom:1px solid #25475b;vertical-align:top}.diagTable th{color:#17d5ff}.diagTable tr:hover{background:#122b3d}.rawData{overflow-wrap:anywhere}.sensorModal{display:none;position:fixed;inset:0;z-index:20;background:rgba(0,5,10,.88);padding:3vh 3vw}.sensorModal.open{display:flex}.sensorSheet{width:min(980px,94vw);max-height:94vh;margin:auto;overflow:auto;background:#07131f;border:2px solid var(--cyan);border-radius:14px;padding:14px;box-shadow:0 0 38px rgba(23,213,255,.28)}.sensorHead{display:flex;align-items:center;gap:10px;border-bottom:1px solid #214761;padding-bottom:9px;margin-bottom:10px}.sensorHead h2{font-size:18px;margin:0}.closeDetail{margin-left:auto;background:#7f1722;border:1px solid #ff5966;color:#fff;border-radius:8px;padding:10px 18px;font-weight:800}.detailGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.detailTile{background:#0b1d2c;border:1px solid #214761;border-radius:9px;padding:10px;min-width:0}.detailTile b{display:block;color:var(--cyan);font-size:11px}.detailTile strong{display:block;font-size:22px;margin-top:5px;overflow-wrap:anywhere}.rangeBar{height:18px;background:#13283a;border-radius:9px;overflow:hidden;margin-top:8px}.rangeFill{height:100%;background:linear-gradient(90deg,#ff4655,#ffcc3d,#34e58b);transition:width .25s}.modalCamera{width:100%;max-height:65vh;object-fit:contain;background:#000;border-radius:8px}.modalHeat{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;max-width:460px;aspect-ratio:1;margin:auto}.modalHeat i{display:block;border-radius:3px}.rawData{font:12px ui-monospace,monospace;white-space:pre-wrap;color:#bcd3e5;background:#040a12;border-radius:8px;padding:10px;margin-top:9px}.sensorHint{color:#8ca6bb;font-size:11px;margin-top:8px}
 @media(max-width:700px){.detailGrid{grid-template-columns:1fr}.sensorModal{padding:1vh 2vw}.sensorSheet{max-height:98vh}}
 @media(max-width:900px){.grid{display:block;height:auto;width:100%;overflow:hidden}.col,.panel{overflow:visible;margin-bottom:8px;min-width:0}.camera{height:42vh}.envgrid{grid-template-columns:1fr}.heatmap{max-width:180px}canvas{max-width:100%}header .sub{display:none}.headerBtn{padding:7px 9px}.headerText{display:none}}
 @media(min-width:1500px){body{font-size:15px}.grid{grid-template-columns:minmax(300px,20vw) minmax(600px,1fr) minmax(350px,23vw)}.camera{height:min(52vh,610px)}.speechText{font-size:16px}}
@@ -1702,7 +1730,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
  <div class="panel"><h2>JETSON AI POWER</h2><div class="cards">
   <button class="btn ai-on" data-ai="object">AI ON</button><button class="btn ai-off" data-ai="eco">AI ECO / OFF</button>
  </div><div class="detail" id="ai">AI status waiting</div></div>
- <div class="panel card touch" onclick="openDetail('encoders')"><h2>MOTION / ENCODERS — TOUCH FOR ALL FOUR</h2><div id="motion"></div></div>
+ <div class="panel card touch" onclick="openDetail('encoders')"><h2>SMART DRIVE REPORT — ALL 4 WHEELS</h2><div id="motion"></div><div class="detail">One combined view: link, selected feedback, exclusions, steering, odometry and readiness.</div></div>
 </section>
 <section class="col">
  <div class="panel"><h2>LIVE CAMERA — LATEST FRAME / NO BUFFER <span class="cameraStatus warn" id="cameraStatus">CONNECTING</span><button class="btn" style="float:right;padding:5px 9px" onclick="openDetail('camera')">OPEN DATA</button></h2><img class="camera" id="camera" src="/camera.jpg?latest=boot" onclick="openDetail('camera')"></div>
@@ -1747,7 +1775,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
  </div>
  <div class="panel"><h2>NETWORK</h2><div id="network"></div></div>
  <div class="panel"><h2>GNSS / CELLULAR</h2><div id="gnss"></div><div class="constellation-grid" id="constellationGrid"></div><div class="constellation-note">Primary: Hiwonder GPS V1 USB. Bars show receiver-reported satellites in view, NOT signal strength. Zero means zero reported satellites. NMEA labels alone do not mean satellites detected. No report does not mean unsupported constellation. Touch GPS diagnostics for source, age and errors.</div></div>
- <div class="panel"><h2>SYSTEM</h2><div id="system"></div></div>
+ <div class="panel card touch" onclick="openDetail('jetson')"><h2>JETSON LIVE REPORT — TOUCH FOR DETAILS</h2><div id="system"></div></div>
 </section></main>
 <details class="panel" id="diagnosticsPanel" style="margin:10px" ontoggle="if(this.open){renderDiagnostics();refreshDiagnostics(true)}">
 <summary style="padding:12px;font-size:18px;color:#17d5ff;cursor:pointer">DIAGNOSTIC WORKBENCH — SERVICES / LIVE DATA / LOGS / USB</summary>
@@ -1794,13 +1822,8 @@ function renderHealth(r,net){
  let i2c=i2cInfo(r);
  let items=[
   ['CAMERA',recent(r,'camera_info',4)?'ok':'fail',recent(r,'camera_info',4)?'IMX708 video frames live':'No frames: check CSI ribbon and camera service','camera_info','camera'],
-  ['MOTOR BOARD LINK',recent(r,'encoder_health',3)&&encoderHealth.packet_fresh===true?'ok':'fail',recent(r,'encoder_health',3)&&encoderHealth.packet_fresh===true?`Encoder packets live • age ${n(encoderHealth.packet_age_s,2)} s`:'No fresh encoder packets: check board power / serial link','encoder_health','encoders'],
-  ['ENCODER SAFETY',recent(r,'encoder_health',3)?(encoderHealth.autonomy_ready===true?'ok':(['DEGRADED','QUALIFYING','READY','HEALTHY'].includes(encoderHealth.state)?'warn':'fail')):'fail',recent(r,'encoder_health',3)?`${encoderHealth.state||'UNKNOWN'} • ${encoderHealth.reason||encoderHealth.faults?.join(', ')||'Validation pending'}`:'Safety heartbeat stale — autonomy blocked','encoder_health','encoders'],
+  ['DRIVE FEEDBACK • ALL 4 WHEELS',recent(r,'encoder_health',3)?(encoderHealth.autonomy_ready===true?'ok':(['DEGRADED','QUALIFYING','READY','HEALTHY'].includes(encoderHealth.state)?'warn':'fail')):'fail',recent(r,'encoder_health',3)&&encoderHealth.packet_fresh===true?`${encoderHealth.state||'UNKNOWN'} • selected ${(encoderHealth.selected_encoders||[]).map(i=>'M'+i).join(', ')||'NONE'} • excluded ${(encoderHealth.excluded_encoders||[]).map(i=>'M'+i).join(', ')||'NONE'} • counts ${val(r,'enc_m1')} / ${val(r,'enc_m2')} / ${val(r,'enc_m3')} / ${val(r,'enc_m4')}`:'No fresh motor-board/encoder packets: check board power and serial link','encoder_health','encoders'],
   ['DRIVE PID',recent(r,'drive_pid',3)?(drivePid.active?'ok':(drivePid.state==='FAULT_STOP'?'fail':'warn')):'warn',recent(r,'drive_pid',3)?`${drivePid.state||'UNKNOWN'} • ${drivePid.fault_reason||drivePid.inhibited_reason||'active'}`:'No PID diagnostic yet; controller remains safely disabled until commissioned','drive_pid','drive_pid'],
-  ['ENCODER M1 • BACK LEFT',recent(r,'enc_m1',4)?'ok':'fail',recent(r,'enc_m1',4)?`Live count ${val(r,'enc_m1')} • zero is valid while stopped`:'No current M1 reading','enc_m1','encoders'],
-  ['ENCODER M2 • BACK RIGHT',recent(r,'enc_m2',4)?'ok':'fail',recent(r,'enc_m2',4)?`Live count ${val(r,'enc_m2')} • zero is valid while stopped`:'No current M2 reading','enc_m2','encoders'],
-  ['ENCODER M3 • FRONT LEFT',recent(r,'enc_m3',4)?'ok':'fail',recent(r,'enc_m3',4)?`Live count ${val(r,'enc_m3')} • zero is valid while stopped`:'No current M3 reading','enc_m3','encoders'],
-  ['ENCODER M4 • FRONT RIGHT',(encoderHealth.excluded_encoders||[]).includes(4)?'warn':(recent(r,'enc_m4',4)?'ok':'fail'),(encoderHealth.excluded_encoders||[]).includes(4)?`EXCLUDED / FAULTY • raw ${val(r,'enc_m4','--')} • motor remains enabled`:(recent(r,'enc_m4',4)?`Raw count ${val(r,'enc_m4')}`:'No current M4 reading'),'enc_m4','encoders'],
   ['XBOX REMOTE',recent(r,'joy',8)?'ok':'warn',recent(r,'joy',8)?'Controller input received':'Wake controller, then press a stick or button','joy'],
   ['IMU / COMPASS',recent(r,'imu_heading',4)?'warn':'fail',recent(r,'imu_heading',4)?'Hiwonder IM10A live — navigation fusion not validated':'IM10A USB data stale or disconnected','imu_heading','imu'],
   ['RPLIDAR',recent(r,'lidar',4)?'ok':'fail',recent(r,'lidar',4)?'Laser scan live':'Check LiDAR USB, motor and cable','lidar','lidar'],
@@ -1862,13 +1885,23 @@ function renderDetail(){if(!activeDetail||!latestStatus)return;let r=latestStatu
  else if(activeDetail.startsWith('telemetry:')){let key=activeDetail.slice(10),item=r[key];title='TELEMETRY — '+key;body='<pre class="rawData">'+diagEscape(JSON.stringify(item||{error:'not received'},null,2))+'</pre>';fresh=item&&item.age!==null&&item.age<10?'● RECENT':'OLDER / UNKNOWN';}
  else if(activeDetail==='camera'){title='IMX708 CAMERA — LIVE OUTPUT';let c=val(r,'camera_info',{});body=`<img id="modalCamera" class="modalCamera" src="/camera.jpg?latest=${Date.now()}"><div class="detailGrid" style="margin-top:10px">${tile('SOURCE',c.source||'--')}${tile('JPEG FRAME',c.bytes||'--',' bytes')}${tile('AGE',n(age(r,'camera_info'),1),' s')}</div><div class="rawData">AI: ${val(r,'ai_status','--')}\nMOTION: ${val(r,'motion_state','--')} (${n(val(r,'motion_percent'),1)}%)\nLATEST-FRAME MODE: old video frames are discarded instead of buffered.\nCamera processing remains single-source; this window does not start another detector.</div>`;fresh=age(r,'camera_info')<3?'● LIVE':'STALE';}
  else if(activeDetail==='radar'){title='RD-03D RADAR — LIVE SPEED & DIRECTION';let targets=parseRadarTargets(val(r,'radar','')),link=String(val(r,'radar_link','--')),frameLive=radarFrameHealthy(r,3),targetTiles=targets.length?targets.map(t=>{let m=radarMotion(t);return `${tile(t.id+' POSITION',`X ${t.x} / Y ${t.y}`,' mm')}${tile(t.id+' DISTANCE',n(Math.hypot(t.x,t.y)/1000,2),' m')}${tile(t.id+' DIRECTION',`${m.arrow} ${m.label}`)}${tile(t.id+' RADIAL SPEED',n(m.speed,0),' cm/s')}`}).join(''):tile('TARGETS','0',frameLive?'valid frame • no target':'not live');body=`<div class="detailGrid">${tile('TARGET COUNT',targets.length)}${tile('NEAREST',n(val(r,'radar_dist'),0),' mm')}${tile('SAFETY ZONE',val(r,'radar_zone','--'))}${targetTiles}</div><div class="rawData">DIRECTION LEGEND: ↓ APPROACHING • ↑ MOVING AWAY • ■ STATIONARY • ? TRACK JUMP\nTRACKS: ${val(r,'radar','NO CURRENT TARGETS')}\nUART LINK: ${link}\nDECODER: ${val(r,'radar_decoder_status','--')}\nDATA AGE: ${n(age(r,'radar_decoder_status'),1)} s\n\nDirection and radial speed are derived from live distance change, so they do not depend on an unverified firmware speed sign. T1/T2/T3 are temporary radar slots, not permanent people identities. Camera/LiDAR confirmation is still required before calling a target a person.</div>`;fresh=frameLive?'● LIVE':'STALE';}
+ else if(activeDetail==='jetson'){
+  title='JETSON ORIN — SMART LIVE REPORT';
+  const s=latestStatus.system||{},services=latestStatus.services||{};
+  let carrier={};try{carrier=JSON.parse(val(r,'carrier_json','{}')||'{}')}catch(e){}
+  const tempC=Number.parseFloat(String(s.temp||'')),activeServices=Object.entries(services).filter(x=>x[1]==='active'),inactiveServices=Object.entries(services).filter(x=>x[1]!=='active');
+  const thermalState=!Number.isFinite(tempC)?'UNKNOWN':tempC>=99?'THROTTLING ZONE':tempC>=95?'NEAR THROTTLE':tempC>=80?'HOT • BELOW THROTTLE':'NORMAL';
+  const gpuText=s.gpu_percent==null?'NOT EXPOSED':`${n(s.gpu_percent,1)}%`;
+  body=`<div class="detailGrid">${tile('CPU LOAD',n(s.cpu_percent,1),'%')}${tile('GPU LOAD',gpuText)}${tile('RAM LOAD',s.ram_percent==null?'--':n(s.ram_percent,0),'%')}${tile('JETSON TEMPERATURE',Number.isFinite(tempC)?n(tempC,0):'--','°C')}${tile('THERMAL STATE',thermalState)}${tile('POWER MODE',carrier.power_mode||'--')}${tile('JETSON INPUT POWER',n(val(r,'jetson_power'),2),' W')}${tile('CPU / GPU RAIL',n(val(r,'jetson_cpu_gpu_power'),2),' W')}${tile('SOC RAIL',n(val(r,'jetson_soc_power'),2),' W')}${tile('GPU CLOCK',s.gpu_frequency_mhz==null?'--':n(s.gpu_frequency_mhz,0),' MHz')}${tile('NVME FREE',carrier.nvme?n(carrier.nvme.free_gb,1):'--',' GB')}${tile('ACTIVE SERVICES',activeServices.length)}${tile('INACTIVE SERVICES',inactiveServices.length)}${tile('USB / I²C / CSI',carrier.ok?`${carrier.usb_devices} / ${carrier.i2c_buses} / ${carrier.csi_video_devices}`:'--')}${tile('MISSION AI',val(r,'agent_status','waiting'))}</div><div class="rawData">THERMAL GUIDE: NORMAL under 80°C • HOT 80–94°C • NEAR THROTTLE 95–98°C • NVIDIA software throttling begins at 99°C. This is a monitoring guide, not permission to bypass battery or motor safety gates.\n\nRAM: ${s.ram||'--'}\nCARRIER: ${carrier.board||'--'}\nINA3221: ${val(r,'jetson_power_status','--')}\nAGENT TEAM: ${val(r,'agent_team_status','--')}\nEXPERIENCE STORE: ${val(r,'experience_status','--')}\nINACTIVE SERVICES: ${inactiveServices.length?inactiveServices.map(x=>x[0]).join(', '):'NONE'}\nREPORT TIME: ${latestStatus.time||'--'}</div>`;
+  fresh='● LIVE';
+ }
  else if(activeDetail==='encoders'){
-  title='MOTOR ENCODERS — SELECTED FEEDBACK';
+  title='SMART DRIVE & ENCODER REPORT — ALL 4 WHEELS';
   let odom=val(r,'odom',{}),eh={};try{eh=JSON.parse(val(r,'encoder_health','{}')||'{}')}catch(e){}
   const selected=eh.selected_encoders||[],excluded=eh.excluded_encoders||[];
   const live=recent(r,'encoder_health',3)&&eh.packet_fresh===true;
   const changeAges=eh.last_change_age_s||[],encoderState=i=>!live?'LINK STALE':(eh.faults||[]).includes('M'+i)?'FAULT':Number(changeAges[i-1])<3?'RESPONDING / MOVING':excluded.includes(i)?'RAW LIVE • EXCLUDED':'PACKET LIVE • STOPPED';
-  body=`<div class="detailGrid">${tile('SAFETY STATE',live?(eh.state||'MISSING'):'STALE')}${tile('SELECTED',selected.map(i=>'M'+i).join(', ')||'UNKNOWN')}${tile('EXCLUDED',excluded.map(i=>'M'+i).join(', ')||'NONE')}${tile('AUTONOMY',live&&eh.autonomy_ready===true?'FEEDBACK QUALIFIED':'BLOCKED / VALIDATION')}${tile('FAILED SELECTED CHANNELS',(eh.faults||[]).join(', ')||'NONE')}${tile('ENCODER PACKET AGE',n(eh.packet_age_s,3),' s')}${tile('M1 • BACK LEFT',`${val(r,'enc_m1')} • ${encoderState(1)}`)}${tile('M2 • BACK RIGHT',`${val(r,'enc_m2')} • ${encoderState(2)}`)}${tile('M3 • FRONT LEFT',`${val(r,'enc_m3')} • ${encoderState(3)}`)}${tile(excluded.includes(4)?'M4 • EXCLUDED / RAW ONLY':'M4 • FRONT RIGHT',`${val(r,'enc_m4')} • ${encoderState(4)}`)}${tile('LINEAR VELOCITY',n(odom.vx,3),' m/s')}${tile('YAW RATE',n(odom.wz,3),' rad/s')}${tile('ODOM X',n(odom.x,3),' m')}${tile('ODOM Y',n(odom.y,3),' m')}${tile('IMU HEADING',n(val(r,'imu_heading'),2),'°')}</div><div class="rawData">ENCODER LEGEND: RESPONDING / MOVING = count changed recently • PACKET LIVE / STOPPED = healthy link with stationary wheel • FAULT/STALE = unsafe\nREASON: ${eh.reason||'waiting'}\nSAFETY HEARTBEAT AGE: ${n(age(r,'encoder_health'),1)} s\nLAST CHANGE AGE M1–M4: ${changeAges.join(' / ')||'--'} s\nPOLICY: ${eh.policy||'waiting'}\nSTEERING: front ${n(val(r,'front_steer'),1)}° • rear ${n(val(r,'rear_steer'),1)}°\n\nToday’s lifted test measured independent deltas on all four channels. This live panel still avoids claiming movement while the wheels are stopped. M4 remains excluded from autonomous fusion until a controlled ground validation changes the safety policy.</div>`;
+  body=`<div class="detailGrid">${tile('SAFETY STATE',live?(eh.state||'MISSING'):'STALE')}${tile('SELECTED',selected.map(i=>'M'+i).join(', ')||'UNKNOWN')}${tile('EXCLUDED',excluded.map(i=>'M'+i).join(', ')||'NONE')}${tile('AUTONOMY',live&&eh.autonomy_ready===true?'FEEDBACK QUALIFIED':'BLOCKED / VALIDATION')}${tile('FAILED SELECTED CHANNELS',(eh.faults||[]).join(', ')||'NONE')}${tile('ENCODER PACKET AGE',n(eh.packet_age_s,3),' s')}${tile('M1 • REAR LEFT',`${val(r,'enc_m1')} • ${encoderState(1)}`)}${tile('M2 • REAR RIGHT',`${val(r,'enc_m2')} • ${encoderState(2)}`)}${tile('M3 • FRONT LEFT',`${val(r,'enc_m3')} • ${encoderState(3)}`)}${tile(excluded.includes(4)?'M4 • FRONT RIGHT • EXCLUDED':'M4 • FRONT RIGHT',`${val(r,'enc_m4')} • ${encoderState(4)}`)}${tile('FRONT STEERING',n(val(r,'front_steer'),1),'°')}${tile('REAR STEERING',n(val(r,'rear_steer'),1),'°')}${tile('LINEAR VELOCITY',n(odom.vx,3),' m/s')}${tile('YAW RATE',n(odom.wz,3),' rad/s')}${tile('ODOM X / Y',`${n(odom.x,3)} / ${n(odom.y,3)}`,' m')}${tile('IMU HEADING',n(val(r,'imu_heading'),2),'°')}</div><div class="rawData">ONE PANEL IS AUTHORITATIVE FOR ALL FOUR WHEELS.\nENCODER LEGEND: RESPONDING / MOVING = count changed recently • PACKET LIVE / STOPPED = healthy link with stationary wheel • RAW LIVE / EXCLUDED = displayed but not used for navigation • FAULT/STALE = unsafe.\n\nREASON: ${eh.reason||'waiting'}\nSAFETY HEARTBEAT AGE: ${n(age(r,'encoder_health'),1)} s\nLAST CHANGE AGE M1–M4: ${changeAges.join(' / ')||'--'} s\nPOLICY: ${eh.policy||'waiting'}\n\nLive packet reception does not prove correct wheel distance. M4 remains excluded from autonomous fusion until controlled validation changes the saved safety policy.</div>`;
   fresh=live?`● ${selected.length}/4 SELECTED — ${eh.state||'UNKNOWN'}`:'STALE / NO FEEDBACK';
  }
  else if(activeDetail==='drive_pid'){
@@ -1982,7 +2015,8 @@ async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'})
  $('cameraTracking').textContent=cameraTracking;
  let trackingOn=/^(ON:|TRACKING|SEARCHING)/i.test(cameraTracking);
  document.querySelectorAll('[data-track]').forEach(b=>b.classList.toggle('on',(b.dataset.track==='1')===trackingOn));
- $('motion').innerHTML=row('Web drive',val(r,'web_drive','STOP'))+row('Odometry',JSON.stringify(val(r,'odom',{})))+row('Encoders',`${val(r,'enc_m1')} / ${val(r,'enc_m2')} / ${val(r,'enc_m3')} / ${val(r,'enc_m4')}`);
+ let driveHealth={};try{driveHealth=JSON.parse(val(r,'encoder_health','{}')||'{}')}catch(e){}
+ $('motion').innerHTML=row('Safety',driveHealth.state||'WAITING')+row('Selected',(driveHealth.selected_encoders||[]).map(i=>'M'+i).join(', ')||'NONE')+row('Excluded',(driveHealth.excluded_encoders||[]).map(i=>'M'+i).join(', ')||'NONE')+row('M1 RL / M2 RR',`${val(r,'enc_m1')} / ${val(r,'enc_m2')}`)+row('M3 FL / M4 FR',`${val(r,'enc_m3')} / ${val(r,'enc_m4')}`)+row('Steering',`F ${n(val(r,'front_steer'),0)}° / R ${n(val(r,'rear_steer'),0)}°`)+row('Autonomy',driveHealth.autonomy_ready===true?'FEEDBACK READY':'VALIDATION BLOCKED');
  let li=val(r,'lidar',{}),radarLive=radarFrameHealthy(r,2.0),radarHub=!!r.radar_link&&r.radar_link.age<3.0,i2c=i2cInfo(r);
  let radarTitle=radarLive?`${val(r,'radar_count',0)} targets`:(radarHub?'UART INVALID':'OFFLINE');
  let radarDetail=radarLive?(Number(val(r,'radar_count',0))>0?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:'VALID FRAMES • NO CURRENT TARGET'):(radarHub?String(val(r,'radar_decoder_status','Bytes received; no valid frame')):'Check power/GND • radar TX → UNO D12 • radar RX → UNO D11');
@@ -1994,7 +2028,8 @@ async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'})
  $('gnss').innerHTML=gnssSummary(r);renderConstellations(r);renderDiagnostics();refreshDiagnostics();
  let agent={};try{agent=JSON.parse(val(r,'agent_state','{}')||'{}')}catch(e){}
  let carrier={};try{carrier=JSON.parse(val(r,'carrier_json','{}')||'{}')}catch(e){}
- $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('RAM',s.ram)+row('Jetson temp',s.temp)+row('Carrier',carrier.board||'--')+row('Power mode',carrier.power_mode||'--')+row('NVMe',carrier.nvme?`${carrier.nvme.free_gb} GB free / ${carrier.nvme.total_gb} GB`:'--')+row('Carrier I/O',carrier.ok?`${carrier.usb_devices} USB • ${carrier.i2c_buses} I²C • ${carrier.csi_video_devices} CSI video`:'--')+row('Mission AI',`${agent.mode||'--'} / ${agent.phase||'--'}`)+row('Agent team',val(r,'agent_team_status','starting'))+row('Experience memory',val(r,'experience_status','starting'))+row('Agent decision',val(r,'agent_decision','No mission selected'))+row('Time',d.time);renderDetail();
+ let jetsonTemp=Number.parseFloat(String(s.temp||'')),thermalLabel=!Number.isFinite(jetsonTemp)?'UNKNOWN':jetsonTemp>=99?'THROTTLING':jetsonTemp>=95?'NEAR THROTTLE':jetsonTemp>=80?'HOT / BELOW THROTTLE':'NORMAL';
+ $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('GPU',s.gpu_percent==null?'NOT EXPOSED':`${n(s.gpu_percent,1)}%`)+row('RAM',s.ram)+row('Jetson temp',`${s.temp} • ${thermalLabel}`)+row('Jetson power',`${n(val(r,'jetson_power'),2)} W`)+row('Power mode',carrier.power_mode||'--')+row('NVMe',carrier.nvme?`${carrier.nvme.free_gb} GB free / ${carrier.nvme.total_gb} GB`:'--')+row('Services',`${Object.values(d.services||{}).filter(v=>v==='active').length} active / ${Object.keys(d.services||{}).length} monitored`)+row('Mission AI',`${agent.mode||'--'} / ${agent.phase||'--'}`)+row('Time',d.time);renderDetail();
  }catch(e){$('online').textContent='● OFFLINE';$('online').style.color='#ff4655'}}
 refresh();setInterval(refresh,2000);
 </script></body></html>"""
