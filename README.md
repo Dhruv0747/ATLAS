@@ -1,5 +1,17 @@
 # Project ATLAS - Autonomous Service Rover
 
+### AI/robotics adaptation Phase 0 — 2026-09-30
+
+The book-inspired improvement roadmap is governed by the corrected
+[Phase 0 baseline and execution gate](docs/AI_ROBOTICS_ADAPTATION_PHASE0_2026-09-30.md).
+The book repository is treated as conceptual reference only: no Albert driver,
+ROS 1 control loop, CNN-direct `cmd_vel`, old chatbot or educational planner may
+replace ATLAS's ROS 2/Nav2/safety architecture. Current motion feedback selects
+M1/M2/M4 at degraded speed and keeps weak M3 diagnostic-only; closed-loop PID
+and IM10A navigation fusion remain separately disabled pending evidence. New
+AI/VO/PID work is blocked until the bounded straight, turn and supervised
+room-round-trip gates pass.
+
 ### Encoder diagnostics — transport and wheel consensus separated (2026-09-25)
 
 The motor-board health report now distinguishes a shared Yahboom serial-link
@@ -42,7 +54,9 @@ the target's live range history, and labels each encoder as moving, stopped,
 excluded, faulty or stale. The Yahboom service discovers its verified protocol
 instead of assuming a CH340 USB index that can change after reconnects. A
 supervised lifted check produced changing raw counts from M1–M4; this is useful
-hardware evidence but is not metric ground validation. M4 remains excluded and
+hardware evidence but is not metric ground validation. The later measured
+ground evidence superseded this snapshot: M3 is now excluded and M1/M2/M4 are
+the selected degraded-speed set. Closed-loop PID remains separately disabled and
 closed-loop/autonomous gates remain unchanged.
 Physical channel identity, forward encoder sign and retained CPR now have one
 validated source, `project_atlas/config/encoder_calibration.yaml`, consumed by
@@ -56,7 +70,8 @@ steering correction, fail-closed state machine, live per-wheel diagnostics and a
 staged evidence recorder. It is integrated into the existing sole motor owner;
 there is no second `/cmd_vel` or motor-control path. Repository defaults retain
 open-loop operation: PID disabled, hardware/navigation uncommissioned, track
-width unset, zero gains and M4 encoder excluded. This is implementation and
+width/gains uncommissioned and encoder requirements locked independently of the
+active three-channel navigation-feedback policy. This is implementation and
 simulation coverage, not physical authorization. See the
 [architecture, tests, commissioning gates and rollback](docs/CLOSED_LOOP_DRIVE_PID.md).
 

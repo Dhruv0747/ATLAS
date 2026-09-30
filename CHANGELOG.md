@@ -1,5 +1,18 @@
 # Changelog
 
+- 2026-09-30: Added the documentation-only AI/robotics adaptation Phase 0
+  baseline after auditing the named Packt reference examples and the current
+  ATLAS repository. Corrected the proposed roadmap's stale M4 exclusion,
+  future-rear-steering and IM10A-authority assumptions; recorded that M1/M2/M4
+  are selected, M3 is diagnostic-only, PID and IM10A navigation fusion remain
+  disabled, rear steering already exists without physical angle feedback, and
+  TensorRT YOLO/sensor-authority/recovery foundations already exist. New
+  PID/VO/semantic work is gated behind the remaining bounded straight, turn and
+  supervised room-round-trip validation. No runtime configuration, service or
+  actuator was changed. The focused offline regression passed 75 tests with
+  five existing environment-dependent skips; a hardware-oriented steering
+  import was excluded because the Windows environment lacks `pyserial`.
+
 - 2026-09-25: After explicit operator approval, activated the evidence-backed
   three-encoder navigation policy: M1 rear-left, M2 rear-right and M4
   front-right are selected; weak M3 front-left remains raw diagnostic data.
