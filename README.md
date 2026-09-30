@@ -706,3 +706,11 @@ This does not reboot or automatically power ATLAS back on.
 `atlas-remote.service` is enabled under `default.target` but must not be ordered
 after that target. Camera joystick units may start after the remote. An explicit
 service stop is not automatically reversed by `Restart=always`.
+## Bounded active vision
+
+`atlas-active-vision.service` provides stopped-only left/centre/right camera inspection.
+Publish `inspect` on `/atlas/active_vision/request`; results appear on
+`/atlas/active_vision/status`. Each view requires a new post-move YOLO inference and
+live LiDAR clearance. The scan cancels if rover motion begins, returns the camera to
+its saved home position, and never publishes velocity. Its recommendation is advisory:
+LiDAR, the Nav2 costmaps, and local safety guards retain movement authority.

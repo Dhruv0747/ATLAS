@@ -1646,3 +1646,8 @@ Historical first attempt; the later successful installation is recorded above.
   matched counts within 0.7%; M3 remained weak and excluded.
 - Retained the existing distance scale pending one more independently measured
   run because the two nominal 20 cm trials produced materially different counts.
+# 2026-09-30 — Bounded active camera inspection adviser
+
+- Added a stopped-only left/centre/right camera inspection service using live camera AI and LiDAR clearance.
+- The adviser cancels on rover motion, returns the camera to its saved home position, and has no motor authority.
+- Advice is published on `/atlas/active_vision/status`; LiDAR/Nav2 must still validate every route.
