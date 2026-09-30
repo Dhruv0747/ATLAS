@@ -1,5 +1,15 @@
 # Changelog
 
+- 2026-09-30: Revoked the active three-encoder navigation validation after the
+  bounded 20 cm ground retry exposed a selected-channel traction failure. The
+  test armed normally but stopped at 0.031 m LiDAR progress; raw deltas were M1
+  `+36`, M2 `-113`, excluded M3 `0`, and selected M4 `0`. The command mux then
+  recorded `COMMISSION ABORT: ENCODER CRITICAL` because fewer than three wheel
+  channels agreed. ATLAS ended stopped, disarmed and at zero motor speed. M3
+  remains diagnostic-only; M4 now requires repair/requalification. Manual
+  control remains available, PID remains disabled, and no steering setting was
+  changed.
+
 - 2026-09-30: Added the documentation-only AI/robotics adaptation Phase 0
   baseline after auditing the named Packt reference examples and the current
   ATLAS repository. Corrected the proposed roadmap's stale M4 exclusion,

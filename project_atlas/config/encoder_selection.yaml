@@ -3,7 +3,9 @@
 # remain responsive. The operator explicitly approved the M3 exclusion on
 # 2026-09-25; raw M3 remains visible for diagnostics only.
 excluded_encoders: [3]
-# Granted after low-speed forward/reverse distance, stopping and turn-aware
-# ground validation. PID remains separately disabled and uncommissioned.
-navigation_validated: true
+# Revoked on 2026-09-30 after a bounded ground run produced no M4 increment
+# under traction. The mux correctly stopped when only M1/M2 agreed. M3 remains
+# excluded; M4 must be repaired/requalified before autonomy can be re-enabled.
+# Manual control and raw diagnostics remain available. PID stays disabled.
+navigation_validated: false
 packet_timeout_s: 1.0

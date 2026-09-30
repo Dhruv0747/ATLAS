@@ -35,7 +35,7 @@ the rover moves.
 |---|---|
 | Drive motors | Four motors operational; motor operation is distinct from encoder authority. |
 | Encoder policy | M1 rear-left, M2 rear-right and M4 front-right selected. Weak M3 front-left is diagnostic-only. |
-| Encoder safety | Validated three-channel policy, 50% degraded scale, stale/fewer-than-three feedback fails closed. |
+| Encoder safety | Three-channel candidate is currently unvalidated. The 2026-09-30 bounded run correctly failed closed when selected M4 did not change and only M1/M2 agreed. |
 | Closed-loop wheel PID | Disabled and uncommissioned. `drive_pid.yaml` is a separate gate and remains false. |
 | Steering | Front and rear steering installed and commissioned for commanded position. Physical tyre-angle feedback is not installed. |
 | Steering PID | Not possible from commanded PWM alone; do not label a command as measured angle. |
@@ -83,6 +83,11 @@ stopped safely on timeout at 0.134 m LiDAR clearance progress and 0.101 m wheel
 odometry; M1/M2/M4 remained available and M3 remained weak. Repeat only after a
 fresh acceptable BMS reading, charger disconnection, clear path and remote stop
 readiness.
+
+The 2026-09-30 repeat is **FAILED SAFE**: it reached only 0.031 m LiDAR
+progress, with raw deltas M1 `+36`, M2 `-113`, excluded M3 `0`, and selected M4
+`0`. The mux aborted on fewer-than-three consensus. Navigation validation is
+therefore revoked until M4 is repaired and physically requalified.
 
 ## Approved execution order
 

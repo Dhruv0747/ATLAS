@@ -6,9 +6,11 @@ The book-inspired improvement roadmap is governed by the corrected
 [Phase 0 baseline and execution gate](docs/AI_ROBOTICS_ADAPTATION_PHASE0_2026-09-30.md).
 The book repository is treated as conceptual reference only: no Albert driver,
 ROS 1 control loop, CNN-direct `cmd_vel`, old chatbot or educational planner may
-replace ATLAS's ROS 2/Nav2/safety architecture. Current motion feedback selects
-M1/M2/M4 at degraded speed and keeps weak M3 diagnostic-only; closed-loop PID
-and IM10A navigation fusion remain separately disabled pending evidence. New
+replace ATLAS's ROS 2/Nav2/safety architecture. The proposed degraded motion
+feedback set is M1/M2/M4 with weak M3 diagnostic-only, but its navigation
+validation was revoked on 2026-09-30 after M4 failed to change during a bounded
+ground command and the mux correctly stopped on fewer-than-three consensus.
+Closed-loop PID and IM10A navigation fusion remain disabled pending evidence. New
 AI/VO/PID work is blocked until the bounded straight, turn and supervised
 room-round-trip gates pass.
 
