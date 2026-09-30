@@ -93,16 +93,16 @@ class VoicePolicyTest(unittest.TestCase):
     def test_low_battery_hysteresis(self):
         a = Announcements(lambda: self.now)
         self.now = 16
-        self.bms(20)
+        self.bms(10)
         self.assertEqual(len(a.evaluate(self.values)), 1)
         self.assertEqual(a.evaluate(self.values), [])
-        self.bms(23)
+        self.bms(13)
         a.evaluate(self.values)
-        self.bms(19)
+        self.bms(9)
         self.assertEqual(a.evaluate(self.values), [])
-        self.bms(26)
+        self.bms(16)
         a.evaluate(self.values)
-        self.bms(19)
+        self.bms(9)
         self.assertEqual(len(a.evaluate(self.values)), 1)
 
     def test_full_soc_not_voltage_guess(self):

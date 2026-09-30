@@ -201,16 +201,20 @@ class Announcements:
         bms = values.bms()
         if bms:
             soc, current = float(bms['soc_percent']), bms.get('current_a', 0)
-            if soc > 25:
+            if soc > 15:
                 self.low = False
-            if soc <= 20 and not self.low:
-                output.append(('battery_low', f'Dhruv, main battery is {soc:.0f} percent. Please arrange charging.'))
+            if soc <= 10 and not self.low:
+                output.append(('battery_low',
+                    f'Dhruv, battery emergency! I am at {soc:.0f} percent. '
+                    'I am a rover, not modern furniture. Please charge me before I become a very expensive table.'))
                 self.low = True
             if soc < 95:
                 self.full = False
             if soc >= 99 and not self.full and isinstance(current, (int, float)) and 0 <= current < .5:
                 # Announce SOC, not proof that the charger completed balancing.
-                output.append(('battery_full', 'The BMS reports at least 99 percent charge. Charger completion is not independently verified.'))
+                output.append(('battery_full',
+                    'Dhruv, I am at one hundred percent, fully charged, slightly overconfident, and ready to roll. '
+                    'The BMS reading is full; charger balancing completion is not independently verified.'))
                 self.full = True
         for key, label in (('encoder_health', 'Encoder health'), ('lidar_live', 'LiDAR'), ('imu_live', 'IMU')):
             # Never announce devices we have never received as newly lost.

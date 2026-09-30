@@ -1651,3 +1651,9 @@ Historical first attempt; the later successful installation is recorded above.
 - Added a stopped-only left/centre/right camera inspection service using live camera AI and LiDAR clearance.
 - The adviser cancels on rover motion, returns the camera to its saved home position, and has no motor authority.
 - Advice is published on `/atlas/active_vision/status`; LiDAR/Nav2 must still validate every route.
+
+## 2026-09-30 — One-shot spoken and mobile battery reminders
+
+- Changed the low-battery reminder threshold to 10%, resetting only after recovery above 15%.
+- Added one-time humorous low and full-charge messages for the speaker and mobile notifier.
+- Retained the 99% full threshold, multiple-sample confirmation, and BMS balancing disclaimer.
