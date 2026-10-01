@@ -7,6 +7,8 @@
 - Added an offline regression test; navigation parameters and actuator authority are unchanged.
 - Reduced Visual Cloud retention overhead by replacing its every-sample full-history scan with an indexed, once-per-minute prune while preserving live 1 Hz ingest and the existing 86,400-row capacity.
 - Added automatic Visual Cloud history throttling: the live API remains real time, while local database writes fall to one every 10 seconds during mapping/navigation or high CPU, RAM, or temperature load and return to 1 Hz automatically afterward.
+- Separated LiDAR, ultrasonic, and fused safety clearances in live autonomy telemetry and the web dashboard. LiDAR is explicitly labelled navigation-primary; ultrasonic values remain separately visible as the secondary close-range guard, preventing ultrasonic echoes from being mistaken for LiDAR distance.
+- Added separately labelled LiDAR centre-line (±15°) and wide safety-corridor (±35°) distances so a nearby edge obstacle cannot be confused with the straight-ahead range.
 
 - 2026-09-30: Revoked the active three-encoder navigation validation after the
   bounded 20 cm ground retry exposed a selected-channel traction failure. The

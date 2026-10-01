@@ -16,6 +16,7 @@ from sensor_msgs.msg import CompressedImage, LaserScan
 from std_msgs.msg import Float32, String
 
 from atlas_scan_geometry import ray_in_base_sector
+from atlas_clearance_core import clearance_channel
 
 
 LASER_YAW_DEG = 180.0
@@ -33,9 +34,11 @@ class AtlasSafetyStatus(Node):
         self.last_bt_action = 0.0
         self.last_map_metrics = 0.0
         self.front_lidar = math.inf
+        self.front_center_lidar = math.inf
         self.left_lidar = math.inf
         self.right_lidar = math.inf
         self.rear_lidar = math.inf
+        self.rear_center_lidar = math.inf
         self.front_ultrasonic = math.inf
         self.left_ultrasonic = math.inf
         self.right_ultrasonic = math.inf
@@ -140,11 +143,16 @@ class AtlasSafetyStatus(Node):
             "right": math.inf,
             "rear": math.inf,
         }
+        centerline = {"front": math.inf, "rear": math.inf}
         for index, value in enumerate(msg.ranges):
             angle = msg.angle_min + index * msg.angle_increment
             if not math.isfinite(value) or not msg.range_min <= value <= msg.range_max:
                 continue
             degrees = math.degrees(angle)
+            if ray_in_base_sector(degrees, 0.0, 15.0, LASER_YAW_DEG):
+                centerline["front"] = min(centerline["front"], value)
+            if ray_in_base_sector(degrees, 180.0, 15.0, LASER_YAW_DEG):
+                centerline["rear"] = min(centerline["rear"], value)
             if ray_in_base_sector(degrees, 0.0, 35.0, LASER_YAW_DEG):
                 nearest["front"] = min(nearest["front"], value)
             elif ray_in_base_sector(degrees, 77.5, 42.5, LASER_YAW_DEG):
@@ -157,6 +165,9 @@ class AtlasSafetyStatus(Node):
         self.front_lidar = (
             nearest["front"] if math.isfinite(nearest["front"]) else clear_value
         )
+        self.front_center_lidar = (
+            centerline["front"] if math.isfinite(centerline["front"]) else clear_value
+        )
         self.left_lidar = (
             nearest["left"] if math.isfinite(nearest["left"]) else clear_value
         )
@@ -165,6 +176,9 @@ class AtlasSafetyStatus(Node):
         )
         self.rear_lidar = (
             nearest["rear"] if math.isfinite(nearest["rear"]) else clear_value
+        )
+        self.rear_center_lidar = (
+            centerline["rear"] if math.isfinite(centerline["rear"]) else clear_value
         )
 
     def on_map(self, msg: OccupancyGrid) -> None:
@@ -369,6 +383,17 @@ class AtlasSafetyStatus(Node):
         self.status_pub.publish(String(data=text))
         self.phase_pub.publish(String(data=phase))
         rear_clearance = self.rear_clearance(now)
+        channels = {
+            "front": clearance_channel(self.front_lidar, self.front_ultrasonic),
+            "left": clearance_channel(self.left_lidar, self.left_ultrasonic),
+            "right": clearance_channel(self.right_lidar, self.right_ultrasonic),
+            "rear": clearance_channel(
+                self.rear_lidar,
+                self.rear_ultrasonic
+                if now - self.last_rear_ultrasonic <= 1.5
+                else math.inf,
+            ),
+        }
         self.rear_clearance_pub.publish(Float32(data=float(rear_clearance)))
         state = {
             "phase": phase,
@@ -388,11 +413,25 @@ class AtlasSafetyStatus(Node):
                 "angular_rps": round(self.angular_speed, 3),
             },
             "clearance_m": {
-                "front": round(min(self.front_lidar, self.front_ultrasonic), 3),
-                "left": round(min(self.left_lidar, self.left_ultrasonic), 3),
-                "right": round(min(self.right_lidar, self.right_ultrasonic), 3),
-                "rear": round(rear_clearance, 3),
+                "front": channels["front"]["fused_m"],
+                "left": channels["left"]["fused_m"],
+                "right": channels["right"]["fused_m"],
+                "rear": channels["rear"]["fused_m"],
             },
+            "clearance_channels": channels,
+            "lidar_centerline_m": {
+                "front": round(self.front_center_lidar, 3),
+                "rear": round(self.rear_center_lidar, 3),
+                "half_width_deg": 15.0,
+            },
+            "lidar_safety_corridor": {
+                "front_rear_half_width_deg": 35.0,
+                "side_sector_half_width_deg": 42.5,
+            },
+            "clearance_policy": (
+                "LiDAR is navigation-primary; ultrasonic is an independent "
+                "close-range safety guard. Fused clearance is the conservative minimum."
+            ),
             "map": {
                 "width_m": round(self.map_width_m, 2),
                 "height_m": round(self.map_height_m, 2),
