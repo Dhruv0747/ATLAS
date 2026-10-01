@@ -1,11 +1,10 @@
 # Physical channels: M1 rear-left, M2 rear-right, M3 front-left, M4 front-right.
-# Repeated ground runs show M3 is currently the weak channel while M1/M2/M4
-# remain responsive. The operator explicitly approved the M3 exclusion on
-# 2026-09-25; raw M3 remains visible for diagnostics only.
-excluded_encoders: [3]
-# Revoked on 2026-09-30 after a bounded ground run produced no M4 increment
-# under traction. The mux correctly stopped when only M1/M2 agreed. M3 remains
-# excluded; M4 must be repaired/requalified before autonomy can be re-enabled.
-# Manual control and raw diagnostics remain available. PID stays disabled.
+# M4 produced zero counts in repeated LiDAR-checked ground runs on 2026-10-01.
+# The operator approved requalifying the remaining M1/M2/M3 trio. Raw M4 stays
+# visible for diagnostics but is excluded from motion consensus.
+excluded_encoders: [4]
+# Keep navigation authority revoked until M1/M2/M3 pass repeated bounded
+# straight and turn tests. Manual control and diagnostics remain available;
+# the mux still fails closed if any additional selected channel is lost.
 navigation_validated: false
 packet_timeout_s: 1.0
