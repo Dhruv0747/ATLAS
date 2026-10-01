@@ -20,6 +20,7 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import OccupancyGrid, Odometry
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CompressedImage, Imu, LaserScan, NavSatFix
 from std_msgs.msg import Float32, Int32, String
 
@@ -128,11 +129,18 @@ class AtlasRecovery(Node):
             String, "/atlas/recovery_state", 10
         )
         for item in MONITORS:
+            qos = 10
+            if item.name == "map":
+                qos = QoSProfile(
+                    depth=1,
+                    durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                    reliability=ReliabilityPolicy.RELIABLE,
+                )
             self.create_subscription(
                 item.msg_type,
                 item.topic,
                 lambda msg, name=item.name: self.on_message(name, msg),
-                10,
+                qos,
             )
         self.create_subscription(Twist, "/cmd_vel", self.on_velocity, 10)
         self.create_subscription(String, "/atlas/control_policy", self.on_control_policy, 10)
@@ -322,6 +330,12 @@ class AtlasRecovery(Node):
         age = now - self.last_seen[item.name]
         if self.bad_status(item.name):
             return "FAULT", age, self.last_value[item.name][:DISPLAY_STATUS_CHARS]
+        # A saved-map server publishes /map as transient-local, usually once.
+        # Receiving one valid OccupancyGrid therefore remains healthy even when
+        # no newer map message follows.  Treating it like a streaming sensor
+        # produced a false STALE warning during normal localization mode.
+        if item.name == "map" and self.last_value[item.name] != "waiting":
+            return "HEALTHY", age, "latched saved map available"
         if age > item.stale_after:
             return "STALE", age, f"no data for {age:.1f}s"
         if item.name == "gps" and self.last_value[item.name].startswith("status=-1"):

@@ -88,6 +88,16 @@ class RecoveryTests(unittest.TestCase):
         self.update('{"state":"READY"}')
         self.assertEqual(self.node.classify(self.item, self.now + 3)[0], 'STALE')
 
+    def test_latched_saved_map_does_not_become_falsely_stale(self):
+        self.node.last_seen['map'] = self.now
+        self.node.last_value['map'] = '187x218 resolution=0.05'
+        item = SimpleNamespace(name='map', service='atlas-slam-fast.service',
+                               stale_after=20., stopped_only=False)
+        state, age, detail = self.node.classify(item, self.now + 600)
+        self.assertEqual(state, 'HEALTHY')
+        self.assertEqual(age, 600)
+        self.assertEqual(detail, 'latched saved map available')
+
     def test_stop_needs_fresh_sustained_command(self):
         self.assertFalse(self.node.stop_command_confirmed())
         self.zero()

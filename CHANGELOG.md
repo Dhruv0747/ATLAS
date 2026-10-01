@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-01 — Saved-map health diagnostic correction
+
+- Changed bounded sensor recovery to subscribe to `/map` with transient-local reliable QoS.
+- A valid latched localization map now remains healthy instead of being falsely reported stale after 20 seconds.
+- Added an offline regression test; navigation parameters and actuator authority are unchanged.
+- Reduced Visual Cloud retention overhead by replacing its every-sample full-history scan with an indexed, once-per-minute prune while preserving live 1 Hz ingest and the existing 86,400-row capacity.
+
 - 2026-09-30: Revoked the active three-encoder navigation validation after the
   bounded 20 cm ground retry exposed a selected-channel traction failure. The
   test armed normally but stopped at 0.031 m LiDAR progress; raw deltas were M1

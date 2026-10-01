@@ -20,6 +20,9 @@ PORT = int(os.environ.get("ATLAS_VISUAL_CLOUD_PORT", "8095"))
 MAX_BODY = 2_000_000
 LOCK = threading.Lock()
 LATEST = {}
+RETENTION_ROWS = 86_400
+PRUNE_INTERVAL_S = 60.0
+LAST_PRUNE = 0.0
 
 
 def connection():
@@ -32,13 +35,26 @@ def connection():
 
 
 def store(value):
+    global LAST_PRUNE
     robot = str(value.get("robot_id", "unknown"))[:100]
     encoded = json.dumps(value, separators=(",", ":"))
     with LOCK:
         LATEST[robot] = value
     db = connection()
     db.execute("INSERT INTO snapshots(robot_id,observed_at,git_version,failure_class,payload) VALUES(?,?,?,?,?)", (robot, float(value.get("observed_at", time.time())), str(value.get("git_version", ""))[:100], str(value.get("failure_class", "UNKNOWN"))[:40], encoded))
-    db.execute("DELETE FROM snapshots WHERE id IN (SELECT id FROM snapshots ORDER BY id DESC LIMIT -1 OFFSET 86400)")
+    # Retention used to scan all 86,400 retained rows for every one-second
+    # telemetry sample.  On the Jetson that made this read-only observability
+    # service consume roughly half a CPU core continuously.  Prune once per
+    # minute using the indexed integer primary key; live in-memory data still
+    # updates on every ingest and the same history capacity is preserved.
+    now = time.monotonic()
+    if now - LAST_PRUNE >= PRUNE_INTERVAL_S:
+        db.execute(
+            "DELETE FROM snapshots WHERE id <= "
+            "COALESCE((SELECT MAX(id) FROM snapshots), 0) - ?",
+            (RETENTION_ROWS,),
+        )
+        LAST_PRUNE = now
     db.commit(); db.close()
 
 
