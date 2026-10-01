@@ -23,6 +23,34 @@ LATEST = {}
 RETENTION_ROWS = 86_400
 PRUNE_INTERVAL_S = 60.0
 LAST_PRUNE = 0.0
+LAST_PERSIST = 0.0
+NORMAL_PERSIST_S = float(os.environ.get("ATLAS_VISUAL_CLOUD_NORMAL_PERSIST_S", "1.0"))
+HEAVY_PERSIST_S = float(os.environ.get("ATLAS_VISUAL_CLOUD_HEAVY_PERSIST_S", "10.0"))
+HEAVY_LOAD = float(os.environ.get(
+    "ATLAS_VISUAL_CLOUD_HEAVY_LOAD", str(max(4.0, (os.cpu_count() or 4) * 1.25))
+))
+
+
+def persistence_interval(value):
+    """Reduce historical writes under load; never reduce live API updates."""
+    system = value.get("system", {}) if isinstance(value, dict) else {}
+    load = system.get("load", []) if isinstance(system, dict) else []
+    try:
+        load_1m = float(load[0]) if load else 0.0
+        ram = float(system.get("ram_used_pct", 0.0))
+        temperature = float(system.get("temperature_c", 0.0))
+    except (TypeError, ValueError, IndexError):
+        load_1m = ram = temperature = 0.0
+    traffic = value.get("traffic", {}) if isinstance(value, dict) else {}
+    mission = traffic.get("/atlas/mission_status", {}) if isinstance(traffic, dict) else {}
+    mission_value = str(mission.get("value", "")).upper() if isinstance(mission, dict) else ""
+    heavy = (
+        load_1m >= HEAVY_LOAD
+        or ram >= 85.0
+        or temperature >= 75.0
+        or any(word in mission_value for word in ("MAPPING", "NAVIGATING", "RETURNING"))
+    )
+    return HEAVY_PERSIST_S if heavy else NORMAL_PERSIST_S
 
 
 def connection():
@@ -35,11 +63,16 @@ def connection():
 
 
 def store(value):
-    global LAST_PRUNE
+    global LAST_PERSIST, LAST_PRUNE
     robot = str(value.get("robot_id", "unknown"))[:100]
     encoded = json.dumps(value, separators=(",", ":"))
+    now = time.monotonic()
     with LOCK:
         LATEST[robot] = value
+        interval = persistence_interval(value)
+        if LAST_PERSIST and now - LAST_PERSIST < interval:
+            return
+        LAST_PERSIST = now
     db = connection()
     db.execute("INSERT INTO snapshots(robot_id,observed_at,git_version,failure_class,payload) VALUES(?,?,?,?,?)", (robot, float(value.get("observed_at", time.time())), str(value.get("git_version", ""))[:100], str(value.get("failure_class", "UNKNOWN"))[:40], encoded))
     # Retention used to scan all 86,400 retained rows for every one-second
@@ -47,7 +80,6 @@ def store(value):
     # service consume roughly half a CPU core continuously.  Prune once per
     # minute using the indexed integer primary key; live in-memory data still
     # updates on every ingest and the same history capacity is preserved.
-    now = time.monotonic()
     if now - LAST_PRUNE >= PRUNE_INTERVAL_S:
         db.execute(
             "DELETE FROM snapshots WHERE id <= "

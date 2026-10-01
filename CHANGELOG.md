@@ -6,6 +6,7 @@
 - A valid latched localization map now remains healthy instead of being falsely reported stale after 20 seconds.
 - Added an offline regression test; navigation parameters and actuator authority are unchanged.
 - Reduced Visual Cloud retention overhead by replacing its every-sample full-history scan with an indexed, once-per-minute prune while preserving live 1 Hz ingest and the existing 86,400-row capacity.
+- Added automatic Visual Cloud history throttling: the live API remains real time, while local database writes fall to one every 10 seconds during mapping/navigation or high CPU, RAM, or temperature load and return to 1 Hz automatically afterward.
 
 - 2026-09-30: Revoked the active three-encoder navigation validation after the
   bounded 20 cm ground retry exposed a selected-channel traction failure. The
