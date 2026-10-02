@@ -3,7 +3,7 @@ Description=Project ATLAS IMX708 Camera Module 3 efficient live publisher
 
 [Service]
 Type=simple
-ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec ros2 run atlas_camera_driver camera_node --ros-args -p width:=656 -p height:=368 -p framerate:=10 -p jpeg_quality:=60'
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec ros2 run atlas_camera_driver camera_node --ros-args -p width:=656 -p height:=368 -p framerate:=10 -p jpeg_quality:=80 -p edge_enhancement:=0.60 -p noise_reduction:=0.35 -p exposure_compensation:=0.25 -p saturation:=1.20 -p white_balance_mode:=1'
 Restart=on-failure
 RestartSec=3
 

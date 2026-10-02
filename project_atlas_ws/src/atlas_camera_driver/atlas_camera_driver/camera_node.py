@@ -20,12 +20,13 @@ from cv_bridge import CvBridge
 
 
 def build_pipeline(sensor_id, width, height, framerate, ee_strength,
-                   tnr_strength, exposure_compensation):
+                   tnr_strength, exposure_compensation, saturation, wbmode):
     return (
         f'nvarguscamerasrc sensor-id={sensor_id} '
         f'ee-mode=2 ee-strength={ee_strength} '
         f'tnr-mode=2 tnr-strength={tnr_strength} '
-        f'exposurecompensation={exposure_compensation} ! '
+        f'exposurecompensation={exposure_compensation} '
+        f'saturation={saturation} wbmode={wbmode} ! '
         f'video/x-raw(memory:NVMM),width={width},height={height},'
         f'framerate={framerate}/1 ! '
         f'nvvidconv ! video/x-raw,format=BGRx ! '
@@ -48,6 +49,8 @@ class CameraNode(Node):
         self.declare_parameter('edge_enhancement', 0.40)
         self.declare_parameter('noise_reduction', 0.25)
         self.declare_parameter('exposure_compensation', -0.15)
+        self.declare_parameter('saturation', 1.0)
+        self.declare_parameter('white_balance_mode', 1)
         # Off by default: full-frame CLAHE costs too much latency for rover driving.
         # It remains available for stationary inspection through a ROS parameter.
         self.declare_parameter('adaptive_contrast', False)
@@ -69,6 +72,8 @@ class CameraNode(Node):
             self.get_parameter('edge_enhancement').value,
             self.get_parameter('noise_reduction').value,
             self.get_parameter('exposure_compensation').value,
+            self.get_parameter('saturation').value,
+            self.get_parameter('white_balance_mode').value,
         )
 
         self.bridge = CvBridge()

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-02 — Tune IMX708 indoor driving image
+
+- Raised live JPEG quality from 60 to 80 while retaining 656×368 at 10 FPS.
+- Tuned Argus exposure, saturation, edge enhancement, and temporal noise
+  reduction for the indoor Dhruv Room ↔ Hall route.
+- Kept automatic white balance and avoided CPU-heavy software CLAHE.
+- Verified a fresh live frame, active camera service, and 62°C Jetson
+  temperature after deployment.
+
 ## 2026-10-02 — Persist the verified forward camera pose
 
 - Saved the visually verified forward-driving view at pan `1628 us`, tilt
