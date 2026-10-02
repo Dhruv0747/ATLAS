@@ -60,7 +60,8 @@ def main():
     n = rclpy.create_node('atlas_im10a_shadow_audit')
     live_path = Path('/home/jetson/project_atlas/config/atlas_ekf.yaml')
     live_bytes = live_path.read_bytes()
-    live = yaml.safe_load(live_bytes)['ekf_filter_node']['ros__parameters']
+    live_config = yaml.safe_load(live_bytes)
+    live = live_config.get('atlas_ekf', live_config.get('ekf_filter_node'))['ros__parameters']
     directory = Path(tempfile.mkdtemp(prefix='im10a_shadow_', dir='/home/jetson/project-atlas-migration'))
     processes = []
     handles = []

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-02 — Restore authoritative EKF ROS identity
+
+- Give the production `robot_localization` process the explicit ROS node name
+  `atlas_ekf` and scope `atlas_ekf.yaml` to that same name.
+- This prevents a live Linux `ekf_node` process from silently running without
+  registered ROS subscriptions or an `/odom` publisher after service restarts.
+- Verified stationary output at approximately 10 Hz, including the
+  `odom -> base_link` and composed `map -> base_link` transforms.
+- Kept the IM10A shadow-test reader backward compatible with older saved EKF
+  configuration files.
+
 ## 2026-10-02 — Live mapping dashboard
 
 - Added a separate `/mapping` page to the ATLAS web command center.

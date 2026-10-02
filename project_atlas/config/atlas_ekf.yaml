@@ -1,4 +1,4 @@
-ekf_filter_node:
+atlas_ekf:
   ros__parameters:
     frequency: 10.0
     sensor_timeout: 0.3
