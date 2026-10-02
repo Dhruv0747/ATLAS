@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-02 — Commit Nav2 to a valid global path
+
+- Changed the single-goal Ackermann behavior tree to compute one global path
+  and follow it without periodic two-second route replacement.
+- A new path is computed only for a new goal or after `FollowPath` fails and
+  the existing bounded recovery branch runs.
+- LiDAR costmaps, localization guards, collision stopping, bounded reverse,
+  and emergency-stop authority are unchanged.
+
 ## 2026-10-02 — Restore authoritative EKF ROS identity
 
 - Give the production `robot_localization` process the explicit ROS node name
