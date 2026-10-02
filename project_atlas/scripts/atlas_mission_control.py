@@ -41,14 +41,19 @@ class AtlasMissionControl(Node):
     )
     CAMERA_PAN_MIN_US = 700
     CAMERA_PAN_MAX_US = 2300
-    CAMERA_PAN_HOME_US = 1725
+    CAMERA_PAN_HOME_US = 1628
     CAMERA_TILT_MIN_US = 500
     CAMERA_TILT_MAX_US = 2500
-    CAMERA_TILT_HOME_US = 1500
+    CAMERA_TILT_HOME_US = 1442
     CAMERA_STEP_US = 160
+    CAMERA_HOME_FILE = (
+        Path.home()
+        / ".config/systemd/user/atlas-uno-r4-sensor-hub.service.d/camera-home.conf"
+    )
 
     def __init__(self):
         super().__init__("atlas_mission_control")
+        self.camera_pan_home_us, self.camera_tilt_home_us = self.load_camera_home()
         self.declare_parameter(
             "map_prefix", "/home/jetson/project_atlas/maps/atlas_latest"
         )
@@ -128,8 +133,8 @@ class AtlasMissionControl(Node):
         self.camera_tilt_pub = self.create_publisher(
             Int32, "/camera/second_servo_cmd_us", 10
         )
-        self.camera_pan_us = self.CAMERA_PAN_HOME_US
-        self.camera_tilt_us = self.CAMERA_TILT_HOME_US
+        self.camera_pan_us = self.camera_pan_home_us
+        self.camera_tilt_us = self.camera_tilt_home_us
         self.create_subscription(
             Int32, "/camera/bottom_servo_us", self.update_camera_pan, 10
         )
@@ -275,9 +280,32 @@ class AtlasMissionControl(Node):
         )
         self.camera_tilt_pub.publish(Int32(data=self.camera_tilt_us))
 
+    def load_camera_home(self) -> tuple[int, int]:
+        """Load the dashboard-commissioned forward pose from the shared file."""
+        pan = self.CAMERA_PAN_HOME_US
+        tilt = self.CAMERA_TILT_HOME_US
+        try:
+            for raw_line in self.CAMERA_HOME_FILE.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                pan_prefix = "Environment=ATLAS_CAMERA_PAN_HOME_US="
+                tilt_prefix = "Environment=ATLAS_CAMERA_TILT_HOME_US="
+                if line.startswith(pan_prefix):
+                    pan = int(line[len(pan_prefix):])
+                elif line.startswith(tilt_prefix):
+                    tilt = int(line[len(tilt_prefix):])
+        except (OSError, ValueError):
+            self.get_logger().warning(
+                "Saved camera home unavailable; using commissioned defaults"
+            )
+        return (
+            max(self.CAMERA_PAN_MIN_US, min(self.CAMERA_PAN_MAX_US, pan)),
+            max(self.CAMERA_TILT_MIN_US, min(self.CAMERA_TILT_MAX_US, tilt)),
+        )
+
     def camera_home(self, _msg: Empty) -> None:
-        self.camera_pan_us = self.CAMERA_PAN_HOME_US
-        self.camera_tilt_us = self.CAMERA_TILT_HOME_US
+        self.camera_pan_home_us, self.camera_tilt_home_us = self.load_camera_home()
+        self.camera_pan_us = self.camera_pan_home_us
+        self.camera_tilt_us = self.camera_tilt_home_us
         self.camera_pan_pub.publish(Int32(data=self.camera_pan_us))
         self.camera_tilt_pub.publish(Int32(data=self.camera_tilt_us))
 
@@ -797,9 +825,10 @@ class AtlasMissionControl(Node):
 
     def center_camera_for_navigation(self) -> None:
         """Put the pan/tilt camera in its calibrated forward navigation pose."""
+        self.camera_pan_home_us, self.camera_tilt_home_us = self.load_camera_home()
         for _ in range(3):
-            self.camera_pan_pub.publish(Int32(data=self.CAMERA_PAN_HOME_US))
-            self.camera_tilt_pub.publish(Int32(data=self.CAMERA_TILT_HOME_US))
+            self.camera_pan_pub.publish(Int32(data=self.camera_pan_home_us))
+            self.camera_tilt_pub.publish(Int32(data=self.camera_tilt_home_us))
             time.sleep(0.15)
         self.get_logger().info(
             "Camera centered for LiDAR-confirmed semantic navigation"

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-02 — Persist the verified forward camera pose
+
+- Saved the visually verified forward-driving view at pan `1628 us`, tilt
+  `1442 us`.
+- Mission control now reloads the shared dashboard camera-home file whenever
+  navigation or the Home command centers the camera, instead of restoring
+  obsolete hard-coded angles.
+
 ## 2026-10-02 — Commit Nav2 to a valid global path
 
 - Changed the single-goal Ackermann behavior tree to compute one global path
