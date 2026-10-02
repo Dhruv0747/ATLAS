@@ -1,13 +1,15 @@
 # Changelog
 
-## 2026-10-02 — Tune IMX708 indoor driving image
+## 2026-10-02 — Commission 720p IMX708 indoor driving image
 
-- Raised live JPEG quality from 60 to 80 while retaining 656×368 at 10 FPS.
+- Raised live capture from 656×368 to 1280×720 at 10 FPS and set JPEG
+  quality to 75.
 - Tuned Argus exposure, saturation, edge enhancement, and temporal noise
   reduction for the indoor Dhruv Room ↔ Hall route.
 - Kept automatic white balance and avoided CPU-heavy software CLAHE.
-- Verified a fresh live frame, active camera service, and 62°C Jetson
-  temperature after deployment.
+- Verified 9.96 FPS camera output and 10.0 Hz `/odom`; with TensorRT object
+  detection enabled, CPU remained 73–76%, RAM 70%, temperature 63°C, and
+  camera age 0.0–0.1 seconds.
 
 ## 2026-10-02 — Persist the verified forward camera pose
 
