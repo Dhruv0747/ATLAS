@@ -59,6 +59,16 @@ class SmartDashboardPanelTests(unittest.TestCase):
         self.assertIn("load_value / 10.0", gpu_source)
         self.assertIn("gpu_frequency_mhz", gpu_source)
 
+    def test_live_mapping_page_is_linked_and_source_backed(self):
+        self.assertIn('href="/mapping"', self.page)
+        self.assertIn("LIVE MAP / ROVER POSITION", self.page)
+        source = SOURCE
+        self.assertIn('n.create_subscription(OccupancyGrid, "/map"', source)
+        self.assertIn('n.create_subscription(NavPath, "/plan"', source)
+        self.assertIn('lookup_transform("map", "base_link"', source)
+        self.assertIn('if self.path.startswith("/api/map")', source)
+        self.assertIn('if self.path.startswith("/map.png")', source)
+
 
 if __name__ == "__main__":
     unittest.main()

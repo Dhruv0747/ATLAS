@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-02 — Live mapping dashboard
+
+- Added a separate `/mapping` page to the ATLAS web command center.
+- Added live `/map`, `map -> base_link`, `/plan`, `/goal_pose`, and mission-status observability.
+- Added source-labelled Hall and Dhruv Room markers and explicit stale/unavailable states.
+- Refused to substitute raw wheel odometry when authoritative map pose is absent; the UI reports the pose unavailable instead of showing misleading coordinates.
+- Kept the new page read-only; it creates no browser-to-motor control path.
+
 ## 2026-10-01 — Saved-map health diagnostic correction
 
 - Changed bounded sensor recovery to subscribe to `/map` with transient-local reliable QoS.

@@ -27,9 +27,11 @@ from urllib.parse import parse_qs
 import rclpy
 from rclpy.qos import qos_profile_sensor_data
 from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
+from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import NavSatFix, LaserScan, CompressedImage, Joy
 from std_msgs.msg import Bool, Float32, String, Int32, Empty
+from tf2_ros import Buffer, TransformListener
 
 PORT = 8088
 CAMERA_PAN_STEP_US = 150
@@ -88,6 +90,49 @@ def run_quiet(cmd, timeout=2):
         return True, "ok"
     except Exception as exc:
         return False, str(exc)
+
+
+def map_markers():
+    """Return labelled poses with provenance; never silently reuse stale names."""
+    markers = []
+    candidate_files = sorted(
+        Path("/home/jetson/project_atlas/maps/candidates").glob("*/commissioning_metadata.json"),
+        key=lambda path: path.stat().st_mtime if path.exists() else 0,
+        reverse=True,
+    )
+    if candidate_files:
+        try:
+            payload = json.loads(candidate_files[0].read_text(encoding="utf-8"))
+            for key, label in (("hall_start_pose", "Hall"), ("dhruv_room_end_pose", "Dhruv Room")):
+                pose = payload.get(key, {})
+                if all(isinstance(pose.get(field), (int, float)) for field in ("x_m", "y_m")):
+                    markers.append({
+                        "name": label, "x": float(pose["x_m"]), "y": float(pose["y_m"]),
+                        "yaw": math.radians(float(pose.get("yaw_deg", 0.0))),
+                        "source": "latest mapping candidate",
+                    })
+            if markers:
+                return markers
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            pass
+    try:
+        payload = json.loads(
+            (Path.home() / ".config/project_atlas/named_places.json").read_text(encoding="utf-8")
+        )
+        for key, pose in payload.items():
+            if key == "map_id" or not isinstance(pose, dict):
+                continue
+            if not all(isinstance(pose.get(field), (int, float)) for field in ("x", "y")):
+                continue
+            markers.append({
+                "name": key.title(), "x": float(pose["x"]), "y": float(pose["y"]),
+                "yaw": 2.0 * math.atan2(float(pose.get("qz", 0.0)), float(pose.get("qw", 1.0))),
+                "source": "accepted named places",
+                "map_id": pose.get("map_id"),
+            })
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        pass
+    return markers
 
 
 SENSOR_HUB_CACHE_KEYS = {
@@ -173,6 +218,13 @@ class AtlasRosNode:
         self.overview_camera_frame = None
         self.overview_camera_source_ts = 0.0
         self.last_scan_summary = 0.0
+        self.last_map_encode = 0.0
+        self.map_png = None
+        self.map_meta = {}
+        self.map_received_at = 0.0
+        self.map_lock = threading.Lock()
+        self.tf_buffer = None
+        self.tf_listener = None
         self.last_motion_check = 0.0
         self.prev_motion_gray = None
         self.yolo_ready = os.path.exists(
@@ -210,6 +262,8 @@ class AtlasRosNode:
         try:
             rclpy.init(args=None)
             self.node = rclpy.create_node("atlas_web_control")
+            self.tf_buffer = Buffer()
+            self.tf_listener = TransformListener(self.tf_buffer, self.node)
             self.pub = self.node.create_publisher(Twist, "/cmd_vel_web", 10)
             self.voice_mute_pub = self.node.create_publisher(Bool, '/atlas/voice/mic_mute', 10)
             # Reuse the existing mux latch; never create a second motor path.
@@ -349,6 +403,10 @@ class AtlasRosNode:
             n.create_subscription(String, "/atlas/encoder_health", lambda m: self._set("encoder_health", m.data), 10)
             n.create_subscription(String, "/atlas/drive_pid/diagnostics", lambda m: self._set("drive_pid", m.data), 10)
             n.create_subscription(LaserScan, "/scan", self._scan_cb, qos_profile_sensor_data)
+            n.create_subscription(OccupancyGrid, "/map", self._map_cb, 1)
+            n.create_subscription(NavPath, "/plan", self._plan_cb, 10)
+            n.create_subscription(PoseStamped, "/goal_pose", self._goal_cb, 10)
+            n.create_subscription(String, "/atlas/mission_status", lambda m: self._set("mission_status", m.data), 10)
             n.create_subscription(CompressedImage, "/camera/image_raw/compressed", self._camera_cb, qos_profile_sensor_data)
             n.create_subscription(CompressedImage, "/camera/detections/compressed", self._ai_camera_cb, 10)
             n.create_subscription(String, "/camera/detections/json", self._ai_detections_cb, 10)
@@ -397,6 +455,7 @@ class AtlasRosNode:
                 10,
             )
             n.create_timer(0.1, self._drive_watchdog)
+            n.create_timer(0.5, self._map_pose_tick)
             self.ready = True
             rclpy.spin(n)
         except Exception as exc:
@@ -530,6 +589,95 @@ class AtlasRosNode:
             "range_max": msg.range_max,
             "frame": msg.header.frame_id,
         })
+
+    def _map_cb(self, msg):
+        """Cache a browser-ready occupancy image without changing Nav2 data."""
+        now = time.time()
+        if now - self.last_map_encode < 0.75:
+            return
+        width, height = int(msg.info.width), int(msg.info.height)
+        if width <= 0 or height <= 0 or len(msg.data) != width * height:
+            return
+        self.last_map_encode = now
+        cells = np.asarray(msg.data, dtype=np.int16).reshape((height, width))
+        image = np.full((height, width), 62, dtype=np.uint8)
+        image[cells == 0] = 232
+        image[cells >= 65] = 8
+        uncertain = (cells > 0) & (cells < 65)
+        image[uncertain] = np.clip(232 - cells[uncertain] * 2, 74, 220).astype(np.uint8)
+        image = np.flipud(image)
+        ok, encoded = cv2.imencode(".png", image)
+        if not ok:
+            return
+        q = msg.info.origin.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        meta = {
+            "frame": msg.header.frame_id or "map",
+            "width": width,
+            "height": height,
+            "resolution": float(msg.info.resolution),
+            "origin_x": float(msg.info.origin.position.x),
+            "origin_y": float(msg.info.origin.position.y),
+            "origin_yaw": yaw,
+        }
+        with self.map_lock:
+            self.map_png = encoded.tobytes()
+            self.map_meta = meta
+            self.map_received_at = now
+        self._set("map_info", meta)
+
+    def _plan_cb(self, msg):
+        poses = msg.poses
+        stride = max(1, math.ceil(len(poses) / 500))
+        self._set("nav_plan", [
+            [float(p.pose.position.x), float(p.pose.position.y)]
+            for p in poses[::stride]
+        ])
+
+    def _goal_cb(self, msg):
+        q = msg.pose.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        self._set("nav_goal", {
+            "x": float(msg.pose.position.x), "y": float(msg.pose.position.y),
+            "yaw": yaw, "frame": msg.header.frame_id or "map",
+        })
+
+    def _map_pose_tick(self):
+        if self.tf_buffer is None:
+            return
+        try:
+            transform = self.tf_buffer.lookup_transform("map", "base_link", rclpy.time.Time())
+            t, q = transform.transform.translation, transform.transform.rotation
+            yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+            self._set("map_pose", {
+                "x": float(t.x), "y": float(t.y), "yaw": yaw,
+                "frame": "map", "source": "authoritative map→base_link TF",
+            })
+        except Exception:
+            return
+
+    def map_frame(self):
+        with self.map_lock:
+            return self.map_png
+
+    def map_snapshot(self):
+        now = time.time()
+        with self.map_lock:
+            meta = dict(self.map_meta)
+            map_age = None if not self.map_received_at else round(now - self.map_received_at, 3)
+        with self.lock:
+            def item(name):
+                value = self.data.get(name)
+                if not value:
+                    return None
+                return {"value": value["value"], "age": round(now - value["ts"], 3)}
+            result = {
+                "map": meta, "map_age": map_age,
+                "pose": item("map_pose"), "goal": item("nav_goal"),
+                "plan": item("nav_plan"), "mission": item("mission_status"),
+            }
+        result["markers"] = map_markers()
+        return result
 
     def _camera_cb(self, msg):
         now = time.time()
@@ -1250,6 +1398,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(403)
             return
         commissioning_assets = {'/commissioning': ('atlas_commissioning.html', 'text/html'),
+                                '/mapping': ('atlas_mapping.html', 'text/html'),
                                 '/commissioning.js': ('atlas_commissioning_ui.js', 'application/javascript'),
                                 '/steering-commissioning.js': ('atlas_steering_ui.js', 'application/javascript'),
                                 '/commissioning-evidence.js': ('atlas_evidence_ui.js', 'application/javascript')}
@@ -1330,6 +1479,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/api/status"):
             json_response(self, 200, snapshot())
+            return
+        if self.path.startswith("/api/map"):
+            json_response(self, 200, ROS.map_snapshot())
+            return
+        if self.path.startswith("/map.png"):
+            frame = ROS.map_frame()
+            if frame:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(frame)))
+                self.end_headers()
+                self.wfile.write(frame)
+            else:
+                self.send_error(404)
             return
         if self.path.startswith("/logo.png"):
             path = "/home/jetson/project_atlas/scripts/atlas_rover_logo_preferred.png"
@@ -1715,7 +1879,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
 @media(max-width:1150px) and (min-width:901px){.grid{grid-template-columns:265px minmax(390px,1fr) 295px}.companionGrid{grid-template-columns:1fr}.companionStatus{grid-template-columns:1fr 1fr}.voiceLedStates{grid-template-columns:repeat(3,1fr)}}
 </style></head><body>
 <header><img src="/logo.png"><div><h1>PROJECT ATLAS COMMAND CENTER</h1><div class="sub">Headless rover control • hold-to-drive • automatic stop watchdog</div></div><div class="live" id="online">CONNECTING</div><a class="headerBtn cloud" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/" title="Open the read-only ATLAS Visual Cloud live ROS observability dashboard."><span class="headerIcon">◈</span><span class="headerText">VISUAL CLOUD</span></a><a class="headerBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" title="Open two-way ATLAS intercom. The camera stream closes to preserve call quality and AI Voice pauses during the call."><span class="headerIcon">☎</span><span class="headerText">TALK / LISTEN</span></a></header>
-<div class="bootBanner"><b>LIVE TELEMETRY CHECK</b><a class="btn" href="/commissioning">COMMISSIONING / HARDWARE CHECK</a><a class="btn" href="#diagnosticsPanel" onclick="document.getElementById('diagnosticsPanel').open=true;refreshDiagnostics(true)">DIAGNOSTICS / LOGS</a><button class="btn" id="shutdownButton" style="border-color:#ff5966;color:#ffbdc4" onclick="shutdownAtlas()">⏻ SHUT DOWN</button><span id="bootBannerState">COLLECTING LIVE DATA…</span><div class="buildTag">WEB DIAGNOSTICS v4</div></div>
+<div class="bootBanner"><b>LIVE TELEMETRY CHECK</b><a class="btn" href="/mapping">LIVE MAP / ROVER POSITION</a><a class="btn" href="/commissioning">COMMISSIONING / HARDWARE CHECK</a><a class="btn" href="#diagnosticsPanel" onclick="document.getElementById('diagnosticsPanel').open=true;refreshDiagnostics(true)">DIAGNOSTICS / LOGS</a><button class="btn" id="shutdownButton" style="border-color:#ff5966;color:#ffbdc4" onclick="shutdownAtlas()">⏻ SHUT DOWN</button><span id="bootBannerState">COLLECTING LIVE DATA…</span><div class="buildTag">WEB DIAGNOSTICS v5</div></div>
 <main class="grid">
 <section class="col">
  <div class="panel"><h2>ROVER DRIVE — HOLD BUTTON</h2><div class="drive">

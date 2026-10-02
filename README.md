@@ -1,5 +1,16 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Live mapping dashboard — 2026-10-02
+
+The command center links to `/mapping`, a read-only live mapping page. It
+renders the current ROS occupancy grid from `/map` and overlays the fresh
+`map -> base_link` rover pose, `/plan`, `/goal_pose`, mission status, and
+source-labelled map locations. Missing or stale streams are shown as
+unavailable rather than replaced by cached example data. This page does not
+publish motion commands. It deliberately does not substitute raw wheel
+odometry when the authoritative `map -> base_link` TF is absent, because those
+coordinates can diverge after a driver or EKF restart.
+
 ### AI/robotics adaptation Phase 0 — 2026-09-30
 
 The book-inspired improvement roadmap is governed by the corrected
