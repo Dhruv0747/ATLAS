@@ -8,6 +8,7 @@ StartLimitBurst=5
 [Service]
 Type=simple
 CPUWeight=1000
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /opt/ros/humble/lib/robot_localization/ekf_node --ros-args -r __node:=atlas_ekf --params-file /home/jetson/project_atlas/config/atlas_ekf.yaml -r odometry/filtered:=/odom'
 Restart=always
 RestartSec=3

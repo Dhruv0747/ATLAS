@@ -13,6 +13,10 @@ KillMode=control-group
 SendSIGKILL=yes
 NotifyAccess=main
 Environment=PYTHONUNBUFFERED=1
+# Keep the motor-board odometry on the same Fast DDS transport as Nav2,
+# SLAM, and AMCL. Mixed default/UDP-only participants can appear active while
+# /yahboom/odom remains undiscoverable by the authoritative EKF.
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
 # The Yahboom, IM10A and GNSS adapters use identical serial-number-less CH340
 # bridges.  Discover the motor board passively from its verified packet
 # protocol instead of binding it to a USB socket that may change after wiring.
