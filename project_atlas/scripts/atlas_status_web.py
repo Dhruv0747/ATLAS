@@ -25,7 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 
 import rclpy
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
 from geometry_msgs.msg import PoseStamped
@@ -92,8 +92,8 @@ def run_quiet(cmd, timeout=2):
         return False, str(exc)
 
 
-def map_markers():
-    """Return labelled poses with provenance; never silently reuse stale names."""
+def map_markers(map_meta=None):
+    """Return poses belonging to the map currently shown by the dashboard."""
     markers = []
     candidate_files = sorted(
         Path("/home/jetson/project_atlas/maps/candidates").glob("*/commissioning_metadata.json"),
@@ -103,16 +103,25 @@ def map_markers():
     if candidate_files:
         try:
             payload = json.loads(candidate_files[0].read_text(encoding="utf-8"))
-            for key, label in (("hall_start_pose", "Hall"), ("dhruv_room_end_pose", "Dhruv Room")):
-                pose = payload.get(key, {})
-                if all(isinstance(pose.get(field), (int, float)) for field in ("x_m", "y_m")):
-                    markers.append({
-                        "name": label, "x": float(pose["x_m"]), "y": float(pose["y_m"]),
-                        "yaw": math.radians(float(pose.get("yaw_deg", 0.0))),
-                        "source": "latest mapping candidate",
-                    })
-            if markers:
-                return markers
+            candidate_size = payload.get("map_size_cells")
+            candidate_is_active = (
+                isinstance(map_meta, dict)
+                and isinstance(candidate_size, list)
+                and len(candidate_size) == 2
+                and int(map_meta.get("width", -1)) == int(candidate_size[0])
+                and int(map_meta.get("height", -1)) == int(candidate_size[1])
+            )
+            if candidate_is_active:
+                for key, label in (("hall_start_pose", "Hall"), ("dhruv_room_end_pose", "Dhruv Room")):
+                    pose = payload.get(key, {})
+                    if all(isinstance(pose.get(field), (int, float)) for field in ("x_m", "y_m")):
+                        markers.append({
+                            "name": label, "x": float(pose["x_m"]), "y": float(pose["y_m"]),
+                            "yaw": math.radians(float(pose.get("yaw_deg", 0.0))),
+                            "source": "active mapping candidate",
+                        })
+                if markers:
+                    return markers
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             pass
     try:
@@ -403,7 +412,12 @@ class AtlasRosNode:
             n.create_subscription(String, "/atlas/encoder_health", lambda m: self._set("encoder_health", m.data), 10)
             n.create_subscription(String, "/atlas/drive_pid/diagnostics", lambda m: self._set("drive_pid", m.data), 10)
             n.create_subscription(LaserScan, "/scan", self._scan_cb, qos_profile_sensor_data)
-            n.create_subscription(OccupancyGrid, "/map", self._map_cb, 1)
+            map_qos = QoSProfile(
+                depth=1,
+                reliability=ReliabilityPolicy.RELIABLE,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            )
+            n.create_subscription(OccupancyGrid, "/map", self._map_cb, map_qos)
             n.create_subscription(NavPath, "/plan", self._plan_cb, 10)
             n.create_subscription(PoseStamped, "/goal_pose", self._goal_cb, 10)
             n.create_subscription(String, "/atlas/mission_status", lambda m: self._set("mission_status", m.data), 10)
@@ -676,7 +690,7 @@ class AtlasRosNode:
                 "pose": item("map_pose"), "goal": item("nav_goal"),
                 "plan": item("nav_plan"), "mission": item("mission_status"),
             }
-        result["markers"] = map_markers()
+        result["markers"] = map_markers(meta)
         return result
 
     def _camera_cb(self, msg):

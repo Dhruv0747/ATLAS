@@ -64,10 +64,23 @@ class SmartDashboardPanelTests(unittest.TestCase):
         self.assertIn("LIVE MAP / ROVER POSITION", self.page)
         source = SOURCE
         self.assertIn('n.create_subscription(OccupancyGrid, "/map"', source)
+        self.assertIn("DurabilityPolicy.TRANSIENT_LOCAL", source)
         self.assertIn('n.create_subscription(NavPath, "/plan"', source)
         self.assertIn('lookup_transform("map", "base_link"', source)
         self.assertIn('if self.path.startswith("/api/map")', source)
         self.assertIn('if self.path.startswith("/map.png")', source)
+
+    def test_map_markers_follow_the_active_map(self):
+        marker_function = next(
+            node
+            for node in TREE.body
+            if isinstance(node, ast.FunctionDef) and node.name == "map_markers"
+        )
+        rendered = ast.unparse(marker_function)
+        self.assertIn("candidate_is_active", rendered)
+        self.assertIn("map_size_cells", rendered)
+        self.assertIn("active mapping candidate", rendered)
+        self.assertIn("accepted named places", rendered)
 
 
 if __name__ == "__main__":
