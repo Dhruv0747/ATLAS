@@ -64,6 +64,11 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("remote_linear_deadband", 0.06)
         self.declare_parameter("remote_angular_deadband", 0.12)
         self.declare_parameter("remote_steer_hold_s", 0.35)
+        # Manual teaching must not require fine analogue-stick accuracy. Full
+        # stick remains available, but mapping mode alone is capped to a pace
+        # that gives scan matching several LiDAR revolutions through a turn.
+        self.declare_parameter("mapping_remote_max_linear", 0.30)
+        self.declare_parameter("mapping_remote_max_angular", 0.45)
         self.declare_parameter("auto_front_stop_m", 0.30)
         self.declare_parameter("auto_rear_stop_m", 0.30)
         # Rover half-width is 0.18 m; preserve the commissioned 0.10 m
@@ -110,6 +115,14 @@ class AtlasCmdVelMux(Node):
         )
         self.remote_steer_hold_s = float(
             self.get_parameter("remote_steer_hold_s").value
+        )
+        self.mapping_remote_max_linear = max(
+            0.0,
+            float(self.get_parameter("mapping_remote_max_linear").value),
+        )
+        self.mapping_remote_max_angular = max(
+            0.0,
+            float(self.get_parameter("mapping_remote_max_angular").value),
         )
         self._remote_held_yaw = 0.0
         self._remote_last_steer_rx = 0.0
@@ -460,6 +473,15 @@ class AtlasCmdVelMux(Node):
                 command.angular.z = self._remote_held_yaw
             else:
                 self._remote_held_yaw = 0.0
+            if self.operating_mode == "MAPPING":
+                command.linear.x = max(
+                    -self.mapping_remote_max_linear,
+                    min(self.mapping_remote_max_linear, command.linear.x),
+                )
+                command.angular.z = max(
+                    -self.mapping_remote_max_angular,
+                    min(self.mapping_remote_max_angular, command.angular.z),
+                )
             command.linear.y = 0.0
             command.linear.z = 0.0
             command.angular.x = 0.0
@@ -805,6 +827,9 @@ class AtlasCmdVelMux(Node):
             'stop_latched': self.remote_stop.latched,
             'stop_reason': self.remote_stop.reason,
             'source': mode,
+            'mapping_remote_limited': self.operating_mode == 'MAPPING',
+            'mapping_remote_max_linear_mps': self.mapping_remote_max_linear,
+            'mapping_remote_max_angular_radps': self.mapping_remote_max_angular,
         })))
 
     def shutdown_stop(self) -> None:

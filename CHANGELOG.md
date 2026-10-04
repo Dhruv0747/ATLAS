@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-04 — Make manual mapping tolerant of full-stick driving
+
+- Added a mapping-only remote teaching envelope of 0.30 m/s linear and
+  0.45 rad/s angular. Full joystick travel is still easy to use, but it no
+  longer requests the recorded 0.52 m/s plus 1.20 rad/s high-curvature motion
+  that coincided with the two largest SLAM corrections.
+- Kept ordinary remote driving outside `MAPPING` unchanged and preserved the
+  physical/voice stop path ahead of command conditioning.
+- Exposed the active mapping limit and both caps through
+  `/atlas/control_policy`, with focused tests for positive, negative, bounded,
+  and non-mapping commands.
+- Deployed by restarting only `atlas-cmd-vel-mux.service` while velocity was
+  zero. Post-deployment policy reported the new caps, saved-map localization
+  remained active, and the remote-stop latch remained fail-closed. Rollback
+  backup: `deploy_backups/mapping_remote_limit_20261004_170204` on the Jetson.
+
 ## 2026-10-04 — Normalize Slam Toolbox TF evidence timestamps
 
 - Made the commissioned 1.5-second Slam Toolbox `transform_timeout` an

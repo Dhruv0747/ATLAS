@@ -121,6 +121,13 @@ real 1.221502 m / 20.596114 degree discontinuity failures. The allowed offset
 is capped at 1.5 seconds; TF geometry, coverage-gap, freshness, 0.15 m
 translation, and 5-degree yaw gates are unchanged.
 
+Manual map teaching does not require the operator to reproduce an exact path
+or feather the joystick precisely. While `/atlas/mode` is `MAPPING`, the
+physical remote is capped to 0.30 m/s and 0.45 rad/s; outside mapping, its
+commissioned response is unchanged. The mapping envelope and limits are
+reported on `/atlas/control_policy`. Emergency-stop handling remains upstream
+of this conditioning and retains absolute priority.
+
 ### Acquisition-time LiDAR filtering — 2026-10-04
 
 The repository LiDAR self-filter now preserves the `/scan_raw` header on
