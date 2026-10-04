@@ -185,6 +185,15 @@ class MuxIntegrationTests(unittest.TestCase):
         self.mux.auto_side_stop_m = .28
         self.mux.auto_reaction_time_s = 1
         self.mux.auto_stop_margin_m = .15
+        # ``watchdog`` now expires the bounded commissioning lease before it
+        # selects any live source.  Keep this extracted-method fixture aligned
+        # with the real node without creating ROS publishers or channels.
+        self.mux.commission_until = 0.0
+        self.mux.channels = {
+            'COMMISSION': NS(engaged=False, command=NS(
+                linear=NS(x=0), angular=NS(z=0)
+            ))
+        }
         self.command = NS(linear=NS(x=.1), angular=NS(z=0))
 
     def test_bare_positive_float_never_grants_authority(self):

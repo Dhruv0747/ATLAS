@@ -17,6 +17,7 @@ from std_srvs.srv import Trigger
 
 from atlas_scan_geometry import ray_in_base_sector
 from atlas_straight_distance_core import (
+    conservative_corridor_range,
     IncrementalPlanarDistance,
     conservative_progress,
     corridor_clearance_progress,
@@ -41,7 +42,10 @@ class StraightTest(Node):
         self.target_m = target_m
         self.speed = speed
         self.timeout_s = timeout_s
-        self.pulse_on_s = pulse_on_s
+        # Never allow a stale/legacy CLI value to create a long open-loop
+        # burst.  Sensor updates can lag while the drivetrain is loaded, so
+        # every motion pulse stays short even when the caller asks for more.
+        self.pulse_on_s = max(0.05, min(0.35, float(pulse_on_s)))
         self.settle_s = settle_s
         self.tolerance_m = tolerance_m
         self.wheel_start_xy = None
@@ -53,12 +57,15 @@ class StraightTest(Node):
         self.start_clearance_m = math.inf
         self.corridor_range_m = math.inf
         self.start_corridor_range_m = math.inf
+        self.guard_corridor_range_m = math.inf
+        self.start_guard_corridor_range_m = math.inf
         self.scan_time = 0.0
         self.started = 0.0
         self.phase = "WAITING"
         self.phase_started = 0.0
         self.cycle_start_distance_m = 0.0
-        self.active_pulse_s = pulse_on_s
+        self.active_pulse_s = self.pulse_on_s
+        self.target_seen_since = 0.0
         self.result = "WAITING"
         self.encoder_counts = [None, None, None, None]
         self.encoder_start_counts = None
@@ -107,7 +114,10 @@ class StraightTest(Node):
         if not self.arm_client.wait_for_service(timeout_sec=12.0):
             return False, "commissioning arm service unavailable"
         future = self.arm_client.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+        # The fully loaded Jetson can take several seconds to schedule the mux
+        # service response. Waiting longer does not grant authority: the mux
+        # creates its bounded 20-second lease only when the response succeeds.
+        rclpy.spin_until_future_complete(self, future, timeout_sec=8.0)
         response = future.result()
         if response is None:
             return False, "commissioning arm request timed out"
@@ -119,7 +129,7 @@ class StraightTest(Node):
         if not self.disarm_client.wait_for_service(timeout_sec=0.5):
             return
         future = self.disarm_client.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
 
     def on_wheel_odom(self, msg: Odometry) -> None:
         self.wheel_xy = (msg.pose.pose.position.x, msg.pose.pose.position.y)
@@ -148,6 +158,7 @@ class StraightTest(Node):
             angle += msg.angle_increment
         self.clearance_m = min(values) if values else math.inf
         self.corridor_range_m = robust_corridor_range(values)
+        self.guard_corridor_range_m = conservative_corridor_range(values)
         self.scan_time = time.monotonic()
 
     def stop(self, result: str) -> None:
@@ -167,7 +178,28 @@ class StraightTest(Node):
             self.start_corridor_range_m, self.corridor_range_m
         )
 
+    def nearest_clearance_distance(self) -> float:
+        """Conservative travel guard from the nearest ray in the corridor.
+
+        The robust median remains useful for measurement, but it can stay
+        almost unchanged when the rover approaches one side of a doorway or
+        wall.  A decreasing nearest range must therefore be allowed to stop a
+        commissioning run; it never grants permission to move.
+        """
+        return corridor_clearance_progress(
+            self.start_clearance_m, self.clearance_m
+        )
+
+    def guard_clearance_distance(self) -> float:
+        return corridor_clearance_progress(
+            self.start_guard_corridor_range_m,
+            self.guard_corridor_range_m,
+        )
+
     def control_distance(self) -> float:
+        # Only stable LiDAR odometry and the robust corridor statistic may
+        # prove target travel.  The nearest ray is deliberately excluded: it
+        # is a conservative stop guard, never evidence of successful motion.
         return conservative_progress(
             self.lidar_distance.distance_m, self.clearance_distance()
         )
@@ -195,6 +227,7 @@ class StraightTest(Node):
             self.phase_started = now
             self.start_clearance_m = self.clearance_m
             self.start_corridor_range_m = self.corridor_range_m
+            self.start_guard_corridor_range_m = self.guard_corridor_range_m
             self.encoder_start_counts = list(self.encoder_counts)
             self.cycle_start_distance_m = self.control_distance()
             direction = "forward" if self.speed >= 0.0 else "reverse"
@@ -223,6 +256,13 @@ class StraightTest(Node):
             )
         elif self.clearance_m < 0.55:
             self.stop(f"STOP_LIDAR_{self.clearance_m:.3f}M")
+        elif self.guard_clearance_distance() > (
+            self.target_m + self.tolerance_m
+        ):
+            self.stop(
+                "STOP_CORRIDOR_CLEARANCE_GUARD_"
+                f"{self.guard_clearance_distance():.3f}M"
+            )
         elif now - self.started >= self.timeout_s:
             self.stop("STOP_TIMEOUT")
         elif self.phase == "PULSE":
@@ -244,11 +284,21 @@ class StraightTest(Node):
             distance_m = self.control_distance()
             progress_m = distance_m - self.cycle_start_distance_m
             if distance_m >= self.target_m - self.tolerance_m:
-                if distance_m <= self.target_m + self.tolerance_m:
-                    self.stop("PASS_TARGET_SETTLED")
-                else:
+                if distance_m > self.target_m + self.tolerance_m:
                     self.stop("STOP_OVERSHOOT")
+                    return
+                # A single nearest LiDAR ray can change as the rover vibrates
+                # or the beam moves across an edge.  Require the conservative
+                # target estimate to remain in-range across several scans
+                # before declaring a pass.
+                if self.target_seen_since == 0.0:
+                    self.target_seen_since = now
+                if now - self.target_seen_since >= 0.30:
+                    self.stop("PASS_TARGET_SETTLED")
+                    return
+                self.pub.publish(Twist())
                 return
+            self.target_seen_since = 0.0
             # Increase a pulse only when the previous one did not overcome the
             # drivetrain's starting threshold. Keep every pulse bounded.
             if progress_m < 0.005:
@@ -294,6 +344,10 @@ def main() -> None:
             f"RESULT {node.result} lidar_distance="
             f"{node.lidar_distance.distance_m:.3f}m "
             f"clearance_distance={node.clearance_distance():.3f}m "
+            f"nearest_clearance_distance="
+            f"{node.nearest_clearance_distance():.3f}m "
+            f"guard_clearance_distance="
+            f"{node.guard_clearance_distance():.3f}m "
             f"control_distance={node.control_distance():.3f}m "
             f"wheel_distance={node.wheel_distance():.3f}m "
             f"clearance_start={node.start_clearance_m:.3f}m "

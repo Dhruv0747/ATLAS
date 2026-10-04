@@ -4,6 +4,10 @@
   "robot_id": "project-atlas-jetson",
   "publish_interval_s": 1.0,
   "graph_interval_s": 5.0,
+  "idle_publish_interval_s": 5.0,
+  "idle_graph_interval_s": 30.0,
+  "idle_value_interval_s": 1.0,
+  "active_hold_s": 30.0,
   "history_seconds": 10,
   "topics": {
     "/scan": 8.0,

@@ -38,6 +38,12 @@ BAUD = 115200
 SERIAL_STALE_REOPEN_SECONDS = max(
     5.0, float(os.environ.get('ATLAS_SENSOR_HUB_STALE_REOPEN_SECONDS', '8.0'))
 )
+# The fastest existing camera command interval is 40 ms, while the commissioned
+# firmware reports atomic ultrasonic validity every 250 ms.  A 25 Hz timer
+# therefore preserves those cadences and removes 75% of the idle executor
+# wakeups from the former 100 Hz timer.  ROS camera callbacks remain independent;
+# tick() still drains local commands and immediately available serial work.
+SENSOR_HUB_POLL_SECONDS = 0.04
 HUB_TRANSPORT = os.environ.get('ATLAS_SENSOR_HUB_TRANSPORT', 'arduino_uno_r4').strip()
 FRONT_ULTRASONIC_ENABLED = os.environ.get('ATLAS_FRONT_ULTRASONIC_ENABLED', '0').strip() == '1'
 GNSS_ENABLED = os.environ.get('ATLAS_GNSS_ENABLED', '1').strip().lower() not in (
@@ -164,7 +170,7 @@ class UltrasonicArduinoBridge(Node):
         self.rx_high_water = 0
         self.rx_diag_time = 0.0
         self.rx_diag_pub = self.create_publisher(String, '/arduino/serial_diagnostics', 10)
-        self.create_timer(0.01, self.tick)
+        self.create_timer(SENSOR_HUB_POLL_SECONDS, self.tick)
         if self.camera_via_arduino:
             camera_route = 'Arduino UNO R4 PCA9685'
         else:

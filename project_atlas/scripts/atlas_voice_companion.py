@@ -182,8 +182,19 @@ class AtlasVoice(Node):
                 10,
             )
         self.create_subscription(NavSatFix, "/gps/fix", self.gps_callback, 10)
-        self.create_subscription(LaserScan, '/scan', lambda m: self.rover.__setitem__('lidar_live', True), qos_profile_sensor_data)
-        self.create_subscription(Imu, '/im10a/imu/unvalidated', lambda m: self.rover.__setitem__('imu_live', True), qos_profile_sensor_data)
+        # These subscriptions prove message freshness only.  Keep the original
+        # type and QoS matching, but skip constructing large Python ROS message
+        # objects whose fields the callbacks never inspect.
+        self.create_subscription(
+            LaserScan, '/scan',
+            lambda _raw: self.rover.__setitem__('lidar_live', True),
+            qos_profile_sensor_data, raw=True,
+        )
+        self.create_subscription(
+            Imu, '/im10a/imu/unvalidated',
+            lambda _raw: self.rover.__setitem__('imu_live', True),
+            qos_profile_sensor_data, raw=True,
+        )
         self.serial = None
         self.serial_error_text = ""
         self.serial_lock = threading.Lock()

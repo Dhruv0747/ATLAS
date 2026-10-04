@@ -15,6 +15,17 @@ def robust_corridor_range(ranges_m: list[float]) -> float:
     return float(statistics.median(valid))
 
 
+def conservative_corridor_range(ranges_m: list[float]) -> float:
+    """Return a lower-quartile range for a noise-resistant stop guard."""
+    valid = sorted(
+        value for value in ranges_m if math.isfinite(value) and value > 0.0
+    )
+    if not valid:
+        return math.inf
+    index = int(0.25 * (len(valid) - 1))
+    return float(valid[index])
+
+
 def corridor_clearance_progress(start_m: float, current_m: float) -> float:
     """Infer travel toward the selected front or rear LiDAR corridor."""
     if not math.isfinite(start_m) or not math.isfinite(current_m):

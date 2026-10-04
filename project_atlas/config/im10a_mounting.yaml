@@ -8,5 +8,5 @@ im10a_mounting:
   sensor_positive_z: rover_up
   sensor_to_base_rotation_rpy_rad: [0.0, 0.0, 3.141592653589793]
   translation_measured: false
-  dynamic_axis_validation_passed: false
-  navigation_fusion_enabled: false
+  dynamic_axis_validation_passed: true
+  navigation_fusion_enabled: true

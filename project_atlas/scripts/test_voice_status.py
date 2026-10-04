@@ -335,5 +335,49 @@ class WakeResponseTest(unittest.TestCase):
         self.node.play.assert_called_once()
 
 
+class VoiceIdleIngressTest(unittest.TestCase):
+    def test_liveness_only_sensor_subscriptions_are_raw(self):
+        source = Path(__file__).with_name('atlas_voice_companion.py').read_text(
+            encoding='utf-8'
+        )
+        tree = ast.parse(source)
+        voice = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == 'AtlasVoice'
+        )
+        init = next(
+            node for node in voice.body
+            if isinstance(node, ast.FunctionDef) and node.name == '__init__'
+        )
+        subscriptions = {}
+        for call in (node for node in ast.walk(init) if isinstance(node, ast.Call)):
+            if not (
+                isinstance(call.func, ast.Attribute)
+                and call.func.attr == 'create_subscription'
+                and len(call.args) >= 3
+                and isinstance(call.args[1], ast.Constant)
+            ):
+                continue
+            subscriptions[call.args[1].value] = call
+
+        for topic in ('/scan', '/im10a/imu/unvalidated'):
+            call = subscriptions[topic]
+            raw = next(
+                keyword.value for keyword in call.keywords
+                if keyword.arg == 'raw'
+            )
+            self.assertIsInstance(raw, ast.Constant)
+            self.assertIs(raw.value, True)
+            callback = call.args[2]
+            self.assertIsInstance(callback, ast.Lambda)
+            argument = callback.args.args[0].arg
+            self.assertFalse(any(
+                isinstance(node, ast.Name)
+                and node.id == argument
+                and isinstance(node.ctx, ast.Load)
+                for node in ast.walk(callback.body)
+            ))
+
+
 if __name__ == '__main__':
     unittest.main()

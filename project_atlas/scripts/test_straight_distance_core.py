@@ -4,6 +4,7 @@ import math
 import unittest
 
 from atlas_straight_distance_core import (
+    conservative_corridor_range,
     IncrementalPlanarDistance,
     corridor_clearance_progress,
     conservative_progress,
@@ -35,6 +36,10 @@ class IncrementalPlanarDistanceTest(unittest.TestCase):
             robust_corridor_range([0.42, 1.98, 2.00, 2.02, 2.04]),
             2.00,
         )
+
+    def test_conservative_corridor_range_ignores_single_near_ray(self):
+        values = [0.20] + [1.0] * 11
+        self.assertEqual(conservative_corridor_range(values), 1.0)
 
     def test_clearance_progress_never_goes_negative(self):
         self.assertAlmostEqual(forward_clearance_progress(2.0, 1.73), 0.27)

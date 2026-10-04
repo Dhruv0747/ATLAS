@@ -74,6 +74,26 @@ class EncoderSelectionTests(unittest.TestCase):
         self.assertAlmostEqual(estimator.update(raw, range(4), scales), 0.1)
         self.assertEqual(estimator.last_rejected, (2,))
 
+    def test_low_speed_turn_quantization_keeps_three_commissioned_channels(self):
+        estimator = EncoderDeltaEstimator()
+        estimator.update([0.0] * 4, [0, 1, 2])
+        # Regression from the 2026-10-02 bounded right-arc stop.  These are
+        # already normalized body-centre increments from M1/M2/M3.
+        distance = estimator.update(
+            [0.002807, 0.005141, 0.001250, 0.0], [0, 1, 2]
+        )
+        self.assertAlmostEqual(distance, 0.002807)
+        self.assertEqual(estimator.last_accepted, (0, 1, 2))
+
+    def test_low_speed_tolerance_does_not_accept_real_split(self):
+        estimator = EncoderDeltaEstimator()
+        estimator.update([0.0] * 4, [0, 1, 2])
+        self.assertEqual(
+            estimator.update([0.002, 0.0085, -0.0045, 0.0], [0, 1, 2]),
+            0.0,
+        )
+        self.assertEqual(estimator.last_accepted, ())
+
     def test_reverse(self):
         estimator = EncoderDeltaEstimator()
         estimator.update([0]*4, [0, 1, 2])
@@ -152,6 +172,7 @@ class EncoderSelectionTests(unittest.TestCase):
         def blocked(ready, state='DEGRADED', age=.1):
             return eval(code, {'self': SimpleNamespace(encoder_health={'autonomy_ready': ready}),
                                'encoder_state': state, 'encoder_age': age,
+                               'recovery_three_encoder_ready': False,
                                'selected': SimpleNamespace(name='NAV2')})
         self.assertTrue(blocked(False))
         self.assertFalse(blocked(True))

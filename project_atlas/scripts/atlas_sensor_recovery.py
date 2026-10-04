@@ -104,6 +104,22 @@ DISPLAY_STATUS_CHARS = 240
 STOP_COMMAND_MAX_AGE = 1.0
 STOP_COMMAND_SETTLE = 2.0
 
+# These monitors only use message arrival time; none of their payload fields
+# participate in fault classification or a recovery decision.  Ask rclpy for
+# serialized bytes so the recovery node does not construct large/high-rate
+# Python LaserScan, CompressedImage, Imu, Odometry, or OccupancyGrid objects
+# just to mark the stream fresh.  Status-bearing String channels and GPS stay
+# decoded because their fields are part of fail-closed classification.
+RAW_FRESHNESS_MONITORS = frozenset({
+    "lidar",
+    "camera",
+    "imu",
+    "odometry",
+    "wheel_odometry",
+    "encoder_fl",
+    "map",
+})
+
 
 class AtlasRecovery(Node):
     def __init__(self):
@@ -141,6 +157,7 @@ class AtlasRecovery(Node):
                 item.topic,
                 lambda msg, name=item.name: self.on_message(name, msg),
                 qos,
+                raw=item.name in RAW_FRESHNESS_MONITORS,
             )
         self.create_subscription(Twist, "/cmd_vel", self.on_velocity, 10)
         self.create_subscription(String, "/atlas/control_policy", self.on_control_policy, 10)

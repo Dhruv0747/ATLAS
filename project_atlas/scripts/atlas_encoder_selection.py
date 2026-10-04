@@ -124,7 +124,13 @@ class EncoderDeltaEstimator:
     A two-versus-two split fails closed. Invalid intervals are rebased, not
     integrated later as a catch-up jump.
     """
-    def __init__(self, relative_tolerance=0.45, absolute_tolerance_m=0.002):
+    def __init__(self, relative_tolerance=0.45, absolute_tolerance_m=0.004):
+        # Controller counts arrive in short bursts.  During a very slow 4WS
+        # arc the three commissioned channels can legitimately quantize to
+        # body-centre increments spread by just under 4 mm even after wheel-
+        # path normalization.  A 2 mm floor falsely removed all three before
+        # enough travel accumulated.  The relative tolerance still governs
+        # larger increments, while stale/missing channels remain fail-closed.
         self.previous = None
         self.previous_valid = set()
         self.relative_tolerance = float(relative_tolerance)

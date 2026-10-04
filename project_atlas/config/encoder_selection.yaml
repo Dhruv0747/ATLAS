@@ -1,10 +1,13 @@
 # Physical channels: M1 rear-left, M2 rear-right, M3 front-left, M4 front-right.
-# M4 produced zero counts in repeated LiDAR-checked ground runs on 2026-10-01.
-# The operator approved requalifying the remaining M1/M2/M3 trio. Raw M4 stays
-# visible for diagnostics but is excluded from motion consensus.
-excluded_encoders: [4]
-# Keep navigation authority revoked until M1/M2/M3 pass repeated bounded
-# straight and turn tests. Manual control and diagnostics remain available;
-# the mux still fails closed if any additional selected channel is lost.
-navigation_validated: false
+# M4 returned coherent counts after repair. Ground arcs on 2026-10-02 also
+# showed that the weak/outlying channel can move between M2, M3 and M4 rather
+# than remaining fixed. Keep all four as candidates and select the largest
+# coherent group of at least three on every interval. Two-versus-two, fewer
+# than three, stale packets, or an additional hardware fault still fail closed.
+excluded_encoders: []
+# Qualified on ground 2026-10-02: bounded forward/reverse distance tests and
+# physically confirmed opposite right/left arcs passed with dynamic consensus.
+# The mux still stops on stale packets, fewer than three agreeing channels, or
+# another hardware fault.
+navigation_validated: true
 packet_timeout_s: 1.0

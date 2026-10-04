@@ -3,11 +3,9 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from collections import deque
-import hashlib
 import json
 import math
 import os
-import shutil
 import subprocess
 import time
 import uuid
@@ -16,17 +14,40 @@ from threading import Lock
 from typing import Callable, Optional
 
 import rclpy
+from action_msgs.msg import GoalStatus
 from action_msgs.srv import CancelGoal
-from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
+from geometry_msgs.msg import (
+    PolygonStamped,
+    PoseStamped,
+    PoseWithCovarianceStamped,
+    Twist,
+)
 from nav_msgs.msg import OccupancyGrid
-from nav2_msgs.action import NavigateThroughPoses, NavigateToPose
+from nav2_msgs.action import (
+    ComputePathToPose,
+    NavigateThroughPoses,
+    NavigateToPose,
+)
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import Empty, Int32, String
 from std_srvs.srv import Empty as EmptyService, Trigger
 from tf2_ros import Buffer, TransformListener
+from tf2_msgs.msg import TFMessage
 
+from atlas_map_acceptance_core import (
+    EVIDENCE_SCHEMA_VERSION,
+    MapAcceptancePolicy,
+    TransformJumpTracker,
+    closure_evidence,
+    evaluate_acceptance_evidence,
+    exact_candidate_connectivity,
+    map_pair_id,
+    polygon_dimensions,
+    prepare_map_bound_metadata_values,
+    transactionally_promote_map_pair,
+)
 from atlas_map_footprint_sanitizer import sanitize_saved_map
 
 
@@ -68,6 +89,12 @@ class AtlasMissionControl(Node):
         self.declare_parameter("localization_stability_window_s", 8.0)
         self.declare_parameter("localization_max_stationary_shift_m", 0.10)
         self.declare_parameter("localization_max_stationary_yaw_deg", 5.0)
+        self.declare_parameter("map_acceptance_max_tf_jump_m", 0.15)
+        self.declare_parameter("map_acceptance_max_tf_yaw_deg", 5.0)
+        self.declare_parameter("map_acceptance_max_closure_m", 0.15)
+        self.declare_parameter("map_acceptance_max_closure_yaw_deg", 10.0)
+        self.declare_parameter("map_acceptance_start_place", "dhruv room")
+        self.declare_parameter("map_acceptance_goal_place", "hall")
         self.home_file = Path.home() / ".config/project_atlas/home_pose.json"
         self.localization_seed_file = (
             Path.home() / ".config/project_atlas/localization_seed_pose.json"
@@ -107,6 +134,34 @@ class AtlasMissionControl(Node):
         self.localization_max_stationary_yaw_deg = float(
             self.get_parameter("localization_max_stationary_yaw_deg").value
         )
+        self.map_acceptance_policy = MapAcceptancePolicy(
+            max_tf_translation_jump_m=min(
+                0.15,
+                float(self.get_parameter("map_acceptance_max_tf_jump_m").value),
+            ),
+            max_tf_yaw_jump_deg=min(
+                5.0,
+                float(self.get_parameter("map_acceptance_max_tf_yaw_deg").value),
+            ),
+            max_closure_translation_m=min(
+                0.15,
+                float(self.get_parameter("map_acceptance_max_closure_m").value),
+            ),
+            max_closure_yaw_deg=min(
+                10.0,
+                float(
+                    self.get_parameter("map_acceptance_max_closure_yaw_deg").value
+                ),
+            ),
+        )
+        self.map_acceptance_start_place = self.clean_place_name(
+            str(self.get_parameter("map_acceptance_start_place").value)
+        )
+        self.map_acceptance_goal_place = self.clean_place_name(
+            str(self.get_parameter("map_acceptance_goal_place").value)
+        )
+        if self.map_acceptance_start_place == self.map_acceptance_goal_place:
+            raise ValueError("map-acceptance endpoints must be different places")
         self.paused_services_file = (
             Path.home() / ".config/project_atlas/mapping_paused_services.json"
         )
@@ -117,6 +172,9 @@ class AtlasMissionControl(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.nav = ActionClient(self, NavigateToPose, "/navigate_to_pose")
+        self.path_planner = ActionClient(
+            self, ComputePathToPose, "/compute_path_to_pose"
+        )
         self.nav_through = ActionClient(
             self, NavigateThroughPoses, "/navigate_through_poses"
         )
@@ -149,6 +207,9 @@ class AtlasMissionControl(Node):
         self.localization_quality = None
         self.localization_samples = deque(maxlen=30)
         self.tracker_paused_for_goal = False
+        self.map_acceptance_lock = Lock()
+        self.map_tf_tracker = TransformJumpTracker()
+        self.global_footprint_observation = None
         self.create_timer(1.0, self.publish_current_status)
         self.safety_subscription = self.create_subscription(
             String, "/atlas/safety_status", self.update_safety_status, 10
@@ -162,6 +223,15 @@ class AtlasMissionControl(Node):
         self.mapping_map_received_at = 0.0
         self.mapping_map_subscription = self.create_subscription(
             OccupancyGrid, "/map_raw", self.update_mapping_map, 1
+        )
+        self.mapping_tf_subscription = self.create_subscription(
+            TFMessage, "/tf", self.update_mapping_tf, 100
+        )
+        self.global_footprint_subscription = self.create_subscription(
+            PolygonStamped,
+            "/global_costmap/published_footprint",
+            self.update_global_footprint,
+            10,
         )
         self.nomotion_client = self.create_client(
             EmptyService, "/request_nomotion_update"
@@ -323,6 +393,57 @@ class AtlasMissionControl(Node):
     def update_mapping_map(self, _msg: OccupancyGrid) -> None:
         """Record receipt of a map produced by the running SLAM node."""
         self.mapping_map_received_at = time.monotonic()
+
+    def begin_map_acceptance_observation(self, session: dict) -> None:
+        """Start session-scoped TF evidence only after the session is durable."""
+        with self.map_acceptance_lock:
+            self.map_tf_tracker.begin(
+                session["id"], session["started_unix"], time.time()
+            )
+
+    def update_mapping_tf(self, msg: TFMessage) -> None:
+        """Track every publication-order map->odom correction during mapping."""
+        now = time.time()
+        with self.map_acceptance_lock:
+            for transform in msg.transforms:
+                parent = transform.header.frame_id.strip("/")
+                child = transform.child_frame_id.strip("/")
+                if parent != "map" or child != "odom":
+                    continue
+                rotation = transform.transform.rotation
+                yaw = math.atan2(
+                    2.0 * (
+                        rotation.w * rotation.z + rotation.x * rotation.y
+                    ),
+                    1.0 - 2.0 * (
+                        rotation.y * rotation.y + rotation.z * rotation.z
+                    ),
+                )
+                translation = transform.transform.translation
+                source_unix = (
+                    float(transform.header.stamp.sec)
+                    + float(transform.header.stamp.nanosec) * 1e-9
+                )
+                self.map_tf_tracker.observe(
+                    translation.x, translation.y, yaw, now, source_unix
+                )
+
+    def update_global_footprint(self, msg: PolygonStamped) -> None:
+        """Keep a fresh, rotation-independent global-costmap footprint proof."""
+        points = [(float(point.x), float(point.y)) for point in msg.polygon.points]
+        try:
+            observation = polygon_dimensions(points)
+        except ValueError:
+            return
+        observation.update(
+            {
+                "frame_id": msg.header.frame_id,
+                "observed_unix": time.time(),
+                "source": "/global_costmap/published_footprint",
+            }
+        )
+        with self.map_acceptance_lock:
+            self.global_footprint_observation = observation
 
     def update_localization_quality(self, msg: PoseWithCovarianceStamped) -> None:
         covariance = msg.pose.covariance
@@ -572,6 +693,11 @@ class AtlasMissionControl(Node):
         temporary.write_text(json.dumps(value, indent=2), encoding="utf-8")
         os.replace(temporary, path)
 
+    @staticmethod
+    def map_files_id(yaml_path: Path, image_path: Path) -> Optional[str]:
+        """Return the identity of an explicit YAML/image pair."""
+        return map_pair_id(yaml_path, image_path)
+
     def current_map_id(self) -> Optional[str]:
         """Return an identity tied to the exact accepted YAML and image."""
         yaml_path = self.map_prefix.with_suffix(".yaml")
@@ -583,14 +709,15 @@ class AtlasMissionControl(Node):
                 if line.strip().startswith("image:"):
                     image_name = line.split(":", 1)[1].strip().strip("'\"")
                     candidate = Path(image_name)
-                    image_path = candidate if candidate.is_absolute() else yaml_path.parent / candidate
+                    image_path = (
+                        candidate
+                        if candidate.is_absolute()
+                        else yaml_path.parent / candidate
+                    )
                     break
-            digest = hashlib.sha256()
-            digest.update(yaml_path.read_bytes())
-            digest.update(image_path.read_bytes())
-            return digest.hexdigest()[:20]
         except OSError:
             return None
+        return self.map_files_id(yaml_path, image_path)
 
     def active_mapping_session(self) -> Optional[dict]:
         try:
@@ -607,26 +734,242 @@ class AtlasMissionControl(Node):
                 f"{label} belongs to a different map; set it again on the current map"
             )
 
-    def bind_legacy_locations_to_map(self, map_id: Optional[str]) -> None:
-        """Bind old unversioned coordinates before accepting a replacement map."""
-        if not map_id:
-            return
-        for path in (self.home_file, self.localization_seed_file):
-            try:
-                value = json.loads(path.read_text(encoding="utf-8"))
-                if not value.get("map_id"):
-                    value["map_id"] = map_id
-                    self.atomic_write_json(path, value)
-            except (OSError, ValueError, AttributeError):
-                pass
-        places = self.load_named_places()
-        changed = False
-        for pose in places.values():
-            if isinstance(pose, dict) and not pose.get("map_id"):
-                pose["map_id"] = map_id
-                changed = True
-        if changed:
-            self.atomic_write_json(self.places_file, places)
+    def prepare_map_bound_metadata(
+        self, new_map_id: str, old_map_id: Optional[str], session: dict
+    ) -> dict:
+        """Prepare, but do not write, the complete post-promotion metadata set.
+
+        Current-session poses are bound to the validated candidate. Older
+        unversioned named places are bound to the previous accepted map before
+        replacement, preserving the legacy behavior while ensuring they fail
+        closed against the new map. Returning serialized bytes lets map and
+        metadata promotion share one rollback boundary.
+        """
+
+        home = json.loads(self.home_file.read_text(encoding="utf-8"))
+        seed = json.loads(self.localization_seed_file.read_text(encoding="utf-8"))
+        places = json.loads(self.places_file.read_text(encoding="utf-8"))
+        prepared_home, prepared_seed, prepared_places = (
+            prepare_map_bound_metadata_values(
+                home=home,
+                seed=seed,
+                places=places,
+                session_id=session["id"],
+                new_map_id=new_map_id,
+                old_map_id=old_map_id,
+            )
+        )
+        return {
+            self.home_file: json.dumps(prepared_home, indent=2).encode("utf-8"),
+            self.localization_seed_file: json.dumps(
+                prepared_seed, indent=2
+            ).encode("utf-8"),
+            self.places_file: json.dumps(prepared_places, indent=2).encode("utf-8"),
+        }
+
+    @staticmethod
+    def wait_for_future(future, timeout_s: float) -> bool:
+        deadline = time.monotonic() + timeout_s
+        while not future.done() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        return future.done()
+
+    @staticmethod
+    def plan_pose(pose: dict, stamp) -> PoseStamped:
+        message = PoseStamped()
+        message.header.frame_id = "map"
+        message.header.stamp = stamp
+        message.pose.position.x = float(pose["x"])
+        message.pose.position.y = float(pose["y"])
+        message.pose.position.z = float(pose.get("z", 0.0))
+        message.pose.orientation.x = float(pose["qx"])
+        message.pose.orientation.y = float(pose["qy"])
+        message.pose.orientation.z = float(pose["qz"])
+        message.pose.orientation.w = float(pose["qw"])
+        return message
+
+    def plan_only_evidence(
+        self, start_name: str, start_pose: dict, goal_name: str, goal_pose: dict
+    ) -> dict:
+        """Ask Nav2 for an explicit-start path without dispatching movement."""
+        evidence = {
+            "start": start_name,
+            "goal": goal_name,
+            "passed": False,
+            "poses": 0,
+        }
+        try:
+            if not self.path_planner.wait_for_server(timeout_sec=8.0):
+                raise RuntimeError("Nav2 ComputePathToPose is unavailable")
+            goal = ComputePathToPose.Goal()
+            stamp = self.get_clock().now().to_msg()
+            goal.start = self.plan_pose(start_pose, stamp)
+            goal.goal = self.plan_pose(goal_pose, stamp)
+            goal.use_start = True
+            send_future = self.path_planner.send_goal_async(goal)
+            if not self.wait_for_future(send_future, 10.0):
+                raise RuntimeError("planner did not accept or reject within 10 seconds")
+            handle = send_future.result()
+            if handle is None or not handle.accepted:
+                raise RuntimeError("planner rejected the plan-only request")
+            result_future = handle.get_result_async()
+            if not self.wait_for_future(result_future, 20.0):
+                handle.cancel_goal_async()
+                raise RuntimeError("planner did not finish within 20 seconds")
+            wrapped = result_future.result()
+            if wrapped is None:
+                raise RuntimeError("planner returned no result")
+            path = wrapped.result.path.poses
+            length = sum(
+                math.hypot(
+                    second.pose.position.x - first.pose.position.x,
+                    second.pose.position.y - first.pose.position.y,
+                )
+                for first, second in zip(path, path[1:])
+            )
+            evidence.update(
+                {
+                    "status": int(wrapped.status),
+                    "poses": len(path),
+                    "path_length_m": round(length, 6),
+                    "passed": (
+                        wrapped.status == GoalStatus.STATUS_SUCCEEDED
+                        and len(path) >= self.map_acceptance_policy.min_path_poses
+                    ),
+                }
+            )
+            if not evidence["passed"]:
+                evidence["error"] = "Nav2 returned no successful collision-free path"
+        except Exception as exc:
+            evidence["error"] = str(exc)
+        return evidence
+
+    def validate_candidate_map(
+        self,
+        candidate_prefix: Path,
+        candidate_yaml: Path,
+        candidate_image: Path,
+        session: dict,
+        seed: dict,
+    ) -> str:
+        """Collect and enforce every no-motion map-promotion safety gate."""
+        candidate_map_id = self.map_files_id(candidate_yaml, candidate_image)
+        if not candidate_map_id:
+            raise RuntimeError(
+                "candidate map identity could not be calculated; accepted map preserved"
+            )
+
+        closure = {"session_id": session["id"]}
+        try:
+            home = json.loads(self.home_file.read_text(encoding="utf-8"))
+            if home.get("mapping_session_id") != session["id"]:
+                raise RuntimeError("home pose belongs to a different mapping session")
+            if seed.get("mapping_session_id") != session["id"]:
+                raise RuntimeError("final seed belongs to a different mapping session")
+            closure.update(closure_evidence(home, seed))
+        except Exception as exc:
+            closure["error"] = str(exc)
+
+        plans = {
+            "role": "supplemental_live_nav2_check",
+            "forward": {"passed": False, "poses": 0},
+            "reverse": {"passed": False, "poses": 0},
+        }
+        exact_connectivity = {
+            "session_id": session["id"],
+            "candidate_map_id": candidate_map_id,
+            "connected": False,
+            "unknown_is_blocked": True,
+            "inflation_radius_m": self.map_acceptance_policy.min_candidate_clearance_m,
+        }
+        try:
+            places = self.load_named_places()
+            start_pose = places[self.map_acceptance_start_place]
+            goal_pose = places[self.map_acceptance_goal_place]
+            for name, pose in (
+                (self.map_acceptance_start_place, start_pose),
+                (self.map_acceptance_goal_place, goal_pose),
+            ):
+                if not isinstance(pose, dict) or pose.get("frame_id") != "map":
+                    raise RuntimeError(f"named place {name!r} has no map-frame pose")
+                if pose.get("mapping_session_id") != session["id"]:
+                    raise RuntimeError(
+                        f"named place {name!r} belongs to a different map session"
+                    )
+            exact_connectivity.update(
+                exact_candidate_connectivity(
+                    candidate_yaml,
+                    candidate_image,
+                    start_pose,
+                    goal_pose,
+                    inflation_radius_m=(
+                        self.map_acceptance_policy.min_candidate_clearance_m
+                    ),
+                )
+            )
+            plans["forward"] = self.plan_only_evidence(
+                self.map_acceptance_start_place,
+                start_pose,
+                self.map_acceptance_goal_place,
+                goal_pose,
+            )
+            plans["reverse"] = self.plan_only_evidence(
+                self.map_acceptance_goal_place,
+                goal_pose,
+                self.map_acceptance_start_place,
+                start_pose,
+            )
+        except Exception as exc:
+            exact_connectivity["error"] = str(exc)
+            plans["forward"]["error"] = str(exc)
+            plans["reverse"]["error"] = str(exc)
+
+        evaluated_unix = time.time()
+        with self.map_acceptance_lock:
+            tf_evidence = self.map_tf_tracker.snapshot()
+            footprint = (
+                dict(self.global_footprint_observation)
+                if self.global_footprint_observation is not None
+                else {}
+            )
+        footprint["connected"] = bool(
+            plans["forward"].get("passed") and plans["reverse"].get("passed")
+        )
+        footprint["validation"] = (
+            "Nav2 ComputePathToPose with explicit endpoints and the live "
+            "global costmap"
+        )
+        evidence = {
+            "schema_version": EVIDENCE_SCHEMA_VERSION,
+            "session_id": session["id"],
+            "candidate_map_id": candidate_map_id,
+            "evaluated_unix": evaluated_unix,
+            "tf_jump": tf_evidence,
+            "round_trip_closure": closure,
+            "exact_candidate_connectivity": exact_connectivity,
+            "full_footprint_connectivity": footprint,
+            "bidirectional_plans": plans,
+            "motion_dispatched": False,
+        }
+        failures = evaluate_acceptance_evidence(
+            evidence,
+            expected_session_id=session["id"],
+            expected_candidate_map_id=candidate_map_id,
+            session_started_unix=float(session["started_unix"]),
+            evaluated_unix=evaluated_unix,
+            policy=self.map_acceptance_policy,
+        )
+        evidence["decision"] = "rejected" if failures else "passed_pre_promotion"
+        evidence["failures"] = failures
+        report_path = candidate_prefix.with_suffix(".acceptance.json")
+        self.atomic_write_json(report_path, evidence)
+        if failures:
+            raise RuntimeError(
+                "candidate map rejected by pre-promotion safety gates: "
+                + "; ".join(failures)
+                + f"; accepted map preserved; report={report_path}"
+            )
+        return candidate_map_id
 
     def accept_saved_map(self, candidate_prefix: Path, session: dict) -> str:
         """Validate and atomically promote a candidate map; YAML is committed last."""
@@ -656,43 +999,35 @@ class AtlasMissionControl(Node):
             f"Saved-map footprint sanitation cleared {cleared} self-imprint cells"
         )
 
+        # This is deliberately the last step before any accepted-map or
+        # accepted-location write. A rejection leaves the rollback pair and
+        # all map-bound coordinates untouched.
+        candidate_map_id = self.validate_candidate_map(
+            candidate_prefix,
+            candidate_yaml,
+            candidate_image,
+            session,
+            seed,
+        )
+
         accepted_yaml = self.map_prefix.with_suffix(".yaml")
         accepted_image = self.map_prefix.with_suffix(".pgm")
         old_id = self.current_map_id()
-        self.bind_legacy_locations_to_map(old_id)
+        metadata_updates = self.prepare_map_bound_metadata(
+            candidate_map_id, old_id, session
+        )
         backup_dir = self.map_prefix.parent / "accepted_backups"
-        backup_dir.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%d-%H%M%S")
-        if accepted_yaml.exists():
-            shutil.copy2(accepted_yaml, backup_dir / f"atlas_latest-{stamp}.yaml")
-        if accepted_image.exists():
-            shutil.copy2(accepted_image, backup_dir / f"atlas_latest-{stamp}.pgm")
-
-        os.replace(candidate_image, accepted_image)
-        os.replace(candidate_yaml, accepted_yaml)
-        map_id = self.current_map_id()
-        if not map_id:
-            raise RuntimeError("accepted map identity could not be verified")
-
-        for path in (self.home_file, self.localization_seed_file):
-            value = json.loads(path.read_text(encoding="utf-8"))
-            if value.get("mapping_session_id") != session["id"]:
-                raise RuntimeError(f"{path.name} does not belong to active mapping session")
-            value["map_id"] = map_id
-            value.pop("mapping_session_id", None)
-            self.atomic_write_json(path, value)
-        places = self.load_named_places()
-        places_changed = False
-        for pose in places.values():
-            if not isinstance(pose, dict):
-                continue
-            if pose.get("mapping_session_id") != session["id"]:
-                continue
-            pose["map_id"] = map_id
-            pose.pop("mapping_session_id", None)
-            places_changed = True
-        if places_changed:
-            self.atomic_write_json(self.places_file, places)
+        map_id = transactionally_promote_map_pair(
+            candidate_yaml=candidate_yaml,
+            candidate_image=candidate_image,
+            accepted_yaml=accepted_yaml,
+            accepted_image=accepted_image,
+            backup_dir=backup_dir,
+            expected_map_id=candidate_map_id,
+            backup_tag=f"{stamp}-{session['id'][:8]}",
+            metadata_updates=metadata_updates,
+        )
         return map_id
 
     def set_home(self) -> None:
@@ -776,6 +1111,7 @@ class AtlasMissionControl(Node):
             "started_unix": time.time(),
         }
         self.atomic_write_json(self.mapping_session_file, session)
+        self.begin_map_acceptance_observation(session)
         # Start always records the present SLAM pose as mission home.
         try:
             self.set_home()
@@ -813,6 +1149,7 @@ class AtlasMissionControl(Node):
             "started_unix": time.time(),
         }
         self.atomic_write_json(self.mapping_session_file, session)
+        self.begin_map_acceptance_observation(session)
         try:
             self.set_home()
         except Exception:

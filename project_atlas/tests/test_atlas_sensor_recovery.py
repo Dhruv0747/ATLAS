@@ -18,7 +18,9 @@ class RecoveryTests(unittest.TestCase):
     def setUp(self):
         self.now = 100.0
         source = Path(__file__).parents[1] / 'scripts/atlas_sensor_recovery.py'
-        tree = ast.parse(source.read_text(encoding='utf-8'))
+        source_text = source.read_text(encoding='utf-8')
+        tree = ast.parse(source_text)
+        self.source_tree = ast.parse(source_text)
         cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'AtlasRecovery')
         cls.bases = []
         cls.body = [n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name != '__init__']
@@ -29,6 +31,7 @@ class RecoveryTests(unittest.TestCase):
               'time': SimpleNamespace(monotonic=lambda: self.now, sleep=Mock()),
               'subprocess': self.process, 'threading': Mock()}
         exec(compile(ast.Module(body=assignments + [cls], type_ignores=[]), str(source), 'exec'), ns)
+        self.ns = ns
         self.node = ns['AtlasRecovery']()
         self.node.last_seen = {'encoder_health': self.now}
         self.node.last_value = {'encoder_health': 'waiting'}
@@ -71,6 +74,48 @@ class RecoveryTests(unittest.TestCase):
         self.assertLessEqual(len(detail), 240)
         self.node.recover(self.item, 'old false fault', 1)
         self.process.run.assert_not_called()
+
+    def test_only_freshness_only_payloads_use_raw_transport(self):
+        self.assertEqual(
+            self.ns['RAW_FRESHNESS_MONITORS'],
+            frozenset({
+                'lidar', 'camera', 'imu', 'odometry', 'wheel_odometry',
+                'encoder_fl', 'map',
+            }),
+        )
+        init = next(
+            node for node in next(
+                node for node in self.source_tree.body
+                if isinstance(node, ast.ClassDef) and node.name == 'AtlasRecovery'
+            ).body
+            if isinstance(node, ast.FunctionDef) and node.name == '__init__'
+        )
+        subscription_calls = [
+            node for node in ast.walk(init)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == 'create_subscription'
+        ]
+        monitor_call = next(
+            call for call in subscription_calls
+            if call.args and isinstance(call.args[0], ast.Attribute)
+            and call.args[0].attr == 'msg_type'
+        )
+        raw_keyword = next(
+            keyword for keyword in monitor_call.keywords if keyword.arg == 'raw'
+        )
+        self.assertEqual(
+            ast.unparse(raw_keyword.value),
+            'item.name in RAW_FRESHNESS_MONITORS',
+        )
+
+    def test_raw_arrival_keeps_exact_freshness_semantics(self):
+        self.node.last_seen['camera'] = self.now - 100.0
+        self.node.last_value['camera'] = 'waiting'
+        self.node.attempts['camera'] = []
+        self.node.on_message('camera', b'opaque serialized payload')
+        self.assertEqual(self.node.last_seen['camera'], self.now)
+        self.assertEqual(self.node.last_value['camera'], 'data received')
 
     def test_malformed_unknown_and_critical_fail_closed(self):
         for data in ('{', 'null', '[]', 'true', '123', '{}',

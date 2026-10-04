@@ -46,12 +46,12 @@ class AtlasScanSelfFilter(Node):
 
     def _scan(self, source):
         target = LaserScan()
+        # A LaserScan header is the acquisition time of its first ray.  Keep
+        # the driver's timestamp so SLAM/Nav2 select the rover pose that
+        # produced these ranges; filter publication time is not measurement
+        # time.  The TF buffer, not timestamp replacement, handles transport
+        # latency.
         target.header = source.header
-        # The RPLIDAR composition driver on this Jetson reports scans roughly
-        # 1.6 s behind receipt time.  That predates the available odom TF and
-        # causes SLAM Toolbox to drop every message.  The cleaned scan is a new
-        # transport boundary, so timestamp it when published.
-        target.header.stamp = self.get_clock().now().to_msg()
         target.angle_min = source.angle_min
         target.angle_max = source.angle_max
         target.angle_increment = source.angle_increment

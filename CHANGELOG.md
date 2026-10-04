@@ -1,5 +1,159 @@
 # Changelog
 
+## 2026-10-04 — Avoid unused camera payload construction
+
+- Kept Argus capture, rotation, optional enhancement, configured resolution,
+  10 FPS cadence, JPEG quality, publishers, topics, and QoS unchanged.
+- Materialize raw and compressed ROS messages only while their respective
+  publishers have matched subscribers. At 720p this avoids constructing
+  27.648 MB/s of unused raw BGR payload before ROS copies.
+- Changed the safety node's AI-camera liveness-only subscription from the
+  annotated JPEG to the detector JSON emitted by the same successful
+  inference path. Its 2.5-second freshness threshold and safety/control logic
+  are unchanged.
+- Added seven focused regressions, rebuilt and deployed the camera package,
+  and deployed the safety node while ATLAS was stopped. A fresh browser frame
+  returned HTTP 200 in 89 ms; camera, safety, and recovery services were active
+  with zero automatic restarts after the deployment gate.
+
+## 2026-10-04 — Adapt Visual Cloud cadence while stationary
+
+- Kept every configured subscription active and continued recording every
+  receive timestamp used for topic rate, age, and health diagnostics.
+- Reduced idle snapshot upload to 0.2 Hz, full ROS graph discovery to once per
+  30 seconds, and non-activity sensor deserialization/compact-value extraction
+  to at most 1 Hz while still timestamping every serialized arrival.
+- A nonzero `/cmd_vel` or `/cmd_vel_nav`, or active mapping, navigation, or
+  recovery status, immediately restores the original 1 Hz snapshot and
+  five-second graph cadence for a 30-second renewable lease.
+- Cached the process Git revision instead of spawning Git for every snapshot,
+  and exposed `collection_mode` as `IDLE` or `ACTIVE` for validation.
+- Added focused activity/cadence regressions and a stationary deployment gate.
+  No ROS interface, safety policy, actuator authority, or systemd limit changed.
+- Deployed the agent/core/config together while stopped. The service remained
+  active with zero restarts and idle CPU fell from about 22.3% to 11.1% of one
+  core. The remote URL is still a placeholder, so production cloud delivery
+  remains uncommissioned.
+
+## 2026-10-04 — Avoid unused voice sensor deserialization
+
+- Changed only the voice companion's LiDAR and IM10A liveness subscriptions to
+  serialized delivery; their callbacks still refresh liveness on every sample.
+- Reconciled the tested stopped-only local-LLM client hook, which remains
+  opt-in and disabled in the live environment.
+- Deployed while stopped. USB/audio returned online, the service returned to
+  `IDLE` with zero restarts, and the first CPU sample fell from about 26.8% to
+  19.2% of one core. Added 33-test voice validation coverage.
+
+## 2026-10-04 — Avoid unused sensor-recovery deserialization
+
+- Changed only freshness-only recovery subscriptions for camera, LiDAR, IMU,
+  odometry, one diagnostic encoder stream, and the map to serialized delivery.
+- Preserved per-message freshness timestamps and kept every fault-bearing
+  status and GNSS message decoded for the existing fail-closed classifiers.
+- Kept topics, types, QoS, thresholds, retry limits, stop guards, services, and
+  motion authority unchanged. Added focused tests and a rollback gate.
+- Deployed while stop-latched; every monitored stream remained fresh, the
+  service had zero restarts, and CPU fell from about 20.0% to 15.3% of one core.
+
+## 2026-10-04 — Reduce idle UNO bridge polling
+
+- Reduced the Jetson bridge timer from 100 Hz to 25 Hz while preserving its
+  bounded same-callback serial drain, backlog invalidation, reconnect,
+  camera-command, and stale-sensor behavior.
+- Deployed while stopped. Radar, ultrasonic, thermal, ambient, I2C, and camera
+  telemetry remained live with zero restarts; process CPU fell from roughly
+  23.6% to 8.7% of one core.
+
+## 2026-10-04 — Decimate Yahboom dashboard-only telemetry
+
+- Kept the motor keepalive, board sampling, raw encoders, all IMU streams,
+  wheel odometry, encoder health, control processing, and safety processing at
+  their existing 10 Hz cadence.
+- Limited 22 legacy dashboard-only motion/wheel/motor summary topics to 2 Hz,
+  removing up to 176 redundant ROS publications per second while keeping every
+  topic, message type, and QoS interface.
+- Added focused cadence and authority-boundary tests plus a stationary
+  deployment/rollback gate.
+- Deployed while stopped. Authority topics stayed about 10 Hz, diagnostic
+  topics about 2 Hz, encoder health stayed `READY`, and CPU fell from roughly
+  30.1% to 23.4% of one core. This adds no physical-motion evidence.
+
+## 2026-10-04 — Avoid status-web camera work with no viewer
+
+- Added a two-second camera-client lease renewed by every still, panel,
+  overview, and MJPEG frame request.
+- With no viewer, retained a 1 Hz lightweight camera-ingress health record but
+  stopped copying compressed/annotated JPEG payloads and stopped motion JPEG
+  decoding. Active dashboard clients retain the existing latest-frame path.
+- Follow-up profiling found the remaining idle load in the ROS spin thread, so
+  the web node now destroys both JPEG subscriptions after the viewer lease and
+  recreates them inside the executor when a camera endpoint is requested.
+- Idle camera availability now comes from a 1 Hz publisher-graph check; a
+  missing publisher clears the remembered byte count and fails health closed.
+- Rejected cached camera frames older than two seconds so an idle-to-live
+  transition cannot label a stale image as current.
+- Added focused offline coverage and an acceptance note. No systemd behavior,
+  ROS interface, camera capture, AI authority, or safety control changed.
+- Deployed with zero restarts. A fresh frame returned in about 279 ms and the
+  subscriptions released again after the lease. Remaining ~48–50% process CPU
+  is the 102-subscription non-camera ROS fan-in (~270 callbacks/s), not JPEG or
+  HTTP work; no speculative freshness-changing throttle was added.
+
+## 2026-10-04 — Rate-limit unchanged latched-stop publications
+
+- Preserved immediate zero output on remote-stop latch, release, or unexpected
+  motion while held. Full source/commissioning flushes still run on every hold
+  callback.
+- Limited unchanged latched-stop zero heartbeats to 5 Hz, safely inside the
+  Yahboom driver's 0.45-second command deadman, instead of republishing from
+  every joystick and 20 Hz mux-watchdog callback.
+- Limited unchanged motion-safety status to 1 Hz and left drive-mode/control
+  policy freshness on the existing 2 Hz timer; transitions still publish
+  immediately.
+- Added offline regressions for immediate stop/flush, heartbeat bounds,
+  publication deduplication, changed reasons, release transitions, unexpected
+  motion, and service resets.
+- Deployed while stop-latched. The unchanged zero stream measured about 4.7 Hz
+  instead of roughly 33–41 Hz; command remained zero and no motion occurred.
+
+## 2026-10-04 — Require no-motion evidence before map promotion
+
+- Candidate maps now require same-session TF-jump and settled round-trip
+  closure evidence, continuous TF coverage, exact candidate-byte connectivity
+  with unknown cells blocked and 0.18 m inflation, a fresh commissioned
+  footprint, and successful Nav2 plan-only paths in both Hall/Dhruv Room
+  directions.
+- Every check is bound to the exact sanitized candidate identity. A missing,
+  stale, malformed, or failed check is recorded beside the candidate and
+  rejected before any accepted map or map-bound pose write.
+- Accepted YAML/image, Home, seed, and named-place metadata are staged and
+  transactionally rolled back as one bundle, with the authoritative YAML
+  committed and restored last.
+- Deployed the mission-control/core pair while mapping was inactive and stop
+  latched. Mission control returned `READY`, zero command was preserved, and
+  accepted map ID `d12a1f183177212a3cc8` remained unchanged.
+
+## 2026-10-04 — Preserve LiDAR acquisition timestamps through self-filtering
+
+- Removed the self-filter's publication-time restamp. Filtered `/scan` now
+  retains the exact `/scan_raw` header, including the RPLIDAR first-ray
+  acquisition timestamp used for TF lookup.
+- The rejected-remap bag showed a 131.59 ms median raw-to-filter header shift
+  versus only 5.02 ms median filter transport latency. At the observed
+  1.2 rad/s turn rate, the former behavior could associate geometry with a
+  rover pose about 9° later than acquisition.
+- Kept scan geometry, self-return filtering, topic names, depth-one QoS,
+  service wiring, static TF, EKF settings, SLAM settings, and all motion/safety
+  authority unchanged. Existing SLAM TF buffering already covers the measured
+  raw scan age, so no latency-masking parameter increase was added.
+- Added focused offline regression coverage for timestamp preservation,
+  timing-field preservation, raw-range immutability, filtering, and the
+  existing service/topic boundary.
+- Deployed while stationary. An 82-pair capture had exact raw/filtered headers,
+  monotonic stamps, 4.98 ms median pipeline latency, and successful
+  acquisition-time TF lookup, with no scan/TF error burst.
+
 ## 2026-10-02 — Commission 720p IMX708 indoor driving image
 
 - Raised live capture from 656×368 to 1280×720 at 10 FPS and set JPEG

@@ -20,13 +20,23 @@ import sqlite3
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data, QoSProfile, DurabilityPolicy, ReliabilityPolicy
+from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
 
-from atlas_visual_cloud_core import classify_failure, topic_stat
+from atlas_visual_cloud_core import (
+    classify_failure,
+    interval_due,
+    is_robot_activity,
+    topic_stat,
+)
 
 
 DEFAULT_CONFIG = Path("/home/jetson/project_atlas/config/atlas_visual_cloud.json")
 RETAINED_TOPICS = {"/map", "/tf_static"}
+ACTIVITY_TOPICS = {
+    "/cmd_vel", "/cmd_vel_nav", "/atlas/mission_status",
+    "/atlas/recovery_status",
+}
 
 
 def git_version():
@@ -82,12 +92,16 @@ class VisualCloudAgent(Node):
         self.lock = threading.Lock()
         self.samples = {name: collections.deque(maxlen=100) for name in config["topics"]}
         self.values = {}
+        self.last_value_compaction = {}
         self.subscriptions_live = []
         self.subscribed_topics = set()
         self.graph = {}
         self.last_graph = 0.0
         self.last_mission_read = 0.0
+        self.last_snapshot = 0.0
+        self.active_until = 0.0
         self.mission_evidence = {"missions": [], "bags": []}
+        self.version = git_version()
         self.token = Path(config["token_file"]).read_text(encoding="utf-8").strip()
         if not self.token:
             raise RuntimeError("visual cloud token is empty")
@@ -114,17 +128,46 @@ class VisualCloudAgent(Node):
                     # sample. A volatile late subscriber misses that sample.
                     qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                                      reliability=ReliabilityPolicy.RELIABLE)
-                sub = self.create_subscription(cls, topic, lambda m, t=topic: self.on_message(t, m), qos)
+                use_raw = topic not in ACTIVITY_TOPICS
+                sub = self.create_subscription(
+                    cls,
+                    topic,
+                    lambda m, t=topic, c=cls if use_raw else None:
+                        self.on_message(t, m, c),
+                    qos,
+                    raw=use_raw,
+                )
                 self.subscriptions_live.append(sub)
                 self.subscribed_topics.add(topic)
             except Exception as exc:
                 self.get_logger().warning(f"cannot monitor {topic}: {exc}")
 
-    def on_message(self, topic, msg):
+    def on_message(self, topic, msg, serialized_type=None):
         now = time.monotonic()
+        active = now < self.active_until
+        # Activity-bearing values are cheap and must be inspected on every
+        # callback so the agent returns to its original cadence immediately.
+        always_compact = topic in ACTIVITY_TOPICS
+        compact_due = active or interval_due(
+            self.last_value_compaction.get(topic), now, False, 1.0,
+            float(self.config.get("idle_value_interval_s", 1.0)),
+        )
+        value = None
+        if always_compact or compact_due:
+            if serialized_type is not None:
+                msg = deserialize_message(msg, serialized_type)
+            value = compact_message(topic, msg)
+        if value is not None:
+            self.last_value_compaction[topic] = now
+            if is_robot_activity(topic, value):
+                self.active_until = max(
+                    self.active_until,
+                    now + float(self.config.get("active_hold_s", 30.0)),
+                )
         with self.lock:
             self.samples[topic].append(now)
-            self.values[topic] = compact_message(topic, msg)
+            if value is not None:
+                self.values[topic] = value
 
     def graph_snapshot(self):
         nodes = []
@@ -178,9 +221,15 @@ class VisualCloudAgent(Node):
             pass
         return {"missions": missions, "bags": bags}
 
-    def build_snapshot(self):
+    def build_snapshot(self, active=None):
         now_mono = time.monotonic()
-        if now_mono - self.last_graph >= float(self.config.get("graph_interval_s", 5)):
+        active = now_mono < self.active_until if active is None else bool(active)
+        graph_interval = (
+            float(self.config.get("graph_interval_s", 5.0))
+            if active
+            else float(self.config.get("idle_graph_interval_s", 30.0))
+        )
+        if now_mono - self.last_graph >= graph_interval:
             self.graph = self.graph_snapshot()
             self.last_graph = now_mono
         if now_mono - self.last_mission_read >= 10.0:
@@ -194,15 +243,27 @@ class VisualCloudAgent(Node):
         mission = str((traffic.get("/atlas/mission_status") or {}).get("value") or "")
         return {
             "schema": 1, "robot_id": self.config["robot_id"], "observed_at": time.time(),
-            "git_version": git_version(), "system": self.system_metrics(),
+            "git_version": self.version, "system": self.system_metrics(),
             "traffic": traffic, "graph": self.graph,
             "mission_evidence": self.mission_evidence,
             "failure_class": classify_failure(mission) if any(x in mission.upper() for x in ("FAIL", "ABORT", "ERROR")) else "NONE",
             "authority": "OBSERVABILITY_ONLY",
+            "collection_mode": "ACTIVE" if active else "IDLE",
         }
 
     def queue_snapshot(self):
-        self.pending = self.build_snapshot()
+        now = time.monotonic()
+        active = now < self.active_until
+        if not interval_due(
+            self.last_snapshot,
+            now,
+            active,
+            float(self.config.get("publish_interval_s", 1.0)),
+            float(self.config.get("idle_publish_interval_s", 5.0)),
+        ):
+            return
+        self.pending = self.build_snapshot(active=active)
+        self.last_snapshot = now
 
     def send_loop(self):
         while rclpy.ok():

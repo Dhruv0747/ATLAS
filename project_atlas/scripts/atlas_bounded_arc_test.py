@@ -11,7 +11,7 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import Int32, String
 from std_srvs.srv import Trigger
 
@@ -20,7 +20,7 @@ from atlas_straight_distance_core import IncrementalPlanarDistance
 
 
 class ArcTest(Node):
-    def __init__(self, distance, speed, angular, timeout):
+    def __init__(self, distance, speed, angular, timeout, pulse_on, settle):
         super().__init__("atlas_bounded_arc_test")
         self.target, self.speed, self.angular, self.timeout = distance, speed, angular, timeout
         self.start = self.pose = None
@@ -34,8 +34,14 @@ class ArcTest(Node):
         self.encoder_health_at = 0.0
         self.encoder_counts = [None, None, None, None]
         self.encoder_start_counts = None
+        self.gyro_turn_rad = {"im10a": 0.0, "board": 0.0}
+        self.gyro_last_at = {"im10a": 0.0, "board": 0.0}
         self.clearance = math.inf
         self.result = "WAITING"
+        self.phase = "WAITING"
+        self.phase_started = 0.0
+        self.pulse_on = pulse_on
+        self.settle = settle
         self.armed = False
         self.pub = self.create_publisher(Twist, "/cmd_vel_commission", 10)
         self.arm_client = self.create_client(Trigger, "/atlas/commission/arm")
@@ -44,6 +50,13 @@ class ArcTest(Node):
         self.create_subscription(Odometry, "/lidar/odom", self.on_lidar_odom, 20)
         self.create_subscription(LaserScan, "/scan", self.on_scan, qos_profile_sensor_data)
         self.create_subscription(String, "/atlas/encoder_health", self.on_encoder_health, 20)
+        self.create_subscription(
+            Imu, "/im10a/imu/unvalidated",
+            lambda msg: self.on_gyro("im10a", msg), 20,
+        )
+        self.create_subscription(
+            Imu, "/imu/data", lambda msg: self.on_gyro("board", msg), 20
+        )
         for index in range(4):
             self.create_subscription(
                 Int32,
@@ -64,13 +77,44 @@ class ArcTest(Node):
             for start, current in zip(self.encoder_start_counts, self.encoder_counts)
         ]
 
+    def on_gyro(self, source, msg):
+        now = time.monotonic()
+        previous = self.gyro_last_at[source]
+        self.gyro_last_at[source] = now
+        rate = float(msg.angular_velocity.z)
+        if (self.started and previous and math.isfinite(rate)
+                and 0.0 < now - previous <= 0.30):
+            self.gyro_turn_rad[source] += rate * (now - previous)
+
+    def gyro_turn_degrees(self):
+        return {
+            source: math.degrees(value)
+            for source, value in self.gyro_turn_rad.items()
+        }
+
+    def selected_encoder_motion(self):
+        values = self.encoder_deltas()[:3]
+        return any(value is not None and abs(value) >= 50 for value in values)
+
+    def turn_evidence(self):
+        angles = self.gyro_turn_degrees()
+        # Mounting/sign conventions are reported separately; short-term turn
+        # magnitude is valid evidence only when LiDAR or encoders corroborate.
+        gyro_deg = max((abs(value) for value in angles.values()), default=0.0)
+        lidar_motion = self.lidar_distance.distance_m >= 0.01
+        encoder_motion = self.selected_encoder_motion()
+        return gyro_deg, lidar_motion, encoder_motion
+
     def arm(self):
         # Discovery may be slow under the full ATLAS workload. Waiting longer
         # does not arm motion; the 20-second lease starts only on success.
         if not self.arm_client.wait_for_service(timeout_sec=12.0):
             return False, "commissioning arm service unavailable"
         future = self.arm_client.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+        # Allow for service scheduling latency under the real camera/AI/
+        # dashboard workload. The mux remains the authority and grants only
+        # its existing bounded commissioning lease after a successful reply.
+        rclpy.spin_until_future_complete(self, future, timeout_sec=8.0)
         response = future.result()
         if response is None:
             return False, "commissioning arm request timed out"
@@ -82,7 +126,7 @@ class ArcTest(Node):
         if not self.disarm_client.wait_for_service(timeout_sec=0.5):
             return
         future = self.disarm_client.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
 
     def on_odom(self, msg):
         p = msg.pose.pose
@@ -152,6 +196,11 @@ class ArcTest(Node):
             return
         if not self.started:
             self.started, self.result = now, "RUNNING"
+            # Use the same car-like vx/wz pair during alignment and traction.
+            # A zero-linear pre-steer command uses the base driver's direct
+            # steering map, which does not match its moving curvature map and
+            # caused traction to remain inhibited for the whole short pulse.
+            self.phase, self.phase_started = "PULSE", now
             self.encoder_start_counts = list(self.encoder_counts)
             print(f"START clearance={self.clearance:.3f}m target={self.target:.3f}m", flush=True)
         encoder_state = str(self.encoder_health.get("state", "MISSING")).upper()
@@ -162,11 +211,62 @@ class ArcTest(Node):
             self.stop("STOP_ENCODER_" + encoder_state)
         elif self.clearance < 0.55:
             self.stop(f"STOP_LIDAR_{self.clearance:.3f}M")
+        elif self.turn_evidence()[0] >= 8.0 and (
+            self.turn_evidence()[1] or self.turn_evidence()[2]
+        ):
+            self.stop("PASS_MULTI_SENSOR_TURN")
+        elif self.phase == "VERIFY":
+            # Stop traction immediately at the distance target, then allow a
+            # short window for IMU/LiDAR samples timestamped during the pulse
+            # to arrive. Previously the validator declared disagreement one
+            # callback before both IMUs reported the completed turn.
+            self.pub.publish(Twist())
+            if now - self.phase_started >= 0.75:
+                gyro_deg, lidar_motion, encoder_motion = self.turn_evidence()
+                evidence_count = sum((
+                    gyro_deg >= 3.0, lidar_motion, encoder_motion,
+                ))
+                self.stop(
+                    "PASS_MULTI_SENSOR_DISTANCE"
+                    if evidence_count >= 2
+                    else "STOP_SENSOR_DISAGREEMENT"
+                )
         elif self.distance() >= self.target:
-            self.stop("PASS_TARGET")
+            gyro_deg, lidar_motion, encoder_motion = self.turn_evidence()
+            evidence_count = sum((
+                gyro_deg >= 3.0, lidar_motion, encoder_motion,
+            ))
+            if evidence_count >= 2:
+                self.stop("PASS_MULTI_SENSOR_DISTANCE")
+            else:
+                self.phase, self.phase_started = "VERIFY", now
+                self.pub.publish(Twist())
         elif now - self.started >= self.timeout:
             self.stop("STOP_TIMEOUT")
+        elif self.phase == "PRESTEER" and now - self.phase_started < 1.0:
+            command = Twist()
+            command.angular.z = self.angular
+            self.pub.publish(command)
+        elif self.phase == "PRESTEER":
+            self.phase, self.phase_started = "PULSE", now
+            command = Twist()
+            command.linear.x, command.angular.z = self.speed, self.angular
+            self.pub.publish(command)
+        elif self.phase == "PULSE" and now - self.phase_started < self.pulse_on:
+            command = Twist()
+            command.linear.x, command.angular.z = self.speed, self.angular
+            self.pub.publish(command)
+        elif self.phase == "PULSE":
+            self.phase, self.phase_started = "SETTLE", now
+            command = Twist()
+            command.angular.z = self.angular
+            self.pub.publish(command)
+        elif now - self.phase_started < self.settle:
+            command = Twist()
+            command.angular.z = self.angular
+            self.pub.publish(command)
         else:
+            self.phase, self.phase_started = "PULSE", now
             command = Twist()
             command.linear.x, command.angular.z = self.speed, self.angular
             self.pub.publish(command)
@@ -178,9 +278,14 @@ def main():
     parser.add_argument("--speed", type=float, default=0.08)
     parser.add_argument("--angular", type=float, default=0.25)
     parser.add_argument("--timeout", type=float, default=8.0)
+    parser.add_argument("--pulse-on", type=float, default=0.10)
+    parser.add_argument("--settle", type=float, default=0.60)
     args = parser.parse_args()
     rclpy.init()
-    node = ArcTest(args.distance, args.speed, args.angular, args.timeout)
+    node = ArcTest(
+        args.distance, args.speed, args.angular, args.timeout,
+        args.pulse_on, args.settle,
+    )
     try:
         armed, message = node.arm()
         print(f"ARM success={armed} message={message}", flush=True)
@@ -198,6 +303,8 @@ def main():
               f"clearance={node.clearance:.3f}m "
               f"encoder_state={node.encoder_health.get('state', 'MISSING')} "
               f"encoder_deltas={node.encoder_deltas()} "
+              f"gyro_turn_deg={json.dumps(node.gyro_turn_degrees(), sort_keys=True)} "
+              f"turn_evidence={node.turn_evidence()} "
               f"critical_health={json.dumps(node.last_critical_health, sort_keys=True)}",
               flush=True)
     finally:

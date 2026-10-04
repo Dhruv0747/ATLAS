@@ -24,7 +24,10 @@ class SerialTests(unittest.TestCase):
         received=[]
         obj=SimpleNamespace(ser=Port(),rx_lines=SerialLines(),rx_high_water=0,
             rx_processed=0,rx_diag_time=time.monotonic(),last_serial_rx=time.time(),
+            validity_last_frame=time.monotonic(),validity_last_invalid=time.monotonic(),
+            validity_pending=None,last_ok=time.time(),last_wait_status=0.0,
             flush_dashboard_cache=lambda:None,read_local_camera_commands=lambda:None,
+            invalidate_ultrasonic=lambda reason:None,
             handle_line=received.append)
         for _ in range(10):
             if len(received)==200: break

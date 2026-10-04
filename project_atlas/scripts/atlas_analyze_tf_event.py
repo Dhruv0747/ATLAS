@@ -646,12 +646,13 @@ class ScanAccumulator(TimedAccumulator):
 class ScanPairer:
     """Pair raw/filtered scans by nearby bag receipt time with bounded state.
 
-    ATLAS's scan filter currently republishes with a new header timestamp, so
-    exact-header matching alone reports zero pairs even when the scan contents
-    are clearly the same.  Bag receipt time is monotonic and each scan period
-    is much longer than the raw-to-filter pipeline, making a tight, one-to-one
+    Legacy ATLAS bags can contain scans from the former filter behavior that
+    replaced the acquisition timestamp at publication.  Exact-header matching
+    alone reports zero pairs for those bags even when the scan contents are
+    clearly the same.  Bag receipt time is monotonic and each scan period is
+    much longer than the raw-to-filter pipeline, making a tight, one-to-one
     nearest-receipt match the defensible fallback.  Header deltas remain in the
-    report so stamp replacement is visible rather than hidden.
+    report so legacy stamp replacement is visible rather than hidden.
     """
 
     def __init__(self, pending_limit: int = 2048, tolerance_ms: float = 50.0) -> None:

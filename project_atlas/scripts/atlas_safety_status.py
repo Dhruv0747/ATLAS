@@ -12,7 +12,7 @@ from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from nav2_msgs.msg import BehaviorTreeLog
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from sensor_msgs.msg import CompressedImage, LaserScan
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32, String
 
 from atlas_scan_geometry import ray_in_base_sector
@@ -114,8 +114,8 @@ class AtlasSafetyStatus(Node):
             10,
         )
         self.create_subscription(
-            CompressedImage,
-            "/camera/detections/compressed",
+            String,
+            "/camera/detections/json",
             self.on_ai_camera,
             10,
         )
@@ -273,7 +273,7 @@ class AtlasSafetyStatus(Node):
                         self.last_bt_action = time.monotonic()
                         break
 
-    def on_ai_camera(self, _msg: CompressedImage) -> None:
+    def on_ai_camera(self, _msg: String) -> None:
         self.last_ai_camera = time.monotonic()
 
     @staticmethod

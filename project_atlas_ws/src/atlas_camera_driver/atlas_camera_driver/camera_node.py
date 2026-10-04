@@ -115,22 +115,31 @@ class CameraNode(Node):
             frame = cv2.cvtColor(
                 cv2.merge((light, a_channel, b_channel)), cv2.COLOR_LAB2BGR)
 
+        # Keep Argus drained at the commissioned cadence, but do not construct
+        # multi-megabyte ROS payloads that have no matched DDS consumer.
+        raw_subscribers = self.pub_raw.get_subscription_count()
+        compressed_subscribers = self.pub_compressed.get_subscription_count()
+        if raw_subscribers == 0 and compressed_subscribers == 0:
+            return
+
         stamp = self.get_clock().now().to_msg()
 
-        img_msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
-        img_msg.header.stamp = stamp
-        img_msg.header.frame_id = self.frame_id
-        self.pub_raw.publish(img_msg)
+        if raw_subscribers > 0:
+            img_msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+            img_msg.header.stamp = stamp
+            img_msg.header.frame_id = self.frame_id
+            self.pub_raw.publish(img_msg)
 
-        ok_enc, buf = cv2.imencode(
-            '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
-        if ok_enc:
-            comp_msg = CompressedImage()
-            comp_msg.header.stamp = stamp
-            comp_msg.header.frame_id = self.frame_id
-            comp_msg.format = 'jpeg'
-            comp_msg.data = buf.tobytes()
-            self.pub_compressed.publish(comp_msg)
+        if compressed_subscribers > 0:
+            ok_enc, buf = cv2.imencode(
+                '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
+            if ok_enc:
+                comp_msg = CompressedImage()
+                comp_msg.header.stamp = stamp
+                comp_msg.header.frame_id = self.frame_id
+                comp_msg.format = 'jpeg'
+                comp_msg.data = buf.tobytes()
+                self.pub_compressed.publish(comp_msg)
 
     def destroy_node(self):
         if self.cap is not None:

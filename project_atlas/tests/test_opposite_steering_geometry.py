@@ -26,18 +26,18 @@ def load_geometry():
     return namespace
 
 
-def test_positive_turn_uses_opposite_rear_endpoint():
+def test_positive_left_turn_uses_front_left_and_rear_right():
     values = load_geometry()
     front, rear = values['opposite_steering_targets'](1.0)
-    assert front == values['FRONT_STEER_RIGHT']
-    assert rear == values['REAR_STEER_LEFT']
-
-
-def test_negative_turn_uses_opposite_rear_endpoint():
-    values = load_geometry()
-    front, rear = values['opposite_steering_targets'](-1.0)
     assert front == values['FRONT_STEER_LEFT']
     assert rear == values['REAR_STEER_RIGHT']
+
+
+def test_negative_right_turn_uses_front_right_and_rear_left():
+    values = load_geometry()
+    front, rear = values['opposite_steering_targets'](-1.0)
+    assert front == values['FRONT_STEER_RIGHT']
+    assert rear == values['REAR_STEER_LEFT']
 
 
 def test_neutral_returns_both_centres():

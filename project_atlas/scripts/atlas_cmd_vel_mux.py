@@ -21,6 +21,12 @@ from atlas_radar_core import guard_scale
 from atlas_ultrasonic_validity import ValidityWindow
 
 
+# Keep a latched stop alive well inside yahboom_base.py's 0.45 s command
+# deadman without making every joystick/watchdog callback write another zero.
+REMOTE_STOP_ZERO_KEEPALIVE_S = 0.20
+REMOTE_STOP_STATUS_KEEPALIVE_S = 1.0
+
+
 @dataclass
 class Channel:
     name: str
@@ -203,6 +209,10 @@ class AtlasCmdVelMux(Node):
         self.create_subscription(Empty, '/atlas/voice/stop', self.on_voice_stop, 10)
         self.active_name: Optional[str] = None
         self.last_sent = Twist()
+        self._remote_stop_hold_latched: Optional[bool] = None
+        self._remote_stop_hold_reason: Optional[str] = None
+        self._remote_stop_last_zero = float("-inf")
+        self._remote_stop_last_status = float("-inf")
         self.radar_gate_enabled = os.environ.get('ATLAS_RADAR_GATE_ENABLED', '0') == '1'
         self.radar_advice, self.radar_rx = {}, 0.0
         self.encoder_health = {}
@@ -300,21 +310,53 @@ class AtlasCmdVelMux(Node):
         # A remote/voice stop permanently revokes a commissioning lease. The
         # test must be explicitly re-armed after the operator releases stop;
         # queued pulses can never resume by themselves.
+        now = time.monotonic()
+        latched = bool(self.remote_stop.latched)
+        reason = str(self.remote_stop.reason)
+        state_changed = (
+            self._remote_stop_hold_latched is None
+            or latched != self._remote_stop_hold_latched
+        )
+        reason_changed = reason != self._remote_stop_hold_reason
+        last_sent_was_moving = self.moving(self.last_sent)
         self.commission_until = 0.0
         for channel in self.channels.values():
             channel.engaged = False
             channel.command = Twist()
         self._remote_held_yaw = 0.0
         self.active_name = None
-        self.output.publish(Twist())
         self.last_sent = Twist()
-        self.safety_output.publish(String(data=self.remote_stop.reason))
-        self.publish_mode()
+        if (
+            state_changed
+            or last_sent_was_moving
+            or now - self._remote_stop_last_zero
+            >= REMOTE_STOP_ZERO_KEEPALIVE_S
+        ):
+            self.output.publish(Twist())
+            self._remote_stop_last_zero = now
+        if (
+            state_changed
+            or reason_changed
+            or now - self._remote_stop_last_status
+            >= REMOTE_STOP_STATUS_KEEPALIVE_S
+        ):
+            self.safety_output.publish(String(data=reason))
+            self._remote_stop_last_status = now
+        if state_changed or reason_changed:
+            # The existing 0.5 s timer maintains mode/policy freshness. Publish
+            # here only when the stop state or reason actually changes.
+            self.publish_mode()
+        self._remote_stop_hold_latched = latched
+        self._remote_stop_hold_reason = reason
 
     def reset_remote_stop(self, request, response):
         # Flush commands before releasing; pre-stop commands never replay.
         self.hold_remote_stop()
         response.success = self.remote_stop.reset(time.monotonic())
+        if response.success:
+            # Record and publish the release transition immediately so a later
+            # latch can never be mistaken for the already-held stop state.
+            self.hold_remote_stop()
         response.message = (self.remote_stop.reason if response.success else
                             'Keep sticks centred and all buttons released for one second')
         return response
@@ -372,7 +414,13 @@ class AtlasCmdVelMux(Node):
         if self.remote_stop.check(now):
             self.hold_remote_stop()
             return
-        if self.manual_only and name not in ('REMOTE', 'COMMISSION'):
+        # ``manual_only`` blocks general autonomous command sources, but the
+        # dedicated recovery channel is intentionally different: it is
+        # locally sensor-guarded, displacement-bounded, watchdog-limited and
+        # always pre-emptible by the physical remote.  Dropping RECOVERY here
+        # made the recovery state machine report attempts while no command
+        # ever reached the drivetrain.
+        if self.manual_only and name not in ('REMOTE', 'COMMISSION', 'RECOVERY'):
             return
         if name == 'COMMISSION' and now > self.commission_until:
             return
@@ -649,9 +697,26 @@ class AtlasCmdVelMux(Node):
             encoder_state = str(
                 self.encoder_health.get('state', 'MISSING')
             ).upper()
+            # A bounded recovery is itself part of the ground-turn validation
+            # campaign.  Permit the already-approved three-encoder fallback
+            # only when the link is fresh, consensus is available, at least
+            # three encoders are selected, and no encoder fault is present.
+            # The DEGRADED speed limiter below still caps this path at 50%.
+            recovery_three_encoder_ready = (
+                selected.name == 'RECOVERY'
+                and encoder_state == 'DEGRADED'
+                and self.encoder_health.get('packet_fresh') is True
+                and str(self.encoder_health.get('link_state', '')).upper()
+                == 'LIVE'
+                and str(self.encoder_health.get('consensus_state', '')).upper()
+                == 'AVAILABLE'
+                and len(self.encoder_health.get('selected_encoders', [])) >= 3
+                and not self.encoder_health.get('faults', [])
+            )
             if (
                 (selected.name != 'COMMISSION'
-                 and self.encoder_health.get('autonomy_ready') is False)
+                 and self.encoder_health.get('autonomy_ready') is False
+                 and not recovery_three_encoder_ready)
                 or encoder_age > 1.0 or encoder_state in (
                 'CRITICAL', 'INVALID', 'MISSING', 'QUALIFYING'
                 )

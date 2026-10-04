@@ -38,6 +38,14 @@ CAMERA_PAN_STEP_US = 150
 CAMERA_TILT_STEP_US = 150
 CAMERA_PAN_HOME_US = 1725
 CAMERA_TILT_HOME_US = 1500
+# Camera requests arrive every 125 ms while the dashboard is visible.  A short
+# lease lets the ROS callback keep the latest-frame cache warm for live clients
+# without copying and decoding 720p JPEGs indefinitely after the page closes.
+CAMERA_CLIENT_LEASE_SECONDS = 2.0
+CAMERA_HEALTH_PERIOD_SECONDS = 1.0
+CAMERA_FRAME_MAX_AGE_SECONDS = 2.0
+CAMERA_WAKE_TIMEOUT_SECONDS = 0.35
+CAMERA_SUBSCRIPTION_PERIOD_SECONDS = 0.10
 CAMERA_HOME_CONFIG = os.environ.get(
     "ATLAS_CAMERA_HOME_CONFIG",
     "/home/jetson/.config/systemd/user/atlas-uno-r4-sensor-hub.service.d/camera-home.conf",
@@ -75,6 +83,30 @@ TODO = [
     ("Radar Foxglove", "Publish radar targets as MarkerArray or PointCloud2."),
     ("Wiring polish", "Add labels, fuse notes, strain relief, final photos."),
 ]
+
+
+class CameraClientDemand:
+    """Thread-safe monotonic lease renewed by camera HTTP requests."""
+
+    def __init__(self, lease_seconds, clock=time.monotonic):
+        self.lease_seconds = float(lease_seconds)
+        self.clock = clock
+        self.last_request = None
+        self.lock = threading.Lock()
+
+    def touch(self):
+        with self.lock:
+            self.last_request = self.clock()
+
+    def active(self, now=None):
+        if now is None:
+            now = self.clock()
+        with self.lock:
+            last_request = self.last_request
+        return (
+            last_request is not None
+            and 0.0 <= now - last_request <= self.lease_seconds
+        )
 
 
 def run(cmd, timeout=2):
@@ -196,6 +228,7 @@ class AtlasRosNode:
         self.data = {}
         self.update_times = {}
         self.lock = threading.Lock()
+        self.camera_frame_condition = threading.Condition(self.lock)
         # HTTP requests are handled concurrently. Serialize incremental camera
         # updates so a touch hold cannot race itself and jump several steps.
         self.camera_lock = threading.Lock()
@@ -220,6 +253,15 @@ class AtlasRosNode:
         self.last_camera_manual = 0.0
         self.last_drive_command = 0.0
         self.drive_active = False
+        self.camera_clients = CameraClientDemand(CAMERA_CLIENT_LEASE_SECONDS)
+        # Prime one frame after service start so the existing commissioning
+        # check has a real byte count.  After the short lease expires, the ROS
+        # executor releases both JPEG subscriptions until an HTTP camera
+        # request renews demand.
+        self.camera_subscription = None
+        self.ai_camera_subscription = None
+        self.last_camera_bytes = 0
+        self.last_camera_health = 0.0
         self.last_raw_camera_encode = 0.0
         self.last_compressed_camera = 0.0
         self.panel_camera_frame = None
@@ -421,8 +463,6 @@ class AtlasRosNode:
             n.create_subscription(NavPath, "/plan", self._plan_cb, 10)
             n.create_subscription(PoseStamped, "/goal_pose", self._goal_cb, 10)
             n.create_subscription(String, "/atlas/mission_status", lambda m: self._set("mission_status", m.data), 10)
-            n.create_subscription(CompressedImage, "/camera/image_raw/compressed", self._camera_cb, qos_profile_sensor_data)
-            n.create_subscription(CompressedImage, "/camera/detections/compressed", self._ai_camera_cb, 10)
             n.create_subscription(String, "/camera/detections/json", self._ai_detections_cb, 10)
             n.create_subscription(Float32, "/steering/front_angle_deg", lambda m: self._set("front_steer", m.data), 10)
             n.create_subscription(Float32, "/steering/rear_angle_deg", lambda m: self._set("rear_steer", m.data), 10)
@@ -470,6 +510,14 @@ class AtlasRosNode:
             )
             n.create_timer(0.1, self._drive_watchdog)
             n.create_timer(0.5, self._map_pose_tick)
+            # Start the one-frame health probe only after the node and all
+            # callbacks are ready; slow process startup must not consume the
+            # entire client lease before the subscription timer exists.
+            self.camera_clients.touch()
+            n.create_timer(
+                CAMERA_SUBSCRIPTION_PERIOD_SECONDS,
+                self._camera_subscription_tick,
+            )
             self.ready = True
             rclpy.spin(n)
         except Exception as exc:
@@ -695,9 +743,29 @@ class AtlasRosNode:
 
     def _camera_cb(self, msg):
         now = time.time()
+        now_mono = time.monotonic()
         if now - self.last_compressed_camera < 0.05:
             return
         self.last_compressed_camera = now
+        self.last_camera_bytes = len(msg.data)
+
+        # DDS delivery is also the camera-health signal.  When nobody is
+        # requesting an image, retain only lightweight metadata at 1 Hz: do
+        # not materialize another bytes object and do not JPEG-decode motion.
+        if not self.camera_clients.active(now_mono):
+            # Do not compare a future client session with a frame captured
+            # before this idle period and report that gap as physical motion.
+            self.prev_motion_gray = None
+            if now_mono - self.last_camera_health >= CAMERA_HEALTH_PERIOD_SECONDS:
+                self.last_camera_health = now_mono
+                self._set("camera_info", {
+                    "bytes": len(msg.data),
+                    "source": "compressed",
+                    "streaming": False,
+                    "motion": "paused; no camera client",
+                })
+            return
+
         frame_bytes = bytes(msg.data)
         motion_text = "motion waiting"
         if now - self.last_motion_check >= 0.90:
@@ -726,13 +794,93 @@ class AtlasRosNode:
             ai_status = "YOLO ready, off in Eco Mode" if self.yolo_ready else "YOLO model missing"
         else:
             ai_status = f"{self.ai_mode.title()} mode staged; safe preview only"
-        with self.lock:
+        with self.camera_frame_condition:
             self.data["camera_frame"] = {"value": frame_bytes, "ts": time.time()}
-            self.data["camera_info"] = {"value": {"bytes": len(frame_bytes), "source": "compressed", "motion": motion_text, "ai": ai_status}, "ts": time.time()}
+            self.data["camera_info"] = {
+                "value": {
+                    "bytes": len(frame_bytes),
+                    "source": "compressed",
+                    "streaming": True,
+                    "motion": motion_text,
+                    "ai": ai_status,
+                },
+                "ts": time.time(),
+            }
             self.data["ai_status"] = {"value": ai_status, "ts": time.time()}
+            self.camera_frame_condition.notify_all()
 
     def _ai_camera_cb(self, msg):
+        if self.ai_mode != "object" or not self.camera_clients.active():
+            return
         self._set("ai_camera_frame", bytes(msg.data))
+        with self.camera_frame_condition:
+            self.camera_frame_condition.notify_all()
+
+    def _camera_subscription_tick(self):
+        """Own camera JPEG subscriptions only while an HTTP client needs them.
+
+        Subscription create/destroy stays inside the ROS executor thread.  An
+        idle web process therefore avoids DDS deserialisation and Python
+        callback dispatch for both 720p JPEG streams, while topic/publisher
+        names and every HTTP endpoint remain unchanged.
+        """
+        node = self.node
+        if node is None:
+            return
+        demand = self.camera_clients.active()
+        wants_ai = demand and self.ai_mode == "object"
+        try:
+            if demand and self.camera_subscription is None:
+                self.camera_subscription = node.create_subscription(
+                    CompressedImage,
+                    "/camera/image_raw/compressed",
+                    self._camera_cb,
+                    qos_profile_sensor_data,
+                )
+            elif not demand and self.camera_subscription is not None:
+                node.destroy_subscription(self.camera_subscription)
+                self.camera_subscription = None
+                self.prev_motion_gray = None
+                with self.camera_frame_condition:
+                    self.data.pop("camera_frame", None)
+                    self.data.pop("ai_camera_frame", None)
+                    self.panel_camera_frame = None
+                    self.panel_camera_source_ts = 0.0
+                    self.overview_camera_frame = None
+                    self.overview_camera_source_ts = 0.0
+                    self.camera_frame_condition.notify_all()
+
+            if wants_ai and self.ai_camera_subscription is None:
+                self.ai_camera_subscription = node.create_subscription(
+                    CompressedImage,
+                    "/camera/detections/compressed",
+                    self._ai_camera_cb,
+                    10,
+                )
+            elif not wants_ai and self.ai_camera_subscription is not None:
+                node.destroy_subscription(self.ai_camera_subscription)
+                self.ai_camera_subscription = None
+                with self.camera_frame_condition:
+                    self.data.pop("ai_camera_frame", None)
+                    self.camera_frame_condition.notify_all()
+        except Exception as exc:
+            self._set("camera_subscription_error", str(exc))
+
+        now_mono = time.monotonic()
+        if not demand and now_mono - self.last_camera_health >= CAMERA_HEALTH_PERIOD_SECONDS:
+            self.last_camera_health = now_mono
+            publisher_count = node.count_publishers(
+                "/camera/image_raw/compressed"
+            )
+            if publisher_count <= 0:
+                self.last_camera_bytes = 0
+            self._set("camera_info", {
+                "bytes": self.last_camera_bytes,
+                "source": "compressed topic graph",
+                "publisher_count": publisher_count,
+                "streaming": False,
+                "motion": "paused; no camera client",
+            })
 
     def _ai_detections_cb(self, msg):
         try:
@@ -1060,22 +1208,36 @@ class AtlasRosNode:
         out["web_control_ready"] = {"value": self.ready, "age": 0}
         return out
 
+    def _fresh_camera_source(self, prefer_ai=False, wait_seconds=CAMERA_WAKE_TIMEOUT_SECONDS):
+        """Wait briefly for a post-idle frame, then return its bytes and time."""
+        deadline = time.monotonic() + max(0.0, wait_seconds)
+        with self.camera_frame_condition:
+            while True:
+                now = time.time()
+                item = self.data.get("ai_camera_frame") if prefer_ai else None
+                if not item or now - item["ts"] > 1.5:
+                    item = self.data.get("camera_frame")
+                if item and now - item["ts"] <= CAMERA_FRAME_MAX_AGE_SECONDS:
+                    return item["value"], item["ts"]
+                remaining = deadline - time.monotonic()
+                if remaining <= 0.0:
+                    return None
+                self.camera_frame_condition.wait(remaining)
+
     def camera_frame(self):
-        with self.lock:
-            item = self.data.get("ai_camera_frame") if self.ai_mode == "object" else None
-            if not item or time.time() - item["ts"] > 1.5:
-                item = self.data.get("camera_frame")
-            return item["value"] if item else None
+        self.camera_clients.touch()
+        source = self._fresh_camera_source(prefer_ai=self.ai_mode == "object")
+        return source[0] if source else None
 
     def camera_panel_frame(self):
         """Return a small cached JPEG sized for the 1024x600 CrowPanel."""
+        self.camera_clients.touch()
+        source = self._fresh_camera_source()
+        if not source:
+            return None
+        source_jpeg, source_ts = source
         now = time.time()
         with self.lock:
-            source = self.data.get("camera_frame")
-            if not source:
-                return None
-            source_jpeg = source["value"]
-            source_ts = source["ts"]
             if (self.panel_camera_frame is not None and
                     self.panel_camera_source_ts == source_ts and
                     now - source_ts < 2.0):
@@ -1111,13 +1273,13 @@ class AtlasRosNode:
 
     def camera_overview_frame(self):
         """Return a cached native-size JPEG for CrowPanel Overview."""
+        self.camera_clients.touch()
+        source = self._fresh_camera_source()
+        if not source:
+            return None
+        source_jpeg, source_ts = source
         now = time.time()
         with self.lock:
-            source = self.data.get("camera_frame")
-            if not source:
-                return None
-            source_jpeg = source["value"]
-            source_ts = source["ts"]
             if (self.overview_camera_frame is not None and
                     self.overview_camera_source_ts == source_ts and
                     now - source_ts < 2.0):

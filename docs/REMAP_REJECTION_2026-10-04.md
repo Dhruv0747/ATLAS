@@ -69,9 +69,11 @@ with **high confidence** as a
   **1.2 rad/s**, while the corrected IM10A gyro reached **0.967 rad/s**.
 - LiDAR remained live. **7,819** raw/filtered scans were paired
   (**99.76%** of the smaller stream); raw-to-filter receipt latency was
-  **5.017 ms median / 12.399 ms p95**. The filter currently replaces scan
-  timestamps, producing a **131.594 ms median header shift**; this is now
-  reported explicitly rather than mistaken for missing scan pairs.
+  **5.017 ms median / 12.399 ms p95**. The filter version active for this bag
+  replaced scan timestamps, producing a **131.594 ms median header shift**;
+  this is now reported explicitly rather than mistaken for missing scan pairs.
+  The repository correction and stationary deployment gate are documented in
+  [the LiDAR timing note](LIDAR_SCAN_TIMING_FIX_2026-10-04.md).
 - Encoder consensus briefly became `CRITICAL/UNAVAILABLE` approximately
   **6.7 seconds before** the correction (13 health packets in the surrounding
   10-second window), then recovered to `AVAILABLE` before the exact event.

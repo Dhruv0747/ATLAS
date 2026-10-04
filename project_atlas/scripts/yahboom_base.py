@@ -99,6 +99,12 @@ ENCODER_FREEZE_S = 1.20
 ENCODER_START_GRACE_S = 0.80
 ENCODER_SINGLE_GRACE_S = 5.0
 ENCODER_LINK_QUALIFY_S = 3.0
+# Dashboard-only wheel/motor telemetry does not need the board-state loop's
+# 10 Hz safety/navigation cadence.  Keeping it at 2 Hz preserves a live UI and
+# a sub-second sample age while avoiding 22 redundant ROS publications on
+# eight out of every ten board-state callbacks.  Raw encoders, IMU, odometry,
+# encoder health and every motor/steering write remain on their existing path.
+DIAGNOSTIC_PUBLISH_PERIOD_S = 0.5
 
 FRONT_STEER_SERVO_ID = 2    # Physical front confirmed by user 2026-09-09
 REAR_STEER_SERVO_ID  = 1    # Physical rear confirmed by user 2026-09-09
@@ -114,11 +120,11 @@ REAR_STEER_CENTER    = 90
 # immediately restore 52 if the linkage contacts, strains, or the servo buzzes.
 # Preserve existing numeric endpoint envelope per physical servo channel.
 # Direction and full-range travel require revalidation after channel correction.
-# These names are retained for configuration-file compatibility.  Physical
-# commissioning on 2026-09-20 confirmed that the installed front linkage is
-# reversed: servo-low (50) is physical LEFT and servo-high (121) is RIGHT.
-FRONT_STEER_RIGHT    = 50   # servo-low endpoint; physical front-left
-FRONT_STEER_LEFT     = 121  # servo-high endpoint; physical front-right
+# Physical left/right was reverified from two opposite ground arcs on
+# 2026-10-02: servo-high (121) turns the front wheels LEFT and servo-low (50)
+# turns them RIGHT.  Keep the semantic endpoint names aligned with reality.
+FRONT_STEER_RIGHT    = 50
+FRONT_STEER_LEFT     = 121
 REAR_STEER_RIGHT     = 59   # User-approved lifted right operating limit 2026-09-20
 REAR_STEER_LEFT      = 134  # User-approved lifted left operating limit 2026-09-09
 BAT_MIN_V = 10.5
@@ -151,20 +157,23 @@ def opposite_steering_targets(steer_norm):
     Nav2 and stationary steering from silently acquiring different geometry.
     """
     steer_norm = max(-1.0, min(1.0, float(steer_norm)))
+    # ROS angular.z is positive-left.  The rear axle counter-steers, so a
+    # positive (left) turn uses front-left plus rear-right; negative is the
+    # mirrored pair.  This mapping is shared by remote, web, Nav2 and recovery.
     if steer_norm >= 0.0:
         front = FRONT_STEER_CENTER + steer_norm * (
-            FRONT_STEER_RIGHT - FRONT_STEER_CENTER
+            FRONT_STEER_LEFT - FRONT_STEER_CENTER
         )
         rear = REAR_STEER_CENTER + steer_norm * (
-            REAR_STEER_LEFT - REAR_STEER_CENTER
+            REAR_STEER_RIGHT - REAR_STEER_CENTER
         )
     else:
         turn = -steer_norm
         front = FRONT_STEER_CENTER + turn * (
-            FRONT_STEER_LEFT - FRONT_STEER_CENTER
+            FRONT_STEER_RIGHT - FRONT_STEER_CENTER
         )
         rear = REAR_STEER_CENTER + turn * (
-            REAR_STEER_RIGHT - REAR_STEER_CENTER
+            REAR_STEER_LEFT - REAR_STEER_CENTER
         )
     return front, rear
 
@@ -215,6 +224,14 @@ JETSON_TEMPERATURE_PATH = Path(os.environ.get(
     'ATLAS_JETSON_TEMPERATURE_PATH',
     '/sys/devices/virtual/thermal/thermal_zone0/temp',
 ))
+
+
+def diagnostic_publish_due(now, last_publish):
+    """Return true when low-rate, non-authoritative telemetry is due."""
+    return (
+        not math.isfinite(float(last_publish))
+        or float(now) - float(last_publish) >= DIAGNOSTIC_PUBLISH_PERIOD_S
+    )
 
 
 def _wrap_degrees(angle):
@@ -364,6 +381,7 @@ class YahboomBase(Node):
         self._restore_odom_state()
         self._last_odom_t = time.monotonic()
         self._last_watchdog_ping = 0.0
+        self._last_diagnostic_publish = float('-inf')
         self._imu_calibration = _load_imu_calibration(YAHBOOM_IMU_CALIBRATION)
         self._imu_heading_reference = None
         self._last_imu_status = 0.0
@@ -1563,10 +1581,19 @@ class YahboomBase(Node):
 
     def _publish_board_state(self):
         now = time.monotonic()
+        publish_diagnostics = diagnostic_publish_due(
+            now, self._last_diagnostic_publish
+        )
+        if publish_diagnostics:
+            # Advance from the actual callback time rather than trying to
+            # catch up after executor stalls; catch-up bursts would recreate
+            # the CPU/DDS churn this cadence is intended to remove.
+            self._last_diagnostic_publish = now
         vx, vy, vz = self.bot.get_motion_data()
-        self._pub_motion_vx.publish(Float32(data=float(vx)))
-        self._pub_motion_vy.publish(Float32(data=float(vy)))
-        self._pub_motion_vz.publish(Float32(data=float(vz)))
+        if publish_diagnostics:
+            self._pub_motion_vx.publish(Float32(data=float(vx)))
+            self._pub_motion_vy.publish(Float32(data=float(vy)))
+            self._pub_motion_vz.publish(Float32(data=float(vz)))
 
         roll, pitch, yaw_deg = self.bot.get_imu_attitude_data(True)
         self._pub_roll.publish(Float32(data=float(roll)))
@@ -1627,9 +1654,10 @@ class YahboomBase(Node):
             )
             self._wheel_mps[i] = speed_mps
             self._wheel_distance_m[i] = distance_m
-            self._wheel_rpm_pubs[i].publish(Float32(data=rpm))
-            self._wheel_mps_pubs[i].publish(Float32(data=speed_mps))
-            self._wheel_distance_pubs[i].publish(Float32(data=distance_m))
+            if publish_diagnostics:
+                self._wheel_rpm_pubs[i].publish(Float32(data=rpm))
+                self._wheel_mps_pubs[i].publish(Float32(data=speed_mps))
+                self._wheel_distance_pubs[i].publish(Float32(data=distance_m))
         stationary = (
             self._encoder_packet_fresh
             and all(
@@ -1667,13 +1695,19 @@ class YahboomBase(Node):
         rr = speed_by_position['rear_right']
         fl = speed_by_position['front_left']
         fr = speed_by_position['front_right']
-        self._pub_fl.publish(Float32(data=fl))
-        self._pub_fr.publish(Float32(data=fr))
-        self._pub_rl.publish(Float32(data=rl))
-        self._pub_rr.publish(Float32(data=rr))
-        self._pub_left.publish(Float32(data=(fl + rl) / 2.0))
-        self._pub_right.publish(Float32(data=rr if 3 in self._excluded_encoders else (fr + rr) / 2.0))
-        self._pub_speed.publish(Float32(data=float(vx)))
+        if publish_diagnostics:
+            self._pub_fl.publish(Float32(data=fl))
+            self._pub_fr.publish(Float32(data=fr))
+            self._pub_rl.publish(Float32(data=rl))
+            self._pub_rr.publish(Float32(data=rr))
+            self._pub_left.publish(Float32(data=(fl + rl) / 2.0))
+            self._pub_right.publish(Float32(
+                data=(
+                    rr if 3 in self._excluded_encoders
+                    else (fr + rr) / 2.0
+                )
+            ))
+            self._pub_speed.publish(Float32(data=float(vx)))
 
         self._publish_yahboom_odom(vx, vy, vz, now)
         self._publish_encoder_health(now)
@@ -1794,7 +1828,7 @@ class YahboomBase(Node):
         # to body-centre distance before applying three-of-four consensus.
         # This uses measured geometry and does not change steering commands.
         front_delta = math.radians(
-            FRONT_STEER_CENTER - self._front_applied_angle
+            self._front_applied_angle - FRONT_STEER_CENTER
         )
         rear_delta = math.radians(
             self._rear_applied_angle - REAR_STEER_CENTER
@@ -1824,9 +1858,8 @@ class YahboomBase(Node):
         if encoder_motion:
             vx = distance_delta / dt
             vy = 0.0
-            # Front linkage is servo-reversed: decreasing command angle is
-            # physical left. Convert it to the conventional positive-left
-            # wheel angle before calculating four-wheel-steering curvature.
+            # Servo-high is physical front-left.  ``curvature`` already uses
+            # the conventional positive-left sign commissioned above.
             vz = vx * curvature
             source = (
                 'wheel_encoder_delta_4ws'

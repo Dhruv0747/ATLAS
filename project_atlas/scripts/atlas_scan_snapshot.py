@@ -10,6 +10,11 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 
+from atlas_scan_geometry import ray_in_base_sector
+
+
+LASER_YAW_DEG = 180.0
+
 
 class ScanSnapshot(Node):
     def __init__(self):
@@ -35,23 +40,35 @@ def summarize(msg):
         if not math.isfinite(distance) or not msg.range_min <= distance <= msg.range_max:
             continue
         angle = msg.angle_min + index * msg.angle_increment
-        points.append((distance, math.degrees(angle), distance * math.cos(angle), distance * math.sin(angle)))
+        raw_degrees = math.degrees(angle)
+        base_angle = angle + math.radians(LASER_YAW_DEG)
+        base_degrees = (math.degrees(base_angle) + 180.0) % 360.0 - 180.0
+        points.append((
+            distance,
+            raw_degrees,
+            base_degrees,
+            distance * math.cos(base_angle),
+            distance * math.sin(base_angle),
+        ))
 
     def sector(center, half_width=15.0):
         values = [
-            distance for distance, angle, _x, _y in points
-            if abs((angle - center + 180.0) % 360.0 - 180.0) <= half_width
+            distance for distance, raw_angle, _base_angle, _x, _y in points
+            if ray_in_base_sector(
+                raw_angle, center, half_width, LASER_YAW_DEG
+            )
         ]
         return round(min(values), 3) if values else None
 
     inside_rover = [
-        (distance, angle, x, y) for distance, angle, x, y in points
+        (distance, base_angle, x, y)
+        for distance, _raw_angle, base_angle, x, y in points
         if -0.20 <= x <= 0.30 and -0.18 <= y <= 0.18
     ]
     nearest = [
-        {"range_m": round(distance, 3), "angle_deg": round(angle, 1),
+        {"range_m": round(distance, 3), "angle_deg": round(base_angle, 1),
          "x_m": round(x, 3), "y_m": round(y, 3)}
-        for distance, angle, x, y in sorted(points)[:12]
+        for distance, _raw_angle, base_angle, x, y in sorted(points)[:12]
     ]
     return {
         "frame": msg.header.frame_id,
