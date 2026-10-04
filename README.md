@@ -111,6 +111,16 @@ with the authoritative YAML committed last. The gate is deployed and mission
 control is `READY`; accepted map ID `d12a1f183177212a3cc8` was preserved. See
 [the acceptance-gate procedure](docs/MAP_ACCEPTANCE_GATE.md).
 
+The deployed TF evidence tracker now makes Slam Toolbox's configured
+1.5-second `transform_timeout` explicit. Source age and future-skew checks use
+the normalized acquisition time, while acceptance reports retain the raw
+stamps and separately identify invalid stamps, true publication-order
+regressions, and excess normalized future skew. Replaying the rejected
+2026-10-04 mapping bag removed its false timestamp error while preserving the
+real 1.221502 m / 20.596114 degree discontinuity failures. The allowed offset
+is capped at 1.5 seconds; TF geometry, coverage-gap, freshness, 0.15 m
+translation, and 5-degree yaw gates are unchanged.
+
 ### Acquisition-time LiDAR filtering — 2026-10-04
 
 The repository LiDAR self-filter now preserves the `/scan_raw` header on

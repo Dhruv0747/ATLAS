@@ -37,6 +37,7 @@ from tf2_ros import Buffer, TransformListener
 from tf2_msgs.msg import TFMessage
 
 from atlas_map_acceptance_core import (
+    COMMISSIONED_SLAM_TF_FUTURE_OFFSET_S,
     EVIDENCE_SCHEMA_VERSION,
     MapAcceptancePolicy,
     TransformJumpTracker,
@@ -93,6 +94,10 @@ class AtlasMissionControl(Node):
         self.declare_parameter("map_acceptance_max_tf_yaw_deg", 5.0)
         self.declare_parameter("map_acceptance_max_closure_m", 0.15)
         self.declare_parameter("map_acceptance_max_closure_yaw_deg", 10.0)
+        self.declare_parameter(
+            "map_acceptance_slam_tf_future_offset_s",
+            COMMISSIONED_SLAM_TF_FUTURE_OFFSET_S,
+        )
         self.declare_parameter("map_acceptance_start_place", "dhruv room")
         self.declare_parameter("map_acceptance_goal_place", "hall")
         self.home_file = Path.home() / ".config/project_atlas/home_pose.json"
@@ -154,6 +159,22 @@ class AtlasMissionControl(Node):
                 ),
             ),
         )
+        self.map_acceptance_slam_tf_future_offset_s = float(
+            self.get_parameter(
+                "map_acceptance_slam_tf_future_offset_s"
+            ).value
+        )
+        if (
+            not math.isfinite(self.map_acceptance_slam_tf_future_offset_s)
+            or self.map_acceptance_slam_tf_future_offset_s < 0.0
+            or self.map_acceptance_slam_tf_future_offset_s
+            > self.map_acceptance_policy.max_tf_source_future_offset_s
+        ):
+            raise ValueError(
+                "map_acceptance_slam_tf_future_offset_s must be finite and "
+                "within the commissioned 0.0-"
+                f"{self.map_acceptance_policy.max_tf_source_future_offset_s:.1f}s bound"
+            )
         self.map_acceptance_start_place = self.clean_place_name(
             str(self.get_parameter("map_acceptance_start_place").value)
         )
@@ -208,7 +229,14 @@ class AtlasMissionControl(Node):
         self.localization_samples = deque(maxlen=30)
         self.tracker_paused_for_goal = False
         self.map_acceptance_lock = Lock()
-        self.map_tf_tracker = TransformJumpTracker()
+        self.map_tf_tracker = TransformJumpTracker(
+            source_future_offset_s=(
+                self.map_acceptance_slam_tf_future_offset_s
+            ),
+            max_source_future_skew_s=(
+                self.map_acceptance_policy.max_tf_source_future_skew_s
+            ),
+        )
         self.global_footprint_observation = None
         self.create_timer(1.0, self.publish_current_status)
         self.safety_subscription = self.create_subscription(

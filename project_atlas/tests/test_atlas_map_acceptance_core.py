@@ -5,6 +5,7 @@ import ast
 import importlib.util
 import math
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -35,8 +36,19 @@ def passing_evidence():
             "time_order_valid": True,
             "source_stamp_started_unix": 100.5,
             "source_stamp_ended_unix": 199.0,
+            "raw_source_stamp_started_unix": 102.0,
+            "raw_source_stamp_ended_unix": 200.5,
+            "source_future_offset_s": 1.5,
+            "source_future_skew_limit_s": 1.0,
             "max_source_age_s": 0.1,
+            "max_raw_source_future_s": 1.4,
+            "max_normalized_source_future_s": 0.0,
+            "source_stamp_valid": True,
             "source_time_order_valid": True,
+            "source_future_skew_valid": True,
+            "invalid_source_stamp_count": 0,
+            "source_regression_count": 0,
+            "max_source_regression_s": 0.0,
         },
         "round_trip_closure": {
             "session_id": "session-1",
@@ -130,6 +142,100 @@ class MapAcceptanceCoreTests(unittest.TestCase):
         self.assertEqual(result["observation_started_unix"], 101.0)
         self.assertAlmostEqual(result["max_sample_gap_s"], 1.0)
 
+    def test_tracker_normalizes_configured_slam_future_offset(self):
+        tracker = MODULE.TransformJumpTracker(source_future_offset_s=1.5)
+        tracker.begin("session-1", 100.0, 100.1)
+        tracker.observe(0.0, 0.0, 0.0, 101.0, 102.4)
+        tracker.observe(0.1, 0.0, 0.0, 102.0, 103.4)
+        result = tracker.snapshot()
+        self.assertAlmostEqual(result["raw_source_stamp_started_unix"], 102.4)
+        self.assertAlmostEqual(result["raw_source_stamp_ended_unix"], 103.4)
+        self.assertAlmostEqual(result["source_stamp_started_unix"], 100.9)
+        self.assertAlmostEqual(result["source_stamp_ended_unix"], 101.9)
+        self.assertAlmostEqual(result["source_future_offset_s"], 1.5)
+        self.assertAlmostEqual(result["max_raw_source_future_s"], 1.4)
+        self.assertAlmostEqual(result["max_normalized_source_future_s"], 0.0)
+        self.assertAlmostEqual(result["max_source_age_s"], 0.1)
+        self.assertTrue(result["source_time_order_valid"])
+        self.assertTrue(result["source_future_skew_valid"])
+
+    def test_source_regression_and_future_skew_are_distinct(self):
+        tracker = MODULE.TransformJumpTracker(source_future_offset_s=1.5)
+        tracker.begin("session-1", 100.0, 100.1)
+        tracker.observe(0.0, 0.0, 0.0, 101.0, 102.4)
+        tracker.observe(9.0, 0.0, math.radians(90.0), 102.0, 102.3)
+        tracker.observe(0.1, 0.0, math.radians(2.0), 103.0, 104.4)
+        result = tracker.snapshot()
+        self.assertFalse(result["source_time_order_valid"])
+        self.assertEqual(result["source_regression_count"], 1)
+        self.assertAlmostEqual(result["max_source_regression_s"], 0.1)
+        self.assertTrue(result["source_future_skew_valid"])
+        self.assertEqual(result["sample_count"], 2)
+        self.assertAlmostEqual(result["max_translation_m"], 0.1)
+        self.assertAlmostEqual(result["max_yaw_deg"], 2.0)
+
+        tracker.begin("session-2", 200.0, 200.1)
+        tracker.observe(0.0, 0.0, 0.0, 201.0, 202.4)
+        tracker.observe(9.0, 0.0, math.radians(90.0), 202.0, 204.6)
+        tracker.observe(0.1, 0.0, math.radians(2.0), 203.0, 204.4)
+        result = tracker.snapshot()
+        self.assertTrue(result["source_time_order_valid"])
+        self.assertEqual(result["source_regression_count"], 0)
+        self.assertFalse(result["source_future_skew_valid"])
+        self.assertAlmostEqual(result["max_normalized_source_future_s"], 1.1)
+        # Rejected timestamps must not manufacture geometry or rebase the
+        # next valid sample. The two-second accepted-sample gap remains visible.
+        self.assertEqual(result["sample_count"], 2)
+        self.assertAlmostEqual(result["max_translation_m"], 0.1)
+        self.assertAlmostEqual(result["max_yaw_deg"], 2.0)
+        self.assertAlmostEqual(result["max_sample_gap_s"], 2.0)
+
+    def test_invalid_source_sample_does_not_rebase_geometry(self):
+        tracker = MODULE.TransformJumpTracker(source_future_offset_s=1.5)
+        tracker.begin("session-1", 100.0, 100.1)
+        tracker.observe(0.0, 0.0, 0.0, 101.0, 102.4)
+        tracker.observe(20.0, 0.0, math.pi, 102.0, None)
+        tracker.observe(0.2, 0.0, math.radians(3.0), 103.0, 104.4)
+        result = tracker.snapshot()
+        self.assertFalse(result["source_stamp_valid"])
+        self.assertEqual(result["invalid_source_stamp_count"], 1)
+        self.assertEqual(result["sample_count"], 2)
+        self.assertAlmostEqual(result["max_translation_m"], 0.2)
+        self.assertAlmostEqual(result["max_yaw_deg"], 3.0)
+
+    def test_equal_source_stamp_pose_correction_is_still_measured(self):
+        tracker = MODULE.TransformJumpTracker(source_future_offset_s=1.5)
+        tracker.begin("session-1", 100.0, 100.1)
+        tracker.observe(0.0, 0.0, 0.0, 101.0, 102.4)
+        tracker.observe(0.3, 0.0, math.radians(7.0), 101.1, 102.4)
+        result = tracker.snapshot()
+        self.assertTrue(result["source_time_order_valid"])
+        self.assertEqual(result["source_regression_count"], 0)
+        self.assertAlmostEqual(result["max_translation_m"], 0.3)
+        self.assertAlmostEqual(result["max_yaw_deg"], 7.0)
+        self.assertAlmostEqual(result["max_translation_observation_unix"], 101.1)
+        self.assertAlmostEqual(result["max_translation_source_unix"], 100.9)
+
+    def test_evaluator_reports_regression_and_future_skew_separately(self):
+        evidence = passing_evidence()
+        evidence["tf_jump"]["source_time_order_valid"] = False
+        evidence["tf_jump"]["source_regression_count"] = 1
+        evidence["tf_jump"]["max_source_regression_s"] = 0.2
+        failures = evaluate(evidence)
+        self.assertTrue(any("regressed in publication order" in item
+                            for item in failures))
+        self.assertFalse(any("normalized source future skew" in item
+                             for item in failures))
+
+        evidence = passing_evidence()
+        evidence["tf_jump"]["source_future_skew_valid"] = False
+        evidence["tf_jump"]["max_normalized_source_future_s"] = 1.01
+        failures = evaluate(evidence)
+        self.assertTrue(any("normalized source future skew" in item
+                            for item in failures))
+        self.assertFalse(any("regressed in publication order" in item
+                             for item in failures))
+
     def test_sparse_or_non_monotonic_tf_evidence_is_rejected(self):
         evidence = passing_evidence()
         evidence["tf_jump"]["max_sample_gap_s"] = 5.01
@@ -149,8 +255,31 @@ class MapAcceptanceCoreTests(unittest.TestCase):
 
         evidence = passing_evidence()
         evidence["tf_jump"]["source_time_order_valid"] = False
-        self.assertTrue(any("source timestamps are invalid" in item
+        self.assertTrue(any("source timestamps regressed" in item
                             for item in evaluate(evidence)))
+
+    def test_mission_offset_matches_slam_toolbox_transform_timeout(self):
+        project = Path(__file__).parents[1]
+        slam_unit = (
+            project / "systemd" / "user" / "atlas-slam-fast.service"
+        ).read_text(encoding="utf-8")
+        mission_unit = (
+            project / "systemd" / "user" / "atlas-mission-control.service"
+        ).read_text(encoding="utf-8")
+        slam_offset = float(
+            re.search(r"transform_timeout:=(\d+(?:\.\d+)?)", slam_unit).group(1)
+        )
+        mission_offset = float(
+            re.search(
+                r"map_acceptance_slam_tf_future_offset_s:=(\d+(?:\.\d+)?)",
+                mission_unit,
+            ).group(1)
+        )
+        self.assertEqual(slam_offset, mission_offset)
+        self.assertEqual(
+            mission_offset,
+            MODULE.COMMISSIONED_SLAM_TF_FUTURE_OFFSET_S,
+        )
 
     def test_no_motion_attestation_is_required(self):
         evidence = passing_evidence()

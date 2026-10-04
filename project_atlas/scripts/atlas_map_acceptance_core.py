@@ -13,8 +13,10 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import uuid
 
 
-EVIDENCE_SCHEMA_VERSION = 2
+EVIDENCE_SCHEMA_VERSION = 3
 UNBOUND_LEGACY_MAP_ID = "legacy-unversioned-no-accepted-map"
+COMMISSIONED_SLAM_TF_FUTURE_OFFSET_S = 1.5
+MAX_TF_SOURCE_FUTURE_S = 1.0
 
 
 @dataclass(frozen=True)
@@ -30,6 +32,8 @@ class MapAcceptancePolicy:
     max_evidence_age_s: float = 5.0
     max_tf_sample_gap_s: float = 5.0
     max_tf_source_age_s: float = 5.0
+    max_tf_source_future_offset_s: float = COMMISSIONED_SLAM_TF_FUTURE_OFFSET_S
+    max_tf_source_future_skew_s: float = MAX_TF_SOURCE_FUTURE_S
     min_footprint_length_m: float = 0.49
     min_footprint_width_m: float = 0.35
     min_candidate_clearance_m: float = 0.18
@@ -103,9 +107,30 @@ def polygon_dimensions(points: Sequence[Tuple[float, float]]) -> Dict[str, Any]:
 
 
 class TransformJumpTracker:
-    """Track publication-order map->odom discontinuities for one map session."""
+    """Track publication-order map->odom discontinuities for one map session.
 
-    def __init__(self) -> None:
+    Slam Toolbox intentionally future-dates map->odom by ``transform_timeout``.
+    The configured offset is removed only for timestamp validity/age checks;
+    raw stamps remain in the evidence and pose-jump sampling is unchanged.
+    """
+
+    def __init__(
+        self,
+        *,
+        source_future_offset_s: float = 0.0,
+        max_source_future_skew_s: float = MAX_TF_SOURCE_FUTURE_S,
+    ) -> None:
+        source_future_offset_s = float(source_future_offset_s)
+        max_source_future_skew_s = float(max_source_future_skew_s)
+        if not math.isfinite(source_future_offset_s) or source_future_offset_s < 0.0:
+            raise ValueError("source future offset must be finite and non-negative")
+        if (
+            not math.isfinite(max_source_future_skew_s)
+            or max_source_future_skew_s < 0.0
+        ):
+            raise ValueError("source future-skew limit must be finite and non-negative")
+        self.source_future_offset_s = source_future_offset_s
+        self.max_source_future_skew_s = max_source_future_skew_s
         self.session_id: Optional[str] = None
         self.session_started_unix: Optional[float] = None
         self.monitor_started_unix: Optional[float] = None
@@ -118,8 +143,21 @@ class TransformJumpTracker:
         self.time_order_valid = True
         self.source_stamp_started_unix: Optional[float] = None
         self.source_stamp_ended_unix: Optional[float] = None
+        self.raw_source_stamp_started_unix: Optional[float] = None
+        self.raw_source_stamp_ended_unix: Optional[float] = None
         self.max_source_age_s = 0.0
+        self.max_raw_source_future_s = 0.0
+        self.max_normalized_source_future_s = 0.0
+        self.source_stamp_valid = True
         self.source_time_order_valid = True
+        self.source_future_skew_valid = True
+        self.invalid_source_stamp_count = 0
+        self.source_regression_count = 0
+        self.max_source_regression_s = 0.0
+        self.max_translation_observation_unix: Optional[float] = None
+        self.max_translation_source_unix: Optional[float] = None
+        self.max_yaw_observation_unix: Optional[float] = None
+        self.max_yaw_source_unix: Optional[float] = None
         self._last: Optional[Tuple[float, float, float]] = None
         self._last_sample_unix: Optional[float] = None
         self._last_source_unix: Optional[float] = None
@@ -137,8 +175,21 @@ class TransformJumpTracker:
         self.time_order_valid = True
         self.source_stamp_started_unix = None
         self.source_stamp_ended_unix = None
+        self.raw_source_stamp_started_unix = None
+        self.raw_source_stamp_ended_unix = None
         self.max_source_age_s = 0.0
+        self.max_raw_source_future_s = 0.0
+        self.max_normalized_source_future_s = 0.0
+        self.source_stamp_valid = True
         self.source_time_order_valid = True
+        self.source_future_skew_valid = True
+        self.invalid_source_stamp_count = 0
+        self.source_regression_count = 0
+        self.max_source_regression_s = 0.0
+        self.max_translation_observation_unix = None
+        self.max_translation_source_unix = None
+        self.max_yaw_observation_unix = None
+        self.max_yaw_source_unix = None
         self._last = None
         self._last_sample_unix = None
         self._last_source_unix = None
@@ -155,43 +206,85 @@ class TransformJumpTracker:
         if self.session_id is None or not all(math.isfinite(value) for value in values):
             return
         x_m, y_m, yaw_rad, now_unix = values
-        if self.observation_started_unix is None:
-            self.observation_started_unix = now_unix
-        if self._last_sample_unix is not None:
-            gap_s = now_unix - self._last_sample_unix
-            if gap_s < 0.0:
-                self.time_order_valid = False
-            else:
-                self.max_sample_gap_s = max(self.max_sample_gap_s, gap_s)
         source_stamp = None
         try:
             source_stamp = float(source_unix) if source_unix is not None else None
         except (TypeError, ValueError):
             source_stamp = None
-        if source_stamp is None or not math.isfinite(source_stamp) or source_stamp <= 0.0:
-            self.source_time_order_valid = False
+        if source_stamp is None or not math.isfinite(source_stamp):
+            self.source_stamp_valid = False
+            self.invalid_source_stamp_count += 1
         else:
+            if self.raw_source_stamp_started_unix is None:
+                self.raw_source_stamp_started_unix = source_stamp
+            self.raw_source_stamp_ended_unix = source_stamp
+            self.max_raw_source_future_s = max(
+                self.max_raw_source_future_s,
+                max(0.0, source_stamp - now_unix),
+            )
+            if source_stamp <= 0.0:
+                self.source_stamp_valid = False
+                self.invalid_source_stamp_count += 1
+                source_stamp = None
+        if source_stamp is not None:
+            normalized_source_stamp = source_stamp - self.source_future_offset_s
+            if (
+                self._last_source_unix is not None
+                and normalized_source_stamp < self._last_source_unix
+            ):
+                self.source_time_order_valid = False
+                self.source_regression_count += 1
+                self.max_source_regression_s = max(
+                    self.max_source_regression_s,
+                    self._last_source_unix - normalized_source_stamp,
+                )
+                # A regressed transform remains fail-closed evidence, but it
+                # must not become the geometric baseline for the next valid
+                # sample and manufacture a pose jump.
+                return
+            source_age_s = now_unix - normalized_source_stamp
+            normalized_future_s = max(0.0, -source_age_s)
+            self.max_normalized_source_future_s = max(
+                self.max_normalized_source_future_s,
+                normalized_future_s,
+            )
+            if normalized_future_s > self.max_source_future_skew_s:
+                self.source_future_skew_valid = False
+                # Likewise, a transform outside the commissioned future-skew
+                # allowance is diagnostic evidence only, not a pose sample.
+                return
+            if self._last_sample_unix is not None:
+                gap_s = now_unix - self._last_sample_unix
+                if gap_s < 0.0:
+                    self.time_order_valid = False
+                    return
+                self.max_sample_gap_s = max(self.max_sample_gap_s, gap_s)
+            if self.observation_started_unix is None:
+                self.observation_started_unix = now_unix
             if self.source_stamp_started_unix is None:
-                self.source_stamp_started_unix = source_stamp
-            if self._last_source_unix is not None and source_stamp < self._last_source_unix:
-                self.source_time_order_valid = False
-            source_age_s = now_unix - source_stamp
-            if source_age_s < -1.0:
-                self.source_time_order_valid = False
-            else:
-                self.max_source_age_s = max(self.max_source_age_s, max(0.0, source_age_s))
-            self.source_stamp_ended_unix = source_stamp
-            self._last_source_unix = source_stamp
+                self.source_stamp_started_unix = normalized_source_stamp
+            self.max_source_age_s = max(
+                self.max_source_age_s,
+                max(0.0, source_age_s),
+            )
+            self.source_stamp_ended_unix = normalized_source_stamp
+            self._last_source_unix = normalized_source_stamp
+        else:
+            # Invalid or absent source time fails the session, but does not
+            # rebase geometry, receipt time, or accepted sample count.
+            return
         if self._last is not None:
             previous_x, previous_y, previous_yaw = self._last
-            self.max_translation_m = max(
-                self.max_translation_m,
-                math.hypot(x_m - previous_x, y_m - previous_y),
-            )
-            self.max_yaw_deg = max(
-                self.max_yaw_deg,
-                abs(math.degrees(angle_delta(previous_yaw, yaw_rad))),
-            )
+            translation_m = math.hypot(x_m - previous_x, y_m - previous_y)
+            yaw_deg = abs(math.degrees(angle_delta(previous_yaw, yaw_rad)))
+            if translation_m > self.max_translation_m:
+                self.max_translation_m = translation_m
+                self.max_translation_observation_unix = now_unix
+                self.max_translation_source_unix = normalized_source_stamp
+            if yaw_deg > self.max_yaw_deg:
+                self.max_yaw_deg = yaw_deg
+                self.max_yaw_observation_unix = now_unix
+                self.max_yaw_source_unix = normalized_source_stamp
         self._last = (x_m, y_m, yaw_rad)
         self._last_sample_unix = now_unix
         self.sample_count += 1
@@ -211,8 +304,29 @@ class TransformJumpTracker:
             "time_order_valid": self.time_order_valid,
             "source_stamp_started_unix": self.source_stamp_started_unix,
             "source_stamp_ended_unix": self.source_stamp_ended_unix,
+            "raw_source_stamp_started_unix": self.raw_source_stamp_started_unix,
+            "raw_source_stamp_ended_unix": self.raw_source_stamp_ended_unix,
+            "source_future_offset_s": round(self.source_future_offset_s, 6),
+            "source_future_skew_limit_s": round(
+                self.max_source_future_skew_s, 6
+            ),
             "max_source_age_s": round(self.max_source_age_s, 6),
+            "max_raw_source_future_s": round(self.max_raw_source_future_s, 6),
+            "max_normalized_source_future_s": round(
+                self.max_normalized_source_future_s, 6
+            ),
+            "source_stamp_valid": self.source_stamp_valid,
             "source_time_order_valid": self.source_time_order_valid,
+            "source_future_skew_valid": self.source_future_skew_valid,
+            "invalid_source_stamp_count": self.invalid_source_stamp_count,
+            "source_regression_count": self.source_regression_count,
+            "max_source_regression_s": round(self.max_source_regression_s, 6),
+            "max_translation_observation_unix": (
+                self.max_translation_observation_unix
+            ),
+            "max_translation_source_unix": self.max_translation_source_unix,
+            "max_yaw_observation_unix": self.max_yaw_observation_unix,
+            "max_yaw_source_unix": self.max_yaw_source_unix,
         }
 
 
@@ -687,8 +801,44 @@ def evaluate_acceptance_evidence(
             )
         if tf_jump.get("time_order_valid") is not True:
             failures.append("map->odom observation timestamps are not monotonic")
+        source_offset = _finite_number(tf_jump.get("source_future_offset_s"))
+        if source_offset is None:
+            failures.append("map->odom source future-offset normalization is missing")
+        elif (
+            source_offset < 0.0
+            or source_offset > policy.max_tf_source_future_offset_s
+        ):
+            failures.append(
+                "map->odom source future-offset normalization "
+                f"{source_offset:.3f}s is outside the commissioned bound "
+                f"0.000-{policy.max_tf_source_future_offset_s:.3f}s"
+            )
+        source_future_limit = _finite_number(
+            tf_jump.get("source_future_skew_limit_s")
+        )
+        if source_future_limit is None:
+            failures.append("map->odom source future-skew limit is missing")
+        elif (
+            source_future_limit < 0.0
+            or source_future_limit > policy.max_tf_source_future_skew_s
+        ):
+            failures.append(
+                "map->odom source future-skew limit "
+                f"{source_future_limit:.3f}s exceeds the commissioned "
+                f"{policy.max_tf_source_future_skew_s:.3f}s bound"
+            )
         source_started = _finite_number(tf_jump.get("source_stamp_started_unix"))
         source_ended = _finite_number(tf_jump.get("source_stamp_ended_unix"))
+        raw_source_started = _finite_number(
+            tf_jump.get("raw_source_stamp_started_unix")
+        )
+        raw_source_ended = _finite_number(
+            tf_jump.get("raw_source_stamp_ended_unix")
+        )
+        if raw_source_started is None:
+            failures.append("map->odom raw source timestamp start is missing")
+        if raw_source_ended is None:
+            failures.append("map->odom raw source timestamp end is missing")
         if source_started is None:
             failures.append("map->odom source timestamp start is missing")
         elif source_started < session_started_unix - 1.0:
@@ -705,8 +855,91 @@ def evaluate_acceptance_evidence(
                 f"map->odom source age {source_age:.3f}s exceeds "
                 f"{policy.max_tf_source_age_s:.3f}s"
             )
-        if tf_jump.get("source_time_order_valid") is not True:
-            failures.append("map->odom source timestamps are invalid or non-monotonic")
+        if (
+            source_offset is not None
+            and raw_source_started is not None
+            and source_started is not None
+            and abs(raw_source_started - source_offset - source_started) > 1e-5
+        ):
+            failures.append("map->odom source timestamp start normalization is inconsistent")
+        if (
+            source_offset is not None
+            and raw_source_ended is not None
+            and source_ended is not None
+            and abs(raw_source_ended - source_offset - source_ended) > 1e-5
+        ):
+            failures.append("map->odom source timestamp end normalization is inconsistent")
+        invalid_source_stamps = tf_jump.get("invalid_source_stamp_count")
+        if (
+            isinstance(invalid_source_stamps, bool)
+            or not isinstance(invalid_source_stamps, int)
+            or invalid_source_stamps < 0
+        ):
+            failures.append("map->odom invalid source-timestamp count is missing")
+        elif invalid_source_stamps > 0:
+            failures.append(
+                "map->odom source timestamps contain "
+                f"{invalid_source_stamps} invalid value(s)"
+            )
+        if tf_jump.get("source_stamp_valid") is not True:
+            failures.append("map->odom source timestamps contain invalid values")
+        source_regressions = tf_jump.get("source_regression_count")
+        max_source_regression = _finite_number(
+            tf_jump.get("max_source_regression_s")
+        )
+        regression_detected = tf_jump.get("source_time_order_valid") is not True
+        if (
+            isinstance(source_regressions, bool)
+            or not isinstance(source_regressions, int)
+            or source_regressions < 0
+        ):
+            failures.append("map->odom source regression count is missing")
+        elif source_regressions > 0:
+            regression_detected = True
+        if max_source_regression is None or max_source_regression < 0.0:
+            failures.append("map->odom maximum source regression is missing")
+        elif max_source_regression > 0.0:
+            regression_detected = True
+        if regression_detected:
+            detail = (
+                f" by up to {max_source_regression:.3f}s"
+                if max_source_regression is not None
+                and max_source_regression > 0.0
+                else ""
+            )
+            failures.append(
+                "map->odom source timestamps regressed in publication order"
+                + detail
+            )
+        raw_source_future = _finite_number(
+            tf_jump.get("max_raw_source_future_s")
+        )
+        if raw_source_future is None or raw_source_future < 0.0:
+            failures.append("map->odom raw source future-skew diagnostic is missing")
+        normalized_source_future = _finite_number(
+            tf_jump.get("max_normalized_source_future_s")
+        )
+        future_skew_detected = tf_jump.get("source_future_skew_valid") is not True
+        if normalized_source_future is None or normalized_source_future < 0.0:
+            failures.append("map->odom normalized source future skew is missing")
+        else:
+            if normalized_source_future > policy.max_tf_source_future_skew_s:
+                future_skew_detected = True
+            if (
+                source_future_limit is not None
+                and source_future_limit >= 0.0
+                and normalized_source_future > source_future_limit
+            ):
+                future_skew_detected = True
+        if future_skew_detected:
+            detail = (
+                f" {normalized_source_future:.3f}s exceeds "
+                f"{policy.max_tf_source_future_skew_s:.3f}s"
+                if normalized_source_future is not None
+                and normalized_source_future >= 0.0
+                else " is invalid"
+            )
+            failures.append("map->odom normalized source future skew" + detail)
         _check_maximum(
             failures,
             tf_jump,

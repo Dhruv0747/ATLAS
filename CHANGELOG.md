@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-04 — Normalize Slam Toolbox TF evidence timestamps
+
+- Made the commissioned 1.5-second Slam Toolbox `transform_timeout` an
+  explicit mission-control parameter, capped it at that commissioned value,
+  and kept the systemd values covered by an offline drift test.
+- Bumped map-acceptance evidence to schema 3. Reports now retain raw and
+  normalized map-to-odom stamps, the applied offset, raw/normalized future
+  skew, invalid-stamp counts, and regression magnitude/count diagnostics.
+- Split fail-closed source-timestamp failures into invalid values, true
+  publication-order regression, and excess future skew after normalization.
+  TF geometry sampling, receipt-time gap coverage, five-second age limits,
+  0.15 m translation, and 5-degree yaw limits are unchanged.
+- Added focused offline regressions and replayed the real rejected mapping bag:
+  the false timestamp error cleared while the genuine 1.221502 m / 20.596114
+  degree discontinuities remained rejected.
+- Deployed the checker and restarted only `atlas-mission-control.service` while
+  ATLAS was stationary. Saved-map localization, accepted map ID
+  `d12a1f183177212a3cc8`, and zero velocity were verified afterward. Rollback
+  backup: `deploy_backups/tf_timestamp_20261004_165842` on the Jetson.
+
 ## 2026-10-04 — Avoid unused camera payload construction
 
 - Kept Argus capture, rotation, optional enhancement, configured resolution,
