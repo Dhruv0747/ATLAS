@@ -64,11 +64,13 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("remote_linear_deadband", 0.06)
         self.declare_parameter("remote_angular_deadband", 0.12)
         self.declare_parameter("remote_steer_hold_s", 0.35)
-        # Manual teaching must not require fine analogue-stick accuracy. Full
-        # stick remains available, but mapping mode alone is capped to a pace
-        # that gives scan matching several LiDAR revolutions through a turn.
+        # Manual teaching must not require fine analogue-stick accuracy. Keep
+        # the mapping-only linear cap so SLAM sees several LiDAR revolutions
+        # per metre, but preserve the commissioned remote steering authority.
+        # Clipping angular input to 0.45 rad/s made tight indoor steering feel
+        # heavy and forced the operator to fight the route through doorways.
         self.declare_parameter("mapping_remote_max_linear", 0.30)
-        self.declare_parameter("mapping_remote_max_angular", 0.45)
+        self.declare_parameter("mapping_remote_max_angular", 1.20)
         self.declare_parameter("auto_front_stop_m", 0.30)
         self.declare_parameter("auto_rear_stop_m", 0.30)
         # Rover half-width is 0.18 m; preserve the commissioned 0.10 m

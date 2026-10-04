@@ -1,11 +1,12 @@
 # Changelog
 
-## 2026-10-04 — Make manual mapping tolerant of full-stick driving
+## 2026-10-04 — Keep manual mapping slow without weakening steering
 
-- Added a mapping-only remote teaching envelope of 0.30 m/s linear and
-  0.45 rad/s angular. Full joystick travel is still easy to use, but it no
-  longer requests the recorded 0.52 m/s plus 1.20 rad/s high-curvature motion
-  that coincided with the two largest SLAM corrections.
+- Added a mapping-only remote teaching linear envelope of 0.30 m/s so SLAM
+  still receives several LiDAR revolutions per metre.
+- Restored the commissioned 1.20 rad/s remote steering authority in mapping
+  mode after the initial 0.45 rad/s angular cap made tight indoor steering
+  heavy and forced the operator to fight doorway turns.
 - Kept ordinary remote driving outside `MAPPING` unchanged and preserved the
   physical/voice stop path ahead of command conditioning.
 - Exposed the active mapping limit and both caps through

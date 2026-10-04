@@ -57,7 +57,7 @@ class MappingRemoteLimitTests(unittest.TestCase):
         self.mux.remote_angular_deadband = 0.12
         self.mux.remote_steer_hold_s = 0.35
         self.mux.mapping_remote_max_linear = 0.30
-        self.mux.mapping_remote_max_angular = 0.45
+        self.mux.mapping_remote_max_angular = 1.20
         self.mux._remote_held_yaw = 0.0
         self.mux._remote_last_steer_rx = 0.0
         self.mux._remote_raw_steer = 0.0
@@ -65,13 +65,13 @@ class MappingRemoteLimitTests(unittest.TestCase):
         self.mux.active_name = None
         self.mux.publish_stop = Mock()
 
-    def test_full_stick_is_capped_only_while_mapping(self):
+    def test_mapping_caps_speed_but_keeps_commissioned_steering(self):
         self.mux.operating_mode = "MAPPING"
         self.mux.on_command("REMOTE", twist(0.52, 1.20))
 
         command = self.mux.channels["REMOTE"].command
         self.assertAlmostEqual(command.linear.x, 0.30)
-        self.assertAlmostEqual(command.angular.z, 0.45)
+        self.assertAlmostEqual(command.angular.z, 1.20)
         self.assertTrue(self.mux.channels["REMOTE"].engaged)
 
         self.mux.operating_mode = "LOCALIZATION"
@@ -86,7 +86,7 @@ class MappingRemoteLimitTests(unittest.TestCase):
 
         command = self.mux.channels["REMOTE"].command
         self.assertAlmostEqual(command.linear.x, -0.30)
-        self.assertAlmostEqual(command.angular.z, -0.45)
+        self.assertAlmostEqual(command.angular.z, -1.20)
 
     def test_mapping_limit_preserves_small_deliberate_commands(self):
         self.mux.operating_mode = "MAPPING"
