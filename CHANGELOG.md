@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-05 — Make manual mapping readiness explicit and record complete evidence
+
+- Manual mapping now writes a durable `starting` session immediately and tells
+  the operator to keep ATLAS stopped while saved-map localization is replaced
+  by fresh SLAM/Nav2. It changes to `active`/`drive_ready=true` only after the
+  fresh mapping stack is ready, preventing route movement from preceding the
+  session and its map-quality observation window.
+- The demonstration recorder now includes raw LiDAR, encoder health, control
+  policy, bounded commissioning/recovery command paths, and the IM10A shadow
+  candidate. Future failures can be classified from one bag instead of losing
+  the evidence needed to separate sensors, command ownership and odometry.
+- Steering calibration, limits, direction and response are unchanged.
+
 ## 2026-10-04 — Keep manual mapping slow without weakening steering
 
 - Added a mapping-only remote teaching linear envelope of 0.30 m/s so SLAM

@@ -1169,16 +1169,33 @@ class AtlasMissionControl(Node):
         remote.  It deliberately leaves explore_lite stopped, but creates the
         same map-session identity used by the atomic map acceptance path.
         """
-        self.ensure_mapping_stack()
         session = {
             "id": uuid.uuid4().hex,
-            "state": "active",
+            "state": "starting",
             "mode": "manual_teaching",
             "started_unix": time.time(),
+            "drive_ready": False,
         }
         self.atomic_write_json(self.mapping_session_file, session)
-        self.begin_map_acceptance_observation(session)
+        self.status(
+            f"MANUAL MAPPING PREPARING session={session['id'][:8]}; "
+            "KEEP ATLAS STOPPED until MANUAL MAPPING ACTIVE"
+        )
         try:
+            self.ensure_mapping_stack()
+            # Do not let a saved-map localization transform or the stack-change
+            # discontinuity enter this session's quality evidence.  The
+            # observation window starts only after fresh SLAM and Nav2 have
+            # passed ensure_mapping_stack().
+            session.update(
+                {
+                    "state": "active",
+                    "drive_ready": True,
+                    "ready_unix": time.time(),
+                }
+            )
+            self.atomic_write_json(self.mapping_session_file, session)
+            self.begin_map_acceptance_observation(session)
             self.set_home()
         except Exception:
             self.mapping_session_file.unlink(missing_ok=True)

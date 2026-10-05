@@ -519,6 +519,31 @@ class MapAcceptanceCoreTests(unittest.TestCase):
         self.assertFalse(any(isinstance(node, ast.Attribute) and node.attr in forbidden
                              for node in ast.walk(method)))
 
+    def test_manual_mapping_session_is_not_active_before_stack_is_ready(self):
+        source = Path(__file__).parents[1] / "scripts" / "atlas_mission_control.py"
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        cls = next(node for node in tree.body if isinstance(node, ast.ClassDef)
+                   and node.name == "AtlasMissionControl")
+        method = next(node for node in cls.body if isinstance(node, ast.FunctionDef)
+                      and node.name == "start_manual_mapping")
+        ensure_line = next(node.lineno for node in ast.walk(method)
+                           if isinstance(node, ast.Call)
+                           and isinstance(node.func, ast.Attribute)
+                           and node.func.attr == "ensure_mapping_stack")
+        writes = [node for node in ast.walk(method)
+                  if isinstance(node, ast.Call)
+                  and isinstance(node.func, ast.Attribute)
+                  and node.func.attr == "atomic_write_json"]
+        self.assertEqual(len(writes), 2)
+        self.assertLess(writes[0].lineno, ensure_line)
+        self.assertGreater(writes[1].lineno, ensure_line)
+        source_text = ast.get_source_segment(
+            source.read_text(encoding="utf-8"), method
+        )
+        self.assertIn('"state": "starting"', source_text)
+        self.assertIn('"drive_ready": False', source_text)
+        self.assertIn('"drive_ready": True', source_text)
+
 
 if __name__ == "__main__":
     unittest.main()

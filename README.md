@@ -123,10 +123,20 @@ translation, and 5-degree yaw gates are unchanged.
 
 Manual map teaching does not require the operator to reproduce an exact path
 or feather the joystick precisely. While `/atlas/mode` is `MAPPING`, the
-physical remote is capped to 0.30 m/s and 0.45 rad/s; outside mapping, its
-commissioned response is unchanged. The mapping envelope and limits are
-reported on `/atlas/control_policy`. Emergency-stop handling remains upstream
-of this conditioning and retains absolute priority.
+physical remote is capped to 0.30 m/s linear speed while retaining the
+commissioned 1.20 rad/s steering authority; outside mapping, its commissioned
+response is unchanged. The mapping envelope and limits are reported on
+`/atlas/control_policy`. Emergency-stop handling remains upstream of this
+conditioning and retains absolute priority.
+
+Starting manual mapping now has an explicit two-stage readiness contract. The
+durable session first reports `state=starting`, `drive_ready=false`, and
+`MANUAL MAPPING PREPARING`; ATLAS must stay stopped. Only after fresh SLAM and
+Nav2 are ready does it report `state=active`, `drive_ready=true`, save the new
+session Home and begin map-quality observation. This prevents a manually
+driven route from starting before its map evidence exists. Demonstration bags
+also include raw/filtered LiDAR, encoder health, control policy, all bounded
+command paths, and the IM10A shadow candidate for complete failure forensics.
 
 ### Acquisition-time LiDAR filtering — 2026-10-04
 
