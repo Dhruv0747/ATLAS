@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+import json, os, pwd, re, subprocess, time
+from pathlib import Path
+
+OUT_JSON = Path("/home/atlas-runner/atlas_health.json")
+OUT_TEXT = Path("/home/atlas-runner/atlas_health.txt")
+RUNNER_USER = "atlas-runner"
+JETSON_USER = "jetson"
+ROS_SETUP = "/opt/ros/humble/setup.bash"
+
+REQUIRED_ACTIVE = [
+    "atlas-mission-control.service",
+    "atlas-cmd-vel-mux.service",
+    "atlas-safety-status.service",
+    "atlas-ekf.service",
+    "atlas-lidar.service",
+    "atlas-scan-filter.service",
+    "atlas-uno-r4-sensor-hub.service",
+    "rover-base-telemetry.service",
+    "rover-radar.service",
+]
+
+def run(cmd, timeout=8, user=None, shell=False):
+    if user:
+        cmd = ["runuser", "-u", user, "--", "bash", "-lc", cmd] if shell else ["runuser", "-u", user, "--"] + list(cmd)
+    try:
+        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout, check=False)
+        return p.returncode, p.stdout.strip(), p.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return 124, "", "timeout"
+
+def ros(args, timeout=8):
+    quoted = " ".join(subprocess.list2cmdline([x]) for x in args)
+    cmd = f"source {ROS_SETUP} >/dev/null 2>&1; export ROS_DOMAIN_ID=0 ROS_LOCALHOST_ONLY=0; ros2 {quoted}"
+    return run(cmd, timeout=timeout, user=RUNNER_USER, shell=True)
+
+def std_string(raw):
+    m = re.search(r"^data:\\s*'(.*)'\\s*$", raw, re.M) or re.search(r"^data:\\s*(.*)$", raw, re.M)
+    return m.group(1) if m else None
+
+def json_string(raw):
+    s = std_string(raw)
+    if s is None: return None
+    try: return json.loads(s)
+    except Exception: return None
+
+def twist(raw):
+    vals, section = {}, None
+    for line in raw.splitlines():
+        t=line.strip()
+        if t in ("linear:","angular:"): section=t[:-1]; continue
+        m=re.match(r"([xyz]):\\s*(-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)$", t)
+        if section and m: vals[f"{section}.{m.group(1)}"]=float(m.group(2))
+    return vals or None
+
+def topic_once(name, timeout=8):
+    return ros(["topic","echo","--once","--full-length",name], timeout)
+
+def service_state(unit):
+    uid = pwd.getpwnam(JETSON_USER).pw_uid
+    rc,out,err = run(["env",f"XDG_RUNTIME_DIR=/run/user/{uid}","systemctl","--user","is-active",unit], timeout=4, user=JETSON_USER)
+    return out if out else ("inactive" if rc == 3 else "unknown")
+
+def item(verdict, detail, value=None):
+    d={"verdict":verdict,"detail":detail}
+    if value is not None: d["value"]=value
+    return d
+
+def main():
+    r={"schema_version":1,"generated_unix":time.time(),"host":{},"services":{},"ros":{},"checks":{}}
+    r["host"]["hostname"]=run(["hostname"])[1]
+    r["host"]["architecture"]=run(["uname","-m"])[1]
+    r["host"]["uptime"]=run(["uptime","-p"])[1]
+    r["host"]["memory"]=run(["free","-h"])[1]
+    r["host"]["disk"]=run(["df","-h","/"])[1]
+
+    temps=[]
+    for p in Path("/sys/class/thermal").glob("thermal_zone*/temp"):
+        try:
+            c=float(p.read_text().strip())/1000.0
+            typ=(p.parent/"type").read_text().strip() if (p.parent/"type").exists() else p.parent.name
+            temps.append({"zone":typ,"c":round(c,1)})
+        except Exception: pass
+    r["host"]["temperatures_c"]=temps
+
+    for u in REQUIRED_ACTIVE:
+        r["services"][u]=service_state(u)
+
+    rc,topics,err = ros(["topic","list","--include-hidden-topics","-t"],10)
+    r["ros"]["topics_visible"] = rc == 0 and "/atlas/control_policy" in topics
+
+    names = {
+      "control_policy":"/atlas/control_policy",
+      "safety_status":"/atlas/safety_status",
+      "mission_status":"/atlas/mission_status",
+      "motion_safety":"/atlas/motion_safety",
+      "drive_mode":"/atlas/drive_mode",
+      "encoder_health":"/atlas/encoder_health",
+      "cmd_vel":"/cmd_vel",
+      "scan":"/scan",
+      "odom":"/odom",
+      "ultrasonic_validity":"/ultrasonic/validity",
+    }
+    samples={}
+    for k,t in names.items():
+        rc,out,err=topic_once(t,8)
+        samples[k]={"topic":t,"rc":rc,"sample":out[:6000] if rc==0 else "","error":err[:500]}
+    r["ros"]["samples"]=samples
+    c=r["checks"]
+
+    cp=json_string(samples["control_policy"]["sample"]) if samples["control_policy"]["rc"]==0 else None
+    if not isinstance(cp,dict):
+        c["control_policy"]=item("UNKNOWN","missing or unparsable /atlas/control_policy")
+    else:
+        bad=[]
+        if cp.get("stop_latched") is not True: bad.append("stop_latched != true")
+        if cp.get("commission_armed") is not False: bad.append("commission_armed != false")
+        if cp.get("source") != "STOPPED": bad.append(f"source={cp.get('source')!r}")
+        c["control_policy"]=item("FAIL" if bad else "PASS","; ".join(bad) if bad else "latched stop active, commission disarmed, source STOPPED",cp)
+
+    dm=std_string(samples["drive_mode"]["sample"]) if samples["drive_mode"]["rc"]==0 else None
+    c["drive_mode"]=item("PASS" if dm=="STOPPED" else ("UNKNOWN" if dm is None else "FAIL"),"drive mode must be STOPPED",dm)
+
+    ss=std_string(samples["safety_status"]["sample"]) if samples["safety_status"]["rc"]==0 else None
+    c["safety_status"]=item("PASS" if isinstance(ss,str) and "STOPPED" in ss else ("UNKNOWN" if ss is None else "FAIL"),"safety status must report STOPPED",ss)
+
+    ms=std_string(samples["mission_status"]["sample"]) if samples["mission_status"]["rc"]==0 else None
+    c["mission_status"]=item("PASS" if ms=="READY" else ("UNKNOWN" if ms is None else "FAIL"),"mission status must be READY",ms)
+
+    enc=json_string(samples["encoder_health"]["sample"]) if samples["encoder_health"]["rc"]==0 else None
+    if not isinstance(enc,dict):
+        c["encoder_health"]=item("UNKNOWN","missing or unparsable encoder health")
+    else:
+        ok=enc.get("packet_fresh") is True and enc.get("consensus_state")=="AVAILABLE" and enc.get("state") not in ("CRITICAL","FAULT","STALE")
+        c["encoder_health"]=item("PASS" if ok else "FAIL","fresh encoder packet + available consensus + noncritical state",enc)
+
+    tv=twist(samples["cmd_vel"]["sample"]) if samples["cmd_vel"]["rc"]==0 else None
+    if tv is None:
+        c["cmd_vel"]=item("UNKNOWN","no parseable /cmd_vel sample")
+    else:
+        nz=[k for k,v in tv.items() if abs(v)>1e-6]
+        c["cmd_vel"]=item("FAIL" if nz else "PASS","non-zero: "+",".join(nz) if nz else "all components zero",tv)
+
+    bad=[u for u,s in r["services"].items() if s!="active"]
+    c["required_services"]=item("FAIL" if bad else "PASS","inactive/unknown: "+", ".join(bad) if bad else "all required services active",r["services"])
+
+    motion_units={u:service_state(u) for u in ["atlas-explore.service","atlas-slam-fast.service"]}
+    r["services"].update(motion_units)
+    active=[u for u,s in motion_units.items() if s=="active"]
+    c["mapping_exploration"]=item("FAIL" if active else "PASS","active mapping/exploration: "+", ".join(active) if active else "mapping/exploration inactive",motion_units)
+
+    verdicts=[x["verdict"] for x in c.values()]
+    overall="FAIL" if "FAIL" in verdicts else ("UNKNOWN" if "UNKNOWN" in verdicts else "PASS")
+    r["overall"]=overall
+
+    lines=[f"ATLAS HEALTH: {overall}",f"Host: {r['host']['hostname']} ({r['host']['architecture']})",f"ROS topics visible: {r['ros']['topics_visible']}"]
+    for k,v in c.items(): lines.append(f"{k}: {v['verdict']} - {v['detail']}")
+    txt="\n".join(lines)+"\n"
+
+    ru=pwd.getpwnam(RUNNER_USER)
+    for path,data in [(OUT_JSON,json.dumps(r,indent=2,sort_keys=True)+"\n"),(OUT_TEXT,txt)]:
+        tmp=Path(str(path)+".tmp")
+        fd=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,0o640)
+        with os.fdopen(fd,"w") as f: f.write(data)
+        os.chown(tmp,ru.pw_uid,ru.pw_gid)
+        os.replace(tmp,path)
+    print(txt,end="")
+    return 20 if overall=="FAIL" else (10 if overall=="UNKNOWN" else 0)
+
+if __name__=="__main__":
+    raise SystemExit(main())
