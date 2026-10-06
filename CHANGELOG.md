@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-06 — Fail closed on manual mapping drive readiness
+
+- Manual-teaching sessions are now treated as active only when the durable
+  session record has both `state=active` and an explicit boolean
+  `drive_ready=true`.
+- Missing, false, malformed, or string-valued readiness no longer qualifies a
+  manual mapping session for active-session behavior.
+- Existing autonomous exploration session records remain compatible.
+- Added ROS-independent focused tests for starting, ready, malformed, and
+  legacy exploration session states.
+
 ## 2026-10-05 — Make manual mapping readiness explicit and record complete evidence
 
 - Manual mapping now writes a durable `starting` session immediately and tells
