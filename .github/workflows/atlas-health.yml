@@ -28,8 +28,8 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if [ -f "$RUNNER_TEMP/atlas-health/atlas_health.txt" ]; then
-            cat "$RUNNER_TEMP/atlas-health/atlas_health.txt"
+          if [ -f "/home/atlas-runner/atlas-health-${{ github.run_id }}.txt" ]; then
+            cat "/home/atlas-runner/atlas-health-${{ github.run_id }}.txt"
           else
             echo "Trusted health report was not produced."
           fi
@@ -39,7 +39,7 @@ jobs:
         with:
           name: atlas-health-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/atlas-health/atlas_health.json
-            ${{ runner.temp }}/atlas-health/atlas_health.txt
+            /home/atlas-runner/atlas-health-${{ github.run_id }}.json
+            /home/atlas-runner/atlas-health-${{ github.run_id }}.txt
           if-no-files-found: warn
           retention-days: 14
