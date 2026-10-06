@@ -1,3 +1,3 @@
 # ATLAS read-only health checker only.
-# No arguments are permitted.
-atlas-runner ALL=(root) NOPASSWD: /opt/atlas-ci/atlas-health-check
+# Empty quoted argument list means NO command-line arguments are permitted.
+atlas-runner ALL=(root) NOPASSWD: /opt/atlas-ci/atlas-health-check ""
