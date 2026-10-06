@@ -1,0 +1,45 @@
+name: ATLAS Read-Only Health
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    name: Read-only Jetson health
+    runs-on: [self-hosted, Linux, ARM64, atlas, jetson, ros2]
+    timeout-minutes: 5
+    steps:
+      - name: Verify trusted health checker exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x /opt/atlas-ci/atlas-health-check
+          stat -c '%a %U:%G %n' /opt/atlas-ci/atlas-health-check
+      - name: Run trusted read-only health checker
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/atlas-health"
+          sudo -n /opt/atlas-ci/atlas-health-check             --json "$RUNNER_TEMP/atlas-health/atlas_health.json"             --text "$RUNNER_TEMP/atlas-health/atlas_health.txt"
+      - name: Show human-readable summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "/home/atlas-runner/atlas_health.txt" ]; then
+            cat "/home/atlas-runner/atlas_health.txt"
+          else
+            echo "Trusted health report was not produced."
+          fi
+      - name: Upload health artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-health-${{ github.run_id }}
+          path: |
+            /home/atlas-runner/atlas_health.json
+            /home/atlas-runner/atlas_health.txt
+          if-no-files-found: warn
+          retention-days: 14
