@@ -22,8 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/atlas-health"
-          sudo -n /opt/atlas-ci/atlas-health-check             --json "$RUNNER_TEMP/atlas-health/atlas_health.json"             --text "$RUNNER_TEMP/atlas-health/atlas_health.txt"
+          sudo -n /opt/atlas-ci/atlas-health-check
       - name: Show human-readable summary
         if: always()
         shell: bash
