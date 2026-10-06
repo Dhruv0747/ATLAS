@@ -87,20 +87,34 @@ Trust model:
   - `/home/atlas-runner/atlas_health.txt`
 - No ROS publish, service call, motion command, restart, or deployment exists in Phase 1/2.
 
-## Pending Jetson step
-The trusted checker and sudoers rule are NOT installed yet.
+## Jetson trusted checker status
+The trusted checker is now installed at `/opt/atlas-ci/atlas-health-check` with
+`root:root` ownership and mode 0755.
 
-Next human-assisted step:
-1. Install reviewed checker reference from this branch into `/opt/atlas-ci/atlas-health-check`.
-2. Set root:root ownership and appropriate non-writable permissions.
-3. Install exact sudoers rule under `/etc/sudoers.d/atlas-ci-health`.
-4. Validate with `visudo -cf`.
-5. Verify as `atlas-runner` that only:
-   `sudo -n /opt/atlas-ci/atlas-health-check`
-   is permitted.
-6. Run the first read-only health workflow.
-7. Inspect uploaded JSON/text evidence.
-8. Do NOT create deployment automation until this trust boundary passes.
+The sudoers rule is installed at `/etc/sudoers.d/atlas-ci-health`, validated by
+`visudo -cf`, and permits only the zero-argument command:
+
+`sudo -n /opt/atlas-ci/atlas-health-check`
+
+A direct run as `atlas-runner` completed successfully with:
+
+- overall: PASS
+- control_policy: PASS
+- drive_mode: PASS
+- safety_status: PASS
+- mission_status: PASS
+- encoder_health: PASS
+- cmd_vel: PASS
+- required_services: PASS
+- mapping_exploration: PASS
+
+No motion command, service restart, deployment, or ROS service call was issued.
+
+## Next step
+Run the manual GitHub Actions workflow `ATLAS Read-Only Health` from the
+`setup/atlas-secure-runner` branch and confirm it invokes the trusted local
+checker and uploads the JSON/text reports. Deployment automation remains
+disabled until that end-to-end read-only path is verified.
 
 ## Important constraints
 - Do not add broad sudo to `atlas-runner`.
