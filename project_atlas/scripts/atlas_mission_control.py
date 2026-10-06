@@ -50,6 +50,7 @@ from atlas_map_acceptance_core import (
     transactionally_promote_map_pair,
 )
 from atlas_map_footprint_sanitizer import sanitize_saved_map
+from atlas_mapping_session_core import mapping_session_is_active
 
 
 class AtlasMissionControl(Node):
@@ -750,7 +751,7 @@ class AtlasMissionControl(Node):
     def active_mapping_session(self) -> Optional[dict]:
         try:
             value = json.loads(self.mapping_session_file.read_text(encoding="utf-8"))
-            return value if value.get("state") == "active" else None
+            return value if mapping_session_is_active(value) else None
         except (OSError, ValueError, AttributeError):
             return None
 
