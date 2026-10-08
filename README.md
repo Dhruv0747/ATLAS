@@ -2,6 +2,22 @@
 
 ### Encoder calculation diagnostics
 
+`atlas_encoder_snapshot_review.py BAG` reads the synchronized snapshots,
+groups nonzero command receipt times into motion windows, and compares integrated
+wheel yaw with candidate gyro and gyro-seeded scan ICP. Scan ICP is diagnostic,
+not independent ground truth. It never starts a ROS node or commands hardware.
+
+The 2026-10-08 short manual forward/left/right recording
+`encoder_turn_snapshot-20261008-144037` captured 665 snapshots without sequence
+gaps or stale flags. In the 70-snapshot motion window, all four wheels were
+accepted 47 times and M1/M2/M4 alone 23 times. Raw count changes were
+`[3560, -3687, 874, -3569]`; M3 is discrepant but the cause is not proven.
+Net wheel yaw was +3.47 degrees, candidate gyro -8.26 degrees and scan ICP
+-2.11 degrees (48/48 adjacent pairs, median residual 7.24 mm). These are net
+changes across both turns, not separate left/right accuracy measurements.
+This recording verifies diagnostic capture, not navigation accuracy. No steering
+or calibration change was made; keep this bag for further per-turn investigation.
+
 `/atlas/encoder_update` is diagnostic JSON in `std_msgs/String`, schema version 1.
 When subscribed, each wheel-odometry update reports its sequence, matching ROS
 stamp, monotonic time, counts/calibration, commanded steering, path scales,

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-08 — First synchronized manual turn recording reviewed
+
+- Recorded operator-driven forward/left/right motion; stopped the recorder.
+- Added read-only snapshot review and documented M3 rejection and disagreement
+  between net wheel, gyro and scan yaw. No autonomous pass claimed.
+- Preserved all driving/steering settings and the original bag on Jetson.
+
 ## 2026-10-08 — Encoder diagnostics activated
 
 - Deployed the two scripts from `1771b1d` with rollback copies after confirming
