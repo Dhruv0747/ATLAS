@@ -30,6 +30,16 @@ scan windows are not ground truth. M3 counts were small in both directions.
 Next investigation is the recorded count/steering timing and geometry model;
 do not alter working steering or apply a global scale from this single trial.
 
+Calculation replay of this bag reproduced every recorded accepted delta and
+channel selection exactly after initialization (664 comparisons, maximum delta
+error 0 m, zero selection mismatches). Median calculation interval was 100.2 ms,
+maximum 498.6 ms; maximum reported packet age was 84.8 ms. Thus no missing
+snapshot or estimator-replay mismatch was found. This does not prove physical
+encoder accuracy, board acquisition timing, or correct steering geometry:
+the model uses commanded servo offset as wheel angle, without measured wheel
+angle feedback. Scheduling intervals and servo response need separate analysis;
+the observed maximum interval alone does not establish the cause of turn error.
+
 `/atlas/encoder_update` is diagnostic JSON in `std_msgs/String`, schema version 1.
 When subscribed, each wheel-odometry update reports its sequence, matching ROS
 stamp, monotonic time, counts/calibration, commanded steering, path scales,

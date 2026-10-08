@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-08 — Encoder calculation replay and timing
+
+- Replayed synchronized calculation inputs against the encoder estimator:
+  664 post-initialization deltas and selections matched exactly.
+- Documented calculation interval and packet age; no claim of physical
+  calibration or root-cause resolution. No live control changes.
+
 ## 2026-10-08 — Separate recorded turn directions
 
 - Extended offline snapshot review with commanded-curvature windows and

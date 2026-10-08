@@ -8,6 +8,7 @@ import rosbag2_py
 from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
 from atlas_turn_sensor_audit import icp, stamp
+from atlas_encoder_selection import EncoderDeltaEstimator
 
 
 def main(path):
@@ -40,6 +41,21 @@ def main(path):
     if not updates:
         raise SystemExit('No encoder snapshots recorded')
     origin = updates[0]['stamp_ns']/1e9
+    estimator = EncoderDeltaEstimator()
+    replay_errors = []
+    selection_mismatches = 0
+    for index, u in enumerate(updates):
+        delta = estimator.update(u['wheel_distances_m'],
+                                 [i-1 for i in u['eligible_channels']], u['path_scales'])
+        if index:
+            replay_errors.append(abs(delta-u['accepted_delta_m']))
+            selection_mismatches += list(i+1 for i in estimator.last_accepted) != u['accepted_channels']
+    timing = dict(
+        dt_median_s=float(np.median([u['integration_dt_s'] for u in updates])),
+        dt_max_s=max(u['integration_dt_s'] for u in updates),
+        packet_age_max_s=max(u['packet_age_s'] or 0 for u in updates),
+        replay_max_delta_error_m=max(replay_errors, default=0),
+        replay_selection_mismatches=selection_mismatches)
     active = [t for t, v, w in commands if abs(v) > .005 or abs(w) > .01]
     groups = []
     for t in active:
@@ -95,7 +111,7 @@ def main(path):
             selection_counts=dict(collections.Counter(str(u['accepted_channels']) for u in rows)),
             raw_count_change=[rows[-1]['raw_counts'][i]-rows[0]['raw_counts'][i] for i in range(4)] if rows else [],
             steering_ranges=[[min(u['steering_command_deg'][i] for u in rows),max(u['steering_command_deg'][i] for u in rows)] for i in range(2)] if rows else []))
-    print(json.dumps(dict(bag=path, topic_counts=counts, segments=results,
+    print(json.dumps(dict(bag=path, topic_counts=counts, timing_and_replay=timing, segments=results,
         stale_snapshots=sum(not u['packet_fresh'] for u in updates),
         sequence_gaps=sum(max(0,b['sequence']-a['sequence']-1) for a,b in zip(updates,updates[1:])),
         caveat='ICP is gyro-seeded, not independent ground truth; command windows use receipt times. No calibration changes justified by this alone.'), indent=2))
