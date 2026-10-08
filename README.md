@@ -1,6 +1,6 @@
 # Project ATLAS - Autonomous Service Rover
 
-### Encoder calculation diagnostics (source-ready, not deployed)
+### Encoder calculation diagnostics
 
 `/atlas/encoder_update` is diagnostic JSON in `std_msgs/String`, schema version 1.
 When subscribed, each wheel-odometry update reports its sequence, matching ROS
@@ -11,9 +11,15 @@ not measured. The timestamp identifies the calculation, not a guaranteed atomic
 hardware acquisition. Demonstration recordings include this topic. Diagnostic
 publication does not grant motion authority or change the odometry calculation.
 
-Activation requires deliberate deployment and a safe motor-service restart;
-this source change has not been activated on the Jetson. No new driving loop
-is required until activation and stationary message checks are complete.
+Activated on the Jetson on 2026-10-08 from commit `1771b1d` after operator
+confirmation of stopped rover, remote emergency stop and clear steering linkages.
+Four snapshot tests passed on the Jetson. Stationary messages showed all four
+channels eligible, fresh packets, zero integrated movement and zero twist;
+this does not validate moving encoder accuracy. No driving command was issued.
+Rollback copies of both deployed scripts are in
+`data/diagnostics/encoder_update_deploy_1771b1d/*.before` on the Jetson.
+Restore those copies to their original script paths and restart
+`rover-base-telemetry.service` only with the same physical safety checks.
 
 ### Isolated SLAM comparison
 

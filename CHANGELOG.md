@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-08 — Encoder diagnostics activated
+
+- Deployed the two scripts from `1771b1d` with rollback copies after confirming
+  the live driver exactly matched the expected prior version.
+- Four snapshot tests, Python compilation and recorder shell syntax passed on
+  Jetson. Restarted only the motor service with operator safety confirmation.
+- Verified live diagnostic messages: fresh counts, zero stationary movement,
+  saved steering centres 90/90; service active with zero automatic restarts.
+- No drive commands or tuning changes; moving accuracy remains unvalidated.
+
 ## 2026-10-08 — Coherent encoder calculation diagnostics (not deployed)
 
 - Added subscriber-gated `/atlas/encoder_update` snapshots with the odometry
