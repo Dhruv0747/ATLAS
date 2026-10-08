@@ -189,6 +189,10 @@ class AtlasMissionControl(Node):
         self.mapping_session_file = (
             Path.home() / ".config/project_atlas/mapping_session.json"
         )
+        self.mapping_recorder_process = None
+        self.mapping_recorder_script = Path(__file__).with_name(
+            "record_atlas_demonstration.sh"
+        )
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -428,6 +432,33 @@ class AtlasMissionControl(Node):
             self.map_tf_tracker.begin(
                 session["id"], session["started_unix"], time.time()
             )
+
+    def start_mapping_recording(self, session_id: str) -> None:
+        """Record the complete mapping run, including the SLAM startup boundary."""
+        if self.mapping_recorder_process is not None:
+            return
+        if not self.mapping_recorder_script.exists():
+            raise RuntimeError("mapping recorder script is missing")
+        label = f"manual_mapping_{session_id[:12]}"
+        self.mapping_recorder_process = subprocess.Popen(
+            ["bash", str(self.mapping_recorder_script), label],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+    def stop_mapping_recording(self) -> None:
+        process = self.mapping_recorder_process
+        self.mapping_recorder_process = None
+        if process is None:
+            return
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=12)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
 
     def update_mapping_tf(self, msg: TFMessage) -> None:
         """Track every publication-order map->odom correction during mapping."""
@@ -1177,6 +1208,7 @@ class AtlasMissionControl(Node):
             "drive_ready": False,
         }
         self.atomic_write_json(self.mapping_session_file, session)
+        self.start_mapping_recording(session["id"])
         self.status(
             f"MANUAL MAPPING PREPARING session={session['id'][:8]}; "
             "KEEP ATLAS STOPPED until MANUAL MAPPING ACTIVE"
@@ -1198,6 +1230,7 @@ class AtlasMissionControl(Node):
             self.begin_map_acceptance_observation(session)
             self.set_home()
         except Exception:
+            self.stop_mapping_recording()
             self.mapping_session_file.unlink(missing_ok=True)
             raise
         self.status(
@@ -1607,6 +1640,7 @@ class AtlasMissionControl(Node):
                 f"path={self.map_prefix}.yaml"
             )
         finally:
+            self.stop_mapping_recording()
             self.restore_mapping_background()
 
     def cancel_navigation(self) -> None:
