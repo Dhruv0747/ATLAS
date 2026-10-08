@@ -1,5 +1,18 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Daly Bluetooth packet repair (2026-10-08)
+
+Raw probes showed a 26-byte cell response cut to 20 bytes at default MTU.
+Negotiating MTU 64 returned both full frames in three probe polls. The reader
+now requests this MTU; the decoder reassembles notification bytes within one
+poll and accepts only complete 13-byte frames with valid length/checksum.
+Payload `A5` bytes no longer split frames. Partial frames cannot certify cells.
+Seven decoder tests passed. Deployed with only the BMS service restarted;
+long-duration reliability remains unverified. No motor pulse was issued.
+Backup: `/home/jetson/project_atlas/data/diagnostics/daly_bms_node.before_mtu.py`;
+rollback by restoring it to `scripts/daly_bms_node.py` and restarting
+`rover-daly-bms.service` (restores known parser defects).
+
 ### Lifted-test startup battery preflight (2026-10-08)
 
 The operator client waits for an IDLE owner, latched stop, released B button,

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-08 — Daly MTU and frame integrity repair
+
+- Observed default-MTU truncation of cell frames; MTU 64 returned all 26 bytes
+  in three probe reads. Enabled negotiation on every Bluetooth connection.
+- Reject truncated/bad-checksum frames; preserve payload A5 bytes and assemble
+  fragments within the current poll only. No stale-cell filling.
+- Seven decoder tests passed; deployed BMS-only restart. Motor testing remains
+  paused with battery around 13%; endurance verification still required.
+
 ## 2026-10-08 — Explain and prevent premature lifted-test entry
 
 - Recorded initial `bms_unhealthy` rejection after base restart; battery data

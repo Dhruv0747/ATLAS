@@ -115,6 +115,9 @@ class DalyBmsNode(Node):
         )
         try:
             self._send(proc, "connect", 4.0)
+            # Two 13-byte cell frames exceed the default 20-byte ATT payload.
+            # Verified on the installed adapter: MTU 64 returns all 26 bytes.
+            self._send(proc, "mtu 64", 0.8)
             self._send(proc, f"char-write-req {NOTIFY_CCCD_HANDLE} 0100", 0.8)
             for cmd in COMMANDS.values():
                 self._send(proc, f"char-write-req {WRITE_HANDLE} {cmd}", 1.4)
@@ -135,13 +138,15 @@ class DalyBmsNode(Node):
         time.sleep(delay)
 
     def decode(self, text):
-        frames = []
+        stream = []
         for line in text.splitlines():
             if "Notification handle" not in line or "value:" not in line:
                 continue
             hex_part = line.split("value:", 1)[1]
             vals = [int(x, 16) for x in re.findall(r"\b[0-9a-fA-F]{2}\b", hex_part)]
-            frames.extend(self.split_frames(vals))
+            stream.extend(vals)
+
+        frames = self.split_frames(stream)
 
         data = {}
         cells = {}
@@ -222,12 +227,15 @@ class DalyBmsNode(Node):
 
     def split_frames(self, vals):
         frames = []
-        starts = [i for i, value in enumerate(vals) if value == 0xA5]
-        for pos, start in enumerate(starts):
-            end = starts[pos + 1] if pos + 1 < len(starts) else len(vals)
-            frame = vals[start:end]
-            if len(frame) >= 7:
-                frames.append(frame[:13])
+        i = 0
+        while i + 13 <= len(vals):
+            frame = vals[i:i + 13]
+            if (frame[0] == 0xA5 and frame[3] == 8
+                    and (sum(frame[:12]) & 0xFF) == frame[12]):
+                frames.append(frame)
+                i += 13
+            else:
+                i += 1
         return frames
 
     def u16(self, payload, offset):
