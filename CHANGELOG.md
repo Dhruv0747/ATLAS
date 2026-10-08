@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-08 — Isolated fusion comparison
+
+- Added command-free EKF/SLAM replay comparing wheel pose+velocity against
+  wheel velocity only, retaining the same candidate IMU input and other settings.
+- Added configuration-difference checks and diagnostic counts in replay reports.
+- Production navigation and steering configuration remains unchanged.
+
 ## 2026-10-08 — Offline turn sensor audit
 
 - Added read-only scan/IMU/odometry comparison with synthetic fit checks.

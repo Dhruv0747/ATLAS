@@ -124,3 +124,53 @@ wheel input plus IMU versus current wheel-pose-plus-velocity fusion in an isolat
 domain, then compare downstream SLAM corrections and geometry. Do not promote
 either configuration without measured improvement and ground validation. No
 additional manual loop is needed to perform that comparison.
+
+## Completed isolated EKF/SLAM comparison
+
+Replayed the same deb bag in unused localhost domain 178, at 1x, starting fresh
+EKF and SLAM processes for each variant. Only `odom0_config` X/Y pose selection
+changed; wheel velocity, IMU gyro Z, noise settings and +0.2 s TF offset remained
+identical. Recorded map/odom transforms were removed. The input contained 1,236
+scans, 1,802 wheel odometry messages, 1,861 candidate IMU messages and two static
+TF messages. No command topics or actuator nodes were present.
+
+| Metric | Pose + velocity | Velocity only |
+| --- | ---: | ---: |
+| Scans recorded | 1,236 | 1,236 |
+| Map messages | 122 | 122 |
+| EKF output messages | 1,837 | 1,833 |
+| Largest map translation correction | 0.712702 m | 0.614011 m |
+| Largest map yaw correction | 12.797585 deg | 12.797585 deg |
+| Approximate endpoint displacement | 0.093105 m | 0.066087 m |
+| Approximate endpoint heading difference | 1.465881 deg | 3.035907 deg |
+| Final map dimensions (cells) | 211 x 246 | 210 x 243 |
+
+**Decision: do not deploy this candidate.** Translation correction decreased
+about 14%, but remains large. Endpoint heading consistency worsened and the
+maximum yaw correction did not improve. This does not establish wheel-pose
+fusion as the sole/root cause. One replay per variant cannot establish
+repeatability; scheduling can vary. Endpoint estimates are not time-interpolated
+TF or surveyed ground truth, and map geometry is not independently certified.
+
+Both runs closed successfully without scan-drop warnings. Each logged one
+initial simulated-clock backwards transition. Filter diagnostics were healthy
+in 361 samples per run; frequency diagnostics included two no-event and eight
+low-frequency reports per run, which must not be represented as uniformly
+healthy timing. Recording every scan does not prove every scan was matched.
+
+Replay resource observations: approximately 161–185 MB memory, sampled Jetson
+temperature approximately 61 C, total 62.2 CPU seconds over about 6.6 minutes;
+Nice 15, CPU quota 150%, memory cap 900 MB. These are observations, not peak-load
+certification. Three offline configuration/safety checks passed.
+
+Artifacts remain on Jetson at
+`/home/jetson/project_atlas/data/diagnostics/fusion_ab_20261008/`.
+The original live EKF YAML SHA-256 before and after was identical:
+`69dd4479cdf84ea9d878b1d8c4d0e5129fb894b82003126c9c5f19052afc90ed`.
+No steering, motor, accepted map or production fusion configuration was changed.
+Rollback is unnecessary for production; the isolated test unit has exited.
+
+Next investigate timestamp-aligned scan/odom geometry at the correction, including
+the TF time offset and scan acquisition timing, before choosing another bounded
+offline comparison. Do not request another manual route merely to repeat this
+saved-data analysis or weaken the map-promotion threshold.

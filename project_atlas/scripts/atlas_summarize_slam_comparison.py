@@ -20,7 +20,8 @@ def summarize(path):
     correction = None
     first_pose = None
     last_pose = None
-    samples = scans = maps = 0
+    samples = scans = maps = odometry = 0
+    diagnostic_levels = {}
     max_xy = max_yaw = 0.0
     last_map = None
     while reader.has_next():
@@ -32,6 +33,13 @@ def summarize(path):
             maps += 1
             last_map = {'width': msg.info.width, 'height': msg.info.height,
                         'known_cells': sum(v >= 0 for v in msg.data)}
+        elif topic == '/odom':
+            odometry += 1
+        elif topic == '/diagnostics':
+            for status in msg.status:
+                level = status.level[0] if isinstance(status.level, bytes) else int(status.level)
+                key = status.name + ': ' + str(level) + ': ' + status.message
+                diagnostic_levels[key] = diagnostic_levels.get(key, 0) + 1
         elif topic == '/tf':
             for t in msg.transforms:
                 q = t.transform.rotation
@@ -51,6 +59,7 @@ def summarize(path):
                     if first_pose is None:
                         first_pose = last_pose
     return {'bag': path, 'tf_samples': samples, 'scans': scans, 'maps': maps,
+            'odometry_messages': odometry, 'diagnostic_levels': diagnostic_levels,
             'max_translation_jump_m': max_xy, 'max_yaw_jump_deg': math.degrees(max_yaw),
             'approx_endpoint_delta_m': math.dist(first_pose[:2], last_pose[:2]) if first_pose and last_pose else None,
             'approx_endpoint_yaw_deg': math.degrees(abs(angle(last_pose[2]-first_pose[2]))) if first_pose and last_pose else None,

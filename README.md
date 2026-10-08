@@ -2,6 +2,16 @@
 
 ### Isolated SLAM comparison
 
+`atlas_fusion_replay.py SOURCE_BAG EKF_YAML NEW_OUTPUT_DIRECTORY --rate 0.5`
+compares current wheel-pose-plus-velocity fusion with velocity-only wheel fusion.
+Run from a sourced ROS Humble shell after verifying localhost domain 178 is
+unused. It snapshots the supplied configuration, strips recorded map/odom TF,
+and replays only scans, sensor-frame TF, wheel odometry and candidate IMU data.
+It starts isolated EKF/SLAM processes, never actuator nodes. Output bags,
+configuration hashes and logs remain diagnostic artifacts, not live deployment.
+Use `atlas_summarize_slam_comparison.py` on the two closed result bags; inspect
+logs, diagnostic health and scan completeness before interpreting differences.
+
 `project_atlas/scripts/atlas_turn_sensor_audit.py BAG_DIRECTORY` compares scan-fit,
 wheel/fused yaw and IMU integration around the largest recorded map correction.
 Run with ROS Humble, numpy and scipy installed. It is read-only, starts no ROS
