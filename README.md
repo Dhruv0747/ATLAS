@@ -1,5 +1,16 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Isolated SLAM comparison
+
+`project_atlas/scripts/atlas_prepare_slam_comparison.py` creates a diagnostic
+bag containing only `/scan`, `/tf`, and `/tf_static`, removing map transforms.
+`atlas_slam_loop_ab.sh` compares loop closure on/off with separate SLAM processes
+in localhost ROS domain 177. It never launches a motor driver or replays command
+topics. Use a new output directory and confirm this domain is unused before
+running. `atlas_summarize_slam_comparison.py` reports corrections and approximate
+endpoint differences after both bags close. These are diagnostic results, not
+map-promotion or autonomous-driving approval.
+
 ### Demand-driven camera publication and lightweight safety heartbeat — 2026-10-04
 
 The IMX708 driver still captures and processes the commissioned 1280×720,

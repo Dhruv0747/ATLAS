@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-08 — Isolated recorded-data SLAM comparison
+
+- Added command-free bag preparation, loop-closure A/B replay in localhost
+  domain 177, and read-only comparison metrics. Live steering and navigation
+  parameters are unaffected.
+- Corrected the mapping report's bag name, mixed-run attribution, and unsupported
+  claim that gentler driving alone explained the improvement. Reusing an active
+  SLAM service does not create a fresh map.
+
 ## 2026-10-05 — Make manual mapping readiness explicit and record complete evidence
 
 - Manual mapping now writes a durable `starting` session immediately and tells
