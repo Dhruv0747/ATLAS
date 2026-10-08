@@ -316,3 +316,45 @@ across the saved run, then compare odometry prediction against those corrections
 The evidence suggests examining accumulated odometry/heading error rather than
 suppressing this geometrically beneficial correction. It does not prove its
 hardware/software source or authorize autonomous navigation.
+
+## Whole-run correction trace
+
+Analyzed the original deb recording for corrections exceeding 2 cm at the same
+robot pose or 2 deg heading: 154 events. This is a diagnostic selection threshold,
+not an acceptance limit. Largest composed position correction is 0.2793 m at
+95.376 seconds, not necessarily the largest map-origin translation event.
+
+| Event time from bag start | Position correction | Previous 5 s wheel yaw | IMU integral | Fused yaw | Critical encoder samples in window |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 73.276 s | 23.69 cm | -73.94 deg | -80.61 deg | -78.30 deg | 0 |
+| 95.376 s | 27.93 cm | -62.55 deg | -44.01 deg | -38.71 deg | 3 |
+| 99.476 s | 27.69 cm | -66.07 deg | -38.57 deg | -39.81 deg | 2 |
+| 133.928 s | 23.36 cm | -21.70 deg | -22.20 deg | -21.24 deg | 0 |
+| 139.577 s | 25.16 cm | -60.47 deg | -25.93 deg | -26.85 deg | 2 |
+
+Seven of the ten largest position corrections have critical consensus reports
+in their preceding five seconds. These windows overlap: this is **not** seven
+independent failure trials or proof of causality. Faults say fewer than three
+wheel channels agree, which is not equivalent to seven hardware failures.
+Critically, the original 133.928 s event has no fault in its preceding five
+seconds; the previously noted nearby critical samples occur afterward, at
+134.936/135.038 s. Do not describe those as preceding causes of that event.
+
+Both live and repository source use commanded servo-angle offsets directly
+in `tan(front_delta)-tan(rear_delta)` curvature. That curvature also determines
+wheel-path normalization BEFORE encoder consensus, not just wheel yaw afterward.
+There is no measured tire-angle feedback in this calculation. A wrong
+servo-to-road-wheel relationship can therefore affect wheel pose and agreement;
+slip, encoder quality and timing remain alternatives. This is an unvalidated
+model assumption to examine, not a demonstrated hardware defect.
+
+Decision: prioritize recorded kinematic/path-normalization audit rather than
+further arbitrary SLAM changes. Preserve physical steering behaviour. Any
+candidate must change only the odometry model, be tested offline against raw
+wheel counts and IMU/scan evidence, and retain the fewer-than-three stop policy.
+Do not pick the wheel reading that merely agrees with a desired outcome.
+
+Three trace numerical tests passed. Full trace is retained at
+`/home/jetson/project_atlas/data/diagnostics/pose_correction_trace_20261008.json`.
+No live setting or motor command changed. SLAM corrections are reference
+observations, not independent ground truth or accumulated-distance error.

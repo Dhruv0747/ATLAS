@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-08 — Whole-run pose correction trace
+
+- Added read-only correction timing, wheel/fused-heading and encoder-health
+  correlation. Located major corrections around turns in the saved run.
+- Verified live commanded-angle curvature also feeds encoder path normalization;
+  no steering or odometry parameter was changed without validation.
+
 ## 2026-10-08 — Prior-map consistency at correction
 
 - Added read-only before/after scan projection against a frozen pre-event map.

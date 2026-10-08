@@ -2,6 +2,11 @@
 
 ### Isolated SLAM comparison
 
+`atlas_pose_correction_trace.py BAG NEW_JSON` traces same-time robot-pose
+corrections through a recording and correlates their preceding five-second
+odometry/gyro windows with encoder-health reports. Windows overlap; correlations
+are not independent trials or proof of hardware failure. No ROS node is created.
+
 `atlas_scan_map_jump_audit.py BAG NEW_JSON` projects event scans into a frozen
 prior map under the before/after correction hypotheses. It also reports
 same-time robot-position correction, which differs from the origin-dependent
