@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-08 — Separated manual turn retry saved
+
+- Stopped and reviewed `left_right_retry-20261008-150806`; 431 coherent
+  snapshots, no stale flags or sequence gaps, exact estimator replay.
+- Recorded near-static M3 count during the right turn and continued yaw
+  disagreement. Delay sensitivity did not reproduce a substantial benefit.
+- Preserved previous attempt and working steering; no autonomous pass claimed.
+
 ## 2026-10-08 — Saved camera evidence inspected
 
 - Extracted original frames around the manual turns and visually checked three.

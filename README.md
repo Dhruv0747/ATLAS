@@ -49,6 +49,18 @@ gyro timing, slip and geometry errors are confounded. No wheel normalization
 was recomputed and no held-out trial was used. Do not deploy a 0.5-second
 control delay from this result. Production steering remains unchanged.
 
+Repeat trial `left_right_retry-20261008-150806` captured 431 snapshots with
+zero sequence gaps/stale flags and exact post-initialization estimator replay.
+Two separated command windows gave wheel/gyro yaw +32.87/+24.44 degrees and
+-46.10/-41.24 degrees. Gyro-seeded scan ICP gave +25.10/-39.81 degrees, but
+zero-seeded results +11.40/-30.70 remain materially different; do not treat ICP
+as independent ground truth. During the right-turn moving subwindow, raw
+M1/M2/M3/M4 count changes were [1601,-2330,1,-1477]; M3 was rejected in 19 of
+22 updates. This is stronger evidence of M3 feedback inconsistency, not proof
+of its electrical/mechanical cause. The 0.5-second hypothetical delay changed
+yaw-rate RMSE only from 6.38 to 6.27 degrees/s (52 samples), so the prior delay
+hypothesis is not established as a general fix. No production tuning changed.
+
 Camera review: `atlas_turn_camera_extract.py BAG NEW_DIRECTORY` extracts original
 compressed frames and nearest commanded steering values without modifying images.
 Seven frames spanning offsets 26.5–32.5 s were extracted from this trial;
