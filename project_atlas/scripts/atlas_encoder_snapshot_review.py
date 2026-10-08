@@ -54,22 +54,42 @@ def main(path):
             if 0 < t2-t < .5:
                 total += overlap*(z+z2)/2
         return total
-    results = []
+    windows = [('whole_motion', group[0]-.2, group[-1]+.5) for group in groups]
+    # Separate by commanded curvature, not gyro outcome (which would bias
+    # the comparison). Labels do not assert physical left/right calibration.
     for group in groups:
-        a, b = group[0]-.2, group[-1]+.5
-        rows = [u for u in updates if a <= u['stamp_ns']/1e9 <= b]
+        rows = [u for u in updates if group[0] <= u['stamp_ns']/1e9 <= group[-1]+.5]
+        runs = []
+        for u in rows:
+            k = u['applied_curvature_per_m']
+            label = 'positive_curvature' if k > .15 else 'negative_curvature' if k < -.15 else 'near_straight'
+            t = u['stamp_ns']/1e9
+            if not runs or runs[-1][0] != label:
+                if runs:
+                    runs[-1][2] = t
+                runs.append([label, t, t])
+            else:
+                runs[-1][2] = t
+        windows.extend(tuple(run) for run in runs if run[2]-run[1] >= .25)
+    results = []
+    for label, a, b in windows:
+        rows = [u for u in updates if a <= u['stamp_ns']/1e9 < b]
         ss = [s for s in scans if a <= s[0] <= b]
-        fits = []
+        fits, zero_fits = [], []
         for old, new in zip(ss, ss[1:]):
             if 0 < new[0]-old[0] < .5:
                 fit = icp(old[1], new[1], integral(old[0], new[0]))
                 if fit:
                     fits.append(fit)
-        results.append(dict(start_s=a-origin, end_s=b-origin, snapshots=len(rows),
+                zero_fit = icp(old[1], new[1], 0.0)
+                if zero_fit:
+                    zero_fits.append(zero_fit)
+        results.append(dict(label=label, start_s=a-origin, end_s=b-origin, snapshots=len(rows),
             integrated_distance_m=sum(u['accepted_delta_m'] for u in rows),
             wheel_yaw_deg=math.degrees(sum(u['accepted_delta_m']*u['applied_curvature_per_m'] for u in rows)),
             gyro_yaw_deg=math.degrees(integral(a,b)),
             scan_icp_yaw_deg=sum(f['yaw_deg'] for f in fits),
+            zero_seed_icp_yaw_deg=sum(f['yaw_deg'] for f in zero_fits),
             scan_pairs=len(fits), scan_pairs_possible=max(0,len(ss)-1),
             median_icp_rmse_m=float(np.median([f['rmse_m'] for f in fits])) if fits else None,
             selection_counts=dict(collections.Counter(str(u['accepted_channels']) for u in rows)),

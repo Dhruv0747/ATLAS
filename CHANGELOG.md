@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-08 — Separate recorded turn directions
+
+- Extended offline snapshot review with commanded-curvature windows and
+  zero-seed ICP comparison. Executed against the saved bag on Jetson.
+- Documented per-turn wheel/gyro disagreement and ICP seed sensitivity;
+  no repeat drive, service restart or calibration change.
+
 ## 2026-10-08 — First synchronized manual turn recording reviewed
 
 - Recorded operator-driven forward/left/right motion; stopped the recorder.

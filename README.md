@@ -18,6 +18,18 @@ changes across both turns, not separate left/right accuracy measurements.
 This recording verifies diagnostic capture, not navigation accuracy. No steering
 or calibration change was made; keep this bag for further per-turn investigation.
 
+Per-turn review splits by commanded curvature sign (threshold 0.15/m), not by
+observed gyro direction. Runs under 0.25 seconds are omitted from the per-run
+table; whole-motion results retain them. Positive-curvature windows at
+27.057–28.556 s and 28.661–29.964 s gave wheel/gyro yaw respectively
+18.90/3.75 and 7.66/6.01 degrees. The negative window at 30.259–32.257 s
+gave -23.09/-18.01 degrees. Signs are model labels, not physical steering
+calibration. Gyro-seeded ICP gave 7.17, 6.25, -15.63 degrees; zero-seeded ICP
+gave 3.47, 2.24, -10.25 degrees, demonstrating seed sensitivity. These short
+scan windows are not ground truth. M3 counts were small in both directions.
+Next investigation is the recorded count/steering timing and geometry model;
+do not alter working steering or apply a global scale from this single trial.
+
 `/atlas/encoder_update` is diagnostic JSON in `std_msgs/String`, schema version 1.
 When subscribed, each wheel-odometry update reports its sequence, matching ROS
 stamp, monotonic time, counts/calibration, commanded steering, path scales,
