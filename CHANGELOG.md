@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-08 — Coherent encoder calculation diagnostics (not deployed)
+
+- Added subscriber-gated `/atlas/encoder_update` snapshots with the odometry
+  timestamp, actual calculation inputs, channel decisions and output.
+- Included the diagnostic topic in demonstration recordings; added four offline
+  tests for coherence, no-subscriber behaviour, publication failure and rejection.
+- No steering, odometry mathematics or safety policy changed. Live activation
+  remains pending a safe motor-service restart and stationary verification.
+
 ## 2026-10-08 — Offline encoder geometry audit
 
 - Compared three normalization cases using synchronized-enough raw topic batches.

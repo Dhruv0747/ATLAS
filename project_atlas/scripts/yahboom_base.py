@@ -452,6 +452,9 @@ class YahboomBase(Node):
         self._pub_motion_vz = self.create_publisher(Float32, '/yahboom/motion/vz', 10)
         self._pub_odom = self.create_publisher(Odometry, '/yahboom/odom', 10)
         self._pub_odom_source = self.create_publisher(String, '/yahboom/odom_source', 10)
+        # Diagnostic only: one coherent calculation snapshot, never a command.
+        self._pub_encoder_update = self.create_publisher(String, '/atlas/encoder_update', 10)
+        self._encoder_update_sequence = 0
 
         self._pub_roll = self.create_publisher(Float32, '/yahboom/imu/roll', 10)
         self._pub_pitch = self.create_publisher(Float32, '/yahboom/imu/pitch', 10)
@@ -1915,6 +1918,49 @@ class YahboomBase(Node):
                 msg.pose.covariance[index] *= factor
                 msg.twist.covariance[index] *= factor
         self._pub_odom.publish(msg)
+        self._encoder_update_sequence += 1
+        if self._pub_encoder_update.get_subscription_count() > 0:
+            # Same callback and stamp as the odometry above. These are the
+            # values actually consumed by this update, not asynchronously
+            # reconstructed per-wheel telemetry. No safety decision depends
+            # on successful diagnostic publication.
+            try:
+                update = {
+                    'schema_version': 1,
+                    'sequence': self._encoder_update_sequence,
+                    'stamp_ns': stamp.sec * 1000000000 + stamp.nanosec,
+                    'monotonic_s': now,
+                    'integration_dt_s': dt,
+                    'raw_counts': list(self._last_enc),
+                    'count_origins': list(self._enc_origin),
+                    'wheel_distances_m': list(self._wheel_distance_m),
+                    'counts_per_revolution': list(self._encoder_calibration.counts_per_revolution),
+                    'encoder_signs': list(self._encoder_calibration.encoder_signs),
+                    'wheel_circumference_m': self._encoder_calibration.wheel_circumference_m,
+                    'positions': list(self._encoder_positions),
+                    'steering_command_deg': [self._front_applied_angle, self._rear_applied_angle],
+                    'steering_centers_deg': [FRONT_STEER_CENTER, REAR_STEER_CENTER],
+                    'wheelbase_m': self._wheelbase_m,
+                    'track_width_m': track_width_m,
+                    'path_scales': list(path_scales) if path_scales is not None else [1.0] * 4,
+                    'eligible_channels': [i + 1 for i in valid_indexes],
+                    'excluded_channels': [i + 1 for i in sorted(self._excluded_encoders)],
+                    'fault_channels': [i + 1 for i in sorted(self._encoder_fault_since)],
+                    'accepted_channels': [i + 1 for i in accepted_indexes],
+                    'rejected_channels': [i + 1 for i in sorted(self._dynamic_encoder_rejected)],
+                    'normalized_deltas_m': list(self._encoder_delta_estimator.last_deltas),
+                    'accepted_delta_m': distance_delta,
+                    'applied_curvature_per_m': curvature,
+                    'packet_fresh': self._encoder_packet_fresh,
+                    'packet_age_s': max(0.0, now - self._encoder_packet_stamp) if self._encoder_packet_stamp > 0.0 else None,
+                    'source': source,
+                    'odom_pose': [self._x, self._y, self._yaw],
+                    'odom_twist': [vx, vy, vz],
+                    'steering_feedback': 'commanded_only',
+                }
+                self._pub_encoder_update.publish(String(data=json.dumps(update, allow_nan=False, separators=(',', ':'))))
+            except Exception as exc:
+                self.get_logger().warning('Encoder diagnostic publication failed: ' + str(exc), throttle_duration_sec=10.0)
 
     def _publish_battery(self):
         try:

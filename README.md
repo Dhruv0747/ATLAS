@@ -1,5 +1,20 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Encoder calculation diagnostics (source-ready, not deployed)
+
+`/atlas/encoder_update` is diagnostic JSON in `std_msgs/String`, schema version 1.
+When subscribed, each wheel-odometry update reports its sequence, matching ROS
+stamp, monotonic time, counts/calibration, commanded steering, path scales,
+eligible/accepted/rejected channels, integrated delta, and resulting odometry.
+Arrays use M1–M4 order; channel numbers are one-based. Steering is commanded,
+not measured. The timestamp identifies the calculation, not a guaranteed atomic
+hardware acquisition. Demonstration recordings include this topic. Diagnostic
+publication does not grant motion authority or change the odometry calculation.
+
+Activation requires deliberate deployment and a safe motor-service restart;
+this source change has not been activated on the Jetson. No new driving loop
+is required until activation and stationary message checks are complete.
+
 ### Isolated SLAM comparison
 
 `atlas_encoder_geometry_audit.py BAG CONFIG_DIRECTORY NEW_JSON` reconstructs

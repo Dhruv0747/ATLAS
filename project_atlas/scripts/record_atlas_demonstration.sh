@@ -23,6 +23,6 @@ exec ros2 bag record --storage sqlite3 -o "${output}" \
   /ultrasonic/front_mm /ultrasonic/left_mm /ultrasonic/right_mm /ultrasonic/status \
   /atlas/autonomy_state /atlas/safety_status /atlas/mission_status /atlas/mode \
   /atlas/recovery_state /atlas/recovery_status /atlas/agent/state \
-  /atlas/encoder_health /atlas/control_policy \
+  /atlas/encoder_health /atlas/encoder_update /atlas/control_policy \
   /im10a/imu/bias_corrected_candidate \
   /bms/status /bms/percent /bms/voltage /bms/current
