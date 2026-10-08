@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-08 — Bounded response-driven BMS reader
+
+- Removed fixed per-command waits causing approximately 11.3-second polls.
+- Wait for connection/MTU/subscription acknowledgements and validated data;
+  bound each complete transaction to 8 seconds plus process cleanup.
+- Ten tests passed; four live probes completed in 0.4–2.2 seconds. Deployed
+  BMS-only restart, with initial service intervals approximately 4.6–4.7 seconds.
+- Stale-data and cell limits unchanged. No motor motion; endurance test pending.
+
 ## 2026-10-08 — Lifted request discovery guard
 
 - Wait for request subscriber matching before one-shot entry; 54 existing

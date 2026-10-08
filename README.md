@@ -1,5 +1,19 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Response-driven BMS polling (2026-10-08)
+
+Replaced fixed Bluetooth sleeps with bounded response waits (8-second
+transaction deadline, up to 1 second process cleanup). Complete checksummed
+pack/cell/extrema responses are still required; timeouts remain unhealthy.
+Four live probes completed in 0.4–2.2 s. Ten decoder/transport tests passed.
+Deployed reader/helper with a BMS-only restart. Initial service polls were
+approximately 4.6–4.7 s apart, and the motor owner received fresh complete cells.
+Dashboard briefly retained the prior sample during discovery, then updated.
+This short observation is not an endurance qualification or an M3 motor pass.
+Safety limits, steering, PID and motor outputs were unchanged; B remains latched.
+Rollback: restore `/home/jetson/project_atlas/data/diagnostics/daly_bms_node.before_timing.py`
+to `scripts/daly_bms_node.py` and restart `rover-daly-bms.service` while stopped.
+
 Lifted client discovery follow-up (2026-10-08): wait up to 10 seconds for a
 matched request subscriber before sending the one-shot entry request. Receiving
 status alone does not establish the reverse ROS connection. The next live

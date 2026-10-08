@@ -3,6 +3,7 @@ import json
 import re
 import subprocess
 import time
+from atlas_daly_transport import read_snapshot
 
 import rclpy
 from rclpy.node import Node
@@ -106,36 +107,8 @@ class DalyBmsNode(Node):
             self.get_logger().warn(f"Daly read failed: {exc}")
 
     def read_ble(self):
-        proc = subprocess.Popen(
-            ["gatttool", "-b", MAC, "-t", ADDR_TYPE, "-I"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        try:
-            self._send(proc, "connect", 4.0)
-            # Two 13-byte cell frames exceed the default 20-byte ATT payload.
-            # Verified on the installed adapter: MTU 64 returns all 26 bytes.
-            self._send(proc, "mtu 64", 0.8)
-            self._send(proc, f"char-write-req {NOTIFY_CCCD_HANDLE} 0100", 0.8)
-            for cmd in COMMANDS.values():
-                self._send(proc, f"char-write-req {WRITE_HANDLE} {cmd}", 1.4)
-            time.sleep(1.5)
-            proc.terminate()
-            out, _ = proc.communicate(timeout=3)
-            return out
-        except Exception:
-            proc.kill()
-            out, _ = proc.communicate(timeout=2)
-            return out
-
-    def _send(self, proc, text, delay):
-        if proc.stdin is None:
-            return
-        proc.stdin.write(text + "\n")
-        proc.stdin.flush()
-        time.sleep(delay)
+        return read_snapshot(MAC, ADDR_TYPE, NOTIFY_CCCD_HANDLE, WRITE_HANDLE,
+                             COMMANDS, self.decode)
 
     def decode(self, text):
         stream = []
