@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-08 — Fail-closed USB retry and incomplete battery handling
+
+- Added one bounded retry of a timed-out serial ownership check; never assumes
+  an unknown port is free.
+- Removed synthetic zero-cell filling; incomplete Daly snapshots are unhealthy
+  and explicitly list missing cells.
+- Local tests: 18 passed, four Linux-specific tests skipped. Python compilation
+  passed on Jetson. BMS restart only; no pulse or steering change.
+
 ## 2026-10-08 — Separated manual turn retry saved
 
 - Stopped and reviewed `left_right_retry-20261008-150806`; 431 coherent

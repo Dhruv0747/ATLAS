@@ -87,12 +87,14 @@ class DalyBmsNode(Node):
                 raise RuntimeError("no Daly notification received")
             data["mac"] = MAC
             data["age_s"] = 0
-            data["ok"] = True
+            data["ok"] = all(key in data for key in ("voltage_v", "current_a", "soc_percent")) and data.get("cells_complete", False)
+            if not data["ok"]:
+                data["error"] = "Incomplete Daly snapshot; missing pack or cell frames"
             data["source"] = "bluetooth"
             self.last = data
             self.publish_data(data)
             self.get_logger().info(
-                f"Daly OK {data.get('voltage_v', 0):.2f}V "
+                f"Daly {'OK' if data['ok'] else 'INCOMPLETE'} {data.get('voltage_v', 0):.2f}V "
                 f"{data.get('current_a', 0):+.2f}A {data.get('soc_percent', 0):.1f}%"
             )
         except Exception as exc:
@@ -176,8 +178,14 @@ class DalyBmsNode(Node):
                 data["min_cell_voltage_v"] = self.u16(payload, 3) / 1000.0
                 data["min_cell_index"] = payload[5]
 
-        if cells:
-            data["cells_v"] = [cells.get(i, 0.0) for i in range(1, 5)]
+        if data or cells:
+            data["cells_complete"] = all(i in cells for i in range(1, 5))
+            data["missing_cell_indices"] = [i for i in range(1, 5) if i not in cells]
+            # Never fabricate zero volts for a cell whose frame was not received.
+            # Omit the array entirely so consumers cannot mistake a partial pack
+            # for a fresh four-cell measurement. Do not merge previous polls.
+            if data["cells_complete"]:
+                data["cells_v"] = [cells[i] for i in range(1, 5)]
         self.correct_soc(data)
         return data
 

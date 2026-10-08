@@ -1,5 +1,21 @@
 # Project ATLAS - Autonomous Service Rover
 
+### USB discovery and incomplete BMS messages
+
+USB ownership checks retry one `fuser` timeout with a six-second budget after
+the initial two-second attempt. Repeated timeouts still fail closed; no port
+is treated as free without a clean ownership check and passive protocol match.
+This mitigates startup timeout failure, not the underlying system load.
+
+Daly snapshots now expose `cells_complete` and `missing_cell_indices`.
+Incomplete polls omit `cells_v` and report `ok:false` instead of filling missing
+cells with zero. Previous polls are never merged to fake a complete reading.
+The motor test remains blocked until a fresh complete snapshot passes its
+existing voltage/spread checks. Bluetooth delivery itself is not fixed by this.
+Both source files were deployed on 2026-10-08; only BMS was restarted. Existing
+motor/GPS/IMU processes load the USB helper at their next start. Rollback copies
+are under `data/diagnostics/usb_bms_guard_20261008/*.before` on Jetson.
+
 ### Encoder calculation diagnostics
 
 `atlas_encoder_snapshot_review.py BAG` reads the synchronized snapshots,

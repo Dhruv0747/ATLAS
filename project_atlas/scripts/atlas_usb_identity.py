@@ -63,7 +63,13 @@ def candidates():
 
 def in_use(path):
     # Includes old non-flocking drivers. Never read their streams or alter baud.
-    result = subprocess.run(['fuser', path], capture_output=True, timeout=2)
+    for timeout in (2, 6):
+        try:
+            result = subprocess.run(['fuser', path], capture_output=True, timeout=timeout)
+            break
+        except subprocess.TimeoutExpired:
+            if timeout == 6:
+                raise OSError('Cannot establish serial ownership: fuser timed out twice') from None
     if result.returncode == 0:
         return True
     if result.returncode != 1 or result.stderr.strip():

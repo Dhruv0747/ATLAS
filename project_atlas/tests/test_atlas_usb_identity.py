@@ -10,6 +10,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
 from atlas_usb_identity import protocol_matches
 from atlas_usb_identity import open_verified
+from atlas_usb_identity import in_use
+import subprocess
 
 
 def nmea(body):
@@ -78,6 +80,25 @@ class ProtocolTests(unittest.TestCase):
     def test_unknown_role(self):
         with self.assertRaises(ValueError):
             protocol_matches(b'', 'unknown')
+
+    def test_ownership_timeout_retries_but_does_not_assume_free(self):
+        with patch('atlas_usb_identity.subprocess.run', side_effect=[
+                subprocess.TimeoutExpired('fuser', 2),
+                SimpleNamespace(returncode=0, stderr=b'')]) as run:
+            self.assertTrue(in_use('/dev/test'))
+            self.assertEqual([c.kwargs['timeout'] for c in run.call_args_list], [2, 6])
+
+    def test_repeated_ownership_timeout_fails_closed(self):
+        with patch('atlas_usb_identity.subprocess.run', side_effect=subprocess.TimeoutExpired('fuser', 2)):
+            with self.assertRaises(OSError):
+                in_use('/dev/test')
+
+    def test_free_port_requires_clean_fuser_exit(self):
+        with patch('atlas_usb_identity.subprocess.run', return_value=SimpleNamespace(returncode=1, stderr=b'')):
+            self.assertFalse(in_use('/dev/test'))
+        with patch('atlas_usb_identity.subprocess.run', return_value=SimpleNamespace(returncode=1, stderr=b'permission denied')):
+            with self.assertRaises(OSError):
+                in_use('/dev/test')
 
     def test_no_transmit_calls_in_discovery(self):
         source = Path(__file__).parents[1] / 'scripts' / 'atlas_usb_identity.py'
