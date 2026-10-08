@@ -87,3 +87,40 @@ navigation, IMU, or encoder parameter was changed.
 A further manual loop is not needed to investigate this comparison. Next use
 the saved input to inspect odometry-versus-scan alignment around the jump and
 map geometry; do not promote a map solely because endpoint closure is small.
+
+## Recorded turn sensor comparison
+
+Ran `atlas_turn_sensor_audit.py` read-only against the deb bag. Largest
+translation correction receipt time: 1791439656.648584. Comparisons use scan
+header times, interpolated odometry yaw and integrated candidate IMU gyro Z.
+
+| Window relative to correction | Fused yaw | Wheel yaw | IMU yaw | Diagnostic scan-fit yaw |
+| --- | ---: | ---: | ---: | ---: |
+| -1 s, duration 1.047 s | -20.31 deg | -21.51 deg | -21.02 deg | -22.43 deg |
+| +1 s, duration 0.919 s | -2.90 deg | -16.54 deg | -3.16 deg | -5.99 deg |
+
+Main turn agreement does not support ignoring the IMU. The subsequent wheel
+heading discrepancy warrants investigation. Live EKF configuration uses IM10A
+gyro Z and excludes wheel yaw/rate, but includes wheel X/Y pose and velocity.
+Source inspection shows wheel X/Y is integrated using heading derived from
+encoder distance and commanded front/rear steering angles. Thus excluding
+wheel yaw alone does not remove its influence on wheel position. This is a
+testable contributor, not a proven cause of this map correction.
+
+The event window also contains two CRITICAL encoder-consensus samples despite
+a live board link; earlier broad exclusion of encoder involvement was premature.
+Scan receipt minus header age was median 136 ms, p95 269 ms in that window;
+candidate IMU age median 2.6 ms, p95 6.9 ms. Receipt age is not automatically a
+sensor timestamp error. Live EKF TF offset is +0.2 s; do not blindly shift
+odometry message timestamps by that amount.
+
+Diagnostic ICP has no scan deskew or global optimization, so it is not ground
+truth. The +3 s window is initialization-sensitive (-2.21 to -4.23 deg).
+Known-transform and insufficient-point unit checks passed; full recorded-bag
+execution succeeded. No robot motion or production parameter change occurred.
+
+Next controlled software comparison: preserve the baseline, replay velocity-only
+wheel input plus IMU versus current wheel-pose-plus-velocity fusion in an isolated
+domain, then compare downstream SLAM corrections and geometry. Do not promote
+either configuration without measured improvement and ground validation. No
+additional manual loop is needed to perform that comparison.

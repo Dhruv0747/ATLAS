@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Offline turn sensor audit
+
+- Added read-only scan/IMU/odometry comparison with synthetic fit checks.
+- Recorded post-turn wheel-heading disagreement and wheel-pose coupling in
+  the mapping investigation. No live tuning or steering changes made.
+
 ## 2026-10-08 — Isolated recorded-data SLAM comparison
 
 - Added command-free bag preparation, loop-closure A/B replay in localhost

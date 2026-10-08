@@ -2,6 +2,11 @@
 
 ### Isolated SLAM comparison
 
+`project_atlas/scripts/atlas_turn_sensor_audit.py BAG_DIRECTORY` compares scan-fit,
+wheel/fused yaw and IMU integration around the largest recorded map correction.
+Run with ROS Humble, numpy and scipy installed. It is read-only, starts no ROS
+node, and provides diagnostic estimates rather than navigation approval.
+
 `project_atlas/scripts/atlas_prepare_slam_comparison.py` creates a diagnostic
 bag containing only `/scan`, `/tf`, and `/tf_static`, removing map transforms.
 `atlas_slam_loop_ab.sh` compares loop closure on/off with separate SLAM processes
