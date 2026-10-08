@@ -1,5 +1,16 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Lifted-test startup battery preflight (2026-10-08)
+
+The operator client waits for an IDLE owner, latched stop, released B button,
+and fresh complete healthy BMS data before requesting entry. Restarting the
+base clears its battery cache: the previous attempt was rejected as
+`bms_unhealthy`, not a missing operator reset. Rejections now surface directly
+instead of being obscured by a LOCKED timeout and no-session heartbeats.
+54 offline client/owner tests passed. The diagnostic client was updated on
+Jetson without service restart or motor commands. This is not an M3 pass.
+Rollback client backup: `/home/jetson/project_atlas/data/diagnostics/atlas_drive_pid_lifted_client.before_preflight.py`.
+
 ### Control-policy heartbeat (2026-10-08)
 
 The mux now publishes mode/policy every 100 ms, instead of 500 ms. The

@@ -377,6 +377,10 @@ class LiftedPulseOperator:
             status = self.transport.poll(max(0.0, wait_s))
             if status is not None:
                 self._accept_status(status)
+                # A rejected entry has no session/sequence acknowledgement.
+                # Report the owner's reason before heartbeats obscure it.
+                if request is not None and str(status.get("result", "")).startswith("REJECTED:"):
+                    raise OperatorError("owner " + str(status["result"]))
             if (
                 predicate(self.latest_status)
                 and (request is None or self._acknowledges(request))
@@ -388,6 +392,25 @@ class LiftedPulseOperator:
     def _state_is(expected: str) -> Callable[[Mapping[str, Any]], bool]:
         wanted = expected.upper()
         return lambda status: str(status.get("state", "")).upper() == wanted
+
+    @staticmethod
+    def _entry_ready(status: Mapping[str, Any]) -> bool:
+        # Restarting the owner clears its BMS cache. Wait for a fresh complete
+        # snapshot, not merely IDLE. The owner still enforces every interlock.
+        age = status.get("bms_age_s")
+        cells = status.get("bms_cells_v")
+        return (
+            str(status.get("state", "")).upper() == "IDLE"
+            and status.get("stop_latched") is True
+            and status.get("remote_b_stop") is False
+            and status.get("bms_ok") is True
+            and type(age) in (int, float) and math.isfinite(age)
+            and 0.0 <= age <= 10.0
+            and isinstance(cells, (list, tuple)) and len(cells) == 4
+            and all(type(v) in (int, float) and math.isfinite(v)
+                    and 3.0 <= v <= 3.65 for v in cells)
+            and max(cells) - min(cells) <= 0.1
+        )
 
     @staticmethod
     def _operator_ready(status: Mapping[str, Any]) -> bool:
@@ -428,9 +451,9 @@ class LiftedPulseOperator:
             )
 
         self._wait_for(
-            self._state_is("IDLE"),
+            self._entry_ready,
             self.plan.status_timeout_s,
-            "an online, released owner",
+            "IDLE owner with latched stop and fresh healthy battery data",
             heartbeat=False,
         )
 

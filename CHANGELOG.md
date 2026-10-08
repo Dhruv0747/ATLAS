@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-08 — Explain and prevent premature lifted-test entry
+
+- Recorded initial `bms_unhealthy` rejection after base restart; battery data
+  had not arrived. No pulse ran in that attempt.
+- Client waits for fresh complete battery data and a latched stop before entry;
+  owner rejection reason is reported immediately. Owner limits unchanged.
+- 54 offline tests passed; diagnostic client deployed without service restart.
+
 ## 2026-10-08 — Control-policy heartbeat timing margin
 
 - Changed mux policy publication from 2 Hz to 10 Hz; retained the lifted

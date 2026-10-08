@@ -82,6 +82,8 @@ class FakeOwnerTransport:
 
     def _status(self):
         payload = {
+            "bms_ok": True, "bms_age_s": 1.0,
+            "bms_cells_v": [3.3, 3.3, 3.3, 3.3],
             "state": self.state,
             "sequence": self.last_seq,
             "sequence_ack": self.last_seq,
@@ -228,6 +230,8 @@ class CoreOwnerTransport:
     def _status(self):
         status = dict(self.core.status())
         status.update({
+            "bms_ok": True, "bms_age_s": 1.0,
+            "bms_cells_v": [3.3, 3.3, 3.3, 3.3],
             "sequence_ack": self.last_ack,
             "stop_latched": self.stop_latched,
             "remote_b_stop": False,
@@ -342,6 +346,34 @@ class LiftedClientTests(unittest.TestCase):
             session=TOKEN,
             clock=self.clock,
         ), transport
+
+    def test_battery_preflight_missing_data_sends_no_request(self):
+        operator, transport = self.make_operator()
+        transport.statuses[0]['bms_ok'] = False
+        with self.assertRaisesRegex(OperatorError, 'fresh healthy battery'):
+            operator.execute(CONFIRMATION_PHRASE)
+        self.assertEqual(transport.messages, [])
+
+    def test_entry_rejection_is_reported_before_timeout(self):
+        operator, transport = self.make_operator()
+        original = transport.publish
+        def reject(message):
+            original(message)
+            if message['op'] == 'enter':
+                transport.statuses[-1] = {'state': 'IDLE', 'result': 'REJECTED: bms_unhealthy'}
+        transport.publish = reject
+        with self.assertRaisesRegex(OperatorError, 'REJECTED: bms_unhealthy'):
+            operator.execute(CONFIRMATION_PHRASE)
+        self.assertEqual([m['op'] for m in transport.messages], ['enter'])
+
+    def test_entry_preflight_rejects_stale_incomplete_and_invalid_cells(self):
+        _, transport = self.make_operator()
+        baseline = transport.statuses[0]
+        self.assertTrue(LiftedPulseOperator._entry_ready(baseline))
+        for change in ({'bms_age_s': 10.1}, {'bms_age_s': None},
+                       {'bms_cells_v': [3.3]}, {'bms_cells_v': [0, 3.3, 3.3, 3.3]},
+                       {'bms_cells_v': [float('nan')] * 4}, {'stop_latched': False}):
+            self.assertFalse(LiftedPulseOperator._entry_ready(dict(baseline, **change)))
 
     def test_plan_rejects_unsafe_bounds(self):
         invalid = (
