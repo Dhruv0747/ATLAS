@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-08 — Continuous commissioning readiness, timing issue still open
+
+- Require owner-reported five-second healthy readiness before client entry;
+  invalid inputs or a callback gap over 0.35 s reset readiness. Older owners
+  without this field cannot start a test through the updated client.
+- Default client status wait 15 s; motor pulse, heartbeat and sensor freshness
+  limits unchanged. Added readiness-window/reset regression coverage; 64 tests.
+- Live no-motion test reached 5.007 s readiness but later hit heartbeat expiry.
+  No arm/pulse requested; all observed motor outputs zero. Do not claim M3 pass.
+- Temporary callback profiler removed from execution; driver and client updated.
+  Normal motor service restored, GNSS restored, raw test flags unset.
+  Pre-change driver backup: `data/diagnostics/yahboom_before_profile.py` on Jetson.
+
+
+## 2026-10-08 — Lifted link-fault investigation (not a motor pass)
+
+- Added read-only receiver age versus cached encoder age diagnostics to lifted
+  status. Safety thresholds and commanded outputs are unchanged; 63 tests pass.
+- Stationary normal-mode check: 292 samples, maximum receiver age 0.049 s,
+  cached age 0.177 s, all outputs zero. Locked test reproduced a cached age
+  0.536 s despite receiver age 0.005 s and later a stale policy abort.
+- Duplicate-service coalescing candidate still hit a heartbeat deadline and was
+  rolled back. Neither trial armed or pulsed any motor. M3 remains unvalidated.
+- GPS discovery contention was worked around by briefly stopping GNSS during
+  base restart, then restoring it. This is not a permanent discovery fix.
+- Diagnostics deployed; normal base restored with raw testing disabled and
+  stop latched. Rollback file on Jetson:
+  `/home/jetson/project_atlas/data/diagnostics/yahboom_before_link_diag.py`.
+
+
 ## 2026-10-08 — Bounded response-driven BMS reader
 
 - Removed fixed per-command waits causing approximately 11.3-second polls.

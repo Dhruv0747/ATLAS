@@ -82,6 +82,7 @@ class FakeOwnerTransport:
 
     def _status(self):
         payload = {
+            "entry_stable_s": 5.0, "entry_problem": "",
             "bms_ok": True, "bms_age_s": 1.0,
             "bms_cells_v": [3.3, 3.3, 3.3, 3.3],
             "state": self.state,
@@ -230,6 +231,7 @@ class CoreOwnerTransport:
     def _status(self):
         status = dict(self.core.status())
         status.update({
+            "entry_stable_s": 5.0, "entry_problem": "",
             "bms_ok": True, "bms_age_s": 1.0,
             "bms_cells_v": [3.3, 3.3, 3.3, 3.3],
             "sequence_ack": self.last_ack,
@@ -371,6 +373,8 @@ class LiftedClientTests(unittest.TestCase):
         baseline = transport.statuses[0]
         self.assertTrue(LiftedPulseOperator._entry_ready(baseline))
         for change in ({'bms_age_s': 10.1}, {'bms_age_s': None},
+                       {'entry_stable_s': 4.999}, {'entry_stable_s': None},
+                       {'entry_stable_s': float('nan')}, {'entry_problem': 'control_policy_stale'},
                        {'bms_cells_v': [3.3]}, {'bms_cells_v': [0, 3.3, 3.3, 3.3]},
                        {'bms_cells_v': [float('nan')] * 4}, {'stop_latched': False}):
             self.assertFalse(LiftedPulseOperator._entry_ready(dict(baseline, **change)))

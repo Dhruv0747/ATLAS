@@ -183,7 +183,7 @@ class PulsePlan:
     pwm: int
     duration_s: float
     heartbeat_s: float = DEFAULT_HEARTBEAT_S
-    status_timeout_s: float = 5.0
+    status_timeout_s: float = 15.0
     operator_timeout_s: float = 120.0
 
     def validate(self) -> None:
@@ -399,8 +399,11 @@ class LiftedPulseOperator:
         # snapshot, not merely IDLE. The owner still enforces every interlock.
         age = status.get("bms_age_s")
         cells = status.get("bms_cells_v")
+        stable = status.get("entry_stable_s")
         return (
             str(status.get("state", "")).upper() == "IDLE"
+            and type(stable) in (int, float) and math.isfinite(stable)
+            and stable >= 5.0 and status.get("entry_problem") == ""
             and status.get("stop_latched") is True
             and status.get("remote_b_stop") is False
             and status.get("bms_ok") is True
@@ -453,7 +456,7 @@ class LiftedPulseOperator:
         self._wait_for(
             self._entry_ready,
             self.plan.status_timeout_s,
-            "IDLE owner with latched stop and fresh healthy battery data",
+            "IDLE owner with five stable seconds, latched stop and fresh healthy battery data",
             heartbeat=False,
         )
 
@@ -768,7 +771,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--pwm", type=int)
     parser.add_argument("--duration", type=float, default=0.25)
     parser.add_argument("--heartbeat", type=float, default=DEFAULT_HEARTBEAT_S)
-    parser.add_argument("--status-timeout", type=float, default=5.0)
+    parser.add_argument("--status-timeout", type=float, default=15.0)
     parser.add_argument("--operator-timeout", type=float, default=120.0)
     parser.add_argument("--evidence", type=Path)
     parser.add_argument("--execute", action="store_true")

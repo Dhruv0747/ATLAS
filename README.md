@@ -1,5 +1,33 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Continuous lifted-test readiness gate (2026-10-08)
+
+The test client now requires five continuously healthy seconds reported by the
+owner before entering a session. Battery, feedback, policy, stationary and stop
+checks must pass; a callback gap over 0.35 s resets the window. Missing fields
+from older owners fail closed. The default client status wait is 15 s; hardware
+freshness, heartbeat and pulse deadlines are unchanged.
+
+64 offline tests passed. A live no-motion test reached the five-second gate,
+then entered LOCKED, but subsequently aborted on `heartbeat_expired`. Therefore
+this prevents premature startup entry; it does **not** qualify test-mode timing
+or M3. All outputs remained zero. Driver and diagnostic client deployed; raw
+testing disabled again afterward. Next investigation is end-to-end request and
+callback scheduling under load, not another uninstrumented motor pulse.
+
+
+### Lifted-test timing investigation (2026-10-08)
+
+M3 powered validation is still pending. Stationary tests found delayed cached
+encoder/safety-policy processing while the serial receiver remained fresh.
+`/atlas/drive_pid/lifted/status` now reports `encoder_cached_age_s`,
+`encoder_receiver_age_s` and `encoder_packet_fresh` for diagnosis, without
+changing safety decisions. A trial workload-coalescing change failed its
+no-motion heartbeat check and was reverted. Do not interpret the generic
+`motor_controller_link_lost` reason alone as proof of a USB disconnection.
+All test outputs stayed zero; no firmware, steering or PID settings changed.
+
+
 ### Response-driven BMS polling (2026-10-08)
 
 Replaced fixed Bluetooth sleeps with bounded response waits (8-second

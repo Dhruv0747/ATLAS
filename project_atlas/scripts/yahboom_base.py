@@ -877,6 +877,28 @@ class YahboomBase(Node):
 
     def _publish_lifted_status(self, snapshot=None):
         now = time.monotonic()
+        entry_stable_s = 0.0
+        entry_problem = 'raw_lifted_interface_disabled'
+        if self._lifted_raw_enabled and self._lifted_commission.state == LiftedState.IDLE:
+            check = snapshot if snapshot is not None else self._lifted_snapshot(now)
+            entry_problem = (
+                self._lifted_owner_gate()
+                or self._lifted_commission._priority_stop(check)
+                or self._lifted_commission._snapshot_problem(check, True)
+                or self._lifted_commission._stationary_problem(check)
+            )
+            last = getattr(self, '_lifted_entry_checked_at', None)
+            since = getattr(self, '_lifted_entry_stable_since', None)
+            if entry_problem:
+                since = None
+            elif last is None or now - last > 0.35 or since is None:
+                since = now
+            self._lifted_entry_checked_at = now
+            self._lifted_entry_stable_since = since
+            entry_stable_s = 0.0 if since is None else max(0.0, now - since)
+        else:
+            self._lifted_entry_stable_since = None
+            self._lifted_entry_checked_at = None
         payload = dict(self._lifted_commission.status())
         cells = self._lifted_bms_cells
         bms_age = (
@@ -897,6 +919,15 @@ class YahboomBase(Node):
             round(float(value), 5) if math.isfinite(float(value)) else None
             for value in self._wheel_mps
         ]
+        # Observe receive-thread freshness separately from the ROS callback's
+        # cached sample. Diagnostics must never refresh or override safety state.
+        receiver_age = None
+        try:
+            _, received_at = self.bot.get_motor_encoder_sample()
+            if math.isfinite(received_at) and received_at > 0:
+                receiver_age = round(max(0.0, time.monotonic() - received_at), 6)
+        except (AttributeError, TypeError, ValueError, OSError):
+            pass
         config = self._drive_pid_config
         arm_ready = False
         if snapshot is not None and self._lifted_commission.state == LiftedState.LOCKED:
@@ -925,6 +956,8 @@ class YahboomBase(Node):
             'raw_single_wheel_only': True,
             'pid_modes_authorized': False,
             'arm_ready': arm_ready,
+            'entry_stable_s': round(entry_stable_s, 3),
+            'entry_problem': entry_problem,
             'exit_ready': exit_ready,
             'stop_latched': bool(self._cal_stop_latched),
             'remote_b_stop': bool(self._lifted_remote_b_stop),
@@ -945,6 +978,12 @@ class YahboomBase(Node):
                 if self._lifted_stationary_since else 0.0
             ),
             'encoder_counts': counts,
+            'encoder_cached_age_s': (
+                round(max(0.0, now - self._encoder_packet_stamp), 6)
+                if self._encoder_packet_stamp else None
+            ),
+            'encoder_receiver_age_s': receiver_age,
+            'encoder_packet_fresh': bool(self._encoder_packet_fresh),
             'measured_speeds_mps': measured_speeds,
             'pulse_observation': self._lifted_pulse_observation,
             'evidence_promotion_authorized': False,

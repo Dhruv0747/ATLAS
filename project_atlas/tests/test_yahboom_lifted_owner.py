@@ -313,6 +313,35 @@ class YahboomLiftedOwnerTests(unittest.TestCase):
         self.assertEqual(final_status["sequence"], 5)
         self.assertEqual(final_status["sequence_ack"], 5)
 
+    def test_fresh_receiver_diagnostic_cannot_override_stale_safety_sample(self):
+        self.node._encoder_packet_stamp = self.clock.now - 0.4
+        self.node.bot.get_motor_encoder_sample = lambda: ((100, 200, 300, 400), self.clock.now)
+        self.node._publish_lifted_status()
+        status = json.loads(self.node._pub_lifted_status.messages[-1])
+        self.assertEqual(status['encoder_receiver_age_s'], 0.0)
+        self.assertEqual(status['encoder_cached_age_s'], 0.4)
+        self.assertFalse(self.node._lifted_snapshot().controller_link_ok)
+        self.assertEqual(self.node.bot.writes, [])
+
+    def test_entry_window_requires_continuous_fresh_checks(self):
+        for _ in range(52):
+            self.refresh_live_inputs()
+            self.node._publish_lifted_status()
+            self.clock.now += 0.1
+        status = json.loads(self.node._pub_lifted_status.messages[-1])
+        self.assertGreaterEqual(status['entry_stable_s'], 5.0)
+        self.assertEqual(status['entry_problem'], '')
+        self.clock.now += 0.4
+        self.refresh_live_inputs()
+        self.node._publish_lifted_status()
+        self.assertEqual(json.loads(self.node._pub_lifted_status.messages[-1])['entry_stable_s'], 0.0)
+        self.node._encoder_packet_fresh = False
+        self.node._publish_lifted_status()
+        status = json.loads(self.node._pub_lifted_status.messages[-1])
+        self.assertEqual(status['entry_problem'], 'motor_controller_link_lost')
+        self.assertEqual(status['entry_stable_s'], 0.0)
+        self.assertEqual(self.node.bot.writes, [])
+
     def test_remote_b_press_aborts_and_release_is_published_live(self):
         self.enter()
         self.arm()
