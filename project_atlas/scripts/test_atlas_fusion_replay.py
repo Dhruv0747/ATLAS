@@ -6,6 +6,18 @@ from atlas_fusion_replay import ALLOWED, configurations
 
 
 class FusionReplayTest(unittest.TestCase):
+    def test_only_tf_offset_changes(self):
+        raw = yaml.safe_dump({'atlas_ekf': {'ros__parameters': {
+            'odom0': '/yahboom/odom', 'imu0': '/im10a/imu/bias_corrected_candidate',
+            'odom0_config': [True, True] + [False] * 13, 'transform_time_offset': 0.2}}})
+        variants = configurations(raw, 'tf_offset')
+        baseline = variants['offset_current']['atlas_ekf']['ros__parameters']
+        candidate = variants['offset_zero']['atlas_ekf']['ros__parameters']
+        self.assertEqual(candidate['transform_time_offset'], 0.0)
+        self.assertEqual(baseline['transform_time_offset'], 0.2)
+        candidate['transform_time_offset'] = 0.2
+        self.assertEqual(candidate, baseline)
+
     def test_only_xy_selection_changes(self):
         source = {'atlas_ekf': {'ros__parameters': {
             'odom0': '/yahboom/odom',

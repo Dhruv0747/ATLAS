@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Recorded scan/TF timing investigation
+
+- Added read-only scan acquisition and TF/odometry timing measurements.
+- Added a single-variable isolated TF-offset comparison and numerical checks.
+- No production timing, steering or actuator settings changed.
+
 ## 2026-10-08 — Isolated fusion comparison
 
 - Added command-free EKF/SLAM replay comparing wheel pose+velocity against

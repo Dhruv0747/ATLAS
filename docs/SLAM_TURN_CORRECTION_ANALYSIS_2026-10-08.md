@@ -174,3 +174,67 @@ Next investigate timestamp-aligned scan/odom geometry at the correction, includi
 the TF time offset and scan acquisition timing, before choosing another bounded
 offline comparison. Do not request another manual route merely to repeat this
 saved-data analysis or weaken the map-promotion threshold.
+
+## Scan/TF timing measurements
+
+Read-only analysis of the original deb recording around correction receipt time
+1791439656.648584, using scans stamped within +/-5 seconds:
+
+- 1,247 raw scans and 1,236 filtered scans overall; every filtered scan retained
+  a matching raw header stamp. Neither stream had non-increasing stamps. This
+  does not certify why 11 raw scans lack a filtered counterpart.
+- 68 raw and 68 filtered scans in the event window. Median scan acquisition
+  duration 130.04 ms, maximum 267.80 ms. Median filtered receipt age 136.12 ms;
+  after subtracting declared scan duration, median 5.24 ms, maximum 18.69 ms.
+- Full-run paired raw-to-filtered bag receipt difference median 4.66 ms, p95
+  12.26 ms. Some negative differences occur because receipt times are observer
+  scheduling, not a precise measurement of filter execution latency.
+- At the same scan times, recorded TF yaw versus `/odom` yaw differed by up to
+  6.56 deg (p95 3.38 deg). Shifting only TF stamps back 0.2 s aligned these two
+  representations to numerical precision. This verifies the configured temporal
+  offset, not absolute physical heading accuracy or the mapping root cause.
+- IMU-integrated rotation during one scan peaked at 8.89 deg over 267.80 ms,
+  beginning 0.492 s before the correction was received. Motion distortion is a
+  plausible contributor; per-ray acquisition ordering must be verified against
+  the installed driver before implementing deskew. Do not rewrite scan header
+  stamps to publication time or assume one rigid pose is ground truth.
+
+Four numerical checks passed (wrapped-angle interpolation, extrapolation
+rejection, known timestamp shift, empty statistics). No production settings
+were changed by this audit.
+
+## Completed TF-offset comparison
+
+Fresh isolated domain-178 replay of the same deb bag, rate 1.0, current
+pose+velocity wheel fusion retained. Only `transform_time_offset` varied.
+
+| Metric | Current +0.2 s | Zero offset |
+| --- | ---: | ---: |
+| Recorded scans / map messages | 1,236 / 122 | 1,236 / 122 |
+| EKF output messages | 1,840 | 1,838 |
+| Largest translation correction | 0.722693 m | 0.812860 m |
+| Largest yaw correction | 12.397661 deg | 9.998114 deg |
+| Approximate endpoint displacement | 0.091970 m | 0.096671 m |
+| Approximate endpoint heading difference | 1.865806 deg | 1.715834 deg |
+
+**Reject zero offset for live deployment on this evidence.** It reduces the
+largest yaw correction but worsens the largest translation correction by about
+9 cm. The current-offset baseline is close to the previous 0.712702 m replay,
+but repeat scheduling is not deterministic. Neither configuration passes the
+map-promotion gate, and these diagnostic endpoint estimates are not ground truth.
+
+Both recordings closed successfully; no scan-drop, extrapolation or error lines
+were found in EKF/SLAM logs. Each run has two no-event and eight low-frequency
+diagnostic samples, so timing is not certified uniformly healthy. Four fusion
+configuration checks and four timing-math checks passed. The transient replay
+unit exited successfully. Artifacts are retained at
+`/home/jetson/project_atlas/data/diagnostics/timing_ab_20261008/`.
+Live EKF SHA-256 remains
+`69dd4479cdf84ea9d878b1d8c4d0e5129fb894b82003126c9c5f19052afc90ed`.
+
+Next bounded investigation is the scan geometry at the specific high-rotation
+scan: verify installed driver's per-ray timing/order before testing motion
+compensation or scan-quality gating offline. The 8.89-degree acquisition motion
+is a measured candidate, not proof that deskew will solve this. Do not combine
+that experiment with wheel-fusion or TF-offset changes, and do not alter working
+steering or ask for another manual route while this saved data suffices.

@@ -2,6 +2,13 @@
 
 ### Isolated SLAM comparison
 
+`atlas_scan_tf_timing_audit.py BAG_DIRECTORY` checks raw/filtered scan stamps,
+acquisition duration, recorded TF/odometry yaw alignment and IMU rotation during
+scan acquisition. It is read-only. Receipt differences include recorder scheduling;
+they are not direct sensor latency measurements. `atlas_fusion_replay.py` also
+accepts `--comparison tf_offset` to compare the current offset against zero in
+isolation, keeping wheel fusion and every other setting unchanged.
+
 `atlas_fusion_replay.py SOURCE_BAG EKF_YAML NEW_OUTPUT_DIRECTORY --rate 0.5`
 compares current wheel-pose-plus-velocity fusion with velocity-only wheel fusion.
 Run from a sourced ROS Humble shell after verifying localhost domain 178 is

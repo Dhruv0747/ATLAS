@@ -54,13 +54,16 @@ def prepare(source, destination):
     return {'counts': counts, 'retained_frames': sorted(frames)}
 
 
-def configurations(raw):
+def configurations(raw, comparison='wheel_pose'):
     baseline = yaml.safe_load(raw)
     params = baseline['atlas_ekf']['ros__parameters']
     if params['odom0'] != '/yahboom/odom' or params['imu0'] != '/im10a/imu/bias_corrected_candidate':
         raise ValueError('Unexpected fusion inputs: review before replay')
     params['use_sim_time'] = True
     candidate = copy.deepcopy(baseline)
+    if comparison == 'tf_offset':
+        candidate['atlas_ekf']['ros__parameters']['transform_time_offset'] = 0.0
+        return {'offset_current': baseline, 'offset_zero': candidate}
     candidate['atlas_ekf']['ros__parameters']['odom0_config'][0:2] = [False, False]
     return {'pose_velocity': baseline, 'velocity_only': candidate}
 
@@ -85,16 +88,19 @@ def main():
     parser.add_argument('ekf_config')
     parser.add_argument('output')
     parser.add_argument('--rate', type=float, default=0.5)
+    parser.add_argument('--comparison', choices=['wheel_pose', 'tf_offset'], default='wheel_pose')
     args = parser.parse_args()
     if not 0.1 <= args.rate <= 1.0:
         parser.error('Replay rate must be 0.1 to 1.0')
     output = Path(args.output)
     output.mkdir(parents=False, exist_ok=False)
     raw = Path(args.ekf_config).read_text()
-    configs = configurations(raw)
+    configs = configurations(raw, args.comparison)
     manifest = prepare(args.bag, output / 'input')
     manifest.update(source=args.bag, config_sha256=hashlib.sha256(raw.encode()).hexdigest(),
-                    rate=args.rate, domain=178, only_variant_change='odom0_config x/y pose disabled')
+                    rate=args.rate, domain=178,
+                    only_variant_change=('transform_time_offset set to zero' if args.comparison == 'tf_offset'
+                                         else 'odom0_config x/y pose disabled'))
     (output / 'manifest.json').write_text(json.dumps(manifest, indent=2))
     env = dict(os.environ, ROS_DOMAIN_ID='178', ROS_LOCALHOST_ONLY='1',
                FASTDDS_BUILTIN_TRANSPORTS='UDPv4', PYTHONUNBUFFERED='1')
