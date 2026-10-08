@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-08 — Control-policy heartbeat timing margin
+
+- Changed mux policy publication from 2 Hz to 10 Hz; retained the lifted
+  test's 500 ms stale-data rejection and emergency-stop priority.
+- Added heartbeat/deadline regression test; 47 targeted tests passed.
+- Deployed with a stopped mux restart; live policy approximately 10 Hz,
+  motor outputs zero, stop latched. No motor/encoder pass claimed.
+
 ## 2026-10-08 — Fail-closed USB retry and incomplete battery handling
 
 - Added one bounded retry of a timed-out serial ownership check; never assumes

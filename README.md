@@ -1,5 +1,18 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Control-policy heartbeat (2026-10-08)
+
+The mux now publishes mode/policy every 100 ms, instead of 500 ms. The
+lifted owner's 500 ms stale-policy deadline remains unchanged. Previously
+observed 493–507 ms delivery intervals could trip that deadline without a
+communication outage. This change does not alter steering or stop priority.
+47 targeted offline tests passed; deployed to Jetson with the mux restarted
+and stop latched. A short stationary check showed approximately 10 Hz,
+with no motor pulse issued. M3 encoder validation remains pending.
+Rollback: restore `/home/jetson/project_atlas/data/diagnostics/atlas_cmd_vel_mux.before_heartbeat_20261008.py`
+to `/home/jetson/project_atlas/scripts/atlas_cmd_vel_mux.py` and restart
+`atlas-cmd-vel-mux.service` while stopped. This restores the known timing defect.
+
 ### USB discovery and incomplete BMS messages
 
 USB ownership checks retry one `fuser` timeout with a six-second budget after

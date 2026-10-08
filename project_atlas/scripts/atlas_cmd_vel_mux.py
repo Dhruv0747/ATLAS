@@ -264,7 +264,9 @@ class AtlasCmdVelMux(Node):
 
         period = float(self.get_parameter("watchdog_period").value)
         self.create_timer(period, self.watchdog)
-        self.create_timer(0.5, self.publish_mode)
+        # The lifted owner rejects policy older than 0.5 s. Publish with
+        # delivery/scheduling margin; never relax that fail-closed deadline.
+        self.create_timer(0.1, self.publish_mode)
         hierarchy = " > ".join(
             c.name for c in sorted(self.channels.values(), key=lambda c: c.priority)
         )
