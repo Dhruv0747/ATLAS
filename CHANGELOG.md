@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-08 — Repeated-failure audit
+
+- Audited six recorded sessions: zero pulse requests and zero observed motor
+  outputs, with distinct stop, BMS, discovery and feedback-timing failures.
+- Documented cached-versus-receiver freshness, discovery contention, diagnostic
+  shutdown failure, evidence gaps and a no-motion-first acceptance plan in
+  `docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md`.
+- Audit only: no rover control, safety threshold or live service changes.
+
 ## 2026-10-08 — Continuous commissioning readiness, timing issue still open
 
 - Require owner-reported five-second healthy readiness before client entry;

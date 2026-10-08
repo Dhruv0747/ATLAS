@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest [lifted-test failure audit](docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md):
+six logged attempts requested no motor pulse. Readiness/discovery/timing faults
+remain distinct from M3 hardware validation; live commissioning is not passed.
+
 ### Continuous lifted-test readiness gate (2026-10-08)
 
 The test client now requires five continuously healthy seconds reported by the
