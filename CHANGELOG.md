@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-08 — Scan rotation sensitivity, no live deployment
+
+- Verified installed RPLIDAR package/release and examined its timing/reordering.
+- Added offline gyro-rotation sensitivity checks for both ray-time hypotheses.
+- Corrected interpretation of reported scan duration; no robust improvement
+  found, so no deskew or production driver change was deployed.
+
 ## 2026-10-08 — Recorded scan/TF timing investigation
 
 - Added read-only scan acquisition and TF/odometry timing measurements.

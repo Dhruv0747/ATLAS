@@ -238,3 +238,44 @@ compensation or scan-quality gating offline. The 8.89-degree acquisition motion
 is a measured candidate, not proof that deskew will solve this. Do not combine
 that experiment with wheel-fusion or TF-offset changes, and do not alter working
 steering or ask for another manual route while this saved data suffices.
+
+## Driver audit and scan-rotation sensitivity
+
+Installed package: `ros-humble-rplidar-ros 2.1.4-1jammy.20260607.092451`;
+`dpkg -V` reported no differences. Runtime settings: inverted false,
+flip_x_axis false, angle_compensate true. Reviewed the matching
+[ROS release source](https://raw.githubusercontent.com/ros2-gbp/rplidar_ros-release/release/humble/rplidar_ros/2.1.4-1/src/rplidar_node.cpp).
+It measures duration around a data-read call, sorts/angle-compensates the
+returns, and reverses output indexing for this configuration while publishing
+a positive uniform time increment. Exact per-ray acquisition times are not
+recoverable from this bag alone. In particular, the prior 8.89 deg estimate is
+rotation over the **reported time window**, not verified physical scan distortion.
+
+Executed read-only rotation-only sensitivity analysis on 68 consecutive scan
+pairs near the correction. Both forward and reverse uniform-time hypotheses
+use the same integrated IMU and local ICP method; no translation compensation
+or modified ROS messages are introduced. The nine sharper-turn pairs have
+over 2 deg integrated motion in at least one reported scan window.
+
+| Diagnostic median ICP residual | Unchanged | Forward-time hypothesis | Reverse-time hypothesis |
+| --- | ---: | ---: | ---: |
+| All 68 pairs | 7.00 mm | 7.06 mm | 7.01 mm |
+| Nine sharper-turn pairs | 8.96 mm | 9.35 mm | 9.25 mm |
+| Pairs improved against unchanged | — | 30/68 | 32/68 |
+
+Both hypotheses reduce some upper-tail residuals, but neither consistently
+improves the median. Residuals measure nearest-neighbour fit, **not** surveyed
+map accuracy, navigation accuracy or correct data association. Unknown timing
+phase, angular rebinning, translation and moving objects remain confounders.
+These results neither prove nor rule out motion distortion; they do not justify
+deploying guessed per-ray timing or claiming the mapping fault fixed.
+
+Two rotation-math checks passed, and the complete recorded-data analysis ran
+successfully. Full pair results are saved on Jetson at
+`/home/jetson/project_atlas/data/diagnostics/scan_rotation_sensitivity_20261008.json`.
+No motors, steering, production driver, EKF or accepted map changed.
+
+Decision: retain the live baseline. Next evidence needed is a geometric review
+of scan-to-submap correspondences at the jump, not another guessed timing knob.
+If physical per-ray deskew is pursued, it needs verified SDK/acquisition timing
+before a ground trial. This investigation has not validated autonomous mapping.

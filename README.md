@@ -2,6 +2,12 @@
 
 ### Isolated SLAM comparison
 
+`atlas_scan_rotation_sensitivity.py BAG --event UNIX_TIME --output NEW_JSON`
+compares unchanged scans with two hypothetical uniform ray-time orders using
+recorded gyro Z. It is a read-only sensitivity experiment, not validated deskew;
+it creates no ROS node and does not modify scans used by ATLAS. The installed
+driver's reported duration is not a verified per-ray acquisition clock.
+
 `atlas_scan_tf_timing_audit.py BAG_DIRECTORY` checks raw/filtered scan stamps,
 acquisition duration, recorded TF/odometry yaw alignment and IMU rotation during
 scan acquisition. It is read-only. Receipt differences include recorder scheduling;
