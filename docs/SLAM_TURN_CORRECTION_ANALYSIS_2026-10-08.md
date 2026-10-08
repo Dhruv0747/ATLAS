@@ -358,3 +358,43 @@ Three trace numerical tests passed. Full trace is retained at
 `/home/jetson/project_atlas/data/diagnostics/pose_correction_trace_20261008.json`.
 No live setting or motor command changed. SLAM corrections are reference
 observations, not independent ground truth or accumulated-distance error.
+
+## Raw encoder geometry reconstruction
+
+Executed offline with current calibration hashes captured. Four raw encoder
+topics are grouped only after all four update; reject batches with >40 ms
+receipt spread or steering older than 500 ms. Counts convert through the
+canonical per-channel sign/CPR calibration. The same pure consensus helper is
+used for three cases; only the commanded-angle multiplier changes (1, 0.5, 0).
+This does NOT reproduce historical packet timing, private per-wheel fault state,
+or every live timer callback. All four are candidates in this experiment.
+
+615 moving batches exceeded 4 mm on at least one raw wheel. 190 incomplete-
+timing/stale-steering batches were excluded and estimator state reset.
+
+| Case | Accepted moving batches | Rejected | Sum absolute accepted increments |
+| --- | ---: | ---: | ---: |
+| Current commanded-angle normalization | 605 | 10 | 13.0742 m |
+| Half-angle diagnostic hypothesis | 606 | 9 | 13.0769 m |
+| No normalization | 606 | 9 | 13.0787 m |
+
+No normalization rescues three current-case failures but loses two accepted
+current-case batches. The absolute-distance difference is only ~4.5 mm over
+this selected subset. These are estimator integrals, **not measured traveled
+distance** or proof of accuracy. Signed integrals differ more (8.0424, 8.1555,
+8.3747 m); mixed forward/reverse motion and selection mean this does not identify
+the correct model. No case justifies deployment on these results.
+
+Three helper checks passed: straight scales, known synthetic arc normalization,
+and rejection of two-versus-two disagreement. Steering/encoder/PID config hashes
+were unchanged afterward. Full results:
+`/home/jetson/project_atlas/data/diagnostics/encoder_geometry_20261008.json`.
+
+Conclusion: commanded-angle kinematics remains an unvalidated assumption, but
+this reconstruction does not establish it as the consensus-fault cause. Preserve
+working steering and fewer-than-three stop rules. The next useful evidence is
+an atomic per-update diagnostic containing raw counts, applied steering, scales,
+valid-channel mask and accepted delta with one timestamp. This would distinguish
+packet/batching effects from model errors; another identical manual loop without
+that evidence would not resolve this limitation. No telemetry interface or
+production driver was changed in this audit.

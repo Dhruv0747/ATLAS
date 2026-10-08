@@ -2,6 +2,13 @@
 
 ### Isolated SLAM comparison
 
+`atlas_encoder_geometry_audit.py BAG CONFIG_DIRECTORY NEW_JSON` reconstructs
+complete four-topic encoder batches and compares commanded-angle, half-angle
+and no-normalization cases. It is approximate: separate topic receipt times
+do not recover atomic board packets or historical private fault state. Reports
+include exclusions and configuration hashes; do not deploy a case simply
+because it accepts more samples. The script never commands hardware.
+
 `atlas_pose_correction_trace.py BAG NEW_JSON` traces same-time robot-pose
 corrections through a recording and correlates their preceding five-second
 odometry/gyro windows with encoder-health reports. Windows overlap; correlations

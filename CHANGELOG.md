@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Offline encoder geometry audit
+
+- Compared three normalization cases using synchronized-enough raw topic batches.
+- Found no decisive consensus/distance improvement; retained the production model
+  and all stop conditions. Documented recording limits instead of claiming a fix.
+
 ## 2026-10-08 — Whole-run pose correction trace
 
 - Added read-only correction timing, wheel/fused-heading and encoder-health
