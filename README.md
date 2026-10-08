@@ -2,6 +2,16 @@
 
 ### Daly Bluetooth packet repair (2026-10-08)
 
+Stationary follow-up: 71 targeted software tests passed (54 lifted client/owner,
+7 Daly decoder, 1 policy heartbeat, 9 mux). Dashboard battery subscriptions
+were stale and recovered after a dashboard-only restart; sampled battery
+timestamps then advanced with complete charging readings. Root cause of the
+earlier dashboard subscription stall is not yet established. B stayed latched,
+raw test mode disabled, motor outputs zero. A remaining gate is polling latency:
+the reconnect-per-poll reader takes about 11.3 s, exceeding the lifted owner's
+10 s battery freshness limit. Do not relax the limit or claim M3 validation;
+improve and validate reader timing before retrying.
+
 Raw probes showed a 26-byte cell response cut to 20 bytes at default MTU.
 Negotiating MTU 64 returned both full frames in three probe polls. The reader
 now requests this MTU; the decoder reassembles notification bytes within one
