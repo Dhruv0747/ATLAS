@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Saved camera evidence inspected
+
+- Extracted original frames around the manual turns and visually checked three.
+- Recorded that wheels are not visible and imagery is hazy; onboard footage
+  cannot validate mechanical steering delay. No hardware settings changed.
+
 ## 2026-10-08 — Offline steering-delay sensitivity
 
 - Compared seven hypothetical steering delays with recorded candidate gyro;

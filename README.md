@@ -49,6 +49,15 @@ gyro timing, slip and geometry errors are confounded. No wheel normalization
 was recomputed and no held-out trial was used. Do not deploy a 0.5-second
 control delay from this result. Production steering remains unchanged.
 
+Camera review: `atlas_turn_camera_extract.py BAG NEW_DIRECTORY` extracts original
+compressed frames and nearest commanded steering values without modifying images.
+Seven frames spanning offsets 26.5–32.5 s were extracted from this trial;
+visual inspection at 26.5, 28.5 and 31.5 s showed a hazy close door view, no wheels
+or linkages. The footage cannot validate physical steering angle or servo lag.
+Sample header-to-bag receipt ages were 14–41 ms, not measurements of full camera
+pipeline latency. A fixed external view of the steering linkage would be needed
+for direct visual verification; no additional drive or steering command was issued.
+
 `/atlas/encoder_update` is diagnostic JSON in `std_msgs/String`, schema version 1.
 When subscribed, each wheel-odometry update reports its sequence, matching ROS
 stamp, monotonic time, counts/calibration, commanded steering, path scales,
