@@ -279,3 +279,40 @@ Decision: retain the live baseline. Next evidence needed is a geometric review
 of scan-to-submap correspondences at the jump, not another guessed timing knob.
 If physical per-ray deskew is pursued, it needs verified SDK/acquisition timing
 before a ground trial. This investigation has not validated autonomous mapping.
+
+## Frozen prior-map geometric comparison
+
+Compared eight scans from -0.749 to +0.297 seconds around the original deb
+correction against a 5 cm occupancy grid received 1.548 seconds before the
+correction (before every tested scan). Occupied cells >=65 form the reference.
+Recorded laser extrinsics and interpolated odom->base_link TF are composed
+with each map->odom hypothesis at the same scan timestamp. No map updates or
+post-event map are used for scoring.
+
+All eight scans have lower median endpoint-to-occupied-cell distance under the
+**after** hypothesis. For the scan at -0.098 seconds, median error changes
+9.25 cm -> 2.53 cm, p90 29.14 cm -> 4.51 cm, and endpoints within 10 cm of
+occupied cells increase 53.8% -> 100%. This supports correction of an inaccurate
+pose prior; it does not support the initial presumption that SLAM necessarily
+matched the wrong corridor. Repeated geometry can still alias, and this grid
+does not expose optimizer correspondence IDs, constraint scores or ground truth.
+
+Important metric correction: the ~0.747 m map->odom translation change is an
+origin-dependent frame-transform change, **not** a 0.747 m robot displacement.
+Composing both hypotheses with the same odom pose yields ~0.232–0.236 m robot
+position correction and -9.75 deg heading correction across these scans.
+Prior replay tables remain accurate as *transform-component* measurements,
+but those values alone cannot rank physical localization error. Review any
+acceptance gate based solely on map->odom translation before using it as a
+physical-distance gate; do not simply loosen it to pass this run.
+
+Three geometry unit checks passed, including a case with large frame-origin
+translation and zero robot-position change. Results saved on Jetson at
+`/home/jetson/project_atlas/data/diagnostics/scan_map_jump_pose_20261008.json`.
+No motion, live parameter, steering or map changes occurred.
+
+Next: evaluate same-time map->base_link correction and prior-map consistency
+across the saved run, then compare odometry prediction against those corrections.
+The evidence suggests examining accumulated odometry/heading error rather than
+suppressing this geometrically beneficial correction. It does not prove its
+hardware/software source or authorize autonomous navigation.

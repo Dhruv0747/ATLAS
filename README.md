@@ -2,6 +2,12 @@
 
 ### Isolated SLAM comparison
 
+`atlas_scan_map_jump_audit.py BAG NEW_JSON` projects event scans into a frozen
+prior map under the before/after correction hypotheses. It also reports
+same-time robot-position correction, which differs from the origin-dependent
+translation of `map -> odom`. This reads recorded data only, not SLAM's internal
+correspondence trace; endpoint fit alone cannot certify map accuracy.
+
 `atlas_scan_rotation_sensitivity.py BAG --event UNIX_TIME --output NEW_JSON`
 compares unchanged scans with two hypothetical uniform ray-time orders using
 recorded gyro Z. It is a read-only sensitivity experiment, not validated deskew;

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-08 — Prior-map consistency at correction
+
+- Added read-only before/after scan projection against a frozen pre-event map.
+- Distinguished map-origin transform changes from robot-position correction.
+- Found improved prior-map endpoint fit after correction; no live changes or
+  autonomous-validation claim made.
+
 ## 2026-10-08 — Scan rotation sensitivity, no live deployment
 
 - Verified installed RPLIDAR package/release and examined its timing/reordering.
