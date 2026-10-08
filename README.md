@@ -1,5 +1,12 @@
 # Project ATLAS - Autonomous Service Rover
 
+Lifted client discovery follow-up (2026-10-08): wait up to 10 seconds for a
+matched request subscriber before sending the one-shot entry request. Receiving
+status alone does not establish the reverse ROS connection. The next live
+attempt reached LOCKED but aborted on `bms_telemetry_stale` before a pulse.
+M3 is front-left; its validation remains pending. Do not repeat attempts until
+the battery polling interval is fixed. Normal disabled test mode restored.
+
 ### Daly Bluetooth packet repair (2026-10-08)
 
 Stationary follow-up: 71 targeted software tests passed (54 lifted client/owner,

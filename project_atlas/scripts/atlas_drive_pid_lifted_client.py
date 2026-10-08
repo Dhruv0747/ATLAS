@@ -698,6 +698,14 @@ class RosStringTransport:
             self._statuses.append(decoded)
 
     def publish(self, message: Mapping[str, Any]) -> None:
+        if message.get("op") == "enter":
+            # Discovery is directional: receiving status does not prove the
+            # VOLATILE request publisher has matched the owner subscription.
+            deadline = time.monotonic() + 10.0
+            while self.publisher.get_subscription_count() == 0:
+                if time.monotonic() >= deadline:
+                    raise OperatorError("owner request subscriber unavailable")
+                self._rclpy.spin_once(self.node, timeout_sec=0.05)
         ros_message = self._String()
         ros_message.data = json.dumps(dict(message), sort_keys=True, separators=(",", ":"))
         self.publisher.publish(ros_message)

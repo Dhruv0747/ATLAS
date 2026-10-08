@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Lifted request discovery guard
+
+- Wait for request subscriber matching before one-shot entry; 54 existing
+  client/owner tests passed. Live entry reached LOCKED, then the unchanged
+  battery freshness guard aborted it. No pulse issued; M3 still unvalidated.
+
 ## 2026-10-08 — Daly MTU and frame integrity repair
 
 - Observed default-MTU truncation of cell frames; MTU 64 returned all 26 bytes
