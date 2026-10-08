@@ -71,6 +71,33 @@ def main(path):
                 total += overlap*(z+z2)/2
         return total
     windows = [('whole_motion', group[0]-.2, group[-1]+.5) for group in groups]
+    # Sensitivity only: delayed commanded steering at fixed recorded distance.
+    # This does not rerun wheel normalization or measure mechanical servo lag.
+    times = np.asarray([u['stamp_ns']/1e9 for u in updates])
+    commanded_k = np.asarray([
+        (math.tan(math.radians(u['steering_command_deg'][0]-u['steering_centers_deg'][0]))
+         - math.tan(math.radians(u['steering_command_deg'][1]-u['steering_centers_deg'][1])))
+        / u['wheelbase_m'] for u in updates])
+    delay_sensitivity = []
+    for delay in [0., .1, .2, .3, .5, .75, 1.]:
+        errors, weights = [], []
+        for i, u in enumerate(updates):
+            t, dt = times[i], u['integration_dt_s']
+            if dt <= 0 or abs(u['accepted_delta_m']) < .001 or not any(a <= t < b for _,a,b in windows):
+                continue
+            if not gyro or t-dt < gyro[0][0] or t > gyro[-1][0]:
+                continue
+            if any(t2-t1 >= .5 and t1 < t and t2 > t-dt for (t1,_),(t2,_) in zip(gyro,gyro[1:])):
+                continue
+            past = int(np.searchsorted(times, t-delay, side='right'))-1
+            if past < 0:
+                continue
+            predicted = u['accepted_delta_m']*commanded_k[past]/dt
+            observed = integral(t-dt,t)/dt
+            errors.append((predicted-observed)**2)
+            weights.append(dt)
+        delay_sensitivity.append(dict(delay_s=delay, samples=len(errors),
+            yaw_rate_rmse_deg_s=math.degrees(math.sqrt(float(np.average(errors,weights=weights)))) if errors else None))
     # Separate by commanded curvature, not gyro outcome (which would bias
     # the comparison). Labels do not assert physical left/right calibration.
     for group in groups:
@@ -111,7 +138,8 @@ def main(path):
             selection_counts=dict(collections.Counter(str(u['accepted_channels']) for u in rows)),
             raw_count_change=[rows[-1]['raw_counts'][i]-rows[0]['raw_counts'][i] for i in range(4)] if rows else [],
             steering_ranges=[[min(u['steering_command_deg'][i] for u in rows),max(u['steering_command_deg'][i] for u in rows)] for i in range(2)] if rows else []))
-    print(json.dumps(dict(bag=path, topic_counts=counts, timing_and_replay=timing, segments=results,
+    print(json.dumps(dict(bag=path, topic_counts=counts, timing_and_replay=timing,
+        delay_sensitivity=delay_sensitivity, segments=results,
         stale_snapshots=sum(not u['packet_fresh'] for u in updates),
         sequence_gaps=sum(max(0,b['sequence']-a['sequence']-1) for a,b in zip(updates,updates[1:])),
         caveat='ICP is gyro-seeded, not independent ground truth; command windows use receipt times. No calibration changes justified by this alone.'), indent=2))

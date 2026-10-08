@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Offline steering-delay sensitivity
+
+- Compared seven hypothetical steering delays with recorded candidate gyro;
+  documented improved fit at 0.5 seconds and confounding/validation limits.
+- Ran analysis on the saved bag only. No rover movement or control changes.
+
 ## 2026-10-08 — Encoder calculation replay and timing
 
 - Replayed synchronized calculation inputs against the encoder estimator:

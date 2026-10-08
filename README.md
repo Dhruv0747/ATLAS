@@ -40,6 +40,15 @@ the model uses commanded servo offset as wheel angle, without measured wheel
 angle feedback. Scheduling intervals and servo response need separate analysis;
 the observed maximum interval alone does not establish the cause of turn error.
 
+A steering-delay sensitivity sweep on 39 moving samples kept recorded distance
+fixed and compared predicted yaw rate with interval-averaged candidate gyro.
+Delays 0/0.1/0.2/0.3/0.5/0.75/1.0 s gave weighted RMSE
+10.76/8.23/6.65/5.56/4.49/6.34/8.82 degrees/s. The 0.5-second hypothesis
+fits this recording better, but is not a measured servo delay: count latency,
+gyro timing, slip and geometry errors are confounded. No wheel normalization
+was recomputed and no held-out trial was used. Do not deploy a 0.5-second
+control delay from this result. Production steering remains unchanged.
+
 `/atlas/encoder_update` is diagnostic JSON in `std_msgs/String`, schema version 1.
 When subscribed, each wheel-odometry update reports its sequence, matching ROS
 stamp, monotonic time, counts/calibration, commanded steering, path scales,
