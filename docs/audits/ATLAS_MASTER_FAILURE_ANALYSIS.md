@@ -121,6 +121,14 @@ wheel-scale fault, since the integrated wheel path was about 6.77 m and the
 trajectory curved. See the [Oct9 navigation gate](ATLAS_NAVIGATION_GATE_2026-10-09.md)
 for timing and limitations. Keep autonomous navigation unqualified; do not
 blindly change wheel scale, EKF fusion or AMCL tuning from this bag alone.
+An isolated same-bag EKF A/B then changed only wheel X/Y pose fusion. The
+velocity-only variant improved median saved-map scan endpoint proximity from
+23.1% to 50.2% across 31 samples and kept net heading close to IM10A gyro;
+current fusion's heading and final scan proximity were much worse. The
+velocity-only result is still incomplete and conflicts with a mixed Oct8
+comparison, so it is **not** a production fix. The deployed read-only map
+display now exposes AMCL uncertainty and recent jumps instead of presenting
+a fresh but uncertain TF as a precise pose. It cannot repair AMCL itself.
 
 Recommendation: retain Jetson-local safety and essential diagnostics, first resolve BLE freshness and motor timing with bounded evidence, then decide whether Visual Cloud should connect to a real authenticated PC endpoint or remain local. Measure overhead and data growth before enabling any additional collector. PC-side n8n/analytics are optional consumers, never dependencies of autonomous control.
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-10-09 — Show localization uncertainty on the live map
+
+- Analyzed the existing Hall-to-Dhruv bag without moving ATLAS. AMCL became
+  highly uncertain before switching between stationary pose hypotheses;
+  recorded scans strongly favored the eventual Dhruv Room hypothesis. Wheel
+  steering-derived heading diverged from IM10A gyro heading, particularly in
+  one turning window, while LiDAR/IMU/odometry delivery remained fresh.
+- Added diagnostic-only AMCL covariance and recent-pose-jump information to
+  `/api/map`. The read-only map page now labels fresh but uncertain poses as
+  estimates instead of presenting them as confident localization. No motor,
+  EKF, AMCL, Nav2, steering or calibration setting was changed.
+- Replayed all 384 recorded AMCL poses through the display classifier: it
+  flagged all five >0.5 m post-stop corrections. Unit and browser-script
+  syntax checks passed. Deployed only the web display with a recoverable
+  backup; the map API and page returned HTTP 200 with fresh AMCL confidence.
+  This is an observability repair, **not** a claim that localization jumping
+  is resolved.
+- An isolated A/B replay of the same Hall bag found that velocity-only wheel
+  input improved median saved-map LiDAR endpoint fit from 23.1% to 50.2%,
+  with the gyro retained. This candidate is not production-ready: endpoint
+  fit remains incomplete and a prior bag had mixed results. Live EKF/Nav2
+  configuration was not changed.
+
 ## 2026-10-09 — Manual return recording and live-map refresh
 
 - Recorded an operator-driven Hall → Dhruv Room return with LiDAR, AMCL,

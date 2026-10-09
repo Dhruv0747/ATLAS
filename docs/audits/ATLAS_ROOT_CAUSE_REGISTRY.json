@@ -404,7 +404,7 @@
       "resolution": "UNRESOLVED",
       "original_failure_and_evidence": "Hall goal aborted with lethal start; named home coordinate disagreed with physical location. Oct4 drive preceded active session. Oct8 closure 0.082 m/2.99 deg but continuity gate failed.",
       "confirmed_findings": "Start/session race established; map->odom component jump is origin-dependent, not physical displacement. Same-pose composition showed ~0.23 m correction; after hypothesis fit prior map better.",
-      "suspected_causes_and_limits": "Source of accumulated odometry/heading error still unresolved; not proven SLAM wrong-corridor match.",
+      "suspected_causes_and_limits": "Oct9 manual-return evidence supports AMCL hypothesis switching after wheel-derived heading/position diverged from gyro and scan geometry. Wheel X/Y pose fusion worsened an isolated replay versus velocity-only input, but the candidate remains inaccurate and a prior bag had mixed results. Physical steering angle is unmeasured; contributions from steering geometry, intermittent encoder consensus and scan/map ambiguity are not separately proven.",
       "attempted_fix_commits": [
         "6a18b0e43418bad87037678c592a71b9c029b898",
         "5478fac974ff465c018d3013926d81d1f58436d1",
@@ -469,6 +469,11 @@
           "date": "2026-10-09",
           "kind": "recorded_manual_return_localization_jump",
           "description": "Dedicated Hall-to-Dhruv manual return bag captured fresh scan, odom, TF and AMCL. Remote-command interval had no >2 s data gap, but five AMCL steps exceeded 0.5 m after the remote stopped and odometry was stationary; largest was 2.206 m/130 degrees. The 4.236 m wheel-odom endpoint displacement does not prove distance under-reporting because its recorded path length was about 6.77 m. Of 65 unavailable encoder samples, 32 occurred with traction and CRITICAL/autonomy_ready=false health. Wheel-derived yaw-rate integration was about -143 degrees versus about -192 degrees from IM10A/EKF. Browser map refresh was bounded and stale data labelled, but root localization reliability remains unproven. No autonomous motion was commanded."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "same_bag_ekf_ab_and_display_repair",
+          "description": "Offline replay in isolated ROS domain 178 changed only wheel X/Y pose fusion. Across 31 Hall-anchored scans, median saved-map endpoint fit within 15 cm improved from 23.1% to 50.2% with velocity-only wheel input; last-10-second fit improved from 11.1% to 52.2%. The earlier Oct8 replay was mixed and this candidate still underfits, so production EKF/Nav2 remains unchanged. Read-only web map now displays AMCL covariance and recent jumps; replay classifier flagged all five post-stop corrections, and the deployed API/page returned HTTP 200. No motor or autonomous command was issued."
         }
       ]
     },

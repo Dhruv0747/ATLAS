@@ -102,6 +102,36 @@ safety gate was changed.
   which source is physically correct or that the encoder losses caused the
   later AMCL jumps. Preserve the current EKF/Nav2 configuration until that
   distinction is measured.
+- A same-time scan/map comparison on the accepted 5 cm grid supports the
+  **hypothesis-switching** explanation for the post-stop corrections. At
+  223.63 s, the pose near (0.30, -1.11) placed 100% of 217 usable scan
+  endpoints within 15 cm of mapped occupied cells; the competing pose near
+  (1.57, -0.24) placed 86.6% there. AMCL nevertheless switched back to the
+  weaker hypothesis at 224.71 s, then returned near Dhruv Room at 227.84 s.
+  The particle cloud remained broad and AMCL XY/heading standard deviations
+  were already about 1.12 m/58.5° at the end of the remote drive. These are
+  independent indications of uncertain localization, not TF transport lag.
+- Motion evidence narrows the likely source of that uncertainty. Over the
+  driven window, wheel steering/encoder integration yielded -142.8° yaw and
+  the IM10A gyro integrated to about -191.5°. Most of the discrepancy arose
+  in the 175–190 s turning window: wheel +57° versus gyro +12°. Both IMU and
+  odometry message ages were below 0.13 s maximum there; LiDAR was below
+  0.28 s. Steering was **commanded only**, with front/rear commands ranging
+  66–109°/71–116°; no physical steering-angle sensor measured actual wheel
+  angle. An offline, Hall-anchored dead-reckoning check at 214.85 s gave 83.1%
+  of scan endpoints within 15 cm of mapped walls using gyro-integrated
+  heading, versus 6.7% for wheel-steering heading and 2.6% for the recorded
+  EKF pose. This strongly favors gyro heading for this run, but endpoint
+  proximity is not a full ray-casting likelihood or surveyed ground truth.
+  The wheel/IMU discrepancy and dropped encoder-consensus intervals are
+  plausible contributors to particle spread; the recording cannot apportion
+  their individual causal effects or prove a physical steering defect.
+- Current production safety already fails closed: the mux rejects AMCL XY
+  standard deviation above 0.25 m, heading standard deviation above 20°,
+  and large pose jumps. No actuation guard was weakened. A read-only map
+  display correction now surfaces AMCL uncertainty and recent jumps, so a
+  fresh TF estimate is not presented as confidently localized. **This does
+  not resolve the underlying AMCL jumps or qualify autonomous travel.**
 - A later stopped scan fit the final live pose in known free space: 95.7%
   of 209 endpoints were within 15 cm of mapped occupied cells, versus 67.5%
   at the exact saved home point. This supports the operator's statement that
@@ -118,6 +148,42 @@ safety gate was changed.
   200 and fresh pose; a moving phone-browser test is still needed to confirm
   browser responsiveness. Autonomous motion remains blocked on localization
   repeatability, not merely map-page update speed.
+
+### Isolated EKF comparison on this same recording
+
+- A 75 s clip of the Hall return, including 750 wheel odometry messages,
+  751 IM10A messages and 529 scans, was replayed in isolated ROS domain 178.
+  Only recorded sensor/TF topics were played. EKF and SLAM were started for
+  each variant; no joystick, command mux, motor or other actuator topic was
+  replayed. The production `atlas_ekf.yaml` SHA-256 stayed
+  `69dd4479cdf84ea9d878b1d8c4d0e5129fb894b82003126c9c5f19052afc90ed`.
+  Artifacts are under
+  `/home/jetson/project_atlas/data/diagnostics/hall_return_ekf_ab_20261009/`.
+- The sole configuration difference was disabling wheel-derived X/Y **pose**
+  fusion while retaining wheel X/Y velocity and IM10A gyro Z. Hall-anchored
+  estimates were compared with the existing accepted map at 31 recorded
+  scans. Median percentage of usable scan endpoints within 15 cm of mapped
+  occupied cells improved from **23.1% (current pose+velocity fusion)** to
+  **50.2% (velocity-only)**; in the last 10 s it improved from **11.1%** to
+  **52.2%**. At the arrival scan (~214.85 s), the comparison was **8.7%**
+  versus **49.2%**. The velocity-only EKF net yaw was about -191°, consistent
+  with the gyro; current fusion replay net yaw was about -142°. This is strong
+  evidence that wheel-derived position updates pull the fused trajectory away
+  from the scan-supported route on **this** recording.
+- The velocity-only candidate is **not deployed**. Its endpoint scan fit is
+  still far below the scan-supported AMCL final hypothesis, and an earlier
+  Oct 8 replay on a different mapping bag had mixed results and rejected the
+  same change. This A/B does not prove repeatable Nav2 localization, physical
+  steering accuracy, or safe autonomous driving. Production EKF and Nav2
+  parameters remain byte-for-byte unchanged; the next decision requires an
+  offline comparison that also checks saved-map AMCL confidence and a bounded
+  supervised physical validation when the operator permits movement.
+- The diagnostic-only `/api/map` confidence display was deployed with exact
+  backups under `data/diagnostics/map_confidence_backup_20261009/`. Replay of
+  all 384 original `/amcl_pose` messages flagged all five post-stop jumps;
+  five unit tests, Python compilation, browser-script parsing, live HTTP 200
+  and fresh AMCL confidence fields passed. The dashboard service alone was
+  restarted; odometry remained stationary and no motor command was issued.
 
 ## Current observed state
 

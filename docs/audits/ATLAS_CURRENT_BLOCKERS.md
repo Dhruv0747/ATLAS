@@ -24,6 +24,13 @@ The web map now flags stale displayed poses, but that does not repair AMCL or
 motion-estimate disagreement. Keep autonomy gated pending same-time heading,
 TF, encoder and localization validation; do not retune wheel scale from this
 manual route alone.
+An isolated A/B replay on the same Hall return found velocity-only wheel
+fusion materially closer to saved-map LiDAR endpoints than current wheel
+pose+velocity fusion (median 50.2% versus 23.1% within 15 cm), but the
+candidate still underfit and a prior Oct 8 comparison was mixed. It has
+**not** been deployed. The map page now reveals AMCL uncertainty and pose
+jumps instead of treating a fresh TF as a precise fix; it does not solve the
+localization instability. See the navigation gate for test scope and data.
 Per operator priority, continue non-motion navigation evidence first and leave
 the intermittent BLE transport repair until later; **do not bypass fresh BMS
 telemetry or any movement safety gate**.

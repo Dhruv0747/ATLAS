@@ -443,6 +443,10 @@ unavailable rather than replaced by cached example data. This page does not
 publish motion commands. It deliberately does not substitute raw wheel
 odometry when the authoritative `map -> base_link` TF is absent, because those
 coordinates can diverge after a driver or EKF restart.
+The map page also reports fresh AMCL position/heading uncertainty and flags
+recent large pose corrections. A fresh but uncertain map pose is drawn as an
+amber **estimate**, not a confidently located rover. These are display-only
+diagnostics; the existing Jetson-local motion safety gates remain authoritative.
 
 ### AI/robotics adaptation Phase 0 — 2026-09-30
 

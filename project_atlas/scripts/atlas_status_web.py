@@ -17,6 +17,7 @@ from collections import deque
 from pathlib import Path
 from atlas_web_diagnostics import DiagnosticCache, service_logs
 from atlas_commissioning import Console, hardware_check
+from atlas_localization_display import summarize_amcl_pose
 import sqlite3
 
 import cv2
@@ -26,7 +27,7 @@ from urllib.parse import parse_qs
 
 import rclpy
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import NavSatFix, LaserScan, CompressedImage, Joy
@@ -273,6 +274,8 @@ class AtlasRosNode:
         self.map_png = None
         self.map_meta = {}
         self.map_received_at = 0.0
+        self.previous_amcl_pose = None
+        self.last_large_amcl_step_at = 0.0
         self.map_lock = threading.Lock()
         self.tf_buffer = None
         self.tf_listener = None
@@ -469,6 +472,7 @@ class AtlasRosNode:
             n.create_subscription(String, "/steering/mode", lambda m: self._set("steer_mode", m.data), 10)
             n.create_subscription(NavSatFix, "/gps/fix", lambda m: self._set("gps_fix", {"status": m.status.status, "lat": m.latitude, "lon": m.longitude}), 10)
             n.create_subscription(Odometry, "/odom", self._odom_cb, 10)
+            n.create_subscription(PoseWithCovarianceStamped, "/amcl_pose", self._amcl_cb, 10)
             n.create_subscription(Twist, "/cmd_vel", lambda m: self._set("cmd_vel", {"lin": m.linear.x, "ang": m.angular.z}), 10)
             n.create_subscription(String, "/atlas/health", lambda m: self._set("atlas_health", m.data), 10)
             n.create_subscription(String, "/atlas/readiness", lambda m: self._set("atlas_readiness", m.data), 10)
@@ -549,6 +553,23 @@ class AtlasRosNode:
             "vx": msg.twist.twist.linear.x,
             "wz": msg.twist.twist.angular.z,
         })
+
+    def _amcl_cb(self, msg):
+        pose = msg.pose.pose
+        q = pose.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                         1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        current = (float(pose.position.x), float(pose.position.y), yaw)
+        quality = summarize_amcl_pose(*current, msg.pose.covariance,
+                                      previous=self.previous_amcl_pose)
+        self.previous_amcl_pose = current
+        if quality["large_step"]:
+            self.last_large_amcl_step_at = time.monotonic()
+        quality["recent_jump_s"] = (
+            round(time.monotonic() - self.last_large_amcl_step_at, 1)
+            if self.last_large_amcl_step_at else None
+        )
+        self._set("amcl_quality", quality)
 
     def _ultrasonic_status_cb(self, msg):
         now = time.time()
@@ -737,6 +758,7 @@ class AtlasRosNode:
                 "map": meta, "map_age": map_age,
                 "pose": item("map_pose"), "goal": item("nav_goal"),
                 "plan": item("nav_plan"), "mission": item("mission_status"),
+                "localization": item("amcl_quality"),
             }
         result["markers"] = map_markers(meta)
         return result
