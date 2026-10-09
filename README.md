@@ -1136,7 +1136,8 @@ the indicator does not substitute the motor-board voltage estimate.
 On a failed Daly Bluetooth read, `/bms/json` reports `ok:false`; scalar BMS
 topics must not republish the last successful measurements as if new. The
 mission-agent battery preflight uses the coherent JSON status and rejects an
-unhealthy or stale snapshot. The source fix awaits live deployment validation.
+unhealthy or stale snapshot. Deployed Oct 9 with a short healthy-runtime check;
+BLE connection endurance and the live invalid-read path remain unvalidated.
 
 # Dashboard shutdown
 
