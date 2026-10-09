@@ -57,6 +57,19 @@ worse; velocity-only EKF also remains mixed. None of the isolated replays
 reproduced the five live jumps, so neither candidate is a verified fix.
 Production localization is unchanged and autonomy remains gated; see the
 cross-bag audit for per-event and replay measurements.
+The next [replay-fidelity audit](ATLAS_AMCL_REPLAY_FIDELITY_2026-10-09.md)
+confirmed that the saved map matches the recorded map cell-for-cell, but the
+earlier replay omitted source scans and rebuilt odometry. A closer replay with
+all original scans and EKF odometry in its input still emitted only 120 AMCL
+poses versus 168 live and reproduced none of the five jumps in two runs.
+Its particle spread also differed. The recorded bag lacks AMCL's internal
+particle/RNG checkpoint and pre-clip update history, so these zero-jump
+outputs are not evidence of a localization repair.
+The full-bag replay also stopped emitting AMCL poses before the original
+post-stop jump window. A replay-only zero-motion-threshold experiment kept
+updates flowing and produced one repeatable 1.827 m correction, but at 512
+poses versus 168 live; it does not reproduce the original five-event failure
+or justify deploying an AMCL parameter change.
 An isolated A/B replay on the same Hall return found velocity-only wheel
 fusion materially closer to saved-map LiDAR endpoints than current wheel
 pose+velocity fusion (median 50.2% versus 23.1% within 15 cm), but the

@@ -179,8 +179,10 @@ def read_bag(path, with_clouds=True):
     return poses, clouds, scans, odom, transforms, map_message, static
 
 
-def analyze(path):
+def analyze(path, source_bag=None):
     poses, clouds, scans, odom, transforms, map_message, static = read_bag(path)
+    if ("base_footprint", "laser_frame") not in static and source_bag:
+        static = read_bag(source_bag, with_clouds=False)[-1]
     if map_message is None or ("base_footprint", "laser_frame") not in static:
         raise ValueError("recorded map or laser extrinsics missing")
     laser = compose(static.get(("base_link", "base_footprint"), np.zeros(3)),
@@ -294,7 +296,7 @@ def main():
     parser.add_argument("--source-bag", help="Original bag supplying static laser TF omitted by replay output")
     args = parser.parse_args()
     print(json.dumps(replay_summary(args.bag, source_bag=args.source_bag)
-                     if args.summary else analyze(args.bag), indent=2))
+                     if args.summary else analyze(args.bag, source_bag=args.source_bag), indent=2))
 
 
 if __name__ == "__main__":

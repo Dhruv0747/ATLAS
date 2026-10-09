@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from atlas_amcl_stationary_jump_audit import (cloud_support, compose, map_model,
+from atlas_amcl_stationary_jump_audit import (analyze, cloud_support, compose, map_model,
                                                nearest_at_or_before, replay_summary,
                                                score_scan)
 
@@ -70,6 +70,19 @@ class StationaryJumpAuditTest(unittest.TestCase):
             result = replay_summary("replay", source_bag="original")
         self.assertEqual(result["scan_pairs"], 1)
         self.assertEqual(result["median_endpoint_fit_15cm"], 1.)
+
+    def test_jump_audit_uses_source_static_tf_when_output_omits_it(self):
+        grid = [0] * 100
+        grid[5 * 10 + 6] = 100
+        info = SimpleNamespace(height=10, width=10, resolution=1.,
+                               origin=SimpleNamespace(position=point(),
+                                   orientation=SimpleNamespace(x=0, y=0, z=0, w=1)))
+        output = ([], [], [], [], [], SimpleNamespace(info=info, data=grid), {})
+        source = ([], [], [], [], [], None,
+                  {("base_footprint", "laser_frame"): np.array([0, 0, math.pi / 2])})
+        with patch("atlas_amcl_stationary_jump_audit.read_bag", side_effect=[output, source]):
+            result = analyze("replay", source_bag="original")
+        self.assertEqual(result["events"], [])
 
 
 if __name__ == "__main__":

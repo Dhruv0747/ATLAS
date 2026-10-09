@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-09 — Identify AMCL replay-fidelity gap
+
+- Added read-only map/input/particle-state fidelity auditing and an isolated
+  AMCL-only replay of the original scan, odometry and odom TF streams. Two
+  repeat runs still did not reproduce the five live jumps: 120 versus 168
+  AMCL updates and lower replay particle spread. The saved map itself matched
+  the recorded grid in all 51,040 cells.
+- A replay-only motion-threshold probe kept AMCL updating and produced one
+  repeatable 1.827 m jump, but at 512 rather than 168 poses; it is not the
+  original five-jump baseline and was not deployed.
+- No localization candidate was promoted, and no production service or rover
+  actuator was changed. See the
+  [replay-fidelity audit](docs/audits/ATLAS_AMCL_REPLAY_FIDELITY_2026-10-09.md).
+
 ## 2026-10-09 — Audit stationary AMCL hypothesis switching
 
 - Added a read-only particle-cloud/same-scan map-fit audit and replay summary,

@@ -298,3 +298,8 @@ repeatable offline replay that preserves original AMCL initialization,
 particle/random state and timing closely enough to reproduce stationary
 switching, or a separately approved *stationary-only* localization recording.
 No additional manual driving is justified by the present data.
+
+The subsequent [replay-fidelity audit](ATLAS_AMCL_REPLAY_FIDELITY_2026-10-09.md)
+used original recorded EKF `/odom` and odom→base TF instead of regenerating
+them. Two identical isolated replays still produced 0/5 original jumps and
+120 versus 168 AMCL updates. This replay is also not a valid repair baseline.
