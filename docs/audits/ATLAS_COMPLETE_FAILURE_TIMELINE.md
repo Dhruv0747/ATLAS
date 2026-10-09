@@ -6,6 +6,7 @@ Updated 2026-10-09. Canonical requested filename; **historical coverage is incom
 
 | Date / period | IDs | Observation and disposition |
 | --- | --- | --- |
+| 2026-10-09 evening | 011 | Passive stationary capture found 2,000 AMCL particles at one effective geometric support point at the previously wrong return pose. Saved round-trip cloud support also collapses at +104.009 s. Forced-update/resampling policy identified for isolated testing; original five-jump selection cause remains unresolved. No production change. |
 | 2026-08-04 | 001,010 | Baseline command-integrated odometry, inconsistent TF/IMU mounting; isolated counts absent on M2–M4. Hardware replacement restored historical responses. Calibration remained separate. |
 | 2026-08-06 | 014 | Commissioning report claimed broad passes with old motor mapping. Preserve as historical scope, not current certification. |
 | 2026-08-09–24 | 012,013 | Navigation model and remote timing changes; planner/controller mismatch aligned Aug24. Working remote restored after experiments. |

@@ -8,6 +8,13 @@ No physical movement, firmware flashing, safety bypass, calibration or navigatio
 
 ## Findings in plain language
 
+Latest bounded follow-up: [stationary particle-support audit](ATLAS_AMCL_PARTICLE_COLLAPSE_2026-10-09.md)
+confirmed that 2,000 published AMCL particles can occupy one effective pose
+with near-zero covariance at a previously wrong map location. The saved drive
+also exhibits collapse. Forced 1 Hz updates/resampling require an isolated
+policy experiment; high particle count and low variance are not independent
+confidence evidence. No production change or localization repair is claimed.
+
 ATLAS has recurring failures because several dependent layers have changed and have not been jointly qualified on a frozen hardware/configuration baseline. There is **no single proven cause covering every failure**.
 
 1. Physical encoder response, metric calibration and serial message freshness have repeatedly been confused. Historical replacements genuinely restored missing counts, but a fresh board packet does not prove each wheel measures distance correctly.

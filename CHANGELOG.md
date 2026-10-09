@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-09 — Confirm stationary AMCL particle impoverishment
+
+- Captured a bounded stationary bag and audited it against the saved round
+  trip. Confirmed one effective geometric support point despite 2,000
+  published particles; no new stationary jump occurred in the current window.
+- Added a read-only particle-diversity diagnostic with four unit tests.
+  Recorded the forced-update/resampling mechanism and remaining causal limits.
+  No production service, steering or navigation parameter changed.
+
 ## 2026-10-09 — Add bounded AMCL shadow instrumentation
 
 - Built a separate diagnostic Nav2 AMCL 1.1.20 binary that captures

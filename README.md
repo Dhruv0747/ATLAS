@@ -1,5 +1,11 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest [stationary AMCL audit](docs/audits/ATLAS_AMCL_PARTICLE_COLLAPSE_2026-10-09.md)
+found geometric particle collapse despite 2,000 published particles and tiny
+covariance. A new read-only diagnostic counts distinct support independently
+of particle weights. This is evidence for the next isolated update-policy
+test; localization remains unresolved and no production setting changed.
+
 Localization release gate (2026-10-09): the recorded Hall → Dhruv Room return
 had five large AMCL corrections after stopping. A new
 [cross-bag and isolated AMCL audit](docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md)

@@ -2,6 +2,15 @@
 
 Updated 2026-10-09. Read alongside the [registry](ATLAS_ROOT_CAUSE_REGISTRY.json) and [master analysis](ATLAS_MASTER_FAILURE_ANALYSIS.md).
 
+Latest stationary capture: AMCL stayed at the previously wrong return pose
+with 2,000 particles but only one effective geometric support point. The
+saved drive also had collapsed support at +104.009 s. Unconditional 1 Hz
+no-motion updates plus resampling every update provide a concrete mechanism
+for stationary particle impoverishment; the original wrong-mode selection
+is still unverified. Keep the current configuration preserved and test the
+update/resampling policy offline before deployment. See
+[particle-collapse evidence](ATLAS_AMCL_PARTICLE_COLLAPSE_2026-10-09.md).
+
 Later stopped/charging checks found a concrete saved-map blocker: the taught
 route is bound to an older map and the **previous** saved Hall goal failed
 exact footprint clearance. After a manual Hall arrival, the operator confirmed
