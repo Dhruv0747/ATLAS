@@ -17,6 +17,7 @@ ATLAS has recurring failures because several dependent layers have changed and h
 5. Mapping has both test-process faults (driving before active recording/SLAM readiness) and remaining odometry/geometry questions. Repeated manual loops without targeted instrumentation do not resolve those questions.
 6. Hardware replacements, sensor migrations and configuration changes invalidate earlier qualifications. An August success with different motor mapping cannot certify October operation.
 7. Resource pressure may expose deadlines, but CPU load alone does not identify a culprit. Current evidence does not justify replacing the Jetson or adding another computer.
+8. The Visual Cloud agent is active but its configured destination is the checked-in example hostname. The local history database is about 26.5 GB and its last modification predates this check by several days. An active service is therefore not proof that cloud history is arriving; do not add a second monitoring stack before repairing or retiring this path.
 
 ## Evidence vocabulary
 
@@ -35,7 +36,7 @@ The registry separates confidence from resolution. A confirmed failure can remai
 | GitHub branches | Five remote branches: main, active fix branch, offline-agent plan, mapping-session gate, secure-runner setup | Deleted/unreachable history may be absent |
 | PRs/issues | API returned PRs 1,2,3,4,6,7,8; #7 open, others closed. No separate issue entries returned | No assumption about unavailable/deleted records |
 | Comments/reviews | Issue comments, PR review comments and reviews of all seven PRs returned empty; default-branch commit-comment count search returned none | Not proof no private/deleted review ever existed |
-| Actions | Workflow ATLAS Read-Only Health exists; API returned total_count=0 runs | Historical run logs/artifacts unavailable in this response, despite earlier success documentation |
+| Actions | Workflow ATLAS Read-Only Health exists on `origin/main`, not the active fix branch; API returned total_count=0 runs. Jetson has the corresponding root-owned read-only health wrapper | No run artifacts available; do not conflate cross-branch presence or installed wrapper with a successful recent health run |
 | Local developer sessions | 186 JSONL files found; 131 contain ATLAS/project identifiers | Only inventory/search and supplied conversation history reviewed; **full transcripts not yet audited**; credentials/private text must not be published |
 | Jetson journals | 11 retained boots spanning Oct1–Oct9; targeted base/BMS/recovery/LiDAR observations | Older journals missing from retention; do not infer no earlier failures |
 | ROS logs | Log directory exists; six Oct8 lifted evidence files parsed read-only | Full ROS log corpus not enumerated/reviewed and all bags not replayed in this pass |
@@ -53,6 +54,7 @@ Raw chats, email address, credentials, device serial numbers and full logs are i
 | Fresh serial receive thread → delayed ROS cache refresh → stale encoder safety snapshot | Confirmed age discrepancy | Instrument stages; do not label every event a physical USB disconnect |
 | BLE connect timeout → unhealthy battery report → commissioning rejected | Confirmed current chain | Charged battery does not make telemetry trustworthy |
 | BLE fault → bounded service restart → healthy sample → BLE failure returns | Confirmed Oct9 sequence | A RECOVERED line is not endurance evidence |
+| Example Visual Cloud URL → repeated DNS failure → local history not updated | Confirmed Oct9 configuration/runtime observation | Diagnose the existing pipeline and retention before adding Grafana, Prometheus or n8n |
 | Wheel model/timing error → inaccurate pose prior → beneficial SLAM correction | Suspected source; better post-correction scan fit confirmed | Do not suppress correction just to make a plot look smooth |
 | CPU contention → callback delay → false offline indication | Plausible, not uniquely established | Measure under real workload; preserve essential sensors |
 | Servo re-energization/reconnect → shared I2C outage | Historical code regression documented; universal electrical causation unproven | Distinguish software restart loop from measured rail collapse |
@@ -97,6 +99,16 @@ See [Oct8 detailed analysis](../SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md) and
 Follow [current blockers](ATLAS_CURRENT_BLOCKERS.md). First establish reliable, stationary telemetry and test-channel timing. Then one discriminating M3 test, not another uninformed route repetition. Reuse saved bags to resolve model and map acceptance questions before asking for new movement.
 
 No percentages or fixed completion dates are justified by the available evidence.
+
+## Oct9 stopped-runtime observability snapshot
+
+Read-only checks found motor/base running with PID 3120, zero reported service restarts and zero outputs; this is an idle snapshot, not a heartbeat or encoder endurance pass. The BMS alternated healthy readings near 13.20 V / 90% with connection-stage deadlines. On failure the node marked the reading invalid, which is the correct fail-closed freshness behavior; the connection cause remains undetermined. The Bluetooth device was disconnected, unpaired and untrusted when sampled, and the transport starts a new `gatttool` session per poll. Connection churn is a testable hypothesis, not a proven root cause.
+
+The Jetson showed about 60.7 °C, 2.38 GB available RAM and no failed user units in the sampled window. This does not certify full-load control timing. The dashboard responded HTTP 200 locally. The Visual Cloud agent repeatedly logged DNS errors for `atlas-visual-cloud.example`; the checked-in `cloud_url` is a placeholder. The local history SQLite file was 26,501,885,952 bytes and last modified on Oct4. Its 86,400-row retention limit does not reclaim allocated SQLite pages on deletion, so disk size alone is not evidence of ongoing ingest. The NVMe still had about 373 GB available. No database compaction, service restart or deployment was performed.
+
+Recommendation: retain Jetson-local safety and essential diagnostics, first resolve BLE freshness and motor timing with bounded evidence, then decide whether Visual Cloud should connect to a real authenticated PC endpoint or remain local. Measure overhead and data growth before enabling any additional collector. PC-side n8n/analytics are optional consumers, never dependencies of autonomous control.
+
+Voice improvement is separately queued in the [local ASR evaluation plan](ATLAS_VOICE_ASR_EVALUATION_PLAN.md). The current active recognizer is cloud-based and the wake phrase is checked after cloud transcription; local speech output and optional local text reasoning do not yet make microphone commands offline. Whisper/faster-whisper must earn deployment through measured multilingual recognition and Jetson workload tests, with the existing safety path and recognizer preserved.
 
 ## Reproducible read-only evidence commands
 

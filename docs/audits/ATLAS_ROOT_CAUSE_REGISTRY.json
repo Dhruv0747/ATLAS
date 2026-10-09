@@ -572,6 +572,35 @@
           "description": "Later service running with NRestarts=2 and device health OK; scan stream endurance not tested."
         }
       ]
+    },
+    {
+      "id": "ATLAS-016",
+      "title": "Visual Cloud ingest destination is a placeholder and local history is stale",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "observability / Visual Cloud",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Active agent repeatedly logged DNS errors for atlas-visual-cloud.example. The checked-in cloud_url uses that example hostname; local history.sqlite3 was approximately 26.5 GB and last modified Oct4.",
+      "confirmed_findings": "Service-active status does not mean remote ingest succeeded. The server has an 86,400-row retention cap but SQLite deletion does not automatically shrink allocated pages.",
+      "suspected_causes_and_limits": "Exact deployment intent, current local ingest wiring and historical database growth rate have not been fully established. Database size is not evidence of a full disk; approximately 373 GB was free at the stopped-runtime check.",
+      "attempted_fix_commits": [],
+      "evidence": [
+        "project_atlas/config/atlas_visual_cloud.json",
+        "project_atlas/scripts/atlas_visual_cloud_agent.py",
+        "project_atlas/scripts/atlas_visual_cloud_server.py",
+        "journalctl --user -b -u atlas-visual-cloud-agent.service"
+      ],
+      "test_results": "Read-only configuration, journal, file metadata and disk checks only; no ingest repair or deployment.",
+      "remaining_verification": "Confirm intended authenticated endpoint and data flow; measure payload rate, retention and CPU/disk overhead. Change one existing collector only after preserving local safety and diagnostic continuity.",
+      "history_completeness": "Current runtime/config snapshot; older outages and remote endpoint history not exhaustively reviewed",
+      "events": [
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Agent is active but sends to an example hostname and receives DNS failures; local history is stale and large. No new collector justified."
+        }
+      ]
     }
   ]
 }
