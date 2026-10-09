@@ -1,5 +1,13 @@
 # Project ATLAS - Autonomous Service Rover
 
+2026-10-09 competing-pose comparison: equal bounded fitting plus later unused
+beams favours the Dhruv region (99–100% endpoint fit, 0.214° corrected-gyro
+residual) over the refined false region (78.9–85.6%, 98.229°). A recorded
+cloud contains 15 particles near the better room pose; blanket missing-support
+claims are not justified. Ten helper tests passed. Offline only, not a fix
+or independent multi-drive validation. Next trace weak-hypothesis survival.
+See [competing-pose evidence](docs/audits/ATLAS_COMPETING_POSE_EVIDENCE_2026-10-09.md).
+
 2026-10-09 sensor evidence: six recorded stopped windows confirm that physical
 stillness is not global localization correctness. Early return AMCL spans
 1.148 m/76.478° against repeatable scans and +0.064° integrated gyro. Late
