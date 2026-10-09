@@ -8,6 +8,14 @@ No physical movement, firmware flashing, safety bypass, calibration or navigatio
 
 ## Findings in plain language
 
+Oct 9 later follow-up: actual AMCL-core stationary experiments reproduce
+large hypothesis switches; freezing the prior suppresses motion but preserves
+the wrong place. Five recorded timelines validate a source-only forced-update
+gate's suppression of redundant parked requests, not navigation accuracy.
+Reboot logs prove the apparent home recovery included explicit saved-home
+seeding. Permanent localization is unresolved; see the
+[experiment and deployment boundary](ATLAS_AMCL_STATIONARY_POLICY_EXPERIMENT_2026-10-09.md).
+
 Latest bounded follow-up: [stationary particle-support audit](ATLAS_AMCL_PARTICLE_COLLAPSE_2026-10-09.md)
 confirmed that 2,000 published AMCL particles can occupy one effective pose
 with near-zero covariance at a previously wrong map location. The saved drive

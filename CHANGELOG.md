@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-09 — Offline stationary-policy repair candidate (not deployed)
+
+- Added actual AMCL-core experiments and reproducible result checks; rejected
+  reduced-resampling and frozen-prior policies as full localization fixes.
+- Bound mission-control periodic forced updates to fresh odometry progress
+  with a single in-flight request. Explicit pre-motion refresh and safety
+  timeout remain unchanged. Candidate awaits AMCL/mux validation before deployment.
+- Ten new policy/callback tests passed; five saved timelines produced zero
+  requests on 975 unchanged-pose ticks. This does not prove pose accuracy.
+- Recorded reboot evidence: startup explicitly seeded saved home. No steering,
+  motor, production configuration or live localization changes were made.
+
 ## 2026-10-09 — Confirm stationary AMCL particle impoverishment
 
 - Captured a bounded stationary bag and audited it against the saved round

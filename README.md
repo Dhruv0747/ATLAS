@@ -1,5 +1,11 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest [offline update-policy results](docs/audits/ATLAS_AMCL_STATIONARY_POLICY_EXPERIMENT_2026-10-09.md):
+stationary AMCL switches reproduced in the core harness. A repository-only
+mission request gate stops gratuitous parked updates; **not deployed or an
+autonomy qualification**. Full pose correctness and mux integration remain
+unresolved. Steering and live production settings are unchanged.
+
 Latest [stationary AMCL audit](docs/audits/ATLAS_AMCL_PARTICLE_COLLAPSE_2026-10-09.md)
 found geometric particle collapse despite 2,000 published particles and tiny
 covariance. A new read-only diagnostic counts distinct support independently

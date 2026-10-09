@@ -2,6 +2,15 @@
 
 Updated 2026-10-09. Read alongside the [registry](ATLAS_ROOT_CAUSE_REGISTRY.json) and [master analysis](ATLAS_MASTER_FAILURE_ANALYSIS.md).
 
+Latest follow-up: [stationary-policy experiment](ATLAS_AMCL_STATIONARY_POLICY_EXPERIMENT_2026-10-09.md)
+reproduced the stationary-switching failure class, not the original exact five
+events. Reduced resampling and frozen priors were rejected as complete fixes.
+A source-only fresh-odometry request gate eliminated parked forced requests
+in five recorded timelines; AMCL/mux continuity and accurate localization are
+still deployment gates. User reboot explicitly seeded saved home at 21:39:42,
+so the improved post-reboot marker does not demonstrate autonomous recovery.
+No production changes or new driving tests were made.
+
 Latest stationary capture: AMCL stayed at the previously wrong return pose
 with 2,000 particles but only one effective geometric support point. The
 saved drive also had collapsed support at +104.009 s. Unconditional 1 Hz

@@ -22,7 +22,7 @@ from geometry_msgs.msg import (
     PoseWithCovarianceStamped,
     Twist,
 )
-from nav_msgs.msg import OccupancyGrid
+from nav_msgs.msg import OccupancyGrid, Odometry
 from nav2_msgs.action import (
     ComputePathToPose,
     NavigateThroughPoses,
@@ -50,6 +50,7 @@ from atlas_map_acceptance_core import (
     transactionally_promote_map_pair,
 )
 from atlas_map_footprint_sanitizer import sanitize_saved_map
+from atlas_amcl_update_gate import AmclUpdateGate
 
 
 class AtlasMissionControl(Node):
@@ -268,10 +269,12 @@ class AtlasMissionControl(Node):
         self.nomotion_client = self.create_client(
             EmptyService, "/request_nomotion_update"
         )
-        # AMCL publishes poses after a configured odometry delta rather than
-        # as a fixed-rate heartbeat. Force the next scan update once per
-        # second so the mux can distinguish healthy slow/stationary
-        # localization from a dead AMCL process without relaxing its timeout.
+        self.amcl_update_gate = AmclUpdateGate()
+        self.localization_update_future = None
+        self.localization_odom = None
+        self.create_subscription(Odometry, "/odom", self.update_localization_odom, 10)
+        # Never manufacture a heartbeat by repeatedly assimilating stationary
+        # evidence. The explicit pre-motion refresh and mux timeout remain.
         self.create_timer(1.0, self.request_periodic_localization_update)
 
         self.worker = ThreadPoolExecutor(
@@ -524,16 +527,33 @@ class AtlasMissionControl(Node):
             )
         )
 
-    def request_periodic_localization_update(self) -> None:
-        """Keep scan/odometry-backed AMCL health observable at low speed.
+    def update_localization_odom(self, msg: Odometry) -> None:
+        self.localization_odom = msg
 
-        Nav2 AMCL's no-motion service sets ``force_update`` for the next laser
-        callback. Despite the historical service name, AMCL still reads and
-        applies the latest odometry delta. This is therefore safe while moving
-        and prevents an event-driven pose topic from looking dead to the mux.
+    def request_periodic_localization_update(self) -> None:
+        """Request at most one update for fresh, accumulated odometry progress.
+
+        This does not certify localization or relax the motor mux's freshness
+        gate. At very low speed that gate may stop motion; validation is needed
+        before deploying this policy. AMCL's natural scan updates stay enabled.
         """
-        if self.nomotion_client.service_is_ready():
-            self.nomotion_client.call_async(EmptyService.Request())
+        if (not self.nomotion_client.service_is_ready()
+                or (self.localization_update_future is not None
+                    and not self.localization_update_future.done())):
+            return
+        msg = self.localization_odom
+        if msg is None or msg.header.frame_id.lstrip('/') != 'odom':
+            return
+        p, q = msg.pose.pose.position, msg.pose.pose.orientation
+        norm = q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w
+        if not math.isfinite(norm) or abs(norm - 1.0) > .01:
+            return
+        yaw = math.atan2(2*(q.w*q.z + q.x*q.y), 1-2*(q.y*q.y + q.z*q.z))
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        now = self.get_clock().now().nanoseconds * 1e-9
+        if self.amcl_update_gate.allow(p.x, p.y, yaw, stamp, now):
+            self.localization_update_future = self.nomotion_client.call_async(
+                EmptyService.Request())
 
     def refresh_localization_before_motion(self, timeout_s: float = 5.0) -> None:
         """Force one fresh AMCL sample immediately before releasing motion.
