@@ -37,7 +37,7 @@
         "docs/THREE_ENCODER_GROUND_OBSERVATION_2026-09-17.md",
         "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md"
       ],
-      "test_results": "Replacement had historical dynamic passes; current M3 not qualified; six Oct8 runs had zero pulse requests.",
+      "test_results": "Replacement had historical dynamic passes; current M3 not qualified; six Oct8 runs had zero pulse requests. Oct9 live idle health selected all M1-M4 with fresh packets; no dynamic M3 qualification follows.",
       "remaining_verification": "After test-channel qualification: one bounded lifted M3 pulse with physical direction observation, then measured independent loaded forward/reverse runs. Never choose a channel only because it matches a desired distance.",
       "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
       "events": [
@@ -50,6 +50,11 @@
           "date": "2026-10-09",
           "kind": "latest_assessment",
           "description": "Replacement had historical dynamic passes; current M3 not qualified; six Oct8 runs had zero pulse requests."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "stopped_runtime_observation",
+          "description": "10:07 IST dashboard API: encoder state READY, packet_fresh true, selected [1,2,3,4], excluded []; physical motion response untested."
         }
       ]
     },
@@ -410,7 +415,7 @@
         "docs/MAPPING_SESSION_FORENSICS_2026-10-04.md",
         "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md"
       ],
-      "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available.",
+      "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live autonomy was FAULT: STOP: SLAM MAP DATA LOST.",
       "remaining_verification": "Use saved bag first; validate same-time composed robot correction, calibrated wheel model and true scan timing. Promote map only with frame-consistent places and independent geometry/path checks, then supervised round trip.",
       "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
       "events": [
@@ -423,6 +428,11 @@
           "date": "2026-10-08",
           "kind": "latest_assessment",
           "description": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "stopped_runtime_observation",
+          "description": "10:07 IST dashboard API reported autonomy FAULT: STOP: SLAM MAP DATA LOST while encoder health alone was READY. Active SLAM map freshness requires diagnosis before motion."
         }
       ]
     },

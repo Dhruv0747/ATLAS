@@ -4,7 +4,7 @@ Updated 2026-10-09. Read alongside the [registry](ATLAS_ROOT_CAUSE_REGISTRY.json
 
 ## Current verified boundary
 
-Latest observed motor owner: IDLE, stop latched, raw test interface disabled, all outputs zero; PID 3120, NRestarts=0. Encoder packets fresh while stationary. This is **not** dynamic encoder qualification.
+Latest observed motor owner: IDLE, stop latched, raw test interface disabled, all outputs zero; PID 3120, NRestarts=0. At 10:07 IST live encoder health reported fresh packets and selected encoders M1–M4, no exclusions, but this is **not** dynamic encoder qualification or proof M3 is physically reliable. Live autonomy separately reported `FAULT: STOP: SLAM MAP DATA LOST`; no autonomous readiness can be inferred from the encoder flag alone.
 BMS reported healthy samples around 94–96% between BLE connection timeouts; percentage is a dated observation, not a present guarantee. Source review later found JSON invalidation was correct but scalar SOC/voltage/current were republished stale on failures; the repair was deployed to the stopped Jetson and passed a short healthy-runtime check, but live invalid-path and BLE endurance validation remain. See [BMS freshness repair](BMS_FRESHNESS_REPAIR_2026-10-09.md).
 LiDAR service recovered to running/device-health OK after startup retries; stream freshness and navigation readiness still need direct checks.
 No movement is authorized by these reports. Keep manual emergency stop authoritative.
@@ -28,6 +28,8 @@ Proposed test counts/windows above are future acceptance criteria, not tests alr
 - Exact serial packet and ROS callback timing in the **test mode** that fails.
 - BLE connection-stage evidence with competing phone connection ruled in/out; do not presume it.
 - Current selected encoder mask and calibration hashes after hardware replacement.
+- Why the live selector includes M3 despite earlier exclusion/uncertainty, and whether its loaded-motion counts/sign are coherent.
+- Current SLAM map freshness and exact fault origin; do not treat the saved map's presence as an active SLAM stream.
 - Physical steering angle versus commanded servo angle if model discrepancy persists; no steering recalibration without explicit scope.
 - Source/deployed IMU authority identity and valid retained bias calibration.
 - Same-time robot pose, not just transform-origin translation, for map quality.
