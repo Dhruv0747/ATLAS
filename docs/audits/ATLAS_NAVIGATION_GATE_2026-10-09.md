@@ -34,6 +34,14 @@ steering, map, navigation parameter, service, or BMS safety gate was changed.
   file is at (0.877, 0.097) and carries a mapping-session ID but no
   accepted-map ID. Do not overwrite either saved place to make the numbers
   agree without an independently checked physical position and heading.
+- An exact saved-PGM lookup at the later reported pose (-3.22, -0.25) found
+  unknown value 205 in its centre and surrounding 5-by-5 cells. The saved
+  Dhruv Room point and its surrounding cells were known free (254). A 15 s
+  stopped diagnostic saw fresh scans (median age 0.137 s), zero EKF/wheel
+  odometry drift, and AMCL pose drift of 0.004 m / 1.09 degrees during that
+  window. This rules out a stale scan at the check but does not prove which
+  physical/map coordinate is correct. The accepted map cannot safely plan
+  from its current reported unknown start.
 - At today's localization startup, Nav2 logged multiple robot-out-of-map
   positions and a scan/TF cache drop before the pose settled. This is stronger
   evidence of a startup-localization problem than the stationary pose alone.

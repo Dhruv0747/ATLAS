@@ -793,6 +793,34 @@ class AtlasMissionControl(Node):
                 f"{label} belongs to a different map; set it again on the current map"
             )
 
+    def require_known_saved_map_start(self) -> None:
+        """Do not dispatch a saved-map goal from unknown or occupied space.
+
+        Active SLAM sessions use a changing map and are checked separately by
+        Nav2. In localization mode, evaluate the exact accepted map bytes with
+        the same conservative clearance used for map acceptance.
+        """
+        if self.active_mapping_session():
+            return
+        current = self.current_pose()
+        if current.get("frame_id") != "map":
+            raise RuntimeError("saved-map navigation has no map-frame start pose")
+        try:
+            exact_candidate_connectivity(
+                self.map_prefix.with_suffix(".yaml"),
+                self.map_prefix.with_suffix(".pgm"),
+                current,
+                current,
+                inflation_radius_m=(
+                    self.map_acceptance_policy.min_candidate_clearance_m
+                ),
+            )
+        except (OSError, ValueError) as exc:
+            raise RuntimeError(
+                "saved-map navigation blocked: current pose is not in known "
+                f"clear space on the accepted map ({exc})"
+            ) from exc
+
     def prepare_map_bound_metadata(
         self, new_map_id: str, old_map_id: Optional[str], session: dict
     ) -> dict:
@@ -1449,8 +1477,9 @@ class AtlasMissionControl(Node):
     def dispatch_route_goal(
         self, points: list, label: str, corridor_distance: float
     ) -> None:
-        self.center_camera_for_navigation()
         self.refresh_localization_before_motion()
+        self.require_known_saved_map_start()
+        self.center_camera_for_navigation()
         if not self.nav_through.wait_for_server(timeout_sec=10.0):
             raise RuntimeError("Nav2 NavigateThroughPoses action is unavailable")
         goal = NavigateThroughPoses.Goal()
@@ -1477,6 +1506,8 @@ class AtlasMissionControl(Node):
         )
 
     def dispatch_pose_goal(self, pose: dict, label: str) -> None:
+        self.refresh_localization_before_motion()
+        self.require_known_saved_map_start()
         # Nav2 semantic fusion assumes the optical axis stays aligned with the
         # calibrated forward camera/LiDAR geometry. Person-follow mode may
         # move the camera, so pause tracking only for the duration of a goal.
@@ -1490,7 +1521,6 @@ class AtlasMissionControl(Node):
                 check=False, timeout=10, capture_output=True, text=True,
             )
         self.center_camera_for_navigation()
-        self.refresh_localization_before_motion()
         if not self.nav.wait_for_server(timeout_sec=10.0):
             self.restore_goal_tracker()
             raise RuntimeError("Nav2 NavigateToPose action is unavailable")
@@ -1659,6 +1689,7 @@ class AtlasMissionControl(Node):
                 f"safety blocks return-home: {self.safety_status}"
             )
         self.refresh_localization_before_motion()
+        self.require_known_saved_map_start()
         if not self.nav.wait_for_server(timeout_sec=10.0):
             raise RuntimeError("Nav2 NavigateToPose action is unavailable")
         pose = json.loads(self.home_file.read_text(encoding="utf-8"))

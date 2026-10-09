@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-09 — Saved-map start clearance gate
+
+- Block named-place and return-home goal dispatch when the current map-frame
+  pose is not known free with the commissioned 0.18 m clearance in the exact
+  accepted map bytes. Active SLAM mapping is exempt from this saved-map check.
+- A stopped LiDAR/map audit found the reported ATLAS pose in unknown space;
+  the saved Dhruv Room point is mapped free. This guard prevents a misleading
+  `READY` mission status from being treated as route clearance. It does not
+  establish which pose is physically correct or qualify autonomous driving.
+- Added offline free/unknown and dispatch-order regressions. No navigation
+  parameters, actuator controls, or BMS safety gates changed. Deployed only
+  the mission-control script with a recoverable backup; it restarted cleanly,
+  the motor owner PID was unchanged, and observed motor speed remained zero.
+
 ## 2026-10-09 — BMS net charge/discharge dashboard
 
 - Show the coherent Daly status packet's SOC, charge/discharge state, absolute net current in A, and net power in W on the main Power card, with a detailed four-cell report on tap.

@@ -449,6 +449,11 @@
           "date": "2026-10-09",
           "kind": "charging_localization_audit",
           "description": "Operator confirmed rover is in Dhruv Room, not whether it occupies the exact saved home point. Live AMCL pose (-3.17,-0.22) is 3.67 m from named Dhruv Room pose (0.254,-1.539). Saved Oct8 seed (0.877,0.097) has no accepted-map ID. Localization service showed six start-preflight timeout restarts concurrent with repeated LiDAR hardware operation timeouts; missing scans are the likely immediate cause, not a demonstrated seed failure. Once running, Nav2 logs contained robot-out-of-map positions and one scan/TF cache drop. No motion or runtime change. Exact faulty coordinate source remains unproven."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "saved_map_start_clearance",
+          "description": "Exact accepted PGM lookup put later live pose (-3.22,-0.25) in unknown 205 cells, while the saved Dhruv Room point was known free 254. A stopped 15-second diagnostic recorded fresh scans, zero wheel/EKF odometry drift and 0.004 m/1.09 degree AMCL drift. Added a saved-map known-clear start check before named-place and return-home goal dispatch; offline regression passed. Physical localization and room-route reliability remain unvalidated."
         }
       ]
     },

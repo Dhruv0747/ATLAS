@@ -464,6 +464,56 @@ class MapAcceptanceCoreTests(unittest.TestCase):
             )
             self.assertFalse(result["connected"])
 
+    def test_saved_map_start_guard_rejects_unknown_rover_cell(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            yaml_path = root / "accepted.yaml"
+            image_path = root / "accepted.pgm"
+            yaml_path.write_text(
+                "image: accepted.pgm\nmode: trinary\nresolution: 0.2\n"
+                "origin: [0.0, 0.0, 0.0]\nnegate: 0\n"
+                "occupied_thresh: 0.65\nfree_thresh: 0.25\n",
+                encoding="utf-8",
+            )
+            width = height = 9
+            pixels = bytearray([254] * (width * height))
+            pose = {"x": 0.9, "y": 0.9}
+            image_path.write_bytes(b"P5\n9 9\n255\n" + pixels)
+            self.assertTrue(MODULE.exact_candidate_connectivity(
+                yaml_path, image_path, pose, pose,
+                inflation_radius_m=0.18,
+            )["connected"])
+            image_row = height - 1 - int(pose["y"] / 0.2)
+            image_col = int(pose["x"] / 0.2)
+            pixels[image_row * width + image_col] = 205
+            image_path.write_bytes(b"P5\n9 9\n255\n" + pixels)
+            with self.assertRaisesRegex(ValueError, "candidate start is not clear"):
+                MODULE.exact_candidate_connectivity(
+                    yaml_path, image_path, pose, pose,
+                    inflation_radius_m=0.18,
+                )
+
+    def test_saved_map_start_guard_precedes_goal_dispatch(self):
+        source = Path(__file__).parents[1] / "scripts" / "atlas_mission_control.py"
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        cls = next(node for node in tree.body if isinstance(node, ast.ClassDef)
+                   and node.name == "AtlasMissionControl")
+        for name in ("dispatch_route_goal", "dispatch_pose_goal", "return_home"):
+            method = next(node for node in cls.body if isinstance(node, ast.FunctionDef)
+                          and node.name == name)
+            calls = {
+                node.func.attr: node.lineno
+                for node in ast.walk(method)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            }
+            with self.subTest(method=name):
+                self.assertIn("require_known_saved_map_start", calls)
+                self.assertIn("refresh_localization_before_motion", calls)
+                self.assertLess(
+                    calls["refresh_localization_before_motion"],
+                    calls["require_known_saved_map_start"],
+                )
+
     def test_closure_and_rotated_footprint_geometry(self):
         start = {
             "frame_id": "map", "x": 0.0, "y": 0.0,

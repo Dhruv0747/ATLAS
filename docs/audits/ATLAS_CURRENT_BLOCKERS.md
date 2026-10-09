@@ -23,6 +23,13 @@ verification the current autonomy gate; they do **not** prove whether the
 saved room point, seed, or present AMCL pose is wrong. Do not overwrite any
 of them or start an autonomous route to conceal the disagreement. See
 [the navigation gate](ATLAS_NAVIGATION_GATE_2026-10-09.md).
+An exact saved-map lookup subsequently found the reported rover position in
+unknown cells (205), while the saved Dhruv Room point was known free (254).
+The 15-second stopped scan was fresh and wheel/EKF odometry did not move. This
+is a concrete route-start blocker even if AMCL's short-window variance looks
+small. A fail-closed start-cell check was deployed in mission control with
+25 offline map-acceptance tests passing; physical localization still needs
+validation, and no autonomous movement was attempted.
 
 ## Current verified boundary
 

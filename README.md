@@ -384,6 +384,13 @@ with the authoritative YAML committed last. The gate is deployed and mission
 control is `READY`; accepted map ID `d12a1f183177212a3cc8` was preserved. See
 [the acceptance-gate procedure](docs/MAP_ACCEPTANCE_GATE.md).
 
+Before dispatching a saved-map named-place or return-home goal, mission control
+also checks that the current map-frame pose has known free space and 0.18 m
+clearance in those exact accepted map bytes. A pose in unknown or occupied
+space fails closed with an explicit status; active SLAM mapping is not judged
+against an older saved map. This does not prove localization matches physical
+reality, so a conflicting pose still needs stationary verification.
+
 The deployed TF evidence tracker now makes Slam Toolbox's configured
 1.5-second `transform_timeout` explicit. Source age and future-skew checks use
 the normalized acquisition time, while acceptance reports retain the raw
