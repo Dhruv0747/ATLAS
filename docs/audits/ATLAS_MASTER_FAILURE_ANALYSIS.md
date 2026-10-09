@@ -8,6 +8,12 @@ No physical movement, firmware flashing, safety bypass, calibration or navigatio
 
 ## Findings in plain language
 
+Validation follow-up: candidate 4a4ea9a is rejected for deployment because
+the actual mux freshness guard blocks at pose age >2.5 s during a parked
+pause or sub-threshold creep. Five deterministic tests establish this
+integration failure; they do not establish corrected localization. A distinct
+scan-processing/estimate-health contract is required. Live system unchanged.
+
 Oct 9 later follow-up: actual AMCL-core stationary experiments reproduce
 large hypothesis switches; freezing the prior suppresses motion but preserves
 the wrong place. Five recorded timelines validate a source-only forced-update

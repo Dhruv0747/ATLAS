@@ -396,6 +396,7 @@
     },
     {
       "id": "ATLAS-011",
+      "update_gate_validation": "4a4ea9a REJECTED for deployment: actual mux guard fails closed above 2.5 s pose age while candidate suppresses stationary/sub-threshold updates. Five contract tests pass as rejection evidence, not navigation acceptance. Need independent processed-scan/TF/estimate health; no timeout bypass or stale-pose republishing. Production unchanged.",
       "title": "Mapping startup race, stale places and pose corrections",
       "first_available_occurrence": "2026-08-24",
       "latest_reviewed_occurrence": "2026-10-09",

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-09 — Reject update-gate deployment after mux validation
+
+- Added five non-actuating tests of the actual mux localization guard:
+  stationary/sub-threshold motion exceeds its unchanged 2.5 s timeout.
+- Marked 4a4ea9a experimental policy not deployable alone. No live changes;
+  localization accuracy remains unresolved. Preserved existing safety gates.
+
 ## 2026-10-09 — Offline stationary-policy repair candidate (not deployed)
 
 - Added actual AMCL-core experiments and reproducible result checks; rejected

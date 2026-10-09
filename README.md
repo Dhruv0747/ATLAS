@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+**Do not deploy the 4a4ea9a update-policy candidate:** integration validation
+found stationary/slow-motion freshness stops with the existing mux. Five
+contract tests document the rejection. The live configuration is unchanged.
+
 Latest [offline update-policy results](docs/audits/ATLAS_AMCL_STATIONARY_POLICY_EXPERIMENT_2026-10-09.md):
 stationary AMCL switches reproduced in the core harness. A repository-only
 mission request gate stops gratuitous parked updates; **not deployed or an

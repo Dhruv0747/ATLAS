@@ -2,6 +2,12 @@
 
 Updated 2026-10-09. Read alongside the [registry](ATLAS_ROOT_CAUSE_REGISTRY.json) and [master analysis](ATLAS_MASTER_FAILURE_ANALYSIS.md).
 
+Deployment validation of 4a4ea9a: **REJECTED**. Actual mux guard tests confirm
+the candidate blocks after 2.5 s stationary or sufficiently slow movement.
+Five contract tests preserve this counterexample; no deployment or driving.
+Separate AMCL scan-processing health from pose publication before integrating
+the update gate. Do not extend the timeout or republish stale poses as fresh.
+
 Latest follow-up: [stationary-policy experiment](ATLAS_AMCL_STATIONARY_POLICY_EXPERIMENT_2026-10-09.md)
 reproduced the stationary-switching failure class, not the original exact five
 events. Reduced resampling and frozen priors were rejected as complete fixes.

@@ -190,3 +190,35 @@ Permanent localization remains unresolved: earlier hypotheses already lacked
 the correct return pose and the motion model still disagrees with gyro/scan
 turn evidence. No new physical test, reseed, motor command or steering change
 was performed for this follow-up.
+
+## Deployment validation: REJECTED (follow-up to 4a4ea9a)
+
+The candidate fails the existing localization freshness contract. Five new
+non-actuating tests execute the actual repository `localization_guard` method
+with controlled clocks, rather than implementing a substitute guard:
+
+- A confident sample at t=100 permits t=102.5 but returns LOCALIZATION STALE
+  at t=102.51. The candidate sends no update for unchanged fresh odometry.
+- At 1 mm/s for three seconds the candidate's cumulative 5 mm bound is not
+  reached. AMCL's configured natural 5 cm/0.05 rad update thresholds are also
+  not reached. The guard blocks at three seconds despite fresh motion input.
+- One pre-motion refresh does not cover a subsequent stationary pause.
+- Fresh timestamps do not bypass a latched jump or excessive covariance.
+
+The inspected AMCL 1.1.20 source checks odometry displacement thresholds OR
+`force_update_`; continuing scan delivery alone does not guarantee a fresh
+pose publication. These are deterministic contract counterexamples, not a
+full ROS timing replay or physical navigation result. They are sufficient to
+reject deployment without another route test or expensive AMCL replay.
+All five rejection-regression tests and ten gate/callback tests passed.
+Production localization retained MainPID 4371, NRestarts=0 during read-only
+inspection. No production settings or services were changed.
+
+Next necessary engineering change: design an independently verified health
+signal for AMCL's processed scans/TF and estimate validity, distinct from pose
+publication and from repeated particle assimilation. A timer that republishes
+an old pose is NOT such a signal. Validate real scan/TF loss and wrong-pose
+rejection as well as healthy stationary operation before changing the mux
+contract. Keep its current fail-closed timeout intact meanwhile. The source
+candidate in 4a4ea9a remains experimental and MUST NOT be deployed alone.
+This does not resolve the separate moving-prior/heading disagreement.

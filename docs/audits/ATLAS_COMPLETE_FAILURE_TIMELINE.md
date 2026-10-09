@@ -6,6 +6,7 @@ Updated 2026-10-09. Canonical requested filename; **historical coverage is incom
 
 | Date / period | IDs | Observation and disposition |
 | --- | --- | --- |
+| 2026-10-09 validation | 011 | Rejected 4a4ea9a update gate for deployment: actual mux method blocks stationary/sub-threshold creep at >2.5 s pose age. Five regression counterexamples passed; no movement or production change. |
 | 2026-10-09 late evening | 011 | Core experiments reproduced stationary switches; less resampling/fixed priors rejected as full fixes. Source-only update gate passed five request-timeline replays and unit checks; not deployed pending AMCL/mux tests. Reboot explicitly seeded saved home at 21:39:42, not independent recovery. |
 | 2026-10-09 evening | 011 | Passive stationary capture found 2,000 AMCL particles at one effective geometric support point at the previously wrong return pose. Saved round-trip cloud support also collapses at +104.009 s. Forced-update/resampling policy identified for isolated testing; original five-jump selection cause remains unresolved. No production change. |
 | 2026-08-04 | 001,010 | Baseline command-integrated odometry, inconsistent TF/IMU mounting; isolated counts absent on M2–M4. Hardware replacement restored historical responses. Calibration remained separate. |
