@@ -136,3 +136,15 @@ recorded clouds and compare actual AMCL likelihood with gyro-consistent
 candidate selection. Then validate any proposed safeguard on other saved
 drives. No new driving is necessary for that analysis. The original failure
 is better constrained, but localization is NOT declared fixed.
+
+## Next-week handoff (requested 2026-10-09)
+
+Resume this offline investigation during the week beginning 2026-10-12.
+Start with the 15 room-near particles in the +351.997 s cloud and trace their
+support through subsequent recorded clouds. Determine whether recorded
+evidence can distinguish scan likelihood rejection, resampling loss, or a
+conflicting odometry/heading prior. Compare any candidate fix on saved drives
+and report AMCL jump count, maximum jump, stopped-position stability, heading,
+and held-out scan fit. Preserve the current production configuration. No rover
+movement, motor activation, steering change, or autonomous navigation is
+authorized by this handoff.
