@@ -23,8 +23,35 @@ safety gate was changed.
   saved point. Motor speed stayed zero, `web_drive=STOP`, mission `READY`.
 - This repairs the current stopped pose mismatch; it does not prove AMCL
   will remain stable after a reboot or during movement. The start-cell guard
-  stays enabled. Charging/BMS invalidity, Hall endpoint footprint failure,
-  and the stale taught-route map ID still block an autonomous round trip.
+  stays enabled. The Hall endpoint failure below was subsequently corrected
+  by saving a new operator-confirmed physical endpoint; the stale taught-route
+  map ID and moving-localization validation still block a reliable round trip.
+
+## Hall arrival and new destination
+
+- The operator manually drove to Hall before the dedicated demonstration
+  recorder was started; do not count that leg as a recorded route test. The
+  operator confirmed the live map marker matches the stopped rover location.
+- Fresh AMCL pose at Hall was about (6.279, -2.199, -1.686 rad), speed zero,
+  LiDAR fresh (0.184 s) and 98.9% of 180 projected scan endpoints within
+  15 cm of occupied map cells. The previous saved Hall point fit only 32.8%
+  and failed the exact 0.18 m footprint-clearance check.
+- The new point is known free and connected to saved Dhruv Room in the exact
+  accepted map with unknown blocked and 0.18 m inflation. This is a grid
+  connectivity check, not a Nav2 controller or no-contact driving pass.
+- Backed up the old `named_places.json` at
+  `/home/jetson/.local/share/atlas-backups/named_places.json.before-hall-resave-20261009`.
+  First save exposed an Oct 8 stale `mapping_session.json` marked active even
+  though saved-map localization was active and SLAM inactive. That incorrectly
+  tagged Hall with an old mapping-session ID. Archived the stale marker as
+  `mapping_session.json.stale-closed-20261009-hall` and re-ran the existing
+  save command while stopped. Verified final Hall pose (6.279, -2.199) has
+  accepted `map_id=d12a1f183177212a3cc8`, no session marker, connected
+  map grid, and zero motor speed. No service restart or navigation command.
+- The old taught route is still bound to a different map and must not be
+  relabelled. A supervised, recorded navigation trial and repeatability checks
+  remain. Also audit why a stale active-session marker survived localization
+  startup so future waypoint saves cannot be misbound.
 
 ## Current observed state
 
@@ -92,10 +119,11 @@ safety gate was changed.
   Mission control correctly ignores a route whose map identity does not match;
   changing only its ID would falsely certify stale coordinates.
 - The exact saved-map clearance check with unknown blocked and 0.18 m
-  inflation accepted the Dhruv Room start but rejected the saved Hall goal:
+  inflation accepted the Dhruv Room start but rejected the **previous** saved Hall goal:
   `candidate goal is not clear for the inflated rover`. Its centre pixel is
-  free, but nearby occupied pixels consume the footprint clearance. No goal
-  was moved automatically.
+  free, but nearby occupied pixels consume the footprint clearance. The Hall
+  point was later deliberately replaced at the rover's confirmed physical
+  stop, as documented above; no goal was moved automatically.
 - An Oct 4 candidate map audit was also rejected: disconnected exact candidate
   map, 1.222 m map→odom jump and 20.596° yaw jump. That audit concerns a
   different candidate map and must not be presented as a fresh measurement of
@@ -109,9 +137,9 @@ safety gate was changed.
    This was completed once with operator confirmation and a fresh scan-map
    check. Repeat stability checks after reboot or movement; do not assume one
    successful seed proves repeatability.
-2. When not charging, with a safe route and remote stop available, verify a
-   physically safe Hall endpoint on the *current* map and save it deliberately.
-   Do not relabel the old taught route or silently shift the saved Hall point.
+2. The operator-confirmed Hall endpoint was saved on the *current* map and
+   passed exact grid clearance. Do not relabel the old taught route. Verify
+   an actual Nav2 plan and no-contact controlled travel separately.
 3. Run one bounded low-speed straight/turn validation with measured physical
    distance and wheel/IMU/scan/TF logs. Then test a supervised named-place
    route and return. Repeatability is required before unattended operation.

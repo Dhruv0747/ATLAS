@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-09 — Operator-confirmed Hall waypoint on accepted map
+
+- Replaced the old footprint-blocked Hall waypoint with the rover's stopped,
+  operator-confirmed Hall location after fresh LiDAR/map fit and exact
+  known-free 0.18 m grid-connectivity checks. Backed up the prior waypoint.
+- Archived a stale Oct 8 active mapping-session marker that initially caused
+  the save to carry an old session ID despite localization mode. Re-saved and
+  verified the waypoint carries the accepted map ID. No motor, map, or service
+  command was issued. The manual arrival lacked a dedicated route recording;
+  taught-route map ID and supervised autonomy validation remain open.
+
 ## 2026-10-09 — Confirmed stationary Dhruv Room relocalization
 
 - Added a read-only live LiDAR-versus-accepted-map pose-fit diagnostic. A fresh

@@ -3,8 +3,12 @@
 Updated 2026-10-09. Read alongside the [registry](ATLAS_ROOT_CAUSE_REGISTRY.json) and [master analysis](ATLAS_MASTER_FAILURE_ANALYSIS.md).
 
 Later stopped/charging checks found a concrete saved-map blocker: the taught
-route is bound to an older map and the current saved Hall goal fails exact
-footprint clearance. See [the navigation gate](ATLAS_NAVIGATION_GATE_2026-10-09.md).
+route is bound to an older map and the **previous** saved Hall goal failed
+exact footprint clearance. After a manual Hall arrival, the operator confirmed
+the live pose, and a new map-bound Hall point at (6.279, -2.199) passed exact
+known-free 0.18 m clearance and grid connectivity to home. This is not a
+recorded or repeated autonomous return-home pass. See
+[the navigation gate](ATLAS_NAVIGATION_GATE_2026-10-09.md).
 Per operator priority, continue non-motion navigation evidence first and leave
 the intermittent BLE transport repair until later; **do not bypass fresh BMS
 telemetry or any movement safety gate**.
