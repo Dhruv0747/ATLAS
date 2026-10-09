@@ -21,6 +21,7 @@ Updated 2026-10-09. Canonical requested filename; **historical coverage is incom
 | 2026-10-08 | 001,004,005,006,011 | Saved-bag comparisons rejected or inconclusive; origin-dependent jump interpretation corrected; six commissioning attempts issued no pulse; BMS/parser/deadline and owner timing defects separated. |
 | 2026-10-09 ~09:16 IST | 004,005 | 60-second subscription-only observation passed limited stationary freshness window; not active test channel. |
 | 2026-10-09 09:23–09:28 IST | 007,015 | New diagnostics isolated BMS connect timeouts. Automatic recovery restart briefly restored reads; failures returned. LiDAR startup retries later showed service running/device health OK. |
+| 2026-10-09 manual Hall→Dhruv return | 001,010,011 | Dedicated bag showed fresh ROS delivery but five large AMCL corrections after remote stop. During motion, 32 encoder-consensus samples were critical, with M3 most often rejected; wheel and IM10A integrated yaw rates disagreed by about 49°. Different odom/map endpoint displacements are not proof of a wheel-scale error. Autonomous route reliability remains unqualified. |
 
 ## Exact Oct8 commissioning sequence (UTC filename timestamps)
 

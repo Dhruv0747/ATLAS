@@ -5,9 +5,12 @@
 - Recorded an operator-driven Hall → Dhruv Room return with LiDAR, AMCL,
   odometry and TF. ROS/bag timing had no 20-second delivery gap, but the full
   bag revealed five >0.5 m AMCL jumps after the remote stopped, including
-  a 2.206 m/130° step. Wheel odometry covered only 4.236 m endpoint
-  displacement versus 6.053 m in map-frame endpoints. This does not count
-  as an autonomous return-home trial or prove localization repeatability.
+  a 2.206 m/130° step. Further bag review found 32 traction samples with
+  critical encoder-consensus loss during the manual drive and about 49°
+  disagreement between wheel-derived and IM10A-integrated yaw rate. The
+  4.236 m odometry endpoint displacement does not establish wheel-distance
+  under-reporting: its curved path length was about 6.77 m. This does not
+  count as an autonomous return-home trial or prove localization repeatability.
 - Updated only the live-map web page to prevent overlapping polls, bound a
   delayed request to 2 seconds, refresh after mobile-tab wake, and show
   client-elapsed pose age/staleness. Static saved maps no longer reload their

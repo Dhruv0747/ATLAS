@@ -13,12 +13,17 @@ recorded or repeated autonomous return-home pass. See
 The subsequent recorded **manual** Hall → Dhruv Room return exposed a new
 localization reliability blocker: AMCL made five >0.5 m position steps after
 remote commands stopped, the largest 2.206 m/130°, while wheel odometry was
-stationary. Wheel-odom endpoint displacement was 4.236 m versus 6.053 m in
-the AMCL map frame. LiDAR/AMCL message delivery was fresh, so the operator's
-roughly 20-second map-position lag cannot be dismissed as browser delay alone.
+stationary. The wheel-odometry path was about 6.77 m, so its 4.236 m endpoint
+displacement versus 6.053 m between map-frame endpoints must **not** be used
+as proof of wheel-distance under-reporting. The drive bag also recorded 32
+traction samples with critical encoder consensus (about 3.2 s total) and
+about 49 degrees of wheel-versus-IM10A integrated yaw-rate disagreement.
+LiDAR/AMCL message delivery was fresh, so the operator's roughly 20-second
+map-position lag cannot be dismissed as browser delay alone.
 The web map now flags stale displayed poses, but that does not repair AMCL or
-wheel-distance calibration. Keep autonomy gated pending offline bag analysis
-and controlled localization validation.
+motion-estimate disagreement. Keep autonomy gated pending same-time heading,
+TF, encoder and localization validation; do not retune wheel scale from this
+manual route alone.
 Per operator priority, continue non-motion navigation evidence first and leave
 the intermittent BLE transport repair until later; **do not bypass fresh BMS
 telemetry or any movement safety gate**.

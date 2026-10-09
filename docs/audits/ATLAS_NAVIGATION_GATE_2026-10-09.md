@@ -77,12 +77,31 @@ safety gate was changed.
   Five AMCL position steps exceeded 0.5 m; the largest was 2.206 m with a
   130° heading step. The final pose agreed with the operator's observed
   Dhruv Room location, but this is localization correction, not smooth
-  tracking. The recorded `/odom` endpoint displacement was 4.236 m versus
-  6.053 m for AMCL map-frame endpoints. Different frame orientations do not
-  change displacement magnitude; the gap is consistent with wheel-distance
-  under-reporting, though this run alone cannot isolate its cause. A 20-second
-  apparent display delay may therefore include late AMCL correction as well
-  as browser rendering. Do not claim the web change fixes localization.
+  tracking. A 20-second apparent display delay may therefore include late
+  AMCL correction as well as browser rendering. Do not claim the web change
+  fixes localization. Do not infer wheel-distance scale from the 4.236 m
+  odometry endpoint displacement versus 6.053 m between map-frame endpoints:
+  the wheel-odometry path itself was about 6.77 m, and the different endpoint
+  displacements reflect different estimated trajectories/headings. The run
+  was not measured against a surveyed ground path.
+- Read-only bag review found 65 of 2,919 encoder-update intervals marked
+  `feedback_unavailable`, all during the remote-drive window. In 32 of these,
+  traction was applied and `/atlas/encoder_health` was `CRITICAL` with
+  `autonomy_ready=false`; the autonomous command mux is coded to stop on that
+  state. The other 33 occurred without applied traction. M3 was rejected in
+  184 of 539 drive-window samples, more often than the other wheels. This is
+  intermittent wheel-consensus loss, not evidence that all four encoder
+  packets or the USB link disappeared. Remote manual movement does not
+  qualify autonomous movement through these intervals.
+- The last nonzero remote command was about 214.77 s into the bag. The five
+  >0.5 m AMCL steps occurred at 217.63–227.84 s, **after** that command.
+  During the driven interval wheel-odometry yaw changed about -143 degrees,
+  while the IM10A/EKF reported gyro yaw-rate integrated to about -192 degrees.
+  The EKF pose heading changed about -125 degrees. These disagreeing motion
+  estimates need a same-time heading/TF audit; the bag alone does not prove
+  which source is physically correct or that the encoder losses caused the
+  later AMCL jumps. Preserve the current EKF/Nav2 configuration until that
+  distinction is measured.
 - A later stopped scan fit the final live pose in known free space: 95.7%
   of 209 endpoints were within 15 cm of mapped occupied cells, versus 67.5%
   at the exact saved home point. This supports the operator's statement that

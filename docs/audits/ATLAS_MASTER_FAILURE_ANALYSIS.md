@@ -110,6 +110,18 @@ A later source audit qualified the BMS freshness statement above: JSON status wa
 
 At 10:07 IST a fresh dashboard API sample reported encoder state `READY`, packet freshness true, selected wheels `[1,2,3,4]`, and no excluded wheels. This is evidence of the current selection configuration only, **not** M3 physical distance accuracy. In the same sample, autonomy phase was `FAULT` with `STOP: SLAM MAP DATA LOST`. The earlier three-encoder narrative must not be carried forward as a current runtime fact, and encoder readiness must not be equated to whole-rover autonomy readiness.
 
+The later recorded **manual** Hall-to-Dhruv return provides a stronger moving
+counterexample to stationary `READY`: 32 roughly 10 Hz samples had applied
+traction with encoder consensus `CRITICAL` and autonomy revoked; M3 was the
+most frequently rejected wheel. Five >0.5 m AMCL pose steps followed the last
+remote command, not a 20-second sensor-message gap. Wheel yaw-rate integration
+and IM10A gyro integration differed by about 49 degrees over the driven
+window. A shorter wheel-odometry **endpoint** displacement is not itself a
+wheel-scale fault, since the integrated wheel path was about 6.77 m and the
+trajectory curved. See the [Oct9 navigation gate](ATLAS_NAVIGATION_GATE_2026-10-09.md)
+for timing and limitations. Keep autonomous navigation unqualified; do not
+blindly change wheel scale, EKF fusion or AMCL tuning from this bag alone.
+
 Recommendation: retain Jetson-local safety and essential diagnostics, first resolve BLE freshness and motor timing with bounded evidence, then decide whether Visual Cloud should connect to a real authenticated PC endpoint or remain local. Measure overhead and data growth before enabling any additional collector. PC-side n8n/analytics are optional consumers, never dependencies of autonomous control.
 
 Voice improvement is separately queued in the [local ASR evaluation plan](ATLAS_VOICE_ASR_EVALUATION_PLAN.md). The current active recognizer is cloud-based and the wake phrase is checked after cloud transcription; local speech output and optional local text reasoning do not yet make microphone commands offline. Whisper/faster-whisper must earn deployment through measured multilingual recognition and Jetson workload tests, with the existing safety path and recognizer preserved.
