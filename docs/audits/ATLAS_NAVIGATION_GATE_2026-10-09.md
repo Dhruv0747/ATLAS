@@ -20,8 +20,23 @@ steering, map, navigation parameter, service, or BMS safety gate was changed.
   remained approximately (-3.17, -0.22, -2.40 rad), `/odom` x remained
   15.34 m in its separate odom frame, reported speed and gyro-Z were near
   zero, and BMS status was fresh. Different map/odom coordinates alone do not
-  indicate drift. Physical location confirmation is still needed to validate
-  the map pose against reality.
+  indicate drift. The operator confirmed ATLAS is physically in Dhruv Room,
+  but has not yet confirmed whether it is at the exact saved home point.
+- The current `/amcl_pose` agrees with the web map pose. Its covariance
+  diagonal is approximately (-9e-13, -2e-15, +3e-14) for x/y/yaw; the tiny
+  negative x/y values are not a usable proof of localization accuracy. Mission
+  control clamps negative covariance to zero before checking its uncertainty
+  gate. A stable, apparently confident pose therefore does not establish that
+  the physical pose matches the saved map.
+- The saved `dhruv room` point is (0.254, -1.539), about 3.67 m from today's
+  reported pose. This comparison is a warning, not proof of a wrong pose,
+  because the rover may be elsewhere within the room. The localization seed
+  file is at (0.877, 0.097) and carries a mapping-session ID but no
+  accepted-map ID. Do not overwrite either saved place to make the numbers
+  agree without an independently checked physical position and heading.
+- At today's localization startup, Nav2 logged multiple robot-out-of-map
+  positions and a scan/TF cache drop before the pose settled. This is stronger
+  evidence of a startup-localization problem than the stationary pose alone.
 
 ## Saved-map route blocker
 
@@ -42,8 +57,10 @@ steering, map, navigation parameter, service, or BMS safety gate was changed.
 
 ## Safe next gate
 
-1. Confirm ATLAS's actual physical room/location while it remains stationary.
-   Compare it to the live map pose before trusting localization.
+1. Confirm whether ATLAS is at the exact saved Dhruv Room/home spot and its
+   physical heading while it remains stationary. Compare an independently
+   checked scan/map alignment to the live pose before trusting localization.
+   Do not drive autonomously while this discrepancy remains unexplained.
 2. When not charging, with a safe route and remote stop available, verify a
    physically safe Hall endpoint on the *current* map and save it deliberately.
    Do not relabel the old taught route or silently shift the saved Hall point.
