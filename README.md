@@ -1,5 +1,12 @@
 # Project ATLAS - Autonomous Service Rover
 
+2026-10-09 sensor evidence: six recorded stopped windows confirm that physical
+stillness is not global localization correctness. Early return AMCL spans
+1.148 m/76.478° against repeatable scans and +0.064° integrated gyro. Late
+return is steady but wrong; its 77.4–82.7% endpoint fit overlaps late Hall.
+No threshold or runtime change was deployed. Six helper tests passed.
+See [sensor stability evidence](docs/audits/ATLAS_SENSOR_STABILITY_EVIDENCE_2026-10-09.md).
+
 2026-10-09 follow-up: mission-start incompatibility is CONFIRMED, not merely
 suspected. Saved isolated replay has two poses; actual mission code requires
 four over at least 5.6 seconds in an 8-second window. One extra startup
