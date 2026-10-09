@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-09 — Lifted-test timing evidence (source only)
+
+- Added client publish-start and motor-owner request-receive/status timestamps on the same Jetson monotonic clock. This can distinguish send-to-receive delay in a future lifted no-motion test without changing the 0.5 s heartbeat lease or authorizing any motor pulse. Not deployed; motor service remains unchanged and raw commissioning remains disabled.
+
 ## 2026-10-09 — Map-readiness diagnostics
 
 - Added the safety reporter's observed operating mode, whether a map was received, and map age to its existing autonomy-state JSON. The fail-closed map decision is unchanged. Deployed with operator approval while stopped; only the safety reporter restarted. It then reported `LOCALIZATION`, map received and online. Root cause of the earlier stale status remains unproven.

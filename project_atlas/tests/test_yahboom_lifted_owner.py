@@ -197,6 +197,7 @@ class YahboomLiftedOwnerTests(unittest.TestCase):
         )
         self.node._lifted_result = "IDLE"
         self.node._lifted_last_sequence_ack = -1
+        self.node._lifted_request_received_monotonic_s = None
         self.node._lifted_remote_b_stop = False
         self.node._lifted_encoder_baseline = None
         self.node._lifted_pulse_wheel = None
@@ -322,6 +323,18 @@ class YahboomLiftedOwnerTests(unittest.TestCase):
         self.assertEqual(status['encoder_cached_age_s'], 0.4)
         self.assertFalse(self.node._lifted_snapshot().controller_link_ok)
         self.assertEqual(self.node.bot.writes, [])
+
+    def test_request_status_exposes_owner_monotonic_receive_time(self):
+        self.node._lifted_request_received_monotonic_s = None
+        self.node._publish_lifted_status()
+        idle = json.loads(self.node._pub_lifted_status.messages[-1])
+        self.assertIsNone(idle['owner_request_received_monotonic_s'])
+        self.assertEqual(idle['owner_status_published_monotonic_s'], self.clock.now)
+        self.send('enter', 1, confirm=CONFIRMATION_PHRASE, lifted=True)
+        accepted = json.loads(self.node._pub_lifted_status.messages[-1])
+        self.assertEqual(accepted['owner_request_received_monotonic_s'], self.clock.now)
+        self.assertEqual(accepted['owner_status_published_monotonic_s'], self.clock.now)
+        self.assertNotIn(TOKEN, self.node._pub_lifted_status.messages[-1])
 
     def test_entry_window_requires_continuous_fresh_checks(self):
         for _ in range(52):

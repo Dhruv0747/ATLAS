@@ -263,8 +263,12 @@ class LiftedPulseOperator:
         # a number, but can never reuse an already-published command number.
         if self.session_store is not None:
             self.session_store.save(self.session, self.sequence + 1)
+        publish_started_monotonic_s = self.clock()
         self.transport.publish(message)
-        self.evidence.record("request", request=redacted_request(message))
+        self.evidence.record(
+            "request", request=redacted_request(message),
+            publish_started_monotonic_s=round(publish_started_monotonic_s, 6),
+        )
         if op == "enter":
             self.entered = True
             self.next_heartbeat_at = self.clock() + self.plan.heartbeat_s

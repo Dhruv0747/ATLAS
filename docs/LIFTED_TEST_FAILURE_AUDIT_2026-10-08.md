@@ -145,6 +145,15 @@ improvement; a later heartbeat failure proves it is **not** the final timing fix
    battery/clearance checks. Do not ask the user to repeat a route or recalibrate
    steering to solve this software test-channel problem.
 
+Oct9 source-only preparation: the client evidence now records the monotonic
+instant before each request publish; the motor owner would include the last
+request callback-receive time and each status-publish time. Its sequence ack
+already correlates requests and statuses. These fields allow common-host
+send→receive and receive→status comparisons without relaxing the heartbeat
+lease. The motor-owner change is **not deployed**, raw commissioning remains
+disabled, and no no-motion endurance or lifted motor test has passed from this
+source change alone.
+
 ## Source control and deployment scope
 
 At audit start the local working branch was seven commits ahead of its remote.

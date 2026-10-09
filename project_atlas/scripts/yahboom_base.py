@@ -423,6 +423,7 @@ class YahboomBase(Node):
         )
         self._lifted_result = 'IDLE'
         self._lifted_last_sequence_ack = -1
+        self._lifted_request_received_monotonic_s = None
         self._lifted_remote_b_stop = False
         self._lifted_encoder_baseline = None
         self._lifted_pulse_wheel = None
@@ -963,6 +964,8 @@ class YahboomBase(Node):
             'remote_b_stop': bool(self._lifted_remote_b_stop),
             'sequence': self._lifted_last_sequence_ack,
             'sequence_ack': self._lifted_last_sequence_ack,
+            'owner_request_received_monotonic_s': self._lifted_request_received_monotonic_s,
+            'owner_status_published_monotonic_s': now,
             'session_fingerprint': session_fingerprint,
             'final_zero': all(
                 float(value) == 0.0 for value in self._applied_motor_outputs
@@ -1073,6 +1076,7 @@ class YahboomBase(Node):
         self._publish_lifted_status(snapshot)
 
     def _on_lifted_request(self, msg):
+        self._lifted_request_received_monotonic_s = time.monotonic()
         snapshot = None
         previous_state = self._lifted_commission.state
         try:

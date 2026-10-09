@@ -474,6 +474,12 @@ class LiftedClientTests(unittest.TestCase):
         rows = [json.loads(line) for line in self.fixture.path.read_text().splitlines()]
         events = [row["event"] for row in rows]
         self.assertIn("request", events)
+        for row in rows:
+            if row["event"] == "request":
+                self.assertIn("publish_started_monotonic_s", row)
+                self.assertLessEqual(
+                    row["publish_started_monotonic_s"], row["monotonic_s"]
+                )
         self.assertIn("status", events)
         self.assertIn("complete", events)
         complete = next(row for row in rows if row["event"] == "complete")
