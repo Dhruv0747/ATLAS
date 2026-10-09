@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-09 — BMS net charge/discharge dashboard
+
+- Show the coherent Daly status packet's SOC, charge/discharge state, absolute net current in A, and net power in W on the main Power card, with a detailed four-cell report on tap.
+- Align dashboard freshness to the 10-second BMS motor-test gate; hide last-known figures when status is invalid, incomplete, or stale. The physical BMS protection and all motor/navigation settings are unchanged.
+- Deployed both web assets with recoverable backups; HTTP 200 and fresh BMS JSON were verified after the web-only restart. No BMS reader or motor service restart.
+- The intermittent Bluetooth connect-stage failure is still under investigation; a clearer display is not a transport repair.
+
 ## 2026-10-09 — M3 attempt stopped before motion
 
 - A bounded lifted M3 attempt reached the no-motion locked state but aborted on stale BMS telemetry before any motor pulse. The operator separately reported M3 physical rotation; encoder reliability remains unqualified. The temporary raw-test gate was removed after Jetson reconnection, and the motor owner was verified IDLE with stop latched and all outputs zero. See the lifted-test audit for evidence.

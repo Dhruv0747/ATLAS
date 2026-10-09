@@ -1131,7 +1131,12 @@ installer or used as fallback sensor/control paths.
 # Dashboard battery indicator
 
 The web header now displays main DALY BMS percentage and net charging/discharging
-state. Tap it for telemetry details. Missing or stale BMS data is explicitly marked;
+state. The Power card also shows live net current (A) and power (W); tap either
+the card or the header badge for four cell voltages, cell spread, SOC source,
+and sample age. Negative current/power means the pack is discharging; positive
+means it is charging. Near zero is labelled idle. These are whole-pack net
+measurements, not a separate charger-current or Jetson-only measurement.
+Missing, invalid, or older-than-10-second BMS data is explicitly marked;
 the indicator does not substitute the motor-board voltage estimate.
 On a failed Daly Bluetooth read, `/bms/json` reports `ok:false`; scalar BMS
 topics must not republish the last successful measurements as if new. The

@@ -8,6 +8,7 @@ import unittest
 
 SOURCE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "atlas_status_web.py"
 SOURCE = SOURCE_PATH.read_text(encoding="utf-8")
+DIAGNOSTICS_SOURCE = (SOURCE_PATH.parent / "atlas_diagnostics_ui.js").read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
 
 
@@ -43,11 +44,19 @@ class SmartDashboardPanelTests(unittest.TestCase):
         self.assertIn("NVIDIA software throttling begins at 99°C", self.page)
 
     def test_bms_health_and_power_card_require_valid_fresh_snapshot(self):
+        self.assertIn("function bmsSnapshot(r)", self.page)
         self.assertIn("function bmsLive(r)", self.page)
-        self.assertIn("!recent(r,'bms_status',20)||!recent(r,'bms_percent',20)", self.page)
-        self.assertIn("JSON.parse(val(r,'bms_status','{}')||'{}').ok===true", self.page)
+        self.assertIn("!recent(r,'bms_status',10)", self.page)
+        self.assertIn("b.cells_complete!==true", self.page)
+        self.assertIn("[b.soc_percent,b.voltage_v,b.current_a,b.power_w,...b.cells_v].every(valid)", self.page)
         self.assertIn("['DALY BMS',bmsLive(r)?'ok':'fail'", self.page)
-        self.assertIn("bmsFresh?`${n(val(r,'bms_percent'),0)}%`:'UNAVAILABLE'", self.page)
+        self.assertIn("let bms=bmsSnapshot(r)", self.page)
+        self.assertIn("bms?`${n(bms.soc_percent,0)}% • ${bmsState}`:'UNAVAILABLE'", self.page)
+        self.assertIn("PACK CURRENT", self.page)
+        self.assertIn("PACK POWER", self.page)
+        self.assertIn("last-known values hidden", self.page)
+        self.assertIn("const b=bmsSnapshot(r);", DIAGNOSTICS_SOURCE)
+        self.assertIn("openDetail('bms_status')", DIAGNOSTICS_SOURCE)
 
     def test_backend_exposes_gpu_fields(self):
         status_function = next(

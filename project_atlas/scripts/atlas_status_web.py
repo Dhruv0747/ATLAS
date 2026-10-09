@@ -2144,10 +2144,20 @@ const row=(a,b)=>`<div class="row"><span>${a}</span><span>${b}</span></div>`;
 const age=(r,k)=>r[k]&&r[k].age!==null&&Number.isFinite(Number(r[k].age))?Number(r[k].age):9999;
 const dashboardStarted=Date.now();
 const recent=(r,k,seconds)=>age(r,k)<seconds;
-function bmsLive(r){
- if(!recent(r,'bms_status',20)||!recent(r,'bms_percent',20))return false;
- try{return JSON.parse(val(r,'bms_status','{}')||'{}').ok===true}catch(e){return false}
+function bmsSnapshot(r){
+ if(!recent(r,'bms_status',10))return null;
+ try{
+  const b=JSON.parse(val(r,'bms_status','{}')||'{}');
+  const valid=x=>typeof x==='number'&&Number.isFinite(x);
+  if(b.ok!==true||b.cells_complete!==true||!Array.isArray(b.cells_v)||b.cells_v.length!==4)return null;
+  if(![b.soc_percent,b.voltage_v,b.current_a,b.power_w,...b.cells_v].every(valid))return null;
+  if(b.soc_percent<0||b.soc_percent>100||b.voltage_v<=0||b.cells_v.some(v=>v<=0))return null;
+  return b;
+ }catch(e){return null}
 }
+function bmsLive(r){return bmsSnapshot(r)!==null}
+function bmsMode(b){return b.current_a>0.15?'CHARGING':b.current_a< -0.15?'DISCHARGING':'IDLE / NEAR ZERO'}
+function bmsSocSource(b){return b.soc_source==='daly_coulomb_counter'?'DALY COUNTER':b.soc_source==='voltage_estimate_lifepo4'?'VOLTAGE ESTIMATE':'SOURCE UNKNOWN'}
 const radarFrameHealthy=(r,seconds=2.5)=>recent(r,'radar_decoder_status',seconds)&&/\bstate=VALID\b/i.test(String(val(r,'radar_decoder_status','')));
 function cellGeneration(raw){let t=String(raw||'').toLowerCase();if(t.includes('5g')||t.includes('nr'))return '5G';if(t.includes('lte'))return '4G';if(t.includes('umts')||t.includes('hspa'))return '3G';if(t.includes('gsm')||t.includes('edge')||t.includes('gprs'))return '2G';return 'CELLULAR'}
 function healthItem(name,state,hint,seconds=null,detailKey=''){
@@ -2225,6 +2235,11 @@ function i2cInfo(r){
 }
 function renderDetail(){if(!activeDetail||!latestStatus)return;let r=latestStatus.ros,body='',title='LIVE SENSOR',fresh='LIVE';
  if(activeDetail==='ultrasonic'){title='FOUR ULTRASONIC SENSORS';body=`<div class="detailGrid">${rangeTile('LEFT',val(r,'us_left'),age(r,'us_left'))}${rangeTile('FRONT',val(r,'us_front'),age(r,'us_front'))}${rangeTile('RIGHT',val(r,'us_right'),age(r,'us_right'))}${rangeTile('REAR',val(r,'us_rear'),age(r,'us_rear'))}</div><div class="rawData">STATUS: ${val(r,'us_status','waiting')}\nREFRESH: latest received telemetry; measured callback rates are in Diagnostics\nROLE: secondary near-field safety layer; LiDAR remains the primary navigation sensor.</div>`;fresh=Math.max(age(r,'us_left'),age(r,'us_front'),age(r,'us_right'),age(r,'us_rear'))<3?'● LIVE':'STALE';}
+ else if(activeDetail==='bms_status'){
+  title='MAIN DALY BMS — LIVE PACK REPORT';const b=bmsSnapshot(r);
+  if(!b){body='<div class="rawData">BMS DATA UNAVAILABLE OR OLDER THAN 10 SECONDS. Last-known values are hidden. Check the DALY Bluetooth link before relying on battery telemetry.</div>';fresh='STALE / INVALID';}
+  else{const spread=Math.max(...b.cells_v)-Math.min(...b.cells_v),mode=bmsMode(b);body=`<div class="detailGrid">${tile('CHARGE',n(b.soc_percent,1),' %')}${tile('NET STATE',mode)}${tile('PACK VOLTAGE',n(b.voltage_v,2),' V')}${tile('PACK CURRENT',n(Math.abs(b.current_a),2),' A '+mode)}${tile('PACK POWER',n(Math.abs(b.power_w),1),' W '+mode)}${tile('CELL SPREAD',n(spread,3),' V')}${b.cells_v.map((v,i)=>tile('CELL '+(i+1),n(v,3),' V')).join('')}${tile('BMS DATA AGE',n(age(r,'bms_status'),1),' s')}${tile('CHARGE SOURCE',bmsSocSource(b))}</div><div class="rawData">Current and power are NET values at the battery pack: negative means discharging, positive means charging. They do not separately measure charger input or Jetson-only consumption. Near zero is labelled idle, not proof that the charger is disconnected.\nThe BMS hardware protection/balancing is separate from this read-only dashboard. A valid status packet does not prove that every protective function was tested.</div>`;fresh='● LIVE';}
+ }
  else if(activeDetail==='cellular'){title='CELLULAR / INTERNET DIAGNOSTICS';body=cellularDetails(r,latestStatus.network);fresh=recent(r,'cell_registration',20)?'● TELEMETRY LIVE':'STALE';}
  else if(activeDetail==='gps'){title='PRIMARY GNSS / GLONASS DIAGNOSTICS';body=gnssDetails(r);fresh=gnssInfo(r).live?'● NMEA LIVE':'STALE / OFFLINE';}
  else if(activeDetail.startsWith('telemetry:')){let key=activeDetail.slice(10),item=r[key];title='TELEMETRY — '+key;body='<pre class="rawData">'+diagEscape(JSON.stringify(item||{error:'not received'},null,2))+'</pre>';fresh=item&&item.age!==null&&item.age<10?'● RECENT':'OLDER / UNKNOWN';}
@@ -2372,8 +2387,8 @@ async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'})
  let radarDetail=radarLive?(Number(val(r,'radar_count',0))>0?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:'VALID FRAMES • NO CURRENT TARGET'):(radarHub?String(val(r,'radar_decoder_status','Bytes received; no valid frame')):'Check power/GND • radar TX → UNO D12 • radar RX → UNO D11');
  let imuLive=recent(r,'imu_full',4)||recent(r,'imu_heading',4),imuFull=val(r,'imu_full',{}),imuFused=String(imuFull.navigation_fusion||'').startsWith('ENABLED');
  $('sensors').innerHTML=card('LiDAR • nearest any direction',`${n(li.nearest_m,2)} m`,`${li.points||0} points • navigation-primary`,'lidar')+card('LiDAR distance sectors',distanceAuthority,`${distanceCenter} • corridor minimum is used for safety`,'lidar')+card('Fused safety guard',`${n(frontClear.fused_m,2)} m FRONT`,distanceGuards,'ultrasonic')+card('Ultrasonic • secondary guard',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')} • B ${val(r,'us_rear')} • never labelled as LiDAR`,'ultrasonic')+card('RD-03D Radar',radarTitle,radarDetail,'radar')+card('Hiwonder IM10A',imuLive?`${n(val(r,'imu_yaw'),0)}° SENSOR`:'OFFLINE',imuLive?`${imuFused?'EKF GYRO-Z':'MONITORING ONLY • REVALIDATE'} • magnetic heading diagnostics-only • roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`:'Check IM10A USB connection and atlas-im10a service','imu')+card('I²C Sensor Bus',i2c.liveCount?`${i2c.liveCount}/3 LIVE`:(i2c.bridgeLive?'BRIDGE ONLY':'OFFLINE'),i2c.liveCount?`${i2c.route} • ${i2c.liveSensors.map(x=>x.address).join(' • ')}`:(i2c.bridgeLive?'UNO R4 live; sensor data stale':'No fresh sensor telemetry'),'i2c');
- let bmsFresh=bmsLive(r);
- $('power').innerHTML=card('Main BMS',bmsFresh?`${n(val(r,'bms_percent'),0)}%`:'UNAVAILABLE',bmsFresh?`${n(val(r,'bms_voltage'),2)}V ${n(val(r,'bms_current'),2)}A ${n(val(r,'bms_power'),1)}W • CELLS ${n(val(r,'bms_cell1'),3)} / ${n(val(r,'bms_cell2'),3)} / ${n(val(r,'bms_cell3'),3)} / ${n(val(r,'bms_cell4'),3)}`:'BMS reading invalid or stale • do not use last-known values')+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,'Current NOT MEASURED • driver publishes a placeholder','telemetry:bat_current')+card('Jetson INA3221',`${n(val(r,'jetson_power'),1)}W`,`${n(val(r,'jetson_voltage'),3)}V ${n(val(r,'jetson_current'),2)}A • CPU/GPU ${n(val(r,'jetson_cpu_gpu_power'),1)}W • SoC ${n(val(r,'jetson_soc_power'),1)}W`)+card(`${cellGen} MODEM`,val(r,'cell_registration','--'),`${n(val(r,'cell_signal'),0)}% reported signal • not an Internet test`,'cellular');
+ let bms=bmsSnapshot(r),bmsState=bms?bmsMode(bms):'UNAVAILABLE';
+ $('power').innerHTML=card('Main BMS',bms?`${n(bms.soc_percent,0)}% • ${bmsState}`:'UNAVAILABLE',bms?`${n(bms.voltage_v,2)} V • ${n(Math.abs(bms.current_a),2)} A / ${n(Math.abs(bms.power_w),1)} W ${bmsState} • cells Δ ${n(Math.max(...bms.cells_v)-Math.min(...bms.cells_v),3)} V • ${n(age(r,'bms_status'),1)} s old`:'BMS reading invalid or older than 10 s • last-known values hidden','bms_status')+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,'Current NOT MEASURED • driver publishes a placeholder','telemetry:bat_current')+card('Jetson INA3221',`${n(val(r,'jetson_power'),1)}W`,`${n(val(r,'jetson_voltage'),3)}V ${n(val(r,'jetson_current'),2)}A • CPU/GPU ${n(val(r,'jetson_cpu_gpu_power'),1)}W • SoC ${n(val(r,'jetson_soc_power'),1)}W`)+card(`${cellGen} MODEM`,val(r,'cell_registration','--'),`${n(val(r,'cell_signal'),0)}% reported signal • not an Internet test`,'cellular');
  environment(r);
  $('network').innerHTML=row('Wi-Fi / AP',net.wifi_ip)+row(`${cellGen} data`,`${net.cell_ip} • ${val(r,'cell_operator','--')} • ${n(val(r,'cell_signal'),0)}%`)+row('Tailscale',net.tailscale_ip)+row('Active route',net.route)+networkFallbackSummary(net)+`<button class="btn" onclick="openDetail('cellular')">CELLULAR / ROUTE DETAILS</button><a class="btn" href="/wifi">WI-FI SETUP / SAVED NETWORKS</a>`;
  $('gnss').innerHTML=gnssSummary(r);renderConstellations(r);renderDiagnostics();refreshDiagnostics();

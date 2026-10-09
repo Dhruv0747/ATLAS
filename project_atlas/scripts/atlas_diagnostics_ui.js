@@ -7,17 +7,15 @@ async function shutdownAtlas(){
   catch(error){button.disabled=false;alert(error.message+' — check whether ATLAS is still online.');}
 }
 function mainBattery(r) {
-  let b; try { b=JSON.parse(r.bms_status?.value||'{}'); } catch(_) { b={}; }
-  const age=Number(r.bms_status?.age)+Number(b.age_s||0);
-  const valid=b.ok===true && Number.isFinite(age) && age<20 && typeof b.soc_percent==='number' && b.soc_percent>=0 && b.soc_percent<=100;
-  if(!valid) return {percent:null,state:'DATA STALE / OFFLINE',color:'#a3b1bd'};
+  const b=bmsSnapshot(r);
+  if(!b) return {percent:null,state:'DATA STALE / OFFLINE',color:'#a3b1bd'};
   const current=b.current_a;
-  const state=typeof current!=='number'||!Number.isFinite(current)?'CURRENT UNKNOWN':current>0.15?'CHARGING':current< -0.15?'DISCHARGING':b.soc_percent>=99?'FULL · IDLE':'IDLE';
+  const state=current>0.15?'CHARGING':current< -0.15?'DISCHARGING':b.soc_percent>=99?'FULL · IDLE':'IDLE';
   return {percent:b.soc_percent,state,color:b.soc_percent<=20?'#ff5966':b.soc_percent<=40?'#ffcc3d':'#34e58b'};
 }
 function updateBatteryBadge(r) {
   let el=document.getElementById('mainBatteryBadge');
-  if(!el){el=document.createElement('button');el.id='mainBatteryBadge';el.className='batteryBadge';el.onclick=()=>openDetail('telemetry:bms_status');document.querySelector('header').append(el);}
+  if(!el){el=document.createElement('button');el.id='mainBatteryBadge';el.className='batteryBadge';el.onclick=()=>openDetail('bms_status');document.querySelector('header').append(el);}
   const b=mainBattery(r),text=b.percent===null?'--%':Math.round(b.percent)+'%';
   el.innerHTML=`<span class="batteryShell"><span class="batteryFill" style="width:${b.percent??0}%;background:${b.color}"></span><span class="batteryBolt">${b.state==='CHARGING'?'ϟ':''}</span></span><span><strong>${text}</strong><small>${b.state}</small></span>`;
   el.title='Main DALY battery · '+text+' · '+b.state+' · tap for details';
