@@ -9,6 +9,16 @@ the live pose, and a new map-bound Hall point at (6.279, -2.199) passed exact
 known-free 0.18 m clearance and grid connectivity to home. This is not a
 recorded or repeated autonomous return-home pass. See
 [the navigation gate](ATLAS_NAVIGATION_GATE_2026-10-09.md).
+
+The subsequent recorded **manual** Hall → Dhruv Room return exposed a new
+localization reliability blocker: AMCL made five >0.5 m position steps after
+remote commands stopped, the largest 2.206 m/130°, while wheel odometry was
+stationary. Wheel-odom endpoint displacement was 4.236 m versus 6.053 m in
+the AMCL map frame. LiDAR/AMCL message delivery was fresh, so the operator's
+roughly 20-second map-position lag cannot be dismissed as browser delay alone.
+The web map now flags stale displayed poses, but that does not repair AMCL or
+wheel-distance calibration. Keep autonomy gated pending offline bag analysis
+and controlled localization validation.
 Per operator priority, continue non-motion navigation evidence first and leave
 the intermittent BLE transport repair until later; **do not bypass fresh BMS
 telemetry or any movement safety gate**.

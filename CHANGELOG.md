@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-09 — Manual return recording and live-map refresh
+
+- Recorded an operator-driven Hall → Dhruv Room return with LiDAR, AMCL,
+  odometry and TF. ROS/bag timing had no 20-second delivery gap, but the full
+  bag revealed five >0.5 m AMCL jumps after the remote stopped, including
+  a 2.206 m/130° step. Wheel odometry covered only 4.236 m endpoint
+  displacement versus 6.053 m in map-frame endpoints. This does not count
+  as an autonomous return-home trial or prove localization repeatability.
+- Updated only the live-map web page to prevent overlapping polls, bound a
+  delayed request to 2 seconds, refresh after mobile-tab wake, and show
+  client-elapsed pose age/staleness. Static saved maps no longer reload their
+  PNG every 1.5 seconds or appear falsely stale just because `/map` is
+  latched. Deployed with an HTML backup; no ROS or actuator restart. The
+  reported phone-side 20-second delay still needs an observed moving retest;
+  this UI repair does not resolve the measured AMCL corrections.
+
 ## 2026-10-09 — Operator-confirmed Hall waypoint on accepted map
 
 - Replaced the old footprint-blocked Hall waypoint with the rover's stopped,

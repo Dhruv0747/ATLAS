@@ -53,6 +53,53 @@ safety gate was changed.
   remain. Also audit why a stale active-session marker survived localization
   startup so future waypoint saves cannot be misbound.
 
+## Recorded manual Hall → Dhruv Room return and map-display lag
+
+- The operator manually drove Hall → Dhruv Room after the dedicated recorder
+  was verified active. The bag is
+  `/home/jetson/project_atlas/data/demonstrations/hall_to_dhruv_20261009-20261009-122252`
+  (about 192 MB); the recorder stopped successfully. This is manual route
+  evidence, **not** an autonomous return-home pass.
+- The operator confirmed the displayed final map location matches the rover
+  in Dhruv Room. Stopped final map pose was about (0.313, -1.176,
+  1.091 rad), 0.37 m and 14° from the saved home pose. That offset is not a
+  measured localization error because the operator did not claim to park at
+  the exact saved home point.
+- The operator reported the map marker appeared about 20 seconds late. In
+  the 53.9-second recorded remote-command window, `/scan`, `/odom`, `/tf`,
+  `/yahboom/odom` and `/amcl_pose` had maximum receipt gaps of 0.268,
+  0.116, 0.109, 0.121 and 1.174 seconds respectively. AMCL's header-to-bag
+  receipt age was median 0.162 s, maximum 0.311 s. Stopped `/api/map` calls
+  took 0.09–0.18 s and returned pose age about 0.05–0.39 s. These checks do
+  not reproduce a 20-second message-transport or API lag.
+- **Important deeper finding:** the full recording shows AMCL jumping among
+  map hypotheses after remote commands stopped and `/odom` velocity was zero.
+  Five AMCL position steps exceeded 0.5 m; the largest was 2.206 m with a
+  130° heading step. The final pose agreed with the operator's observed
+  Dhruv Room location, but this is localization correction, not smooth
+  tracking. The recorded `/odom` endpoint displacement was 4.236 m versus
+  6.053 m for AMCL map-frame endpoints. Different frame orientations do not
+  change displacement magnitude; the gap is consistent with wheel-distance
+  under-reporting, though this run alone cannot isolate its cause. A 20-second
+  apparent display delay may therefore include late AMCL correction as well
+  as browser rendering. Do not claim the web change fixes localization.
+- A later stopped scan fit the final live pose in known free space: 95.7%
+  of 209 endpoints were within 15 cm of mapped occupied cells, versus 67.5%
+  at the exact saved home point. This supports the operator's statement that
+  the displayed final pose is physically plausible; it does not excuse the
+  preceding large jumps or qualify autonomous operation.
+- The map page previously launched a new fetch every 750 ms without waiting
+  for the prior fetch and re-fetched even an unchanged saved-map PNG every
+  1.5 s. The web-only repair uses one in-flight request, a 2 s timeout,
+  immediate foreground refresh, client-elapsed pose age, and a stale-pose
+  label instead of presenting old coordinates as live. It treats a latched
+  saved map as loaded rather than wrongly calling it stale because its one
+  `/map` publication is old; static map PNGs refresh at most every 30 s.
+  No ROS, map, motor or safety service restarted. Live HTTP check returned
+  200 and fresh pose; a moving phone-browser test is still needed to confirm
+  browser responsiveness. Autonomous motion remains blocked on localization
+  repeatability, not merely map-page update speed.
+
 ## Current observed state
 
 - The Jetson web API showed a complete, fresh four-cell Daly packet while the

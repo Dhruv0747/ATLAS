@@ -422,7 +422,7 @@
         "docs/audits/ATLAS_NAVIGATION_GATE_2026-10-09.md"
       ],
       "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live safety reporter initially said SLAM MAP DATA LOST; a new transient-local subscriber received the saved map, and diagnostic-only reporter restart restored LOCALIZATION/map ONLINE. Root cause of stale prior status not proven; navigation remains unvalidated.",
-      "remaining_verification": "The operator confirmed the exact saved Dhruv Room point and heading; stationary scan/map fit identified the earlier out-of-map AMCL pose as wrong, and one saved-pose reseed corrected it. Recheck localization stability across reboot and under movement. A new operator-confirmed Hall endpoint passes exact saved-map footprint clearance; the taught route still has an older map ID. Audit stale mapping-session marker lifecycle. Use saved bags to assess same-time composed robot correction, calibrated wheel model and true scan timing; require an actual Nav2 plan and supervised recorded round trip.",
+      "remaining_verification": "The operator confirmed the exact saved Dhruv Room point and heading; stationary scan/map fit identified the earlier out-of-map AMCL pose as wrong, and one saved-pose reseed corrected it. A new operator-confirmed Hall endpoint passes exact saved-map footprint clearance; the taught route still has an older map ID. The recorded manual Hall-to-home return showed >2 m stationary AMCL jumps and substantially shorter wheel-odom endpoint displacement. Diagnose same-time scan/AMCL/odom/TF evidence and wheel scale before autonomous motion. Audit stale mapping-session marker lifecycle; require an actual Nav2 plan and supervised recorded round trip only after localization is stable.",
       "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
       "events": [
         {
@@ -464,6 +464,11 @@
           "date": "2026-10-09",
           "kind": "hall_waypoint_resaved",
           "description": "Operator manually arrived in Hall and confirmed live map marker. Fresh stopped scan fit 98.9% within 15 cm at (6.279,-2.199); exact accepted-map 0.18 m clearance and grid connectivity to home passed. Old Hall waypoint was backed up. First save was incorrectly bound to an Oct8 mapping session left active while localization ran and SLAM was inactive; archived the stale marker and re-saved Hall with accepted map ID. Motor speed remained zero during save. Manual arrival was not captured by the dedicated demonstration recorder; taught-route map ID and autonomous repeatability remain unvalidated."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "recorded_manual_return_localization_jump",
+          "description": "Dedicated Hall-to-Dhruv manual return bag captured fresh scan, odom, TF and AMCL. Remote-command interval had no >2 s data gap, but five AMCL steps exceeded 0.5 m after the remote stopped and odometry was stationary; largest was 2.206 m/130 degrees. Odom endpoint displacement was 4.236 m versus 6.053 m in AMCL map-frame endpoints. Browser map refresh was bounded and stale data labelled, but root localization/scale reliability remains unproven. No autonomous motion was commanded."
         }
       ]
     },
