@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-09 — Project-wide historical failure baseline
+
+- Indexed 268 reachable commits and investigated selected cross-system failure
+  chains; queried all available GitHub branches, PRs, comments and Actions metadata.
+- Added four canonical audit records with 15 issue families, rejected fixes,
+  scoped validation, chronology, missing evidence and ordered release gates.
+- Added a repository workflow for preserving failure history in future sessions.
+  No background watcher, motion, firmware update or control change was made by
+  the audit; deep review of all transcripts/logs remains incomplete.
+
 ## 2026-10-09 — BMS failure-stage diagnostics
 
 - Label Bluetooth timeout/EOF with connect, MTU, notifications or data stage;

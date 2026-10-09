@@ -1,5 +1,12 @@
 # Project ATLAS - Autonomous Service Rover
 
+Project-wide evidence baseline: [master failure analysis](docs/audits/ATLAS_MASTER_FAILURE_ANALYSIS.md),
+[historical timeline](docs/audits/ATLAS_COMPLETE_FAILURE_TIMELINE.md),
+[root-cause registry](docs/audits/ATLAS_ROOT_CAUSE_REGISTRY.json), and
+[current blockers](docs/audits/ATLAS_CURRENT_BLOCKERS.md). Initial audit covers
+all available Git refs with selected deep investigations; missing history and
+remaining transcript/log review are explicitly documented. Not an autonomy pass.
+
 2026-10-09 diagnostic follow-up: BMS errors now identify the failing Bluetooth
 transaction stage. Live intermittent `connect` timeouts remain unresolved.
 Twelve Daly regression tests pass; this does not qualify powered motor tests.

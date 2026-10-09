@@ -1,0 +1,577 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-10-09",
+  "timezone": "Asia/Calcutta",
+  "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
+  "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
+  "confidence_values": [
+    "CONFIRMED",
+    "SUSPECTED"
+  ],
+  "resolution_values": [
+    "UNRESOLVED",
+    "VERIFIED FIXED"
+  ],
+  "issues": [
+    {
+      "id": "ATLAS-001",
+      "title": "Encoder channel response and post-replacement metric calibration",
+      "first_available_occurrence": "2026-08-04",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "encoders / odometry",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Early M2-M4 counts absent despite visually confirmed motors; replacement restored counts. September manual 40 cm legs produced ~21 cm wheel odometry. October M3 discrepancy is unqualified by isolated pulse.",
+      "confirmed_findings": "Different historical hardware/configuration generations; fresh packets do not establish each channel's response or distance accuracy.",
+      "suspected_causes_and_limits": "Slip, per-channel scale, mapping/sign, encoder hardware, turn normalization and sample timing remain alternatives for current discrepancies.",
+      "attempted_fix_commits": [
+        "8172c00acd4bfcd8f5155a948e823a86c60cb723",
+        "146798da0d75dd4689c6f15f6476a4c26bbab28a",
+        "eeb430b17685fe99efa62cd127320aa8fa055ece",
+        "fda24a7f79719afdde398520ad1b3c2170665e90",
+        "338242b09173d0b6dee42873366ba659e172b98c",
+        "1771b1dcd733f03732a5d75f77c08295a4808c25"
+      ],
+      "evidence": [
+        "docs/NAVIGATION_FOUNDATION_AUDIT_2026-08-04.md",
+        "docs/THREE_ENCODER_GROUND_OBSERVATION_2026-09-17.md",
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md"
+      ],
+      "test_results": "Replacement had historical dynamic passes; current M3 not qualified; six Oct8 runs had zero pulse requests.",
+      "remaining_verification": "After test-channel qualification: one bounded lifted M3 pulse with physical direction observation, then measured independent loaded forward/reverse runs. Never choose a channel only because it matches a desired distance.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-04",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Early M2-M4 counts absent despite visually confirmed motors; replacement restored counts. September manual 40 cm legs produced ~21 cm wheel odometry. October M3 discrepancy is unqualified by isolated pulse."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Replacement had historical dynamic passes; current M3 not qualified; six Oct8 runs had zero pulse requests."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-002",
+      "title": "USB role ambiguity and discovery starvation",
+      "first_available_occurrence": "2026-09-03",
+      "latest_reviewed_occurrence": "2026-10-08",
+      "subsystem": "USB / GNSS / motor startup",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "USB discovery busy; expected one unclaimed verified device. Identical CH340 by-id aliases previously bound IMU as motor board.",
+      "confirmed_findings": "Shared identities require protocol verification; exclusive discovery lock contention delayed motor startup while GNSS retried.",
+      "suspected_causes_and_limits": "Exact starvation fairness/backoff solution not yet validated; cable/power faults are separate possibilities.",
+      "attempted_fix_commits": [
+        "be25b57830b3d411e89a956e92200b9a983cc74a",
+        "d81c39af830e313b6efa6e989947096c54753a78",
+        "8e4a2a11b395bf9d207e7b0336181f05cd0bf9fc",
+        "80f6dc87c9e153ac8b45ccfd468925950d22a8f1"
+      ],
+      "evidence": [
+        "docs/IM10A_COMMISSIONING_2026-09-16.md",
+        "docs/USB_AUTO_DISCOVERY_2026-09-19.md",
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md"
+      ],
+      "test_results": "Pausing GNSS around base restart restored startup (workaround). Passive identity unit tests do not prove cold-boot/swap endurance.",
+      "remaining_verification": "Motor power off: repeated simultaneous startup and controlled reconnect, absent/ambiguous device cases. Preserve one serial owner, bounded retries, no blind protocol writes.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-09-03",
+          "kind": "earliest_reviewed_evidence",
+          "description": "USB discovery busy; expected one unclaimed verified device. Identical CH340 by-id aliases previously bound IMU as motor board."
+        },
+        {
+          "date": "2026-10-08",
+          "kind": "latest_assessment",
+          "description": "Pausing GNSS around base restart restored startup (workaround). Passive identity unit tests do not prove cold-boot/swap endurance."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-003",
+      "title": "ROS discovery / transport inconsistency",
+      "first_available_occurrence": "2026-08-26",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "DDS / CLI / dashboard",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "CLI missed topics while nodes ran; later graph/transport changes; current BMS startup logged RTPS_TRANSPORT_SHM open_and_lock_file failed.",
+      "confirmed_findings": "Historical CLI discovery failure was restored by CLI daemon restart; absence in CLI alone was not stack failure.",
+      "suspected_causes_and_limits": "Current SHM warning is not proven cause of BLE connect failure or motor heartbeat expiry.",
+      "attempted_fix_commits": [
+        "f84f5d87a6daa644b60d85d0f34eaa34fa74fbf9",
+        "aac3db8074bdb30b15c1ff96b26dddff730f91df",
+        "d3d91af39c42ebe832bfd83c2b47b2286f86adc7"
+      ],
+      "evidence": [
+        "docs/ENCODER_SAFETY_VALIDATION_2026-09-10.md",
+        "project_atlas/config/atlas-ros-environment.conf",
+        "project_atlas/systemd/user/rover-base-telemetry.service"
+      ],
+      "test_results": "Historical topic restoration recorded; restart/load-wide discovery qualification incomplete.",
+      "remaining_verification": "Compare per-service ROS env/QoS and direct --no-daemon observations; bounded passive subscriber tests after restart, without deleting shared memory or restarting motor owner merely for diagnosis.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-26",
+          "kind": "earliest_reviewed_evidence",
+          "description": "CLI missed topics while nodes ran; later graph/transport changes; current BMS startup logged RTPS_TRANSPORT_SHM open_and_lock_file failed."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Historical topic restoration recorded; restart/load-wide discovery qualification incomplete."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-004",
+      "title": "Cached encoder freshness versus receive-thread freshness",
+      "first_available_occurrence": "2026-10-08",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "motor owner / executor scheduling",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "motor_controller_link_lost despite cached age 0.536 s and receiver age 0.005 s in one stopped observation.",
+      "confirmed_findings": "Single-threaded owner consumes cached encoder state refreshed by a separate ROS timer; cache can lag incoming serial packets.",
+      "suspected_causes_and_limits": "Exact scheduling/blocking mechanism remains unlocalized.",
+      "attempted_fix_commits": [
+        "1771b1dcd733f03732a5d75f77c08295a4808c25",
+        "7e35614ab00a045a157c5ab58cacf8e7d8cf9396"
+      ],
+      "evidence": [
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
+        "project_atlas/scripts/yahboom_base.py::_lifted_snapshot,_publish_board_state"
+      ],
+      "test_results": "Oct9 passive 60 s passed limited window; not LOCKED mode or encoder dynamic pass.",
+      "remaining_verification": "Record client send, owner callback entry/exit, serial receipt and cached sample using common monotonic clock; no-motion shadow instrumentation before any powered pulse.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-10-08",
+          "kind": "earliest_reviewed_evidence",
+          "description": "motor_controller_link_lost despite cached age 0.536 s and receiver age 0.005 s in one stopped observation."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Oct9 passive 60 s passed limited window; not LOCKED mode or encoder dynamic pass."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-005",
+      "title": "Commissioning heartbeat/readiness and observer cleanup",
+      "first_available_occurrence": "2026-10-08",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "commissioning / test harness",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "fresh_latched_stop_required; control_policy_stale; no_active_session; heartbeat_expired; diagnostic ROS shutdown hung.",
+      "confirmed_findings": "Initial policy period equalled its freshness deadline; request discovery and readiness needed gating. Temporary observer cleanup delay left test flags until explicitly restored.",
+      "suspected_causes_and_limits": "Remaining heartbeat delay could be sender, DDS, executor or blocking I/O; client send gap <=0.236 s alone cannot distinguish.",
+      "attempted_fix_commits": [
+        "475de9c9389fb783e399507e2e21af2528284ac5",
+        "677948a09d1f40c5558e373e4f96918da96e55aa",
+        "2c38b07daceb6d5e51778c42db708782905d8746",
+        "7e35614ab00a045a157c5ab58cacf8e7d8cf9396"
+      ],
+      "evidence": [
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
+        "project_atlas/scripts/atlas_drive_pid_lifted_client.py"
+      ],
+      "test_results": "64 previous focused tests recorded. Five-second readiness achieved in one session then heartbeat failed; coalescing experiment reverted.",
+      "remaining_verification": "Three 60 s zero-output no-motion channel runs; injected missing heartbeat must abort; bounded timeout and unconditional cleanup verified. Never assert lifted conditions on a ground rover.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-10-08",
+          "kind": "earliest_reviewed_evidence",
+          "description": "fresh_latched_stop_required; control_policy_stale; no_active_session; heartbeat_expired; diagnostic ROS shutdown hung."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "64 previous focused tests recorded. Five-second readiness achieved in one session then heartbeat failed; coalescing experiment reverted."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-006",
+      "title": "Daly partial frames and polling deadline",
+      "first_available_occurrence": "2026-10-08",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "BMS / Bluetooth parser",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "bms_unhealthy; bms_telemetry_stale; truncated cell data; old fixed poll roughly 11.3 s exceeded 10 s freshness.",
+      "confirmed_findings": "MTU truncation and frame handling were distinct from old fixed-sleep deadline exposure.",
+      "suspected_causes_and_limits": "Not the same as current connection-establishment failure ATLAS-007.",
+      "attempted_fix_commits": [
+        "80f6dc87c9e153ac8b45ccfd468925950d22a8f1",
+        "80e2b56f3fa6aa7702671637a93130091bd59824",
+        "2f501c1e49a0b7d5acac08fb9a92229fe16941b1"
+      ],
+      "evidence": [
+        "project_atlas/scripts/daly_bms_node.py",
+        "project_atlas/scripts/atlas_daly_transport.py",
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md"
+      ],
+      "test_results": "MTU64 and complete-frame parsing had short live success; twelve Daly tests now pass. End-to-end link is not verified fixed.",
+      "remaining_verification": "Replay fragmented/corrupt frames, bounded silence and complete four-cell snapshots; then loaded live soak with no stale data republished as fresh.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-10-08",
+          "kind": "earliest_reviewed_evidence",
+          "description": "bms_unhealthy; bms_telemetry_stale; truncated cell data; old fixed poll roughly 11.3 s exceeded 10 s freshness."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "MTU64 and complete-frame parsing had short live success; twelve Daly tests now pass. End-to-end link is not verified fixed."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-007",
+      "title": "Intermittent Daly Bluetooth connection failure",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "BMS / BLE / recovery",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Daly Bluetooth response deadline exceeded during connect at 09:23:35, 09:23:54, 09:24:02, 09:24:10 and 09:28:39 IST.",
+      "confirmed_findings": "Failure stage is connection establishment, before MTU/data parsing. Recovery restarted BMS at 09:23:36; healthy at 09:23:44 then failure returned.",
+      "suspected_causes_and_limits": "Phone contention, radio conditions, reconnect churn or Bluetooth stack remain unproved alternatives.",
+      "attempted_fix_commits": ["221af9c16a9a6adb7c4aaab0f992c890b50702ec"],
+      "evidence": [
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
+        "journalctl --user -b -u rover-daly-bms.service",
+        "journalctl --user -b -u atlas-sensor-recovery.service"
+      ],
+      "test_results": "Diagnostic-only labels deployed and 12 tests passed; no repair claim. Healthy 13.20 V readings alternated with failures.",
+      "remaining_verification": "Observe existing single BLE owner; compare controlled phone-disconnected condition; capture bounded connection-stage evidence. No global Bluetooth reset that could affect remote control.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-10-09",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Daly Bluetooth response deadline exceeded during connect at 09:23:35, 09:23:54, 09:24:02, 09:24:10 and 09:28:39 IST."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Diagnostic-only labels deployed and 12 tests passed; no repair claim. Healthy 13.20 V readings alternated with failures."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-008",
+      "title": "Recovery parser falsely restarted motor owner",
+      "first_available_occurrence": "2026-09-17",
+      "latest_reviewed_occurrence": "2026-09-17",
+      "subsystem": "recovery / encoder status",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "original_failure_and_evidence": "Fresh ~475-character DEGRADED JSON truncated to 240 characters, parsed invalid, caused base restarts.",
+      "confirmed_findings": "Display truncation applied before structured health parsing.",
+      "suspected_causes_and_limits": "Later unrelated recovery faults remain open; this status covers the exact parser defect only.",
+      "attempted_fix_commits": [
+        "c138ec7a451ddc6ce36dcf53adce5d596ca95a36"
+      ],
+      "evidence": [
+        "docs/AUDIT_REPAIRS_2026-09-17.md",
+        "project_atlas/scripts/atlas_sensor_recovery.py"
+      ],
+      "test_results": "50 targeted tests in combined repair; two ~45 s stationary observations, unchanged base PID, zero commands/recovery attempts.",
+      "remaining_verification": "Retain long/malformed/stale health and stop-latch regression coverage; revalidate on parser/recovery changes. No universal reliability guarantee.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-09-17",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Fresh ~475-character DEGRADED JSON truncated to 240 characters, parsed invalid, caused base restarts."
+        },
+        {
+          "date": "2026-09-17",
+          "kind": "latest_assessment",
+          "description": "50 targeted tests in combined repair; two ~45 s stationary observations, unchanged base PID, zero commands/recovery attempts."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-009",
+      "title": "Shared I2C/serial recovery and servo-startup interaction",
+      "first_available_occurrence": "2026-09-01",
+      "latest_reviewed_occurrence": "2026-09-21",
+      "subsystem": "Mega then UNO / PCA9685 / I2C",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Repeated shared sensor offline/reconnect cycles and camera response interruptions.",
+      "confirmed_findings": "Historical restart loops and automatic servo re-energization paths were removed. Hardware generations changed (Mega retired, UNO active).",
+      "suspected_causes_and_limits": "Electrical brownout/short/pull-up cause not proven for every reported outage; a lit LED is not I2C data proof.",
+      "attempted_fix_commits": [
+        "56a44efc10b4f42698760e3d96ac41f4be897ae8",
+        "1a75ee585627b58ff37c0752690bc30cae99c297",
+        "1159fe38eeaa0ebcb14d68c1a21f299bbc38b678",
+        "5d60a3b5bdcad836b0197a5e2966aa998f9dcdb1",
+        "c508fed157be2f8ec44d90517f0e6d70f89a4a9d",
+        "e7835928edcd4bd8b65fd7fad211486b122cf0b2",
+        "d77195b55d7bc5affc0e2a2f872b2e8ba663db40"
+      ],
+      "evidence": [
+        "CHANGELOG.md",
+        "project_atlas/scripts/ultrasonic_arduino_bridge.py",
+        "docs/USB_AUTO_DISCOVERY_2026-09-19.md"
+      ],
+      "test_results": "Code fixes and historical recovery observations exist; no fresh all-I2C endurance certification in this audit.",
+      "remaining_verification": "Stationary motor/servo power-off bus checks, serial continuity; staged explicit camera motion only with separate clearance. Record power rail evidence before calling a brownout confirmed.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-09-01",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Repeated shared sensor offline/reconnect cycles and camera response interruptions."
+        },
+        {
+          "date": "2026-09-21",
+          "kind": "latest_assessment",
+          "description": "Code fixes and historical recovery observations exist; no fresh all-I2C endurance certification in this audit."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-010",
+      "title": "IMU authority changes and drift",
+      "first_available_occurrence": "2026-08-04",
+      "latest_reviewed_occurrence": "2026-10-08",
+      "subsystem": "IMU / EKF / mounting",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Initial mounting concern; IM10A USB errors; Sep25 corrected gyro -0.00403 rad/s caused ~-6.6 deg/29 s stationary yaw.",
+      "confirmed_findings": "A previously qualified sensor/config was later revoked on measured drift. Oct8 record says EKF gyro-Z input active; authority must be tied to exact runtime config, not old labels.",
+      "suspected_causes_and_limits": "Mounting, bias and wheel-model interactions need current validation; magnetometer not a substitute inside metal chassis.",
+      "attempted_fix_commits": [
+        "c3544a1d106179ea98d961eb04fb6fa875ca673b",
+        "d81c39af830e313b6efa6e989947096c54753a78",
+        "4f74c4ba1bec913db0c4f80114ce26b857d7bb80",
+        "5f3e3091711f08f92b76e6edae089b4bbf2ecf00",
+        "658331916426abd292edb2fded20430867c515f4"
+      ],
+      "evidence": [
+        "docs/IM10A_COMMISSIONING_2026-09-16.md",
+        "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md",
+        "CHANGELOG.md"
+      ],
+      "test_results": "Historical static and manual-turn observations; live qualification lifecycle inconsistent across versions, not proof of current permanent pass.",
+      "remaining_verification": "Stationary thermal/bias and signed manual-turn tests on exact deployed config, then synchronized EKF/TF comparison under load; magnetic heading remains excluded unless independently validated.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-04",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Initial mounting concern; IM10A USB errors; Sep25 corrected gyro -0.00403 rad/s caused ~-6.6 deg/29 s stationary yaw."
+        },
+        {
+          "date": "2026-10-08",
+          "kind": "latest_assessment",
+          "description": "Historical static and manual-turn observations; live qualification lifecycle inconsistent across versions, not proof of current permanent pass."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-011",
+      "title": "Mapping startup race, stale places and pose corrections",
+      "first_available_occurrence": "2026-08-24",
+      "latest_reviewed_occurrence": "2026-10-08",
+      "subsystem": "mapping / localization / TF",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Hall goal aborted with lethal start; named home coordinate disagreed with physical location. Oct4 drive preceded active session. Oct8 closure 0.082 m/2.99 deg but continuity gate failed.",
+      "confirmed_findings": "Start/session race established; map->odom component jump is origin-dependent, not physical displacement. Same-pose composition showed ~0.23 m correction; after hypothesis fit prior map better.",
+      "suspected_causes_and_limits": "Source of accumulated odometry/heading error still unresolved; not proven SLAM wrong-corridor match.",
+      "attempted_fix_commits": [
+        "6a18b0e43418bad87037678c592a71b9c029b898",
+        "5478fac974ff465c018d3013926d81d1f58436d1",
+        "cadb67db52c48fbbeb3d9780caac01ad493dda34",
+        "986fe605136641be2578b7f4d6609e44ed5a7d79",
+        "658331916426abd292edb2fded20430867c515f4",
+        "4f47a80d0ab338c7121818abe0d03f99c3a046b3",
+        "60d0bda3ada26f5a45e8046b2a27a5a9442a6168",
+        "1771b1dcd733f03732a5d75f77c08295a4808c25"
+      ],
+      "evidence": [
+        "docs/validation/2026-08-24-tight-recovery-localization.md",
+        "docs/MAPPING_SESSION_FORENSICS_2026-10-04.md",
+        "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md"
+      ],
+      "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available.",
+      "remaining_verification": "Use saved bag first; validate same-time composed robot correction, calibrated wheel model and true scan timing. Promote map only with frame-consistent places and independent geometry/path checks, then supervised round trip.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-24",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Hall goal aborted with lethal start; named home coordinate disagreed with physical location. Oct4 drive preceded active session. Oct8 closure 0.082 m/2.99 deg but continuity gate failed."
+        },
+        {
+          "date": "2026-10-08",
+          "kind": "latest_assessment",
+          "description": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-012",
+      "title": "Planner/controller contradiction and provisional calibration copies",
+      "first_available_occurrence": "2026-08-24",
+      "latest_reviewed_occurrence": "2026-08-24",
+      "subsystem": "Nav2 / config",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Reverse-capable planner inconsistent with allow_reversing=false; duplicate config/calibration copies differed.",
+      "confirmed_findings": "Historical source correction aligned DUBIN and forward-only controller and synchronized calibration.",
+      "suspected_causes_and_limits": "Later room-navigation failures are not proof this exact contradiction returned.",
+      "attempted_fix_commits": [
+        "5c9064cd67358f0dd25c094a27fef96f8449eb70"
+      ],
+      "evidence": [
+        "CHANGELOG.md",
+        "commit 5c9064c"
+      ],
+      "test_results": "Source correction reviewed; no fresh end-to-end certification in this audit.",
+      "remaining_verification": "Preserve known alignment; compare deployed/repo copies and plan geometry before ground campaign. Do not undo to get past another guard.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-24",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Reverse-capable planner inconsistent with allow_reversing=false; duplicate config/calibration copies differed."
+        },
+        {
+          "date": "2026-08-24",
+          "kind": "latest_assessment",
+          "description": "Source correction reviewed; no fresh end-to-end certification in this audit."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-013",
+      "title": "Remote steering regressions and commanded-angle model",
+      "first_available_occurrence": "2026-08-09",
+      "latest_reviewed_occurrence": "2026-10-08",
+      "subsystem": "manual control / steering / odometry",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Repeated recenter/ownership changes; mapping steering clamp later restored; no physical angle feedback.",
+      "confirmed_findings": "Commanded servo position is not measured road-wheel angle. It affects path normalization and odometry even if wheel yaw is excluded from EKF.",
+      "suspected_causes_and_limits": "Current turn discrepancy not uniquely attributable to this model; offline half/zero-angle variants did not justify deployment.",
+      "attempted_fix_commits": [
+        "6e5a2b487f230e5939484a915037d9af324d0bab",
+        "431016284bd2a23cf15a2df98bb6d0609cd0722c",
+        "8d1567fe07a1267eba9601d2ff35dea2b5530e8c",
+        "90a0751e1a4c50f66a523a6d9660e339ef12257c",
+        "eb7cdf1dbae8c64a36a89ee45884d74c024212fb",
+        "6ceb123c2a4c476ca207032b126972a4d02d0234",
+        "63a7d3dd9b73684d65bc1a6f9bd2b3db7b522ffe"
+      ],
+      "evidence": [
+        "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md",
+        "project_atlas/scripts/yahboom_base.py",
+        "CHANGELOG.md"
+      ],
+      "test_results": "User-approved manual steering preserved; offline geometry alternatives inconclusive.",
+      "remaining_verification": "Keep working steering calibration frozen. Verify model offline with coherent encoder samples before separately authorized bounded measured turns.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-09",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Repeated recenter/ownership changes; mapping steering clamp later restored; no physical angle feedback."
+        },
+        {
+          "date": "2026-10-08",
+          "kind": "latest_assessment",
+          "description": "User-approved manual steering preserved; offline geometry alternatives inconclusive."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-014",
+      "title": "Observability overhead and overstrong success claims",
+      "first_available_occurrence": "2026-08-06",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "engineering process / compute / evidence",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Early completed commissioning report uses old motor mapping; later failures/changes invalidate blanket carry-forward. High load and missed deadlines repeatedly conflated with hardware failure.",
+      "confirmed_findings": "Unit pass, topic freshness, manual route success, and commit/deployment are different evidence levels. Measured observation overhead reduced in scoped optimizations.",
+      "suspected_causes_and_limits": "CPU scheduling is a possible contributor, not proof Jetson is insufficient or a reason to disable essential sensing.",
+      "attempted_fix_commits": [
+        "751567654426e77d4d8bf48e896205cd93677513",
+        "af3812078786004d25a618363466949726458de1",
+        "9f2f7c75ff2d11b79af139ba8f4862d632bfe0d2",
+        "c224156866c10e8f3a1fe7fa7a0cdcf5934ca3aa",
+        "3d66c3812c968796fed70b7f32dae511aadeed45"
+      ],
+      "evidence": [
+        "docs/COMMISSIONING_STATUS_2026-08-06.md",
+        "docs/SENSOR_RECOVERY_IDLE_CPU_2026-10-04.md",
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md"
+      ],
+      "test_results": "Raw freshness optimization documented 20.0 to 15.3% one-core CPU; no end-to-end performance certification.",
+      "remaining_verification": "Record config/hardware identity with every qualification; load-test real workload with temperature, message ages and control deadlines; retain failures and limit claims.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-06",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Early completed commissioning report uses old motor mapping; later failures/changes invalidate blanket carry-forward. High load and missed deadlines repeatedly conflated with hardware failure."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Raw freshness optimization documented 20.0 to 15.3% one-core CPU; no end-to-end performance certification."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-015",
+      "title": "LiDAR startup recovery and boot clock chronology",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "LiDAR / startup / logs",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Current boot recorded stale LiDAR and recovery incomplete twice at 09:13–09:14 IST; service subsequently active, health OK.",
+      "confirmed_findings": "Startup recovery occurred; wall timestamps initially resembled previous evening before clock synchronization.",
+      "suspected_causes_and_limits": "Underlying startup delay not localized; active service and device health are not proof of current /scan freshness.",
+      "attempted_fix_commits": [],
+      "evidence": [
+        "journalctl --list-boots",
+        "journalctl --user -b -u atlas-lidar.service",
+        "journalctl --user -b -u atlas-sensor-recovery.service"
+      ],
+      "test_results": "Later service running with NRestarts=2 and device health OK; scan stream endurance not tested.",
+      "remaining_verification": "Bind logs to boot ID and monotonic time; verify scan freshness/frame geometry and startup dependencies read-only before navigation.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-10-09",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Current boot recorded stale LiDAR and recovery incomplete twice at 09:13–09:14 IST; service subsequently active, health OK."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Later service running with NRestarts=2 and device health OK; scan stream endurance not tested."
+        }
+      ]
+    }
+  ]
+}
