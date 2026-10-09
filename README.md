@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+An isolated AMCL build now exposes **scan processing separately from pose
+publication**, with stale/failed-input diagnostics. It has no navigation
+authority and is not installed in production. See the
+[health contract and tests](docs/audits/ATLAS_AMCL_STATIONARY_POLICY_EXPERIMENT_2026-10-09.md).
+
 **Do not deploy the 4a4ea9a update-policy candidate:** integration validation
 found stationary/slow-motion freshness stops with the existing mux. Five
 contract tests document the rejection. The live configuration is unchanged.

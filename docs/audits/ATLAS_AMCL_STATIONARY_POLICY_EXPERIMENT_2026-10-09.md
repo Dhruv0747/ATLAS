@@ -222,3 +222,68 @@ rejection as well as healthy stationary operation before changing the mux
 contract. Keep its current fail-closed timeout intact meanwhile. The source
 candidate in 4a4ea9a remains experimental and MUST NOT be deployed alone.
 This does not resolve the separate moving-prior/heading disagreement.
+
+## Separate processing evidence from pose publication (diagnostic implementation)
+
+Added a source generator for an **isolated** AMCL 1.1.20 overlay. It copies the
+input package to a new directory, checks exact source anchors and never edits
+the installed source. The tested input was the existing trace workspace;
+therefore this remains a diagnostic build, not a production deployment bundle.
+Its additional `atlas_amcl/processing` String/JSON publisher runs at the end
+of the real AMCL laser callback, after lifecycle/map checks and successful
+scan-time odometry lookup. No timer, forced update, pose publication or
+command is used to create processing evidence. It reports:
+
+- process session, advancing callback sequence and original scan timestamp;
+- callback completion timestamp;
+- whether the filter update was attempted and its returned success;
+- initial-pose-known and transform-available flags, finite in-range return count;
+- separate actual pose-publication sequence and last published pose timestamp.
+
+`atlas_amcl_health_reporter.py` publishes diagnostic JSON on
+`atlas/localization_health`, separating `processing_state` from
+`pose_publication_state`. It expires source and receive ages after 0.5 s,
+rejects duplicate/regressed scans, invalid data, failed filter updates and
+unavailable initial pose/TF. New sessions require two events. The 2.5 s pose
+publication age is reported separately, never overwritten by processing age.
+Every report explicitly says `position_validity=NOT_ESTABLISHED` and
+`navigation_authorized=false`: processing evidence is NOT a map-match,
+particle-diversity, physical-pose, collision-clearance or navigation verdict.
+The existing mux timeout, jump latch, uncertainty tests and remote stop are
+unchanged. This implementation does not make 4a4ea9a deployable by itself.
+
+Build passed in `/home/jetson/atlas_amcl_health_ws`, separate from production.
+The bounded integration harness uses localhost-only ROS domain 188, launches
+only AMCL/map server/lifecycle plus the reporter, and replays an explicit
+scan/TF/odom allowlist from the saved stationary bag. It never launches a
+controller or plays command topics, and shuts down its child process groups.
+The output bag is a generated diagnostic copy, not the retained input.
+
+The first integration test correctly separated processing from pose but
+**failed scan-loss reporting**: its default ROS timer froze with simulated
+time. Fixed by using a STEADY_TIME reporter timer while retaining original
+ROS source timestamps and monotonic receipt expiry. The corrected run had
+238 processing events, only pose sequence 1, 156 reports showing processing
+without a recent pose, and 10 unavailable reports after playback stopped.
+It never authorized navigation. Thirteen health tests and five unchanged-mux
+contract tests passed, including a frozen-ROS-clock regression.
+
+Second integration test deleted dynamic TF after +15 s **only in the generated
+input copy**, retaining scans and simulated clock. Result: 106 processing
+events, 135 scan messages after the fault, and 84 UNAVAILABLE reports while
+scans still continued. Ten further UNAVAILABLE reports followed playback stop.
+Only pose sequence 1 was seen and no report authorized navigation. This
+demonstrates that the reporter does not confuse scan-topic traffic with
+successful scan-time processing. It does not simulate every possible TF or
+sensor fault; invalid/future/duplicate inputs are additionally unit-tested.
+
+Raw bounded test outputs are retained under
+`data/diagnostics/amcl_health_contract_20261009*` on Jetson, excluded from Git.
+Production remained MainPID 4371, NRestarts=0 and retained the same Nav2
+configuration hash above. No live node/service/configuration was changed.
+
+Remaining boundary: a future motion-permission consumer must independently
+validate pose correctness, particle support and bounded odometry since the
+last accepted correction. Do not replace `localization_guard` with this
+diagnostic's processing flag. Permanent localization and safe stationary-to-
+motion integration remain unproven; no new manual drive is requested here.

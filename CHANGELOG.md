@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-09 — Distinct AMCL processing diagnostics, isolated validation
+
+- Added AMCL 1.1.20 overlay generator emitting actual scan-callback and pose
+  publication sequences separately; no forced updates or synthetic poses.
+- Added diagnostic-only health reporter with source-time and monotonic expiry.
+  Fixed a frozen simulated-clock timer defect found by integration testing.
+- Separate build and stationary replay passed after repair. Thirteen health
+  tests and five mux-contract regressions passed. No safety gate or production
+  service changed; localization correctness remains unresolved.
+
 ## 2026-10-09 — Reject update-gate deployment after mux validation
 
 - Added five non-actuating tests of the actual mux localization guard:

@@ -8,6 +8,13 @@ No physical movement, firmware flashing, safety bypass, calibration or navigatio
 
 ## Findings in plain language
 
+New diagnostic implementation distinguishes actual AMCL scan callback
+completion from pose publication. An isolated stationary replay produced 238
+processing events with only one pose sequence; subsequent scan loss was
+reported unavailable. A ROS-timer freeze found in the first test was repaired
+with a steady-clock timer. This is verified observability, not corrected pose
+or permission to bypass the existing localization safety guard.
+
 Validation follow-up: candidate 4a4ea9a is rejected for deployment because
 the actual mux freshness guard blocks at pose age >2.5 s during a parked
 pause or sub-threshold creep. Five deterministic tests establish this

@@ -2,6 +2,12 @@
 
 Updated 2026-10-09. Read alongside the [registry](ATLAS_ROOT_CAUSE_REGISTRY.json) and [master analysis](ATLAS_MASTER_FAILURE_ANALYSIS.md).
 
+Processing/pose separation is now implemented and tested in an isolated AMCL
+build. Diagnostic processing evidence survives stationary pose silence and
+expires on data loss, including frozen ROS time after a discovered timer fix.
+It never authorizes navigation. Production mux and AMCL are unchanged;
+accurate pose validation and safe permission integration remain release gates.
+
 Deployment validation of 4a4ea9a: **REJECTED**. Actual mux guard tests confirm
 the candidate blocks after 2.5 s stationary or sufficiently slow movement.
 Five contract tests preserve this counterexample; no deployment or driving.
