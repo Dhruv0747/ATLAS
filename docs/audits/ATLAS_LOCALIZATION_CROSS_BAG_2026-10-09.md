@@ -200,3 +200,38 @@ axles, command time, arrival time, hysteresis and unloaded/loaded behavior.
 Do not infer wheel angle directly from shaft angle. Only then fit an offline
 servo-to-road-wheel map and regress the recorded wheel/gyro/scan and saved-map
 AMCL tests before any deployment or autonomous trial.
+
+## Post-stop event correlation and operator steering evidence (2026-10-09)
+
+The operator supplied overhead photos at the existing 90-degree center command
+and at right/left remote commands, and reports that the current steering
+response is satisfactory. The photos demonstrate visible wheel deflection,
+but their changing viewpoints do not provide calibrated physical wheel angles,
+servo arrival times or loaded linkage behavior. **Preserve the current steering
+controls, centers and limits.** No further steering actuation or calibration
+is justified by these photographs.
+
+The read-only Hall-return bag analyzer now emits one context row for every
+AMCL step >0.5 m within 2 s. Its seven unit tests passed in the Jetson ROS
+environment; the original bag again yielded five such steps. Each row used
+AMCL receipt time, nearby wheel-pose header times, corrected-gyro header times
+and LiDAR scan header times. The wheel samples matched each AMCL endpoint
+within 0.2 s. The scan count establishes continuing acquisition, not correct
+scan-to-map association.
+
+| Time after last remote command | AMCL XY step | AMCL heading step | Wheel XY step | Corrected gyro turn | Scans between poses | AMCL XY std before→after |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 2.856 s | 0.565 m | +46.56° | 0.000 m | 0.000° | 6 | 1.152→1.137 m |
+| 7.847 s | 2.206 m | -130.25° | 0.000 m | 0.000° | 6 | 1.251→1.322 m |
+| 8.872 s | 1.549 m | +60.34° | 0.000 m | 0.000° | 8 | 1.322→1.330 m |
+| 9.932 s | 1.549 m | -60.29° | 0.000 m | 0.000° | 7 | 1.330→1.353 m |
+| 13.063 s | 1.481 m | +52.58° | 0.000 m | 0.000° | 8 | 1.389→1.384 m |
+
+This confirms **stationary AMCL hypothesis switching**, with no recorded
+encoder/gyro motion pulse *at the jump times*. The AMCL XY
+standard deviation was already >1 m around all five events, so a fresh pose
+message did not imply a trustworthy pose. Upstream turn-model/gyro disagreement
+could have weakened the filter before stopping; ambiguous scan/map geometry is
+also still possible. This correlation cannot apportion their contributions
+or prove a repair. The production EKF and Nav2 remain unchanged; autonomy
+remains gated.

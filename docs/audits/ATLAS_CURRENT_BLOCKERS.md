@@ -40,6 +40,15 @@ position feedback. The wheel-odometry curvature assumes commanded servo
 offset equals physical road-wheel angle, including during encoder path
 normalization. This is an unverified model assumption, not a proven failed
 servo. No steering/EKF parameter was changed. See the cross-bag audit.
+Operator photos confirm visible left/right wheel response and the operator
+wants the existing steering behavior preserved; they do not measure physical
+wheel angles. A read-only per-jump correlation of the Hall-return bag found
+all five AMCL steps 2.856–13.063 s after the last remote command with zero
+nearby wheel XY motion, zero corrected-gyro turn and 6–8 LiDAR scans between
+poses. AMCL XY uncertainty was already >1 m at each event. These are
+stationary localization-hypothesis changes, not a physical motion pulse at
+the jump instants. Why the filter became uncertain remains unresolved; do
+not retune steering or deploy the velocity-only EKF candidate on this basis.
 An isolated A/B replay on the same Hall return found velocity-only wheel
 fusion materially closer to saved-map LiDAR endpoints than current wheel
 pose+velocity fusion (median 50.2% versus 23.1% within 15 cm), but the

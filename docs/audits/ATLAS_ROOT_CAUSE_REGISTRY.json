@@ -490,6 +490,11 @@
           "date": "2026-10-09",
           "kind": "steering_interface_engineering_review",
           "description": "Live rover-base-telemetry executes the repository-matching Yahboom driver; steering writes PWM channels 2/1 with no external position readback. Vendor get_uart_servo_angle belongs to a different bus-servo interface; retired ST3215 configuration is not live. Wheel odometry uses commanded servo offsets as road-wheel angles before encoder normalization and for yaw/X/Y. Physical servo model, shaft position, linkage angle and traction remain unmeasured. No safe model or EKF correction identified; autonomous gate remains closed."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "post_stop_jump_sensor_correlation",
+          "description": "Read-only per-event Hall-return audit: all five 0.565-2.206 m AMCL steps occurred 2.856-13.063 s after the last remote command. Nearby wheel XY change and corrected gyro turn were zero, with 6-8 LiDAR scans between each pair and AMCL XY standard deviation already >1 m. These are stationary localization-hypothesis switches, not physical motion at jump times. Operator photos show satisfactory visible steering response but do not measure actual wheel angles; steering config preserved. Upstream heading disagreement versus scan/map ambiguity remains unresolved; no production tuning or motion."
         }
       ]
     },

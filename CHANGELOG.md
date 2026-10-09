@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-09 — Correlate stationary AMCL jumps with live sensors
+
+- Extended the read-only recorded-bag audit with per-jump wheel, corrected-gyro,
+  LiDAR, heading and AMCL-uncertainty context. On the Hall return, all five
+  large post-stop AMCL corrections occurred with zero wheel/gyro motion while
+  scans continued; uncertainty was already over 1 m. This narrows the failure
+  to localization hypothesis switching, not its upstream cause.
+- Preserved the operator-approved steering controls and production EKF/Nav2.
+  No rover movement, service restart or autonomous command was made. See the
+  [cross-bag audit](docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md).
+
 ## 2026-10-09 — Localize wrong-sign steering-model interval
 
 - Extended the read-only encoder snapshot reviewer with whole-motion summaries

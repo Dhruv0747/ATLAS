@@ -6,6 +6,7 @@ Absence of AMCL in a bag is reported as unavailable, never as zero jumps.
 """
 
 import argparse
+import bisect
 import collections
 import json
 import math
@@ -52,6 +53,39 @@ def jumps(samples, threshold=0.5, max_interval_s=2.0):
     return result
 
 
+def jump_context(amcl, wheel, gyro, scans, stop, threshold=0.5):
+    """Describe recorded AMCL steps without treating sparse sensor data as zero motion."""
+    wheel_times = [sample[0] for sample in wheel]
+    scan_times = sorted(scans)
+    events = []
+    for previous, current in zip(amcl, amcl[1:]):
+        start, end = previous[0], current[0]
+        distance = math.hypot(current[1] - previous[1], current[2] - previous[2])
+        if not 0 < end - start <= 2.0 or distance <= threshold:
+            continue
+        before = bisect.bisect_left(wheel_times, start)
+        after = bisect.bisect_left(wheel_times, end)
+        wheel_pair = (wheel[before], wheel[after]) if before < len(wheel) and after < len(wheel) else None
+        if wheel_pair and (abs(wheel_pair[0][0] - start) > .2 or
+                           abs(wheel_pair[1][0] - end) > .2):
+            wheel_pair = None
+        wheel_translation = (round(math.hypot(wheel_pair[1][1] - wheel_pair[0][1],
+                                               wheel_pair[1][2] - wheel_pair[0][2]), 4)
+                             if wheel_pair else None)
+        gyro_turn = integrated(gyro, start, end)
+        events.append({
+            "time_after_last_remote_command_s": round(end - stop, 3) if stop is not None else None,
+            "amcl_step_m": round(distance, 3),
+            "amcl_heading_step_deg": round(math.degrees(math.remainder(current[3] - previous[3], 2 * math.pi)), 2),
+            "amcl_xy_std_before_m": round(math.sqrt(max(0, previous[4])), 3),
+            "amcl_xy_std_after_m": round(math.sqrt(max(0, current[4])), 3),
+            "wheel_translation_m": wheel_translation,
+            "gyro_turn_deg": round(gyro_turn, 3) if gyro_turn is not None else None,
+            "scans_between_poses": bisect.bisect_right(scan_times, end) - bisect.bisect_left(scan_times, start),
+        })
+    return events
+
+
 def pose_stability(samples, window_s=20.0):
     """Consecutive translation and final-window span; caller must check coverage."""
     if len(samples) < 2:
@@ -89,6 +123,7 @@ def audit(path):
     ages = {"wheel": [], "gyro": [], "ekf": [], "scan": []}
     poses = {"wheel": [], "ekf": []}
     amcl, active_commands, accepted, source_counts = [], [], collections.Counter(), collections.Counter()
+    scan_stamps = []
     first_receipt = None
     while reader.has_next():
         topic, raw, receipt_ns = reader.read_next()
@@ -105,7 +140,9 @@ def audit(path):
             ages[key].append(t - stamp)
             if topic == GYRO:
                 series[key].append((stamp, float(msg.angular_velocity.z)))
-            elif topic != "/scan":
+            elif topic == "/scan":
+                scan_stamps.append(stamp)
+            else:
                 series[key].append((stamp, float(msg.twist.twist.angular.z)))
                 p = msg.pose.pose
                 poses[key].append((stamp, p.position.x, p.position.y, angle(p.orientation)))
@@ -149,6 +186,8 @@ def audit(path):
             if len(amcl) > 1 and stop is not None else None,
         "amcl_xy_std_median": round(statistics.median(covariance), 3) if covariance else None,
         "amcl_pose_stability": pose_stability(amcl),
+        "amcl_jump_context": jump_context(amcl, poses["wheel"], series["gyro"],
+                                            scan_stamps, stop),
         "encoder_updates": dict(source_counts),
         "encoder_selected_sets": {str(k): v for k, v in accepted.items()},
         "age_p95_s": {key: percentile(value, .95) for key, value in ages.items()},
