@@ -2,7 +2,7 @@
 
 ## 2026-10-09 — Map-readiness diagnostics
 
-- Added the safety reporter's observed operating mode, whether a map was received, and map age to its existing autonomy-state JSON. The fail-closed map decision is unchanged. Deployment and live validation are pending.
+- Added the safety reporter's observed operating mode, whether a map was received, and map age to its existing autonomy-state JSON. The fail-closed map decision is unchanged. Deployed with operator approval while stopped; only the safety reporter restarted. It then reported `LOCALIZATION`, map received and online. Root cause of the earlier stale status remains unproven.
 
 ## 2026-10-09 — Dashboard BMS validity display
 

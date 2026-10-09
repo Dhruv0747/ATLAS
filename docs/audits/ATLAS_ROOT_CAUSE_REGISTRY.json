@@ -420,7 +420,7 @@
         "docs/MAPPING_SESSION_FORENSICS_2026-10-04.md",
         "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md"
       ],
-      "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live autonomy was FAULT: STOP: SLAM MAP DATA LOST.",
+      "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live safety reporter initially said SLAM MAP DATA LOST; a new transient-local subscriber received the saved map, and diagnostic-only reporter restart restored LOCALIZATION/map ONLINE. Root cause of stale prior status not proven; navigation remains unvalidated.",
       "remaining_verification": "Use saved bag first; validate same-time composed robot correction, calibrated wheel model and true scan timing. Promote map only with frame-consistent places and independent geometry/path checks, then supervised round trip.",
       "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
       "events": [
@@ -438,6 +438,11 @@
           "date": "2026-10-09",
           "kind": "stopped_runtime_observation",
           "description": "10:07 IST dashboard API reported autonomy FAULT: STOP: SLAM MAP DATA LOST while encoder health alone was READY. Active SLAM map freshness requires diagnosis before motion."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "stopped_diagnostic_recovery",
+          "description": "Saved-map publisher was intermittently visible in ROS graph; a transient-local subscriber received its latched map. At 10:22 IST a diagnostic-only safety-reporter restart made its observed mode LOCALIZATION and map ONLINE, including at map age 27.68 s. Motor owner was unchanged. Why the old reporter marked the map LOST remains unresolved."
         }
       ]
     },
