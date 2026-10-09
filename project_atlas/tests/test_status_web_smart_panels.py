@@ -57,6 +57,9 @@ class SmartDashboardPanelTests(unittest.TestCase):
         self.assertIn("last-known values hidden", self.page)
         self.assertIn("const b=bmsSnapshot(r);", DIAGNOSTICS_SOURCE)
         self.assertIn("openDetail('bms_status')", DIAGNOSTICS_SOURCE)
+        self.assertIn("class=\"batteryMetrics\"", DIAGNOSTICS_SOURCE)
+        self.assertIn("${b.currentA.toFixed(2)} A · ${b.powerW.toFixed(1)} W", DIAGNOSTICS_SOURCE)
+        self.assertIn(".batteryMetrics{display:block", self.page)
 
     def test_backend_exposes_gpu_fields(self):
         status_function = next(

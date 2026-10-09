@@ -11,14 +11,15 @@ function mainBattery(r) {
   if(!b) return {percent:null,state:'DATA STALE / OFFLINE',color:'#a3b1bd'};
   const current=b.current_a;
   const state=current>0.15?'CHARGING':current< -0.15?'DISCHARGING':b.soc_percent>=99?'FULL · IDLE':'IDLE';
-  return {percent:b.soc_percent,state,color:b.soc_percent<=20?'#ff5966':b.soc_percent<=40?'#ffcc3d':'#34e58b'};
+  return {percent:b.soc_percent,state,currentA:Math.abs(b.current_a),powerW:Math.abs(b.power_w),color:b.soc_percent<=20?'#ff5966':b.soc_percent<=40?'#ffcc3d':'#34e58b'};
 }
 function updateBatteryBadge(r) {
   let el=document.getElementById('mainBatteryBadge');
   if(!el){el=document.createElement('button');el.id='mainBatteryBadge';el.className='batteryBadge';el.onclick=()=>openDetail('bms_status');document.querySelector('header').append(el);}
   const b=mainBattery(r),text=b.percent===null?'--%':Math.round(b.percent)+'%';
-  el.innerHTML=`<span class="batteryShell"><span class="batteryFill" style="width:${b.percent??0}%;background:${b.color}"></span><span class="batteryBolt">${b.state==='CHARGING'?'ϟ':''}</span></span><span><strong>${text}</strong><small>${b.state}</small></span>`;
-  el.title='Main DALY battery · '+text+' · '+b.state+' · tap for details';
+  const metrics=b.percent===null?'CURRENT / POWER UNAVAILABLE':`${b.currentA.toFixed(2)} A · ${b.powerW.toFixed(1)} W`;
+  el.innerHTML=`<span class="batteryShell"><span class="batteryFill" style="width:${b.percent??0}%;background:${b.color}"></span><span class="batteryBolt">${b.state==='CHARGING'?'ϟ':''}</span></span><span><strong>${text}</strong><small>${b.state}</small><span class="batteryMetrics">${metrics}</span></span>`;
+  el.title='Main DALY battery · '+text+' · '+b.state+' · '+metrics+' · tap for details';
   el.setAttribute('aria-label',el.title);
   el.dataset.updated=Date.now();
 }
