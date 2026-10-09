@@ -485,6 +485,11 @@
           "date": "2026-10-09",
           "kind": "wrong_sign_turn_delay_discrimination",
           "description": "Read-only commanded-steering sensitivity: the Oct9 4.35 s wrong-sign interval remained +7.42/+4.27/+2.43/+1.30 degrees at 0/0.2/0.5/0.75 s delay, versus corrected gyro -18.96 and scan ICP -16.09 degrees. Another turn worsened with 0.5 s delay. Scan transport beyond acquisition and TF consistency did not reveal a seconds-long data gap at the largest post-stop AMCL correction. Physical road-wheel angle remains unmeasured; no parameter changed."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "steering_interface_engineering_review",
+          "description": "Live rover-base-telemetry executes the repository-matching Yahboom driver; steering writes PWM channels 2/1 with no external position readback. Vendor get_uart_servo_angle belongs to a different bus-servo interface; retired ST3215 configuration is not live. Wheel odometry uses commanded servo offsets as road-wheel angles before encoder normalization and for yaw/X/Y. Physical servo model, shaft position, linkage angle and traction remain unmeasured. No safe model or EKF correction identified; autonomous gate remains closed."
         }
       ]
     },

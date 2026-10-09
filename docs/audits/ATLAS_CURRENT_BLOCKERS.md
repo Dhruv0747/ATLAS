@@ -33,6 +33,13 @@ improved some correction metrics but worsened final-window position stability.
 The experimental EKF change is rejected for deployment; localization remains
 unresolved, and the exact physical steering/traction/geometry contribution
 is not proven.
+The subsequent steering-interface review confirmed that the live driver sends
+front/rear commands to Yahboom PWM channels 2/1; the vendor's readable UART
+bus-servo API is a different interface. There is no current external steering
+position feedback. The wheel-odometry curvature assumes commanded servo
+offset equals physical road-wheel angle, including during encoder path
+normalization. This is an unverified model assumption, not a proven failed
+servo. No steering/EKF parameter was changed. See the cross-bag audit.
 An isolated A/B replay on the same Hall return found velocity-only wheel
 fusion materially closer to saved-map LiDAR endpoints than current wheel
 pose+velocity fusion (median 50.2% versus 23.1% within 15 cm), but the

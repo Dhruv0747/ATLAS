@@ -137,3 +137,66 @@ then, only with operator approval, perform a low-speed supervised physical
 moving-and-stopped localization trial. Preserve the current EKF/Nav2 config
 and safety gates until a candidate beats baseline on AMCL jumps, final pose,
 post-stop stability and confidence across runs.
+
+## Steering-interface and engineering-reference follow-up (2026-10-09)
+
+The supplied *Embedded Robotics*, fourth edition (2022), sections 5.4, 5.7,
+5.9, 6.5, 7.5, 10.5, 10.7, 14.1, 14.11, 14.12, 15.3 and 17.2 distinguish
+encoder feedback from commanded motor/servo output, require measured geometry
+for dead reckoning, treat pose as uncertain, and require physical validation and
+safe manual override. The separately supplied *Mobile Robot Design and
+Applications with Embedded Systems* PDF is the second edition (2006), not the
+requested fourth; its chapter numbering differs. Neither book's front-only
+Ackermann or Mecanum equations can be copied directly into ATLAS's front-and-
+rear-counter-steered, four-driven-wheel model.
+
+Read-only runtime check: active user unit `rover-base-telemetry.service` executes
+`/home/jetson/project_atlas/scripts/yahboom_base.py`. Both that file and its
+`Rosmaster_Lib.py` match the repository SHA-256. The production driver writes
+front PWM channel 2 and rear PWM channel 1 using `set_pwm_servo(id, angle)`.
+That serial request sets a PWM target; it does not query or return shaft
+position. The vendor library has `get_uart_servo_angle`, but that is a
+**different bus-servo interface** and is not proof that these installed PWM
+steering servos have readable feedback. The retired ST3215/Waveshare
+`motor_config.yaml` is not the live steering path. The physical servo model
+and its wiring/feedback lead have not been independently identified. Therefore
+shaft-position readback is **not available through the current interface**;
+`/steering/*_angle_deg`, `steering_command_deg` and `*_applied_angle` are
+commands, not physical shaft or road-wheel measurements. No read-only
+position-register probe is justified on the live controller.
+
+The driver calculates curvature as
+`(tan(front_command - 90 deg) - tan(rear_command - 90 deg)) / 0.367 m`.
+Its 0.260 m track-width correction then uses that curvature **before** encoder
+consensus; wheel yaw and integrated X/Y pose use it afterward. This is a
+specific, unvalidated servo-command-to-road-wheel-angle assumption, not a
+verified linkage law. The wheel radius/CPR and wheelbase/track are provisional
+measured values; the record does not support changing them to force agreement.
+Wheel PID and its yaw controller remain disabled, so adding or tuning PID does
+not diagnose this turn. Motor PWM commands differ on inside/outside wheels,
+but the bag contains signed encoder changes, not measured traction or road-
+wheel angles; unequal speed/slip remains a candidate, not a confirmed cause.
+
+Focused hypothesis checks against the existing Hall-return bag:
+
+| Hypothesis | Supporting evidence | Contradictory/limiting evidence | Result |
+| --- | --- | --- | --- |
+| One encoder/channel sign or packet outage caused the wrong-sign turn | M3 raw change was lower than other channels in that interval | All four were accepted in 35/44 updates; zero stale snapshots, sequence gaps or replay selection mismatches; other turns agree well | Not established; do not exclude M3 |
+| A constant steering-command lag caused it | 0.5 s shift reduced aggregate yaw-rate RMSE | Wrong-sign interval remained +1.30 deg even at 0.75 s versus gyro -18.96 deg; another turn worsened | Rejected as a single global repair |
+| Servo command is an inaccurate proxy for road-wheel angle | No external PWM readback or linkage calibration; commanded 90/90 also coincided with a measured turn in a separate bag | Physical angle, slip, and mechanical load were not measured | Plausible, unproven |
+| LiDAR/TF timing alone caused the post-stop jumps | AMCL changed hypothesis after stopping | Scans were monotonic/fresh and EKF odom/TF internally consistent; consistency is not physical truth | No single timing fault proven |
+
+**Decision:** no production software correction or calibration was made in
+this follow-up. The five original post-stop AMCL jumps (max 2.206 m) remain
+the live baseline; no replay has demonstrated jump reduction. An offline
+command-vs-command comparison cannot establish servo tracking. Next, without
+powering movement, identify the installed front/rear servo model and number
+of wires from accessible labels/photos. If there is an independently wired
+feedback signal, review its electrical specification before designing a
+read-only diagnostic. Otherwise, with fresh operator permission and a secure
+lift, measure physical front/rear road-wheel angle against a fixed chassis
+reference at center and small symmetric left/right commands, recording both
+axles, command time, arrival time, hysteresis and unloaded/loaded behavior.
+Do not infer wheel angle directly from shaft angle. Only then fit an offline
+servo-to-road-wheel map and regress the recorded wheel/gyro/scan and saved-map
+AMCL tests before any deployment or autonomous trial.
