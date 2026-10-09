@@ -11,6 +11,9 @@ The [replay-fidelity follow-up](docs/audits/ATLAS_AMCL_REPLAY_FIDELITY_2026-10-0
 found that live mission control requested AMCL no-motion updates once per
 second. An isolated replay including those requests reproduced stationary
 pose jumps (two versus five live), but no localization fix is validated.
+The follow-up scan-window comparison shows the replay does not duplicate
+the original hypothesis choices; missing internal AMCL likelihood/particle
+state still prevents an evidence-backed tuning decision.
 
 Project-wide evidence baseline: [master failure analysis](docs/audits/ATLAS_MASTER_FAILURE_ANALYSIS.md),
 [historical timeline](docs/audits/ATLAS_COMPLETE_FAILURE_TIMELINE.md),

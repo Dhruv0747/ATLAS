@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-09 — Compare AMCL replay and live jump evidence
+
+- Added a read-only one-second scan-window/particle-cloud comparison for the
+  original five jumps and the no-motion replay's two. Both had broad particle
+  clouds, but two original jumps worsened the diagnostic map-endpoint score
+  across all seven preceding scans, unlike either replay jump.
+- Published cloud weights are uniform, so AMCL's internal pre-resampling
+  likelihood and hypothesis choice remain unverified. No production change or
+  rover movement; autonomy remains gated. See the
+  [fidelity audit](docs/audits/ATLAS_AMCL_REPLAY_FIDELITY_2026-10-09.md).
+
 ## 2026-10-09 — Restore missing AMCL replay update trigger
 
 - Verified from the original Jetson journal that mission control requested

@@ -510,6 +510,11 @@
           "date": "2026-10-09",
           "kind": "hall_return_amcl_nomotion_replay",
           "description": "Mission-control source and original Jetson journal confirm approximately 1 Hz /request_nomotion_update calls through the five-jump window, omitted by previous replays. After the last remote command, original odom and odom->base TF drifted at most 0.01221 m/0.504 degrees, below replay motion gates. A full-bag isolated localhost-domain replay sent 294 phase-matched calls with no skips; AMCL logged all 294. It matched original 384 total/80 post-stop pose counts and produced two post-stop >0.5 m jumps (max 3.470 m), versus original five (max 2.206 m). The missing service trigger explains absent earlier replay updates and reproduces stationary hypothesis switching, but not the exact live trajectory or upstream cause. No production parameter, service or actuator changed; autonomy remains gated."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "hall_return_amcl_scan_window_particle_comparison",
+          "description": "Read-only same-hypothesis scan-window comparison of five live and two replay post-stop jumps. All original jumps had broad clouds with 1.137-1.384 m after-cloud XY spread; replay jumps had 1.292/1.364 m. Original jumps 1 and 4 selected poses with worse diagnostic endpoint proximity on all seven preceding scans each (57.6->51.0% and 100.0->86.3% mean within 15 cm), whereas both replay jumps improved that score on every selected scan (51.9->81.5% and 82.2->95.6%). Published weights were uniform and do not retain pre-resampling likelihood or cluster selection. These data disprove exact replay equivalence but do not identify the live AMCL scoring cause. No motion or production change."
         }
       ]
     },

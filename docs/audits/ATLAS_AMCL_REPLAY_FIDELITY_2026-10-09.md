@@ -134,3 +134,38 @@ the mission-control freshness watchdog depends on it. No production service,
 parameter, motor or steering setting was changed. The next discriminating
 offline step is to compare particle/scan likelihood evolution around the two
 replay jumps against the five live jumps; no candidate fix is ready yet.
+
+## 2026-10-09 follow-up: scan-window and particle comparison
+
+A new read-only analyzer compared up to eight scans acquired in the second
+before each large post-stop step against the **same** two before/after pose
+hypotheses. This is a map-endpoint proximity check, **not** Nav2 AMCL's
+internal likelihood, and neither pose is independently verified ground truth.
+Clouds were paired to poses by bag receipt time because their header stamps
+were not comparable to the pose headers in these recordings.
+
+| Run/event | Step | Scans favoring new pose | Mean 15 cm endpoint fit, old→new | Cloud XY spread after |
+| --- | ---: | ---: | ---: | ---: |
+| Original 1 | 0.565 m | 0/7 | 57.6→51.0% | 1.137 m |
+| Original 2 | 2.206 m | 7/7 | 62.3→86.8% | 1.322 m |
+| Original 3 | 1.549 m | 8/8 | 87.0→99.9% | 1.330 m |
+| Original 4 | 1.549 m | 0/7 | 100.0→86.3% | 1.353 m |
+| Original 5 | 1.481 m | 8/8 | 86.6→94.8% | 1.384 m |
+| No-motion replay 1 | 0.760 m | 8/8 | 51.9→81.5% | 1.292 m |
+| No-motion replay 2 | 3.470 m | 7/7 | 82.2→95.6% | 1.364 m |
+
+Both runs had dispersed particles near their jumps; the published particle
+weights were uniform (effective count equalled cloud size), not a record of
+pre-resampling scan likelihood. Replay event 2 lacked a particle cloud within
+0.5 s **before** its step in the replay output; its after-cloud was present.
+The original's events 1 and 4 switched despite all selected scans scoring
+the old pose better on this geometric check, unlike both replay events.
+Therefore the replay reproduces the symptom but not the original hypothesis
+selection sequence. Neither endpoint fit nor published post-resampling cloud
+can establish why AMCL made those live choices. No additional replay of the
+same recorded outputs can recover unrecorded per-particle pre-resampling
+weights, cluster scores, RNG state or exact initial particle state. A future
+failure capture would need these AMCL internals alongside time-synchronized
+scan, odom, TF, pose and update-request events; collect stationary evidence
+first, and request separate permission before any motion or production
+instrumentation. No rover or production setting was changed in this audit.

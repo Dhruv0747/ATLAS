@@ -141,6 +141,11 @@ approximately 1 Hz cadence matched the original 384/80 total/post-stop pose
 counts and reproduced two large stationary jumps, versus five live. This
 explains the earlier replay update-count mismatch but is not an exact failure
 reproduction or a validated localization repair; production remains unchanged.
+The matched scan-window follow-up found that original post-stop events 1 and 4
+favored the *old* pose on all seven selected scans each, while both replay
+jumps favored the new pose on every selected scan. Both had broad particles,
+but published weights are uniform and do not expose pre-resampling AMCL
+likelihood; the remaining hypothesis-selection mechanism is unverified.
 
 Recommendation: retain Jetson-local safety and essential diagnostics, first resolve BLE freshness and motor timing with bounded evidence, then decide whether Visual Cloud should connect to a real authenticated PC endpoint or remain local. Measure overhead and data growth before enabling any additional collector. PC-side n8n/analytics are optional consumers, never dependencies of autonomous control.
 

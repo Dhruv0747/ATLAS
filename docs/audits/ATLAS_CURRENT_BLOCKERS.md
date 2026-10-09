@@ -80,6 +80,14 @@ explains the earlier replay's missing updates and reproduces the failure
 class, **not** the exact event sequence or a validated repair. Production
 localization remains unchanged and autonomy remains gated; see the replay-
 fidelity audit for measurements and remaining particle/likelihood work.
+A matched one-second scan-window/particle follow-up found broad clouds in
+both runs, but original jumps 1 and 4 moved to poses with *worse* map-endpoint
+fit across all seven preceding scans each, while both replay jumps moved to
+better-fitting poses across every selected scan. Published cloud weights are
+uniform and omit AMCL's pre-resampling likelihood/cluster decision. The replay
+cannot validate a localization fix; the original hypothesis-selection cause
+remains unverified. No further repeats of the same replay output can restore
+those unrecorded internals.
 An isolated A/B replay on the same Hall return found velocity-only wheel
 fusion materially closer to saved-map LiDAR endpoints than current wheel
 pose+velocity fusion (median 50.2% versus 23.1% within 15 cm), but the
