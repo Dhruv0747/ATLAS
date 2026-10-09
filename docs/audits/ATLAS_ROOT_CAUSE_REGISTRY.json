@@ -259,7 +259,7 @@
         "journalctl --user -b -u rover-daly-bms.service",
         "journalctl --user -b -u atlas-sensor-recovery.service"
       ],
-      "test_results": "Diagnostic-only labels deployed and 12 tests passed; no repair claim. Healthy 13.20 V readings alternated with failures.",
+      "test_results": "Diagnostic-only labels deployed and 12 tests passed; no BLE repair claim. Healthy readings still alternated with connect failure after Oct9 freshness deployment, including 10:07:12 IST.",
       "remaining_verification": "Observe existing single BLE owner; compare controlled phone-disconnected condition; capture bounded connection-stage evidence. No global Bluetooth reset that could affect remote control.",
       "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
       "events": [
@@ -272,6 +272,11 @@
           "date": "2026-10-09",
           "kind": "latest_assessment",
           "description": "Diagnostic-only labels deployed and 12 tests passed; no repair claim. Healthy 13.20 V readings alternated with failures."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "post_freshness_deployment",
+          "description": "10:07:12 IST new BMS process had another connect-stage deadline, then complete reads resumed. Freshness repair did not fix BLE connectivity."
         }
       ]
     },
