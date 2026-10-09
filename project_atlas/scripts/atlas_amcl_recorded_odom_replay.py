@@ -91,7 +91,15 @@ def main():
     parser.add_argument("output")
     parser.add_argument("--stationary-updates", action="store_true",
                         help="Replay-only zero AMCL motion thresholds for causal diagnosis")
+    parser.add_argument("--nomotion-requests", action="store_true",
+                        help="Replay original periodic AMCL no-motion service calls")
+    parser.add_argument("--nomotion-phase-ns", type=int, default=578_000_000,
+                        help="Within-second request phase measured in original journal")
     args = parser.parse_args()
+    if args.stationary_updates and args.nomotion_requests:
+        parser.error("choose one stationary-update mechanism")
+    if not 0 <= args.nomotion_phase_ns < 1_000_000_000:
+        parser.error("no-motion phase must be within one second")
     out = Path(args.output)
     out.mkdir(parents=False, exist_ok=False)
     meta = yaml.safe_load((Path(args.clip) / "metadata.yaml").read_text())[
@@ -108,6 +116,8 @@ def main():
         "original": args.original, "input_counts": counts, "seed": seed,
         "recorded_odom_tf": True, "original_particle_state_restored": False,
         "stationary_updates_replay_only": args.stationary_updates,
+        "periodic_nomotion_replay_only": args.nomotion_requests,
+        "nomotion_phase_ns": args.nomotion_phase_ns if args.nomotion_requests else None,
         "actuator_topics_allowed": sorted(ALLOWED & {"/cmd_vel", "/cmd_vel_joy"}),
     }, indent=2))
     env = dict(os.environ, ROS_DOMAIN_ID="179", ROS_LOCALHOST_ONLY="1",
@@ -130,6 +140,10 @@ def main():
         recorder = launch("record", ["ros2", "bag", "record", "-o",
                           str(out / "result"), "/amcl_pose", "/particle_cloud",
                           "/scan", "/map", "/tf", "/odom"])
+        if args.nomotion_requests:
+            launch("nomotion", ["/usr/bin/python3", str(Path(__file__).with_name(
+                "atlas_amcl_nomotion_replay_client.py")),
+                "--phase-ns", str(args.nomotion_phase_ns)])
         time.sleep(8)
         if amcl.poll() is not None or recorder.poll() is not None:
             raise RuntimeError("Offline AMCL or recorder exited before playback")

@@ -7,6 +7,10 @@ found recurrent wheel-model/gyro heading disagreement; the velocity-only EKF
 candidate improved some replay measures but worsened final-window position
 stability. It is **not deployed**. Autonomous room-to-room navigation is not
 qualified until moving and stopped localization pass repeatable validation.
+The [replay-fidelity follow-up](docs/audits/ATLAS_AMCL_REPLAY_FIDELITY_2026-10-09.md)
+found that live mission control requested AMCL no-motion updates once per
+second. An isolated replay including those requests reproduced stationary
+pose jumps (two versus five live), but no localization fix is validated.
 
 Project-wide evidence baseline: [master failure analysis](docs/audits/ATLAS_MASTER_FAILURE_ANALYSIS.md),
 [historical timeline](docs/audits/ATLAS_COMPLETE_FAILURE_TIMELINE.md),

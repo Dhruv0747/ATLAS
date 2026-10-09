@@ -70,6 +70,16 @@ post-stop jump window. A replay-only zero-motion-threshold experiment kept
 updates flowing and produced one repeatable 1.827 m correction, but at 512
 poses versus 168 live; it does not reproduce the original five-event failure
 or justify deploying an AMCL parameter change.
+Follow-up found the missing replay trigger: mission control requested AMCL
+no-motion updates about once per second during the original jump window.
+Post-stop odom/TF drift was only 0.01221 m/0.504°, below the replay update
+gates. A full-bag, isolated replay with that request cadence matched the
+original 384 total and 80 post-stop AMCL poses and reproduced two stationary
+>0.5 m jumps (max 3.470 m), versus five (max 2.206 m) originally. This
+explains the earlier replay's missing updates and reproduces the failure
+class, **not** the exact event sequence or a validated repair. Production
+localization remains unchanged and autonomy remains gated; see the replay-
+fidelity audit for measurements and remaining particle/likelihood work.
 An isolated A/B replay on the same Hall return found velocity-only wheel
 fusion materially closer to saved-map LiDAR endpoints than current wheel
 pose+velocity fusion (median 50.2% versus 23.1% within 15 cm), but the

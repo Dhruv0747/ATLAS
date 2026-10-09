@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-09 — Restore missing AMCL replay update trigger
+
+- Verified from the original Jetson journal that mission control requested
+  `/request_nomotion_update` about once per second during the Hall-return
+  jump window; recorded odom/TF motion remained below replay update gates.
+- Added an isolated replay-only request client and timestamp-based comparison.
+  One full-bag replay matched the live AMCL pose counts (384 total, 80 after
+  stopping) and reproduced two large stationary jumps, not the exact five.
+- Production AMCL, EKF, motor and steering settings remain unchanged; autonomy
+  is still gated. See the [fidelity audit](docs/audits/ATLAS_AMCL_REPLAY_FIDELITY_2026-10-09.md).
+
 ## 2026-10-09 — Identify AMCL replay-fidelity gap
 
 - Added read-only map/input/particle-state fidelity auditing and an isolated

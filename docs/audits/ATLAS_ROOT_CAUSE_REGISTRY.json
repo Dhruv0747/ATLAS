@@ -505,6 +505,11 @@
           "date": "2026-10-09",
           "kind": "hall_return_amcl_replay_fidelity",
           "description": "Continued from 99bd418. Original recorded map and saved atlas_latest.pgm matched all 51,040 trinary cells. The prior 75.918 s replay clip omitted 8 of 537 source scans and regenerated EKF odometry; original window had 759 /odom, 168 AMCL poses and 5 jumps. New isolated AMCL-only replay included all 537 scans and 759 original /odom/TF in input, but its output recorder saw 524 scans, 743 odom and 120 AMCL poses; an early scan was dropped for missing TF history. Two runs both yielded zero large jumps, max step 0.239 m and final ~19 s span 0.462 m. Original/replay median particle spread was 0.810/0.415 m. A full-bag replay also stopped outputting AMCL poses before the original jump window. A replay-only zero-motion-threshold experiment produced 512 AMCL poses and one 1.827 m correction in each of two runs, not the original five. Internal particle/RNG state, exact runtime AMCL parameters and original scheduling are not restored; no valid five-jump baseline or candidate fix. Production unchanged, autonomy gated."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "hall_return_amcl_nomotion_replay",
+          "description": "Mission-control source and original Jetson journal confirm approximately 1 Hz /request_nomotion_update calls through the five-jump window, omitted by previous replays. After the last remote command, original odom and odom->base TF drifted at most 0.01221 m/0.504 degrees, below replay motion gates. A full-bag isolated localhost-domain replay sent 294 phase-matched calls with no skips; AMCL logged all 294. It matched original 384 total/80 post-stop pose counts and produced two post-stop >0.5 m jumps (max 3.470 m), versus original five (max 2.206 m). The missing service trigger explains absent earlier replay updates and reproduces stationary hypothesis switching, but not the exact live trajectory or upstream cause. No production parameter, service or actuator changed; autonomy remains gated."
         }
       ]
     },

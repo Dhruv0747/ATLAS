@@ -92,3 +92,45 @@ pose correction. Do not physically drive, reseed, restart services, or change
 parameters without separate operator permission. A stationary-only run may
 still fail to create the uncertainty that developed during the original drive;
 that limitation must be reported rather than assumed away.
+
+## 2026-10-09 follow-up: the missing live update trigger
+
+Read-only inspection of the original Jetson journal and mission-control source
+found a specific replay-fidelity omission: `atlas_mission_control.py` calls
+`/request_nomotion_update` once per second, and AMCL logged those requests
+throughout the original 12:26:33–12:26:44 IST jump window. The original bag
+contains the resulting AMCL messages but not the service calls. After the last
+remote command, recorded `/odom` and odom→base TF moved at most **0.01221 m**
+and **0.504°**, below the replay gates of 0.05 m and 0.05 rad, while the
+original emitted 80 more AMCL poses and 80 particle clouds. Recorded motion
+alone could not account for that continuing pose stream.
+
+One isolated, full-295-second replay in localhost ROS domain 179 now issues
+the approximately 1 Hz no-motion calls at the journal's 0.578-second clock
+phase. Its inputs include only scan, odom and TF; no actuator topics were
+played. The client sent 294 calls with zero service-unavailable skips, and
+replay AMCL logged 294 requests. Both original and replay emitted **384 total
+/ 80 post-stop** AMCL poses. The omitted service trigger therefore explains
+why the earlier full replay stopped publishing before the failure window.
+The local Jetson output is
+`/home/jetson/project_atlas/data/diagnostics/amcl_nomotion_full_20261009/`;
+generated bags and logs are deliberately not committed.
+
+| Same Hall return | Original | No-motion replay |
+| --- | ---: | ---: |
+| AMCL poses, total / post-stop | 384 / 80 | 384 / 80 |
+| Post-stop steps >0.5 m within 2 s | 5 | 2 |
+| Largest post-stop step | 2.206 m | 3.470 m |
+| Large-step time after last command | 2.693–12.780 s | 10.682–13.702 s |
+
+This **reproduces stationary AMCL hypothesis switching as a failure class**,
+not the original five-event trajectory. The periodic request explains pose
+*updates*, not why AMCL selected a distant hypothesis. Initial particle/RNG
+state, exact startup ordering and full live scheduling still differ: the
+replay seed pose was taken from the first original AMCL pose **4.779 s after**
+the bag began, because there was no earlier pose in the bag. Do not
+remove the production heartbeat or tune AMCL/EKF based on this one replay;
+the mission-control freshness watchdog depends on it. No production service,
+parameter, motor or steering setting was changed. The next discriminating
+offline step is to compare particle/scan likelihood evolution around the two
+replay jumps against the five live jumps; no candidate fix is ready yet.

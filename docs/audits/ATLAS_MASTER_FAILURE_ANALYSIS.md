@@ -135,6 +135,12 @@ velocity-only result is still incomplete and conflicts with a mixed Oct8
 comparison, so it is **not** a production fix. The deployed read-only map
 display now exposes AMCL uncertainty and recent jumps instead of presenting
 a fresh but uncertain TF as a precise pose. It cannot repair AMCL itself.
+An Oct9 replay-fidelity follow-up found the missing AMCL no-motion service
+heartbeat in the original journal. One isolated full-bag replay with its
+approximately 1 Hz cadence matched the original 384/80 total/post-stop pose
+counts and reproduced two large stationary jumps, versus five live. This
+explains the earlier replay update-count mismatch but is not an exact failure
+reproduction or a validated localization repair; production remains unchanged.
 
 Recommendation: retain Jetson-local safety and essential diagnostics, first resolve BLE freshness and motor timing with bounded evidence, then decide whether Visual Cloud should connect to a real authenticated PC endpoint or remain local. Measure overhead and data growth before enabling any additional collector. PC-side n8n/analytics are optional consumers, never dependencies of autonomous control.
 
