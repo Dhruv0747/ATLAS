@@ -121,6 +121,20 @@ class CameraHeartbeatTests(unittest.TestCase):
             self.assertFalse(eval(compiled, {}, {"self": subject, "now": 100.0}))
             subject.last_ai_camera = 0.0
 
+    def test_map_diagnostics_expose_mode_and_age_without_changing_gate(self):
+        publish_status = class_method(
+            self.safety_tree, "AtlasSafetyStatus", "publish_status"
+        )
+        rendered = ast.unparse(publish_status)
+        self.assertIn("'operating_mode': self.operating_mode", rendered)
+        self.assertIn("'received': self.last_map > 0.0", rendered)
+        self.assertIn("'age_s': round(now - self.last_map, 2)", rendered)
+        classify = ast.unparse(
+            class_method(self.safety_tree, "AtlasSafetyStatus", "classify")
+        )
+        self.assertIn("self.operating_mode != 'LOCALIZATION'", classify)
+        self.assertIn("if map_missing or map_stale:", classify)
+
 
 if __name__ == "__main__":
     unittest.main()

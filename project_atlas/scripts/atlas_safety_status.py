@@ -438,6 +438,9 @@ class AtlasSafetyStatus(Node):
                 "known_percent": round(self.map_known_pct, 1),
                 "occupied_cells": self.map_occupied_cells,
                 "plan_points": self.plan_points,
+                "operating_mode": self.operating_mode,
+                "received": self.last_map > 0.0,
+                "age_s": round(now - self.last_map, 2) if self.last_map > 0.0 else None,
             },
             "sensors": {
                 "lidar": "ONLINE" if now - self.last_scan <= 1.5 else "LOST",
