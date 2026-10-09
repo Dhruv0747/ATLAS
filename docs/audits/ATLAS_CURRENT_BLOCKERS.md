@@ -9,6 +9,21 @@ Per operator priority, continue non-motion navigation evidence first and leave
 the intermittent BLE transport repair until later; **do not bypass fresh BMS
 telemetry or any movement safety gate**.
 
+The operator confirmed ATLAS is in Dhruv Room while stopped and charging, but
+has not confirmed that it is at the exact saved home point. Its live AMCL pose
+is about 3.67 m from that named point. The localization seed (last written
+Oct 8) contains no accepted-map ID; the named places and accepted map are
+bound to `d12a1f183177212a3cc8`. On the Oct 9 boot,
+`atlas-localization.service` had six restarts. Its start-preflight exited
+124 (timeout) while LiDAR repeatedly logged hardware operation timeouts;
+missing scans are a strong explanation for the preflight failures, not proof
+that the seed caused them. Once running, Nav2 logged several out-of-map robot
+poses before settling. These observations make localization
+verification the current autonomy gate; they do **not** prove whether the
+saved room point, seed, or present AMCL pose is wrong. Do not overwrite any
+of them or start an autonomous route to conceal the disagreement. See
+[the navigation gate](ATLAS_NAVIGATION_GATE_2026-10-09.md).
+
 ## Current verified boundary
 
 Latest observed motor owner: IDLE, stop latched, raw test interface disabled, all outputs zero; PID 3120, NRestarts=0. At 10:07 IST live encoder health reported fresh packets and selected encoders M1–M4, no exclusions, but this is **not** dynamic encoder qualification or proof M3 is physically reliable. At that time autonomy separately reported `FAULT: STOP: SLAM MAP DATA LOST`; see the later stopped diagnostic recovery below. No autonomous readiness can be inferred from the encoder flag alone.

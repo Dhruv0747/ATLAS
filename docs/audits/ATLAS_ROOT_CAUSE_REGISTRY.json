@@ -398,7 +398,7 @@
       "id": "ATLAS-011",
       "title": "Mapping startup race, stale places and pose corrections",
       "first_available_occurrence": "2026-08-24",
-      "latest_reviewed_occurrence": "2026-10-08",
+      "latest_reviewed_occurrence": "2026-10-09",
       "subsystem": "mapping / localization / TF",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
@@ -418,10 +418,11 @@
       "evidence": [
         "docs/validation/2026-08-24-tight-recovery-localization.md",
         "docs/MAPPING_SESSION_FORENSICS_2026-10-04.md",
-        "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md"
+        "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md",
+        "docs/audits/ATLAS_NAVIGATION_GATE_2026-10-09.md"
       ],
       "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live safety reporter initially said SLAM MAP DATA LOST; a new transient-local subscriber received the saved map, and diagnostic-only reporter restart restored LOCALIZATION/map ONLINE. Root cause of stale prior status not proven; navigation remains unvalidated.",
-      "remaining_verification": "Use saved bag first; validate same-time composed robot correction, calibrated wheel model and true scan timing. Promote map only with frame-consistent places and independent geometry/path checks, then supervised round trip.",
+      "remaining_verification": "Confirm whether ATLAS is at the exact saved Dhruv Room point, then independently verify physical heading and scan/map alignment while stopped. Determine whether the saved seed, named point or current AMCL pose is wrong; do not silently relabel. Use saved bag first; validate same-time composed robot correction, calibrated wheel model and true scan timing. Promote map only with frame-consistent places and independent geometry/path checks, then supervised round trip.",
       "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
       "events": [
         {
@@ -443,6 +444,11 @@
           "date": "2026-10-09",
           "kind": "stopped_diagnostic_recovery",
           "description": "Saved-map publisher was intermittently visible in ROS graph; a transient-local subscriber received its latched map. At 10:22 IST a diagnostic-only safety-reporter restart made its observed mode LOCALIZATION and map ONLINE, including at map age 27.68 s. Motor owner was unchanged. Why the old reporter marked the map LOST remains unresolved."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "charging_localization_audit",
+          "description": "Operator confirmed rover is in Dhruv Room, not whether it occupies the exact saved home point. Live AMCL pose (-3.17,-0.22) is 3.67 m from named Dhruv Room pose (0.254,-1.539). Saved Oct8 seed (0.877,0.097) has no accepted-map ID. Localization service showed six start-preflight timeout restarts concurrent with repeated LiDAR hardware operation timeouts; missing scans are the likely immediate cause, not a demonstrated seed failure. Once running, Nav2 logs contained robot-out-of-map positions and one scan/TF cache drop. No motion or runtime change. Exact faulty coordinate source remains unproven."
         }
       ]
     },

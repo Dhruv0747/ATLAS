@@ -37,6 +37,11 @@ steering, map, navigation parameter, service, or BMS safety gate was changed.
 - At today's localization startup, Nav2 logged multiple robot-out-of-map
   positions and a scan/TF cache drop before the pose settled. This is stronger
   evidence of a startup-localization problem than the stationary pose alone.
+  The localization unit also restarted six times: its start-preflight exited
+  with timeout status 124 while the LiDAR driver repeatedly reported hardware
+  operation timeouts. Missing scans likely caused those preflight failures;
+  they do not establish that the saved seed caused the restarts. The current
+  LiDAR feed later recovered and was fresh at the stopped check.
 
 ## Saved-map route blocker
 
