@@ -1,5 +1,13 @@
 # Project ATLAS - Autonomous Service Rover
 
+Localization release gate (2026-10-09): the recorded Hall → Dhruv Room return
+had five large AMCL corrections after stopping. A new
+[cross-bag and isolated AMCL audit](docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md)
+found recurrent wheel-model/gyro heading disagreement; the velocity-only EKF
+candidate improved some replay measures but worsened final-window position
+stability. It is **not deployed**. Autonomous room-to-room navigation is not
+qualified until moving and stopped localization pass repeatable validation.
+
 Project-wide evidence baseline: [master failure analysis](docs/audits/ATLAS_MASTER_FAILURE_ANALYSIS.md),
 [historical timeline](docs/audits/ATLAS_COMPLETE_FAILURE_TIMELINE.md),
 [root-cause registry](docs/audits/ATLAS_ROOT_CAUSE_REGISTRY.json), and

@@ -404,7 +404,7 @@
       "resolution": "UNRESOLVED",
       "original_failure_and_evidence": "Hall goal aborted with lethal start; named home coordinate disagreed with physical location. Oct4 drive preceded active session. Oct8 closure 0.082 m/2.99 deg but continuity gate failed.",
       "confirmed_findings": "Start/session race established; map->odom component jump is origin-dependent, not physical displacement. Same-pose composition showed ~0.23 m correction; after hypothesis fit prior map better.",
-      "suspected_causes_and_limits": "Oct9 manual-return evidence supports AMCL hypothesis switching after wheel-derived heading/position diverged from gyro and scan geometry. Wheel X/Y pose fusion worsened an isolated replay versus velocity-only input, but the candidate remains inaccurate and a prior bag had mixed results. Physical steering angle is unmeasured; contributions from steering geometry, intermittent encoder consensus and scan/map ambiguity are not separately proven.",
+      "suspected_causes_and_limits": "Oct9 manual-return evidence supports AMCL hypothesis switching after wheel-derived heading/position diverged from gyro and scan geometry. Cross-bag heading disagreement recurs, including an Oct9 wrong-sign wheel-model interval despite four selected encoders. Wheel X/Y pose fusion worsened one scan-fit replay, but saved-map AMCL A/B failed to reproduce the live jumps and velocity-only worsened final-window drift. Physical steering angle is unmeasured; contributions from steering geometry, traction and scan/map ambiguity are not separately proven.",
       "attempted_fix_commits": [
         "6a18b0e43418bad87037678c592a71b9c029b898",
         "5478fac974ff465c018d3013926d81d1f58436d1",
@@ -419,7 +419,8 @@
         "docs/validation/2026-08-24-tight-recovery-localization.md",
         "docs/MAPPING_SESSION_FORENSICS_2026-10-04.md",
         "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md",
-        "docs/audits/ATLAS_NAVIGATION_GATE_2026-10-09.md"
+        "docs/audits/ATLAS_NAVIGATION_GATE_2026-10-09.md",
+        "docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md"
       ],
       "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live safety reporter initially said SLAM MAP DATA LOST; a new transient-local subscriber received the saved map, and diagnostic-only reporter restart restored LOCALIZATION/map ONLINE. Root cause of stale prior status not proven; navigation remains unvalidated.",
       "remaining_verification": "The operator confirmed the exact saved Dhruv Room point and heading; stationary scan/map fit identified the earlier out-of-map AMCL pose as wrong, and one saved-pose reseed corrected it. A new operator-confirmed Hall endpoint passes exact saved-map footprint clearance; the taught route still has an older map ID. The recorded manual Hall-to-home return showed >2 m stationary AMCL jumps, 32 traction samples with critical encoder consensus, and disagreement between wheel and IM10A yaw-rate integration. Different endpoint displacements alone do not establish wheel-distance scale error. Diagnose same-time scan/AMCL/odom/TF, wheel agreement and heading before autonomous motion. Audit stale mapping-session marker lifecycle; require an actual Nav2 plan and supervised recorded round trip only after localization is stable.",
@@ -474,6 +475,11 @@
           "date": "2026-10-09",
           "kind": "same_bag_ekf_ab_and_display_repair",
           "description": "Offline replay in isolated ROS domain 178 changed only wheel X/Y pose fusion. Across 31 Hall-anchored scans, median saved-map endpoint fit within 15 cm improved from 23.1% to 50.2% with velocity-only wheel input; last-10-second fit improved from 11.1% to 52.2%. The earlier Oct8 replay was mixed and this candidate still underfits, so production EKF/Nav2 remains unchanged. Read-only web map now displays AMCL covariance and recent jumps; replay classifier flagged all five post-stop corrections, and the deployed API/page returned HTTP 200. No motor or autonomous command was issued."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "cross_bag_heading_and_saved_map_amcl_ab",
+          "description": "Eleven relevant wheel/corrected-IMU/scan bags inventoried; only Hall return had enough AMCL data for jump counts. Encoder-selection replay matched recorded updates exactly, including wrong-sign wheel yaw versus gyro/scan ICP with four accepted wheels. Isolated saved-map AMCL replay produced 0 >0.5 m jumps in both variants and therefore did not reproduce five live jumps; velocity-only reduced maximum correction but worsened final ~20 s AMCL position span from 0.845 m to 1.789 m. Production EKF/Nav2 unchanged; localization unresolved."
         }
       ]
     },

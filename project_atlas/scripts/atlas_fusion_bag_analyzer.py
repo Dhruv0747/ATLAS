@@ -42,6 +42,12 @@ def series_summary(samples):
     }
 
 
+def select_imu_topic(topic_types):
+    """Never concatenate raw and bias-corrected gyro into one time series."""
+    corrected = "/im10a/imu/bias_corrected_candidate"
+    return corrected if corrected in topic_types else "/imu/data"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("bag")
@@ -52,9 +58,9 @@ def main():
         rosbag2_py.ConverterOptions("", ""),
     )
     types = {item.name: item.type for item in reader.get_all_topics_and_types()}
+    imu_topic = select_imu_topic(types)
     wanted = {
-        "/odom", "/yahboom/odom", "/imu/data",
-        "/im10a/imu/bias_corrected_candidate",
+        "/odom", "/yahboom/odom", imu_topic,
         "/steering/front_angle_deg", "/steering/rear_angle_deg",
     }
     messages = {name: get_message(types[name]) for name in wanted if name in types}
@@ -75,14 +81,10 @@ def main():
             stamp = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
             stamp_lag_ms[key].append((recorded - stamp) / 1_000_000.0)
             frames[key] = {"frame": msg.header.frame_id, "child": msg.child_frame_id}
-        elif topic == "/imu/data":
-            heading["imu"].append((recorded, yaw(msg.orientation)))
-            yaw_rate["imu"].append((recorded, float(msg.angular_velocity.z)))
-            stamp = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
-            stamp_lag_ms["imu"].append((recorded - stamp) / 1_000_000.0)
-            frames["imu"] = {"frame": msg.header.frame_id}
-        elif topic in ("/imu/data", "/im10a/imu/bias_corrected_candidate"):
+        elif topic == imu_topic:
             key = "imu"
+            if topic == "/imu/data":
+                heading[key].append((recorded, yaw(msg.orientation)))
             yaw_rate[key].append((recorded, float(msg.angular_velocity.z)))
             stamp = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
             stamp_lag_ms[key].append((recorded - stamp) / 1_000_000.0)
@@ -91,7 +93,8 @@ def main():
             key = "front" if "front" in topic else "rear"
             steering[key].append(float(msg.data))
 
-    result = {"heading": {key: series_summary(value) for key, value in heading.items()}}
+    result = {"gyro_topic": imu_topic,
+              "heading": {key: series_summary(value) for key, value in heading.items()}}
     result["yaw_rate"] = {
         key: {
             "samples": len(values),

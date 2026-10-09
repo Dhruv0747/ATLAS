@@ -18,6 +18,7 @@ ATLAS has recurring failures because several dependent layers have changed and h
 6. Hardware replacements, sensor migrations and configuration changes invalidate earlier qualifications. An August success with different motor mapping cannot certify October operation.
 7. Resource pressure may expose deadlines, but CPU load alone does not identify a culprit. Current evidence does not justify replacing the Jetson or adding another computer.
 8. The Visual Cloud agent is active but its configured destination is the checked-in example hostname. The local history database is about 26.5 GB and its last modification predates this check by several days. An active service is therefore not proof that cloud history is arriving; do not add a second monitoring stack before repairing or retiring this path.
+9. The Oct9 [cross-bag localization audit](ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md) found recurring wheel-model/IM10A heading conflict during recorded turns. An isolated saved-map AMCL replay improved some candidate EKF metrics but worsened final-window position span and did not reproduce five live jumps. The candidate is not deployed; physical steering/traction/geometry contribution remains unresolved.
 
 ## Evidence vocabulary
 

@@ -151,6 +151,18 @@ safety gate was changed.
 
 ### Isolated EKF comparison on this same recording
 
+**Follow-up cross-bag and saved-map AMCL result:**
+[the cross-bag audit](ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md) found
+wheel-versus-corrected-gyro heading disagreements across several drives, but
+only this Hall return had sufficient AMCL samples to count jumps. An isolated
+saved-map AMCL A/B on this Hall clip produced 121/126 AMCL poses and zero
+>0.5 m jumps in both variants, so it **did not reproduce** the five live
+post-stop jumps. Velocity-only lowered median AMCL XY standard deviation
+(0.455 to 0.361 m) and maximum map→odom translation correction
+(0.408 to 0.194 m), yet **worsened** final ~20 s AMCL position span
+(0.845 to 1.789 m). It is not a verified fix. No experimental EKF parameter
+was deployed; moving/stopped localization remains a release blocker.
+
 - A 75 s clip of the Hall return, including 750 wheel odometry messages,
   751 IM10A messages and 529 scans, was replayed in isolated ROS domain 178.
   Only recorded sensor/TF topics were played. EKF and SLAM were started for

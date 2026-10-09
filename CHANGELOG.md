@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-09 — Cross-bag localization regression, no EKF deployment
+
+- Audited eleven relevant recorded bags and corrected the fusion analyzer so
+  raw and bias-corrected IMU samples are never mixed. Added read-only bag
+  inventory, timestamp-aligned yaw/jump audit, and isolated saved-map AMCL
+  A/B replay tooling with regression tests.
+- Reproduced wheel encoder-selection arithmetic exactly; recurrent wheel-model
+  versus gyro/scan heading conflict remains, including an opposite-sign Oct9
+  turn with all four encoders selected. Commanded steering is not measured
+  physical angle, so the mechanical source is not proven.
+- Saved-map AMCL replay failed to reproduce five original post-stop jumps in
+  either variant. Velocity-only reduced some correction metrics but worsened
+  final ~20 s position span from 0.845 m to 1.789 m. Experimental EKF change
+  **not deployed**; localization and autonomous route release remain gated.
+  See [cross-bag audit](docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md).
+
 ## 2026-10-09 — Show localization uncertainty on the live map
 
 - Analyzed the existing Hall-to-Dhruv bag without moving ATLAS. AMCL became

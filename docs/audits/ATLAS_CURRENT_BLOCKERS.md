@@ -24,6 +24,15 @@ The web map now flags stale displayed poses, but that does not repair AMCL or
 motion-estimate disagreement. Keep autonomy gated pending same-time heading,
 TF, encoder and localization validation; do not retune wheel scale from this
 manual route alone.
+The subsequent [cross-bag audit](ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md)
+confirmed recurrent but variable wheel/gyro heading disagreement, including
+an Oct9 short interval where wheel-model yaw had the opposite sign to gyro
+and scan ICP despite four selected encoders. An isolated saved-map AMCL A/B
+did **not** reproduce the five live jumps in either configuration; velocity-only
+improved some correction metrics but worsened final-window position stability.
+The experimental EKF change is rejected for deployment; localization remains
+unresolved, and the exact physical steering/traction/geometry contribution
+is not proven.
 An isolated A/B replay on the same Hall return found velocity-only wheel
 fusion materially closer to saved-map LiDAR endpoints than current wheel
 pose+velocity fusion (median 50.2% versus 23.1% within 15 cm), but the
