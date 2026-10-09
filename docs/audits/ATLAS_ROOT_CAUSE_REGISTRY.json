@@ -404,7 +404,7 @@
       "resolution": "UNRESOLVED",
       "original_failure_and_evidence": "Hall goal aborted with lethal start; named home coordinate disagreed with physical location. Oct4 drive preceded active session. Oct8 closure 0.082 m/2.99 deg but continuity gate failed.",
       "confirmed_findings": "Start/session race established; map->odom component jump is origin-dependent, not physical displacement. Same-pose composition showed ~0.23 m correction; after hypothesis fit prior map better.",
-      "suspected_causes_and_limits": "Oct9 manual-return evidence supports AMCL hypothesis switching after wheel-derived heading/position diverged from gyro and scan geometry. Cross-bag heading disagreement recurs, including an Oct9 wrong-sign wheel-model interval despite four selected encoders. Wheel X/Y pose fusion worsened one scan-fit replay, but saved-map AMCL A/B failed to reproduce the live jumps and velocity-only worsened final-window drift. Physical steering angle is unmeasured; contributions from steering geometry, traction and scan/map ambiguity are not separately proven.",
+      "suspected_causes_and_limits": "Oct9 manual-return evidence supports AMCL hypothesis switching after wheel-derived heading/position diverged from gyro and scan geometry. Cross-bag heading disagreement recurs, including an Oct9 wrong-sign wheel-model interval despite four selected encoders. Delaying commanded steering by up to 0.75 s did not reverse that wrong sign, so a single global command lag is not a verified repair. Wheel X/Y pose fusion worsened one scan-fit replay, but saved-map AMCL A/B failed to reproduce the live jumps and velocity-only worsened final-window drift. Physical steering angle is unmeasured; contributions from steering geometry, traction and scan/map ambiguity are not separately proven.",
       "attempted_fix_commits": [
         "6a18b0e43418bad87037678c592a71b9c029b898",
         "5478fac974ff465c018d3013926d81d1f58436d1",
@@ -480,6 +480,11 @@
           "date": "2026-10-09",
           "kind": "cross_bag_heading_and_saved_map_amcl_ab",
           "description": "Eleven relevant wheel/corrected-IMU/scan bags inventoried; only Hall return had enough AMCL data for jump counts. Encoder-selection replay matched recorded updates exactly, including wrong-sign wheel yaw versus gyro/scan ICP with four accepted wheels. Isolated saved-map AMCL replay produced 0 >0.5 m jumps in both variants and therefore did not reproduce five live jumps; velocity-only reduced maximum correction but worsened final ~20 s AMCL position span from 0.845 m to 1.789 m. Production EKF/Nav2 unchanged; localization unresolved."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "wrong_sign_turn_delay_discrimination",
+          "description": "Read-only commanded-steering sensitivity: the Oct9 4.35 s wrong-sign interval remained +7.42/+4.27/+2.43/+1.30 degrees at 0/0.2/0.5/0.75 s delay, versus corrected gyro -18.96 and scan ICP -16.09 degrees. Another turn worsened with 0.5 s delay. Scan transport beyond acquisition and TF consistency did not reveal a seconds-long data gap at the largest post-stop AMCL correction. Physical road-wheel angle remains unmeasured; no parameter changed."
         }
       ]
     },

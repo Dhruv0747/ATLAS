@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-09 — Localize wrong-sign steering-model interval
+
+- Extended the read-only encoder snapshot reviewer with whole-motion summaries
+  and bounded commanded-steering delay sensitivity. The Oct9 +7.42° wheel
+  model versus -18.96° gyro/-16.09° scan turn remained wrong-sign with up to
+  0.75 s delay; a uniform 0.5 s shift worsened another turn. No steering or
+  EKF calibration was changed. See the
+  [cross-bag audit](docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md).
+
 ## 2026-10-09 — Cross-bag localization regression, no EKF deployment
 
 - Audited eleven relevant recorded bags and corrected the fusion analyzer so

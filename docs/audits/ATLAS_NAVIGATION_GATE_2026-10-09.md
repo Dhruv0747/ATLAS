@@ -162,6 +162,11 @@ post-stop jumps. Velocity-only lowered median AMCL XY standard deviation
 (0.408 to 0.194 m), yet **worsened** final ~20 s AMCL position span
 (0.845 to 1.789 m). It is not a verified fix. No experimental EKF parameter
 was deployed; moving/stopped localization remains a release blocker.
+A focused wrong-sign-turn recheck also rejected a uniform commanded-steering
+delay as a repair: up to 0.75 s still predicted the opposite turn sign to
+the corrected gyro and LiDAR; 0.5 s worsened a subsequent turn. Recorded
+scan timing did not reveal seconds of delivery delay at the largest AMCL
+correction. Physical road-wheel angles still need independent measurement.
 
 - A 75 s clip of the Hall return, including 750 wheel odometry messages,
   751 IM10A messages and 529 scans, was replayed in isolated ROS domain 178.

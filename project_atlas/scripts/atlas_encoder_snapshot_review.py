@@ -11,7 +11,23 @@ from atlas_turn_sensor_audit import icp, stamp
 from atlas_encoder_selection import EncoderDeltaEstimator
 
 
-def main(path):
+def delayed_command_yaw(updates, times, commanded_curvature, start, end, delay):
+    """Diagnostic sensitivity; does not re-normalize wheels or measure angle."""
+    total = 0.0
+    used = 0
+    for update in updates:
+        t = update['stamp_ns'] / 1e9
+        if not start <= t < end:
+            continue
+        past = int(np.searchsorted(times, t - delay, side='right')) - 1
+        if past < 0:
+            continue
+        total += update['accepted_delta_m'] * commanded_curvature[past]
+        used += 1
+    return (math.degrees(total), used)
+
+
+def main(path, summary_only=False):
     reader = rosbag2_py.SequentialReader()
     reader.open(rosbag2_py.StorageOptions(uri=path, storage_id='sqlite3'),
                 rosbag2_py.ConverterOptions('', ''))
@@ -127,6 +143,9 @@ def main(path):
                 zero_fit = icp(old[1], new[1], 0.0)
                 if zero_fit:
                     zero_fits.append(zero_fit)
+        delayed = {str(delay): delayed_command_yaw(updates, times, commanded_k,
+                                                   a, b, delay)[0]
+                   for delay in [0.0, 0.2, 0.5, 0.75]} if label == 'whole_motion' else None
         results.append(dict(label=label, start_s=a-origin, end_s=b-origin, snapshots=len(rows),
             integrated_distance_m=sum(u['accepted_delta_m'] for u in rows),
             wheel_yaw_deg=math.degrees(sum(u['accepted_delta_m']*u['applied_curvature_per_m'] for u in rows)),
@@ -138,12 +157,21 @@ def main(path):
             selection_counts=dict(collections.Counter(str(u['accepted_channels']) for u in rows)),
             raw_count_change=[rows[-1]['raw_counts'][i]-rows[0]['raw_counts'][i] for i in range(4)] if rows else [],
             steering_ranges=[[min(u['steering_command_deg'][i] for u in rows),max(u['steering_command_deg'][i] for u in rows)] for i in range(2)] if rows else []))
-    print(json.dumps(dict(bag=path, topic_counts=counts, timing_and_replay=timing,
-        delay_sensitivity=delay_sensitivity, segments=results,
+        if delayed is not None:
+            results[-1]['delayed_command_yaw_deg'] = delayed
+    print(json.dumps(dict(bag=path, topic_counts=counts if not summary_only else
+        {name: counts[name] for name in ('/atlas/encoder_update', '/scan',
+         '/im10a/imu/bias_corrected_candidate', '/amcl_pose')},
+        timing_and_replay=timing,
+        delay_sensitivity=delay_sensitivity,
+        segments=results if not summary_only else
+        [segment for segment in results if segment['label'] == 'whole_motion'],
         stale_snapshots=sum(not u['packet_fresh'] for u in updates),
         sequence_gaps=sum(max(0,b['sequence']-a['sequence']-1) for a,b in zip(updates,updates[1:])),
         caveat='ICP is gyro-seeded, not independent ground truth; command windows use receipt times. No calibration changes justified by this alone.'), indent=2))
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] != '--summary'):
+        raise SystemExit('Usage: atlas_encoder_snapshot_review.py BAG [--summary]')
+    main(sys.argv[1], summary_only=len(sys.argv) == 3)

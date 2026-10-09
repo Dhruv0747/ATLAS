@@ -36,18 +36,36 @@ Oct 9 wheel-odom deltas with zero selection mismatches and no sequence gaps.
 M3 was accepted in 2,735/2,919 Oct 9 updates; it cannot be declared faulty
 from this route. At Oct 9 t=185.23–189.58 s, the wheel model integrated
 **+7.42°**, while the gyro integrated **-18.96°** and gyro-seeded LiDAR ICP
-estimated **-16.09°**. All four encoder channels were selected in 35/44
+estimated **-16.09°**; zero-seeded ICP also estimated a negative turn
+(**-11.98°**). All four encoder channels were selected in 35/44
 updates. On Oct 8 t=44.56–46.61 s, front/rear *commanded* steering was 90°,
 wheel-model yaw 0°, gyro +16.62°, and scan ICP +17.65° during a reverse
 segment. ICP supports but does not independently prove true chassis yaw.
 Commanded steering is not measured road-wheel angle; physical steering offset,
 lag, traction and geometry remain distinguishable candidates. A 0–1 s
-command-delay sweep did not eliminate the mismatch.
+command-delay sweep did not eliminate the mismatch. A focused recheck of the
+Oct9 wrong-sign interval found that applying 0.2, 0.5 and 0.75 s delayed
+**commanded** steering to the recorded accepted distance changed wheel-model
+yaw from +7.42° to +4.27°, +2.43° and +1.30° respectively—**still opposite**
+the corrected gyro (-18.96°) and scan ICP (-16.09°). The same 0.5 s delay
+made a later turn's wheel estimate -44.63° instead of -76.24°, farther from
+the gyro's -77.45°. Across all moving samples, 0.5 s lowered yaw-rate RMSE
+from 9.79 to 6.66°/s, but these opposing segment results rule out a single
+global command delay as a verified repair. This sensitivity does not
+recalculate wheel path normalization or measure servo lag.
 
 Recorded p95 header-to-receipt ages on the Oct 9 drive were about 8 ms for
 wheel odom, 6 ms for corrected IMU, and 94 ms for EKF. Scan receipt age
 includes acquisition duration and must not be interpreted as transport lag.
 Freshness alone did not prevent AMCL hypothesis switching after stopping.
+Around the largest post-stop correction, 2,054 filtered scans had strictly
+increasing header stamps, and scan receipt time minus acquisition `scan_time`
+had 6.3 ms median/11.8 ms p95 in the ±5 s event window. Filtered-vs-raw
+receipt lag had 4.6 ms median/11.5 ms p95. Recorded `/odom` and the
+`odom→base_link` TF are internally consistent after accounting for the
+configured 0.2 s future TF offset; they are generated from the same EKF and
+therefore are **not** independent proof of correct physical pose. The large
+AMCL switches began seconds after remote motion stopped, not at a data gap.
 
 ## EKF A/B across available recordings
 
