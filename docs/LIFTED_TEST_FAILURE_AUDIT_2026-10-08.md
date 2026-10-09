@@ -1,6 +1,55 @@
 # Lifted commissioning failure audit — 2026-10-08
 
+## Follow-up: passive ground check, 2026-10-09
+
+With ATLAS stationary on the ground and software stop latched, a subscription-only
+probe ran for 60 seconds. No publishers, services, serial access, motor commands,
+steering commands or service restarts were used. Raw commissioning stayed disabled.
+After discovery, topic reception covered approximately 54–55 seconds:
+
+| Signal | Samples | Maximum observed age/gap |
+| --- | ---: | ---: |
+| Control policy reception | 565 | 0.137 s inter-arrival |
+| Lifted status reception (IDLE only) | 560 | 0.124 s inter-arrival |
+| Cached encoder sample | 560 | 0.263 s age (none over 0.35 s) |
+| Receive-thread encoder sample | 560 | 0.0475 s age |
+| Encoder health reception | 554 | 0.138 s inter-arrival |
+
+Serial encoder packet counter advanced 5730 → 7078, with checksum errors and
+write errors both zero throughout the observed health messages. All sampled
+outputs were zero and stop remained latched. Temperature at the initial check
+was approximately 58 C. Base service reported active with zero automatic restarts.
+
+Result: PASS for this limited passive stationary observation, **not** for an
+active commissioning session, powered encoder response or autonomous driving.
+The unresolved client/owner heartbeat path still needs no-motion qualification
+without asserting that a ground-supported rover is lifted. No hardware changes
+or air lift are needed for continuing passive diagnostics.
+
 ## Conclusion
+
+### Subsequent live check, 2026-10-09 09:21–09:24 IST
+
+The BMS alternated healthy reads (13.20 V, reported SOC about 95–96%) with
+eight-second Bluetooth timeouts. Added stage-only error labels to
+`atlas_daly_transport.py`; all twelve Daly offline tests passed. Deployed this
+helper after checking the existing live source, syntax-checked it on Jetson,
+and restarted only `rover-daly-bms.service`. Failures at 09:23:35, 09:23:54,
+09:24:02 and 09:24:10 explicitly identified **connect**, before MTU/data parsing.
+One healthy read at 09:23:44 does not establish stability. An additional service
+restart occurred during observation; sensor recovery was active. No evidence
+yet distinguishes phone contention, radio conditions or Bluetooth stack faults.
+
+Final owner sample: IDLE, stop latched, raw interface disabled, all outputs
+zero; cached encoder age 0.093 s and receiver age 0.003 s. BMS was unhealthy.
+Base PID 3120 and NRestarts=0; this work did not restart the motor owner or
+change steering. No motor test was attempted. The heartbeat investigation and
+powered M3 qualification remain open; do not count this as either passing.
+
+Rollback of the diagnostic-only change (does not repair the link): restore
+`/home/jetson/project_atlas/scripts/atlas_daly_transport.py.pre_stage_audit_20261009`
+to `atlas_daly_transport.py` in that same directory, then run
+`systemctl --user restart rover-daly-bms.service`.
 
 The repeated attempts have not established an M3 hardware failure. All six
 available JSONL sessions from today contain **zero pulse requests** and no

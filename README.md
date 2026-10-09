@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+2026-10-09 diagnostic follow-up: BMS errors now identify the failing Bluetooth
+transaction stage. Live intermittent `connect` timeouts remain unresolved.
+Twelve Daly regression tests pass; this does not qualify powered motor tests.
+
 Latest [lifted-test failure audit](docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md):
 six logged attempts requested no motor pulse. Readiness/discovery/timing faults
 remain distinct from M3 hardware validation; live commissioning is not passed.

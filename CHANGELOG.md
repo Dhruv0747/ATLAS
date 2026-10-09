@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-09 — BMS failure-stage diagnostics
+
+- Label Bluetooth timeout/EOF with connect, MTU, notifications or data stage;
+  deadlines, parsing and safety gates are unchanged. Twelve Daly tests pass.
+- Deployed helper and restarted only the BMS monitor. Live failures identified
+  the connect stage, interspersed with successful reads. This is diagnosis,
+  not a repaired Bluetooth link or completed motor commissioning.
+- Motor base was not restarted; stop latched, outputs zero, raw tests disabled.
+
 ## 2026-10-08 — Repeated-failure audit
 
 - Audited six recorded sessions: zero pulse requests and zero observed motor
