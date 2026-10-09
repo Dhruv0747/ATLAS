@@ -1,5 +1,21 @@
 # Lifted commissioning failure audit — 2026-10-08
 
+## Operator remote-drive follow-up, 2026-10-09 ~10:54 IST
+
+The operator manually drove with wheels lifted and reported M3 physical
+rotation. Two read-only owner-status samples taken during the same nonzero
+four-wheel output `(85,-85,85,-85)` showed M3 raw encoder counts changing
+from -1379 to -7058. This confirms **M3 encoder data is arriving**, correcting
+the earlier impression that it had no reading. Over that sampling interval,
+M1 changed +24823 and M2 -24395 counts, while M3 changed -5679; the measured
+M3 speed was 0.0 then 0.193 m/s versus roughly 0.94–1.21 m/s for M1/M2.
+Sampling was not a controlled equal-speed calibration, so the difference
+cannot diagnose a specific mechanical or electrical fault. After the operator
+released the joystick, status showed zero applied outputs and zero measured
+speeds. No repeat motion test, calibration or navigation-authority change was
+made. M3 remains an interval-by-interval dynamic-consensus candidate, not a
+permanently excluded or independently qualified encoder.
+
 ## M3 attempt, 2026-10-09 ~10:37 IST
 
 The operator confirmed all wheels lifted and clear, charger disconnected and
