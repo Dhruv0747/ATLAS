@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-09 — Dashboard BMS validity display
+
+- The consolidated dashboard now requires a fresh `ok:true` BMS status and fresh scalar SOC before showing its BMS tile as healthy or displaying the main battery figures. Invalid/stale status displays `UNAVAILABLE`, not a last-known percentage. Source change only; web-service deployment is pending.
+
 ## 2026-10-09 — BMS stale-scalar safety repair
 
 - Stop republishing last-good scalar battery readings when Daly BLE fails; continue publishing `ok:false` JSON status.

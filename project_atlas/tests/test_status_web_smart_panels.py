@@ -42,6 +42,13 @@ class SmartDashboardPanelTests(unittest.TestCase):
         self.assertIn("JETSON ORIN — SMART LIVE REPORT", self.page)
         self.assertIn("NVIDIA software throttling begins at 99°C", self.page)
 
+    def test_bms_health_and_power_card_require_valid_fresh_snapshot(self):
+        self.assertIn("function bmsLive(r)", self.page)
+        self.assertIn("!recent(r,'bms_status',20)||!recent(r,'bms_percent',20)", self.page)
+        self.assertIn("JSON.parse(val(r,'bms_status','{}')||'{}').ok===true", self.page)
+        self.assertIn("['DALY BMS',bmsLive(r)?'ok':'fail'", self.page)
+        self.assertIn("bmsFresh?`${n(val(r,'bms_percent'),0)}%`:'UNAVAILABLE'", self.page)
+
     def test_backend_exposes_gpu_fields(self):
         status_function = next(
             node
