@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 import json
+import math
 import os
 from pathlib import Path
 from threading import Event, Lock, RLock, get_ident
@@ -132,7 +133,7 @@ class AtlasAgentSupervisor(Node):
             Float32, "/battery/percent", self.on_aux_battery_percent, 10
         )
         self.create_subscription(
-            Float32, "/bms/percent", self.on_traction_battery_percent, 10
+            String, "/bms/json", self.on_traction_battery_status, 10
         )
 
         self.create_service(SetBool, "/atlas/agent/set_enabled", self.set_enabled)
@@ -225,11 +226,21 @@ class AtlasAgentSupervisor(Node):
         except ValueError:
             self.experience_recommendation = {}
 
-    def on_traction_battery_percent(self, msg: Float32) -> None:
-        value = float(msg.data)
-        if 0.0 <= value <= 100.0:
-            self.traction_battery_percent = value
-            self.traction_battery_at = time.monotonic()
+    def on_traction_battery_status(self, msg: String) -> None:
+        # The scalar percentage cannot say whether the BLE read failed. Use
+        # one coherent snapshot and revoke authority immediately on failure.
+        self.traction_battery_percent = None
+        self.traction_battery_at = 0.0
+        try:
+            data = json.loads(msg.data)
+            if not isinstance(data, dict) or data.get("ok") is not True:
+                return
+            value = float(data["soc_percent"])
+            if math.isfinite(value) and 0.0 <= value <= 100.0:
+                self.traction_battery_percent = value
+                self.traction_battery_at = time.monotonic()
+        except (ValueError, TypeError, KeyError):
+            return
 
     def on_aux_battery_percent(self, msg: Float32) -> None:
         value = float(msg.data)

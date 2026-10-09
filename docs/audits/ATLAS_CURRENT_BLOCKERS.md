@@ -5,7 +5,7 @@ Updated 2026-10-09. Read alongside the [registry](ATLAS_ROOT_CAUSE_REGISTRY.json
 ## Current verified boundary
 
 Latest observed motor owner: IDLE, stop latched, raw test interface disabled, all outputs zero; PID 3120, NRestarts=0. Encoder packets fresh while stationary. This is **not** dynamic encoder qualification.
-BMS reported healthy samples around 94–96% between BLE connection timeouts; percentage is a dated observation, not a present guarantee.
+BMS reported healthy samples around 94–96% between BLE connection timeouts; percentage is a dated observation, not a present guarantee. Source review later found JSON invalidation was correct but scalar SOC/voltage/current were republished stale on failures; a source repair is tested but not yet deployed. See [BMS freshness repair](BMS_FRESHNESS_REPAIR_2026-10-09.md).
 LiDAR service recovered to running/device-health OK after startup retries; stream freshness and navigation readiness still need direct checks.
 No movement is authorized by these reports. Keep manual emergency stop authoritative.
 

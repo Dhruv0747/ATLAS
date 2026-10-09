@@ -219,6 +219,11 @@ class DalyBmsNode(Node):
         status.data = json.dumps(data, separators=(",", ":"))
         self.status_pub.publish(status)
         self.json_pub.publish(status)
+        # Scalar topics have no validity field. Publishing values copied from
+        # the previous snapshot on a failed BLE read would make them appear
+        # newly measured to subscribers. The JSON status carries ok=False.
+        if data.get("ok") is not True:
+            return
         if "voltage_v" in data:
             self.publish_float(self.voltage_pub, data["voltage_v"])
         if "current_a" in data:

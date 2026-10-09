@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-09 — BMS stale-scalar safety repair (source only)
+
+- Stop republishing last-good scalar battery readings when Daly BLE fails; continue publishing `ok:false` JSON status.
+- Make mission-agent battery preflight use coherent JSON so an unhealthy reading revokes SOC authority immediately.
+- Added offline freshness regressions. Live deployment/connection-stability validation remains pending; no motor or steering behavior changed.
+
 ## 2026-10-09 — Project-wide historical failure baseline
 
 - Indexed 268 reachable commits and investigated selected cross-system failure

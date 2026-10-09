@@ -601,6 +601,35 @@
           "description": "Agent is active but sends to an example hostname and receives DNS failures; local history is stale and large. No new collector justified."
         }
       ]
+    },
+    {
+      "id": "ATLAS-017",
+      "title": "Failed BMS reads republish stale scalar values",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "BMS / data freshness / mission preflight",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "On a Daly BLE read failure, JSON reported ok:false but publish_data emitted prior voltage/current/SOC/cells on scalar topics. The agent refreshed its SOC age from scalar percent.",
+      "confirmed_findings": "Scalar topics carry no validity field, so copied readings appeared new. The JSON-based motor lifted-test gate already rejected unhealthy snapshots.",
+      "suspected_causes_and_limits": "This is a freshness-contract defect, not proof of the underlying BLE connection cause. Other dashboard consumers may cache last values and require their own explicit stale indication.",
+      "attempted_fix_commits": [],
+      "evidence": [
+        "docs/audits/BMS_FRESHNESS_REPAIR_2026-10-09.md",
+        "project_atlas/scripts/daly_bms_node.py",
+        "project_atlas/scripts/atlas_agent_supervisor.py",
+        "project_atlas/tests/test_daly_freshness.py"
+      ],
+      "test_results": "Source repair passed 14 focused offline Daly tests and Python compilation; live deployment validation pending.",
+      "remaining_verification": "Deploy during an approved stopped maintenance window; verify invalid JSON, no new scalar message, immediate agent preflight denial and successful recovery on a later complete read.",
+      "history_completeness": "Current source and live journal reviewed; historical consumer behavior not exhaustively replayed",
+      "events": [
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Confirmed stale scalar republishing and agent SOC-age refresh. Source fix tested offline; not yet deployed."
+        }
+      ]
     }
   ]
 }

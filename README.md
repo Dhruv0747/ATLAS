@@ -1133,6 +1133,11 @@ installer or used as fallback sensor/control paths.
 The web header now displays main DALY BMS percentage and net charging/discharging
 state. Tap it for telemetry details. Missing or stale BMS data is explicitly marked;
 the indicator does not substitute the motor-board voltage estimate.
+On a failed Daly Bluetooth read, `/bms/json` reports `ok:false`; scalar BMS
+topics must not republish the last successful measurements as if new. The
+mission-agent battery preflight uses the coherent JSON status and rejects an
+unhealthy or stale snapshot. The source fix awaits live deployment validation.
+
 # Dashboard shutdown
 
 Use **SHUT DOWN** beside Diagnostics / Logs and confirm to power off the Jetson.
