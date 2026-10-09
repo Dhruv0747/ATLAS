@@ -515,6 +515,11 @@
           "date": "2026-10-09",
           "kind": "hall_return_amcl_scan_window_particle_comparison",
           "description": "Read-only same-hypothesis scan-window comparison of five live and two replay post-stop jumps. All original jumps had broad clouds with 1.137-1.384 m after-cloud XY spread; replay jumps had 1.292/1.364 m. Original jumps 1 and 4 selected poses with worse diagnostic endpoint proximity on all seven preceding scans each (57.6->51.0% and 100.0->86.3% mean within 15 cm), whereas both replay jumps improved that score on every selected scan (51.9->81.5% and 82.2->95.6%). Published weights were uniform and do not retain pre-resampling likelihood or cluster selection. These data disprove exact replay equivalence but do not identify the live AMCL scoring cause. No motion or production change."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "stationary_amcl_shadow_internal_trace",
+          "description": "Built pinned Nav2 AMCL 1.1.20 in a separate Jetson workspace with pre-resampling weighted-particle and selected-cluster traces. Bounded shadow instance used absolute live map/scan topics, verified tf_broadcast=false, and did not replace production AMCL or command motors. First lifecycle RPC timed out despite configuration; state verification fixed. A subsequent helper pacing bug issued 1623 shadow-only no-motion requests in 10 s and briefly raised Jetson load; corrected to monotonic 1 Hz. Accepted 10-second stationary capture sent 10 requests and recorded 7 weighted clouds, 7 shadow poses and 25 scans in an 8.10-second bag. One stable cluster was observed; no historic jump reproduced. Root cause and autonomy remain unresolved."
         }
       ]
     },

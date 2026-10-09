@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-09 — Add bounded AMCL shadow instrumentation
+
+- Built a separate diagnostic Nav2 AMCL 1.1.20 binary that captures
+  pre-resampling weighted particles and chosen-cluster scores. Added a
+  fail-closed, 1 Hz stationary capture helper and verified an 8.10 s bag.
+- Production localization, TF, motors and steering were unchanged. A first
+  helper pacing error was corrected before the accepted run; details and
+  limitations are in the [shadow trace audit](docs/audits/ATLAS_AMCL_SHADOW_TRACE_2026-10-09.md).
+
 ## 2026-10-09 — Compare AMCL replay and live jump evidence
 
 - Added a read-only one-second scan-window/particle-cloud comparison for the

@@ -146,6 +146,11 @@ favored the *old* pose on all seven selected scans each, while both replay
 jumps favored the new pose on every selected scan. Both had broad particles,
 but published weights are uniform and do not expose pre-resampling AMCL
 likelihood; the remaining hypothesis-selection mechanism is unverified.
+A diagnostic-only AMCL 1.1.20 shadow build now exposes pre-resampling weights
+and chosen-cluster scores while keeping production AMCL and TF unchanged.
+One paced stationary capture verified the instrumentation but did not
+reproduce the old five jumps or qualify autonomous navigation; see the
+[trace audit](ATLAS_AMCL_SHADOW_TRACE_2026-10-09.md).
 
 Recommendation: retain Jetson-local safety and essential diagnostics, first resolve BLE freshness and motor timing with bounded evidence, then decide whether Visual Cloud should connect to a real authenticated PC endpoint or remain local. Measure overhead and data growth before enabling any additional collector. PC-side n8n/analytics are optional consumers, never dependencies of autonomous control.
 

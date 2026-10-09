@@ -1,0 +1,76 @@
+diff --git a/nav2_amcl/include/nav2_amcl/amcl_node.hpp b/nav2_amcl/include/nav2_amcl/amcl_node.hpp
+index 030a85f..5555413 100644
+--- a/nav2_amcl/include/nav2_amcl/amcl_node.hpp
++++ b/nav2_amcl/include/nav2_amcl/amcl_node.hpp
+@@ -190,0 +191,2 @@ protected:
++  rclcpp_lifecycle::LifecyclePublisher<nav2_msgs::msg::ParticleCloud>::SharedPtr
++    pre_resample_particle_cloud_pub_;
+diff --git a/nav2_amcl/src/amcl_node.cpp b/nav2_amcl/src/amcl_node.cpp
+index 0fa2f94..ba8e930 100644
+--- a/nav2_amcl/src/amcl_node.cpp
++++ b/nav2_amcl/src/amcl_node.cpp
+@@ -263,0 +264 @@ AmclNode::on_activate(const rclcpp_lifecycle::State & /*state*/)
++  pre_resample_particle_cloud_pub_->on_activate();
+@@ -308,0 +310 @@ AmclNode::on_deactivate(const rclcpp_lifecycle::State & /*state*/)
++  pre_resample_particle_cloud_pub_->on_deactivate();
+@@ -353,0 +356 @@ AmclNode::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
++  pre_resample_particle_cloud_pub_.reset();
+@@ -659,0 +663 @@ AmclNode::laserReceived(sensor_msgs::msg::LaserScan::ConstSharedPtr laser_scan)
++  const bool nomotion_requested = force_update_;
+@@ -689,0 +694,33 @@ AmclNode::laserReceived(sensor_msgs::msg::LaserScan::ConstSharedPtr laser_scan)
++    // Diagnostic shadow AMCL only: retain normalized laser-model weights
++    // before resampling replaces them with uniform weights.
++    pf_sample_set_t * weighted_set = pf_->sets + pf_->current_set;
++    auto weighted_cloud = std::make_unique<nav2_msgs::msg::ParticleCloud>();
++    weighted_cloud->header = laser_scan->header;
++    weighted_cloud->header.frame_id = global_frame_id_;
++    weighted_cloud->particles.resize(weighted_set->sample_count);
++    double weight_sum = 0.0;
++    double weight_square_sum = 0.0;
++    double max_weight = 0.0;
++    for (int i = 0; i < weighted_set->sample_count; ++i) {
++      const auto & sample = weighted_set->samples[i];
++      auto & output = weighted_cloud->particles[i];
++      output.pose.position.x = sample.pose.v[0];
++      output.pose.position.y = sample.pose.v[1];
++      output.pose.orientation = orientationAroundZAxis(sample.pose.v[2]);
++      output.weight = sample.weight;
++      weight_sum += sample.weight;
++      weight_square_sum += sample.weight * sample.weight;
++      max_weight = std::max(max_weight, sample.weight);
++    }
++    pre_resample_particle_cloud_pub_->publish(std::move(weighted_cloud));
++    const auto scan_ns = rclcpp::Time(laser_scan->header.stamp).nanoseconds();
++    RCLCPP_INFO(
++      get_logger(),
++      "ATLAS_AMCL_TRACE_PRE scan_ns=%ld particles=%d weight_sum=%.9g ess=%.3f "
++      "max_weight=%.9g w_slow=%.9g w_fast=%.9g nomotion=%d "
++      "odom_x=%.6f odom_y=%.6f odom_yaw=%.6f delta_x=%.6f delta_y=%.6f delta_yaw=%.6f",
++      static_cast<long>(scan_ns), weighted_set->sample_count, weight_sum,
++      weight_square_sum > 0.0 ? weight_sum * weight_sum / weight_square_sum : 0.0,
++      max_weight, pf_->w_slow, pf_->w_fast, nomotion_requested,
++      pose.v[0], pose.v[1], pose.v[2], delta.v[0], delta.v[1], delta.v[2]);
++
+@@ -707,0 +745,18 @@ AmclNode::laserReceived(sensor_msgs::msg::LaserScan::ConstSharedPtr laser_scan)
++      std::vector<size_t> ranked(hyps.size());
++      for (size_t i = 0; i < ranked.size(); ++i) {
++        ranked[i] = i;
++      }
++      std::sort(ranked.begin(), ranked.end(), [&hyps](size_t a, size_t b) {
++        return hyps[a].weight > hyps[b].weight;
++      });
++      for (size_t rank = 0; rank < std::min(ranked.size(), size_t{8}); ++rank) {
++        const size_t i = ranked[rank];
++        RCLCPP_INFO(
++          get_logger(),
++          "ATLAS_AMCL_TRACE_CLUSTER scan_ns=%ld total=%zu rank=%zu index=%zu chosen=%d weight=%.9g "
++          "x=%.6f y=%.6f yaw=%.6f",
++          static_cast<long>(rclcpp::Time(laser_scan->header.stamp).nanoseconds()),
++          hyps.size(), rank, i, static_cast<int>(i) == max_weight_hyp,
++          hyps[i].weight, hyps[i].pf_pose_mean.v[0], hyps[i].pf_pose_mean.v[1],
++          hyps[i].pf_pose_mean.v[2]);
++      }
+@@ -1527,0 +1583,3 @@ AmclNode::initPubSub()
++  pre_resample_particle_cloud_pub_ = create_publisher<nav2_msgs::msg::ParticleCloud>(
++    "atlas_debug/amcl/pre_resample_particle_cloud",
++    rclcpp::SensorDataQoS());

@@ -14,6 +14,10 @@ pose jumps (two versus five live), but no localization fix is validated.
 The follow-up scan-window comparison shows the replay does not duplicate
 the original hypothesis choices; missing internal AMCL likelihood/particle
 state still prevents an evidence-backed tuning decision.
+An [isolated stationary AMCL shadow trace](docs/audits/ATLAS_AMCL_SHADOW_TRACE_2026-10-09.md)
+now captures pre-resampling particle weights and cluster choices without
+replacing production AMCL; it is bounded and off by default. The short
+capture validates instrumentation, not a localization fix.
 
 Project-wide evidence baseline: [master failure analysis](docs/audits/ATLAS_MASTER_FAILURE_ANALYSIS.md),
 [historical timeline](docs/audits/ATLAS_COMPLETE_FAILURE_TIMELINE.md),

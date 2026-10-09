@@ -88,6 +88,12 @@ uniform and omit AMCL's pre-resampling likelihood/cluster decision. The replay
 cannot validate a localization fix; the original hypothesis-selection cause
 remains unverified. No further repeats of the same replay output can restore
 those unrecorded internals.
+A separate, bounded AMCL 1.1.20 shadow binary now captures pre-resampling
+weights and cluster selection without replacing production AMCL or
+broadcasting TF. A properly paced 10-second stationary run verified the
+capture topics and showed one stable cluster. This does not reproduce the
+historic five jumps or clear the autonomy gate. The shadow is off by default;
+see the [trace audit](ATLAS_AMCL_SHADOW_TRACE_2026-10-09.md).
 An isolated A/B replay on the same Hall return found velocity-only wheel
 fusion materially closer to saved-map LiDAR endpoints than current wheel
 pose+velocity fusion (median 50.2% versus 23.1% within 15 cm), but the
