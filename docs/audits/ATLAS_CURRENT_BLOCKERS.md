@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+2026-10-09 follow-up: mission-start incompatibility is CONFIRMED, not merely
+suspected. Saved isolated replay has two poses; actual mission code requires
+four over at least 5.6 seconds in an 8-second window. One extra startup
+refresh still cannot pass. Seven new offline contract tests passed, including
+jump/heading/uncertainty rejection. Candidate remains disabled; no production
+change or driving. Next: design and offline-validate an independent stationary
+estimate-stability criterion before replacing the publication-count requirement.
+
 2026-10-09: added an opt-in, bounded AMCL measurement-refresh handshake.
 Healthy processing never overrides stale pose, jump or covariance checks.
 The request tick stays blocked; only a subsequent real pose can satisfy the

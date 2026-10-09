@@ -333,3 +333,31 @@ Deployment: source and isolated test only. Production is not changed.
 Rollback for the candidate in an isolated experiment: leave all three flags
 false and use the ordinary non-overlay AMCL installation. No live rollback
 is needed because no live installation or restart was performed.
+
+## Mission-start validation — confirmed incompatibility
+
+Read the retained `amcl_refresh_contract_20261009_postrefresh/result.json`
+without rerunning AMCL. It records two actual pose messages. The actual
+`localization_stability` and `require_confident_localization` methods were
+extracted and executed offline, without a ROS node or actuator interface.
+Even optimally spaced two poses cannot pass the required four-pose count.
+One additional `refresh_localization_before_motion` pose makes three and
+still fails. Four samples must span at least 5.6 seconds within eight seconds.
+These are count/timing bounds, not reconstructed pose timestamps.
+
+Seven new tests passed: two poses rejected; three rejected; four tightly
+spaced rejected; four adequately spaced stable samples accepted; a 2.206 m
+jump rejected; 10-degree heading change rejected; high covariance rejected.
+No change to the live confidence gate or its thresholds was made.
+
+This confirms a startup liveness incompatibility in the candidate, NOT the
+root cause of historical AMCL jumps. Mux-level fresh-pose acceptance does not
+establish whole-mission readiness. Repeated startup attempts must not be used
+to accumulate forced stationary resampling until the count happens to pass.
+
+Next necessary engineering action: specify and offline-test independent
+stationary estimate evidence (scan/map consistency, fresh scan-time transforms,
+odom/gyro stationarity and estimate stability) before replacing the count
+requirement. Processing health alone is insufficient, and this criterion is
+not yet implemented or validated. Existing recorded evidence remains useful;
+no additional manual drive is requested. All experimental switches stay OFF.
