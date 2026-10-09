@@ -336,6 +336,18 @@ class YahboomLiftedOwnerTests(unittest.TestCase):
         self.assertEqual(accepted['owner_status_published_monotonic_s'], self.clock.now)
         self.assertNotIn(TOKEN, self.node._pub_lifted_status.messages[-1])
 
+    def test_probe_with_raw_interface_disabled_remains_stopped(self):
+        self.node._lifted_raw_enabled = False
+        self.node._on_lifted_request(Message('{"op":"probe","seq":1}'))
+        status = json.loads(self.node._pub_lifted_status.messages[-1])
+        self.assertEqual(status['state'], 'IDLE')
+        self.assertEqual(status['result'], 'REJECTED: raw_lifted_interface_disabled')
+        self.assertTrue(status['stop_latched'])
+        self.assertTrue(status['final_zero'])
+        self.assertEqual(status['applied_motor_outputs'], [0, 0, 0, 0])
+        self.assertIsNone(status['session_fingerprint'])
+        self.assertEqual(self.node.bot.writes[-1], (0, 0, 0, 0))
+
     def test_entry_window_requires_continuous_fresh_checks(self):
         for _ in range(52):
             self.refresh_live_inputs()

@@ -1,5 +1,34 @@
 # Lifted commissioning failure audit — 2026-10-08
 
+## Rejected-only delivery probe, 2026-10-09 ~10:30 IST
+
+With operator confirmation that charger was disconnected, all four wheels were
+securely lifted and clear, and the physical motor-power cut-off was ready, the
+tested timing-only `yahboom_base.py` was deployed from a recoverable backup and
+only `rover-base-telemetry.service` was restarted. Raw commissioning remained
+disabled, stop latched and applied outputs zero. The new probe sent only
+`{"op":"probe","seq":N}` requests, which are rejected by the owner's raw-
+interface gate before any commissioning state transition. No `enter`, `arm`,
+`pulse`, drive or steering command was sent.
+
+One initial request and a subsequent five-request batch were all received and
+rejected as `raw_lifted_interface_disabled`, with `IDLE`, stop latched and
+`final_zero=true`. The batch send-to-owner times were 262.0, 48.8, 13.3,
+6.6 and 20.7 ms; owner-receive-to-status times were 2.3–2.9 ms. The initial
+request took 142.8 ms send-to-owner. Afterwards the user motor service was
+active (PID 44109, NRestarts=0). The initial system-wide `systemctl` check
+looked for the unit in the wrong scope; `systemctl --user` confirmed it was
+active throughout. This is a **PASS for stopped request delivery**, not proof
+that a 0.5-second armed heartbeat lease, powered M3 encoder response, or
+autonomous navigation is reliable. Those gates remain open.
+
+Live backup: `/home/jetson/project_atlas/data/deploy_backups/20261009_lifted_timing/yahboom_base.py.before`.
+Rollback if this diagnostic owner causes a regression: restore that file to
+`/home/jetson/project_atlas/scripts/yahboom_base.py`, then run
+`systemctl --user restart rover-base-telemetry.service` while ATLAS is safely
+stopped. The rejected-only probe was run from the backup directory and is not
+an autostart service.
+
 ## Follow-up: passive ground check, 2026-10-09
 
 With ATLAS stationary on the ground and software stop latched, a subscription-only

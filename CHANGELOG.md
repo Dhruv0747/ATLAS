@@ -1,8 +1,9 @@
 # Changelog
 
-## 2026-10-09 — Lifted-test timing evidence (source only)
+## 2026-10-09 — Lifted-test timing evidence and rejected-only delivery probe
 
-- Added client publish-start and motor-owner request-receive/status timestamps on the same Jetson monotonic clock. This can distinguish send-to-receive delay in a future lifted no-motion test without changing the 0.5 s heartbeat lease or authorizing any motor pulse. Not deployed; motor service remains unchanged and raw commissioning remains disabled.
+- Added client publish-start and motor-owner request-receive/status timestamps on the same Jetson monotonic clock, without changing the 0.5 s heartbeat lease or authorizing a motor pulse. Deployed the motor owner with a recoverable backup while all wheels were lifted; it restarted once by plan and remained stopped with zero output.
+- Added a bounded, rejected-only ROS delivery probe. Six requests were rejected by the disabled raw interface with zero output; the five-request batch had 6.6–262 ms send-to-owner delay. This qualifies stopped request delivery only, not an armed heartbeat session, wheel feedback or autonomous driving.
 
 ## 2026-10-09 — Map-readiness diagnostics
 
