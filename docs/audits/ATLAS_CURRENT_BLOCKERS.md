@@ -2,6 +2,13 @@
 
 Updated 2026-10-09. Read alongside the [registry](ATLAS_ROOT_CAUSE_REGISTRY.json) and [master analysis](ATLAS_MASTER_FAILURE_ANALYSIS.md).
 
+Later stopped/charging checks found a concrete saved-map blocker: the taught
+route is bound to an older map and the current saved Hall goal fails exact
+footprint clearance. See [the navigation gate](ATLAS_NAVIGATION_GATE_2026-10-09.md).
+Per operator priority, continue non-motion navigation evidence first and leave
+the intermittent BLE transport repair until later; **do not bypass fresh BMS
+telemetry or any movement safety gate**.
+
 ## Current verified boundary
 
 Latest observed motor owner: IDLE, stop latched, raw test interface disabled, all outputs zero; PID 3120, NRestarts=0. At 10:07 IST live encoder health reported fresh packets and selected encoders M1–M4, no exclusions, but this is **not** dynamic encoder qualification or proof M3 is physically reliable. At that time autonomy separately reported `FAULT: STOP: SLAM MAP DATA LOST`; see the later stopped diagnostic recovery below. No autonomous readiness can be inferred from the encoder flag alone.
