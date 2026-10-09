@@ -15,10 +15,13 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import Empty, Float32, String
 from sensor_msgs.msg import Joy
+from nav_msgs.msg import Odometry
 from std_srvs.srv import Trigger
 from atlas_remote_stop import RemoteStop
 from atlas_radar_core import guard_scale
 from atlas_ultrasonic_validity import ValidityWindow
+from atlas_amcl_processing_health import ProcessingHealth
+from atlas_localization_refresh_gate import RefreshRequestGate
 
 
 # Keep a latched stop alive well inside yahboom_base.py's 0.45 s command
@@ -80,6 +83,16 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("auto_stop_margin_m", 0.15)
         self.declare_parameter("ultrasonic_timeout", 1.0)
         self.declare_parameter("localization_timeout", 2.5)
+        # Experimental integration is OFF until complete-stack validation.
+        self.declare_parameter("amcl_processing_gate_enabled", False)
+        self.amcl_processing_gate_enabled = bool(
+            self.get_parameter("amcl_processing_gate_enabled").value)
+        self.amcl_processing = ProcessingHealth()
+        self.localization_refresh_gate = RefreshRequestGate()
+        self.localization_refresh_pub = self.create_publisher(
+            Empty, "/atlas/localization_refresh_request", 1)
+        self.create_subscription(String, "/atlas_amcl/processing", self.on_amcl_processing, 1)
+        self.create_subscription(Odometry, "/odom", self.on_refresh_odom, 10)
         self.declare_parameter("localization_max_xy_std_m", 0.25)
         # Recorded Hall/Dhruv routes show 14-17.4 deg reported AMCL yaw
         # standard deviation during valid turns while map->odom correction
@@ -595,6 +608,48 @@ class AtlasCmdVelMux(Node):
         self.localization_pose = (float(pose.position.x), float(pose.position.y), yaw)
         self.localization_rx = now
 
+    def on_amcl_processing(self, msg: String) -> None:
+        try:
+            data = json.loads(msg.data)
+        except (ValueError, TypeError):
+            data = None
+        self.amcl_processing.ingest(data, self.get_clock().now().nanoseconds/1e9,
+                                    time.monotonic())
+
+    def on_refresh_odom(self, msg: Odometry) -> None:
+        if msg.header.frame_id.lstrip('/') != 'odom':
+            self.localization_refresh_gate.odom_stamp = None
+            return
+        p,q = msg.pose.pose.position,msg.pose.pose.orientation
+        norm=q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w
+        if not math.isfinite(norm) or abs(norm-1)>.01:
+            self.localization_refresh_gate.odom_stamp = None
+            return
+        self.localization_refresh_gate.observe_odom(p.x,p.y,
+            math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z)),
+            msg.header.stamp.sec+msg.header.stamp.nanosec*1e-9,
+            self.get_clock().now().nanoseconds/1e9)
+
+    def navigation_localization_guard(self, command: Twist, now: float) -> Optional[str]:
+        reason = self.localization_guard(now)
+        if not self.amcl_processing_gate_enabled or self.operating_mode != 'LOCALIZATION':
+            return reason
+        ros_now = self.get_clock().now().nanoseconds/1e9
+        health = self.amcl_processing.snapshot(ros_now, now)
+        if health['processing_state'] != 'PROCESSING':
+            return reason or 'AUTONOMY BLOCKED: AMCL PROCESSING UNAVAILABLE'
+        if reason and reason.startswith('AUTONOMY BLOCKED: LOCALIZATION STALE'):
+            valid = (not self.localization_jump_fault
+                     and math.isfinite(self.localization_xy_std_m)
+                     and math.isfinite(self.localization_yaw_std_deg)
+                     and self.localization_xy_std_m <= self.localization_max_xy_std_m
+                     and self.localization_yaw_std_deg <= self.localization_max_yaw_std_deg)
+            if self.localization_refresh_gate.claim(health, ros_now, self.moving(command), valid):
+                self.localization_refresh_pub.publish(Empty())
+        # A request never clears a fault or permits this command. Only a later
+        # real AMCL pose can pass the unchanged original guard.
+        return reason
+
     def localization_guard(self, now: float) -> Optional[str]:
         """Fail closed when saved-map navigation loses AMCL confidence."""
         age = now - self.localization_rx if self.localization_rx else float("inf")
@@ -762,7 +817,7 @@ class AtlasCmdVelMux(Node):
                     self.last_blocked_reason = reason
                 return
             blocked_reason = (
-                self.localization_guard(now)
+                self.navigation_localization_guard(selected.command, now)
                 if selected.name == "NAV2"
                 else None
             )

@@ -51,6 +51,7 @@ from atlas_map_acceptance_core import (
 )
 from atlas_map_footprint_sanitizer import sanitize_saved_map
 from atlas_amcl_update_gate import AmclUpdateGate
+from atlas_amcl_processing_health import ProcessingHealth
 
 
 class AtlasMissionControl(Node):
@@ -82,6 +83,17 @@ class AtlasMissionControl(Node):
         )
         self.declare_parameter("explore_unit", "atlas-explore.service")
         self.declare_parameter("home_verify_delay", 2.0)
+        self.declare_parameter("amcl_guarded_refresh_enabled", False)
+        self.declare_parameter("amcl_motion_gated_updates", False)
+        self.amcl_motion_gated_updates = bool(
+            self.get_parameter("amcl_motion_gated_updates").value)
+        self.amcl_guarded_refresh_enabled = bool(
+            self.get_parameter("amcl_guarded_refresh_enabled").value)
+        self.amcl_processing = ProcessingHealth()
+        self.guarded_refresh_key = None
+        self.create_subscription(String, "/atlas_amcl/processing", self.on_amcl_processing, 1)
+        self.create_subscription(Empty, "/atlas/localization_refresh_request",
+                                 self.on_guarded_localization_refresh, 1)
         self.declare_parameter("home_verify_tolerance", 0.15)
         self.declare_parameter("home_max_retries", 1)
         self.declare_parameter("home_already_reached_distance_m", 0.05)
@@ -530,6 +542,30 @@ class AtlasMissionControl(Node):
     def update_localization_odom(self, msg: Odometry) -> None:
         self.localization_odom = msg
 
+    def on_amcl_processing(self, msg: String) -> None:
+        try:
+            data = json.loads(msg.data)
+        except (TypeError, ValueError):
+            data = None
+        self.amcl_processing.ingest(data, self.get_clock().now().nanoseconds/1e9,
+                                    time.monotonic())
+
+    def on_guarded_localization_refresh(self, _msg: Empty) -> None:
+        if (not self.amcl_guarded_refresh_enabled
+                or not self.nomotion_client.service_is_ready()
+                or (self.localization_update_future is not None
+                    and not self.localization_update_future.done())):
+            return
+        health = self.amcl_processing.snapshot(
+            self.get_clock().now().nanoseconds/1e9, time.monotonic())
+        if health['processing_state'] != 'PROCESSING':
+            return
+        key=(health['session'], health['pose_seq'])
+        if key == self.guarded_refresh_key:
+            return
+        self.guarded_refresh_key=key
+        self.localization_update_future=self.nomotion_client.call_async(EmptyService.Request())
+
     def request_periodic_localization_update(self) -> None:
         """Request at most one update for fresh, accumulated odometry progress.
 
@@ -540,6 +576,12 @@ class AtlasMissionControl(Node):
         if (not self.nomotion_client.service_is_ready()
                 or (self.localization_update_future is not None
                     and not self.localization_update_future.done())):
+            return
+        if not self.amcl_motion_gated_updates:
+            # Preserve deployed baseline unless the full experimental contract
+            # is deliberately enabled. Still prevent overlapping requests.
+            self.localization_update_future = self.nomotion_client.call_async(
+                EmptyService.Request())
             return
         msg = self.localization_odom
         if msg is None or msg.header.frame_id.lstrip('/') != 'odom':

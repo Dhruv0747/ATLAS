@@ -30,6 +30,8 @@ def main():
     parser.add_argument('output',type=Path)
     parser.add_argument('--drop-tf-after-s', type=float,
                         help='Fault injection in generated input only, preserving scan flow')
+    parser.add_argument('--exercise-refresh', action='store_true',
+                        help='Run extracted guard/callback contract without motor publishers')
     args=parser.parse_args()
     if args.drop_tf_after_s is not None and not 5 <= args.drop_tf_after_s <= 20:
         parser.error('TF fault offset must be between 5 and 20 seconds')
@@ -56,6 +58,12 @@ def main():
     processes=[]; logs=[]; messages=[]; raw=[]; fault_scans=[]
     rclpy.init()
     node=Node('atlas_health_validation_observer')
+    probe=None
+    if args.exercise_refresh:
+        from rclpy.parameter import Parameter
+        from atlas_refresh_contract_probe import RefreshContractProbe
+        node.set_parameters([Parameter('use_sim_time',value=True)])
+        probe=RefreshContractProbe(node)
     node.create_subscription(String,'/atlas/localization_health',
         lambda msg: messages.append((time.monotonic(),json.loads(msg.data))),10)
     node.create_subscription(String,'/atlas_amcl/processing',
@@ -112,6 +120,9 @@ def main():
             and not result['any_navigation_authorized'])
         if fault_ns is not None:
             result['passed'] = result['passed'] and len(fault_scans)>10 and result['unavailable_while_scans_continue']>5
+        if probe is not None:
+            result['refresh_contract']=probe.result()
+            result['passed']=result['passed'] and result['refresh_contract']['passed']
         (args.output/'result.json').write_text(json.dumps(result,indent=2))
         (args.output/'observations.json').write_text(json.dumps(dict(raw=raw,reports=messages)))
         print(json.dumps(result,indent=2),flush=True)

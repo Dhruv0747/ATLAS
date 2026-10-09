@@ -287,3 +287,49 @@ validate pose correctness, particle support and bounded odometry since the
 last accepted correction. Do not replace `localization_guard` with this
 diagnostic's processing flag. Permanent localization and safe stationary-to-
 motion integration remain unproven; no new manual drive is requested here.
+
+## Bounded refresh handshake — subsequent isolated integration
+
+Added `atlas_localization_refresh_gate.py` and opt-in mux/mission callbacks.
+The unchanged localization guard still rejects old poses. Healthy native
+AMCL processing plus fresh odometry can justify ONE measurement request on
+nonzero navigation intent, provided the last estimate is within existing
+uncertainty limits and has no jump latch. This request cannot release the
+command. A later real pose must independently pass the original guard.
+Further requests require recorded odometry progress; a held command while
+stationary does not repeatedly resample. Missing processing adds a veto.
+
+All three flags default false: `amcl_processing_gate_enabled` (mux),
+`amcl_guarded_refresh_enabled` and `amcl_motion_gated_updates` (mission).
+The last flag explicitly protects the deployed periodic-update baseline
+from accidental adoption of the previously rejected source-only policy.
+No launch/config enables this candidate. Do not enable flags piecemeal.
+
+Validation used actual extracted mux and mission callback methods, actual
+isolated AMCL and the saved stationary recording, domain 188/localhost.
+The probe creates NO velocity publisher or motor mux. Initial result:
+240 processing events, one bounded request, one still-blocked request tick,
+two real poses, 50 fresh-pose guard passes and ZERO stale-pose guard passes.
+Health expired after playback stopped. This establishes the handshake,
+not physical pose correctness or successful autonomous navigation.
+
+A stricter follow-up instrumented acceptance AFTER the requested new pose:
+one request, two poses, 25 fresh guard passes after refresh, zero stale
+passes, and 10 unavailable reports after playback. Passed. Outputs remain
+on Jetson in `data/diagnostics/amcl_refresh_contract_20261009*`, not Git.
+
+45 focused tests passed: refresh integration 8, processing health 13,
+prior mux contract 5, update gate 10, emergency-stop hold 6, mapping steering
+limits 3. Existing calibration and emergency-stop priority are untouched.
+
+Remaining integration blocker: `require_confident_localization` expects
+multiple pose samples across its stability window. Event-driven publishing
+may not satisfy this, even when processing is healthy. It must be tested
+without weakening confidence or republishing old poses. The moving-prior
+heading disagreement, wrong-location particle collapse and original five
+jumps remain unresolved. No additional manual route is requested now.
+
+Deployment: source and isolated test only. Production is not changed.
+Rollback for the candidate in an isolated experiment: leave all three flags
+false and use the ordinary non-overlay AMCL installation. No live rollback
+is needed because no live installation or restart was performed.

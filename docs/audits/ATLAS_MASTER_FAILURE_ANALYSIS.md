@@ -1,5 +1,13 @@
 # ATLAS master failure analysis
 
+2026-10-09: added an opt-in, bounded AMCL measurement-refresh handshake.
+Healthy processing never overrides stale pose, jump or covariance checks.
+The request tick stays blocked; only a subsequent real pose can satisfy the
+existing guard. All new authority switches default OFF; production unchanged.
+45 focused regression tests passed. Mission startup's multi-pose stability
+window and moving/stop localization accuracy remain deployment blockers.
+See [isolated experiment details](ATLAS_AMCL_STATIONARY_POLICY_EXPERIMENT_2026-10-09.md).
+
 Updated: 2026-10-09, Asia/Calcutta. Initial evidence-backed baseline, **not a completed exhaustive historical investigation**.
 
 Source baseline: `3d66c3812c968796fed70b7f32dae511aadeed45`, branch `agent/fix-mapping-footprint`.

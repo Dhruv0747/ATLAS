@@ -1,5 +1,13 @@
 # Project ATLAS - Autonomous Service Rover
 
+2026-10-09: added an opt-in, bounded AMCL measurement-refresh handshake.
+Healthy processing never overrides stale pose, jump or covariance checks.
+The request tick stays blocked; only a subsequent real pose can satisfy the
+existing guard. All new authority switches default OFF; production unchanged.
+45 focused regression tests passed. Mission startup's multi-pose stability
+window and moving/stop localization accuracy remain deployment blockers.
+See [isolated experiment details](docs/audits/ATLAS_AMCL_STATIONARY_POLICY_EXPERIMENT_2026-10-09.md).
+
 An isolated AMCL build now exposes **scan processing separately from pose
 publication**, with stale/failed-input diagnostics. It has no navigation
 authority and is not installed in production. See the

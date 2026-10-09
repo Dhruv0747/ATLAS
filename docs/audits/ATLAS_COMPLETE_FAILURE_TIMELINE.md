@@ -1,5 +1,13 @@
 # ATLAS complete failure timeline
 
+2026-10-09: added an opt-in, bounded AMCL measurement-refresh handshake.
+Healthy processing never overrides stale pose, jump or covariance checks.
+The request tick stays blocked; only a subsequent real pose can satisfy the
+existing guard. All new authority switches default OFF; production unchanged.
+45 focused regression tests passed. Mission startup's multi-pose stability
+window and moving/stop localization accuracy remain deployment blockers.
+See [isolated experiment details](ATLAS_AMCL_STATIONARY_POLICY_EXPERIMENT_2026-10-09.md).
+
 Updated 2026-10-09. Canonical requested filename; **historical coverage is incomplete**. This contains an initial curated failure chronology plus the complete index of 268 currently reachable Git commits. Commit titles are historical author claims, not independent test results. Author dates are retained with offsets and need not equal physical test time; merge ordering and boot clock changes need care.
 
 ## Curated failure chronology

@@ -22,6 +22,7 @@ class MissionWiringTests(unittest.TestCase):
             self.calls.append(request)
             return NS(done=lambda: not self.pending)
         self.node = NS(nomotion_client=NS(service_is_ready=lambda: self.ready, call_async=call),
+                       amcl_motion_gated_updates=True,
                        localization_update_future=None, localization_odom=None,
                        amcl_update_gate=AmclUpdateGate(),
                        get_clock=lambda: NS(now=lambda: NS(nanoseconds=self.now*10**9)))
