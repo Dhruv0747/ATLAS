@@ -44,6 +44,12 @@ class BatchAuditTest(unittest.TestCase):
         self.assertEqual(result["last_window_max_step_m"], .3)
         self.assertEqual(result["last_window_coverage_s"], 12)
 
+    def test_last_window_heading_wrap(self):
+        result = pose_stability([(0, 0, 0, math.radians(179)),
+                                 (1, 0, 0, math.radians(-179))])
+        self.assertEqual(result["last_window_heading_net_deg"], 2)
+        self.assertEqual(result["last_window_heading_max_step_deg"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

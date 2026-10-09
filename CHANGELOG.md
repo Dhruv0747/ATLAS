@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-09 — Audit stationary AMCL hypothesis switching
+
+- Added a read-only particle-cloud/same-scan map-fit audit and replay summary,
+  plus an isolated replay-only laser-model switch and heading-stability metrics.
+  Each of the five Hall-return jumps had fresh scans, no wheel motion and a
+  broad particle distribution; one switch worsened scan/map agreement.
+- Saved-map AMCL replays did not reproduce the five live jumps. The beam laser
+  alternative and wheel velocity-only EKF failed stability gates, so neither
+  was deployed. Production localization, steering and motors are unchanged.
+  See the [cross-bag audit](docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md).
+
 ## 2026-10-09 — Correlate stationary AMCL jumps with live sensors
 
 - Extended the read-only recorded-bag audit with per-jump wheel, corrected-gyro,

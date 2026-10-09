@@ -49,6 +49,14 @@ poses. AMCL XY uncertainty was already >1 m at each event. These are
 stationary localization-hypothesis changes, not a physical motion pulse at
 the jump instants. Why the filter became uncertain remains unresolved; do
 not retune steering or deploy the velocity-only EKF candidate on this basis.
+The particle-cloud and same-scan follow-up confirms a diffuse, multimodal
+AMCL estimate switching while stationary: fresh scans and particles were
+present, odometry did not move, and one reverse switch worsened scan/map
+endpoint agreement. A replay-only beam laser model made position stability
+worse; velocity-only EKF also remains mixed. None of the isolated replays
+reproduced the five live jumps, so neither candidate is a verified fix.
+Production localization is unchanged and autonomy remains gated; see the
+cross-bag audit for per-event and replay measurements.
 An isolated A/B replay on the same Hall return found velocity-only wheel
 fusion materially closer to saved-map LiDAR endpoints than current wheel
 pose+velocity fusion (median 50.2% versus 23.1% within 15 cm), but the

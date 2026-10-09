@@ -25,6 +25,16 @@ class AmclReplayTest(unittest.TestCase):
         self.assertEqual(source["amcl"]["ros__parameters"],
                          {"use_sim_time": False, "alpha1": .2})
 
+    def test_beam_model_is_replay_only(self):
+        source = {"amcl": {"ros__parameters": {"laser_model_type": "likelihood_field"}},
+                  "map_server": {"ros__parameters": {}}}
+        seed = {"x": 1.0, "y": 2.0, "z": 0.0, "yaw": 0.0}
+        result = localization_params(yaml.safe_dump(source), "/tmp/saved.yaml", seed, "beam")
+        self.assertEqual(result["amcl"]["ros__parameters"]["laser_model_type"], "beam")
+        self.assertEqual(source["amcl"]["ros__parameters"]["laser_model_type"], "likelihood_field")
+        with self.assertRaises(ValueError):
+            localization_params(yaml.safe_dump(source), "/tmp/saved.yaml", seed, "invalid")
+
 
 if __name__ == "__main__":
     unittest.main()

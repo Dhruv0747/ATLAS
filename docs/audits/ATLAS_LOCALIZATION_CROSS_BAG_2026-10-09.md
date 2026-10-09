@@ -235,3 +235,66 @@ could have weakened the filter before stopping; ambiguous scan/map geometry is
 also still possible. This correlation cannot apportion their contributions
 or prove a repair. The production EKF and Nav2 remain unchanged; autonomy
 remains gated.
+
+## Particle-cloud and same-scan follow-up (2026-10-09)
+
+Continued from commit `54e6519`, using the **same** Hall-return bag. The new
+read-only analyzer examines the recorded `/particle_cloud`, the last scan
+received before each AMCL step, the saved map, odometry and map→odom TF. It
+does not publish or command anything. A diagnostic endpoint fit counts LiDAR
+endpoints within 15 cm of occupied map cells; this is **not** AMCL's internal
+likelihood or an independent ground-truth pose. The cloud's published weights
+were uniform (effective count equalled 1,397–2,000 particles), so nearby
+particle fractions are not calibrated hypothesis probabilities.
+
+| Post-stop event | AMCL step | Odom step | Scan receipt age | Same-scan endpoint fit before→after | Mapped obstacle before endpoint, before→after |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.565 m / +46.56° | 0.0004 m | 0.030 s | 58.4→51.1% | 69.4→29.2% |
+| 2 | 2.206 m / -130.25° | 0.0000 m | 0.034 s | 62.0→87.3% | 27.7→14.1% |
+| 3 | 1.549 m / +60.34° | 0.0000 m | 0.012 s | 87.6→100.0% | 12.9→3.2% |
+| 4 | 1.549 m / -60.29° | 0.0000 m | 0.030 s | 100.0→86.6% | 3.2→13.4% |
+| 5 | 1.481 m / +52.58° | 0.0000 m | 0.011 s | 87.1→94.0% | 13.8→8.3% |
+
+All five had fresh recorded particle clouds (0–3 ms old), fresh preceding
+scans, known map endpoints and AMCL XY standard deviation 1.14–1.39 m. The
+cloud's spatial spread was similarly ~1.14–1.38 m. Events 3→4 visibly
+reversed between approximately `(1.57,-0.24,0.14 rad)` and
+`(0.30,-1.11,1.20 rad)` while the same-scan map fit *worsened* on event 4.
+Thus the verified immediate failure is an uncertain, spatially dispersed AMCL
+pose estimate switching between competing map hypotheses while the rover is
+stationary. It is not explained by a missing scan, wheel motion, or one
+seconds-long sensor blackout. The diagnostic ray score is approximate and
+ignores dynamic obstacles/scan deskew, so it does not prove why AMCL preferred
+one hypothesis. Earlier wheel-model/IMU yaw disagreement may have seeded the
+uncertainty, but map ambiguity and AMCL scoring are not separately identified.
+
+Map→odom TF updates did not align one-for-one with AMCL message receipt:
+the largest AMCL jump's TF change appeared in the following event window.
+Map→odom TF receipt ages at event endpoints were about 0.14–0.28 s; its
+forward-dated header stamps were about 0.56–0.72 s ahead of AMCL receipt.
+These timestamps warrant care but do not establish TF timing as the cause.
+
+Two isolated, command-free saved-map replays compared the current
+`likelihood_field` laser model against the `beam` model, each with the current
+pose+velocity EKF and the previously suggested wheel velocity-only EKF. The
+original live five jumps **did not reproduce** in any replay. Results below
+use >0.5 m AMCL steps and the final ~20 s position span; 31 evenly sampled
+scan/pose pairs per output gave a *separate* median endpoint fit metric. This
+sampling is not comparable to the older 23.1%/50.2% Hall-anchored metric.
+
+| Replay | Jumps | Max step | Final position span | Largest heading step | Median XY std | Median sampled scan fit |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Current laser + current EKF | 0 | 0.340 m | 0.845 m | 9.97° | 0.455 m | 74.0% |
+| Current laser + velocity-only EKF | 0 | 0.234 m | 1.789 m | 5.39° | 0.361 m | 74.4% |
+| Beam laser + current EKF | 0 | 0.254 m | 2.865 m | 7.22° | 0.416 m | 77.5% |
+| Beam laser + velocity-only EKF | 1 | 0.657 m | 1.725 m | 19.32° | 0.340 m | 74.0% |
+
+The isolated replays have different startup/scan counts and cannot demonstrate
+that a candidate reduces the live five jumps. The beam alternative worsened
+position stability; velocity-only fusion still has mixed stability. Neither
+is deployed. Production EKF, AMCL, steering and motor behavior remain intact;
+autonomous navigation stays gated. The next discriminating step is a
+repeatable offline replay that preserves original AMCL initialization,
+particle/random state and timing closely enough to reproduce stationary
+switching, or a separately approved *stationary-only* localization recording.
+No additional manual driving is justified by the present data.

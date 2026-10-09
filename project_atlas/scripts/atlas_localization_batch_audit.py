@@ -97,12 +97,21 @@ def pose_stability(samples, window_s=20.0):
     recent_steps = [math.hypot(b[1] - a[1], b[2] - a[2])
                     for a, b in zip(recent, recent[1:])
                     if 0 < b[0] - a[0] <= 2.0]
+    recent_headings = [sample[3] for sample in recent if len(sample) > 3]
+    recent_yaw_steps = [abs(math.degrees(math.remainder(b[3] - a[3], 2 * math.pi)))
+                        for a, b in zip(recent, recent[1:])
+                        if len(a) > 3 and len(b) > 3 and 0 < b[0] - a[0] <= 2.0]
     return {
         "max_consecutive_step_m": round(max(valid), 3) if valid else None,
         "last_window_coverage_s": round(recent[-1][0] - recent[0][0], 2),
         "last_window_span_m": round(math.hypot(recent[-1][1] - recent[0][1],
                                                recent[-1][2] - recent[0][2]), 3),
         "last_window_max_step_m": round(max(recent_steps, default=0), 3),
+        "last_window_heading_net_deg": round(math.degrees(math.remainder(
+            recent_headings[-1] - recent_headings[0], 2 * math.pi)), 3)
+        if len(recent_headings) >= 2 else None,
+        "last_window_heading_max_step_deg": round(max(recent_yaw_steps), 3)
+        if recent_yaw_steps else None,
     }
 
 

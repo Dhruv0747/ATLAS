@@ -51,12 +51,16 @@ def recorded_seed(original, clip_start_ns):
             "seed_age_s": round((clip_start_ns - stamp) / 1e9, 3)}
 
 
-def localization_params(raw, map_file, seed):
+def localization_params(raw, map_file, seed, laser_model=None):
     data = yaml.safe_load(raw)
     amcl = data["amcl"]["ros__parameters"]
     amcl["use_sim_time"] = True
     amcl["set_initial_pose"] = True
     amcl["initial_pose"] = {key: seed[key] for key in ("x", "y", "z", "yaw")}
+    if laser_model is not None:
+        if laser_model not in ("likelihood_field", "beam"):
+            raise ValueError("unsupported replay-only laser model")
+        amcl["laser_model_type"] = laser_model
     data["map_server"]["ros__parameters"]["use_sim_time"] = True
     data["map_server"]["ros__parameters"]["yaml_filename"] = str(map_file)
     return data
@@ -81,6 +85,8 @@ def main():
     parser.add_argument("nav_config")
     parser.add_argument("map_yaml")
     parser.add_argument("output")
+    parser.add_argument("--laser-model", choices=("likelihood_field", "beam"),
+                        help="Replay-only AMCL sensor model; never edits the input config")
     args = parser.parse_args()
     out = Path(args.output)
     out.mkdir(parents=False, exist_ok=False)
@@ -96,10 +102,12 @@ def main():
         "ekf_sha256": hashlib.sha256(ekf_raw.encode()).hexdigest(),
         "nav_sha256": hashlib.sha256(nav_raw.encode()).hexdigest(),
         "only_variant_change": "wheel odom X/Y pose fusion disabled",
+        "laser_model": args.laser_model or "from_nav_config",
         "actuator_topics_allowed": sorted(ALLOWED & {"/cmd_vel", "/cmd_vel_joy", "/cmd_vel_nav"}),
     }, indent=2))
     nav_path = out / "localization.yaml"
-    nav_path.write_text(yaml.safe_dump(localization_params(nav_raw, args.map_yaml, seed)))
+    nav_path.write_text(yaml.safe_dump(localization_params(nav_raw, args.map_yaml,
+                                                          seed, args.laser_model)))
     env = dict(os.environ, ROS_DOMAIN_ID="179", ROS_LOCALHOST_ONLY="1",
                FASTDDS_BUILTIN_TRANSPORTS="UDPv4", PYTHONUNBUFFERED="1")
     for variant, config in configurations(ekf_raw).items():
@@ -128,7 +136,8 @@ def main():
             ])
             recorder = launch("record", ["ros2", "bag", "record", "-o",
                                          str(out / variant), "/amcl_pose", "/odom",
-                                         "/tf", "/scan", "/map", "/diagnostics"])
+                                         "/tf", "/scan", "/map", "/particle_cloud",
+                                         "/diagnostics"])
             time.sleep(8)
             if any(p.poll() is not None for p in (ekf, localization, recorder)):
                 raise RuntimeError("Offline process exited before playback")

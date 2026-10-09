@@ -495,6 +495,11 @@
           "date": "2026-10-09",
           "kind": "post_stop_jump_sensor_correlation",
           "description": "Read-only per-event Hall-return audit: all five 0.565-2.206 m AMCL steps occurred 2.856-13.063 s after the last remote command. Nearby wheel XY change and corrected gyro turn were zero, with 6-8 LiDAR scans between each pair and AMCL XY standard deviation already >1 m. These are stationary localization-hypothesis switches, not physical motion at jump times. Operator photos show satisfactory visible steering response but do not measure actual wheel angles; steering config preserved. Upstream heading disagreement versus scan/map ambiguity remains unresolved; no production tuning or motion."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "stationary_particle_hypotheses_and_laser_model_ab",
+          "description": "Continued from 54e6519 using the existing Hall-return bag. Five AMCL steps had fresh pre-event LiDAR scans (receipt age 11-34 ms), particle clouds (age 0-3 ms), zero/near-zero odometry step, and XY uncertainty 1.14-1.39 m. Spatially diffuse particles supported competing poses; event 4 switched back despite worsening same-scan endpoint fit from 100.0% to 86.6% within 15 cm. Approximate map-ray diagnostics are not AMCL likelihood. Beam-model saved-map replay gave 0 jumps but 2.865 m final position span with current EKF, and 1 jump of 0.657 m with velocity-only EKF; current model replayed with 0 jumps in both EKFs but did not reproduce five live jumps. No candidate validated, no production change, autonomy gated."
         }
       ]
     },
