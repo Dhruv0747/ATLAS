@@ -83,12 +83,59 @@ captured in these route bags. Isolated historical replay has not reproduced
 the live jump, so zero jumps in that replay cannot validate an EKF or AMCL
 change. Do not deploy wheel-velocity-only EKF or tune AMCL on this evidence.
 
+## Follow-up: when confidence degraded
+
+The new read-only [turn timeline analyzer](../../project_atlas/scripts/atlas_amcl_turn_divergence.py)
+compares five-second wheel, EKF and corrected-gyro heading changes with AMCL
+covariance and encoder-health messages. Three pure-function tests passed. A
+targeted extension to the existing scan-ICP auditor also passed its three
+Jetson ROS tests. The two bag analyses completed without any ROS publication
+or rover command.
+
+On the **return** recording, the last nonzero drive command was at timeline
+offset 145.38 s. AMCL XY standard deviation first exceeded 0.5 m at 106.04 s
+and 1.0 m at 110.62 s—well **before** ATLAS stopped. The 2.904 m step was at
+150.32 s, about 4.94 s after the last nonzero command. An earlier 0.532 m
+step at 133.02 s happened during movement. The outbound leg had no AMCL step
+above 0.5 m and did not cross 1.0 m XY standard deviation.
+
+| Return window after overlapping sensor start | Wheel yaw | EKF yaw | Corrected gyro yaw | Median AMCL XY std | Encoder context |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 100–105 s | -1.99° | -18.03° | -22.58° | 0.274 m | 50 health samples, no reported fault; mostly 3 or 4 selected |
+| 105–110 s | +33.34° | +26.35° | +15.43° | 0.697 m | 50 health samples, no reported fault; mostly 3 or 4 selected |
+| 115–120 s | +2.39° | -10.14° | -11.48° | 1.003 m | 50 health samples, no reported fault; mostly 3 or 4 selected |
+
+The steering topics spanned front 66–109° and rear 71–116° in the first
+window. These are **commanded** positions, not measured road-wheel angles.
+M3 was sometimes unselected by the existing consensus policy, but the key
+windows were not a sustained loss of the entire encoder/board link. The
+outbound leg also used three-encoder subsets and had some wheel/gyro mismatch
+without a comparable AMCL jump. Therefore neither M3 selection nor the yaw
+disagreement alone is established as the complete cause.
+
+A targeted one-second scan-motion comparison just before the covariance rise
+is more discriminating than the route-wide yaw totals:
+
+| Return-trip scan pair | Wheel yaw | EKF yaw | Gyro yaw | LiDAR ICP yaw | ICP RMSE / inliers |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Near the 100–105 s divergence | -0.03° | -12.93° | -13.15° | -12.14° | 0.016 m / 108 |
+| A few seconds later | +7.25° | -3.61° | -4.69° | -3.39° | 0.017 m / 145 |
+
+For these two local scan pairs, EKF, gyro and scan alignment agree on turn
+direction whereas the wheel-derived yaw does not. This is evidence of an
+intermittent wheel-*heading model* disagreement, not proof that an individual
+encoder is defective. ICP is un-deskewed and can favor an ambiguous wall;
+the physical steering angles, slip and exact effect on AMCL particle scoring
+remain unmeasured. No steering, encoder, EKF or AMCL setting was changed.
+
 ## Next gate
 
 No further manual drive is needed to establish that the failure exists. Keep
-autonomous room-to-room navigation gated. First use these two complete bags to
-compare turn segments against corrected gyro and scan motion, and examine why
-AMCL covariance rose before the post-stop switch. A proposed correction must
+autonomous room-to-room navigation gated. The turn comparison above narrows
+the next question to **why the wheel-kinematic yaw differs from gyro and scan
+motion in some turns**. Review applied front/rear steering-command timing and
+encoder consensus against the saved scans without assuming commanded angles
+are measured angles. A proposed correction must
 then reproduce and reduce the live-type jump **without** worsening final pose,
 post-stop stability, scan fit or confidence across recordings. If the missing
 internal AMCL likelihood/cluster trace is indispensable, use a separately

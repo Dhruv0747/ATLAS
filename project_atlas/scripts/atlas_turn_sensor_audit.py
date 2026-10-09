@@ -2,9 +2,9 @@
 
 ICP is a diagnostic estimate, not ground truth or a navigation input.
 """
+import argparse
 import json
 import math
-import sys
 import numpy as np
 from scipy.spatial import cKDTree
 import rosbag2_py
@@ -55,11 +55,23 @@ def icp(old, new, initial):
             'inliers': int(keep.sum())}
 
 
+def event_time(corrections, scans, center_offset_s=None):
+    if center_offset_s is not None:
+        return scans[0][0] + center_offset_s
+    return max(zip(corrections, corrections[1:]),
+               key=lambda p: math.hypot(p[1][1]-p[0][1],
+                                        p[1][2]-p[0][2]))[1][0]
+
+
 def main():
-    if len(sys.argv) != 2:
-        raise SystemExit('Usage: atlas_turn_sensor_audit.py BAG_DIRECTORY')
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('bag')
+    parser.add_argument('--center-offset-s', type=float,
+                        help='compare scans near this offset from the first scan; '
+                             'default is the largest map correction')
+    args = parser.parse_args()
     reader = rosbag2_py.SequentialReader()
-    reader.open(rosbag2_py.StorageOptions(uri=sys.argv[1], storage_id='sqlite3'),
+    reader.open(rosbag2_py.StorageOptions(uri=args.bag, storage_id='sqlite3'),
                 rosbag2_py.ConverterOptions('', ''))
     types = {t.name: get_message(t.type) for t in reader.get_all_topics_and_types()}
     scans, corrections = [], []
@@ -89,7 +101,7 @@ def main():
     gyro.sort()
     for series in odom.values():
         series.sort()
-    event = max(zip(corrections, corrections[1:]), key=lambda p: math.hypot(p[1][1]-p[0][1], p[1][2]-p[0][2]))[1][0]
+    event = event_time(corrections, scans, args.center_offset_s)
     def heading(series, t):
         values = np.asarray(series)
         return float(np.interp(t, values[:, 0], np.unwrap(values[:, 1])))

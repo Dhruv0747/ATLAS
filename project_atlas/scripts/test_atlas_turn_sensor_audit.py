@@ -3,10 +3,16 @@ import unittest
 
 import numpy as np
 
-from atlas_turn_sensor_audit import icp
+from atlas_turn_sensor_audit import event_time, icp
 
 
 class ScanFitTest(unittest.TestCase):
+    def test_explicit_scan_offset_does_not_select_tf_correction(self):
+        corrections = [(1, 0, 0), (2, 10, 0)]
+        scans = [(100, None)]
+        self.assertEqual(event_time(corrections, scans, 5), 105)
+        self.assertEqual(event_time(corrections, scans), 2)
+
     def test_known_transform(self):
         points = np.random.default_rng(42).uniform(-2, 2, (300, 2))
         angle = 0.08
