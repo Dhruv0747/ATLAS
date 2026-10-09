@@ -1,5 +1,27 @@
 # Lifted commissioning failure audit — 2026-10-08
 
+## M3 attempt, 2026-10-09 ~10:37 IST
+
+The operator confirmed all wheels lifted and clear, charger disconnected and
+physical cut-off ready. A temporary per-process raw-commissioning gate was
+enabled with the software stop still latched. The owner reached `LOCKED` and
+accepted no-motion heartbeats. The operator could not release the software
+stop; before any pulse, the client aborted on `bms_telemetry_stale` and sent
+best-effort stop/abort/exit. Its evidence is on Jetson at
+`~/.local/state/project_atlas/lifted_pid/20261009T050714Z_4b78c131e0537658.jsonl`.
+The recorded session has no pulse request or `PULSE` state. The operator later
+reported that M3 spins under their separate manual control. That confirms
+physical response, **not** the reliability or sign of M3 encoder feedback.
+
+Jetson connectivity then dropped. The operator cut motor power and rebooted
+Jetson. On reconnection, the temporary raw-test drop-in was moved to
+`/home/jetson/project_atlas/data/deploy_backups/20261009_lifted_timing/98-lifted-m3-test.conf.disabled`,
+and only the user motor-owner service was restarted. Final live status was
+`IDLE`, raw interface disabled, software stop latched, all outputs zero,
+`final_zero=true`, with service active and NRestarts=0. No M3 encoder
+qualification or autonomous authority was granted. The BMS freshness fault
+and reason for the connectivity loss remain to be diagnosed separately.
+
 ## Rejected-only delivery probe, 2026-10-09 ~10:30 IST
 
 With operator confirmation that charger was disconnected, all four wheels were

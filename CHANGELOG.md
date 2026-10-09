@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-09 — M3 attempt stopped before motion
+
+- A bounded lifted M3 attempt reached the no-motion locked state but aborted on stale BMS telemetry before any motor pulse. The operator separately reported M3 physical rotation; encoder reliability remains unqualified. The temporary raw-test gate was removed after Jetson reconnection, and the motor owner was verified IDLE with stop latched and all outputs zero. See the lifted-test audit for evidence.
+
 ## 2026-10-09 — Lifted-test timing evidence and rejected-only delivery probe
 
 - Added client publish-start and motor-owner request-receive/status timestamps on the same Jetson monotonic clock, without changing the 0.5 s heartbeat lease or authorizing a motor pulse. Deployed the motor owner with a recoverable backup while all wheels were lifted; it restarted once by plan and remained stopped with zero output.
