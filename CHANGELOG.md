@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-09 — Confirmed stationary Dhruv Room relocalization
+
+- Added a read-only live LiDAR-versus-accepted-map pose-fit diagnostic. A fresh
+  scan favored the saved Dhruv Room pose over the old out-of-map AMCL pose.
+- After the operator confirmed the exact physical spot and heading, backed up
+  the old seed and used the existing AMCL seeder once. The live map pose moved
+  to known free space near home; post-seed LiDAR/map fit reached 99% within
+  15 cm of mapped walls with the rover stopped. No motion or service restart.
+- Autonomous motion remains gated on fresh BMS data, a footprint-clear Hall
+  endpoint, matching route map ID, and repeatable localization under motion.
+
 ## 2026-10-09 — Saved-map start clearance gate
 
 - Block named-place and return-home goal dispatch when the current map-frame

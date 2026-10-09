@@ -1,7 +1,30 @@
 # ATLAS navigation gate — stopped check, 2026-10-09
 
-This is read-only evidence from the charging rover and saved files. No motor,
-steering, map, navigation parameter, service, or BMS safety gate was changed.
+This began as a read-only check on the charging rover. After the operator
+confirmed the exact saved Dhruv Room spot and heading, AMCL was reseeded
+while stopped. No motor, steering, map, navigation parameter, service, or BMS
+safety gate was changed.
+
+## Confirmed stationary localization repair
+
+- Operator confirmed ATLAS was physically at the saved Dhruv Room/home spot
+  and facing the saved direction. The prior AMCL pose (-3.351, -0.298,
+  -2.061 rad) was in unknown saved-map cells despite fresh LiDAR and zero
+  odometry motion. Its fresh scan put only about 27–30% of endpoints within
+  15 cm of mapped walls; the saved home point put about 94–96% there.
+- Backed up the old localization seed at
+  `/home/jetson/.local/share/atlas-backups/localization_seed_pose.json.before-confirmed-home-reseed-20261009`.
+  Used the existing `seed_atlas_localization.py --place dhruv_room` service
+  path once. It succeeded and persisted the accepted-map-bound named pose.
+- Post-seed authoritative map pose was (0.187, -1.477, 1.330 rad), about
+  9 cm from the saved position. A separate fresh scan scored the subsequent
+  live AMCL pose (0.208, -1.407, 1.355 rad) in known free space, with 99%
+  of 197 endpoints within 15 cm of mapped walls, versus 92.4% at the exact
+  saved point. Motor speed stayed zero, `web_drive=STOP`, mission `READY`.
+- This repairs the current stopped pose mismatch; it does not prove AMCL
+  will remain stable after a reboot or during movement. The start-cell guard
+  stays enabled. Charging/BMS invalidity, Hall endpoint footprint failure,
+  and the stale taught-route map ID still block an autonomous round trip.
 
 ## Current observed state
 
@@ -42,6 +65,16 @@ steering, map, navigation parameter, service, or BMS safety gate was changed.
   window. This rules out a stale scan at the check but does not prove which
   physical/map coordinate is correct. The accepted map cannot safely plan
   from its current reported unknown start.
+- A separate read-only live-scan comparison used the exact accepted map and
+  verified `base_link -> laser_frame` TF (-0.05 m X, 180-degree yaw). Across
+  three fresh scans, only about 27–30% of endpoints projected from the live
+  AMCL pose fell within 15 cm of mapped occupied cells. The saved Dhruv Room
+  point and heading achieved about 94–96%; saved Hall achieved roughly
+  57–60%. At the live pose, only about 2–3% of endpoints were in known map
+  cells. This strongly favors the Dhruv Room hypothesis but is **not** a
+  localization proof: map symmetry, moving objects, unknown space, and
+  endpoint-only scoring can mislead. The diagnostic changed no pose or
+  command. See `project_atlas/scripts/atlas_stationary_scan_map_fit.py`.
 - At today's localization startup, Nav2 logged multiple robot-out-of-map
   positions and a scan/TF cache drop before the pose settled. This is stronger
   evidence of a startup-localization problem than the stationary pose alone.
@@ -73,7 +106,9 @@ steering, map, navigation parameter, service, or BMS safety gate was changed.
 1. Confirm whether ATLAS is at the exact saved Dhruv Room/home spot and its
    physical heading while it remains stationary. Compare an independently
    checked scan/map alignment to the live pose before trusting localization.
-   Do not drive autonomously while this discrepancy remains unexplained.
+   This was completed once with operator confirmation and a fresh scan-map
+   check. Repeat stability checks after reboot or movement; do not assume one
+   successful seed proves repeatability.
 2. When not charging, with a safe route and remote stop available, verify a
    physically safe Hall endpoint on the *current* map and save it deliberately.
    Do not relabel the old taught route or silently shift the saved Hall point.

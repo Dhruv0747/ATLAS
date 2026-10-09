@@ -422,7 +422,7 @@
         "docs/audits/ATLAS_NAVIGATION_GATE_2026-10-09.md"
       ],
       "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live safety reporter initially said SLAM MAP DATA LOST; a new transient-local subscriber received the saved map, and diagnostic-only reporter restart restored LOCALIZATION/map ONLINE. Root cause of stale prior status not proven; navigation remains unvalidated.",
-      "remaining_verification": "Confirm whether ATLAS is at the exact saved Dhruv Room point, then independently verify physical heading and scan/map alignment while stopped. Determine whether the saved seed, named point or current AMCL pose is wrong; do not silently relabel. Use saved bag first; validate same-time composed robot correction, calibrated wheel model and true scan timing. Promote map only with frame-consistent places and independent geometry/path checks, then supervised round trip.",
+      "remaining_verification": "The operator confirmed the exact saved Dhruv Room point and heading; stationary scan/map fit identified the earlier out-of-map AMCL pose as wrong, and one saved-pose reseed corrected it. Recheck localization stability across reboot and under movement. The saved Hall goal still fails exact footprint clearance and the taught route has an older map ID. Use saved bags to assess same-time composed robot correction, calibrated wheel model and true scan timing; require independent geometry/path checks before a supervised round trip.",
       "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
       "events": [
         {
@@ -454,6 +454,11 @@
           "date": "2026-10-09",
           "kind": "saved_map_start_clearance",
           "description": "Exact accepted PGM lookup put later live pose (-3.22,-0.25) in unknown 205 cells, while the saved Dhruv Room point was known free 254. A stopped 15-second diagnostic recorded fresh scans, zero wheel/EKF odometry drift and 0.004 m/1.09 degree AMCL drift. Added a saved-map known-clear start check before named-place and return-home goal dispatch; offline regression passed. Physical localization and room-route reliability remain unvalidated."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "confirmed_stationary_relocalization",
+          "description": "Operator confirmed exact saved Dhruv Room position and heading. Fresh LiDAR scan endpoints fit that map pose far better than the old out-of-map AMCL pose. Backed up the old localization seed and invoked the existing AMCL seed service once while stopped. Post-seed authoritative pose was about 9 cm from home, in known free space; 99% of fresh scan endpoints were within 15 cm of mapped walls, with motor speed zero. This does not qualify moving or reboot repeatability, the Hall endpoint, or the saved taught route."
         }
       ]
     },

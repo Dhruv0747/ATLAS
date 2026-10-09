@@ -9,19 +9,23 @@ Per operator priority, continue non-motion navigation evidence first and leave
 the intermittent BLE transport repair until later; **do not bypass fresh BMS
 telemetry or any movement safety gate**.
 
-The operator confirmed ATLAS is in Dhruv Room while stopped and charging, but
-has not confirmed that it is at the exact saved home point. Its live AMCL pose
-is about 3.67 m from that named point. The localization seed (last written
-Oct 8) contains no accepted-map ID; the named places and accepted map are
-bound to `d12a1f183177212a3cc8`. On the Oct 9 boot,
+The operator later confirmed ATLAS is at the exact saved Dhruv Room/home
+spot and heading while stopped and charging. The earlier live AMCL pose was
+about 3.8 m away in unknown map space; fresh LiDAR endpoints strongly favored
+the saved spot. A backup was made and the existing AMCL seeder applied the
+map-bound Dhruv Room pose once. The subsequent live pose was in known free
+space within about 9 cm of the saved point, with 99% of scan endpoints within
+15 cm of mapped walls. This resolves the observed stopped-pose mismatch, not
+reboot or moving localization repeatability. The named places and accepted
+map are bound to `d12a1f183177212a3cc8`. On the Oct 9 boot,
 `atlas-localization.service` had six restarts. Its start-preflight exited
 124 (timeout) while LiDAR repeatedly logged hardware operation timeouts;
 missing scans are a strong explanation for the preflight failures, not proof
 that the seed caused them. Once running, Nav2 logged several out-of-map robot
 poses before settling. These observations make localization
-verification the current autonomy gate; they do **not** prove whether the
-saved room point, seed, or present AMCL pose is wrong. Do not overwrite any
-of them or start an autonomous route to conceal the disagreement. See
+verification a current autonomy gate. The later physical confirmation and
+scan-map check isolated the prior AMCL pose as wrong. Do not start an
+autonomous route solely because the stationary reseed worked. See
 [the navigation gate](ATLAS_NAVIGATION_GATE_2026-10-09.md).
 An exact saved-map lookup subsequently found the reported rover position in
 unknown cells (205), while the saved Dhruv Room point was known free (254).
@@ -29,7 +33,8 @@ The 15-second stopped scan was fresh and wheel/EKF odometry did not move. This
 is a concrete route-start blocker even if AMCL's short-window variance looks
 small. A fail-closed start-cell check was deployed in mission control with
 25 offline map-acceptance tests passing; physical localization still needs
-validation, and no autonomous movement was attempted.
+validation under motion and across reboot, and no autonomous movement was
+attempted.
 
 ## Current verified boundary
 
