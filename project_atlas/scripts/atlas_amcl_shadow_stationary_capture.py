@@ -6,8 +6,10 @@ process, localization parameters, TF broadcaster and motor stack are untouched.
 """
 
 import argparse
+import copy
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import signal
@@ -135,9 +137,14 @@ def main():
     parser.add_argument("--params", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--seconds", type=int, default=25)
+    parser.add_argument("--seed-pose", nargs=3, type=float,
+                        metavar=("X", "Y", "YAW_RAD"),
+                        help="Seed only the TF-disabled shadow from an offline pose candidate")
     args = parser.parse_args()
     if not 10 <= args.seconds <= 60:
         parser.error("capture duration must be 10–60 seconds")
+    if args.seed_pose and not all(math.isfinite(value) for value in args.seed_pose):
+        parser.error("shadow candidate pose must be finite")
     if not args.binary.is_file() or not args.params.is_file():
         parser.error("shadow binary or parameter file missing")
     params = yaml.safe_load(args.params.read_text(encoding="utf-8"))
@@ -169,6 +176,8 @@ def main():
             "x": pose.position.x, "y": pose.position.y,
             "orientation_z": pose.orientation.z, "orientation_w": pose.orientation.w,
         }
+        if args.seed_pose:
+            manifest["shadow_seed_candidate"] = list(args.seed_pose)
         shadow_log = open(args.output / "shadow.log", "w", encoding="utf-8")
         try:
             shadow = subprocess.Popen(
@@ -191,7 +200,19 @@ def main():
                 seed = PoseWithCovarianceStamped()
                 seed.header.frame_id = "map"
                 seed.header.stamp = node.get_clock().now().to_msg()
-                seed.pose = node.production_pose.pose
+                seed.pose = copy.deepcopy(node.production_pose.pose)
+                if args.seed_pose:
+                    x, y, yaw = args.seed_pose
+                    seed.pose.pose.position.x = x
+                    seed.pose.pose.position.y = y
+                    seed.pose.pose.orientation.x = 0.0
+                    seed.pose.pose.orientation.y = 0.0
+                    seed.pose.pose.orientation.z = math.sin(yaw / 2.0)
+                    seed.pose.pose.orientation.w = math.cos(yaw / 2.0)
+                    seed.pose.covariance = [0.0] * 36
+                    seed.pose.covariance[0] = 0.10 ** 2
+                    seed.pose.covariance[7] = 0.10 ** 2
+                    seed.pose.covariance[35] = math.radians(10.0) ** 2
                 node.seed.publish(seed)
                 if not until(node, lambda: node.shadow_poses > 0, 8):
                     raise RuntimeError("shadow did not accept initial pose")

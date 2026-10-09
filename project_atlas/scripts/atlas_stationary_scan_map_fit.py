@@ -89,6 +89,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--map", default="/home/jetson/project_atlas/maps/atlas_latest.yaml")
     parser.add_argument("--places", default="/home/jetson/.config/project_atlas/named_places.json")
+    parser.add_argument("--candidate", nargs=3, type=float, metavar=("X", "Y", "YAW_RAD"),
+                        help="Read-only extra pose to score against the same fresh scan")
     args = parser.parse_args()
 
     # ROS imports are delayed so score_pose can be tested offline.
@@ -177,6 +179,8 @@ def main():
             "saved_dhruv_point": home_result,
             "saved_hall_point": hall_result,
             "best_of_24_headings_at_saved_point": best_heading,
+            "extra_candidate": score_pose(laser_points, tuple(args.candidate), metadata, grid, tree)
+            if args.candidate else None,
             "limitation": "Endpoint agreement is only a clue. No pose was seeded, "
                           "saved, or promoted; no motor command was sent.",
         }, indent=2))
