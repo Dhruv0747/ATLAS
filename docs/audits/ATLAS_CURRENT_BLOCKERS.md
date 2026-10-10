@@ -1,5 +1,15 @@
 # ATLAS current blockers
 
+2026-10-10 household movement vs start-pose verifier. Quiet Hall scans fit
+0.97–1.00. With people moving (operator confirmed 17:05–17:15) the dry runs
+fit 0.86–0.95; that is a time correlation, because those scans were not
+saved. Stress test: simulated people in real scans from 11 windows, 484
+runs: **0 wrong-place verdicts**. With people, 111 of 176 were verified
+correctly and the rest were UNKNOWN. A wrong place out-scored the truth in 10
+runs (up to 0.919), and both guards rejected them. Percentile aggregation and
+lower thresholds were rejected on this evidence; deployed settings unchanged.
+A people recording is needed to confirm on real data.
+
 2026-10-10 Hall cold start localized as Dhruv Room (confirmed): every
 localization start seeds AMCL at the saved Dhruv Room pose without checking
 the LiDAR. No recovery particles are injected, and 1 Hz parked updates

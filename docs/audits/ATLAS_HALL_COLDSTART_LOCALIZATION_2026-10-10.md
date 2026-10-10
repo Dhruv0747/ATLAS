@@ -212,3 +212,77 @@ Installed on the Jetson; ATLAS parked in the Hall throughout; no motion.
   later drift. Autonomy remains blocked (`navigation_validated: false`).
 - Rollback: `rm ~/.config/project_atlas/seed_mode` (old start behaviour), or
   restore the backed-up files and remove the drop-in.
+
+## Household movement (follow-up, 17:35 IST)
+
+The operator confirmed people were moving around ATLAS in the Hall from 17:05
+to 17:15.
+
+**Correlation with the observed scores (time-based; scans were not saved).**
+
+| Window | People | Score at the Hall pose |
+| --- | --- | --- |
+| 16:55 recording, 236 scans | none | held-out fit 0.968–1.000 per scan (median 0.993); at most 1 unexplained endpoint per scan |
+| Dry runs 17:05–17:15 | moving | best fit 0.858–0.95 |
+| Dry runs 17:19 | after movement ended | 0.991 |
+
+This is consistent with people causing the drop, but it is a time
+correlation only: the dry runs did not save their scans (evidence gap).
+
+**Stress test on real data** (`atlas_localization_verify_people_experiment.py`):
+
+- Simulated people were inserted into the real 3 s parked scans of all 11
+  windows. Each person is two legs that block LiDAR beams, either walking at
+  0.6–1.4 m/s or standing. They were placed only in mapped free space.
+- The full verifier (global search + verdict) ran on each case: 484 runs in
+  total, 440 of them with people.
+- The simulated fit at the true pose fell to 0.90–0.97 (median) with
+  1–3 people, the same band as observed live.
+
+Results with the deployed policy (min fit 0.93, margin 0.06, per-beam
+median):
+
+| Scenario (11 windows × 4 seeds) | Verified, right place | **Verified, wrong place** | UNKNOWN |
+| --- | --- | --- | --- |
+| no people | 11/11 | 0 | 0 |
+| one walker | 41/44 | 0 | 3 |
+| two walkers | 27/44 | 0 | 17 |
+| one standing + one walker | 32/44 | 0 | 12 |
+| three people standing within 0.5–1.5 m | 11/44 | 0 | 33 |
+
+- **Wrong-place verdicts: 0 of 484 runs**, across all aggregations and policies run.
+- In 10 of 176 runs with people, the best-scoring place was **wrong**,
+  scoring up to **0.919**. Every one was rejected: by the fit threshold, by
+  the margin rule (e.g. wrong 0.919 vs true 0.895), or both.
+
+Candidate changes tested, **none adopted**:
+
+- **Per-beam 80th/90th percentile instead of median.** This was worse: fewer
+  correct verifications with people (49 and 39 of 88, against 55 for
+  median) and no safety gain. Rejected.
+- **Lower minimum fit.**
+  - 0.90 would verify 128 instead of 111 of 176 people runs, with 0 wrong in
+    this sample. But a wrong place has already scored 0.919, so only the
+    margin rule would stand between ATLAS and a wrong start. That loses one
+    of two independent guards, so it was rejected.
+  - 0.85: 130 of 176, same objection.
+- **Larger margin (0.08).** Fewer correct verifications (103 of 176), and
+  one clean window became UNKNOWN, with no measured safety gain. Rejected.
+
+The deployed thresholds are unchanged. Availability under movement comes
+from the existing retries: up to 3 parked checks, which must all agree on
+the place. People who are still standing close keep the result UNKNOWN by
+design. UNKNOWN never seeds AMCL, never grants navigation authority, and
+autonomy stays blocked (`navigation_validated: false`).
+
+**Recording needed to close the evidence gap.** ATLAS parked at a marked
+Hall spot, about 60 s each, with the start time of each segment written down:
+
+1. nobody within 3 m;
+2. one person walking past;
+3. two people walking;
+4. one person standing 1 m away.
+
+Command: `ros2 bag record -o ~/project_atlas/data/diagnostics/hall_people_<time> /scan /odom /tf /tf_static`.
+Each 3 s slice is then run through the verifier offline. Pass condition:
+no wrong-place verdict, and VERIFIED in segment 1.

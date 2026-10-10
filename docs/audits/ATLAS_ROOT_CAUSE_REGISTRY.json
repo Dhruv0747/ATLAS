@@ -554,6 +554,11 @@
           "date": "2026-10-10",
           "kind": "hall_coldstart_blind_seed",
           "description": "Live: rebooted parked in Hall; seeder seeded saved Dhruv Room pose (0.254,-1.539) at 16:36:10; AMCL reported (0.497,-1.183,84 deg), cloud 2000 particles at 1 unique pose, covariance round-off (xx -2.2e-14). No-prior LiDAR search: Hall (6.275,-2.115,-95.5) fit 0.976 margin 0.187; AMCL pose fit 0.54. Cold-start replays: saved seed 0/24 correct (10 confident-wrong), nav2 global 12/24, search seed 24/24. Verify-before-seed implemented (default off), Jetson dry-run 3 VERIFIED correct / 4 UNKNOWN / 0 wrong. Not deployed."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "verifier_household_movement_stress",
+          "description": "Synthetic people (walking/standing legs) inserted into real parked scans from 11 windows; 484 full verifier runs; 0 wrong-place verdicts. Deployed policy (0.93/0.06, median): one walker 41/44 verified, two walkers 27/44, stander+walker 32/44, three standing close 11/44, rest UNKNOWN. Wrong place outscored truth in 10/176 people runs (max 0.919), all rejected. p80/p90 aggregation and min_fit 0.90/0.85 rejected; settings unchanged. Live correlation (16:55 quiet 0.993 median vs 0.86-0.95 during movement) is time-based only; people recording pending."
         }
       ]
     },

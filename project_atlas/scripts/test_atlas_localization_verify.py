@@ -274,3 +274,26 @@ class StatusVerdictTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PeopleExperimentTests(unittest.TestCase):
+    def test_leg_shortens_only_the_beams_it_blocks(self):
+        import atlas_localization_verify_people_experiment as ex
+        n = 360
+        ranges = np.full((2, n), 5.0)
+        times = np.array([0.0, 0.1])
+        # person standing 1 m straight ahead in base frame; laser at origin, no yaw
+        out = ex.occlude(ranges, times, -math.pi, 2 * math.pi / n, (0.0, 0.0, 0.0),
+                         [lambda t: [(1.0, 0.125), (1.0, -0.125)]])
+        ahead = n // 2                                   # beam at angle 0
+        blocked = np.nonzero(out[0] < 5.0)[0]
+        self.assertTrue(len(blocked) >= 4)
+        self.assertTrue(np.all(np.abs(blocked - ahead) <= 12))
+        self.assertTrue(np.all(out[0][blocked] > 0.9) and np.all(out[0][blocked] < 1.0))
+        self.assertTrue(np.all(out <= ranges))           # people never lengthen a range
+
+    def test_median_removes_a_brief_passer_by(self):
+        import atlas_localization_verify_people_experiment as ex
+        rows = np.full((21, 4), 3.0)
+        rows[:5, 1] = 0.8                                # blocked in 5 of 21 scans
+        self.assertTrue(np.allclose(ex.aggregate(rows, 'median'), 3.0))

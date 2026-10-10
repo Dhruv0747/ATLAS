@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-10 start-pose verifier under household movement. Added an offline
+stress test that inserts simulated walking and standing people into real
+parked scans. Across 484 runs there were 0 wrong-place verdicts; ambiguous
+cases reported UNKNOWN. Percentile aggregation and lower fit thresholds were
+tested and rejected, so the deployed verifier settings are unchanged. See the
+[Hall cold-start report](docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
+
 2026-10-10 Hall cold start investigation. Restarted in the Hall, ATLAS
 showed Dhruv Room as CONFIDENT. The cause: the startup seeder always seeds the
 saved Dhruv Room pose without checking the LiDAR, AMCL injects no recovery
