@@ -546,6 +546,13 @@ DATA FROM ATLAS (ROVER STATE UNKNOWN)**. **POSE DELAYED ON ATLAS** appears only
 when a fresh response reports a stale Jetson-side pose. The pose panel lists
 "Data age on ATLAS" and "Link to this screen" separately. Wi-Fi or Tailscale
 drops therefore no longer look like localization failures.
+A low AMCL covariance alone no longer turns the chip green. Green **LIVE / AMCL
+CONFIDENT (START VERIFIED)** also needs this boot's LiDAR start check
+(`seed_atlas_localization.py` in `verify` mode). Otherwise the page shows
+**AMCL CONFIDENT - START POSE NOT VERIFIED** or **LOCALIZATION UNKNOWN**. To
+opt in, run `echo verify > ~/.config/project_atlas/seed_mode`. To check
+without seeding, run `seed_atlas_localization.py --dry-run`. Neither grants
+navigation authority.
 
 ### AI/robotics adaptation Phase 0 — 2026-09-30
 

@@ -29,9 +29,12 @@ class LiveStatusTests(unittest.TestCase):
         out = subprocess.run(['node', '-e', script], capture_output=True, text=True, check=True)
         return json.loads(out.stdout)
 
-    def state(self, pose_age=0.3, amcl_age=0.8, uncertain=False):
-        return {'map': {'width': 100}, 'pose': {'value': {'x': 1}, 'age': pose_age},
-                'localization': {'value': {'uncertain': uncertain}, 'age': amcl_age}}
+    def state(self, pose_age=0.3, amcl_age=0.8, uncertain=False, verdict='VERIFIED', current_boot=True):
+        s = {'map': {'width': 100}, 'pose': {'value': {'x': 1}, 'age': pose_age},
+             'localization': {'value': {'uncertain': uncertain}, 'age': amcl_age}}
+        if verdict:
+            s['start_verdict'] = {'value': {'state': verdict, 'current_boot': current_boot}, 'age': 5}
+        return s
 
     def test_network_stall_is_not_pose_delayed(self):
         # Rover data was perfectly fresh at the last snapshot; the link then stalled.
@@ -54,12 +57,26 @@ class LiveStatusTests(unittest.TestCase):
     def test_short_link_lag_does_not_downgrade_confident(self):
         # 1.9 s link lag + 0.9 s server age used to exceed the 2.5 s AMCL window.
         st = self.status(self.state(amcl_age=0.9), 1.9)
-        self.assertEqual(st['text'], '● LIVE / AMCL CONFIDENT')
+        self.assertEqual(st['text'], '● LIVE / AMCL CONFIDENT (START VERIFIED)')
         self.assertEqual(st['cls'], 'ok')
 
     def test_amcl_states_unchanged(self):
         self.assertEqual(self.status(self.state(uncertain=True), 0.5)['text'], '● LIVE / AMCL UNCERTAIN')
         self.assertEqual(self.status(self.state(amcl_age=3.0), 0.5)['text'], '● LIVE / AMCL UNVERIFIED')
+
+    def test_low_covariance_without_verified_start_is_not_green(self):
+        # Hall cold start: tiny covariance at a pose seeded without the LiDAR.
+        for verdict, boot in ((None, True), ('UNVERIFIED', True), ('VERIFIED', False)):
+            st = self.status(self.state(verdict=verdict, current_boot=boot), 0.5)
+            self.assertEqual(st['text'], '● AMCL CONFIDENT - START POSE NOT VERIFIED')
+            self.assertEqual(st['cls'], 'warn')
+            self.assertFalse(st['trusted'])
+
+    def test_unknown_start_is_reported_even_with_a_pose(self):
+        for pose_age in (0.3, 9.0):
+            st = self.status(self.state(pose_age=pose_age, verdict='UNKNOWN'), 0.5)
+            self.assertEqual(st['text'], '● LOCALIZATION UNKNOWN - LIDAR DID NOT CONFIRM START POSE')
+            self.assertEqual(st['cls'], 'fail')
 
     def test_map_waiting(self):
         st = self.state(pose_age=9.0)

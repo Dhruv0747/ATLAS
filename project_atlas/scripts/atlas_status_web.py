@@ -125,6 +125,42 @@ def run_quiet(cmd, timeout=2):
         return False, str(exc)
 
 
+START_VERDICT_FILE = Path.home() / ".local/state/project_atlas/localization_verdict.json"
+
+
+def read_start_verdict(now=None, path=None):
+    """Startup localization verdict written by seed_atlas_localization.py.
+
+    Display only. A verdict from another boot is reported as not current so
+    the map page never inherits an old VERIFIED state after a reboot.
+    """
+    path = START_VERDICT_FILE if path is None else path
+    now = time.time() if now is None else now
+    try:
+        record = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(record, dict):
+        return None
+    try:
+        current_boot = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError:
+        current_boot = None
+    written = record.get("written_unix")
+    return {
+        "value": {
+            "state": str(record.get("state", "UNKNOWN")),
+            "mode": record.get("mode"),
+            "reason": record.get("reason"),
+            "pose": record.get("pose"),
+            "best_fit": record.get("best_fit"),
+            "margin": record.get("margin"),
+            "current_boot": bool(current_boot) and record.get("boot_id") == current_boot,
+        },
+        "age": round(now - float(written), 3) if isinstance(written, (int, float)) else None,
+    }
+
+
 def map_markers(map_meta=None):
     """Return poses belonging to the map currently shown by the dashboard."""
     markers = []
@@ -761,6 +797,7 @@ class AtlasRosNode:
                 "localization": item("amcl_quality"),
             }
         result["markers"] = map_markers(meta)
+        result["start_verdict"] = read_start_verdict(now)
         return result
 
     def _camera_cb(self, msg):
