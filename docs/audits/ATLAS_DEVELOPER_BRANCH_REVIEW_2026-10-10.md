@@ -81,3 +81,25 @@ No test of that exception was performed here.
 The developer branches are meaningful progress in diagnosis and mission-start
 rejection. They do not establish repeatable autonomous room travel. The next
 work can use saved recordings; no driving is required for this review.
+
+## Source integration follow-up, Oct 10
+
+The three developer branches were merged into the separate
+`agent/integrate-localization-20261010` review branch, preserving all three
+histories. Changelog-only merge conflicts were reconciled without changing
+runtime parameters. This branch is a source review, **not** a production
+deployment or authorization to drive.
+
+Offline checks on the merged tree passed: 23 scan-fit/mission-pose contract
+tests, 23 encoder-selection tests, and 4 AMCL-axis tests on Windows. The
+Windows Python environment lacks SciPy, so 31 additional AMCL analysis tests
+were run successfully with SciPy in a temporary directory on the stationary
+Jetson, outside the production project tree. No ROS service or actuator was
+started for those tests. The live scan header was also observed to use the
+Jetson's system/ROS time domain, making source-stamp validation feasible.
+
+These checks establish that the merged **source** is internally testable.
+They do not validate the combined production runtime, repair AMCL jumps, or
+prove the scan-fit threshold under dynamic obstacles. The source-timestamp/TF
+synchronization concern above remains open. Do not fast-forward the production
+branch or deploy this merge solely on these test results.
