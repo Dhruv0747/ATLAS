@@ -1,5 +1,13 @@
 # Changelog
 
+2026-10-10 developer branch review: compared the three new GitHub branches
+with baseline `cc5862a` and read-only Jetson state. Confirmed offline AMCL
+particle-loss evidence and a loaded mission-start scan gate. The observed
+encoder health blocks NAV2; the installed mux manual-only value is 0, despite
+a deployment note saying 1. The branches remain separate and no localization
+repair is validated. See
+[developer branch review](docs/audits/ATLAS_DEVELOPER_BRANCH_REVIEW_2026-10-10.md).
+
 2026-10-09 competing-pose comparison: equal bounded fitting plus later unused
 beams favours the Dhruv region (99–100% endpoint fit, 0.214° corrected-gyro
 residual) over the refined false region (78.9–85.6%, 98.229°). A recorded
