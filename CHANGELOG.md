@@ -8,6 +8,55 @@ a deployment note saying 1. The branches remain separate and no localization
 repair is validated. See
 [developer branch review](docs/audits/ATLAS_DEVELOPER_BRANCH_REVIEW_2026-10-10.md).
 
+2026-10-10 operator confirms ATLAS was moved by hand on Oct 9. Manual
+relocation (AMCL cannot see it) is the confirmed cause class for the
+outbound 1636 start offset; exact move times were not recorded.
+
+2026-10-10 operator: it is possible ATLAS was moved by hand on Oct 9. Manual
+relocation without AMCL following is now the leading (not confirmed)
+explanation for the outbound 1636 start offset. Mitigation needs no AMCL
+tuning: reseed after any manual move, and gate mission start on a fresh
+held-out scan-fit check.
+
+2026-10-10 outbound 1636 start offset: AMCL began the recording already
+converged 0.55 m ahead of the scan-best pose along the rover's heading (no
+sideways error). AMCL's own likelihood peaks there (6.38–7.32 vs 4.08–4.92;
+held-out fit 1.00 vs 0.60), and that pose is 7.5–8.5 cm from the morning's
+operator-confirmed Dhruv Room reseed. The cloud was 1–2.5 cm wide with zero
+odometry, so parked updates could not correct it. How AMCL got there predates
+the bag (evidence gap: check Oct 9 16:00–16:37 Jetson journals). Offline only.
+Four new helper tests passed. See [start-offset diagnosis](docs/audits/ATLAS_OUTBOUND_1636_START_OFFSET_2026-10-10.md).
+
+2026-10-10 multi-drive parked-diversity check (12 parked windows, 6
+recordings, 1,800 AMCL core runs): nudge 0.05 m / 2.5° never lowered held-out
+scan fit in 11/12 windows (2 seeds in the already-failed window) and improved
+it in 5. The parked-update gate lowered fit in 5 windows on every seed and
+never improved it: rejected as a standalone repair. Nudge 0.10 m rejected.
+New: outbound 1636 sat ~0.5 m from a far better-fitting pose (0.62 vs 1.00).
+The 0.05 m nudge added jumps (up to 9) in correcting windows. Offline only.
+Five new helper tests passed. See [multi-drive results](docs/audits/ATLAS_AMCL_PARKED_DIVERSITY_MULTIDRIVE_2026-10-10.md).
+
+2026-10-10 parked-diversity experiment (AMCL 1.1.20 core, 450 runs, seeds
+1–30): bounded jitter of 0.05 m / 2.5° after each parked resample moved the
+failed return window onto the refined Dhruv Room pose in 22/30 seeds
+(held-out fit 1.000) and kept the correct room and Hall windows correct in
+30/30 each. 8/30 failure-window runs stayed wrong, some wandering up to 3 m:
+not deployable. The parked-update gate never recovered and froze the Hall
+window wrong in 30/30, where recorded updates had corrected it; do not
+deploy it as a standalone repair. Unchanged existing harness reproduced
+published Jetson numbers exactly. Offline, one drive; production unchanged.
+Nine new helper tests passed. See [parked-diversity experiment](docs/audits/ATLAS_AMCL_PARKED_DIVERSITY_EXPERIMENT_2026-10-10.md).
+
+2026-10-10 weak-hypothesis trace: the 15 room-near particles were lost
+while parked (+351.997 to +362.854 s, 11 forced no-motion updates, 0.23 mm
+odometry). Scans did not reject them: the exact room pose outscored every
+particle on every update, but none sat on that peak. Multinomial resampling
+as KLD shrank 2,000 to 1,098 particles removes them in 9.6–14.2% of trials;
+zero motion noise and zero recovery alphas meant no new particle could
+reach the peak. Offline, one recording; no candidate fix or runtime change.
+Next: replay the parked-update gate plus bounded diversity on saved drives.
+Thirteen helper tests passed. See [weak-hypothesis trace](docs/audits/ATLAS_AMCL_WEAK_HYPOTHESIS_TRACE_2026-10-10.md).
+
 2026-10-09 competing-pose comparison: equal bounded fitting plus later unused
 beams favours the Dhruv region (99–100% endpoint fit, 0.214° corrected-gyro
 residual) over the refined false region (78.9–85.6%, 98.229°). A recorded
