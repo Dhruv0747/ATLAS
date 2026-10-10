@@ -141,3 +141,7 @@ directly:
 - run a fresh scan-fit check before every mission start.
 
 Neither involves AMCL tuning.
+
+**Operator response (2026-10-10):** "it is possible" the rover was moved by
+hand on Oct 9. This makes manual relocation the leading explanation, but it
+is not a confirmation: the exact times and distances were not recalled.

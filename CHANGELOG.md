@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-10 operator: it is possible ATLAS was moved by hand on Oct 9. Manual
+relocation without AMCL following is now the leading (not confirmed)
+explanation for the outbound 1636 start offset. Mitigation needs no AMCL
+tuning: reseed after any manual move, and gate mission start on a fresh
+held-out scan-fit check.
+
 2026-10-10 outbound 1636 start offset: AMCL began the recording already
 converged 0.55 m ahead of the scan-best pose along the rover's heading (no
 sideways error). AMCL's own likelihood peaks there (6.38–7.32 vs 4.08–4.92;
