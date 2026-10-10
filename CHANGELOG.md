@@ -57,6 +57,47 @@ reach the peak. Offline, one recording; no candidate fix or runtime change.
 Next: replay the parked-update gate plus bounded diversity on saved drives.
 Thirteen helper tests passed. See [weak-hypothesis trace](docs/audits/ATLAS_AMCL_WEAK_HYPOTHESIS_TRACE_2026-10-10.md).
 
+2026-10-10 — Deployed both safety changes to the Jetson (files only)
+
+- Backed up the originals first to
+  `/home/jetson/project_atlas/data/backups/2026-10-10-safety/`, with a
+  SHA256SUMS file. The live files matched this repository before the change.
+- Live `config/encoder_selection.yaml` now has SHA-256 `1260c463…` and reads
+  `navigation_validated: false`; it validated with `atlas_encoder_selection`.
+  The two lifted scripts are in `scripts/archive/`, byte-identical to before.
+- No service was restarted: `rover-base-telemetry` stayed on PID 1814, active
+  since 2026-10-09 22:47. The flag takes effect at that service's next start;
+  until then `ATLAS_MANUAL_ONLY=1` still blocks autonomy.
+- To roll back, copy the files from the backup folder over the live ones.
+
+2026-10-10 — Archive scripts that bypass the command mux
+
+- Moved `verify_metric_wheels_lifted.py` and `verify_steering_lifted.py`,
+  unchanged, into `project_atlas/scripts/archive/` with a do-not-run README.
+  Both publish straight to `/cmd_vel` and skip the remote stop latch,
+  manual-only mode, the watchdog and the autonomy guards.
+- No service, unit or document referenced either script. Lifted checks
+  belong in the commissioning console's leased, stop-latched flow.
+
+2026-10-10 — Revoke encoder navigation validation (fail-safe)
+
+- Set `navigation_validated: false` in `project_atlas/config/encoder_selection.yaml`.
+  The Oct 2 ground qualification is kept as history, but the Oct 8–9 records
+  say M3 remains unvalidated and encoder reliability is unqualified.
+- Effect, once the base driver restarts: `/atlas/encoder_health` reports
+  `autonomy_ready: false`, so the mux blocks NAV2 and RECOVERY commands.
+  Manual remote driving, the latched stop and `ATLAS_MANUAL_ONLY` are unchanged.
+- Re-enable only after M3 passes and the ground distance, turn and stopping
+  checks are repeated. The encoder selection, commissioning-evidence and
+  closed-loop tests pass.
+
+Review correction later on Oct 10: the installed mux unit showed
+`ATLAS_MANUAL_ONLY=0`, while live encoder health showed
+`navigation_validated:false` and `autonomy_ready:false`. The latter blocked
+NAV2 in the observed READY state. The mux has a separate DEGRADED recovery
+exception, so the above blanket RECOVERY claim needs qualification. See
+[developer branch review](docs/audits/ATLAS_DEVELOPER_BRANCH_REVIEW_2026-10-10.md).
+
 2026-10-09 competing-pose comparison: equal bounded fitting plus later unused
 beams favours the Dhruv region (99–100% endpoint fit, 0.214° corrected-gyro
 residual) over the refined false region (78.9–85.6%, 98.229°). A recorded

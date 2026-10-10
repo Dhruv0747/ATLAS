@@ -9,5 +9,11 @@ excluded_encoders: []
 # physically confirmed opposite right/left arcs passed with dynamic consensus.
 # The mux still stops on stale packets, fewer than three agreeing channels, or
 # another hardware fault.
-navigation_validated: true
+# 2026-10-10: set back to false (fail-safe). Later records say "M3 remains
+# unvalidated" (2026-10-08 lifted link-fault investigation) and "encoder
+# reliability remains unqualified" (2026-10-09 M3 attempt). The 2026-10-02
+# result above is kept as history. Re-enable only after M3 passes and the
+# ground distance/turn/stopping checks are repeated. This blocks autonomous
+# (Nav2/recovery) motion through autonomy_ready; manual remote is unchanged.
+navigation_validated: false
 packet_timeout_s: 1.0
