@@ -1,5 +1,13 @@
 # Changelog
 
+2026-10-10 22:21 the live map page (`/mapping`) gained the confirmed
+**SHUT DOWN** button that the Command Center already has. It uses the same
+server action: stop the rover, then a clean `shutdown -h now`. Deployed;
+only `rover-status-web` was restarted. The previous page is backed up in
+`data/backups/2026-10-10-shutdown-button/`. A read-only SSD scan found only
+corrected PCIe link errors, in four boots on Oct 9–10, and none since Oct 10
+14:29. Details are in ATLAS-018.
+
 2026-10-10 21:29 deployed reliability steps 1 and 2 (faster LiDAR search,
 monitor state machine, dashboard labels, sensor-recovery deferral) from
 `2120613`, with approval. Step 3, the LiDAR restart limit, is on hold. Results

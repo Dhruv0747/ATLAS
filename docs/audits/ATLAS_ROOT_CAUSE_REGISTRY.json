@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-10T21:30:00+05:30",
+  "updated_at": "2026-10-10T22:25:00+05:30",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -859,6 +859,11 @@
           "date": "2026-10-10",
           "kind": "journal_gap_crash_boot",
           "description": "last -x: boot 16:24 clean shutdown 17:34:21; boot 17:34 ended 'crash'; neither boot is in journalctl --list-boots; boot -1 journal ends 15:50:52 mid-rf2o with no shutdown messages. Cause of the unexpected power-offs not determinable from logs (evidence gap). rf2o INFO logging is ~91% of user journal lines (~24/s). No storage stress tests run."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "ssd_error_scan_read_only",
+          "description": "Read-only scan of all 11 retained boots (Oct 4-10). Kernel PCIe AER on the NVMe link (SK hynix PC801 512 GB, fw HPS1, 0004:01:00.0, link 8 GT/s x2): boots Oct 9 09:13 (22,180 AER lines / 835 nvme), Oct 9 10:48 (396,236 / 10,233), Oct 10 11:18 (114,884 / 164), Oct 10 13:41 (12,262 / 295). All severity=Corrected, Data Link Layer Timeout/Rollover (replay timer), plus root-port \"can't find device of ID0000\". Zero uncorrectable/fatal, zero I/O errors, zero EXT4 errors in every boot; ext4 superblock errors_count=0. Boots Oct 4-8 and since Oct 10 14:29 have none; live AER counters 0 since 18:11. Cause of the storms and of their stopping is unknown (no cmdline change found). SMART/NVMe error log not read: needs root (sudo NOPASSWD only covers shutdown)."
         }
       ]
     },
