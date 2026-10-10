@@ -4,7 +4,10 @@ Description=Project ATLAS continuous LiDAR localization check (read-only, sugges
 # ~/.local/state/project_atlas/localization_check.json. It never publishes
 # velocity and never grants navigation authority. Reseeding happens only if
 # ~/.config/project_atlas/relocalize_mode says "auto" (default: suggest).
-After=atlas-localization.service atlas-lidar.service
+# Not ordered after atlas-localization.service: that unit is After=default.target,
+# so ordering here created a boot cycle and systemd dropped this job (2026-10-10 22:24).
+# The monitor waits for /scan, /odom and /amcl_pose itself.
+After=atlas-lidar.service
 
 [Service]
 Type=simple
