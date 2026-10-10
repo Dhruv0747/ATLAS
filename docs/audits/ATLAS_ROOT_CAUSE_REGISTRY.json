@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-10T23:30:00+05:30",
+  "updated_at": "2026-10-11T00:00:00+05:30",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -592,6 +592,11 @@
           "date": "2026-10-10",
           "kind": "local_map_audit_dhruv_hall",
           "description": "Read-only local map audit: active map = final /map of manual_mapping_dhruv_to_hall_20261002_162438. 985/1573 wall cells in the Dhruv Room->Hall box confirmed by >=3 of 6 independently anchored drives; 272 contradicted, 172 of them drawn during the mapping run's Hall->Dhruv return leg (SLAM snapshots: corridor walls +60-70% cells, offsets 0.15-0.6 m = parallel copies). Suspected: fast in-place turns (54-60 deg/s, 7 Hz LiDAR) without loop closure, not straight-line speed. Local candidate (258 removed / 17 added, box only, parked-scan walls protected): parked verify 15/15 -> 15/15, margin 0.128 -> 0.139; moving windows 72% -> 85% correct, wrong 4 -> 1; AMCL core replay end-correct 65/5/100/100 -> 100/90/100/100 %, time-lost 29/69/8/22 -> 17/48/1/16 %. Corridor still weak (37/48). Candidate NOT promoted; slow local remap of corridor recommended. See ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "local_map_candidate_validation",
+          "description": "Read-only validation. Fresh Dhruv Room scans: active and v1 6/6 VERIFIED (v1 margin 0.15 vs 0.11-0.13). Corridor: v1 40/5/3 -> 37/11/0 (OK/UNK/WRONG) because 138/258 v1 removals were real intermittently-seen surfaces; v1 also opens new reachable space (incl. into unknown, planner allow_unknown=true) -> v1 REJECTED. Safe v3 (never-hit removals only, no new reachability; 31 removed/17 added) localizes the same as the active map (AMCL replay within seed noise). Fresh parked scans show active-map errors drives cannot fix: front wall/door recess mapped 0.15-0.34 m short, exit jamb at (0.66,-1.06), inner left-wall copy. Conclusion: local deletion insufficient; supervised slow corridor re-map (<=0.15 m/s, <=15 deg/s) planned. Corridor/Hall fresh scans pending operator placement."
         }
       ]
     },

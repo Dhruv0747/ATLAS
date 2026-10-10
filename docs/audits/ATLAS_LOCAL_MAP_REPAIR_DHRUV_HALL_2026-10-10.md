@@ -145,3 +145,128 @@ the Jetson.
    - Merge the submap into the existing frame, aligned at the verified anchor
      poses.
    - Then rerun this audit on the result.
+
+## Validation phase (approved read-only, 2026-10-10 23:37–00:00)
+
+Nothing deployed. Unchanged:
+- active map (`4beb26d5…`/`d957f0fe…`);
+- `named_places.json`;
+- `nav2_params.yaml`;
+- localization settings and safety controls.
+
+**Fresh Dhruv Room scans** (231 scans, 6 windows, LiDAR-verified at
+(0.155, −1.775, 73.5°)):
+
+| Map | Verdicts | Margin | 2nd place | Within 5 cm | Through-wall rays |
+|---|---|---|---|---|---|
+| Active | 6/6 | 0.106–0.125 | alias 0.878 | 0.868 | 47/288 |
+| v1 | 6/6 | 0.150–0.156 | 0.840 | 0.868 | 47/288 |
+| v3 | 6/6 | 0.106–0.125 | alias 0.878 | 0.868 | 47/288 |
+
+The through-wall rays show three errors in the active map that no candidate
+fixes, because drive data never sees them:
+- **Front wall / door recess** (camera view): the wall is mapped at
+  y ≈ 0.05 for x 0.56–1.03, but the real surface is 0.15–0.34 m further back.
+- **Exit jamb** at (0.66, −1.06): seen through for 1.4 m.
+- **Inner left-wall copy** at x ≈ −0.15, y −1.85…−2.1: the real wall is
+  0.15–0.34 m further out.
+
+**Corridor regression** (48 windows, x 1–5 m, leave-one-out):
+
+| Map | OK / UNKNOWN / WRONG |
+|---|---|
+| Active | 40 / 5 / 3 |
+| v1 | 37 / 11 / 0 |
+| v2 | 41 / 5 / 2 |
+| v3 | 41 / 5 / 2 |
+
+v1 cleared all 3 confidently wrong verdicts (0.26–0.33 m off near the alias),
+but dropped 6 correct ones to UNKNOWN. Fit at the true pose fell from 0.93
+to 0.88–0.90, because v1 removed surfaces those scans hit. 138 of v1's 258
+removals were within one cell of returns from ≥ 2 drives.
+
+**Passage safety.** v1 makes new space reachable from Dhruv Room and the Hall
+at robot radii 0.18 / 0.25 / 0.28 m:
+- north of the corridor, about 500–630 cells;
+- south of the corridor's west end, 353–458 cells;
+- into unknown space, which matters because `nav2_params.yaml` has
+  `allow_unknown: true`.
+
+**v1 is REJECTED** (metadata updated on the Jetson).
+
+**Candidate versions** (all separate files; none promoted):
+- **v2:** removes only cells never hit by any scan.
+- **v3:** v2, plus every removal that opens new reachable space is restored
+  (96 cells). Final: 31 removed, 17 added, 0 newly reachable cells at any
+  radius.
+  - Saved in `maps/candidates/local_dhruv_hall_v3_20261010/`.
+
+AMCL replay, leave-one-out, 20 seeds:
+
+| Map | Ends correct (H→D / round trip / out / return) | Time lost |
+|---|---|---|
+| Active | 65 / 5 / 100 / 100% | 29 / 69 / 8 / 22% |
+| v1 | 100 / 90 / 100 / 100% | 17 / 48 / 1 / 16% |
+| v2 | 80 / 40 / 100 / 100% | 25 / 62 / 6 / 21% |
+| v3 | 75 / 30 / 90 / 100% | 26 / 67 / 7 / 23% |
+
+v3 sits within seed noise of the active map.
+
+**Conclusion.** Under the safety rules (keep every surface any scan hit, open
+no new passage), local deletion gives no material localization benefit.
+v1's gain came from deleting real or passage-opening cells. The corridor
+section needs a controlled slow re-map.
+
+**Still to do:** fresh scans at the corridor midpoint and the Hall. This
+needs the operator to place ATLAS there; there is no remote driving.
+
+## Supervised slow-speed recording plan (corridor re-map; operator drives)
+
+Purpose: record clean data to rebuild only the Dhruv Room → Hall section
+offline. There is no live SLAM, no mode switch, and no change to Nav2, AMCL,
+EKF, motor or safety settings.
+
+1. **Preconditions**
+   - Battery above 40% and not charging.
+   - Monitor VERIFIED at Dhruv Room.
+   - Autonomy disabled; e-stop in hand.
+   - People out of the corridor.
+   - Doors in their normal positions; note which are open or closed.
+2. **Start the recording** (Claude, with your go-ahead at that moment). This
+   is read-only:
+
+   ```
+   ros2 bag record -o ~/project_atlas/data/commissioning/slow_remap_dhruv_hall_<time> \
+     /scan /scan_raw /odom /yahboom/odom /lidar/odom /im10a/imu/bias_corrected_candidate \
+     /tf /tf_static /cmd_vel /atlas/drive_mode /amcl_pose /atlas/localization_check
+   ```
+3. **Route** (operator drives manually; ≤ 0.15 m/s; turns ≤ 15°/s, so a 90°
+   turn takes ≥ 6 s):
+   1. Dhruv Room: parked 10 s.
+   2. Room exit: stop 5 s.
+   3. Corridor west end: stop 5 s.
+   4. Corridor midpoint: stop 5 s, then one slow full turn in place (≥ 24 s),
+      then stop 5 s.
+   5. Corridor east end: stop 5 s.
+   6. Hall entrance: stop 5 s.
+   7. Hall: parked 10 s.
+   8. Return the same way with the same stops.
+   9. Dhruv Room: parked 10 s.
+
+   Expected time: about 4 minutes each way.
+4. **Stop the recording.** Claude checks compliance from `/odom` and
+   `/cmd_vel`. Any segment over 0.15 m/s or 15°/s is excluded or repeated.
+5. **Offline processing** (`tools/local_map_audit`):
+   - verify both ends with the LiDAR;
+   - anchored ICP, with chain closure before pinning ≤ 0.15 m / 3°;
+   - build a local submap for the corridor box only, merged at the verified
+     anchors.
+6. **Acceptance before any promotion request**
+   - No parallel duplicate walls 0.15–0.6 m apart.
+   - Front wall / door recess, room exit and left wall match the fresh
+     parked scans (beyond-15 cm ≤ 1%, through-wall rays roughly halved).
+   - Parked checks 15/15.
+   - Corridor windows: WRONG = 0 and OK ≥ 40/48.
+   - AMCL replays improve on the active map.
+   - No new reachable space unless you confirm it physically.
+   - Promotion is a separate approval.

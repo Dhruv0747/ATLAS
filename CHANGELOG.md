@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-10 local map candidate validation (read-only, nothing deployed).
+Candidate v1 is **rejected**: it deleted real surfaces and opened new
+plannable space. The safe v3 adds no passages but localizes the same as the
+active map. Recommendation: a supervised slow re-map of the corridor. The
+plan is in the
+[local map repair analysis](docs/audits/ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md).
+
 2026-10-10 local map audit, Dhruv Room → Hall (read-only). The doubled and
 broken walls trace to the Oct 2 mapping run's return leg. A local candidate
 map is in `maps/candidates/local_dhruv_hall_20261010/` and is **not

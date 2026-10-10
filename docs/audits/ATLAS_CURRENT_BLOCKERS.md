@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-11 00:00 local map validation. Candidate v1 is REJECTED: it opened
+new passages and deleted real surfaces. The safe v3 gives no benefit. The
+corridor needs a supervised slow re-map at ≤ 0.15 m/s and ≤ 15°/s, driven
+by the operator. Fresh scans at the corridor midpoint and the Hall are still
+pending.
+
 2026-10-10 23:30 local map audit, Dhruv Room → Hall (read-only). About 17%
 of the mapped walls in this section are contradicted by 6 independent drives,
 mostly shifted copies drawn by the mapping run's return leg. A candidate map
