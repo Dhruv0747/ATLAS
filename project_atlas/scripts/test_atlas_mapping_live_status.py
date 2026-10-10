@@ -131,5 +131,42 @@ class LiveStatusTests(unittest.TestCase):
         self.assertIsNone(re.search(r"fresh\(state\.(pose|localization)", text))
 
 
+@unittest.skipUnless(shutil.which('node'), 'node not installed')
+class ShutdownButtonTests(unittest.TestCase):
+    """Map-page power button: confirmation first, same server contract."""
+
+    def run_js(self, confirm_answer, ok=True):
+        text = HTML.read_text()
+        self.assertEqual(text.count('id="shutdownButton"'), 1)
+        start = text.index('async function shutdownAtlas(')
+        end = text.index('\n}\n', start) + 3
+        script = f"""
+const calls=[];const alerts=[];const button={{disabled:false,textContent:''}};
+const document={{getElementById:()=>button}};
+const confirm=()=>{json.dumps(confirm_answer)};const alert=m=>alerts.push(m);
+const fetch=async(url,opt)=>{{calls.push({{url,method:opt.method,headers:opt.headers,body:opt.body.toString()}});
+  return {{ok:{json.dumps(ok)},json:async()=>({{ok:{json.dumps(ok)},message:'m'}})}}}};
+{text[start:end]}
+shutdownAtlas().then(()=>console.log(JSON.stringify({{calls,alerts,disabled:button.disabled}})));
+"""
+        out = subprocess.run(['node', '-e', script], capture_output=True, text=True, check=True)
+        return json.loads(out.stdout)
+
+    def test_cancel_sends_nothing(self):
+        self.assertEqual(self.run_js(False)['calls'], [])
+
+    def test_confirm_posts_existing_shutdown_contract(self):
+        r = self.run_js(True)
+        self.assertEqual(len(r['calls']), 1)
+        c = r['calls'][0]
+        self.assertEqual((c['url'], c['method']), ('/', 'POST'))
+        self.assertEqual(c['headers']['X-Atlas-Wifi'], '1')
+        self.assertEqual(c['body'], 'action=shutdown&confirm=POWER_OFF_ATLAS')
+        self.assertTrue(r['disabled'])
+
+    def test_failure_re_enables_button(self):
+        self.assertFalse(self.run_js(True, ok=False)['disabled'])
+
+
 if __name__ == '__main__':
     unittest.main()
