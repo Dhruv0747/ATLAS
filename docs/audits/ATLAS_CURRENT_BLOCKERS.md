@@ -1,5 +1,22 @@
 # ATLAS current blockers
 
+2026-10-10 18:30 moving failure after a verified start. A fast remote drive
+from a verified start (3.72, −0.70) to Dhruv Room left AMCL at (4.13, −0.77,
+160°), 4.0 m wrong, while the page said START VERIFIED. Confirmed:
+- the wrong pose is a recurring Dhruv Room alias (fit 0.87), found in 4
+  recordings;
+- EKF odometry reported 0.77 of the distance and **0.46 of the −97.5° turn**,
+  and wheel yaw had the wrong sign;
+- the encoder consensus went CRITICAL at the stop;
+- the cloud collapsed to one particle.
+
+The cause of the heading shortfall is unproven (no drive bag). A
+continuous parked LiDAR check, built and tested offline, flags all 12
+known-wrong AMCL states as LOST and confirmed 14 correct ones on 29 parked
+checks. It is not deployed. "START VERIFIED" no longer turns the page green.
+A recorded repeat drive is needed. See
+[moving failure report](ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md).
+
 2026-10-10 household movement vs start-pose verifier. Quiet Hall scans fit
 0.97–1.00. With people moving (operator confirmed 17:05–17:15) the dry runs
 fit 0.86–0.95; that is a time correlation, because those scans were not

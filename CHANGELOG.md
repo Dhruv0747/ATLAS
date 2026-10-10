@@ -1,5 +1,15 @@
 # Changelog
 
+2026-10-10 moving localization failure. After a LiDAR-verified start and a
+fast drive, AMCL was 4 m wrong at a recurring Dhruv Room alias while the page
+showed START VERIFIED. Added `atlas_localization_monitor.py` (opt-in, not
+deployed). While parked, it checks the live AMCL pose against a no-prior LiDAR
+search and reports VERIFIED, DEGRADED or LOST. It suggests, or in `auto` mode
+after two agreeing checks applies, a LiDAR reseed, and never grants autonomy.
+`/api/map` adds `localization_check`. The map page is green only on a fresh
+LiDAR check; a start verdict alone shows amber. See the
+[moving failure report](docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md).
+
 2026-10-10 start-pose verifier under household movement. Added an offline
 stress test that inserts simulated walking and standing people into real
 parked scans. Across 484 runs there were 0 wrong-place verdicts; ambiguous

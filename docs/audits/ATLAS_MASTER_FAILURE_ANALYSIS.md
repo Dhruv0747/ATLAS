@@ -39,6 +39,14 @@ No physical movement, firmware flashing, safety bypass, calibration or navigatio
 
 ## Findings in plain language
 
+Oct 10 moving failure: a verified start is not continuous proof. After a
+fast drive, AMCL sat 4 m wrong at a pose that looks like Dhruv Room from the
+LiDAR, the same alias seen in three earlier recordings. Odometry had
+under-reported the turn by half. A parked LiDAR check of the live pose
+separates right from wrong on all 29 recorded parked checks. It is the
+proposed basis for LOST reporting and operator-confirmed recovery. See
+[moving failure report](ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md).
+
 Oct 10 Hall cold start: the startup seed, not AMCL tuning, put ATLAS in
 Dhruv Room. The seeder always seeds the saved pose. AMCL has no way to
 escape, and a collapsed cloud's near-zero covariance looks like
