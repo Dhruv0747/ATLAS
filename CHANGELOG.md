@@ -1,5 +1,15 @@
 # Changelog
 
+2026-10-10 weak-hypothesis trace: the 15 room-near particles were lost
+while parked (+351.997 to +362.854 s, 11 forced no-motion updates, 0.23 mm
+odometry). Scans did not reject them: the exact room pose outscored every
+particle on every update, but none sat on that peak. Multinomial resampling
+as KLD shrank 2,000 to 1,098 particles removes them in 9.6–14.2% of trials;
+zero motion noise and zero recovery alphas meant no new particle could
+reach the peak. Offline, one recording; no candidate fix or runtime change.
+Next: replay the parked-update gate plus bounded diversity on saved drives.
+Thirteen helper tests passed. See [weak-hypothesis trace](docs/audits/ATLAS_AMCL_WEAK_HYPOTHESIS_TRACE_2026-10-10.md).
+
 2026-10-09 competing-pose comparison: equal bounded fitting plus later unused
 beams favours the Dhruv region (99–100% endpoint fit, 0.214° corrected-gyro
 residual) over the refined false region (78.9–85.6%, 98.229°). A recorded
