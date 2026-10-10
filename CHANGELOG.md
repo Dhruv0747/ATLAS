@@ -8,8 +8,9 @@ round-off covariance looks confident. Added a pure LiDAR-to-map verifier, plus
 an opt-in `verify` seed mode (`~/.config/project_atlas/seed_mode`) that seeds
 only a unique LiDAR match and otherwise reports LOCALIZATION UNKNOWN. A
 `--dry-run` check is included. `/api/map` adds `start_verdict`, and the map
-page shows green CONFIDENT only after this boot's LiDAR verification. Default
-start behaviour is unchanged; nothing was deployed. See
+page shows green CONFIDENT only after this boot's LiDAR verification. Deployed
+with backups and switched on at the operator's request; AMCL was reseeded at
+the LiDAR-verified Hall pose. Reboot validation is pending. See
 [Hall cold-start report](docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
 
 2026-10-10 localization during motion investigation. Wheel odometry

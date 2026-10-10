@@ -9,8 +9,9 @@ mission control clamp to "perfect". A no-prior LiDAR search finds the Hall
 uniquely (fit 0.976, margin 0.187) and was correct in 11/11 parked windows.
 Replays: saved seed 0/24 correct, Nav2 global 12/24, search seed 24/24.
 A verify-before-seed mode (UNKNOWN instead of guessing) is implemented and
-dry-run on the Jetson: 3 correct VERIFIED, 4 UNKNOWN, 0 wrong. **Not
-deployed**; controlled reboot validation is pending. The delayed start was 25
+dry-run on the Jetson: 3 correct VERIFIED, 4 UNKNOWN, 0 wrong. Installed and
+switched on 17:25–17:30 IST with backups (operator approved). AMCL was
+reseeded at the Hall (fit 0.991). Controlled reboot validation is pending. The delayed start was 25
 LiDAR start failures over 11.5 min. See
 [Hall cold-start report](ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
 

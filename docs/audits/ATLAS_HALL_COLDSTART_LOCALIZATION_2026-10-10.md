@@ -4,8 +4,8 @@ Operator test: ATLAS was restarted while parked in the Hall. The dashboard
 showed MAP WAITING, then a pose in Dhruv Room (X 0.497, Y −1.183, ~84°)
 labelled CONFIDENT. This report covers why, what was checked, an offline
 and read-only live evaluation of a fix, and a controlled validation plan.
-No motion was commanded. Production files are unchanged by this report;
-deployment is a separate, explicit step (see "Deployment").
+No motion was commanded. At the operator's request the fix was then
+installed and switched on (see "Deployment record").
 
 ## Answer first
 
@@ -96,7 +96,7 @@ was overwritten before it was read):
   then reported UNKNOWN rather than guess.
 - Time per run on the loaded Jetson: ~30 s, of which ~14 s is the search.
 
-## Changes implemented (repository; not deployed)
+## Changes implemented
 
 All additive. With no configuration, startup behaves exactly as before.
 
@@ -185,3 +185,30 @@ are resolved.
 - Map: `atlas_latest.yaml` (sha256 `d957f0fe…`), identical to every Oct 9 bag `/map`.
 - Tools: `atlas_scan_map_global_search.py`, `atlas_localization_verify_core.py`,
   `atlas_amcl_motion_replay.cpp`.
+
+## Deployment record (2026-10-10 17:25–17:30 IST, operator approved)
+
+Installed on the Jetson; ATLAS parked in the Hall throughout; no motion.
+
+- Backup first: `~/project_atlas/data/backups/2026-10-10-hall-coldstart-verify/`
+  (pre-deploy sha256 verified: seeder `d9d41beb…`, mode manager `936ba6b8…`,
+  status web `4f32d66e…`, map page `fb6589a3…`).
+- Installed: `seed_atlas_localization.py` `9a876c50…`,
+  `atlas_localization_verify_core.py` `c4fb1e40…` (new), `atlas_mode_manager.py`
+  `c5624e90…`, `atlas_status_web.py` `33cf61f8…`, `atlas_mapping.html` `cd548de5…`,
+  drop-in `atlas-localization.service.d/10-verify-seed-timeout.conf`
+  (`TimeoutStartSec=240`, `7928691…`); `daemon-reload`.
+- Restarted only `rover-status-web.service` (display). Localization/Nav2,
+  motor, odometry, network and the mode manager were **not** restarted. The
+  mode manager's new timeout/status text loads at its next start.
+- Switched on: `~/.config/project_atlas/seed_mode` = `verify`.
+- Ran the seeder once in verify mode (22 s): VERIFIED (6.275, −2.075, −95.0°),
+  fit 0.991, margin 0.177; AMCL reseeded. After it: AMCL (6.347, −2.162,
+  −96.6°), xy std 0.086 m, then 0.031 m after ~80 s parked (real spread, not
+  round-off). `/api/map` `start_verdict` = VERIFIED, current boot; the map page
+  shows **LIVE / AMCL CONFIDENT (START VERIFIED)**.
+- Not yet validated: reboot tests 3–7 above. Parked forced updates will still
+  narrow the cloud over time (ATLAS-011); the start verdict says nothing about
+  later drift. Autonomy remains blocked (`navigation_validated: false`).
+- Rollback: `rm ~/.config/project_atlas/seed_mode` (old start behaviour), or
+  restore the backed-up files and remove the drop-in.
