@@ -1,5 +1,14 @@
 # Changelog
 
+2026-10-10 — Archive scripts that bypass the command mux
+
+- Moved `verify_metric_wheels_lifted.py` and `verify_steering_lifted.py`,
+  unchanged, into `project_atlas/scripts/archive/` with a do-not-run README.
+  Both publish straight to `/cmd_vel` and skip the remote stop latch,
+  manual-only mode, the watchdog and the autonomy guards.
+- No service, unit or document referenced either script. Lifted checks
+  belong in the commissioning console's leased, stop-latched flow.
+
 2026-10-10 — Revoke encoder navigation validation (fail-safe)
 
 - Set `navigation_validated: false` in `project_atlas/config/encoder_selection.yaml`.
