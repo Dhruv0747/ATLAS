@@ -41,6 +41,7 @@ class RecoveryTests(unittest.TestCase):
         self.node.lock = threading.Lock()
         self.node.service_cache = {}
         self.node.service_active = Mock(return_value=True)
+        self.node.restart_pending = Mock(return_value=False)
         self.node.publish_status = Mock()
         self.node.motion_active = False
         self.node.motion_last_seen = None
@@ -197,6 +198,28 @@ class RecoveryTests(unittest.TestCase):
         self.process.run.assert_called_once_with(
             ['systemctl', '--user', 'restart', 'rover-base-telemetry.service'], timeout=15, check=True)
         self.assertFalse(self.node.recovering)
+
+
+    def test_defers_when_systemd_is_already_restarting(self):
+        # 2026-10-10: a recovery restart killed a fresh systemd auto-restart.
+        self.settled()
+        self.update('{"state":"CRITICAL"}')
+        self.node.restart_pending = Mock(return_value=True)
+        self.node.recover(self.item, 'stale', 3)
+        self.process.run.assert_not_called()
+        self.assertIn('DEFERRED', self.node.publish_status.call_args[0][0])
+        self.assertFalse(self.node.recovering)
+
+    def test_restart_pending_reads_systemd_state(self):
+        cls = self.ns['AtlasRecovery']
+        node = cls()
+        for out, expect in (("ActiveState=activating\nSubState=auto-restart\n", True),
+                            ("ActiveState=active\nSubState=running\n", False),
+                            ("ActiveState=failed\nSubState=failed\n", False)):
+            self.process.run.return_value = SimpleNamespace(stdout=out)
+            self.assertEqual(node.restart_pending('atlas-lidar.service'), expect, out)
+        self.process.run.side_effect = OSError('no systemctl')
+        self.assertFalse(node.restart_pending('atlas-lidar.service'))
 
 
 if __name__ == '__main__':
