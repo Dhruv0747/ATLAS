@@ -1,5 +1,19 @@
 # ATLAS current blockers
 
+2026-10-10 localization during motion: wheel odometry reports only ~0.6×
+the distance LiDAR scan matching measures (M1/M2/M4 raw counts 0.60–0.62;
+EKF 0.36–0.54 above 0.3 m/s), matching tape results of Sep 16 and Sep 25.
+That drives UNCERTAIN while moving, forward map→odom corrections and the
+"falls behind" symptom. A validated AMCL motion replay shows corrected
+distance raises held-out fit from 0.69–0.74 to 0.84–0.94 on 3 of 4 drives.
+Lowering alphas alone looks confident but is less accurate: rejected.
+CONFIDENT-after-stop is the 1 Hz forced resampling. Wi-Fi roams caused no
+Jetson-side ROS gaps. The dashboard mislabelled link stalls as POSE DELAYED:
+fixed and deployed (display only). Four unclean reboots today followed NVMe
+PCIe error storms. The next gate is a supervised tape-measured distance
+calibration; no calibration, EKF or AMCL change was made. See
+[motion investigation](ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md).
+
 2026-10-10 operator confirms ATLAS was moved by hand on Oct 9. Manual
 relocation (AMCL cannot see it) is the confirmed cause class for the
 outbound 1636 start offset; exact move times were not recorded.

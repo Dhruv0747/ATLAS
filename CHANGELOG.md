@@ -1,5 +1,19 @@
 # Changelog
 
+2026-10-10 localization during motion investigation. Wheel odometry
+reports ~0.6× the distance LiDAR scan matching measures (raw M1/M2/M4
+0.60–0.62; EKF 0.36–0.54 above 0.3 m/s). This matches the Sep 16/25 tape
+results and is the top-ranked cause of UNCERTAIN-while-moving, forward
+corrections and lag. A new AMCL 1.1.20 motion replay reproduces the recorded
+behaviour. Corrected distance raised held-out scan fit from 0.69–0.74 to
+0.84–0.94 on 3 of 4 drives. Alpha-only tuning made the pose look confident
+but less accurate, so it was rejected. Wi-Fi roams caused no Jetson-side ROS
+gaps. Fixed and deployed (display only, backup kept, no restart): the
+`/mapping` page no longer labels a network stall as POSE DELAYED and keeps
+rover-side ages separate from link age. Added read-only tools and tests. No
+calibration, EKF, AMCL or network setting was changed. See
+[motion investigation](docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md).
+
 2026-10-10 developer branch review: compared the three new GitHub branches
 with baseline `cc5862a` and read-only Jetson state. Confirmed offline AMCL
 particle-loss evidence and a loaded mission-start scan gate. The observed

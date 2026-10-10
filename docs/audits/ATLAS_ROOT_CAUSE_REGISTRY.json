@@ -17,7 +17,7 @@
       "id": "ATLAS-001",
       "title": "Encoder channel response and post-replacement metric calibration",
       "first_available_occurrence": "2026-08-04",
-      "latest_reviewed_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-10",
       "subsystem": "encoders / odometry",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
@@ -35,10 +35,11 @@
       "evidence": [
         "docs/NAVIGATION_FOUNDATION_AUDIT_2026-08-04.md",
         "docs/THREE_ENCODER_GROUND_OBSERVATION_2026-09-17.md",
-        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md"
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md"
       ],
       "test_results": "Replacement had historical dynamic passes; current M3 not qualified; six Oct8 runs had zero pulse requests. Oct9 live idle health selected all M1-M4 with fresh packets; no dynamic M3 qualification follows.",
-      "remaining_verification": "After test-channel qualification: one bounded lifted M3 pulse with physical direction observation, then measured independent loaded forward/reverse runs. Never choose a channel only because it matches a desired distance.",
+      "remaining_verification": "After test-channel qualification: one bounded lifted M3 pulse with physical direction observation, then measured independent loaded forward/reverse runs. Never choose a channel only because it matches a desired distance. 2026-10-10: supervised tape-measured 2 m/4 m straight runs at two speeds with raw counts and /lidar/odom to resolve the ~0.6x distance scale before any CPR change.",
       "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
       "events": [
         {
@@ -55,6 +56,11 @@
           "date": "2026-10-09",
           "kind": "stopped_runtime_observation",
           "description": "10:07 IST dashboard API: encoder state READY, packet_fresh true, selected [1,2,3,4], excluded []; physical motion response untested."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "odometry_distance_scale_vs_lidar",
+          "description": "Oct9 drives: scan-pair ICP and keyframe ICP chains (matching AMCL end-to-end displacement within 1-11%) show raw M1/M2/M4 counts at 0.60-0.62x true distance with current CPR; EKF /odom 0.41-0.54x overall and 0.36-0.54x above 0.3 m/s; M3 incoherent (-0.46, 0.31). Consistent with Sep16 (0.52) and Sep25 (0.59) tape results. Cause (CPR after motor replacement vs slip vs lost counts) not separated; no calibration changed. Evidence gap: tape-measured straight runs with raw counts."
         }
       ]
     },
@@ -253,7 +259,9 @@
       "original_failure_and_evidence": "Daly Bluetooth response deadline exceeded during connect at 09:23:35, 09:23:54, 09:24:02, 09:24:10 and 09:28:39 IST.",
       "confirmed_findings": "Failure stage is connection establishment, before MTU/data parsing. Recovery restarted BMS at 09:23:36; healthy at 09:23:44 then failure returned.",
       "suspected_causes_and_limits": "Phone contention, radio conditions, reconnect churn or Bluetooth stack remain unproved alternatives.",
-      "attempted_fix_commits": ["221af9c16a9a6adb7c4aaab0f992c890b50702ec"],
+      "attempted_fix_commits": [
+        "221af9c16a9a6adb7c4aaab0f992c890b50702ec"
+      ],
       "evidence": [
         "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
         "journalctl --user -b -u rover-daly-bms.service",
@@ -410,7 +418,7 @@
       "update_gate_validation": "4a4ea9a REJECTED for deployment: actual mux guard fails closed above 2.5 s pose age while candidate suppresses stationary/sub-threshold updates. Five contract tests pass as rejection evidence, not navigation acceptance. Need independent processed-scan/TF/estimate health; no timeout bypass or stale-pose republishing. Production unchanged.",
       "title": "Mapping startup race, stale places and pose corrections",
       "first_available_occurrence": "2026-08-24",
-      "latest_reviewed_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-10",
       "subsystem": "mapping / localization / TF",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
@@ -434,7 +442,8 @@
         "docs/MAPPING_SESSION_FORENSICS_2026-10-04.md",
         "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md",
         "docs/audits/ATLAS_NAVIGATION_GATE_2026-10-09.md",
-        "docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md"
+        "docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md",
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md"
       ],
       "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live safety reporter initially said SLAM MAP DATA LOST; a new transient-local subscriber received the saved map, and diagnostic-only reporter restart restored LOCALIZATION/map ONLINE. Root cause of stale prior status not proven; navigation remains unvalidated.",
       "remaining_verification": "The operator confirmed the exact saved Dhruv Room point and heading; stationary scan/map fit identified the earlier out-of-map AMCL pose as wrong, and one saved-pose reseed corrected it. A new operator-confirmed Hall endpoint passes exact saved-map footprint clearance; the taught route still has an older map ID. The recorded manual Hall-to-home return showed >2 m stationary AMCL jumps, 32 traction samples with critical encoder consensus, and disagreement between wheel and IM10A yaw-rate integration. Different endpoint displacements alone do not establish wheel-distance scale error. Diagnose same-time scan/AMCL/odom/TF, wheel agreement and heading before autonomous motion. Audit stale mapping-session marker lifecycle; require an actual Nav2 plan and supervised recorded round trip only after localization is stable.",
@@ -534,6 +543,11 @@
           "date": "2026-10-09",
           "kind": "stationary_amcl_shadow_internal_trace",
           "description": "Built pinned Nav2 AMCL 1.1.20 in a separate Jetson workspace with pre-resampling weighted-particle and selected-cluster traces. Bounded shadow instance used absolute live map/scan topics, verified tf_broadcast=false, and did not replace production AMCL or command motors. First lifecycle RPC timed out despite configuration; state verification fixed. A subsequent helper pacing bug issued 1623 shadow-only no-motion requests in 10 s and briefly raised Jetson load; corrected to monotonic 1 Hz. Accepted 10-second stationary capture sent 10 requests and recorded 7 weighted clouds, 7 shadow poses and 25 scans in an 8.10-second bag. One stable cluster was observed; no historic jump reproduced. Root cause and autonomy remain unresolved."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "motion_replay_root_cause_ranking",
+          "description": "Validated AMCL 1.1.20 motion replay (baseline reproduces recorded UNCERTAIN fraction and held-out fit). Distance x1.6 raised moving held-out fit 0.69-0.74 -> 0.80-0.93 (0.84-0.94 with 0.2 s TF shift) on 3/4 drives; alphas 0.05 alone lowered fit (outbound 0.74 -> 0.52): rejected. Forced 1 Hz updates explain CONFIDENT-after-stop; removing them alone rejected. Round trip not repaired by any setting. Offline only; production AMCL/EKF unchanged."
         }
       ]
     },
@@ -616,7 +630,7 @@
       "id": "ATLAS-014",
       "title": "Observability overhead and overstrong success claims",
       "first_available_occurrence": "2026-08-06",
-      "latest_reviewed_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-10",
       "subsystem": "engineering process / compute / evidence",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
@@ -633,7 +647,8 @@
       "evidence": [
         "docs/COMMISSIONING_STATUS_2026-08-06.md",
         "docs/SENSOR_RECOVERY_IDLE_CPU_2026-10-04.md",
-        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md"
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md"
       ],
       "test_results": "Raw freshness optimization documented 20.0 to 15.3% one-core CPU; no end-to-end performance certification.",
       "remaining_verification": "Record config/hardware identity with every qualification; load-test real workload with temperature, message ages and control deadlines; retain failures and limit claims.",
@@ -648,6 +663,11 @@
           "date": "2026-10-09",
           "kind": "latest_assessment",
           "description": "Raw freshness optimization documented 20.0 to 15.3% one-core CPU; no end-to-end performance certification."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "dashboard_link_staleness_misclassified",
+          "description": "atlas_mapping.html aged rover items by browser time, so a Wi-Fi/Tailscale stall showed POSE DELAYED (40/60 samples in a 6 s simulated stall) and a slow link showed AMCL UNVERIFIED while parked. Fixed: link freshness separated from server-side rover ages; deployed display-only 2026-10-10 16:08 IST with backup; 7 Node tests and browser simulation pass. Live dashboard observation during a real roam still pending."
         }
       ]
     },
@@ -724,7 +744,9 @@
       "original_failure_and_evidence": "On a Daly BLE read failure, JSON reported ok:false but publish_data emitted prior voltage/current/SOC/cells on scalar topics. The agent refreshed its SOC age from scalar percent.",
       "confirmed_findings": "Scalar topics carry no validity field, so copied readings appeared new. The JSON-based motor lifted-test gate already rejected unhealthy snapshots.",
       "suspected_causes_and_limits": "This is a freshness-contract defect, not proof of the underlying BLE connection cause. Other dashboard consumers may cache last values and require their own explicit stale indication.",
-      "attempted_fix_commits": ["5bdce11"],
+      "attempted_fix_commits": [
+        "5bdce11"
+      ],
       "evidence": [
         "docs/audits/BMS_FRESHNESS_REPAIR_2026-10-09.md",
         "project_atlas/scripts/daly_bms_node.py",
@@ -739,6 +761,58 @@
           "date": "2026-10-09",
           "kind": "latest_assessment",
           "description": "Confirmed stale scalar republishing and agent SOC-age refresh. Source fix tested and deployed; short healthy-runtime pass only, invalid path still untested live."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-018",
+      "title": "Unclean Jetson reboots with NVMe PCIe error storms; boot reseeds AMCL at home",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-10",
+      "subsystem": "Compute / storage / localization startup",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "last -x: crash-ended sessions before reboots at 13:41:39, 13:46:27, 13:54:08, 14:29:04 IST on 2026-10-10. Kernel: PCIe corrected RxErr on 0004:00:00.0 (NVMe root port) up to ~44,000/min at 13:22-13:24 and 13:40-13:42; smaller storm 2026-10-09 21:19-21:29.",
+      "confirmed_findings": "Each boot runs atlas_localization_seeder, which seeds AMCL at the saved home pose (0.254, -1.539) regardless of physical position. The 13:54-14:29 boot left almost no journal.",
+      "suspected_causes_and_limits": "SSD seating, power or vibration; causal link between AER storms and the crashes is suspected, not proven (the 13:54 and 14:29 crashes had no storm immediately before). Link to the operator report that localization did not recover at home is a hypothesis.",
+      "attempted_fix_commits": [],
+      "evidence": [
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md"
+      ],
+      "test_results": "No AER lines since the 14:29 boot as of 15:50 IST.",
+      "remaining_verification": "Stopped soak with kernel AER monitoring after reseating/checking the SSD; record boot IDs; never treat a post-crash home seed as localization without a scan-fit check.",
+      "history_completeness": "Oct 9-10 journals only",
+      "events": [
+        {
+          "date": "2026-10-10",
+          "kind": "first_review",
+          "description": "Four crash reboots identified; NVMe AER storms precede two."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-019",
+      "title": "Multi-AP Wi-Fi roaming, extender DHCP failures and cellular route flips interrupt the dashboard link",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-10",
+      "subsystem": "Networking / operator UI",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "One SSID on three radios (b4:a7:c6:41:fc:99/9a, f0:ed:b8:33:16:49/4a, 8c:a3:99:e7:a3:c1/c2). Oct9: 9 roams, 5 inside drive bags; Tailscale fell back to DERP 16:50-17:06. Oct10: 46 roams 14:00-15:00; extender 8c:a3:99 DHCP ip-config-unavailable 13:40-13:46; default route flipped to usb0 cellular several times. RTL8822CE power save on, txpower 7 dBm.",
+      "confirmed_findings": "Jetson-local ROS topics showed no gaps beyond normal at any roam inside the drive bags: network affects the dashboard/remote link, not localization.",
+      "suspected_causes_and_limits": "Power save and aggressive roaming plausibly add latency; no ping log exists to quantify it.",
+      "attempted_fix_commits": [],
+      "evidence": [
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md"
+      ],
+      "test_results": "Dashboard link/rover status separation deployed (see ATLAS-014).",
+      "remaining_verification": "10-minute ping logs parked and carried, before/after Wi-Fi power save off; fix or avoid the 8c:a3:99 extender DHCP.",
+      "history_completeness": "Journals from 2026-10-09 11:00 only",
+      "events": [
+        {
+          "date": "2026-10-10",
+          "kind": "first_review",
+          "description": "Roam/DHCP/route-flip timeline correlated with drive bags and ping-timeout reports."
         }
       ]
     }

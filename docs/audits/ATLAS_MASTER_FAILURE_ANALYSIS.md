@@ -39,6 +39,16 @@ No physical movement, firmware flashing, safety bypass, calibration or navigatio
 
 ## Findings in plain language
 
+Oct 10 motion investigation (supersedes nothing; adds a ranked cause): the
+wheel odometry distance scale is ~0.6 of true distance, measured three
+independent ways and consistent with two earlier tape tests. In a validated
+offline AMCL replay, correcting it is what restores pose accuracy while
+moving. Lowering AMCL noise without fixing it gives confident, wrong poses.
+CONFIDENT-after-stop is forced resampling, and jumps are cloud-winner switches
+on top of that. Wi-Fi only affects the dashboard, whose stall label is now
+fixed. Four crash reboots today (NVMe PCIe errors) reseed AMCL at home. See
+[motion investigation](ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md).
+
 New diagnostic implementation distinguishes actual AMCL scan callback
 completion from pose publication. An isolated stationary replay produced 238
 processing events with only one pose sequence; subsequent scan loss was
