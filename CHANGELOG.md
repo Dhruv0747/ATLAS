@@ -1,5 +1,17 @@
 # Changelog
 
+2026-10-10 — Revoke encoder navigation validation (fail-safe)
+
+- Set `navigation_validated: false` in `project_atlas/config/encoder_selection.yaml`.
+  The Oct 2 ground qualification is kept as history, but the Oct 8–9 records
+  say M3 remains unvalidated and encoder reliability is unqualified.
+- Effect, once the base driver restarts: `/atlas/encoder_health` reports
+  `autonomy_ready: false`, so the mux blocks NAV2 and RECOVERY commands.
+  Manual remote driving, the latched stop and `ATLAS_MANUAL_ONLY` are unchanged.
+- Re-enable only after M3 passes and the ground distance, turn and stopping
+  checks are repeated. The encoder selection, commissioning-evidence and
+  closed-loop tests pass.
+
 2026-10-09 competing-pose comparison: equal bounded fitting plus later unused
 beams favours the Dhruv region (99–100% endpoint fit, 0.214° corrected-gyro
 residual) over the refined false region (78.9–85.6%, 98.229°). A recorded
