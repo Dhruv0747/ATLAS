@@ -443,7 +443,8 @@
         "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md",
         "docs/audits/ATLAS_NAVIGATION_GATE_2026-10-09.md",
         "docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md",
-        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md"
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md",
+        "docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md"
       ],
       "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live safety reporter initially said SLAM MAP DATA LOST; a new transient-local subscriber received the saved map, and diagnostic-only reporter restart restored LOCALIZATION/map ONLINE. Root cause of stale prior status not proven; navigation remains unvalidated.",
       "remaining_verification": "The operator confirmed the exact saved Dhruv Room point and heading; stationary scan/map fit identified the earlier out-of-map AMCL pose as wrong, and one saved-pose reseed corrected it. A new operator-confirmed Hall endpoint passes exact saved-map footprint clearance; the taught route still has an older map ID. The recorded manual Hall-to-home return showed >2 m stationary AMCL jumps, 32 traction samples with critical encoder consensus, and disagreement between wheel and IM10A yaw-rate integration. Different endpoint displacements alone do not establish wheel-distance scale error. Diagnose same-time scan/AMCL/odom/TF, wheel agreement and heading before autonomous motion. Audit stale mapping-session marker lifecycle; require an actual Nav2 plan and supervised recorded round trip only after localization is stable.",
@@ -548,6 +549,11 @@
           "date": "2026-10-10",
           "kind": "motion_replay_root_cause_ranking",
           "description": "Validated AMCL 1.1.20 motion replay (baseline reproduces recorded UNCERTAIN fraction and held-out fit). Distance x1.6 raised moving held-out fit 0.69-0.74 -> 0.80-0.93 (0.84-0.94 with 0.2 s TF shift) on 3/4 drives; alphas 0.05 alone lowered fit (outbound 0.74 -> 0.52): rejected. Forced 1 Hz updates explain CONFIDENT-after-stop; removing them alone rejected. Round trip not repaired by any setting. Offline only; production AMCL/EKF unchanged."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "hall_coldstart_blind_seed",
+          "description": "Live: rebooted parked in Hall; seeder seeded saved Dhruv Room pose (0.254,-1.539) at 16:36:10; AMCL reported (0.497,-1.183,84 deg), cloud 2000 particles at 1 unique pose, covariance round-off (xx -2.2e-14). No-prior LiDAR search: Hall (6.275,-2.115,-95.5) fit 0.976 margin 0.187; AMCL pose fit 0.54. Cold-start replays: saved seed 0/24 correct (10 confident-wrong), nav2 global 12/24, search seed 24/24. Verify-before-seed implemented (default off), Jetson dry-run 3 VERIFIED correct / 4 UNKNOWN / 0 wrong. Not deployed."
         }
       ]
     },
@@ -648,7 +654,8 @@
         "docs/COMMISSIONING_STATUS_2026-08-06.md",
         "docs/SENSOR_RECOVERY_IDLE_CPU_2026-10-04.md",
         "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
-        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md"
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md",
+        "docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md"
       ],
       "test_results": "Raw freshness optimization documented 20.0 to 15.3% one-core CPU; no end-to-end performance certification.",
       "remaining_verification": "Record config/hardware identity with every qualification; load-test real workload with temperature, message ages and control deadlines; retain failures and limit claims.",
@@ -668,6 +675,11 @@
           "date": "2026-10-10",
           "kind": "dashboard_link_staleness_misclassified",
           "description": "atlas_mapping.html aged rover items by browser time, so a Wi-Fi/Tailscale stall showed POSE DELAYED (40/60 samples in a 6 s simulated stall) and a slow link showed AMCL UNVERIFIED while parked. Fixed: link freshness separated from server-side rover ages; deployed display-only 2026-10-10 16:08 IST with backup; 7 Node tests and browser simulation pass. Live dashboard observation during a real roam still pending."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "covariance_collapse_reads_as_confident",
+          "description": "Collapsed AMCL cloud gives +/-1e-14 covariance: map page CONFIDENT or invalid depending on round-off sign; mux and mission control clamp negatives to 0 (perfect confidence). Dashboard change (green requires this boot LiDAR start verification) implemented and browser-tested; not deployed. Clamp left for a reviewed safety change."
         }
       ]
     },
@@ -675,7 +687,7 @@
       "id": "ATLAS-015",
       "title": "LiDAR startup recovery and boot clock chronology",
       "first_available_occurrence": "2026-10-09",
-      "latest_reviewed_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-10",
       "subsystem": "LiDAR / startup / logs",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
@@ -686,7 +698,8 @@
       "evidence": [
         "journalctl --list-boots",
         "journalctl --user -b -u atlas-lidar.service",
-        "journalctl --user -b -u atlas-sensor-recovery.service"
+        "journalctl --user -b -u atlas-sensor-recovery.service",
+        "docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md"
       ],
       "test_results": "Later service running with NRestarts=2 and device health OK; scan stream endurance not tested.",
       "remaining_verification": "Bind logs to boot ID and monotonic time; verify scan freshness/frame geometry and startup dependencies read-only before navigation.",
@@ -701,6 +714,11 @@
           "date": "2026-10-09",
           "kind": "latest_assessment",
           "description": "Later service running with NRestarts=2 and device health OK; scan stream endurance not tested."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "lidar_start_failure_delays_localization",
+          "description": "Boot 16:24: 25 RPLIDAR start failures (Can not start scan 80008002 / SL_RESULT_OPERATION_TIMEOUT) until 16:35:45; bounded recovery gave up 16:31:28; localization start failed until 16:36:13. Same signature 23x on Oct 9 09:00-10:59. Power/USB/motor spin-up cause is a hypothesis."
         }
       ]
     },
@@ -787,6 +805,11 @@
           "date": "2026-10-10",
           "kind": "first_review",
           "description": "Four crash reboots identified; NVMe AER storms precede two."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "follow_up",
+          "description": "No NVMe AER lines since the 14:29 boot (checked 16:55); the 16:24 restart was a clean shutdown. Each crash boot also reseeded Dhruv Room (see ATLAS-011)."
         }
       ]
     },

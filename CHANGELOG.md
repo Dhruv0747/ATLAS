@@ -1,5 +1,17 @@
 # Changelog
 
+2026-10-10 Hall cold start investigation. Restarted in the Hall, ATLAS
+showed Dhruv Room as CONFIDENT. The cause: the startup seeder always seeds the
+saved Dhruv Room pose without checking the LiDAR, AMCL injects no recovery
+particles, and parked updates collapsed the cloud to one particle whose
+round-off covariance looks confident. Added a pure LiDAR-to-map verifier, plus
+an opt-in `verify` seed mode (`~/.config/project_atlas/seed_mode`) that seeds
+only a unique LiDAR match and otherwise reports LOCALIZATION UNKNOWN. A
+`--dry-run` check is included. `/api/map` adds `start_verdict`, and the map
+page shows green CONFIDENT only after this boot's LiDAR verification. Default
+start behaviour is unchanged; nothing was deployed. See
+[Hall cold-start report](docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
+
 2026-10-10 localization during motion investigation. Wheel odometry
 reports ~0.6× the distance LiDAR scan matching measures (raw M1/M2/M4
 0.60–0.62; EKF 0.36–0.54 above 0.3 m/s). This matches the Sep 16/25 tape

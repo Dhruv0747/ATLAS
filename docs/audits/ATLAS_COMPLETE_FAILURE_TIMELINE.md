@@ -37,6 +37,7 @@ Updated 2026-10-09. Canonical requested filename; **historical coverage is incom
 
 | Date / period | IDs | Observation and disposition |
 | --- | --- | --- |
+| 2026-10-10 16:24-16:55 Hall cold start | 011,014,015,018 | Clean reboot in Hall; LiDAR failed to start 11.5 min; seeder blindly seeded Dhruv Room; AMCL collapsed to one particle and looked CONFIDENT. LiDAR global search identifies Hall uniquely; verify-before-seed implemented and dry-run (0 wrong); not deployed. |
 | 2026-10-10 motion investigation | 001,011,014,018,019 | Odometry distance ~0.6x LiDAR/ICP (confirmed, three methods + Sep tape); motion replay ranks it first; alpha-only tuning rejected; dashboard POSE DELAYED-on-link-stall fixed and deployed (display only); four crash reboots with NVMe AER storms; Wi-Fi roams do not affect Jetson ROS. No calibration/EKF/AMCL change. |
 | 2026-10-09 processing-health separation | 011 | Separate AMCL overlay build and stationary replay verified scan processing versus pose silence; scan-loss report initially froze with ROS clock, fixed using steady-clock timer. Diagnostic only, no production or mux-authority changes. |
 | 2026-10-09 validation | 011 | Rejected 4a4ea9a update gate for deployment: actual mux method blocks stationary/sub-threshold creep at >2.5 s pose age. Five regression counterexamples passed; no movement or production change. |

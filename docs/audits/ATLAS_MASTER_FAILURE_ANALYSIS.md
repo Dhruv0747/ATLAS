@@ -39,6 +39,14 @@ No physical movement, firmware flashing, safety bypass, calibration or navigatio
 
 ## Findings in plain language
 
+Oct 10 Hall cold start: the startup seed, not AMCL tuning, put ATLAS in
+Dhruv Room. The seeder always seeds the saved pose. AMCL has no way to
+escape, and a collapsed cloud's near-zero covariance looks like
+confidence. A no-prior LiDAR-to-map search identified the true room every
+time, and is the basis of a verify-before-seed start that reports UNKNOWN
+rather than guess. See
+[Hall cold-start report](ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
+
 Oct 10 motion investigation (supersedes nothing; adds a ranked cause): the
 wheel odometry distance scale is ~0.6 of true distance, measured three
 independent ways and consistent with two earlier tape tests. In a validated

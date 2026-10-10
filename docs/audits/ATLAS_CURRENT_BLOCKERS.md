@@ -1,5 +1,19 @@
 # ATLAS current blockers
 
+2026-10-10 Hall cold start localized as Dhruv Room (confirmed): every
+localization start seeds AMCL at the saved Dhruv Room pose without checking
+the LiDAR. No recovery particles are injected, and 1 Hz parked updates
+collapsed the cloud to one pose duplicated 2,000 times. The covariance is
+round-off (±1e−14) that the map page can show as CONFIDENT and the mux and
+mission control clamp to "perfect". A no-prior LiDAR search finds the Hall
+uniquely (fit 0.976, margin 0.187) and was correct in 11/11 parked windows.
+Replays: saved seed 0/24 correct, Nav2 global 12/24, search seed 24/24.
+A verify-before-seed mode (UNKNOWN instead of guessing) is implemented and
+dry-run on the Jetson: 3 correct VERIFIED, 4 UNKNOWN, 0 wrong. **Not
+deployed**; controlled reboot validation is pending. The delayed start was 25
+LiDAR start failures over 11.5 min. See
+[Hall cold-start report](ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
+
 2026-10-10 localization during motion: wheel odometry reports only ~0.6×
 the distance LiDAR scan matching measures (M1/M2/M4 raw counts 0.60–0.62;
 EKF 0.36–0.54 above 0.3 m/s), matching tape results of Sep 16 and Sep 25.
