@@ -1,5 +1,27 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Mission-start LiDAR check — 2026-10-10
+
+Before any saved-map goal (return home, named place, taught route), mission
+control now scores a fresh LiDAR scan against the accepted map at the current
+AMCL pose. It uses only the beams AMCL itself does not sample. If fewer than
+85% of returns land within 15 cm of a mapped wall, the goal is refused with
+"ATLAS may have been moved. Set the current named place, then retry".
+
+It also refuses on a missing or stale scan (older than 1 s), a missing laser
+transform, or no map-frame pose. Mapping sessions are exempt. It never
+publishes, seeds or moves anything.
+
+Why: on Oct 9, after ATLAS was moved by hand, AMCL sat still and confident
+0.55 m from the true spot (fit 61%). The covariance and stillness checks
+both passed. Replaying the recordings, the check refused every known-wrong
+pose (61–82%) and passed every good one (96–100%).
+
+Parameters: `scan_fit_gate_enabled` (default true) and
+`scan_fit_min_fraction` (default 0.85). If a goal is refused, reseed with
+`seed_atlas_localization.py --place <place>`; never lower the threshold to
+get past it.
+
 2026-10-09 competing-pose comparison: equal bounded fitting plus later unused
 beams favours the Dhruv region (99–100% endpoint fit, 0.214° corrected-gyro
 residual) over the refined false region (78.9–85.6%, 98.229°). A recorded

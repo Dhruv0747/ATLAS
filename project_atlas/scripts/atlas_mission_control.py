@@ -31,6 +31,8 @@ from nav2_msgs.action import (
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Empty, Int32, String
 from std_srvs.srv import Empty as EmptyService, Trigger
 from tf2_ros import Buffer, TransformListener
@@ -52,6 +54,13 @@ from atlas_map_acceptance_core import (
 from atlas_map_footprint_sanitizer import sanitize_saved_map
 from atlas_amcl_update_gate import AmclUpdateGate
 from atlas_amcl_processing_health import ProcessingHealth
+from atlas_scan_fit_core import (
+    OccupiedIndex,
+    ScanFitPolicy,
+    evaluate as evaluate_scan_fit,
+    load_occupied_index,
+    unused_beam_points,
+)
 
 
 class AtlasMissionControl(Node):
@@ -120,6 +129,19 @@ class AtlasMissionControl(Node):
         self.places_file = Path.home() / ".config/project_atlas/named_places.json"
         self.taught_routes_dir = Path("/home/jetson/project_atlas/config/routes")
         self.map_prefix = Path(str(self.get_parameter("map_prefix").value))
+        # Mission-start LiDAR/map agreement (2026-10-10). Only ever refuses.
+        self.declare_parameter("scan_fit_gate_enabled", True)
+        self.declare_parameter("scan_fit_min_fraction", 0.85)
+        self.scan_fit_gate_enabled = bool(
+            self.get_parameter("scan_fit_gate_enabled").value)
+        self.scan_fit_policy = ScanFitPolicy(
+            min_fit_fraction=float(self.get_parameter("scan_fit_min_fraction").value))
+        self.latest_scan = None
+        self.latest_scan_received_at = None
+        self.scan_fit_map_key = None
+        self.scan_fit_index = None
+        self.create_subscription(
+            LaserScan, "/scan", self.update_latest_scan, qos_profile_sensor_data)
         self.map_prefix.parent.mkdir(parents=True, exist_ok=True)
         self.explore_unit = str(self.get_parameter("explore_unit").value)
         self.home_verify_delay = float(
@@ -855,6 +877,56 @@ class AtlasMissionControl(Node):
                 f"{label} belongs to a different map; set it again on the current map"
             )
 
+    def update_latest_scan(self, msg: LaserScan) -> None:
+        self.latest_scan = msg
+        self.latest_scan_received_at = time.monotonic()
+
+    def scan_fit_map_index(self) -> OccupiedIndex:
+        yaml_path = self.map_prefix.with_suffix(".yaml")
+        image_path = self.map_prefix.with_suffix(".pgm")
+        key = tuple((p.stat().st_mtime_ns, p.stat().st_size) for p in (yaml_path, image_path))
+        if key != self.scan_fit_map_key:
+            self.scan_fit_index = load_occupied_index(yaml_path, image_path)
+            self.scan_fit_map_key = key
+        return self.scan_fit_index
+
+    def require_scan_map_agreement(self) -> None:
+        """Refuse saved-map goals when a fresh scan disagrees with the map.
+
+        Covariance and stillness checks pass while AMCL sits confidently at a
+        wrong pose, e.g. after ATLAS was moved by hand (2026-10-10 audits).
+        This scores beams AMCL does not sample against the accepted map bytes.
+        It never publishes, seeds or moves anything; it can only refuse.
+        """
+        if not self.scan_fit_gate_enabled or self.active_mapping_session():
+            return
+        current = self.current_pose()
+        if current.get("frame_id") != "map":
+            raise RuntimeError("scan check blocked: no map-frame pose")
+        try:
+            laser_tf = self.tf_buffer.lookup_transform(
+                "base_link", "laser_frame", rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=1.0))
+            index = self.scan_fit_map_index()
+        except Exception as exc:
+            raise RuntimeError(f"scan check blocked: {exc}") from exc
+        scan = self.latest_scan
+        age = (None if self.latest_scan_received_at is None
+               else time.monotonic() - self.latest_scan_received_at)
+        points = [] if scan is None else unused_beam_points(
+            scan.angle_min, scan.angle_increment, scan.ranges,
+            scan.range_min, scan.range_max, self.scan_fit_policy)
+        q = laser_tf.transform.rotation
+        laser = (laser_tf.transform.translation.x, laser_tf.transform.translation.y,
+                 math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)))
+        pose = (float(current["x"]), float(current["y"]),
+                math.atan2(2 * (current["qw"] * current["qz"] + current["qx"] * current["qy"]),
+                           1 - 2 * (current["qy"] ** 2 + current["qz"] ** 2)))
+        result = evaluate_scan_fit(points, pose, laser, index, age, self.scan_fit_policy)
+        if not result.ok:
+            raise RuntimeError("navigation blocked: " + result.reason)
+        self.status(f"SCAN CHECK OK fit={result.fit_fraction:.0%} returns={result.endpoints}")
+
     def require_known_saved_map_start(self) -> None:
         """Do not dispatch a saved-map goal from unknown or occupied space.
 
@@ -1541,6 +1613,7 @@ class AtlasMissionControl(Node):
     ) -> None:
         self.refresh_localization_before_motion()
         self.require_known_saved_map_start()
+        self.require_scan_map_agreement()
         self.center_camera_for_navigation()
         if not self.nav_through.wait_for_server(timeout_sec=10.0):
             raise RuntimeError("Nav2 NavigateThroughPoses action is unavailable")
@@ -1570,6 +1643,7 @@ class AtlasMissionControl(Node):
     def dispatch_pose_goal(self, pose: dict, label: str) -> None:
         self.refresh_localization_before_motion()
         self.require_known_saved_map_start()
+        self.require_scan_map_agreement()
         # Nav2 semantic fusion assumes the optical axis stays aligned with the
         # calibrated forward camera/LiDAR geometry. Person-follow mode may
         # move the camera, so pause tracking only for the duration of a goal.
@@ -1752,6 +1826,7 @@ class AtlasMissionControl(Node):
             )
         self.refresh_localization_before_motion()
         self.require_known_saved_map_start()
+        self.require_scan_map_agreement()
         if not self.nav.wait_for_server(timeout_sec=10.0):
             raise RuntimeError("Nav2 NavigateToPose action is unavailable")
         pose = json.loads(self.home_file.read_text(encoding="utf-8"))
