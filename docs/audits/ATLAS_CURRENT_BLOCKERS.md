@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+2026-10-10 multi-drive parked-diversity check (12 parked windows, 6
+recordings, 1,800 AMCL core runs): nudge 0.05 m / 2.5° never lowered held-out
+scan fit in 11/12 windows (2 seeds in the already-failed window) and improved
+it in 5. The parked-update gate lowered fit in 5 windows on every seed and
+never improved it: rejected as a standalone repair. Nudge 0.10 m rejected.
+New: outbound 1636 sat ~0.5 m from a far better-fitting pose (0.62 vs 1.00).
+The 0.05 m nudge added jumps (up to 9) in correcting windows. Offline only.
+See [multi-drive results](ATLAS_AMCL_PARKED_DIVERSITY_MULTIDRIVE_2026-10-10.md).
+
 2026-10-10 parked-diversity experiment (AMCL 1.1.20 core, 450 runs, seeds
 1–30): bounded jitter of 0.05 m / 2.5° after each parked resample moved the
 failed return window onto the refined Dhruv Room pose in 22/30 seeds
