@@ -1,5 +1,16 @@
 # Changelog
 
+2026-10-10 parked-diversity experiment (AMCL 1.1.20 core, 450 runs, seeds
+1–30): bounded jitter of 0.05 m / 2.5° after each parked resample moved the
+failed return window onto the refined Dhruv Room pose in 22/30 seeds
+(held-out fit 1.000) and kept the correct room and Hall windows correct in
+30/30 each. 8/30 failure-window runs stayed wrong, some wandering up to 3 m:
+not deployable. The parked-update gate never recovered and froze the Hall
+window wrong in 30/30, where recorded updates had corrected it; do not
+deploy it as a standalone repair. Unchanged existing harness reproduced
+published Jetson numbers exactly. Offline, one drive; production unchanged.
+Nine new helper tests passed. See [parked-diversity experiment](docs/audits/ATLAS_AMCL_PARKED_DIVERSITY_EXPERIMENT_2026-10-10.md).
+
 2026-10-10 weak-hypothesis trace: the 15 room-near particles were lost
 while parked (+351.997 to +362.854 s, 11 forced no-motion updates, 0.23 mm
 odometry). Scans did not reject them: the exact room pose outscored every
