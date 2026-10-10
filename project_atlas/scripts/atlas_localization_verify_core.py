@@ -51,6 +51,16 @@ class VerifyPolicy:
     max_range_m: float = 8.0
     keep_per_heading: int = 40
     hypotheses: int = 5
+    # Continuous tracking check (2026-10-10 moving failure; 29 parked checks
+    # in 8 recordings): AMCL poses the LiDAR confirmed fit 0.81-1.00; the
+    # 12 known-wrong AMCL states were 0.41-5.9 m / up to 180 deg from the
+    # unique LiDAR answer and fit 0.29-0.80.
+    track_agree_m: float = 0.30
+    track_agree_deg: float = 10.0
+    track_min_fit: float = 0.90
+    lost_fit: float = 0.70
+    lost_disagree_m: float = 0.50
+    lost_disagree_deg: float = 20.0
 
 
 @dataclass
@@ -243,3 +253,43 @@ def decide(hyps: List[dict], endpoints_used: int,
                            f'claimed pose disagrees with the LiDAR by {d:.2f} m / {dyaw:.0f} deg',
                            best['fit_heldout'], margin, public)
     return Verdict('VERIFIED', pose, 'unique LiDAR match on the saved map', best['fit_heldout'], margin, public)
+
+
+def angle_deg(a: float, b: float) -> float:
+    return abs(math.degrees(math.atan2(math.sin(a - b), math.cos(a - b))))
+
+
+def assess_tracking(amcl_pose: Tuple[float, float, float], amcl_fit: float,
+                    verdict: Optional[Verdict], policy: VerifyPolicy = VerifyPolicy()) -> dict:
+    """Is the CURRENT AMCL pose confirmed by the LiDAR? (parked rover only)
+
+    VERIFIED  unique LiDAR place agrees with AMCL and AMCL's own pose fits.
+    LOST      unique LiDAR place is elsewhere, or AMCL's pose fits badly.
+    DEGRADED  close but not confirmed (e.g. heading off, ambiguous search).
+    Never grants navigation authority; LOST may carry a recovery candidate.
+    """
+    out = {'state': 'DEGRADED', 'amcl_fit': round(float(amcl_fit), 3), 'recovery_pose': None,
+           'distance_m': None, 'heading_deg': None, 'reason': ''}
+    if verdict is not None and verdict.state == 'VERIFIED':
+        d = math.hypot(amcl_pose[0] - verdict.pose[0], amcl_pose[1] - verdict.pose[1])
+        dyaw = angle_deg(amcl_pose[2], verdict.pose[2])
+        out.update(distance_m=round(d, 3), heading_deg=round(dyaw, 1))
+        if d > policy.lost_disagree_m or dyaw > policy.lost_disagree_deg:
+            out.update(state='LOST', reason=f'LiDAR places ATLAS {d:.2f} m / {dyaw:.0f} deg from AMCL',
+                       recovery_pose={'x': round(verdict.pose[0], 3), 'y': round(verdict.pose[1], 3),
+                                      'yaw_deg': round(math.degrees(verdict.pose[2]), 1),
+                                      'fit': verdict.best_fit, 'margin': verdict.margin})
+            return out
+        if amcl_fit < policy.lost_fit:
+            out.update(state='LOST', reason=f'AMCL pose does not match the LiDAR (fit {amcl_fit:.2f})')
+            return out
+        if d <= policy.track_agree_m and dyaw <= policy.track_agree_deg and amcl_fit >= policy.track_min_fit:
+            out.update(state='VERIFIED', reason='LiDAR confirms the AMCL pose')
+            return out
+        out['reason'] = f'AMCL near the LiDAR answer but not confirmed ({d:.2f} m, {dyaw:.0f} deg, fit {amcl_fit:.2f})'
+        return out
+    if amcl_fit < policy.lost_fit:
+        out.update(state='LOST', reason=f'AMCL pose does not match the LiDAR (fit {amcl_fit:.2f})')
+        return out
+    out['reason'] = 'no unique LiDAR place to confirm against' + (f' ({verdict.reason})' if verdict else '')
+    return out
