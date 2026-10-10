@@ -1,0 +1,21 @@
+[Unit]
+Description=Project ATLAS continuous LiDAR localization check (read-only, suggest-only by default)
+# Publishes /atlas/localization_check and writes
+# ~/.local/state/project_atlas/localization_check.json. It never publishes
+# velocity and never grants navigation authority. Reseeding happens only if
+# ~/.config/project_atlas/relocalize_mode says "auto" (default: suggest).
+After=atlas-localization.service atlas-lidar.service
+
+[Service]
+Type=simple
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+Environment=ROS_LOCALHOST_ONLY=0
+# The parked global search takes ~15 s of one core; keep it below control work.
+Nice=10
+CPUQuota=60%
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_localization_monitor.py'
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
