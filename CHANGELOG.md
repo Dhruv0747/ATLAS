@@ -98,6 +98,39 @@ NAV2 in the observed READY state. The mux has a separate DEGRADED recovery
 exception, so the above blanket RECOVERY claim needs qualification. See
 [developer branch review](docs/audits/ATLAS_DEVELOPER_BRANCH_REVIEW_2026-10-10.md).
 
+2026-10-10 — Deployed the mission-start LiDAR check to the Jetson (files only)
+
+- The Jetson ran mission control from `6a622f5` (Oct 9, 11:59), not this
+  branch's base: the later `4a4ea9a` and `edd6563` AMCL-update changes are
+  repository-only and were not deployed. So the same additive block (75
+  lines, no removals, byte-identical to this branch's addition) was applied
+  to the deployed `6a622f5` file. The tests pass on Python 3.10 and 3.13.
+- Backed up the original (SHA-256 `1252a28f…`) to
+  `data/backups/2026-10-10-scan-fit-gate/` first. Deployed
+  `atlas_mission_control.py` is `0da12027…`; new `atlas_scan_fit_core.py` is
+  `d60ceeb2…`. It imports on the Jetson.
+- No restart was done by Claude. The check is active after the operator
+  restarts `atlas-mission-control`. To roll back, restore the backup file.
+
+2026-10-10 — Mission-start LiDAR/map agreement check
+
+- `atlas_mission_control.py` runs `require_scan_map_agreement()` after the
+  start-clearance gate on all three saved-map dispatch paths. The pure logic
+  is in `atlas_scan_fit_core.py`: beams not sampled by AMCL (every sixth of
+  360), 0.3–8 m, a 15 cm wall tolerance, at least 60 returns, a scan no
+  older than 1 s, and an 85% minimum.
+- Replayed on 12 parked windows from six Oct 9 recordings at AMCL's actual
+  pose: it refused all five known-wrong poses (outbound 1636 ×3 at 61–63%,
+  stationary capture at 77%, failed round trip at 82%) and the round-trip
+  Hall pose (81%, about 0.24 m off). It passed the six good poses (96–100%).
+- The map loader round-trips the recorded map exactly. The pure-Python wall
+  lookup matched scipy on all 3,000 test points. 16 new tests pass on
+  Python 3.13 and on ROS 2 Humble Python 3.10, and the existing mission
+  contract tests still pass.
+- Note: `project_atlas/maps/atlas_latest.*` in Git (218×187, origin
+  −2.75, −8.08) is not the map deployed on the Jetson (232×220, origin
+  −3.89, −8.46). The check reads the deployed file through `map_prefix`.
+
 2026-10-09 competing-pose comparison: equal bounded fitting plus later unused
 beams favours the Dhruv region (99–100% endpoint fit, 0.214° corrected-gyro
 residual) over the refined false region (78.9–85.6%, 98.229°). A recorded
