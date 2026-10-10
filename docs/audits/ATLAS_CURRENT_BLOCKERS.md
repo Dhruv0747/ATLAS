@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+2026-10-10 outbound 1636 start offset: AMCL began the recording already
+converged 0.55 m ahead of the scan-best pose along the rover's heading (no
+sideways error). AMCL's own likelihood peaks there (6.38–7.32 vs 4.08–4.92;
+held-out fit 1.00 vs 0.60), and that pose is 7.5–8.5 cm from the morning's
+operator-confirmed Dhruv Room reseed. The cloud was 1–2.5 cm wide with zero
+odometry, so parked updates could not correct it. How AMCL got there predates
+the bag (evidence gap: check Oct 9 16:00–16:37 Jetson journals). Offline only.
+See [start-offset diagnosis](ATLAS_OUTBOUND_1636_START_OFFSET_2026-10-10.md).
+
 2026-10-10 multi-drive parked-diversity check (12 parked windows, 6
 recordings, 1,800 AMCL core runs): nudge 0.05 m / 2.5° never lowered held-out
 scan fit in 11/12 windows (2 seeds in the already-failed window) and improved
