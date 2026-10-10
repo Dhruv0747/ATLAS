@@ -1,5 +1,17 @@
 # Changelog
 
+2026-10-10 22:30: fixed a boot ordering cycle that stopped
+`atlas-localization-monitor` from starting after the 22:24 power-off. The fix
+is deployed, the old unit is backed up in
+`data/backups/2026-10-10-monitor-unit/`, and the monitor is VERIFIED again.
+On the 22:01–22:24 drive:
+- 5 of 11 checked stops gave a result in 4.1–4.2 s;
+- 6 took 6.4–15.3 s because AMCL kept changing after the stop;
+- ATLAS was LOST for most of the drive.
+
+SSD SMART: healthy, with 0 media errors and 1% used, but 442 of 647 power
+cycles were unsafe shutdowns.
+
 2026-10-10 22:21 the live map page (`/mapping`) gained the confirmed
 **SHUT DOWN** button that the Command Center already has. It uses the same
 server action: stop the rover, then a clean `shutdown -h now`. Deployed;

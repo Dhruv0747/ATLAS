@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-10T22:25:00+05:30",
+  "updated_at": "2026-10-10T22:40:00+05:30",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -582,6 +582,11 @@
           "date": "2026-10-10",
           "kind": "monitor_review_and_alias_gate",
           "description": "Deployed monitor defects found: no parked/verifying state, stale result applied after move+park during a check, no odom/AMCL/scan freshness, unsynchronised worker writes, interval from completion; search 17-20 s on Jetson -> stop->verified 30-40 s. Fixed offline 7314f11 + 1c1ff7a (search 2.2-2.6 s on Jetson, identical hypotheses; thresholds unchanged). Mission scan-fit gate 0.85 < alias peak fit 0.872: a pose at the alias peak would pass; autonomy-gate integration proposed for separate review. Not deployed."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "real_drive_monitor_2201_2224",
+          "description": "First real drive with the deployed monitor (22:01-22:24): 65 stops, 11 reached a result: stop->result 4.07-4.23 s (5), 6.42-6.52 (2), 8.65-15.28 (4, AMCL kept changing after the stop: 20 outdated-pose discards). Results: 31 LOST, 13 DEGRADED, 4 VERIFIED; ended LOST 3.2 m / 106 deg. Not autonomy-relevant (disabled). After the 22:24 power-off, verify-mode seeder placed ATLAS at Dhruv Room (0.335,-1.435,84; fit 1.00 margin 0.125; first attempt failed: AMCL not yet subscribed to /initialpose) and the monitor confirmed VERIFIED (0.024 m). Monitor did not auto-start at that boot: unit ordering cycle (After=atlas-localization.service which is After=default.target); fixed 2120f45 and started manually 22:30."
         }
       ]
     },
@@ -864,6 +869,11 @@
           "date": "2026-10-10",
           "kind": "ssd_error_scan_read_only",
           "description": "Read-only scan of all 11 retained boots (Oct 4-10). Kernel PCIe AER on the NVMe link (SK hynix PC801 512 GB, fw HPS1, 0004:01:00.0, link 8 GT/s x2): boots Oct 9 09:13 (22,180 AER lines / 835 nvme), Oct 9 10:48 (396,236 / 10,233), Oct 10 11:18 (114,884 / 164), Oct 10 13:41 (12,262 / 295). All severity=Corrected, Data Link Layer Timeout/Rollover (replay timer), plus root-port \"can't find device of ID0000\". Zero uncorrectable/fatal, zero I/O errors, zero EXT4 errors in every boot; ext4 superblock errors_count=0. Boots Oct 4-8 and since Oct 10 14:29 have none; live AER counters 0 since 18:11. Cause of the storms and of their stopping is unknown (no cmdline change found). SMART/NVMe error log not read: needs root (sudo NOPASSWD only covers shutdown)."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "smart_log_and_2224_poweroff",
+          "description": "User-run SMART (22:2x): critical_warning 0, spare 100%, used 1%, media_errors 0, temp 57 C, power_on_hours 12,466, power_cycles 647, unsafe_shutdowns 442 (68% of power cycles), error-log entries all empty (num_err_log_entries 7). 22:24:29 clean systemd poweroff (poweroff.target) with no logged initiator (no logind power-key, sudo or dashboard entry); back up 22:25:38. Journal of earlier boots is NOT lost: boot started with clock at 1970, which hides older boots from journalctl --list-boots; `journalctl -D /var/log/journal/<id> --list-boots` shows them. The earlier \"crash boot left no journal\" finding must be re-checked with -D."
         }
       ]
     },
