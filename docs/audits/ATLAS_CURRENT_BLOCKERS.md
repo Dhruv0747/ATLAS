@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+2026-10-10 21:29: steps 1 and 2 of the reliability review were deployed with
+approval. The step 3 LiDAR restart limit is on HOLD. On the Jetson:
+- Dhruv Room was verified by the monitor and by an independent dry run;
+- monitor CPU fell from 0.28 to 0.10 core;
+- in a replay, all states and all stale-input rejections behaved correctly.
+
+Still open: stop latency on a real drive, and LiDAR start failures at boot.
+Autonomy is still disabled.
+
 2026-10-10 21:30 reliability review (offline fixes, **nothing deployed**).
 The monitor took 30–40 s to verify after a stop because the search took
 17–20 s on the Jetson. The monitor also had no stopped/verifying state, could

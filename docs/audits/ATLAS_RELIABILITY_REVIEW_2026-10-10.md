@@ -139,3 +139,53 @@ Each step is separate, can be done while ATLAS is parked, and has backups under 
 - The benchmark windows were map ray-casts, not live scans. Live-scan equivalence was shown in the container on 11 recorded windows.
 - The monitor checks only while parked. It cannot detect a wrong pose during motion; MOVING is always "not verified".
 - The bounded LiDAR restart and the deferral do not fix the underlying start failure.
+
+## 8. Deployment record — steps 1 and 2 (approved 21:24 IST, deployed 21:29:50)
+
+**Approval scope**
+- Approved: steps 1 and 2.
+- **Step 3 (LiDAR restart limit) is on HOLD**, along with all other safety-critical changes.
+- Not done: reboot, driving, motor/EKF/AMCL changes, network changes.
+
+**Pre-deploy checks**
+- Parked: `/odom` twist about 0 and drive mode `STOPPED`.
+- `navigation_validated: false` in both configs; `relocalize_mode=suggest`.
+- Live files matched the repo baseline `72b4ca1` byte for byte.
+
+**Backups**
+- Location: `~/project_atlas/data/backups/2026-10-10-reliability/`.
+- Contents:
+  - the 5 previous files, read-only, with `SHA256SUMS`;
+  - evidence (unit journals, unit state, last check and verdict, `cpu_before.jsonl`, `cpu_after.jsonl`);
+  - `ROLLBACK.sh`.
+- `ROLLBACK.sh` was syntax-checked and its backups checksum-verified and compiled. It was **not** run.
+
+**Deployed files** (from commit `2120613`; checksums verified on the PC and on the Jetson)
+
+| File | sha256 (first 16) |
+|---|---|
+| `atlas_localization_verify_core.py` | `2e6e22393df9166b` |
+| `atlas_localization_monitor.py` | `35dd7407b300b5be` |
+| `atlas_status_web.py` | `51f8e111ce08e7c4` |
+| `atlas_mapping.html` | `876f58e71d403265` |
+| `atlas_sensor_recovery.py` | `fb5d76021625d29d` |
+
+**Restarted:** `atlas-localization-monitor`, `rover-status-web`, `atlas-sensor-recovery`. All are active with NRestarts=0. The old monitor exited with status 1 on stop because `rclpy.shutdown()` was called twice. That bug is pre-existing and also present in the new `main()`: cosmetic, and it causes no restart.
+
+**Jetson results**
+
+| Check | Result | Label |
+|---|---|---|
+| Live location | Monitor VERIFIED: fit 0.91–1.00, 0.05 m, 4–6°. Independent `seed --dry-run`: VERIFIED (0.175, −1.495, 75°), fit 0.984, margin 0.116, not seeded, verdict file untouched. AMCL at (0.238, −1.485, 81.7°), i.e. Dhruv Room. | VERIFIED ON JETSON |
+| Live recheck search | 1.87–2.31 s, interval 29.7–30.3 s, over 30+ checks | VERIFIED ON JETSON |
+| Live parked stability | 21 checks after deploy: 18 VERIFIED, 3 DEGRADED (ambiguous second place 0.95–0.96). Never LOST. | VERIFIED ON JETSON |
+| Contention | Searches took 10.0 s (first check, while 3 services were starting) and 10.7 s (during a seeder dry-run). The dry-run also caused a >1 s scan gap, so the state went INPUT_STALE and recovered. It fails toward unknown, never toward a false VERIFIED. | observed |
+| Stop → result, recorded drive (isolated replay of the deployed code on the Jetson, ROS domain 77, localhost only, `relocalize_mode=off`) | Clean stops: 4.07, 4.17, 5.25 s. One stop: 13.2 s, because AMCL kept moving for ~9 s after the stop (4 results discarded as outdated). | VERIFIED ON JETSON (replay); **real drive not yet measured** |
+| States | MOVING, PARKED_SETTLING, VERIFYING, VERIFIED, DEGRADED and LOST all seen. The known alias at the end of the round trip was LOST on all 6 checks. | VERIFIED ON JETSON (replay) |
+| Stale inputs | Odometry gap → INPUT_STALE (odometry). Replay without `/scan` → LiDAR stale after 2.2 s. Without `/amcl_pose` → AMCL stale after 2.1 s. No result was applied in any of them. | VERIFIED ON JETSON (replay) |
+| CPU, 150 s windows before/after | Monitor 0.281 → 0.099 core, RSS 175 → 96 MB. Status web 0.526 → 0.556. Sensor recovery 0.143 → 0.153 (noise). | VERIFIED ON JETSON |
+| Dashboard | Local `/api/map`: p50 18 → 15 ms, p95 55 → 49 ms, 0/300 failures. Remote (Tailscale): p50 117 ms, p95 171 ms, max 0.59 s, 0/100 failures. New labels are served. | VERIFIED ON JETSON |
+| Autonomy / reseed | `navigation_authorized=false`, `relocalize_mode=suggest`, `navigation_validated=false`. No reseed since deploy. | VERIFIED ON JETSON |
+| Sensor recovery | READY. `restart_pending(atlas-lidar)` = False against live systemd output (`active` / `running`). Deferral not yet exercised live; that needs a LiDAR failure. | VERIFIED ON JETSON (partial) |
+
+**Not verified:** real drive stop latency, live LOST, and a live deferral during a LiDAR fault. All of these need your supervised drive or the next boot.

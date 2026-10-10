@@ -1,5 +1,16 @@
 # Changelog
 
+2026-10-10 21:29 deployed reliability steps 1 and 2 (faster LiDAR search,
+monitor state machine, dashboard labels, sensor-recovery deferral) from
+`2120613`, with approval. Step 3, the LiDAR restart limit, is on hold. Results
+on the Jetson:
+- monitor CPU 0.281 → 0.099 core;
+- recheck search about 2 s;
+- replayed stops reach a result in 4.1–5.3 s.
+
+The deployment record and rollback are in the
+[reliability review](docs/audits/ATLAS_RELIABILITY_REVIEW_2026-10-10.md).
+
 2026-10-10 reliability fixes on branch `claude/localization-motion-investigation`
 (not deployed):
 - LiDAR global search about 8× faster with identical scores (Jetson
