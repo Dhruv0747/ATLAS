@@ -553,6 +553,15 @@ CONFIDENT (START VERIFIED)** also needs this boot's LiDAR start check
 opt in, run `echo verify > ~/.config/project_atlas/seed_mode`. To check
 without seeding, run `seed_atlas_localization.py --dry-run`. Neither grants
 navigation authority.
+A start check is not continuous proof. Green **LIVE / LOCALIZATION VERIFIED BY
+LIDAR** needs `atlas_localization_monitor.py`. That monitor checks the current
+AMCL pose against the LiDAR whenever ATLAS has been parked for 2 s, and the
+check must be under 60 s old. Otherwise the page shows **MOVING – LOCALIZATION
+NOT VERIFIED**, **LOCALIZATION NOT CONFIRMED – PARK TO CHECK**, **LOCALIZATION
+LOST** (with the LiDAR's pose), or **START VERIFIED ONLY, NOT RE-CHECKED**.
+Recovery mode is set in `~/.config/project_atlas/relocalize_mode`: `suggest`
+(the default) or `auto`. In `auto`, AMCL is reseeded only after two agreeing
+parked checks. No mode grants autonomy.
 
 ### AI/robotics adaptation Phase 0 — 2026-09-30
 

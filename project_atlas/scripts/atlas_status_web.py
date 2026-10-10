@@ -161,6 +161,31 @@ def read_start_verdict(now=None, path=None):
     }
 
 
+LOCALIZATION_CHECK_FILE = Path.home() / ".local/state/project_atlas/localization_check.json"
+
+
+def read_localization_check(now=None, path=None):
+    """Live LiDAR check from atlas_localization_monitor.py (display only).
+
+    ``age`` is how old the monitor's last write is (it writes every second);
+    ``value.check_age_s`` is how long ago the LiDAR comparison itself ran.
+    """
+    path = LOCALIZATION_CHECK_FILE if path is None else path
+    now = time.time() if now is None else now
+    try:
+        record = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(record, dict):
+        return None
+    written, checked = record.get("written_unix"), record.get("checked_unix")
+    value = {k: record.get(k) for k in ("state", "reason", "amcl_fit", "distance_m", "heading_deg",
+                                         "recovery_pose", "action", "relocalize_mode")}
+    value["check_age_s"] = round(now - float(checked), 1) if isinstance(checked, (int, float)) else None
+    return {"value": value,
+            "age": round(now - float(written), 3) if isinstance(written, (int, float)) else None}
+
+
 def map_markers(map_meta=None):
     """Return poses belonging to the map currently shown by the dashboard."""
     markers = []
@@ -798,6 +823,7 @@ class AtlasRosNode:
             }
         result["markers"] = map_markers(meta)
         result["start_verdict"] = read_start_verdict(now)
+        result["localization_check"] = read_localization_check(now)
         return result
 
     def _camera_cb(self, msg):
