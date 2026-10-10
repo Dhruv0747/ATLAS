@@ -104,6 +104,19 @@ class LiveStatusTests(unittest.TestCase):
         st = self.status(self.state(monitor_age=30.0), 0.5)   # monitor stopped writing
         self.assertNotEqual(st['cls'], 'ok')
 
+    def test_stop_and_stale_monitor_states(self):
+        for check in ('PARKED_SETTLING', 'VERIFYING'):
+            st = self.status(self.state(check=check), 0.5)
+            self.assertEqual(st['text'], '● STOPPED - CHECKING LOCALIZATION WITH LIDAR')
+            self.assertEqual(st['cls'], 'warn')
+            self.assertFalse(st['trusted'])
+        s = self.state(check='INPUT_STALE')
+        s['localization_check']['value']['reason'] = 'LiDAR scan stale'
+        st = self.status(s, 0.5)
+        self.assertEqual(st['text'], '● LOCALIZATION UNKNOWN - LIDAR SCAN STALE')
+        self.assertEqual(st['cls'], 'fail')
+        self.assertFalse(st['trusted'])
+
     def test_map_waiting(self):
         st = self.state(pose_age=9.0)
         st['map'] = {}

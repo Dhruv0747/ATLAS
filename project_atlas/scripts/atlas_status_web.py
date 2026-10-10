@@ -180,7 +180,7 @@ def read_localization_check(now=None, path=None):
         return None
     written, checked = record.get("written_unix"), record.get("checked_unix")
     value = {k: record.get(k) for k in ("state", "reason", "amcl_fit", "distance_m", "heading_deg",
-                                         "recovery_pose", "action", "relocalize_mode")}
+                                         "recovery_pose", "action", "relocalize_mode", "timing", "rechecking")}
     value["check_age_s"] = round(now - float(checked), 1) if isinstance(checked, (int, float)) else None
     return {"value": value,
             "age": round(now - float(written), 3) if isinstance(written, (int, float)) else None}
