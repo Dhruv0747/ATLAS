@@ -1,5 +1,19 @@
 # Changelog
 
+2026-10-10 — Deployed the mission-start LiDAR check to the Jetson (files only)
+
+- The Jetson ran mission control from `6a622f5` (Oct 9, 11:59), not this
+  branch's base: the later `4a4ea9a` and `edd6563` AMCL-update changes are
+  repository-only and were not deployed. So the same additive block (75
+  lines, no removals, byte-identical to this branch's addition) was applied
+  to the deployed `6a622f5` file. The tests pass on Python 3.10 and 3.13.
+- Backed up the original (SHA-256 `1252a28f…`) to
+  `data/backups/2026-10-10-scan-fit-gate/` first. Deployed
+  `atlas_mission_control.py` is `0da12027…`; new `atlas_scan_fit_core.py` is
+  `d60ceeb2…`. It imports on the Jetson.
+- No restart was done by Claude. The check is active after the operator
+  restarts `atlas-mission-control`. To roll back, restore the backup file.
+
 2026-10-10 — Mission-start LiDAR/map agreement check
 
 - `atlas_mission_control.py` runs `require_scan_map_agreement()` after the
