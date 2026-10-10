@@ -128,6 +128,20 @@ class VerifyCoreTests(unittest.TestCase):
         hyps = [{'x': 0, 'y': 0, 'yaw': 0, 'fit_heldout': 0.90}]
         self.assertEqual(core.decide(hyps, 300, None, self.policy).state, 'UNKNOWN')
 
+    def test_fast_coarse_scores_equal_reference_lookup(self):
+        # The cached-index search must score every candidate exactly like the
+        # per-point distance-map lookup it replaced (no threshold drift).
+        amin, inc, ranges = ray_scan(ROOM_A + ROOM_B, (8.0, 1.6, math.radians(-100)))
+        allp, _ = core.endpoints(amin, inc, ranges, (0.0, 0.0, 0.0), self.policy)
+        sub = allp[::max(1, len(allp) // 120)]
+        index = core._search_index(self.map, self.policy)
+        self.assertIs(index, core._search_index(self.map, self.policy))  # cached
+        for yaw_deg in (-180.0, -97.0, 0.0, 33.0, 177.0):
+            yaw = math.radians(yaw_deg)
+            fast = core._coarse_scores(index, sub, yaw, self.map['res'])
+            ref = core._fit_many(self.map, sub, index['xs'], index['ys'], yaw, self.policy.tolerance_m)
+            self.assertEqual(float(np.max(np.abs(fast - ref))), 0.0, yaw_deg)
+
     def test_median_ignores_single_dropouts(self):
         rows = [[1.0, float('inf'), 2.0], [1.1, 3.0, float('nan')], [0.9, 3.1, 2.1]]
         out = core.median_ranges(rows)

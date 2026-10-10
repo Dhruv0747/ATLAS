@@ -176,22 +176,57 @@ def _same(h, x, y, yaw, policy):
     return math.hypot(x - h['x'], y - h['y']) < policy.separation_m and dyaw < math.radians(policy.separation_deg)
 
 
+def _search_index(m: dict, policy: VerifyPolicy) -> dict:
+    """Map-derived search structures, built once per loaded map and cached in it.
+
+    Candidates are free cells (>= 0.15 m from a wall) on the policy grid. A
+    padded boolean "within tolerance of a wall" image lets every candidate x
+    point lookup become one flat integer gather. Because candidates sit at cell
+    centres, floor((centre + p) / res) == cell + floor(0.5 + p / res) exactly,
+    so the scores equal the per-point distance-map lookups they replace.
+    """
+    key = (round(policy.grid_m, 6), round(policy.tolerance_m, 6), round(policy.max_range_m, 3))
+    cached = m.get('_search_index')
+    if cached is not None and cached['key'] == key:
+        return cached
+    res = m['res']
+    cand = m['free'] & (m['dist'] >= 0.15)
+    step = max(1, int(round(policy.grid_m / res)))
+    iy, ix = np.nonzero(cand)
+    keep = (iy % step == 0) & (ix % step == 0)
+    iy, ix = iy[keep], ix[keep]
+    pad = int(math.ceil((policy.max_range_m + 0.5) / res)) + 2
+    hit = np.zeros((m['h'] + 2 * pad, m['w'] + 2 * pad), dtype=np.uint8)
+    hit[pad:pad + m['h'], pad:pad + m['w']] = m['dist'] <= policy.tolerance_m
+    width = hit.shape[1]
+    index = {'key': key, 'xs': m['origin'][0] + (ix + 0.5) * res, 'ys': m['origin'][1] + (iy + 0.5) * res,
+             'flat': (iy + pad) * width + (ix + pad), 'hit': hit.ravel(), 'width': width, 'pad': pad}
+    m['_search_index'] = index
+    return index
+
+
+def _coarse_scores(index: dict, pts: np.ndarray, yaw: float, res: float) -> np.ndarray:
+    c, s = math.cos(yaw), math.sin(yaw)
+    ox = np.floor(0.5 + (c * pts[:, 0] - s * pts[:, 1]) / res).astype(np.int64)
+    oy = np.floor(0.5 + (s * pts[:, 0] + c * pts[:, 1]) / res).astype(np.int64)
+    inside = (np.abs(ox) < index['pad']) & (np.abs(oy) < index['pad'])
+    offsets = (oy[inside] * index['width'] + ox[inside])
+    hits = index['hit'][index['flat'][:, None] + offsets[None, :]]
+    return hits.sum(axis=1) / float(len(pts))
+
+
 def global_search(m: dict, all_pts: np.ndarray, heldout_pts: np.ndarray,
                   policy: VerifyPolicy = VerifyPolicy()) -> List[dict]:
     """Distinct pose hypotheses (>= separation_m apart or >= separation_deg
     rotated), best held-out fit first. Uses no prior pose."""
-    cand = m['free'] & (m['dist'] >= 0.15)
-    step = max(1, int(round(policy.grid_m / m['res'])))
-    iy, ix = np.nonzero(cand)
-    keep = (iy % step == 0) & (ix % step == 0)
-    xs = m['origin'][0] + (ix[keep] + 0.5) * m['res']
-    ys = m['origin'][1] + (iy[keep] + 0.5) * m['res']
+    index = _search_index(m, policy)
+    xs, ys = index['xs'], index['ys']
     if len(xs) == 0:
         return []
     sub = all_pts[::max(1, len(all_pts) // 120)]
     coarse = []
     for yaw in np.radians(np.arange(-180.0, 180.0, policy.yaw_step_deg)):
-        f = _fit_many(m, sub, xs, ys, yaw, policy.tolerance_m)
+        f = _coarse_scores(index, sub, yaw, m['res'])
         for i in np.argsort(f)[-policy.keep_per_heading:]:
             coarse.append((float(f[i]), float(xs[i]), float(ys[i]), float(yaw)))
     coarse.sort(reverse=True)
