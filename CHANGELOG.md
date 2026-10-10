@@ -1,5 +1,18 @@
 # Changelog
 
+2026-10-10 — Deployed both safety changes to the Jetson (files only)
+
+- Backed up the originals first to
+  `/home/jetson/project_atlas/data/backups/2026-10-10-safety/`, with a
+  SHA256SUMS file. The live files matched this repository before the change.
+- Live `config/encoder_selection.yaml` now has SHA-256 `1260c463…` and reads
+  `navigation_validated: false`; it validated with `atlas_encoder_selection`.
+  The two lifted scripts are in `scripts/archive/`, byte-identical to before.
+- No service was restarted: `rover-base-telemetry` stayed on PID 1814, active
+  since 2026-10-09 22:47. The flag takes effect at that service's next start;
+  until then `ATLAS_MANUAL_ONLY=1` still blocks autonomy.
+- To roll back, copy the files from the backup folder over the live ones.
+
 2026-10-10 — Archive scripts that bypass the command mux
 
 - Moved `verify_metric_wheels_lifted.py` and `verify_steering_lifted.py`,
