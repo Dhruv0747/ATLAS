@@ -88,3 +88,56 @@ recording, analysed separately.
 - 4 new unit tests pass in `test_atlas_amcl_axis_sweep.py`.
 - The sweep ran on all three parked windows with consistent results.
 - Raw outputs remain outside Git.
+
+## Update: journal and recording timeline (2026-10-10)
+
+The operator ran the requested read-only checks on the Jetson.
+
+- **No reset in the window.** `atlas-localization`, `atlas-mission-control`
+  and `atlas-mode-manager` logged no initial-pose, seed, restart or start
+  lines between 16:00 and 16:38 on Oct 9.
+- **No new seed.** The newest seed file is `localization_seed_pose.json`,
+  written Oct 9 at 12:10:07, which is the operator-confirmed reseed.
+  `home_pose.json` was last written Oct 8 at 11:35.
+
+So AMCL was not reseeded or restarted before outbound 1636. It carried its
+pose over from earlier.
+
+First and last AMCL pose of each Oct 9 recording (IST):
+
+| Recording | Time | First AMCL pose | Last AMCL pose | Parked held-out fit |
+| --- | --- | --- | --- | ---: |
+| Hall return 122252 | 12:22:55–12:27:51 | (6.279, −2.200, −96.6°) | (0.314, −1.175, 62.4°) | 0.95 (end) |
+| Outbound 1636 | 16:36:40–16:42:33 | (0.368, −0.975, 73.0°) | (0.354, −1.023, 75.8°) | 0.61 |
+| Outbound retry2 | 16:47:31–16:50:25 | (0.381, −0.932, 68.9°) | (6.716, −2.374, −115.8°) | 0.99 (start) |
+| Return retry2 | 16:51:50–16:55:57 | (6.716, −2.372, −114.9°) | (0.194, −1.298, 72.6°) | 1.00 |
+| Round trip (final) | 17:45:51–17:53:36 | (0.206, −1.463, 81.3°) | (3.840, −0.482, 156.2°) | 0.97 (start) |
+
+**Confirmed** from these rows:
+
+- AMCL fitted the scans well at 12:27 (0.95).
+- It did not fit at 16:36 (0.61).
+- It fitted again at 16:47 (0.99), at almost the same estimate as 16:36.
+
+Nothing was recorded between 12:28 and 16:36, or between 16:42 and 16:47.
+
+**Suspected, not verified.** The pattern fits the rover being moved without
+AMCL following, and then moved back:
+
+1. Between 12:28 and 16:36, the rover may have been moved, for example
+   placed back on the home spot or carried for charging, while AMCL stayed
+   put with a 1–2.5 cm cloud and recovery disabled.
+2. Between 16:42 and 16:47, the rover may have been moved forward about
+   0.5 m, onto AMCL's estimate. That would explain why the 16:47 fit is
+   0.99 with almost the same AMCL pose.
+
+Only the operator can confirm or rule this out.
+
+**If confirmed,** the failure class is moving the rover by hand while AMCL
+cannot see it happen, the classic "kidnapped robot" case. The repairs follow
+directly:
+
+- reseed after any manual relocation;
+- run a fresh scan-fit check before every mission start.
+
+Neither involves AMCL tuning.
