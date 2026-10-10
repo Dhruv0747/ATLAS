@@ -540,6 +540,12 @@ The map page also reports fresh AMCL position/heading uncertainty and flags
 recent large pose corrections. A fresh but uncertain map pose is drawn as an
 amber **estimate**, not a confidently located rover. These are display-only
 diagnostics; the existing Jetson-local motion safety gates remain authoritative.
+Since 2026-10-10 the status chip separates the link from the rover: if this
+browser has not heard from ATLAS for 2.5 s it shows **CONNECTION DELAYED - NO
+DATA FROM ATLAS (ROVER STATE UNKNOWN)**. **POSE DELAYED ON ATLAS** appears only
+when a fresh response reports a stale Jetson-side pose. The pose panel lists
+"Data age on ATLAS" and "Link to this screen" separately. Wi-Fi or Tailscale
+drops therefore no longer look like localization failures.
 
 ### AI/robotics adaptation Phase 0 — 2026-09-30
 
