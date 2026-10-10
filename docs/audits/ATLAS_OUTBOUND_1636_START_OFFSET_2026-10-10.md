@@ -145,3 +145,9 @@ Neither involves AMCL tuning.
 **Operator response (2026-10-10):** "it is possible" the rover was moved by
 hand on Oct 9. This makes manual relocation the leading explanation, but it
 is not a confirmation: the exact times and distances were not recalled.
+
+**Operator follow-up (2026-10-10):** the rover was moved **by hand**. With
+the log, seed-file and fit evidence above, manual relocation is the
+operator-confirmed cause class for this offset. The exact times and
+distances of the moves were not recorded, so the two gaps (12:28–16:36 and
+16:42–16:47) remain inferred from the fit timeline.

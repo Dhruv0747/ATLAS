@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-10 operator confirms ATLAS was moved by hand on Oct 9. Manual
+relocation (AMCL cannot see it) is the confirmed cause class for the
+outbound 1636 start offset; exact move times were not recorded.
+
 2026-10-10 operator: it is possible ATLAS was moved by hand on Oct 9. Manual
 relocation without AMCL following is now the leading (not confirmed)
 explanation for the outbound 1636 start offset. Mitigation needs no AMCL
