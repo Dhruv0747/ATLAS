@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+2026-10-10 19:16–19:27: localization monitor deployed in suggest-only mode,
+with backups and the operator's approval. It marked the live 4 m error LOST
+(fit 0.785), and the page showed red LOST. ATLAS was reseeded while parked
+by the verify-mode seeder (fit 1.00) and independently re-checked VERIFIED
+(monitor fit 0.962, 0.09 m; separate dry run fit 1.00). Autonomy remains
+blocked (`navigation_validated: false`). Next: startup LiDAR stability, then
+supervised recorded slow/fast drives.
+
 2026-10-10 18:30 moving failure after a verified start. A fast remote drive
 from a verified start (3.72, −0.70) to Dhruv Room left AMCL at (4.13, −0.77,
 160°), 4.0 m wrong, while the page said START VERIFIED. Confirmed:

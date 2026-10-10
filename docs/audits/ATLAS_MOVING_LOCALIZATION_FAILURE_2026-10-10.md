@@ -188,3 +188,85 @@ ros2 bag record -o ~/project_atlas/data/diagnostics/moving_repro_<time> \
 This decides H1–H3: IMU sample gaps or under-reading versus LiDAR, encoder
 dropouts, and whether AMCL followed scans or odometry into the alias. The
 same recording then validates the monitor end to end.
+
+## Deployment record (2026-10-10 19:16–19:27 IST, operator approved)
+
+Done in the order the operator gave. ATLAS stayed parked; nothing rebooted,
+drove or moved. No change to encoders, EKF, motors, AMCL or Nav2
+parameters, the map or the network.
+
+1. **Evidence preserved.** In `~/project_atlas/data/diagnostics/moving_loc_20261010/`:
+   - fresh 19:16 journals;
+   - 30 s `predeploy_bag` of the wrong state;
+   - `SHA256SUMS`;
+   - the directory and `hall_coldstart_20261010/` made read-only.
+
+   Disk use 47 MB + 6.6 MB; 371 GB free.
+2. **Backup first:** `~/project_atlas/data/backups/2026-10-10-localization-monitor/`.
+   Pre-deploy hashes verified:
+   - `atlas_localization_verify_core.py` `c4fb1e40…`
+   - `atlas_status_web.py` `33cf61f8…`
+   - `atlas_mapping.html` `cd548de5…`
+   - `seed_mode` copy
+3. **Installed:**
+
+   | Path | sha256 | Change |
+   | --- | --- | --- |
+   | `scripts/atlas_localization_verify_core.py` | `ffd31511…` | adds `assess_tracking()`; search/verdict unchanged |
+   | `scripts/atlas_localization_monitor.py` | `a3f65326…` | new |
+   | `scripts/atlas_status_web.py` | `b2a23f1a…` | adds `localization_check` to `/api/map` |
+   | `scripts/atlas_mapping.html` | `d7acb2a6…` | green only on a fresh LiDAR check |
+   | `~/.config/systemd/user/atlas-localization-monitor.service` | `cc98810e…` | new, enabled (`default.target`) |
+   | `~/.config/project_atlas/relocalize_mode` | `suggest` | new; **auto reseeding off** |
+
+   `daemon-reload`. Restarted `rover-status-web.service`; started
+   `atlas-localization-monitor.service`. Nothing else was restarted.
+4. **Verified.**
+   - First parked check: **LOST**. AMCL (4.31, −0.72) had fit 0.785; the
+     LiDAR found Dhruv Room (0.235, −1.335, 81°), fit 1.00, margin 0.132,
+     4.11 m / 88° away.
+   - The served `/mapping` page, evaluated on the live `/api/map`, showed
+     red **LOCALIZATION LOST - LIDAR DISAGREES WITH AMCL** while the start
+     verdict still said VERIFIED.
+   - `navigation_authorized: false`. Encoder health: `navigation_validated:
+     false`, `autonomy_ready: false`. The mux does not read the monitor.
+5. **Recovered** with the existing verify-mode seeder (25 s, rover still,
+   `/odom` speed 0). VERIFIED (0.335, −1.435, 84°), fit 1.00, margin 0.125.
+   AMCL then read (0.311, −1.444, 83.6°), xy std 0.086 m.
+6. **Independent confirmation.**
+   - Monitor: **VERIFIED**, AMCL fit 0.962, 0.094 m / 1.0° from its own
+     LiDAR search.
+   - A separate seeder `--dry-run` (new scans, seeds nothing): VERIFIED
+     (0.335, −1.535, 81°), fit 1.00, margin 0.139.
+   - Page: **LIVE / LOCALIZATION VERIFIED BY LIDAR**.
+   - At 19:27 the monitor still read VERIFIED (fit 0.966, 0.119 m).
+
+**Load:**
+
+- 1-min load average 11.9–14.3 before deployment.
+- 29.3 peak during deployment, including two manual seeder runs.
+- 13.6 at 19:27.
+- Monitor: 0.27 of one core on average, capped at 60%.
+- EKF "failed to meet update rate": 6 during deployment and manual runs
+  (19:17–19:22), none after.
+
+**Rollback:**
+
+```
+systemctl --user disable --now atlas-localization-monitor.service
+rm ~/.config/systemd/user/atlas-localization-monitor.service ~/.config/project_atlas/relocalize_mode
+B=~/project_atlas/data/backups/2026-10-10-localization-monitor
+cp -p $B/atlas_localization_verify_core.py $B/atlas_status_web.py $B/atlas_mapping.html ~/project_atlas/scripts/
+rm ~/project_atlas/scripts/atlas_localization_monitor.py
+systemctl --user daemon-reload && systemctl --user restart rover-status-web.service
+```
+
+**Remaining risks:**
+
+- Thresholds are in-sample (29 checks).
+- The monitor says nothing while moving.
+- A check takes ~15 s of CPU every 30 s while parked.
+- Parked AMCL still drifts a few centimetres to ~0.2 m (4.13 → 4.31 while
+  LOST; 0.31 → 0.23 after recovery) under 1 Hz forced updates.
+- Root cause of the odometry turn shortfall is unproven.
+- LiDAR start failures at boot persist.

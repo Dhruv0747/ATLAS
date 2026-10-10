@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-10 deployed the localization monitor (suggest-only) and the map-page
+fix. The live wrong pose was reported LOST, then recovered by the
+verify-mode seeder and independently re-verified. Only `rover-status-web` was
+restarted; the new `atlas-localization-monitor` user service was enabled.
+Backups are in `data/backups/2026-10-10-localization-monitor/`. See the
+[moving failure report](docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md).
+
 2026-10-10 moving localization failure. After a LiDAR-verified start and a
 fast drive, AMCL was 4 m wrong at a recurring Dhruv Room alias while the page
 showed START VERIFIED. Added `atlas_localization_monitor.py` (opt-in, not
