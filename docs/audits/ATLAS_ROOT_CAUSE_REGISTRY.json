@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-10T22:40:00+05:30",
+  "updated_at": "2026-10-10T23:30:00+05:30",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -587,6 +587,11 @@
           "date": "2026-10-10",
           "kind": "real_drive_monitor_2201_2224",
           "description": "First real drive with the deployed monitor (22:01-22:24): 65 stops, 11 reached a result: stop->result 4.07-4.23 s (5), 6.42-6.52 (2), 8.65-15.28 (4, AMCL kept changing after the stop: 20 outdated-pose discards). Results: 31 LOST, 13 DEGRADED, 4 VERIFIED; ended LOST 3.2 m / 106 deg. Not autonomy-relevant (disabled). After the 22:24 power-off, verify-mode seeder placed ATLAS at Dhruv Room (0.335,-1.435,84; fit 1.00 margin 0.125; first attempt failed: AMCL not yet subscribed to /initialpose) and the monitor confirmed VERIFIED (0.024 m). Monitor did not auto-start at that boot: unit ordering cycle (After=atlas-localization.service which is After=default.target); fixed 2120f45 and started manually 22:30."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "local_map_audit_dhruv_hall",
+          "description": "Read-only local map audit: active map = final /map of manual_mapping_dhruv_to_hall_20261002_162438. 985/1573 wall cells in the Dhruv Room->Hall box confirmed by >=3 of 6 independently anchored drives; 272 contradicted, 172 of them drawn during the mapping run's Hall->Dhruv return leg (SLAM snapshots: corridor walls +60-70% cells, offsets 0.15-0.6 m = parallel copies). Suspected: fast in-place turns (54-60 deg/s, 7 Hz LiDAR) without loop closure, not straight-line speed. Local candidate (258 removed / 17 added, box only, parked-scan walls protected): parked verify 15/15 -> 15/15, margin 0.128 -> 0.139; moving windows 72% -> 85% correct, wrong 4 -> 1; AMCL core replay end-correct 65/5/100/100 -> 100/90/100/100 %, time-lost 29/69/8/22 -> 17/48/1/16 %. Corridor still weak (37/48). Candidate NOT promoted; slow local remap of corridor recommended. See ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md."
         }
       ]
     },

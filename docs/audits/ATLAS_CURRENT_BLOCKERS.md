@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+2026-10-10 23:30 local map audit, Dhruv Room → Hall (read-only). About 17%
+of the mapped walls in this section are contradicted by 6 independent drives,
+mostly shifted copies drawn by the mapping run's return leg. A candidate map
+(not promoted) improves offline AMCL replays but leaves the corridor weak. A
+slow local re-map is recommended. See
+[local map repair](ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md).
+
 2026-10-10 21:29: steps 1 and 2 of the reliability review were deployed with
 approval. The step 3 LiDAR restart limit is on HOLD. On the Jetson:
 - Dhruv Room was verified by the monitor and by an independent dry run;

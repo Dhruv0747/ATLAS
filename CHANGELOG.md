@@ -1,5 +1,15 @@
 # Changelog
 
+2026-10-10 local map audit, Dhruv Room → Hall (read-only). The doubled and
+broken walls trace to the Oct 2 mapping run's return leg. A local candidate
+map is in `maps/candidates/local_dhruv_hall_20261010/` and is **not
+promoted**. Offline:
+- AMCL replay ends correct: 65 / 5 / 100 / 100% → 100 / 90 / 100 / 100%;
+- parked checks: still 15/15.
+
+The corridor still needs a slow local re-map. See the
+[local map repair analysis](docs/audits/ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md).
+
 2026-10-10 22:30: fixed a boot ordering cycle that stopped
 `atlas-localization-monitor` from starting after the 22:24 power-off. The fix
 is deployed, the old unit is backed up in
