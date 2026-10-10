@@ -39,6 +39,13 @@ No physical movement, firmware flashing, safety bypass, calibration or navigatio
 
 ## Findings in plain language
 
+Oct 10 evening review: the LiDAR check itself was right but slow. A 17–20 s
+search and a state machine with no "stopped" state made the page look stuck
+on MOVING for 30–40 s. It could also accept a result from before a move.
+Offline fixes keep the same thresholds and bring the expected time to about
+5 s after odometry shows ATLAS stopped. LiDAR start failures recur on most
+boots; their cause is not yet proven. See [reliability review](ATLAS_RELIABILITY_REVIEW_2026-10-10.md).
+
 Oct 10 moving failure: a verified start is not continuous proof. After a
 fast drive, AMCL sat 4 m wrong at a pose that looks like Dhruv Room from the
 LiDAR, the same alias seen in three earlier recordings. Odometry had

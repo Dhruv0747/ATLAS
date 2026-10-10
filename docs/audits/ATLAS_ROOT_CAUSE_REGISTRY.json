@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-10",
+  "updated_at": "2026-10-10T21:30:00+05:30",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -577,6 +577,11 @@
           "date": "2026-10-10",
           "kind": "moving_failure_dhruv_alias",
           "description": "18:30 fast remote drive from LiDAR-verified start (3.715,-0.695,173.5) to Dhruv Room: AMCL ended (4.131,-0.771,159.7), 4.0 m/84 deg wrong; LiDAR unique Dhruv Room (0.175,-1.395,76) fit 1.00 margin 0.128; AMCL pose fit 0.80. Wrong pose is the recurring Dhruv Room alias (2nd place fit 0.872), seen in 4 recordings (Oct 9 passive 2113, roundtrip end, 122252 t=213, today). Cloud collapsed to 1 unique particle. Continuous parked LiDAR check built offline: 29 parked checks -> 12 known-wrong all LOST, 14 VERIFIED, 3 DEGRADED (in-sample thresholds). Not deployed; repeat recorded drive needed."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "monitor_review_and_alias_gate",
+          "description": "Deployed monitor defects found: no parked/verifying state, stale result applied after move+park during a check, no odom/AMCL/scan freshness, unsynchronised worker writes, interval from completion; search 17-20 s on Jetson -> stop->verified 30-40 s. Fixed offline 7314f11 + 1c1ff7a (search 2.2-2.6 s on Jetson, identical hypotheses; thresholds unchanged). Mission scan-fit gate 0.85 < alias peak fit 0.872: a pose at the alias peak would pass; autonomy-gate integration proposed for separate review. Not deployed."
         }
       ]
     },
@@ -709,6 +714,11 @@
           "date": "2026-10-10",
           "kind": "start_verified_not_continuous",
           "description": "Map page showed green START VERIFIED for a pose 4 m wrong: start verdict was rendered as ongoing proof (design error in the same-day change). Fixed in repo: green requires a fresh parked LiDAR check of the current AMCL pose; start-only shows amber. Not deployed."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "cpuquota_not_enforced",
+          "description": "systemd user manager delegates only memory+pids controllers: CPUQuota/CPUWeight on user services are not enforced (earlier claim of a 60% cap on the monitor was wrong). Monitor ~0.30 core, status web ~0.53 core, load average 13-17 on 6 cores at 21:09."
         }
       ]
     },
@@ -748,6 +758,11 @@
           "date": "2026-10-10",
           "kind": "lidar_start_failure_delays_localization",
           "description": "Boot 16:24: 25 RPLIDAR start failures (Can not start scan 80008002 / SL_RESULT_OPERATION_TIMEOUT) until 16:35:45; bounded recovery gave up 16:31:28; localization start failed until 16:36:13. Same signature 23x on Oct 9 09:00-10:59. Power/USB/motor spin-up cause is a hypothesis."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "lidar_startup_restart_storm",
+          "description": "Boot 18:11: atlas-lidar exited 21 times (SL_RESULT_OPERATION_TIMEOUT, then health OK + 'Can not start scan 80008000/80008002') before scanning ~3 min after boot; 6 of last 10 boots had 10-21 failed starts. Restart=on-failure RestartSec=5 makes the 5-in-10s limit unreachable (unbounded loop); atlas_sensor_recovery also restarted the unit (18:24:35 restart killed the instance systemd started at 18:24:34). CH340 discovery (atlas_usb_identity) cannot open the CP2102 LiDAR: hypothesis rejected. Suspected (unconfirmed): LiDAR 5 V/USB hub supply at boot. Offline fix b28819c: recovery defers while systemd is mid-restart; proposed drop-in StartLimitBurst=40/900s. Not deployed."
         }
       ]
     },
@@ -839,6 +854,11 @@
           "date": "2026-10-10",
           "kind": "follow_up",
           "description": "No NVMe AER lines since the 14:29 boot (checked 16:55); the 16:24 restart was a clean shutdown. Each crash boot also reseeded Dhruv Room (see ATLAS-011)."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "journal_gap_crash_boot",
+          "description": "last -x: boot 16:24 clean shutdown 17:34:21; boot 17:34 ended 'crash'; neither boot is in journalctl --list-boots; boot -1 journal ends 15:50:52 mid-rf2o with no shutdown messages. Cause of the unexpected power-offs not determinable from logs (evidence gap). rf2o INFO logging is ~91% of user journal lines (~24/s). No storage stress tests run."
         }
       ]
     },

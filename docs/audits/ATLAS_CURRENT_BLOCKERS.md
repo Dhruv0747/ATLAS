@@ -1,5 +1,21 @@
 # ATLAS current blockers
 
+2026-10-10 21:30 reliability review (offline fixes, **nothing deployed**).
+The monitor took 30–40 s to verify after a stop because the search took
+17–20 s on the Jetson. The monitor also had no stopped/verifying state, could
+apply a result from before a move, and had no input freshness checks. Fixed
+offline:
+- search 2.2–2.6 s on the Jetson with identical hypotheses;
+- expected about 5 s from odometry stop to result.
+
+LiDAR start failures are chronic: 6 of the last 10 boots had 10–21 failed
+starts. The restart loop is unbounded, and two restarters compete. The cause
+of the start failure is unconfirmed; suspected supply at boot, which needs a
+measurement. Mission's 0.85 scan-fit gate is below the alias peak (0.872);
+the autonomy-gate integration is proposed separately. `CPUQuota` is not
+enforced on user services, which corrects an earlier claim. The crash boot
+left no journal. Awaiting approval for the deployment steps. See [reliability review](ATLAS_RELIABILITY_REVIEW_2026-10-10.md).
+
 2026-10-10 19:16–19:27: localization monitor deployed in suggest-only mode,
 with backups and the operator's approval. It marked the live 4 m error LOST
 (fit 0.785), and the page showed red LOST. ATLAS was reseeded while parked

@@ -1,5 +1,21 @@
 # Changelog
 
+2026-10-10 reliability fixes on branch `claude/localization-motion-investigation`
+(not deployed):
+- LiDAR global search about 8× faster with identical scores (Jetson
+  18.5–20.2 s → 2.2–2.6 s).
+- Monitor states: PARKED_SETTLING, VERIFYING and INPUT_STALE. It also adds
+  episode tokens against stale results, input freshness checks, locking,
+  timing fields and a bounded history in
+  `~/.local/state/project_atlas/localization_check_history.jsonl`.
+- Map page: **STOPPED - CHECKING LOCALIZATION WITH LIDAR**, and a red
+  **LOCALIZATION UNKNOWN - <stale input>**.
+- Sensor recovery defers while systemd is already restarting a unit.
+- A bounded LiDAR restart drop-in is proposed, not installed.
+
+See the
+[reliability review](docs/audits/ATLAS_RELIABILITY_REVIEW_2026-10-10.md).
+
 2026-10-10 deployed the localization monitor (suggest-only) and the map-page
 fix. The live wrong pose was reported LOST, then recovered by the
 verify-mode seeder and independently re-verified. Only `rover-status-web` was

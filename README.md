@@ -562,6 +562,12 @@ LOST** (with the LiDAR's pose), or **START VERIFIED ONLY, NOT RE-CHECKED**.
 Recovery mode is set in `~/.config/project_atlas/relocalize_mode`: `suggest`
 (the default) or `auto`. In `auto`, AMCL is reseeded only after two agreeing
 parked checks. No mode grants autonomy.
+After a stop, the monitor shows **STOPPED - CHECKING LOCALIZATION WITH LIDAR**
+(PARKED_SETTLING, then VERIFYING) until the check finishes. If odometry, the
+LiDAR or the AMCL pose stops arriving, it shows red **LOCALIZATION UNKNOWN**
+(INPUT_STALE). A result is discarded if ATLAS moved, an input went stale or
+AMCL changed during the check. Each transition and its timing is appended to
+`~/.local/state/project_atlas/localization_check_history.jsonl`.
 
 ### AI/robotics adaptation Phase 0 — 2026-09-30
 
