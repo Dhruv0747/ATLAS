@@ -4,6 +4,9 @@
  *   P1 camera frames only while the camera (or its detail view) is visible; optional data saver
  *   P2 radar polling only while the radar panel (or its detail view) is visible
  *   P3 Wi-Fi setup link opens the V2 Wi-Fi page (same server endpoints)
+ *   P4a E-STOP lock state: a press that starts while no pointer is down clears it
+ *   P4b drive cannot start while the E-STOP lock is set (a finger still down from before the E-STOP)
+ *   P4c E-STOP fires on pointerdown (a second-finger tap produces no click while another finger is down), cancels the local hold-to-drive repeat, then sends the same e_stop request; keyboard activation still works
  * All request paths, bodies, repeat rates and stop-on-release handlers are unchanged. */
 
 const $=id=>document.getElementById(id), val=(r,k,d='--')=>r[k]&&r[k].value!==undefined?r[k].value:d;
@@ -152,10 +155,10 @@ function openDetail(key){if(key==='diagnostics'){$('diagnosticsPanel').open=true
 function closeDetail(){activeDetail='';$('sensorModal').classList.remove('open');$('detailBody').innerHTML=''}
 $('sensorModal').addEventListener('click',e=>{if(e.target===$('sensorModal'))closeDetail()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail()});
 async function stop(){await post({action:'stop'},false)}
-let hold=null;function beginDrive(b){stopDrive(false);b.classList.add('on');let send=()=>post({action:'drive',linear:b.dataset.l,angular:b.dataset.a},false);send();hold=setInterval(send,120)}
+let hold=null;let estopLock=false;const v2Down=new Set();addEventListener('pointerdown',e=>{if(!v2Down.size)estopLock=false;v2Down.add(e.pointerId)},true);for(const t of ['pointerup','pointercancel'])addEventListener(t,e=>v2Down.delete(e.pointerId),true); /* V2 P4a */function beginDrive(b){if(estopLock)return; /* V2 P4b */stopDrive(false);b.classList.add('on');let send=()=>post({action:'drive',linear:b.dataset.l,angular:b.dataset.a},false);send();hold=setInterval(send,120)}
 function stopDrive(send=true){if(hold){clearInterval(hold);hold=null}document.querySelectorAll('[data-l]').forEach(b=>b.classList.remove('on'));if(send)stop()}
 document.querySelectorAll('[data-l]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);beginDrive(b)};b.onpointerup=()=>stopDrive();b.onpointercancel=()=>stopDrive();b.onlostpointercapture=()=>stopDrive()});
-$('stop').onclick=()=>post({action:'e_stop'});window.addEventListener('blur',()=>stopDrive());document.addEventListener('visibilitychange',()=>{if(document.hidden)stopDrive()});
+window.atlasEstop=()=>{estopLock=true;stopDrive(false);return post({action:'e_stop'})};$('stop').onpointerdown=e=>{e.preventDefault();atlasEstop()};$('stop').onclick=e=>{if(e.detail===0)atlasEstop()}; /* V2 P4c */window.addEventListener('blur',()=>stopDrive());document.addEventListener('visibilitychange',()=>{if(document.hidden)stopDrive()});
 let cameraHold=null,cameraBusy=false;
 function stopCameraHold(){if(cameraHold){clearInterval(cameraHold);cameraHold=null}document.querySelectorAll('[data-cam]').forEach(b=>b.classList.remove('on'))}
 async function cameraStep(b){if(cameraBusy)return;cameraBusy=true;try{await post({action:'camera',axis:b.dataset.cam,direction:b.dataset.dir})}finally{cameraBusy=false}}

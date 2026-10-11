@@ -5,7 +5,8 @@
   'use strict';
   const b = document.getElementById('v2Estop'), msg = document.getElementById('v2EstopMsg');
   if (!b) return;
-  b.addEventListener('click', async () => {
+  // pointerdown, not click: a second-finger tap produces no click while another finger is down.
+  const fire = async () => {
     if (msg) msg.textContent = 'Sending stop…';
     try {
       const r = await fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -15,5 +16,7 @@
     } catch (e) {
       if (msg) msg.textContent = 'Control link lost. Use the physical remote stop.';
     }
-  });
+  };
+  b.addEventListener('pointerdown', e => { e.preventDefault(); fire(); });
+  b.addEventListener('click', e => { if (e.detail === 0) fire(); });   // keyboard (Enter/Space)
 })();

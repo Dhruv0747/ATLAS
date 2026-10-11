@@ -152,7 +152,7 @@ def safety(browser):
             stops = [p for p in h.posts if p['body'] == 'action=stop']
             out[ev] = {'stop_sent': bool(stops), 'drive_posts_after_event': sum('action=drive' in (b or '') for b in after)}
             pg.mouse.up(); ctx.close()
-        # 3. E-STOP pressed (second finger) while a drive button is still held: pre-existing V1 behaviour, recorded only
+        # 3. E-STOP pressed (second pointer) while a drive button is still held. V1: recorded (known hazard). V2: must send 0 drive after e_stop
         for btn in (['#stop'] + (['#v2Estop'] if tag == 'v2' else [])):
             h = H(); ctx, pg = open_page(browser, h, path, *DESKTOP); pg.wait_for_timeout(1200); pg.evaluate(KEY_JS)
             box = pg.evaluate('k => { const e = window.__tk[k]; e.scrollIntoView({block:"center"}); const r = e.getBoundingClientRect(); return [r.x+r.width/2, r.y+r.height/2]; }', FWD)
@@ -163,8 +163,39 @@ def safety(browser):
             out[f'estop_while_holding{btn}'] = {'e_stop_body': bodies[i] if i is not None else None,
                                                 'drive_posts_after_e_stop': sum('action=drive' in (b or '') for b in bodies[i + 1:]) if i is not None else None}
             pg.mouse.up(); ctx.close()
+        # 4. Real two-finger touch (CDP touch points, phone viewport): finger 1 holds Forward, finger 2 taps the
+        #    drive-pad E-STOP; finger 1 stays down 0.8 s, then lifts; then a fresh single press must drive again.
+        for btn in (['#stop'] + (['#v2Estop'] if tag == 'v2' else [])):
+            h = H(); ctx, pg = open_page(browser, h, path, *PHONE); pg.wait_for_timeout(1200); pg.evaluate(KEY_JS)
+            cdp = ctx.new_cdp_session(pg)
+            f = pg.evaluate('k => { const e = window.__tk[k]; e.scrollIntoView({block:"center"}); const r = e.getBoundingClientRect(); return [r.x+r.width/2, r.y+r.height/2]; }', FWD)
+            sb = pg.evaluate('b => { const r = document.querySelector(b).getBoundingClientRect(); return [r.x+r.width/2, r.y+r.height/2]; }', btn)
+            tp = lambda pts: [{'x': x, 'y': y, 'id': i} for i, (x, y) in pts]
+            h.posts.clear()
+            cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': tp([(0, f)])}); pg.wait_for_timeout(400)
+            cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': tp([(0, f), (1, sb)])}); pg.wait_for_timeout(60)
+            cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': tp([(0, f)])}); pg.wait_for_timeout(800)
+            bodies = [p['body'] for p in h.posts]; i = bodies.index('action=e_stop') if 'action=e_stop' in bodies else None
+            held = sum('action=drive' in (b or '') for b in bodies[i + 1:]) if i is not None else None
+            cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []}); pg.wait_for_timeout(300)
+            n0 = len(h.posts)
+            cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': tp([(2, f)])}); pg.wait_for_timeout(400)
+            cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []}); pg.wait_for_timeout(300)
+            fresh = [p['body'] for p in h.posts[n0:]]
+            out['two_finger_touch_estop' + ('' if btn == '#stop' else btn)] = {'e_stop_sent': i is not None, 'drive_posts_after_e_stop_while_finger_down': held,
+                                             'fresh_press_after_lift_drives': any('action=drive' in (b or '') for b in fresh),
+                                             'fresh_press_ends_with_stop': bool(fresh) and fresh[-1] == 'action=stop'}
+            ctx.close()
         R['safety'][tag] = out
     v1, v2 = R['safety']['v1'], R['safety']['v2']
+    for k in ('estop_while_holding#stop', 'estop_while_holding#v2Estop'):
+        if v2[k]['drive_posts_after_e_stop'] != 0: R['failures'].append(f'safety: V2 {k} still sent drive after e_stop')
+    for key in ('two_finger_touch_estop', 'two_finger_touch_estop#v2Estop'):
+        t2 = v2[key]
+        if not t2['e_stop_sent'] or t2['drive_posts_after_e_stop_while_finger_down'] != 0:
+            R['failures'].append(f'safety: V2 {key} {t2}')
+        if not (t2['fresh_press_after_lift_drives'] and t2['fresh_press_ends_with_stop']):
+            R['failures'].append(f'safety: V2 drive pad did not recover for a fresh press after lift {key} {t2}')
     for k in ('desktop_hold', 'phone_hold'):
         if not v2[k]['stop_on_release']: R['failures'].append(f'safety: {k} release did not send stop in V2')
     for ev in ('pointercancel', 'window_blur', 'page_hidden'):

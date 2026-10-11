@@ -45,9 +45,18 @@
   });
   paint();
 
-  // ---- dock E-STOP: identical request to the drive-pad E-STOP ----
+  // ---- dock E-STOP: same handler as the drive-pad E-STOP (cancel local drive, then e_stop) ----
   const estop = $('v2Estop');
-  if (estop) estop.addEventListener('click', () => { if (typeof post === 'function') post({ action: 'e_stop' }); });
+  // Fire on pointerdown: while another finger holds a drive button, a second-finger tap produces no
+  // click on touch screens. Keyboard activation (click with detail 0) still works.
+  const fireEstop = () => {
+    if (typeof window.atlasEstop === 'function') window.atlasEstop();   // cancels local drive repeat first
+    else if (typeof post === 'function') post({ action: 'e_stop' });
+  };
+  if (estop) {
+    estop.addEventListener('pointerdown', e => { e.preventDefault(); fireEstop(); });
+    estop.addEventListener('click', e => { if (e.detail === 0) fireEstop(); });
+  }
 
   // ---- read-only status chips ----
   const setChip = (el, text, cls, title) => {

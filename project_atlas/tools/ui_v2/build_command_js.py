@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build web/v2/command.js from the V1 command-center page (verbatim + 3 documented patches).
+"""Build web/v2/command.js from the V1 command-center page (verbatim + documented patches).
 
 Input: the HTML that rover-status-web serves at "/" (render_control_page output).
 Every patch must match exactly once, so drift in V1 fails the build instead of silently diverging.
@@ -20,6 +20,19 @@ PATCHES = [
     ('P3 Wi-Fi setup link opens the V2 Wi-Fi page (same server endpoints)',
      '<a class="btn" href="/wifi">',
      '<a class="btn" href="/v2/wifi">'),
+    ('P4a E-STOP lock state: a press that starts while no pointer is down clears it',
+     "let hold=null;",
+     "let hold=null;let estopLock=false;const v2Down=new Set();"
+     "addEventListener('pointerdown',e=>{if(!v2Down.size)estopLock=false;v2Down.add(e.pointerId)},true);"
+     "for(const t of ['pointerup','pointercancel'])addEventListener(t,e=>v2Down.delete(e.pointerId),true); /* V2 P4a */"),
+    ('P4b drive cannot start while the E-STOP lock is set (a finger still down from before the E-STOP)',
+     "function beginDrive(b){stopDrive(false);",
+     "function beginDrive(b){if(estopLock)return; /* V2 P4b */stopDrive(false);"),
+    ('P4c E-STOP fires on pointerdown (a second-finger tap produces no click while another finger is down), '
+     'cancels the local hold-to-drive repeat, then sends the same e_stop request; keyboard activation still works',
+     "$('stop').onclick=()=>post({action:'e_stop'});",
+     "window.atlasEstop=()=>{estopLock=true;stopDrive(false);return post({action:'e_stop'})};"
+     "$('stop').onpointerdown=e=>{e.preventDefault();atlasEstop()};$('stop').onclick=e=>{if(e.detail===0)atlasEstop()}; /* V2 P4c */"),
 ]
 for name, old, new in PATCHES:
     n = js.count(old)
