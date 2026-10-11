@@ -158,6 +158,18 @@ if __name__ == '__main__':
     unittest.main()
 
 
+class ClassicDashboardEStopBinding(unittest.TestCase):
+    """V1 E-STOP must fire on pointerdown (a second-finger tap produces no click while another finger
+    is down), cancel the hold-to-drive and camera repeats first, and still work from the keyboard."""
+
+    def test_render_binds_estop_on_pointerdown_and_cancels_repeats(self):
+        page = web.render_control_page()
+        self.assertNotIn("$('stop').onclick=()=>post({action:'e_stop'})", page)
+        self.assertIn("const eStop=()=>{stopDrive(false);stopCameraHold();post({action:'e_stop'})};", page)
+        self.assertIn("$('stop').onpointerdown=e=>{e.preventDefault();eStopPtrAt=Date.now();eStop()};", page)
+        self.assertIn("$('stop').onclick=e=>{if(e.detail===0&&Date.now()-eStopPtrAt>1000)eStop()};", page)
+
+
 class MuxHonoursWebEStop(unittest.TestCase):
     """The web E-STOP publishes /atlas/voice/stop; prove the mux then drops WEB drive and keeps
     the remote as the only release path (real RemoteStop + real mux methods, no ROS)."""

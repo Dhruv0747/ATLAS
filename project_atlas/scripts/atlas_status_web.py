@@ -2472,7 +2472,7 @@ async function stop(){await post({action:'stop'},false)}
 let hold=null;function beginDrive(b){stopDrive(false);b.classList.add('on');let send=()=>post({action:'drive',linear:b.dataset.l,angular:b.dataset.a},false);send();hold=setInterval(send,120)}
 function stopDrive(send=true){if(hold){clearInterval(hold);hold=null}document.querySelectorAll('[data-l]').forEach(b=>b.classList.remove('on'));if(send)stop()}
 document.querySelectorAll('[data-l]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);beginDrive(b)};b.onpointerup=()=>stopDrive();b.onpointercancel=()=>stopDrive();b.onlostpointercapture=()=>stopDrive()});
-$('stop').onclick=()=>post({action:'e_stop'});window.addEventListener('blur',()=>stopDrive());document.addEventListener('visibilitychange',()=>{if(document.hidden)stopDrive()});
+let eStopPtrAt=0;const eStop=()=>{stopDrive(false);stopCameraHold();post({action:'e_stop'})};$('stop').onpointerdown=e=>{e.preventDefault();eStopPtrAt=Date.now();eStop()};$('stop').onclick=e=>{if(e.detail===0&&Date.now()-eStopPtrAt>1000)eStop()};window.addEventListener('blur',()=>stopDrive());document.addEventListener('visibilitychange',()=>{if(document.hidden)stopDrive()});
 let cameraHold=null,cameraBusy=false;
 function stopCameraHold(){if(cameraHold){clearInterval(cameraHold);cameraHold=null}document.querySelectorAll('[data-cam]').forEach(b=>b.classList.remove('on'))}
 async function cameraStep(b){if(cameraBusy)return;cameraBusy=true;try{await post({action:'camera',axis:b.dataset.cam,direction:b.dataset.dir})}finally{cameraBusy=false}}
