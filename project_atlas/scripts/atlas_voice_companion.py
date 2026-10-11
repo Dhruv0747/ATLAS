@@ -251,7 +251,10 @@ class AtlasVoice(Node):
         self.publish_privacy()
         for key, text in self.alerts.evaluate(self.rover):
             now = time.monotonic()
-            if now - self.last_alert_at.get(key, -1000) < 60:
+            # Stop latch/release alerts are already debounced (2 s stable) and fire only on a change;
+            # throttling them would drop a "released" said within 60 s of "latched" and leave the
+            # spoken state wrong (2026-10-11).
+            if key != 'stop' and now - self.last_alert_at.get(key, -1000) < 60:
                 continue
             self.last_alert_at[key] = now
             self.publish('alert', text)

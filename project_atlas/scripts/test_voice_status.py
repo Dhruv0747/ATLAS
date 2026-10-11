@@ -177,6 +177,25 @@ def isolated_methods(file, methods, namespace):
     return namespace[cls.name]
 
 
+class AlertDeliveryTest(unittest.TestCase):
+    def test_stop_release_not_dropped_by_alert_throttle(self):
+        ns = {'time': time, 'queue': queue}
+        cls = isolated_methods('atlas_voice_companion.py', {'collect_announcements'}, ns)
+        node = cls()
+        node.publish_privacy = lambda: None
+        node.rover = None
+        node.last_alert_at = {}
+        node.alert_q = queue.Queue(maxsize=8)
+        spoken = []
+        node.publish = lambda kind, text: spoken.append(text)
+        batches = [[('stop', 'Safety stop latched.')], [('stop', 'Safety stop released.')],
+                   [('lidar_live', 'LiDAR reports stale.')], [('lidar_live', 'LiDAR reports stale.')]]
+        node.alerts = SimpleNamespace(evaluate=lambda rover: batches.pop(0))
+        for _ in range(4):
+            node.collect_announcements()
+        self.assertEqual(spoken, ['Safety stop latched.', 'Safety stop released.', 'LiDAR reports stale.'])
+
+
 class VoiceControlTest(unittest.TestCase):
     def setUp(self):
         names = {'handle_agent_request', 'execute_agent_action', 'asks_weather',
