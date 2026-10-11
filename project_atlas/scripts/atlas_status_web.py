@@ -315,6 +315,7 @@ class AtlasRosNode:
         self.actual_tilt_us = CAMERA_TILT_HOME_US
         self.last_camera_manual = 0.0
         self.last_drive_command = 0.0
+        self.web_estop_at = float('-inf')
         self.drive_active = False
         self.camera_clients = CameraClientDemand(CAMERA_CLIENT_LEASE_SECONDS)
         # Prime one frame after service start so the existing commissioning
@@ -1257,6 +1258,33 @@ class AtlasRosNode:
             self._set("web_drive", "STOP")
         return True
 
+    def latch_drive_stop(self):
+        """Latch the cmd_vel mux stop through its existing stop-only input.
+
+        This is the same ``/atlas/voice/stop`` latch the commissioning page's
+        LATCH DRIVE STOP uses. The mux drops every drive source while latched
+        and only the physical remote can release it (sticks neutral, hold LB,
+        let go). The web server never publishes a release.
+        """
+        self.web_estop_at = time.monotonic()
+        if not self.ready or self.commissioning_stop_pub is None:
+            return False
+        self.commissioning_stop_pub.publish(Empty())
+        return True
+
+    def drive_stop_latched(self, max_policy_age_s=1.0, estop_grace_s=1.0):
+        """True while a web E-STOP is recent or fresh mux policy reports a latch."""
+        if time.monotonic() - self.web_estop_at < estop_grace_s:
+            return True
+        with self.lock:
+            item = self.data.get('control_policy')
+        if not item or time.time() - float(item.get('ts', 0.0)) > max_policy_age_s:
+            return False
+        try:
+            return json.loads(item['value']).get('stop_latched') is True
+        except (TypeError, ValueError, AttributeError):
+            return False
+
     def snapshot(self):
         with self.lock:
             data = {key: dict(item) for key, item in self.data.items()}
@@ -1947,14 +1975,27 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0") or "0")
         form = parse_qs(self.rfile.read(length).decode())
         action = form.get("action", [""])[0]
+        # A stop is never refused, including while a shutdown is pending.
+        if action == "stop":
+            json_response(self, 200, {"ok": True, "message": "Drive stopped", "detail": stop_rover()})
+            return
+        if action == "e_stop":
+            detail = stop_rover()
+            if ROS.latch_drive_stop():
+                json_response(self, 200, {"ok": True, "latched": True, "detail": detail,
+                                          "message": "EMERGENCY STOP LATCHED. Release with the remote: sticks neutral, hold LB, let go."})
+            else:
+                json_response(self, 503, {"ok": False, "latched": False, "detail": detail,
+                                          "message": "Zero speed sent but the stop latch is unavailable. Use the remote stop (B)."})
+            return
         if SHUTDOWN_PENDING.is_set():
             json_response(self, 409, {"ok": False, "message": "Shutdown already requested; controls disabled"})
             return
-        if action == "stop":
-            json_response(self, 200, {"ok": True, "message": "Drive stopped", "detail": stop_rover()})
-        elif action == "e_stop":
-            json_response(self, 200, {"ok": True, "message": "EMERGENCY STOP ACTIVE", "detail": stop_rover()})
-        elif action == "drive":
+        if action == "drive":
+            if ROS.drive_stop_latched():
+                stop_rover()
+                json_response(self, 409, {"ok": False, "message": "Drive stop latched. Release it with the remote: sticks neutral, hold LB, let go."})
+                return
             out = drive_pulse(form.get("linear", ["0"])[0], form.get("angular", ["0"])[0])
             json_response(self, 200, {"ok": True, "message": "Short safe drive pulse sent", "detail": out})
         elif action == "ai_mode":
@@ -2018,6 +2059,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             SHUTDOWN_PENDING.set()
             stop_rover()
+            # Also latch the mux so no other drive source can resume during the
+            # poweroff delay; release remains physical (remote) after reboot.
+            ROS.latch_drive_stop()
             def power_off():
                 time.sleep(2)
                 ok, detail = run_quiet(['sudo', '-n', '/sbin/shutdown', '-h', 'now'], timeout=8)
