@@ -61,7 +61,7 @@ autonomy (still disabled), and the E-STOP and reset logic.
     single fire per input;
   - reset panel: 0 failures in V1 and V2;
   - V1→V2 ID and link inventories: nothing missing;
-  - control-contract run: see "Open items".
+  - control contracts: 0 failures across 220 comparisons (finished after deployment; see "Open items").
 
 ### Incident during preparation (no motion; evidence log affected)
 
@@ -152,5 +152,9 @@ subscriptions, not page serving.
   - V2 on the phone with the PC off, over the LAN and over Tailscale (block E).
 - **V2 is now the only UI.** If V2 fails on a device, use the physical remote's **B** to stop, then
   roll back as above.
-- **The headless control-contract suite** (`test_ui_v2.py contracts,safety`) was still running at
-  the time of writing. Its result will be appended here.
+- **Headless control-contract suite** (`test_ui_v2.py contracts,safety`, finished about 14:40):
+  **0 failures**.
+  - 220 control comparisons across 13 pages and tabs: every V1 control has an identical V2
+    request.
+  - Hold-to-drive safety matches V1: one press id and one start flag per hold, 120 ms repeat, stop
+    on release.
