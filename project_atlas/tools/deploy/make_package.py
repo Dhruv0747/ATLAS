@@ -34,33 +34,33 @@ def show(commit, path):
 def main():
     stage, base, head, out = sys.argv[1:5]
     assert sys.argv[5] == '--'
-    paths, ranges = [], {}
+    # A path may be given several times with different ranges; its diffs are applied in order.
+    items = []
     for arg in sys.argv[6:]:
         p, _, rng = arg.partition('@')
         b, h = rng.split('..') if rng else (base, head)
         for f in git('ls-tree', '-r', '--name-only', h, '--', p).split():
-            paths.append(f); ranges[f] = (b, h)
-    paths = sorted(set(paths))
-    assert paths and all(p.startswith(PREFIX) for p in paths), paths
+            items.append((f, b, h))
+    assert items and all(f.startswith(PREFIX) for f, _, _ in items), items
     out = Path(out) / stage
     (out / 'files').mkdir(parents=True, exist_ok=True); (out / 'patches').mkdir(exist_ok=True)
-    manifest, patched, added = [], [], []
-    for p in paths:
+    manifest, patched, added, seq = [], [], [], {}
+    sha = lambda b: hashlib.sha256(b).hexdigest()
+    for p, b, h in sorted(set(items), key=items.index):
         rel = p[len(PREFIX):]
-        b, h = ranges[p]
         old, new = show(b, p), show(h, p)
         if old == new:
             continue
-        sha = lambda b: hashlib.sha256(b).hexdigest()
         if old is None:
             dst = out / 'files' / rel; dst.parent.mkdir(parents=True, exist_ok=True); dst.write_bytes(new)
             added.append(rel); manifest.append(f'ADD {rel} {sha(new)}')
         else:
             diff = git('diff', '--no-color', '-U5', b, h, '--', p)
             diff = diff.replace(f'a/{p}', f'a/{rel}').replace(f'b/{p}', f'b/{rel}')
-            name = rel.replace('/', '__') + '.patch'
+            seq[rel] = seq.get(rel, 0) + 1
+            name = f'{len(patched) + 1:02d}__' + rel.replace('/', '__') + '.patch'
             (out / 'patches' / name).write_text(diff)
-            patched.append((rel, name)); manifest.append(f'PATCH {rel} range={b[:9]}..{h[:9]} base={sha(old)} result={sha(new)}')
+            patched.append((rel, name)); manifest.append(f'PATCH {rel} range={b[:9]}..{h[:9]} part={seq[rel]} result={sha(new)}')
     (out / 'MANIFEST').write_text(f'stage {stage}\nbase {git("rev-parse", base).strip()}\nhead {git("rev-parse", head).strip()}\n'
                                   + '\n'.join(manifest) + '\n')
     py = [r for r, _ in patched if r.endswith('.py')] + [r for r in added if r.endswith('.py')]
@@ -70,10 +70,12 @@ set -euo pipefail
 PKG="$(cd "$(dirname "$0")" && pwd)"; ROOT="${{ATLAS_ROOT:-$HOME/project_atlas}}"
 STAMP="$(date +%Y-%m-%d-%H%M%S-%N)"; BK="$ROOT/data/backups/$STAMP-{stage}"
 cd "$ROOT"
-echo "== dry run"; {''.join(f'patch -p1 --dry-run --forward --no-backup-if-mismatch -s < "$PKG/patches/{n}"; ' for _, n in patched) or 'true; '}
+echo "== rehearsal on a scratch copy (patches applied in order)"; TRY="$(mktemp -d)"; trap 'rm -rf "$TRY"' EXIT
+for f in {' '.join(dict.fromkeys(r for r, _ in patched)) or '""'}; do [ -z "$f" ] || {{ mkdir -p "$TRY/$(dirname "$f")"; cp -a "$f" "$TRY/$f"; }}; done
+(cd "$TRY" && {''.join(f'patch -p1 --forward --no-backup-if-mismatch -s < "$PKG/patches/{n}" && ' for _, n in patched)}true) || {{ echo "refusing: a patch does not apply to the live files"; exit 2; }}
 for f in {' '.join(added) or '""'}; do [ -z "$f" ] || [ ! -e "$f" ] || {{ echo "refusing: $f already exists"; exit 2; }}; done
 echo "== backup to $BK"; mkdir -p "$BK/orig"
-for f in {' '.join(r for r, _ in patched) or '""'}; do [ -z "$f" ] || {{ mkdir -p "$BK/orig/$(dirname "$f")"; cp -a "$f" "$BK/orig/$f"; }}; done
+for f in {' '.join(dict.fromkeys(r for r, _ in patched)) or '""'}; do [ -z "$f" ] || {{ mkdir -p "$BK/orig/$(dirname "$f")"; cp -a "$f" "$BK/orig/$f"; }}; done
 printf '%s\\n' {' '.join(added) or '""'} > "$BK/added.txt"
 cat > "$BK/ROLLBACK.sh" <<'RB'
 #!/usr/bin/env bash
@@ -90,7 +92,7 @@ echo "== apply"; {''.join(f'patch -p1 --forward --no-backup-if-mismatch -s < "$P
 (cd "$PKG/files" && find . -type f -print0) | while IFS= read -r -d '' f; do mkdir -p "$(dirname "$f")"; cp "$PKG/files/$f" "$f"; done
 {'python3 -m py_compile ' + ' '.join(py) + ' && echo "byte-compile ok"' if py else 'true'}
 echo "== result hashes (MATCH expected when the live files were the recorded baseline)"
-grep -E '^(PATCH|ADD) ' "$PKG/MANIFEST" | while read -r kind f rest; do
+grep -E '^(PATCH|ADD) ' "$PKG/MANIFEST" | tac | awk '!seen[$2]++' | while read -r kind f rest; do
   want="${{rest##*result=}}"; [ "$kind" = ADD ] && want="$rest"
   got="$(sha256sum "$f" | cut -d' ' -f1)"; [ "$got" = "$want" ] && echo "MATCH  $f" || echo "DIFFER $f (live baseline differed; patch applied cleanly)"
 done
