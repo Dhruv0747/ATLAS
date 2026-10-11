@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-11 20:15:
+- Stage 14 (voice announces stop latch and release) deployed.
+- Stage 15 (CHECK MY LOCATION motion gate on the EKF's IM10A gyro) deployed.
+- AMCL re-localized by the existing startup verifier; live check VERIFIED.
+- Per-boot startup evidence capture prepared (not deployed).
+- See the [evening record](docs/deploy/ATLAS_LOCALIZATION_RECOVERY_2026-10-11_EVENING.md).
+
 2026-10-11 19:46: **CHECK MY LOCATION works without an AMCL pose** (stage 13, deployed).
 - Precise rejection codes and a stage table replace the merged "SCAN UNAVAILABLE or AMCL reference
   unavailable".

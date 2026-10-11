@@ -1,5 +1,21 @@
 # ATLAS current blockers
 
+11 October 20:15 IST: AMCL localized again, through the existing startup verifier, after the owner's
+19:52 dashboard restart (fit 0.989, margin 0.111). No manual seed was applied. Live CHECK MY
+LOCATION is VERIFIED 3/3: AMCL (0.178, −1.473, 78°) versus LiDAR (0.235, −1.435, 72–75°),
+0.069 m / 3–6°. The heading spread is the 3° search grid.
+
+New finding: the board IMU on `/imu/data` read −1.71°/s parked this boot (+0.006°/s on the
+previous boot). It is not used by the EKF, but it held the location check in ROVER_MOVING; stage 15
+moved that gate to the EKF's IM10A gyro.
+
+Voice latch/release fix deployed (stage 14); a spoken release is not physically tested.
+
+The 0.90 startup score on the 19:06 boot remains unexplained: its verdict and journal were lost,
+and web driving 19:13–19:32 means its pose is uncertain. Per-boot replayable verdict capture is
+prepared (`b81d7ac`), not deployed. See the
+[evening record](../deploy/ATLAS_LOCALIZATION_RECOVERY_2026-10-11_EVENING.md).
+
 11 October 19:47 IST: CHECK MY LOCATION "UNAVAILABLE" after the 19:06 restart. **Root cause:**
 the startup verifier refused to seed (best 0.90 < 0.93), so AMCL was active with no pose. The
 check required an AMCL pose before even starting its independent LiDAR search and reported a

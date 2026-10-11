@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-11T19:50:00+05:30",
+  "updated_at": "2026-10-11T20:15:00+05:30",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -494,6 +494,11 @@
           "date": "2026-10-11",
           "kind": "readonly_reliability_pass",
           "description": "Parked 60 s: EKF imu0 (/im10a/imu/bias_corrected_candidate) gyro-Z exactly 0.0 for 587/587 samples; Oct 2 qualification bag 471/877 exact zeros with sparse +/-1..3 counts: on-sensor static zeroing likely, so the Oct 2 'zero drift' qualification did not observe bias. Board IMU /imu/data std 0.32 deg/s, orientation drift -0.66 deg/min (not EKF yaw input). Does not explain 0.46x fast-turn. No change made."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "evening_recovery",
+          "description": "2026-10-11 20:00: Yahboom board IMU /imu/data (no gyro-bias calibration, navigation qualification=False) read -0.0298 rad/s (-1.71 deg/s, std 0.0067) parked after the 19:52 boot vs +0.006 deg/s on the previous boot: boot-to-boot bias. Not an EKF input (EKF uses IM10A). It blocked CHECK MY LOCATION as ROVER_MOVING; stage 15 moved that gate to the IM10A corrected gyro. Displays using /imu/data orientation would drift ~100 deg/min on such a boot."
         }
       ]
     },
@@ -693,6 +698,11 @@
           "date": "2026-10-11",
           "kind": "location_check_blocked_without_amcl",
           "description": "19:06 restart: verify-before-seed refused (best 0.90<0.93) so AMCL had no pose; CHECK MY LOCATION required an AMCL pose before its independent search and returned the merged message SCAN UNAVAILABLE or AMCL reference unavailable while scan/TF/map were fresh. Stage 13 (2e10355) deployed 19:45 latched: precise codes, AMCL optional, LIDAR_ONLY_MATCH never VERIFIED. Live Dhruv Room (0.235,-1.435,72-78 deg) fit 0.994-1.000 margin 0.079-0.107. Replay of Oct 10 bag: AMCL alias MISMATCH 3.95 m reproduced. Gap: boot-time fit 0.90 unexplained (no recording). No reseed."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "evening_recovery",
+          "description": "2026-10-11 19:52 boot: existing verify-before-seed VERIFIED (0.235,-1.535,81 deg) fit 0.989 margin 0.111 and seeded AMCL; live CHECK MY LOCATION VERIFIED 3/3, AMCL vs LiDAR 0.069 m / 3-6 deg (3 deg search grid). 19:06-boot 0.90 refusal cause undetermined: verdict overwritten and journal lost; web driving 19:13-19:32 means its pose is uncertain. Replayable per-boot verdict capture prepared (b81d7ac), not deployed."
         }
       ]
     },
@@ -997,6 +1007,11 @@
           "date": "2026-10-11",
           "kind": "readonly_reliability_pass",
           "description": "Boot -1 ended uncleanly 00:55:16 (journal stops mid-stream). Boot 0 began 07:36:51 real time (uptime) with wall clock 01:16:30 until NTP 07:37:24: early journal labels 6h20m early. No AER lines boots -3..0. Power-cut vs crash undetermined."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "evening_recovery",
+          "description": "2026-10-11: both evening restarts (19:03:47, 19:52:44) were the dashboard power action from the owner PC (shutdown_latch events), clean shutdowns. The 19:04-boot ROS user journal is not retrievable after the next boot (clock began at 1970)."
         }
       ]
     },
