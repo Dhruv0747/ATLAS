@@ -75,7 +75,7 @@ below, which needs no motion.
 
 | Suite | Result |
 |---|---|
-| `tests/test_status_web_estop_safety.py`: real `atlas_status_web` module, ROS stubbed, real HTTP handler `do_POST` | 10/10:<br>- `e_stop` = zero then latch;<br>- drive after E-STOP → 409 + zero only;<br>- drive refused while the mux reports a latch;<br>- allowed when unlatched or the policy is stale;<br>- no web action releases;<br>- 503 + zero if the latch publisher is missing;<br>- `stop`/`e_stop` accepted while shutdown is pending (everything else 409);<br>- shutdown latches after stop |
+| `tests/test_status_web_estop_safety.py`: real `atlas_status_web` module, ROS stubbed, real HTTP handler `do_POST` | 11/11:<br>- `e_stop` = zero then latch;<br>- drive after E-STOP → 409 + zero only;<br>- drive refused while the mux reports a latch;<br>- allowed when unlatched or the policy is stale;<br>- no web action releases;<br>- 503 + zero if the latch publisher is missing;<br>- 503 saying "Zero speed NOT sent" if the ROS link is down (fix `e0e2156`);<br>- `stop`/`e_stop` accepted while shutdown is pending (everything else 409);<br>- shutdown latches after stop |
 | Same file, **mux contract**: the real `AtlasCmdVelMux.on_voice_stop`/`hold_remote_stop`/`on_stop_joy` and the real `RemoteStop` | Voice-stop input latches, flushes the WEB channel and publishes zero. Only neutral sticks + LB held ≥2 s + LB released clears it; 1.5 s and "still held" do not |
 | `tests/test_status_web_no_reboot.py` | 2/2: no `sudo -S` or reboot branch in the source; `action=reboot` → 400 |
 | Existing mux / remote-stop tests | `test_atlas_cmd_vel_mux_stop_hold` 6/6, `scripts/test_remote_stop` 10/10 |
