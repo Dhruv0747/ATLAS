@@ -54,8 +54,9 @@
     else if (typeof post === 'function') post({ action: 'e_stop' });
   };
   if (estop) {
-    estop.addEventListener('pointerdown', e => { e.preventDefault(); fireEstop(); });
-    estop.addEventListener('click', e => { if (e.detail === 0) fireEstop(); });
+    let ptrAt = 0;   // a touch tap can also emit a detail-0 click; do not send E-STOP twice
+    estop.addEventListener('pointerdown', e => { e.preventDefault(); ptrAt = Date.now(); fireEstop(); });
+    estop.addEventListener('click', e => { if (e.detail === 0 && Date.now() - ptrAt > 1000) fireEstop(); });
   }
 
   // ---- read-only status chips ----

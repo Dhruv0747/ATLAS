@@ -28,11 +28,10 @@ PATCHES = [
     ('P4b drive cannot start while the E-STOP lock is set (a finger still down from before the E-STOP)',
      "function beginDrive(b){stopDrive(false);",
      "function beginDrive(b){if(estopLock)return; /* V2 P4b */stopDrive(false);"),
-    ('P4c E-STOP fires on pointerdown (a second-finger tap produces no click while another finger is down), '
-     'cancels the local hold-to-drive repeat, then sends the same e_stop request; keyboard activation still works',
-     "$('stop').onclick=()=>post({action:'e_stop'});",
-     "window.atlasEstop=()=>{estopLock=true;stopDrive(false);return post({action:'e_stop'})};"
-     "$('stop').onpointerdown=e=>{e.preventDefault();atlasEstop()};$('stop').onclick=e=>{if(e.detail===0)atlasEstop()}; /* V2 P4c */"),
+    ('P4c E-STOP also sets the V2 drive lock and is exposed for the dock button. V1 itself (2026-10-11 '
+     'safety fix) fires E-STOP on pointerdown, cancels hold-to-drive and camera repeats, keeps keyboard activation',
+     "const eStop=()=>{stopDrive(false);stopCameraHold();post({action:'e_stop'})};",
+     "const eStop=()=>{estopLock=true;stopDrive(false);stopCameraHold();return post({action:'e_stop'})};window.atlasEstop=eStop; /* V2 P4c */"),
 ]
 for name, old, new in PATCHES:
     n = js.count(old)

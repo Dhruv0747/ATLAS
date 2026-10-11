@@ -17,6 +17,7 @@
       if (msg) msg.textContent = 'Control link lost. Use the physical remote stop.';
     }
   };
-  b.addEventListener('pointerdown', e => { e.preventDefault(); fire(); });
-  b.addEventListener('click', e => { if (e.detail === 0) fire(); });   // keyboard (Enter/Space)
+  let ptrAt = 0;   // a touch tap can also emit a detail-0 click; do not send E-STOP twice
+  b.addEventListener('pointerdown', e => { e.preventDefault(); ptrAt = Date.now(); fire(); });
+  b.addEventListener('click', e => { if (e.detail === 0 && Date.now() - ptrAt > 1000) fire(); });   // keyboard
 })();
