@@ -89,3 +89,23 @@ govern future work; the old claim is **unverified**, not a current KPI.
 The current branch remains review-only. No autonomous motion, automatic
 reseeding, map promotion, FlySky receiver authority or calibration change is
 authorized by this status document.
+
+## Recorder gap review (source only)
+
+`project_atlas/scripts/record_atlas_demonstration.sh` already records the
+navigation-critical topics, including raw/processed scans, odometry, TF,
+IM10A, encoders and control policy. It is **manual and unbounded**: it starts
+only when invoked, includes camera/map data, has no trigger/pre-roll and no
+space cap. Reusing its topic list is appropriate; redeploying it unchanged
+would not have captured the unplanned Oct 10/11 short-drive failures.
+
+The next bounded implementation should run as a separate diagnostics owner,
+never in the motor/mission process. A small continuous buffer must retain
+about 10 seconds before motion, record throughout motion and 10 seconds after
+stop, then close the bag. It should accept only a fixed topic allowlist,
+write outside Git, cap total retained recordings near 500 MB, report dropped
+messages/disk errors, and discard oldest *closed* captures before allocating
+new space. If storage or ROS graph access fails, it must leave motor and
+E-STOP behavior unchanged. Tests should inject start/stop chatter, a stalled
+topic, missing `/scan`, full disk and process restart; no live background
+service is enabled merely by building the recorder source.
