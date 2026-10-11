@@ -6,6 +6,9 @@ stop-only LiDAR availability veto applies to NAV2/recovery only; it is not a
 path-clearance estimator and leaves manual steering unchanged. Deployment
 status and limits: [navigation guard report](docs/audits/ATLAS_NAVIGATION_GUARD_DEPLOYMENT_2026-10-11.md).
 The historical source-only entries below describe earlier stages.
+Both fixes are now deployed with matching hashes; B was updated dynamically
+without restarting AMCL. Autonomy remains inhibited. Real-scan observation
+gaps, moving localization and physical stopping qualification remain open.
 
 11 October follow-up: recovery now rejects stale acquisition timestamps as
 well as stale arrival times, including before its first pulse. Thirteen

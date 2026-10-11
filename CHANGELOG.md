@@ -11,6 +11,10 @@
 - Stage-specific patch generator preserves unrelated undeployed AMCL changes;
   native RPP dynamic inflation update validated without localization restart.
 - Deployment evidence is maintained in the navigation guard report.
+- Both stages deployed with hash/rollback verification. Direct ROS stop checks
+  replace unreliable dashboard cache checks for this rollout; no stop release.
+  Both YAML copies and runtime RPP factor agree at 15, AMCL process unchanged.
+  Real-scan coverage gaps continue to veto autonomy; no physical acceptance.
 
 2026-10-11: Recovery freshness extension, NOT deployed.
 - Reject old/zero/future scan acquisition times, expired arrival times and

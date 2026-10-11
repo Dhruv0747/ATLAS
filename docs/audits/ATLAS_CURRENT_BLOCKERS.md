@@ -1,5 +1,18 @@
 # ATLAS current blockers
 
+11 October 18:10 IST: approved recovery freshness + stop-only NAV2/recovery
+LiDAR guard deployed; RPP conversion 3 -> 15 deployed in both config copies
+and running controller, without AMCL restart. 15 full-controller/mux checks,
+11 native checks and 38 regressions pass. Direct ROS verifies latched stop,
+zero commands and fresh sensors. Historical entries below are preserved.
+Remaining: 68/68 fresh real scans have missing observation bins and conservatively
+veto hypothetical autonomy in every direction; this is NOT proof of occupied
+space. Swept-path observation qualification, physical stopping, and unresolved
+moving localization/encoder qualification still block autonomous acceptance.
+Two startup verification attempts rolled back on dashboard timing; direct ROS
+and systemd verification succeeded. See
+[deployment evidence and rollback](ATLAS_NAVIGATION_GUARD_DEPLOYMENT_2026-10-11.md).
+
 11 October decision-path audit: STOP remains latched; no movement or live
 control changes. Confirmed recovery defect: all-invalid sectors were infinite
 clearance, permitting forward/reverse choices. Source-only correction passes

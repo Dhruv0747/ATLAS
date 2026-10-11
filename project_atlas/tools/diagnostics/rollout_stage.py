@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import sys
 from validate_recorder_parked import status
 
 
@@ -22,10 +23,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--package', type=Path, required=True)
     parser.add_argument('--install', action='store_true')
+    parser.add_argument('--direct-ros-stop', action='store_true',
+        help='Verify stop via finite read-only ROS subscriber and systemd, not dashboard cache')
     parser.add_argument('--root', choices=('/home/jetson/project_atlas',
         '/home/jetson/project_atlas_ws/src/tortoisebot_bringup'),
         default='/home/jetson/project_atlas')
     args = parser.parse_args()
+    def parked():
+        if not args.direct_ros_stop:
+            return status()
+        evidence=Path(tempfile.mkdtemp(prefix='atlas_direct_stop_'))/'result.json'
+        subprocess.run([sys.executable,str(Path(__file__).with_name('verify_parked_guard_restart.py')),
+            '--output',str(evidence)],check=True,timeout=50)
     live = Path(args.root)
     manifest = (args.package/'MANIFEST').read_text().splitlines()
     files = [line.split()[1] for line in manifest if line.startswith(('ADD ', 'PATCH '))]
@@ -33,7 +42,7 @@ def main():
         raise ValueError('invalid manifest')
     if args.root.endswith('tortoisebot_bringup') and files != ['config/nav2_params.yaml']:
         raise ValueError('workspace installation restricted to the Nav2 config copy')
-    status()
+    parked()
     scratch = Path(tempfile.mkdtemp(prefix='atlas_stage_rehearsal_'))
     for folder in ('scripts','config','web/v2'):
         (scratch/folder).mkdir(parents=True)
@@ -60,10 +69,10 @@ def main():
     assert {f:digest(scratch/f) for f in files} == before, 'rollback mismatch'
     print('REHEARSAL_AND_ROLLBACK_PASS', scratch, flush=True)
     if args.install:
-        status()
+        parked()
         assert {f:digest(live/f) for f in files} == before, 'live changed during rehearsal'
         install(live)
-        status()
+        parked()
         print('LIVE_INSTALL_HASHES_VERIFIED', json.dumps({f:digest(live/f) for f in files}), flush=True)
 
 
