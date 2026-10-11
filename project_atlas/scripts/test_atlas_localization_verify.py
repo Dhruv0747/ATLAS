@@ -159,6 +159,72 @@ class VerifyCoreTests(unittest.TestCase):
             self.assertEqual(core.fit(m, np.array([[0.0, 0.0]]), 10.5, 21.5, 0.0, 0.1), 1.0)
 
 
+def seeder_functions(*names):
+    src = Path(__file__).with_name('seed_atlas_localization.py').read_text()
+    fns = [n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name in names]
+    scope = {'json': json, 'math': math, 'Path': Path, 'VERDICT_HISTORY': None, 'VERDICT_HISTORY_MAX_BYTES': 4_000_000}
+    exec(compile(ast.Module(body=fns, type_ignores=[]), 'seed', 'exec'), scope)
+    return scope
+
+
+class StartupEvidenceTests(unittest.TestCase):
+    """2026-10-11: a refused boot (fit 0.90) left no replayable evidence. Capture must keep every
+    boot, stay bounded, never raise, and be enough to rerun the identical search offline."""
+
+    def test_history_appends_every_boot_and_stays_bounded(self):
+        f = seeder_functions('append_verdict_history')['append_verdict_history']
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'h.jsonl'
+            for i in range(3):
+                f({'boot': i, 'state': 'UNKNOWN'}, path=path, max_bytes=10_000)
+            self.assertEqual([json.loads(l)['boot'] for l in path.read_text().splitlines()], [0, 1, 2])
+            f({'pad': 'x' * 9_990}, path=path, max_bytes=10_000)      # would exceed: rotate first
+            self.assertTrue(Path(str(path) + '.1').exists())
+            self.assertEqual(len(path.read_text().splitlines()), 1)
+
+    def test_history_never_raises(self):
+        f = seeder_functions('append_verdict_history')['append_verdict_history']
+        f({'bad': float('nan')}, path='/proc/forbidden/h.jsonl')     # unwritable + invalid JSON
+        f({'ok': 1}, path='/proc/forbidden/h.jsonl')
+
+    def test_evidence_replays_to_the_same_answer(self):
+        f = seeder_functions('scan_evidence')['scan_evidence']
+        policy = core.VerifyPolicy()
+        with tempfile.TemporaryDirectory() as d:
+            grid = core.load_map(write_map(d, ROOM_A + ROOM_B))
+            amin, inc, ranges = ray_scan(ROOM_A + ROOM_B, (8.0, 1.6, math.radians(-100)))
+            scans = [NS(header=NS(frame_id='laser_frame', stamp=NS(sec=100 + i, nanosec=0)), angle_min=amin,
+                        angle_increment=inc, range_min=0.15, range_max=12.0) for i in range(5)]
+            allp, held = core.endpoints(amin, inc, ranges, (0., 0., 0.), policy)
+            hyps = core.global_search(grid, allp, held, policy)
+            ev = f(scans, ranges, (0., 0., 0.), allp, hyps, policy)
+            self.assertEqual(ev['scan_count'], 5)
+            self.assertEqual(ev['scan_stamp_last'] - ev['scan_stamp_first'], 4)
+            self.assertEqual(sum(ev['quadrants']), ev['valid_endpoints'])
+            json.dumps(ev, allow_nan=False)                                 # storable as-is
+            replay = [None if v is None else v / 1000 for v in ev['median_ranges_mm']]
+            a2, h2 = core.endpoints(ev['angle_min'], ev['angle_increment'], replay, tuple(ev['laser_in_base']), policy)
+            again = core.decide(core.global_search(grid, a2, h2, policy), len(a2), None, policy)
+            first = core.decide(hyps, len(allp), None, policy)
+            self.assertEqual(again.state, first.state)
+            self.assertLess(math.hypot(again.pose[0] - first.pose[0], again.pose[1] - first.pose[1]), 0.06)
+
+    def test_missing_capture_cannot_change_the_verdict(self):
+        # The SeederTests harness compiles verify_start_pose WITHOUT scan_evidence; its retry and
+        # disagreement tests passing proves a missing/failing capture leaves the verdict alone.
+        src = Path(__file__).with_name('seed_atlas_localization.py').read_text()
+        self.assertIn('evidence = {"capture_error": repr(exc)}', src)
+
+    def test_evidence_never_raises(self):
+        f = seeder_functions('scan_evidence')['scan_evidence']
+        self.assertIn('capture_error', f([], [], (0, 0, 0), [], [], core.VerifyPolicy()))
+
+    def test_every_attempt_records_evidence(self):
+        src = Path(__file__).with_name('seed_atlas_localization.py').read_text()
+        self.assertIn('"evidence": evidence', src)
+        self.assertIn('append_verdict_history(record)', src)
+
+
 class SeederTests(unittest.TestCase):
     def setUp(self):
         self.source = Path(__file__).with_name('seed_atlas_localization.py').read_text()

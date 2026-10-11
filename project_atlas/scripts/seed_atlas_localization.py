@@ -37,6 +37,11 @@ POSE_FILES = (
 )
 PLACES_FILE = Path.home() / ".config/project_atlas/named_places.json"
 VERDICT_FILE = Path.home() / ".local/state/project_atlas/localization_verdict.json"
+# Every boot's verdict, appended (the file above is overwritten each boot). 2026-10-11: the
+# 19:06 boot refused at fit 0.90, and its attempt detail was lost when the next boot overwrote
+# the verdict, so the low score could not be explained. Bounded: one rotated copy.
+VERDICT_HISTORY = Path.home() / ".local/state/project_atlas/localization_verdict_history.jsonl"
+VERDICT_HISTORY_MAX_BYTES = 4_000_000
 DEFAULT_MAP = Path.home() / "project_atlas/maps/atlas_latest.yaml"
 SEED_MODE_FILE = Path.home() / ".config/project_atlas/seed_mode"
 
@@ -73,6 +78,48 @@ def write_verdict(record):
         temporary.replace(VERDICT_FILE)
     except OSError:
         pass
+    append_verdict_history(record)
+
+
+def append_verdict_history(record, path=None, max_bytes=VERDICT_HISTORY_MAX_BYTES):
+    """Best-effort append of one verdict per line; never raises and never affects seeding."""
+    path = Path(path or VERDICT_HISTORY)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        line = json.dumps(record, separators=(",", ":"), allow_nan=False) + "\n"
+        if path.exists() and path.stat().st_size + len(line) > max_bytes:
+            path.replace(path.with_suffix(path.suffix + ".1"))
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(line)
+    except (OSError, TypeError, ValueError):
+        pass
+
+
+def scan_evidence(scans, ranges, laser, all_pts, hypotheses, policy):
+    """Compact replayable input of one startup attempt (median ranges in mm, coverage, timing).
+
+    Enough to rerun the exact search offline and to see occlusion or missing sectors; it is
+    diagnostic only and never used for seeding. Never raises.
+    """
+    try:
+        first, last = scans[0], scans[-1]
+        stamp = lambda m: m.header.stamp.sec + m.header.stamp.nanosec * 1e-9
+        quadrants = [0, 0, 0, 0]
+        for i, r in enumerate(ranges):
+            if r is not None and math.isfinite(r) and policy.min_range_m <= r <= policy.max_range_m:
+                a = (first.angle_min + i * first.angle_increment) % (2 * math.pi)
+                quadrants[min(3, int(a / (math.pi / 2)))] += 1
+        return {"frame": first.header.frame_id, "scan_count": len(scans),
+                "scan_stamp_first": stamp(first), "scan_stamp_last": stamp(last),
+                "angle_min": first.angle_min, "angle_increment": first.angle_increment,
+                "range_min": first.range_min, "range_max": first.range_max,
+                "median_ranges_mm": [int(round(r * 1000)) if r is not None and math.isfinite(r) else None for r in ranges],
+                "valid_endpoints": int(len(all_pts)), "quadrants": quadrants,
+                "laser_in_base": [round(v, 4) for v in laser],
+                "top_hypotheses": [{k: (round(v, 4) if isinstance(v, float) else v) for k, v in h.items()}
+                                   for h in (hypotheses or [])[:5]]}
+    except Exception as exc:  # evidence capture must never change the verdict
+        return {"capture_error": repr(exc)}
 
 
 def yaw_of(q):
@@ -163,10 +210,17 @@ def verify_start_pose(node, map_yaml, attempts=VERIFY_ATTEMPTS, budget_s=VERIFY_
                 laser = laser_in_base(node, scans[0].header.frame_id)
             ranges = core.median_ranges([list(m.ranges) for m in scans])
             all_pts, held = core.endpoints(scans[0].angle_min, scans[0].angle_increment, ranges, laser, policy)
-            verdict = core.decide(core.global_search(grid, all_pts, held, policy), len(all_pts), None, policy)
+            hypotheses = core.global_search(grid, all_pts, held, policy)
+            verdict = core.decide(hypotheses, len(all_pts), None, policy)
+            try:   # capture must never alter a verdict, even if the helper is missing or fails
+                evidence = scan_evidence(scans, ranges, laser, all_pts, verdict.hypotheses, policy)
+            except Exception as exc:
+                evidence = {"capture_error": repr(exc)}
             record["attempts"].append({"state": verdict.state, "best": (verdict.hypotheses or [None])[0],
                                        "best_fit": verdict.best_fit, "margin": verdict.margin,
-                                       "scans_used": len(scans)})
+                                       "scans_used": len(scans), "reason": verdict.reason,
+                                       "seconds_since_start": round(time.monotonic() - started, 2),
+                                       "evidence": evidence})
             if verdict.state == "VERIFIED" or time.monotonic() - started > budget_s:
                 break
     except Exception as exc:  # fail closed: unknown, never a blind seed
