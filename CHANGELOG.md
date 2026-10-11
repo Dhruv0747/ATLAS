@@ -1,5 +1,14 @@
 # Changelog
 
+2026-10-11 14:21: **Glass UI V2 is the only dashboard.**
+- `/` serves V2.
+- `/mapping`, `/commissioning` and `/wifi` redirect (302) to `/v2/...`; unknown pages return 404.
+- The classic V1 sources are kept on disk; `ATLAS_CLASSIC_UI=1` restores the classic routing.
+- APIs, controls, E-STOP and web reset are unchanged.
+- Deployed as stage 5 with the stop latched; backup and `ROLLBACK.sh` are in place. See the
+  [V2 default record](docs/deploy/ATLAS_V2_DEFAULT_2026-10-11.md).
+- `e2e_estop_test.py` now refuses to run against the live PIN file or event log.
+
 2026-10-11 13:40: read-only core-reliability pass. No runtime change, no motion, no restart.
 - New read-only tools in `project_atlas/tools/diagnostics/`: `net_timeline.py`, `lidar_starts.py`,
   `stationary_sample.py`, `im10a_counts.py`.

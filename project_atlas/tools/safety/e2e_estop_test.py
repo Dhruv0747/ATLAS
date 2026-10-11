@@ -11,6 +11,14 @@ Usage: e2e_estop_test.py <scripts_dir> <out.json> [--reset]
 import json, os, signal, socket, subprocess, sys, threading, time, urllib.error, urllib.request
 assert os.environ.get('ROS_DOMAIN_ID') not in (None, '', '0'), 'isolated ROS domain required'
 assert os.environ.get('ROS_LOCALHOST_ONLY') == '1', 'ROS_LOCALHOST_ONLY=1 required'
+# 2026-10-11: a run without these wrote its test events into the live safety log. The spawned web
+# server must never use the production PIN file or event log, so refuse to start unless both point
+# at private files outside ~/project_atlas/data.
+for _var in ('ATLAS_ESTOP_EVENT_LOG', 'ATLAS_ESTOP_PIN_FILE'):
+    _p = os.path.realpath(os.environ.get(_var) or os.path.expanduser('~/project_atlas/data/safety/x'))
+    assert '/project_atlas/data/' not in _p and '/.config/project_atlas/' not in _p, f'{_var} must point to a private test file, not {_p}'
+if '--reset' in sys.argv:
+    assert os.environ.get('E2E_PIN'), 'E2E_PIN (the PIN set in ATLAS_ESTOP_PIN_FILE) is required for --reset'
 import rclpy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry

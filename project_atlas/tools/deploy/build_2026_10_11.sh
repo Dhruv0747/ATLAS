@@ -10,3 +10,5 @@ python3 $M stage2-glass-ui-v2 aa93355 36a2b95 "$OUT" -- project_atlas/web/v2 pro
 python3 $M stage3-executor-split 254fdb6 d681142 "$OUT" -- $S
 python3 $M stage4-visual-cloud aa93355 0cd9d95 "$OUT" -- project_atlas/scripts/atlas_visual_cloud_agent.py \
   project_atlas/scripts/atlas_visual_cloud_core.py project_atlas/scripts/atlas_visual_cloud_server.py project_atlas/config/atlas_visual_cloud.json
+python3 $M stage5-v2-default e5c1976 5b49f25 "$OUT" -- project_atlas/scripts/atlas_web_v2.py $S \
+  project_atlas/web/v2/index.html project_atlas/web/v2/mapping.html project_atlas/web/v2/commissioning.html project_atlas/web/v2/wifi.html
