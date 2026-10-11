@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-11 20:45:
+- Offline encoder-distance-by-speed analysis and diagnostic tool (`tools/diagnostics/encoder_scale_by_speed.py`). Binned two ways to avoid regression-to-the-mean bias.
+- M1/M4 read about 0.64–0.72× and M2 about 0.51–0.64× of the LiDAR distance at 0.1–0.45 m/s.
+- No calibration change. See the [analysis](docs/audits/ATLAS_ENCODER_SCALE_BY_SPEED_2026-10-11.md).
+
 2026-10-11 20:15:
 - Stage 14 (voice announces stop latch and release) deployed.
 - Stage 15 (CHECK MY LOCATION motion gate on the EKF's IM10A gyro) deployed.

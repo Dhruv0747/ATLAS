@@ -531,3 +531,22 @@ No route driving or air lift for this documentation/read-only phase. If a phone 
 
 The audit is an initial baseline; full developer transcript review, older unavailable journals, all raw ROS logs, all commit diffs and an independent replay of every historical test remain incomplete. Continue the registry in future sessions; no background automation was installed.
 
+
+## 2026-10-11 20:45 update: encoder distance by speed (ATLAS-001, offline)
+
+**Data:** Oct 9 bags, 898 near-straight LiDAR-ICP scan pairs, binned two ways (by ICP speed and by
+encoder speed) to expose binning bias.
+
+**Findings:**
+- **0.10–0.45 m/s:** both binnings agree. Raw M1/M4 read 0.64–0.72× and M2 0.51–0.64× of the true
+  distance.
+- **Slow end:** not interpretable; the two binnings disagree in opposite directions.
+- **Consensus estimator:** removes only 1–3%.
+
+**Still open:** constant CPR/scale error versus constant slip is not separated. M2 differs from
+M1/M4.
+
+**Retracted:** a same-day claim of "speed-dependent count loss".
+
+**Evidence gap:** tape-measured straight runs at two speeds. **No calibration change is proposed.**
+See [encoder scale by speed](ATLAS_ENCODER_SCALE_BY_SPEED_2026-10-11.md).
