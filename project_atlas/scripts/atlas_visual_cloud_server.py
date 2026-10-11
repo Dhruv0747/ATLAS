@@ -11,10 +11,24 @@ import threading
 import time
 from urllib.parse import urlparse
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from atlas_visual_cloud_core import history_row, persist_due  # noqa: E402
+
 
 ROOT = Path(__file__).resolve().parent
 HTML = ROOT / "atlas_visual_cloud_dashboard.html"
-DB = Path(os.environ.get("ATLAS_VISUAL_CLOUD_DB", "atlas_visual_cloud.sqlite3"))
+# The unit's ATLAS_VISUAL_CLOUD_DB names the legacy full-snapshot history (25 GB, Sep 25 - Oct 4
+# 2026). It is preserved untouched and never opened. Bounded history goes to a separate file.
+LEGACY_DB = Path(os.environ.get("ATLAS_VISUAL_CLOUD_DB", "atlas_visual_cloud.sqlite3"))
+DB = Path(os.environ.get("ATLAS_VISUAL_CLOUD_HISTORY_DB") or LEGACY_DB.with_name("history_bounded.sqlite3"))
+if DB.resolve() == LEGACY_DB.resolve():
+    DB = LEGACY_DB.with_name("history_bounded.sqlite3")
+HISTORY_PERSIST_S = float(os.environ.get("ATLAS_VISUAL_CLOUD_HISTORY_PERSIST_S", "60"))
+HISTORY_FAILURE_PERSIST_S = float(os.environ.get("ATLAS_VISUAL_CLOUD_HISTORY_FAILURE_PERSIST_S", "10"))
+HISTORY_MAX_BYTES = int(float(os.environ.get("ATLAS_VISUAL_CLOUD_HISTORY_MAX_MB", "256")) * 1024 * 1024)
+LAST_VIEWER = None          # monotonic time the preview page last asked for data
+LAST_FAILURE_PERSIST = None
 TOKEN = os.environ.get("ATLAS_VISUAL_CLOUD_TOKEN", "")
 PORT = int(os.environ.get("ATLAS_VISUAL_CLOUD_PORT", "8095"))
 MAX_BODY = 2_000_000
@@ -54,7 +68,10 @@ def persistence_interval(value):
 
 
 def connection():
+    fresh = not DB.exists()
     db = sqlite3.connect(DB, timeout=10)
+    if fresh:
+        db.execute("PRAGMA auto_vacuum=INCREMENTAL")   # lets pruning return space to the filesystem
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY, robot_id TEXT, observed_at REAL, git_version TEXT, failure_class TEXT, payload TEXT)")
     db.execute("CREATE INDEX IF NOT EXISTS snapshots_robot_time ON snapshots(robot_id, observed_at)")
@@ -63,31 +80,50 @@ def connection():
 
 
 def store(value):
-    global LAST_PERSIST, LAST_PRUNE
+    """Live view: every ingest replaces LATEST in memory. History: a bounded row (history_row)
+    at most every HISTORY_PERSIST_S (failures every HISTORY_FAILURE_PERSIST_S), capped at
+    HISTORY_MAX_BYTES and RETENTION_ROWS."""
+    global LAST_PERSIST, LAST_PRUNE, LAST_FAILURE_PERSIST
     robot = str(value.get("robot_id", "unknown"))[:100]
-    encoded = json.dumps(value, separators=(",", ":"))
     now = time.monotonic()
+    failure = str(value.get("failure_class", "UNKNOWN"))[:40]
     with LOCK:
         LATEST[robot] = value
-        interval = persistence_interval(value)
-        if LAST_PERSIST and now - LAST_PERSIST < interval:
+        interval = max(HISTORY_PERSIST_S, persistence_interval(value))
+        if not persist_due(LAST_PERSIST or None, LAST_FAILURE_PERSIST, now, failure, interval, HISTORY_FAILURE_PERSIST_S):
             return
-        LAST_PERSIST = now
+        if failure in ("", "NONE"):
+            LAST_PERSIST = now
+        else:
+            LAST_FAILURE_PERSIST = now
+    encoded = json.dumps(history_row(value), separators=(",", ":"))
     db = connection()
-    db.execute("INSERT INTO snapshots(robot_id,observed_at,git_version,failure_class,payload) VALUES(?,?,?,?,?)", (robot, float(value.get("observed_at", time.time())), str(value.get("git_version", ""))[:100], str(value.get("failure_class", "UNKNOWN"))[:40], encoded))
-    # Retention used to scan all 86,400 retained rows for every one-second
-    # telemetry sample.  On the Jetson that made this read-only observability
-    # service consume roughly half a CPU core continuously.  Prune once per
-    # minute using the indexed integer primary key; live in-memory data still
-    # updates on every ingest and the same history capacity is preserved.
+    db.execute("INSERT INTO snapshots(robot_id,observed_at,git_version,failure_class,payload) VALUES(?,?,?,?,?)", (robot, float(value.get("observed_at", time.time())), str(value.get("git_version", ""))[:100], failure, encoded))
     if now - LAST_PRUNE >= PRUNE_INTERVAL_S:
         db.execute(
             "DELETE FROM snapshots WHERE id <= "
             "COALESCE((SELECT MAX(id) FROM snapshots), 0) - ?",
             (RETENTION_ROWS,),
         )
+        page_size = db.execute("PRAGMA page_size").fetchone()[0]
+        used = lambda: (db.execute("PRAGMA page_count").fetchone()[0] - db.execute("PRAGMA freelist_count").fetchone()[0]) * page_size
+        while used() > HISTORY_MAX_BYTES:
+            count = db.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0]
+            if count <= 1:
+                break
+            # Delete the oldest rows in batches, always keeping the newest row.
+            db.execute("DELETE FROM snapshots WHERE id IN (SELECT id FROM snapshots ORDER BY id LIMIT ?)",
+                       (max(1, min(500, count // 4)),))
+            db.execute("PRAGMA incremental_vacuum")
+        db.execute("PRAGMA incremental_vacuum")
         LAST_PRUNE = now
     db.commit(); db.close()
+
+
+def note_viewer():
+    global LAST_VIEWER
+    with LOCK:
+        LAST_VIEWER = time.monotonic()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -115,8 +151,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
-        if path == "/": return self.reply(200, HTML.read_bytes(), "text/html; charset=utf-8")
+        if path == "/":
+            note_viewer(); return self.reply(200, HTML.read_bytes(), "text/html; charset=utf-8")
+        if path == "/api/v1/demand":
+            # Agent-only (token): how long ago a browser last asked for data. Reveals nothing else.
+            if not self.authorized(): return self.reply(401, '{"error":"unauthorized"}')
+            with LOCK: last = LAST_VIEWER
+            age = None if last is None else round(time.monotonic() - last, 1)
+            return self.reply(200, json.dumps({"viewer_age_s": age}))
         if path == "/api/v1/robots":
+            note_viewer()
             with LOCK: value = list(LATEST.values())
             return self.reply(200, json.dumps(value))
         if path.startswith("/api/v1/history/"):

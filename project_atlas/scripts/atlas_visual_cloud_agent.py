@@ -24,10 +24,12 @@ from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
 
 from atlas_visual_cloud_core import (
+    ViewerGate,
     classify_failure,
     interval_due,
     is_robot_activity,
     topic_stat,
+    upload_mode,
 )
 
 
@@ -93,8 +95,9 @@ class VisualCloudAgent(Node):
         self.samples = {name: collections.deque(maxlen=100) for name in config["topics"]}
         self.values = {}
         self.last_value_compaction = {}
-        self.subscriptions_live = []
+        self.subscriptions_live = {}      # topic -> subscription
         self.subscribed_topics = set()
+        self.observing_until = 0.0
         self.graph = {}
         self.last_graph = 0.0
         self.last_mission_read = 0.0
@@ -105,17 +108,59 @@ class VisualCloudAgent(Node):
         self.token = Path(config["token_file"]).read_text(encoding="utf-8").strip()
         if not self.token:
             raise RuntimeError("visual cloud token is empty")
+        # 'off': build and send nothing (no DNS, no gzip). 'local': build only while someone is
+        # viewing the Jetson preview page. 'remote': the original always-on behaviour.
+        self.mode = upload_mode(config)
+        self.demand_url = str(config.get("cloud_url", "")).replace("/api/v1/ingest", "/api/v1/demand")
+        self.viewer = ViewerGate(self.mode, self.fetch_viewer_age,
+                                 float(config.get("demand_check_s", 5.0)), float(config.get("viewer_hold_s", 30.0)))
+        self.get_logger().info(f"visual cloud upload mode: {self.mode}")
         self.discover_subscriptions()
         self.create_timer(10.0, self.discover_subscriptions)
+        # Subscription lifecycle stays in the executor thread (timer), like the status-web camera.
+        self.create_timer(1.0, self.manage_subscriptions)
         self.create_timer(float(config.get("publish_interval_s", 1.0)), self.queue_snapshot)
         self.pending = None
         self.sender = threading.Thread(target=self.send_loop, daemon=True)
         self.sender.start()
 
+    def observing(self, now):
+        """Full monitoring is wanted: always in 'remote' mode; in 'local' mode while a viewer is
+        present or the rover is active (moving or on a mission), plus a short hold afterwards.
+        Activity topics are always subscribed, so a mission or drive starts monitoring by itself
+        and its period is recorded in the bounded history even with nobody watching."""
+        if self.mode == "remote":
+            return True
+        if self.mode == "off":
+            return False
+        return self.viewer.wanted(now) or now < self.active_until
+
+    def manage_subscriptions(self):
+        now = time.monotonic()
+        if self.observing(now):
+            self.observing_until = now + float(self.config.get("idle_release_s", 10.0))
+            if len(self.subscribed_topics) < len(self.config["topics"]):
+                self.discover_subscriptions()
+            return
+        if now < self.observing_until:
+            return
+        for topic in [t for t in self.subscribed_topics if t not in ACTIVITY_TOPICS]:
+            sub = self.subscriptions_live.pop(topic, None)
+            if sub is not None:
+                self.destroy_subscription(sub)
+            self.subscribed_topics.discard(topic)
+            with self.lock:                  # no stale rates or values survive an idle period
+                self.samples[topic].clear()
+                self.values.pop(topic, None)
+                self.last_value_compaction.pop(topic, None)
+
     def discover_subscriptions(self):
         types = dict(self.get_topic_names_and_types())
+        observing = self.observing(time.monotonic())
         for topic in self.config["topics"]:
             if topic in self.subscribed_topics:
+                continue
+            if not observing and topic not in ACTIVITY_TOPICS:
                 continue
             names = types.get(topic, [])
             if not names:
@@ -137,7 +182,7 @@ class VisualCloudAgent(Node):
                     qos,
                     raw=use_raw,
                 )
-                self.subscriptions_live.append(sub)
+                self.subscriptions_live[topic] = sub
                 self.subscribed_topics.add(topic)
             except Exception as exc:
                 self.get_logger().warning(f"cannot monitor {topic}: {exc}")
@@ -147,11 +192,13 @@ class VisualCloudAgent(Node):
         active = now < self.active_until
         # Activity-bearing values are cheap and must be inspected on every
         # callback so the agent returns to its original cadence immediately.
-        always_compact = topic in ACTIVITY_TOPICS
-        compact_due = active or interval_due(
+        # Retained topics (/map, /tf_static) arrive once, so they are always kept for a later viewer.
+        always_compact = topic in ACTIVITY_TOPICS or topic in RETAINED_TOPICS
+        # Without a consumer only receive times are kept (cheap); values are compacted on demand.
+        compact_due = self.observing(now) and (active or interval_due(
             self.last_value_compaction.get(topic), now, False, 1.0,
             float(self.config.get("idle_value_interval_s", 1.0)),
-        )
+        ))
         value = None
         if always_compact or compact_due:
             if serialized_type is not None:
@@ -251,8 +298,16 @@ class VisualCloudAgent(Node):
             "collection_mode": "ACTIVE" if active else "IDLE",
         }
 
+    def fetch_viewer_age(self):
+        """Seconds since the local preview page last asked for data (None if never)."""
+        request = urllib.request.Request(self.demand_url, headers={"Authorization": "Bearer " + self.token})
+        with urllib.request.urlopen(request, timeout=1.0) as reply:
+            return json.loads(reply.read()).get("viewer_age_s")
+
     def queue_snapshot(self):
         now = time.monotonic()
+        if not self.observing(now):
+            return
         active = now < self.active_until
         if not interval_due(
             self.last_snapshot,
@@ -267,6 +322,9 @@ class VisualCloudAgent(Node):
 
     def send_loop(self):
         while rclpy.ok():
+            self.viewer.poll(time.monotonic())        # viewer check stays off the executor thread
+            if self.mode == "off":
+                time.sleep(1.0); continue
             snapshot, self.pending = self.pending, None
             if not snapshot:
                 time.sleep(0.1); continue
