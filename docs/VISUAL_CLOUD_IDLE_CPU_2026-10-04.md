@@ -68,3 +68,20 @@ The configured remote endpoint is still the placeholder
 affecting local control; this CPU result validates the local collector, not a
 production cloud destination. Rollback copies are under
 `data/deploy_backups/20261004_cpu_visual_cloud/`.
+
+## Correction — 2026-10-11
+
+Evidence from the read-only audit (`docs/audits/ATLAS_VISUAL_CLOUD_AUDIT_2026-10-11.md`):
+
+- **The preview stopped at deployment.** Before the Oct 4 deployment, the Jetson config had
+  `cloud_url: http://127.0.0.1:8095/api/v1/ingest`. That is the local preview server, as shown
+  by the backup `atlas_visual_cloud.json.before`. The deployment installed the repository
+  config, which has the placeholder URL. The local preview's history ends at 2026-10-04
+  15:09:11, the deployment time.
+- **What still holds.** The text above says the placeholder makes uploads "correctly fail". That
+  holds only for local control, which is unaffected. It does not hold for the preview, which has
+  received no data since then.
+- **CPU baseline.** The 11.1% idle CPU figure was measured while every snapshot was discarded by
+  a DNS failure. It is therefore not a baseline for a working preview.
+
+No configuration has been changed by this correction.
