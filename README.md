@@ -3,8 +3,9 @@
 2026-10-11 sensing audit: the reproduced 0.51 m FRONT minimum is a raw
 front-right return near -44.7 degrees, not the wall straight ahead.
 [Evidence, candidate diagnostics and remaining validation](docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md).
-New minimum-point markers/provenance are offline-tested, not deployed; no
-range was discarded and no localization fix is claimed.
+Minimum-point markers/provenance were deployed as stage 10 at 17:11 IST;
+60/60 parked live requests succeeded. No range was discarded and no
+localization or physical-return correction is claimed.
 
 Parked operator views: `/v2/camera` displays the original JPEG without
 recompression; `/v2/lidar` projects actual scan returns using scan-time TF.

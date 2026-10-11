@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+Latest 11 October 17:15 IST: LiDAR provenance stage 10 is now installed from
+`1a9f077`; new markers and raw-ray details verified in the browser. All 60
+parked API samples LIVE. Only dashboard restarted. The physical object behind
+the front-right minimum is still unknown; no timed before/after hand-test
+capture exists. Combined map/scan overlay and arbitrary-point raw provenance
+remain unfinished (quadrant minima have raw provenance). BMS still times out;
+passive HCI monitoring is blocked by OS permissions. No autonomy enabled.
+See the appended stage-10 section of `ATLAS_LIDAR_PROVENANCE_2026-10-11.md`.
+
 Latest 11 October 16:33 IST: owner-approved BMS ownership fix deployed; no
 competing restart, but connect still times out (one/120 s, zero healthy samples).
 Read-only LiDAR/camera/Home views deployed. All 62 sampled HTTP JPEGs exactly

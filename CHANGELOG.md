@@ -1,5 +1,15 @@
 # Changelog
 
+2026-10-11: Approved LiDAR diagnostic stage 10 deployed from `1a9f077`.
+- Three-file rehearsal, byte-identical rollback and live hashes passed; only
+  rover-status-web restarted. Motor/mux/localization process IDs unchanged.
+- Browser confirmed live nearest-ray markers, raw range/angle/time and cluster
+  support warnings; 60/60 HTTP samples LIVE, receipt ages 0.001–0.245 s.
+- Dashboard process CPU 45.31% before / 45.40% after (one-core basis), peak
+  RSS 170.72 / 165.04 MiB. Not an isolated feature CPU benchmark.
+- Physical return identity, map overlay and BLE connection remain unresolved.
+  Passive btmon capture was denied by OS permissions; no competing client ran.
+
 2026-10-11: LiDAR distance provenance investigation (not deployed).
 - Reproduced 0.509 m FRONT minimum at front-right quadrant boundary; matching
   original raw ray excludes dashboard fabrication for that observation.

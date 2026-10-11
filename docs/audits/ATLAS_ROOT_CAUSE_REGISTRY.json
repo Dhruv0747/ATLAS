@@ -25,8 +25,8 @@
       "suspected_causes_and_limits": "Physical close-object, reflection, occlusion or cable identity remains unverified. Density variation is upstream of dashboard/filter, but its physical cause is not established. No new cause of historic AMCL jumps proven.",
       "evidence": ["docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md"],
       "test_results": "26 payload-preserving samples replayed; 15 projection and seven route tests pass, plus UI logic checks and 12 isolated Jetson E-STOP regressions. New provenance core/UI not deployed.",
-      "remaining_verification": "Deploy diagnostic UI with backup/rollback; parked measured targets and identify persistent front-right return. No close-return removal or motion until separately qualified.",
-      "events": [{"date":"2026-10-11","kind":"paired_scan_provenance","description":"Confirmed measurement semantics and raw point identity; preserved all close returns and production configuration."}]
+      "remaining_verification": "Stage 10 diagnostic UI deployed; parked measured targets and identify persistent front-right return. Combined map/scan overlay and arbitrary-click raw metadata unfinished. No close-return removal or motion until separately qualified.",
+      "events": [{"date":"2026-10-11","kind":"paired_scan_provenance","description":"Confirmed measurement semantics and raw point identity; preserved all close returns and production configuration."}, {"date":"2026-10-11","kind":"stage10_live_deployment","description":"Owner-approved 1a9f077 three-file deployment, hashes and byte-identical rollback verified; only dashboard restarted. 60/60 parked requests LIVE. Owner hand-occlusion observation lacks synchronized capture; physical cause remains unknown. Passive BMS btmon denied by OS permissions."}]
     },
     {
       "id": "ATLAS-001",

@@ -206,3 +206,69 @@ cause; combined scan/map view and candidate change accumulation; historical
 AMCL/gyro-wheel instability; dynamic obstacle acceptance; recorder diagnostic
 topic extension if justified; successful BLE reconnection and decoded SOC.
 Stationary results do not resolve localization jumping or authorize autonomy.
+
+## Owner-approved stage 10 deployment — 17:11–17:15 IST
+
+The preceding non-deployment status describes the original investigation;
+it is superseded for the three diagnostic files by this approved deployment.
+Source `1a9f077ad3781b4479b7142c3aded06880de8b48` installed with matching hashes,
+rehearsal and byte-identical rollback. Only dashboard restarted. See the
+[deployment record](../ATLAS_MASTER_DEPLOYMENT_2026-10-11.md) for measurements,
+paths and rollback. Browser visibly shows actual scan points, four highlighted
+minima and raw beam provenance. 60/60 parked samples LIVE; no HTTP failures.
+
+### New owner observation: hand occlusion
+
+Owner reports side-hand placement changed FRONT about 0.51 to 1.19 m while
+forward wall stayed near 2 m, then removal restored 0.51. No synchronized
+annotation or raw capture of that event is available. Earlier variable-density
+capture cannot be relabelled as this event. Therefore a before/after beam index,
+timestamp, valid-point distribution and causal physical identity cannot honestly
+be assigned. Occlusion removing the former minimum and exposing the next valid
+minimum is a hypothesis, not proof of reflection or defective LiDAR.
+
+New browser sample: front 0.528 m, ray 318, raw 0.565 m at laser angle 139.0
+degrees, base bearing -44.6 degrees. Main forward wall remains about 1.98 m.
+This is a new stationary sample, not a reproduction of the owner's hand test.
+The raw-to-filtered equality already established remains the evidence against
+dashboard fabrication; physical range accuracy is not independently proven.
+
+The previously verified `/scan` subscribers receive full scans, not dashboard
+quadrant minima. A finite close ray can participate in obstacle marking and
+AMCL likelihood calculations. Whether this particular return causes adverse
+marking/clearing or historic localization jumps has NOT been measured. No
+control/filter scaling or map change is justified by the display improvement.
+
+### Combined view and candidate-map workflow: explicit unfinished scope
+
+Saved map is still on `/v2/mapping`; live scan is on `/v2/lidar`. They are not
+yet overlaid. Quadrant minima have raw provenance; arbitrary clicked points
+still show transformed distance/bearing only. Do not claim those requirements
+complete. Combined overlay needs scan-time map TF, map-image identity matching,
+visible localization disagreement and stale-data tests before deployment.
+
+Existing `tools/local_map_audit/candidate.py` builds separate candidate files
+from recorded evidence, with parked-hit protection and later no-new-reachability
+checks. `validate_location.py` compares active/candidate residuals, ambiguity
+and through-wall rays. These are historical offline tools with dataset-specific
+paths/regions, not a production automatic map updater. Reuse their validation
+ideas/tools against an explicitly frozen map and evidence set, review the diff,
+retain the accepted map and require separate acceptance before promotion. No
+candidate generation/promotion was run in this deployment. Live scan viewing
+already operates while `atlas-slam-fast` is inactive; map writing is unnecessary.
+
+### One parked target session (not another driving loop)
+
+Keep E-STOP latched. Put a flat board squarely facing the LiDAR, with its face
+0.5 m from the LiDAR optical centre at front-centre; then front-right (~45
+degrees) and one side. Repeat at 1 m and 2 m only where available. The selected
+target ray's raw range should approximately match that measured distance within
+sensor/placement tolerance. Base-link distance can differ because of sensor
+translation; the quadrant minimum may still be another nearer object. Do not
+use the cluster median as ground truth. Keep hands/cables outside the scanning
+plane and do not touch a spinning unit. A labelled before/target/removed capture
+is the missing evidence needed to identify which rays actually change.
+
+BMS passive monitor attempt: bounded `btmon -i hci0` denied with `Operation not
+permitted`, so no HCI evidence captured. Existing single retry owner still
+reports connection deadline exceeded; valid battery percentage is not restored.

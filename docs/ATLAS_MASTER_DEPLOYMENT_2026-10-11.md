@@ -151,6 +151,52 @@ cellular metric 600 remained unchanged. Preserve the owner's required policy:
 Wi-Fi first, mobile data second, own hotspot if both are unavailable. Hotspot
 fallback was not exercised or newly validated by this test.
 
+## Stage 10: LiDAR provenance deployed, 17:11 IST
+
+Source: `1a9f077ad3781b4479b7142c3aded06880de8b48`, branch
+`agent/sync-developer-20261011`. Installed only `scripts/atlas_lidar_view.py`,
+`web/v2/lidar.html`, `web/v2/lidar.js`. Rehearsal and byte-identical rollback
+passed. Live hashes matched the package. Restarted only
+`rover-status-web.service` (PID 298448). Motor PID 1878, mux PID 1872 and
+localization PID 5670 retained their original start times.
+
+Backup/rollback:
+`/home/jetson/project_atlas/data/backups/2026-10-11-171130-601287768-stage10-lidar-provenance/ROLLBACK.sh`.
+Run that script with bash, then restart only `rover-status-web.service` using
+`systemctl --user restart` while parked if rollback is needed. The script
+restores the three files, not maps, motor settings or other deployments.
+
+Matched 30-second, 2-Hz HTTP probes (browser also open):
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| Successful requests | 60/60 | 60/60 |
+| Dashboard CPU, percent of one core | 45.31 | 45.40 |
+| Equivalent percent of six cores | 7.55 | 7.57 |
+| Peak dashboard RSS, MiB | 170.72 | 165.04 |
+| HTTP payload rate, Mbit/s | 0.144 | 0.166 |
+
+These are whole dashboard-process measurements, not incremental feature cost;
+payload excludes HTTP/TCP overhead and is not Wi-Fi throughput. After: 60/60
+LIVE, scan receipt age 0.001–0.245 s, 199–213 valid rays. Source timestamp age
+was separately visible in the page (0.200 s in the overview screenshot).
+At 17:15, system snapshot CPU 71.2%, RAM 72%, temperature 59 C; not a thermal
+endurance test. E-STOP latched and command zero. Nav2/explore units inactive.
+One post-deploy helper rejected the cached dashboard service-status snapshot;
+direct systemd checks and a fresh API response both confirmed inactive units.
+No service was started to remedy that observational mismatch.
+
+Browser initially loaded a connection-error page during restart; a fresh tab
+after HTTP recovery rendered correctly. Home/map links and existing E-STOP
+control are present; stop/release was not clicked. Before/after screenshots
+and measurement JSON remain private under local `deploy/` and the Jetson
+scratch evidence directory. No raw indoor image or scan published to GitHub.
+
+Remaining: physical return identification, map/scan overlay, arbitrary-click
+raw metadata, and costmap/localization impact acceptance. Passive `btmon`
+failed `Operation not permitted`; BMS still reports connect deadline exceeded.
+No BLE client, network policy, navigation parameter or map was changed.
+
 Private evidence: `network_wifi_ps_off_trial_20261011.json` in the existing
 Jetson evidence directory. The initial 20 seconds of the trial were not
 captured by this observer; do not represent it as a complete 120-second trace.
