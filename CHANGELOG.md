@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-11 20:45: end-of-day checkpoint.
+- Verified backup: Jetson `data/backups/eod-20261011-203508/` plus a copy on the owner's PC.
+- Deployed-file check against HEAD `5eb0aad`.
+- Next-session handoff: [`ATLAS_NEXT_SESSION_HANDOFF.md`](ATLAS_NEXT_SESSION_HANDOFF.md).
+- No runtime change.
+
 2026-10-11 20:45:
 - Offline encoder-distance-by-speed analysis and diagnostic tool (`tools/diagnostics/encoder_scale_by_speed.py`). Binned two ways to avoid regression-to-the-mean bias.
 - M1/M4 read about 0.64–0.72× and M2 about 0.51–0.64× of the LiDAR distance at 0.1–0.45 m/s.
