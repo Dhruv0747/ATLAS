@@ -45,8 +45,11 @@ class UploadMode(unittest.TestCase):
 
     def _baseline_topics(self):
         import subprocess
-        base = subprocess.run(['git', '-C', str(SCRIPTS), 'show', 'aa93355:project_atlas/config/atlas_visual_cloud.json'],
-                              capture_output=True, text=True, check=True).stdout
+        try:
+            base = subprocess.run(['git', '-C', str(SCRIPTS), 'show', 'aa93355:project_atlas/config/atlas_visual_cloud.json'],
+                                  capture_output=True, text=True, check=True).stdout
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            self.skipTest('git baseline unavailable')
         return json.dumps(json.loads(base)['topics'])
 
 

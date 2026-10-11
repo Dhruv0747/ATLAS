@@ -1,0 +1,12 @@
+ATLAS stage 3: rover-status-web hot/cold ROS executor split (CPU)
+Audit: docs/audits/ATLAS_DASHBOARD_SERVER_PERF_AUDIT_2026-10-11.md   REQUIRES YOUR EXPLICIT APPROVAL
+
+Same 105 subscriptions (type, topic, callback, QoS), same publishers, timers and HTTP API. Low-rate
+status topics move to a second node "atlas_web_status" with its own executor thread.
+Benchmark (real module, isolated DDS domain): 56.7/57.3% -> 40.3/41.0% of one core.
+
+PRECONDITIONS  rover parked, remote stop latched.
+INSTALL        bash install.sh        (restarts nothing)
+RESTART        systemctl --user restart rover-status-web.service
+VERIFY         bash verify.sh stage3   (process CPU over 60 s, both nodes visible, status keys fresh)
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage3-executor-split/ROLLBACK.sh, then restart

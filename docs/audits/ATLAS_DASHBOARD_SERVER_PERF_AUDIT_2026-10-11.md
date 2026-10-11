@@ -75,3 +75,33 @@ python3 tools/perf/bench_status_executor.py pub &      # synthetic publishers
 for v in current split split_raw; do python3 tools/perf/bench_status_executor.py sub $v 45; done
 kill %1
 ```
+
+## Update, 2026-10-11 10:0x IST: S1 implemented on the branch (not deployed)
+
+- **Commit:** `d681142`.
+- **What it does:** keeps the 21 topics delivered at ≥5 Hz, the TF listener, every timer, every
+  publisher and the on-demand camera subscriptions on `atlas_web_control`. The other 84 status
+  subscriptions move to `atlas_web_status`, which has its own executor thread.
+- **Interface tests** (`tests/test_status_web_executor_split.py`): the set of (type, topic,
+  callback, QoS) is identical to the deployed baseline `aa93355`.
+- **Thread-safety test:** a static analysis follows each callback into the methods it calls. It
+  shows that no instance attribute is written in one executor group and read or written in the
+  other, except state guarded by `AtlasRosNode.lock`.
+
+**Benchmark of the real module.** This is the actual `atlas_status_web.py` imported with its ROS
+layer running and the HTTP server not started. It ran on the isolated domain 77 with the same
+synthetic publishers.
+
+| Variant | Run 1 | Run 2 | Status keys updating | Sum of rates |
+|---|---:|---:|---:|---:|
+| Deployed baseline (`aa93355`) | 56.7% | 57.3% | 67 | 250 Hz |
+| Split | **40.3%** | **41.0%** | 67 | 250 Hz |
+
+The saving is −16.4 points of one core (−28.6%), with identical delivered rates and one extra
+thread.
+
+**Evidence gaps.**
+- This is not yet measured on the live service, which needs deployment approval.
+- The static thread-safety analysis covers instance attributes reachable from callbacks. It does
+  not cover module-level globals or C-extension internals (rclpy, tf2), which were already used
+  from several threads (the HTTP threads) before this change.

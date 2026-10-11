@@ -113,3 +113,43 @@ are reversible but would remove the only ROS-graph view.
 missed that the deployment itself changed the endpoint from the working local server to the
 placeholder. A dated correction note has been appended to that document; the original text is
 kept.
+
+## Update, 2026-10-11 10:2x IST: local, viewer- and activity-activated mode implemented (not deployed)
+
+- **Commit:** `0cd9d95`.
+- **Agent mode.** The agent gets `upload_mode`:
+  - `off` builds nothing, does no DNS lookup and opens no connection;
+  - `local` targets the Jetson preview;
+  - `remote` is the original always-on behaviour.
+- **Subscriptions.** Only the activity topics (`/cmd_vel`, `/cmd_vel_nav`, mission and recovery
+  status) stay subscribed. Every other monitored topic is subscribed only while:
+  - a browser is on the preview page (the server reports this through a token-protected
+    `/api/v1/demand`); or
+  - the rover is moving or on a mission.
+
+  Those topics are released 10 s after both stop, so missions and drives are still recorded with
+  nobody watching.
+- **History.** The server writes bounded rows to a **new** `history_bounded.sqlite3`:
+  - rates, ages and health per topic, graph sizes and system figures;
+  - one row per minute, failures every 10 s;
+  - a 256 MB cap with incremental vacuum.
+
+  The 25 GB `history.sqlite3` is never opened, and a test proves the file is byte- and
+  mtime-identical after ingest.
+
+**Measured side by side on the live graph.** The new agent ran as a temporary, read-only extra
+subscriber (renamed node, private preview port, temp DB) next to the deployed agent, in the same
+60 s windows:
+
+| Condition | Deployed agent | New agent |
+|---|---:|---:|
+| Nobody viewing, rover parked | 11.5% | **1.4%** |
+| Viewer on the preview page | 11.4% | 11.2% |
+
+Other results:
+- **Live view with a viewer:** 18 topics, 67 graph nodes, 466 KB per snapshot.
+- **Bounded history row:** about 2.3 KB, against 353 KB in the legacy history.
+- **Failed uploads during the new agent's run:** 0.
+
+A first isolated-domain run underestimated the cost: 5.0% vs 4.7%, because the synthetic graph is
+small. The live side-by-side run is the evidence used here.
