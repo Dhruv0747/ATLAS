@@ -14,6 +14,11 @@ import atlas_localization_verify_core as core
 from atlas_location_check_job import LocationCheckJob
 
 STATE_FILE = Path.home()/'.local/state/project_atlas/manual_location_check.json'
+# Rotation input for the parked/motion gate: the gyro the EKF actually fuses for yaw
+# (config/atlas_ekf.yaml imu0). The Yahboom board IMU on /imu/data has no gyro-bias calibration
+# ("navigation qualification=False"); after the 19:52 boot it read -1.7 deg/s while parked, which
+# held this check in ROVER_MOVING indefinitely (2026-10-11).
+MOTION_GYRO_TOPIC = '/im10a/imu/bias_corrected_candidate'
 SCAN_WINDOW_HINT_S = 2.5   # the monitor keeps scans for PARK_SETTLE_S + 0.5 s (SCAN_WINDOW_S)
 
 
@@ -149,7 +154,7 @@ class ManualLocationCheck:
         if node.map['w']*node.map['h']>1_000_000:
             raise ValueError('accepted map exceeds bounded manual-check workload')
         node.create_subscription(OccupancyGrid,'/map',self.on_map,QoSProfile(depth=1,durability=DurabilityPolicy.TRANSIENT_LOCAL,reliability=ReliabilityPolicy.RELIABLE))
-        for cls,topic,key in ((Odometry,'/odom','odom'),(Imu,'/imu/data','imu'),(String,'/atlas/control_policy','policy'),(Twist,'/cmd_vel','cmd')):
+        for cls,topic,key in ((Odometry,'/odom','odom'),(Imu,MOTION_GYRO_TOPIC,'imu'),(String,'/atlas/control_policy','policy'),(Twist,'/cmd_vel','cmd')):
             node.create_subscription(cls,topic,lambda m,k=key:self.receive(k,m),qos_profile_sensor_data if key=='imu' else 10)
         self.services=[node.create_service(Trigger,'/atlas/location_check/start',self.start),
                        node.create_service(Trigger,'/atlas/location_check/cancel',self.cancel)]
@@ -215,7 +220,7 @@ class ManualLocationCheck:
                     stage(key,'stale',topic,receipt_age_s=round(now-at,3));block(code,topic+' receipt stale (%.1f s)'%(now-at))
                 stage(key,'ready',topic,receipt_age_s=round(now-at,3))
                 return at,msg
-            oat,odom=get('odom','/odom','ODOMETRY_UNAVAILABLE');iat,imu=get('imu','/imu/data','IMU_UNAVAILABLE')
+            oat,odom=get('odom','/odom','ODOMETRY_UNAVAILABLE');iat,imu=get('imu',MOTION_GYRO_TOPIC,'IMU_UNAVAILABLE')
             _,policy=get('policy','/atlas/control_policy','STOP_STATE_UNKNOWN');_,cmd=get('cmd','/cmd_vel','MOTOR_COMMAND_STATE_UNKNOWN')
             try:
                 policy=json.loads(policy.data)
@@ -258,9 +263,9 @@ class ManualLocationCheck:
         if not e['commands_zero']:
             block('MOTOR_COMMAND_ACTIVE','A non-zero /cmd_vel was received; wait until all commands are zero')
         if not e['stationary']:
-            stage('motion','invalid','/odom,/imu/data,/cmd_vel',seconds_since_motion=round(time.monotonic()-self.last_motion,2))
+            stage('motion','invalid','/odom,'+MOTION_GYRO_TOPIC+',/cmd_vel',seconds_since_motion=round(time.monotonic()-self.last_motion,2))
             block('ROVER_MOVING','Motion seen in the last 2 s; keep ATLAS parked')
-        stage('motion','ready','/odom,/imu/data,/cmd_vel')
+        stage('motion','ready','/odom,'+MOTION_GYRO_TOPIC+',/cmd_vel')
         if not coverage:
             block('INSUFFICIENT_LIDAR_COVERAGE','Too few valid LiDAR returns or a quadrant without returns (%s)'%json.dumps(detail))
         # Lookups are nonblocking at the actual scan stamp, never latest TF.

@@ -180,6 +180,24 @@ class EvidenceStages(unittest.TestCase):
         self.assertEqual(err.code, 'SENSOR_TIMESTAMP_INVALID')
         self.assertEqual(err.stages['imu']['status'], 'invalid')
 
+    def test_motion_gate_uses_the_ekf_gyro_not_the_uncalibrated_board_imu(self):
+        self.assertEqual(adapter.MOTION_GYRO_TOPIC, '/im10a/imu/bias_corrected_candidate')
+        ekf = (ROOT / 'config' / 'atlas_ekf.yaml').read_text()
+        self.assertIn('imu0: ' + adapter.MOTION_GYRO_TOPIC, ekf)
+        src = (ROOT / 'scripts' / 'atlas_location_check_ros.py').read_text()
+        self.assertNotIn("'/imu/data'", src)
+
+    def test_parked_gyro_bias_on_other_imu_cannot_block(self):
+        # The receive() gate sees only the subscribed gyro; a 0 rad/s IM10A sample is parked.
+        check = make_check(FakeNode())
+        check.last_motion = 0.
+        with patch('atlas_location_check_ros.time.monotonic', return_value=100.):
+            check.receive('imu', N(angular_velocity=N(z=0.0)))
+        self.assertEqual(check.motion_epoch, 0)
+        with patch('atlas_location_check_ros.time.monotonic', return_value=100.):
+            check.receive('imu', N(angular_velocity=N(z=0.05)))       # real rotation still counts
+        self.assertEqual(check.motion_epoch, 1)
+
     def test_old_merged_message_is_gone(self):
         src = (ROOT / 'scripts' / 'atlas_location_check_ros.py').read_text()
         self.assertNotIn('SCAN UNAVAILABLE or AMCL reference unavailable', src)
