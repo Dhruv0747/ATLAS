@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-11: Recovery freshness extension, NOT deployed.
+- Reject old/zero/future scan acquisition times, expired arrival times and
+  malformed scan geometry. Recheck before the first post-clearing pulse.
+- Thirteen regressions pass, including actual recovery tick/stop paths emitting
+  only zero when scans expire before or during a pulse. No sensor filtering,
+  steering, footprint or live service changed.
+
 2026-10-11: Separate RPP inflation-distance contract candidate, NOT deployed.
 - Explicit conversion factor 15 matches the existing local inflation layer
   instead of default 3; synchronize both Nav2 YAML copies. No radius/footprint,

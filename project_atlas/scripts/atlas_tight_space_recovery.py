@@ -152,7 +152,7 @@ class TightRecovery(Node):
         self.lidar_odom_time = self.now_s()
 
     def sector_min(self, center_deg, width_deg):
-        if self.scan is None:
+        if not self.sensors_fresh():
             return 0.0
         vals = []
         for i, value in enumerate(self.scan.ranges):
@@ -176,9 +176,22 @@ class TightRecovery(Node):
     def sensors_fresh(self):
         age = self.get_parameter('sensor_timeout_s').value
         now = self.now_s()
-        # Recovery requires fresh LiDAR and odometry. Ultrasonics are optional
-        # close-range vetoes because open space may legitimately return no echo.
-        return now - self.scan_time <= age
+        # Arrival time alone allows a delayed/replayed old scan to authorize
+        # motion. Require acquisition and receipt freshness independently.
+        # Unknown/future timestamps and malformed geometry fail closed.
+        if self.scan is None:
+            return False
+        scan = self.scan
+        stamp = scan.header.stamp.sec + scan.header.stamp.nanosec * 1e-9
+        geometry = (scan.range_min, scan.range_max, scan.angle_min, scan.angle_increment)
+        return (
+            stamp > 0.0
+            and all(math.isfinite(v) for v in geometry)
+            and 0.0 <= scan.range_min < scan.range_max
+            and scan.angle_increment != 0.0 and bool(scan.ranges)
+            and 0.0 <= now - self.scan_time <= age
+            and 0.0 <= now - stamp <= age
+        )
 
     def request(self, _msg):
         now = self.now_s()
@@ -205,6 +218,10 @@ class TightRecovery(Node):
         self.report('RECOVERY: Nav2 paused; costmaps clearing')
 
     def choose_motion(self):
+        # Also recheck after costmap clearing: the request-time scan may have
+        # expired before the first pulse. Never wait for a later tick to stop.
+        if not self.sensors_fresh():
+            return None
         # Match atlas_safety_status exactly.  A narrower recovery sector once
         # classified a door/wall edge as clear while the operator safety view
         # correctly reported it at 0.52 m, allowing a forward pulse into the

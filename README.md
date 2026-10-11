@@ -1,11 +1,16 @@
 # Project ATLAS - Autonomous Service Rover
 
+11 October follow-up: recovery now rejects stale acquisition timestamps as
+well as stale arrival times, including before its first pulse. Thirteen
+source regressions pass; this extension is NOT installed. Deployment remains
+conditional on the full navigation safety gates and fresh operator-stop evidence.
+
 11 October decision-path audit: native Nav2 footprint checks distinguish the
 front-right return from a blocked straight path. A separate recovery defect
 allowed unknown sectors to grant motion; a tested fail-closed source fix is
 prepared, NOT deployed. See the decision-path appendix in
 [LiDAR evidence](docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md). This is not
-autonomous-navigation acceptance; stop remains latched.
+autonomous-navigation acceptance; verify the current stop latch before installation.
 
 A separate source-only RPP correction explicitly matches obstacle-cost
 conversion factor 15 to the existing inflation layer (live controller was 3).
