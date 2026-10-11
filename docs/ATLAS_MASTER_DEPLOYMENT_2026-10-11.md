@@ -125,5 +125,32 @@ Keep ATLAS parked. Place a cardboard target in front or beside it and compare
 the displayed return; remove it and verify the view updates. This validates
 physical direction/range presentation, not navigation readiness.
 Source-camera sharpness requires an optical/focus investigation, not blind
-sharpening/compression changes. Wi-Fi power-save experiment still needs immediate
-owner confirmation and independent local recovery. No autonomous test authorized.
+sharpening/compression changes. No autonomous test authorized.
+
+## Approved runtime Wi-Fi power-save trial
+
+Owner confirmed local keyboard/display recovery and ran the privileged timed
+trial on 2026-10-11. Rollback timer began at 16:39:17 IST; power save was
+observed OFF at 16:39:37 and 16:41:15, then ON at 16:41:22 after its scheduled
+16:41:17 restoration. No persistent network configuration was changed.
+
+The 80.20-second observation inside that window recorded 16/16 successful
+Wi-Fi gateway probes: median 1.64 ms, maximum 2.29 ms, zero losses. The prior
+120-second ON baseline also had median 1.64 ms and zero losses (24 probes).
+Local dashboard API: 16/16 successful, median 62.46 ms, maximum 104.84 ms;
+these localhost requests do not measure Wi-Fi dashboard transport latency.
+No logged Wi-Fi disconnect, DHCP failure, cellular-default event or major
+Tailscale change occurred. BMS had zero healthy samples and one read failure;
+disabling power save did not restore battery communication in this short trial.
+BMS process CPU was 0.36% of one core, peak RSS 66.25 MiB.
+
+Conclusion: no measured network benefit or BMS repair established. Keep the
+original power-saving setting. E-STOP was latched before and after; no motors,
+autonomy, control units or steering settings were changed. Wi-Fi metric 50 and
+cellular metric 600 remained unchanged. Preserve the owner's required policy:
+Wi-Fi first, mobile data second, own hotspot if both are unavailable. Hotspot
+fallback was not exercised or newly validated by this test.
+
+Private evidence: `network_wifi_ps_off_trial_20261011.json` in the existing
+Jetson evidence directory. The initial 20 seconds of the trial were not
+captured by this observer; do not represent it as a complete 120-second trace.
