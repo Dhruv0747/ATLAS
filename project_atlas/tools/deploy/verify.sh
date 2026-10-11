@@ -7,7 +7,7 @@ set +e
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 B=http://127.0.0.1:8088; CAP=$HOME/project_atlas/data/staging/verify_capture
 pass(){ echo "PASS $*"; }; fail(){ echo "FAIL $*"; FAILED=1; }
-code(){ curl -s -o /dev/null -m 5 -w '%{http_code}' "$1"; }
+code(){ curl --path-as-is -s -o /dev/null -m 5 -w '%{http_code}' "$1"; }   # --path-as-is: test traversal for real
 cpu60(){ local p=$1 hz=$(getconf CLK_TCK) a b; a=$(awk '{print $14+$15}' /proc/$p/stat); sleep 60; b=$(awk '{print $14+$15}' /proc/$p/stat)
          python3 -c "print(round(100*($b-$a)/$hz/60,1))"; }
 v1_pages(){ for p in / /mapping /commissioning /wifi /diagnostics.js /commissioning.js; do
@@ -33,7 +33,7 @@ stage2)
   ;;
 stage3)
   source /opt/ros/humble/setup.bash >/dev/null 2>&1
-  nodes=$(timeout 15 ros2 node list 2>/dev/null); echo "$nodes" | grep -qx /atlas_web_control && pass "node /atlas_web_control" || fail "node /atlas_web_control missing"
+  nodes=$(timeout 40 ros2 node list --no-daemon --spin-time 8 2>/dev/null); echo "$nodes" | grep -qx /atlas_web_control && pass "node /atlas_web_control" || fail "node /atlas_web_control missing"
   echo "$nodes" | grep -qx /atlas_web_status && pass "node /atlas_web_status" || fail "node /atlas_web_status missing"
   P=$(systemctl --user show rover-status-web -p MainPID --value); echo "INFO rover-status-web CPU over 60 s: $(cpu60 $P)% of one core (before: ~57%)"
   ;;
