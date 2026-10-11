@@ -12,6 +12,7 @@ cpu60(){ local p=$1 hz=$(getconf CLK_TCK) a b; a=$(awk '{print $14+$15}' /proc/$
          python3 -c "print(round(100*($b-$a)/$hz/60,1))"; }
 v1_pages(){ for p in / /mapping /commissioning /wifi /diagnostics.js /commissioning.js; do
               n=$(echo "$p" | tr '/.' '__'); curl -s -m 5 "$B$p" -o "$1/page$n"; done; }
+case "$1" in capture|stage1|stage2|stage3|stage4) ;; *) echo "usage: verify.sh capture|stage1|stage2|stage3|stage4"; exit 2;; esac
 case "$1" in
 capture)
   mkdir -p "$CAP"; v1_pages "$CAP"
@@ -48,6 +49,5 @@ stage4)
   curl -s http://127.0.0.1:8095/api/v1/robots | python3 -c "import sys,json;d=json.load(sys.stdin);print('PASS live view has data' if d and d[0].get('traffic') else 'FAIL live view empty')"
   ls -la $HOME/project_atlas/data/visual_cloud/
   ;;
-*) echo "usage: verify.sh capture|stage1|stage2|stage3|stage4"; exit 2;;
 esac
 exit ${FAILED:-0}
