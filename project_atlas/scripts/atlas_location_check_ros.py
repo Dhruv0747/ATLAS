@@ -234,8 +234,15 @@ class ManualLocationCheck:
                     amcl_age=None;amcl_status,amcl_reason='INVALID',str(exc)
                 else:
                     amcl_status,amcl_reason=('OK','') if amcl_age<=AMCL_MAX_AGE_S else ('STALE','AMCL pose age %.1f s exceeds %.1f s'%(amcl_age,AMCL_MAX_AGE_S))
+            ages={}
+            for key,at,msg in (('odom',oat,odom),('imu',iat,imu)):
+                try:
+                    ages[key]=checked_age(now-at,ros_now-stamp(msg),key)
+                except ValueError as exc:
+                    stages[key]['status']='invalid';stages[key]['error']=str(exc)
+                    block('SENSOR_TIMESTAMP_INVALID',str(exc))
             e=dict(scan_age_s=scan_age,scan_receipt_age_s=receipt_age,
-                   odom_age_s=checked_age(now-oat,ros_now-stamp(odom),'odom'),imu_age_s=checked_age(now-iat,ros_now-stamp(imu),'imu'),
+                   odom_age_s=ages['odom'],imu_age_s=ages['imu'],
                    amcl_status=amcl_status,amcl_reason=amcl_reason,
                    amcl_age_s=amcl_age,amcl_pose=list(amcl) if amcl_status=='OK' else None,
                    amcl_stamp=amcl_stamp,amcl_covariance=n.amcl_covariance if amcl_status=='OK' else None,

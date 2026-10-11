@@ -171,6 +171,15 @@ class EvidenceStages(unittest.TestCase):
     def test_missing_odometry(self):
         self.assertEqual(self.blocked(make_check(FakeNode(), missing=('odom',))).code, 'ODOMETRY_UNAVAILABLE')
 
+    def test_future_sensor_stamp_has_its_own_code(self):
+        node = FakeNode()
+        check = make_check(node)
+        at, imu = check.values['imu']
+        check.values['imu'] = (at, N(header=N(stamp=N(sec=101, nanosec=0), frame_id='imu')))   # 1 s in the future
+        err = self.blocked(check)
+        self.assertEqual(err.code, 'SENSOR_TIMESTAMP_INVALID')
+        self.assertEqual(err.stages['imu']['status'], 'invalid')
+
     def test_old_merged_message_is_gone(self):
         src = (ROOT / 'scripts' / 'atlas_location_check_ros.py').read_text()
         self.assertNotIn('SCAN UNAVAILABLE or AMCL reference unavailable', src)
