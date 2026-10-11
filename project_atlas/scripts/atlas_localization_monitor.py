@@ -314,6 +314,9 @@ def main():
             self.scans = []                 # (monotonic receive time, msg)
             self.amcl = None                # (x, y, yaw)
             self.amcl_at = None
+            self.amcl_stamp = None
+            self.amcl_covariance = None
+            self.search_lock = threading.Lock()
             self.data_lock = threading.Lock()
             self.tf = Buffer()
             TransformListener(self.tf, self)
@@ -325,6 +328,8 @@ def main():
             self.create_timer(SCHEDULE_PERIOD_S, self.schedule)
             self.create_timer(1.0, self.publish)
             self.last_state = None
+            from atlas_location_check_ros import ManualLocationCheck
+            self.manual_check = ManualLocationCheck(self, DEFAULT_MAP)
 
         def on_scan(self, msg):
             now = time.monotonic()
@@ -342,6 +347,8 @@ def main():
             with self.data_lock:
                 self.amcl = (p.position.x, p.position.y, yaw_of(p.orientation))
                 self.amcl_at = time.monotonic()
+                self.amcl_stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+                self.amcl_covariance = list(msg.pose.covariance)
 
         def publish(self):
             state = self.logic.snapshot()
@@ -368,7 +375,7 @@ def main():
             amcl_age = None if amcl_at is None or (parked is not None and amcl_at < parked) else now - amcl_at
             self.logic.on_inputs(now, scan_age, amcl_age)
             if len(scans) >= MIN_SCANS and amcl_age is not None and amcl_age <= AMCL_MAX_AGE_S \
-                    and self.logic.check_due(now):
+                    and self.logic.check_due(now) and self.search_lock.acquire(False):
                 token = self.logic.begin_check(now)
                 threading.Thread(target=self.check, args=(scans, amcl, token), daemon=True).start()
             state = self.logic.snapshot()
@@ -376,6 +383,10 @@ def main():
                 self.publish()          # transitions reach the dashboard without waiting for the 1 s tick
 
         def check(self, scans, amcl, token):
+            deadline = time.monotonic() + CHECK_TIMEOUT_S
+            def checkpoint():
+                if time.monotonic() >= deadline:
+                    raise TimeoutError('passive search deadline exceeded')
             try:
                 t = self.tf.lookup_transform("base_link", scans[0].header.frame_id, Time(),
                                              timeout=Duration(seconds=0.5)).transform
@@ -384,7 +395,7 @@ def main():
                 ranges = core.median_ranges([list(m.ranges) for m in scans])
                 allp, held = core.endpoints(scans[0].angle_min, scans[0].angle_increment, ranges, laser, policy)
                 amcl_fit = core.fit(self.map, held, *amcl, policy.tolerance_m)
-                verdict = core.decide(core.global_search(self.map, allp, held, policy), len(allp), None, policy)
+                verdict = core.decide(core.global_search(self.map, allp, held, policy, checkpoint=checkpoint), len(allp), None, policy)
                 result = core.assess_tracking(amcl, amcl_fit, verdict, policy)
                 with self.data_lock:
                     amcl_now = self.amcl
@@ -393,6 +404,8 @@ def main():
                     self.reseed(reseed)
             except Exception as exc:  # report, never act
                 self.logic.on_check_error(time.monotonic(), token, exc)
+            finally:
+                self.search_lock.release()
 
         def reseed(self, pose):
             if not self.seed.service_is_ready():

@@ -1,5 +1,16 @@
 # Changelog
 
+2026-10-11: CHECK MY LOCATION Stage A implementation.
+- One existing-monitor search owner, fresh ROS snapshots, acquisition-time TF,
+  loaded-map content verification, stopped/zero-command gates and cancellation.
+- Shared V2 Command Center/Mapping UI and same-origin bounded diagnostic API;
+  no pose correction or navigation authorization.
+- 72 scoped Python regressions pass; isolated ROS domain 173 validates recorded
+  ranges with synthetic stationary timestamps, ambiguity, cancellation, missing/
+  stale IMU, unavailable TF, motion and concurrent-search rejection.
+- Two existing people-experiment tests remain blocked by missing rosbags.
+- Deployment status, benchmarks and remaining limits are in the implementation report.
+
 2026-10-11: Read-only reliability and location-check foundation (not deployed).
 - Paired raw/filtered guard audit plus finite settled resource probe; five audit tests.
 - Manual location job lifecycle with cancellation, timeout, provenance invalidation,

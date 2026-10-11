@@ -9,6 +9,7 @@ import re
 import socket
 import atlas_wifi_web
 import atlas_web_v2
+import atlas_location_check_web
 import subprocess
 import threading
 SHUTDOWN_PENDING = threading.Event()
@@ -456,6 +457,7 @@ class AtlasRosNode:
             self.steering_cal_pub = self.node.create_publisher(String, '/atlas/steering_calibration/request', 10)
             # Existing mux service; the mux grants it only with the physical remote connected and neutral.
             self.remote_stop_reset_client = self.node.create_client(Trigger, '/atlas/remote_stop/reset')
+            self.location_check_clients = {op: self.node.create_client(Trigger, '/atlas/location_check/'+op) for op in ('start','cancel')}
             self.node.create_subscription(String, '/atlas/steering_calibration/status', lambda m: self._set('steering_calibration', m.data), 10)
             self.node.create_subscription(String, '/atlas/control_policy', lambda m: self._set('control_policy', m.data), 10)
             self.pan_pub = self.node.create_publisher(
@@ -1427,6 +1429,22 @@ class AtlasRosNode:
                       'lockout_s': round(obs['lockout_s'], 1)},
         }
 
+    def request_location_check(self, action):
+        client = getattr(self, 'location_check_clients', {}).get(action)
+        if not self.ready or client is None or not client.service_is_ready():
+            return dict(accepted=False, state='UNAVAILABLE', reason='Location-check monitor unavailable')
+        future = client.call_async(Trigger.Request())
+        end = time.monotonic() + 2.
+        while not future.done() and time.monotonic() < end:
+            time.sleep(.02)
+        if not future.done():
+            future.cancel()
+            return dict(accepted=False, state='UNCERTAIN', reason='Request acknowledgement timed out; check status before retrying')
+        reply = future.result()
+        result = json.loads(reply.message)
+        result['accepted'] = bool(reply.success)
+        return result
+
     def request_mux_reset(self, timeout_s=2.0):
         client = self.remote_stop_reset_client
         if not self.ready or client is None or not client.service_is_ready():
@@ -1891,6 +1909,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.client_allowed():
             self.send_error(403)
             return
+        if atlas_location_check_web.serve(self, ROS):
+            return
         if atlas_web_v2.handles(self.path):   # Glass UI V2 static files (additive; V1 routes unchanged)
             atlas_web_v2.serve(self)
             return
@@ -2093,6 +2113,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.client_allowed():
             self.send_error(403)
+            return
+        if atlas_location_check_web.serve(self, ROS, post=True):
             return
         if self.path == '/api/estop/reset':
             self.handle_estop_reset()

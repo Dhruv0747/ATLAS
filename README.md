@@ -1,7 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
 11 October follow-up: [CHECK MY LOCATION checkpoint](docs/audits/ATLAS_CHECK_MY_LOCATION_IMPLEMENTATION_REPORT.md)
-adds an isolated-tested bounded-job foundation; no UI/API or correction is yet deployed.
+now includes the trusted fresh-sensor adapter and shared Command Center/Mapping
+button. Stage A is read-only; see the report for deployment and measured results.
+Correction and navigation authorization remain disabled.
 [New guard/resource evidence](docs/audits/ATLAS_CORE_RELIABILITY_CHECKPOINT_2026-10-11.md)
 traces missing rays to raw infinity, not self-filter removal. Existing safety and maps remain unchanged.
 
