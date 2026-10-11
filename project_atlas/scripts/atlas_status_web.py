@@ -354,7 +354,14 @@ class AtlasRosNode:
         self.web_estop_at = float('-inf')
         # Web E-STOP reset (stage 1b): server-side policy in atlas_estop_reset.py.
         self.last_drive_request = float('-inf')     # any drive POST, accepted or refused
-        self.drive_requires_fresh_press = False     # set by a web reset; cleared by a fresh press
+        # Fresh-press rule: after ANY release of the stop latch (remote or web reset), a drive request
+        # is accepted only for a press whose start (start=1, press=<id>) reached the server after that
+        # release. A held button, a stale tab or a client whose requests resume after a network outage
+        # carries an older (or unknown) press id and is refused.
+        self.release_at = float('-inf')
+        self.seen_latched = None
+        self.presses = {}                          # press id -> monotonic time its start arrived
+        self.press_lock = threading.Lock()
         self.remote_stop_reset_client = None
         self.estop_log = estop_reset.EventLog()
         self.reset_pins = estop_reset.PinStore()
@@ -855,6 +862,7 @@ class AtlasRosNode:
         })
 
     def _map_pose_tick(self):
+        self.note_latch_state()
         self.log_latch_transition()
         if self.tf_buffer is None:
             return
@@ -1383,7 +1391,7 @@ class AtlasRosNode:
         available = latched is True and not blocked
         return {
             'latched': latched, 'reason': policy and policy.get('stop_reason'),
-            'drive_requires_fresh_press': self.drive_requires_fresh_press,
+            'drive_requires_fresh_press': self.release_at > max(self.presses.values(), default=float('-inf')),
             'reset': {'available': available, 'blocked': [] if available else blocked,
                       'challenge': self.reset_challenges.issue(client) if available else None,
                       'challenge_ttl_s': estop_reset.CHALLENGE_TTL_S, 'pin_configured': obs['pin_configured'],
@@ -1403,6 +1411,41 @@ class AtlasRosNode:
             return False, 'mux did not answer'
         result = future.result()
         return bool(result.success), str(result.message)
+
+    def note_latch_state(self):
+        """Track latched -> released transitions from fresh mux policy (any release path)."""
+        item = self._item('control_policy')
+        if not item or time.time() - float(item.get('ts', 0.0)) > 1.0:
+            return
+        try:
+            latched = json.loads(item['value']).get('stop_latched') is True
+        except (TypeError, ValueError, AttributeError):
+            return
+        with self.press_lock:
+            if latched:
+                self.seen_latched = True
+            elif self.seen_latched:
+                self.seen_latched = False
+                self.release_at = time.monotonic()
+                self.estop_log.write('release_observed', note='fresh press required for web drive')
+
+    def drive_press_allowed(self, press, start):
+        """Apply the fresh-press rule. Returns (allowed, message-if-refused)."""
+        now = time.monotonic()
+        with self.press_lock:
+            if press and start:
+                self.presses[press] = now
+                if len(self.presses) > 64:
+                    for old in sorted(self.presses, key=self.presses.get)[:len(self.presses) - 64]:
+                        del self.presses[old]
+            if self.release_at == float('-inf'):
+                return True, ''
+            if not press:
+                return False, 'Reload the dashboard: this page is too old to drive after an E-STOP release.'
+            started = self.presses.get(press)
+            if started is None or started <= self.release_at:
+                return False, 'Release all drive buttons, then press again to drive.'
+            return True, ''
 
     def log_latch_transition(self):
         item = self._item('control_policy')
@@ -2137,16 +2180,13 @@ class Handler(BaseHTTPRequestHandler):
             json_response(self, 409, {"ok": False, "message": "Shutdown already requested; controls disabled"})
             return
         if action == "drive":
-            gap = time.monotonic() - ROS.last_drive_request
             ROS.last_drive_request = time.monotonic()
-            if ROS.drive_requires_fresh_press:
-                # After a web reset only a NEW press may drive: the first drive request after a quiet gap.
-                # A button still held from before keeps posting every 120 ms and is refused until released.
-                if gap < estop_reset.FRESH_PRESS_GAP_S:
-                    stop_rover()
-                    json_response(self, 409, {"ok": False, "message": "Release all drive buttons, then press again to drive."})
-                    return
-                ROS.drive_requires_fresh_press = False
+            ROS.note_latch_state()
+            allowed, why = ROS.drive_press_allowed(form.get("press", [""])[0][:32], form.get("start", ["0"])[0] == "1")
+            if not allowed:
+                stop_rover()
+                json_response(self, 409, {"ok": False, "message": why})
+                return
             if ROS.drive_stop_latched():
                 stop_rover()
                 json_response(self, 409, {"ok": False, "message": "Drive stop latched. Release it with the remote: sticks neutral, hold LB, let go."})
@@ -2259,7 +2299,8 @@ class Handler(BaseHTTPRequestHandler):
             return deny(403, 'wrong operator PIN', event='reset_denied_pin')
         ROS.reset_lockout.success()
         zero = stop_rover()                              # motor commands stay at zero through the reset
-        ROS.drive_requires_fresh_press = True            # set BEFORE the release: no drive can slip through
+        with ROS.press_lock:                             # set BEFORE the release: no older press can drive
+            ROS.release_at = time.monotonic(); ROS.seen_latched = False
         ROS.last_drive_request = time.monotonic()
         ok, mux_message = ROS.request_mux_reset()
         if not ok:
@@ -2619,7 +2660,7 @@ function openDetail(key){if(key==='diagnostics'){$('diagnosticsPanel').open=true
 function closeDetail(){activeDetail='';$('sensorModal').classList.remove('open');$('detailBody').innerHTML=''}
 $('sensorModal').addEventListener('click',e=>{if(e.target===$('sensorModal'))closeDetail()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail()});
 async function stop(){await post({action:'stop'},false)}
-let hold=null;function beginDrive(b){stopDrive(false);b.classList.add('on');let send=()=>post({action:'drive',linear:b.dataset.l,angular:b.dataset.a},false);send();hold=setInterval(send,120)}
+let hold=null;function beginDrive(b){stopDrive(false);b.classList.add('on');const press=Math.random().toString(36).slice(2,12);let start=1;let send=()=>{post({action:'drive',linear:b.dataset.l,angular:b.dataset.a,press,start},false);start=0};send();hold=setInterval(send,120)}
 function stopDrive(send=true){if(hold){clearInterval(hold);hold=null}document.querySelectorAll('[data-l]').forEach(b=>b.classList.remove('on'));if(send)stop()}
 document.querySelectorAll('[data-l]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);beginDrive(b)};b.onpointerup=()=>stopDrive();b.onpointercancel=()=>stopDrive();b.onlostpointercapture=()=>stopDrive()});
 let estopNonce=null;function showEstop(text,cls,why,canReset){$('estopState').textContent=text;$('estopState').className=cls;$('estopWhy').textContent=why;$('estopReset').disabled=!canReset}

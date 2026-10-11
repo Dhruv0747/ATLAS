@@ -100,7 +100,7 @@ class ResetRequest(ResetBase):
         code, p = self.reset(nonce)
         self.assertEqual(code, 200, p); self.assertTrue(p['released'])
         self.assertEqual(self.r.events, [('TWIST', 0.0, 0.0)])          # only zero, nothing else
-        self.assertEqual(self.r.mux_reset_calls, 1); self.assertTrue(self.r.drive_requires_fresh_press)
+        self.assertEqual(self.r.mux_reset_calls, 1); self.assertTrue(self.state()["drive_requires_fresh_press"])
         self.assertEqual(self.r.log_lines[-1]['event'], 'reset_granted')
         self.assertNotIn(PIN, json.dumps(self.r.log_lines))
 
@@ -111,7 +111,7 @@ class ResetRequest(ResetBase):
         self.assertEqual(self.reset(n(), confirm='yes')[0], 400)                                # no explicit confirmation
         self.assertEqual(self.reset('made-up')[0], 409)                                         # unknown challenge
         used = n(); self.assertEqual(self.reset(used)[0], 200)
-        self.healthy(); self.r.drive_requires_fresh_press = False
+        self.healthy()
         self.assertEqual(self.reset(used)[0], 409)                                              # single use
         other = self.state(client='192.168.1.50')['reset']['challenge']
         self.assertEqual(self.reset(other, client='192.168.1.60')[0], 409)                      # bound to the client
@@ -145,21 +145,37 @@ class ResetRequest(ResetBase):
 
 
 class AfterReset(ResetBase):
-    def test_held_button_never_resumes_and_a_fresh_press_is_required(self):
-        self.reset(self.state()['reset']['challenge']); self.r.events.clear()
-        # A button still held from before keeps posting every 120 ms: all refused, only zero published.
-        for _ in range(10):
-            self.assertEqual(post({'action': 'drive', 'linear': '.65', 'angular': '0'})[0], 409)
-            self.r.last_drive_request -= 0.12      # emulate 120 ms spacing without sleeping
-        self.assertTrue(all(e == ('TWIST', 0.0, 0.0) for e in self.r.events))
-        # Release (no posts for > FRESH_PRESS_GAP_S), then a new press drives.
-        self.r.last_drive_request -= ER.FRESH_PRESS_GAP_S + 0.1
-        self.assertEqual(post({'action': 'drive', 'linear': '.65', 'angular': '0'})[0], 200)
-        self.assertIn(('TWIST', 0.65, 0.0), self.r.events); self.assertFalse(self.r.drive_requires_fresh_press)
+    def drive(self, press=None, start=False):
+        f = {'action': 'drive', 'linear': '.65', 'angular': '0'}
+        if press: f.update(press=press, start='1' if start else '0')
+        return post(f)
 
-    def test_drive_immediately_after_reset_is_refused(self):
-        self.reset(self.state()['reset']['challenge'])
-        self.assertEqual(post({'action': 'drive', 'linear': '.65', 'angular': '0'})[0], 409)
+    def test_presses_from_before_the_reset_never_resume(self):
+        self.assertEqual(self.drive('held', start=True)[0], 409)        # pressed while latched: refused, but its start is recorded
+        self.r.last_drive_request = float('-inf')                          # (buttons released before the reset)
+        self.reset(self.state()['reset']['challenge']); self.r.events.clear()
+        for _ in range(5):
+            self.assertEqual(self.drive('held')[0], 409)                   # repeats of the pre-reset press
+            self.assertEqual(self.drive('lost-in-network')[0], 409)        # a press whose start never arrived
+            self.assertEqual(self.drive()[0], 409)                          # an old page without press ids
+        self.assertTrue(all(e == ('TWIST', 0.0, 0.0) for e in self.r.events))
+        code, p = self.drive(); self.assertIn('Reload', p['message'])
+
+    def test_a_new_press_after_the_reset_drives(self):
+        self.reset(self.state()['reset']['challenge']); self.r.events.clear()
+        self.assertEqual(self.drive('new', start=True)[0], 200)
+        self.assertEqual(self.drive('new')[0], 200)                        # its repeats
+        self.assertIn(('TWIST', 0.65, 0.0), self.r.events)
+        self.assertFalse(self.state()['drive_requires_fresh_press'])
+
+    def test_remote_release_also_requires_a_fresh_press(self):
+        self.drive('before', start=True)                                   # latched: refused, start recorded
+        self.r.note_latch_state()                                          # server sees latched
+        self.healthy(latched=False); self.r.web_estop_at = float('-inf')
+        self.r.note_latch_state()                                          # ... then released (by the remote)
+        self.assertEqual(self.drive('before')[0], 409)
+        self.assertTrue(self.state()['drive_requires_fresh_press'])
+        self.assertEqual(self.drive('after', start=True)[0], 200)
 
     def test_state_polling_and_network_silence_never_release(self):
         for _ in range(20): self.state()

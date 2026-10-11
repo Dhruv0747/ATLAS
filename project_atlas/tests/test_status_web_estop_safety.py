@@ -46,7 +46,8 @@ class Recorder:
         self.ready, self.lock, self.data, self.events = ready, threading.Lock(), {}, []
         self.commissioning_stop_pub = types.SimpleNamespace(publish=lambda m: self.events.append('LATCH')) if latch_pub else None
         self.web_estop_at = float('-inf')
-        self.last_drive_request = float('-inf'); self.drive_requires_fresh_press = False; self.drive_active = False
+        self.last_drive_request = float('-inf'); self.drive_active = False
+        self.release_at = float('-inf'); self.seen_latched = None; self.presses = {}; self.press_lock = threading.Lock()
         self.tmp = Path(tmp or tempfile.mkdtemp())
         self.log_lines = []
         self.estop_log = types.SimpleNamespace(write=lambda event, **f: self.log_lines.append({'event': event, **f}))
@@ -70,6 +71,8 @@ class Recorder:
     _item = web.AtlasRosNode._item
     estop_observations = web.AtlasRosNode.estop_observations
     estop_state = web.AtlasRosNode.estop_state
+    note_latch_state = web.AtlasRosNode.note_latch_state
+    drive_press_allowed = web.AtlasRosNode.drive_press_allowed
 
 
 def post(form, headers=None):

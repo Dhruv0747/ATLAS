@@ -27,7 +27,6 @@ ODOM_MAX_AGE_S = 0.5         # fresh motion feedback
 ODOM_MAX_VX, ODOM_MAX_WZ = 0.02, 0.05
 CMD_MAX_AGE_S = 1.0          # mux output seen recently (the latch keeps publishing zero every 0.2 s)
 DRIVE_QUIET_S = 1.5          # no drive request (accepted or refused) from any browser for this long
-FRESH_PRESS_GAP_S = 0.5      # after a reset, a drive is accepted only after this gap in drive requests
 LOG_MAX_BYTES, LOG_KEEP = 5 * 1024 * 1024, 3
 
 
