@@ -1,5 +1,15 @@
 # ATLAS current blockers
 
+11 October 18:55 IST: CHECK MY LOCATION Stage A is now deployed on both
+dashboard pages with fresh scan/IMU/odometry/TF/map/AMCL validation. 73 scoped
+Python tests, 6 UI assertions, isolated ROS smoke tests and both live buttons
+passed. Live checks report roughly 1.6–1.7 m AMCL/LiDAR disagreement; candidate
+ambiguity remains. This is diagnostic evidence, NOT localization repair or
+autonomy clearance. E-STOP remained latched; no movement or pose correction.
+Stage B correction is not enabled. Details, resources and rollback:
+[implementation report](ATLAS_CHECK_MY_LOCATION_IMPLEMENTATION_REPORT.md).
+The foundation-only statement below is superseded by this deployment.
+
 11 October follow-up: 26 saved plus 18 fresh paired scans locate all missing
 returns in raw +inf, not self-filter removal. Physical cause remains unknown;
 guard permissions unchanged. Settled CPU 70.35%, RAM 5442.83 MiB; no basis to

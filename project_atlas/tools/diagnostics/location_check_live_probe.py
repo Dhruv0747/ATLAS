@@ -32,12 +32,15 @@ def main():
             response=urllib.request.urlopen(request,timeout=4)
         except urllib.error.HTTPError as exc:response=exc
         with response:return response.code,json.loads(response.read()),time.monotonic()-started
-    before=process();samples=[before];latencies=[]
+    before=process();samples=[before];latencies=[];dashboard_during=[]
     code,reply,latency=http('/api/location-check',{'action':'start'})
     request_id=reply.get('request_id');final=reply
     while reply.get('accepted') and time.monotonic()-before[0]<35:
         time.sleep(.25);samples.append(process())
         _,state,dt=http('/api/location-check');latencies.append(dt)
+        if len(latencies)%3==0:
+            status_code,_,elapsed=http('/api/status')
+            dashboard_during.append(dict(status=status_code,seconds=elapsed))
         if state.get('request_id')==request_id and state.get('state')!='CHECKING':final=state;break
     after=process()
     status_code,_,status_latency=http('/api/status')
@@ -45,7 +48,8 @@ def main():
         wall_s=after[0]-before[0],cpu_s=after[1]-before[1],rss_before_mib=before[2]/2**20,
         rss_after_mib=after[2]/2**20,peak_rss_mib=max(v[2] for v in samples+[after])/2**20,
         peak_interval_cpu_one_core_percent=max([100*(b[1]-a[1])/(b[0]-a[0]) for a,b in zip(samples,samples[1:])] or [0]),
-        status_http_code=status_code,status_http_s=status_latency,poll_max_s=max(latencies or [0]))
+        status_http_code=status_code,status_http_s=status_latency,poll_max_s=max(latencies or [0]),
+        dashboard_during=dashboard_during)
     with a.out.open('x') as stream:json.dump(report,stream,indent=2)
     a.out.chmod(0o600);print(json.dumps(report,indent=2))
 

@@ -1,5 +1,14 @@
 # ATLAS master failure analysis
 
+2026-10-11: read-only CHECK MY LOCATION is deployed on both pages. Fresh live
+checks expose approximately 1.6–1.7 m disagreement between AMCL and independent
+LiDAR candidates; rotational ambiguity prevents treating the candidate as
+ground truth. A new diagnostic snapshot-clock race was reproduced and fixed,
+not identified as the historical AMCL root cause. 73 scoped Python tests and
+6 UI assertions pass; both live buttons tested while stopped. Localization
+remains unresolved; no pose correction or driving. See
+[deployment evidence](ATLAS_CHECK_MY_LOCATION_IMPLEMENTATION_REPORT.md).
+
 2026-10-09 competing-pose comparison: equal bounded fitting plus later unused
 beams favours the Dhruv region (99–100% endpoint fit, 0.214° corrected-gyro
 residual) over the refined false region (78.9–85.6%, 98.229°). A recorded

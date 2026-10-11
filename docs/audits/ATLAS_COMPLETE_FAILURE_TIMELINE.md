@@ -1,5 +1,14 @@
 # ATLAS complete failure timeline
 
+2026-10-11 18:55 IST: deployed read-only CHECK MY LOCATION adapter/API and
+both dashboard buttons, then a separately reversible snapshot-clock race fix.
+Initial future-timestamp rejection is retained in the implementation report;
+subsequent fresh live checks completed in about 3 seconds and report MISMATCH.
+73 scoped Python tests and 6 UI assertions passed. E-STOP stayed latched;
+only monitor/web services restarted, with no driving or AMCL correction.
+Historical localization is not declared fixed. See
+[deployment/rollback report](ATLAS_CHECK_MY_LOCATION_IMPLEMENTATION_REPORT.md).
+
 2026-10-09 competing-pose comparison: equal bounded fitting plus later unused
 beams favours the Dhruv region (99–100% endpoint fit, 0.214° corrected-gyro
 residual) over the refined false region (78.9–85.6%, 98.229°). A recorded

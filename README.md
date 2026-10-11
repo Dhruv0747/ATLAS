@@ -1,8 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
 11 October follow-up: [CHECK MY LOCATION checkpoint](docs/audits/ATLAS_CHECK_MY_LOCATION_IMPLEMENTATION_REPORT.md)
-now includes the trusted fresh-sensor adapter and shared Command Center/Mapping
-button. Stage A is read-only; see the report for deployment and measured results.
+now includes the deployed fresh-sensor adapter and shared Command Center/Mapping
+button. Stage A is read-only; 73 scoped tests and live browser checks passed.
+Fresh checks expose an AMCL/LiDAR mismatch, not a localization fix. See the report
+for measured resources, exact hashes, rollback and remaining accuracy gates.
 Correction and navigation authorization remain disabled.
 [New guard/resource evidence](docs/audits/ATLAS_CORE_RELIABILITY_CHECKPOINT_2026-10-11.md)
 traces missing rays to raw infinity, not self-filter removal. Existing safety and maps remain unchanged.

@@ -1,5 +1,14 @@
 # Changelog
 
+2026-10-11: CHECK MY LOCATION Stage A deployed and browser verified.
+- Fixed snapshot clock/lock race with a deterministic regression; 73 scoped
+  Python tests pass. Two pre-existing rosbags-dependent cases remain excluded.
+- Both live V2 buttons complete fresh read-only checks; measured about 3 seconds,
+  exposing AMCL/LiDAR mismatch rather than silently correcting position.
+- Stage 11/12 backups and rollback rehearsed; only monitor/web restarted.
+  E-STOP stayed latched, control owners unchanged, Nav2/explore inactive.
+- Correction endpoint remains disabled/unimplemented; no driving or pose reseed.
+
 2026-10-11: CHECK MY LOCATION Stage A implementation.
 - One existing-monitor search owner, fresh ROS snapshots, acquisition-time TF,
   loaded-map content verification, stopped/zero-command gates and cancellation.

@@ -17,6 +17,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--rollback',required=True,type=Path)
     p.add_argument('--evidence',required=True,type=Path)
+    p.add_argument('--monitor-only',action='store_true',help='For an adapter-only follow-up; static UI needs no restart')
     a=p.parse_args()
     if (a.evidence.exists() or a.rollback.name!='ROLLBACK.sh' or not a.rollback.is_file()
         or a.rollback.resolve().parent.parent!=Path('/home/jetson/project_atlas/data/backups')):
@@ -27,7 +28,7 @@ def main():
             '--output',str(a.evidence/name)],check=True,timeout=50)
     def pid(unit):
         return subprocess.check_output(['systemctl','--user','show',unit,'-p','MainPID','--value'],text=True).strip()
-    units=['atlas-localization-monitor','rover-status-web']
+    units=['atlas-localization-monitor'] if a.monitor_only else ['atlas-localization-monitor','rover-status-web']
     mode=Path.home()/'.config/project_atlas/relocalize_mode'
     assert mode.read_text().strip()=='suggest','automatic reseeding must remain disabled'
     stopped('before.json')
