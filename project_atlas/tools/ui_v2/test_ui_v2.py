@@ -51,7 +51,8 @@ KEY_JS = '''() => {
 import re as _re
 # Per-page-load random values (the commissioning steering lease session id) are masked before comparing.
 _SESSION = _re.compile(r'("session":")[0-9a-f]{16,64}(")')
-NORM = lambda posts: [(p['path'], _SESSION.sub(r'\1<random>\2', p['body'] or ''), p['headers'].get('content-type', ''),
+_PRESS = _re.compile(r'(press=)[0-9a-z]{4,32}')   # per-press random id (stage 1b fresh-press rule)
+NORM = lambda posts: [(p['path'], _PRESS.sub(r'\1<random>', _SESSION.sub(r'\1<random>\2', p['body'] or '')), p['headers'].get('content-type', ''),
                        p['headers'].get('x-atlas-wifi', '')) for p in posts]
 
 
@@ -133,9 +134,12 @@ def safety(browser):
             h = H(); ctx, pg = open_page(browser, h, path, *vp); pg.wait_for_timeout(1200); pg.evaluate(KEY_JS); h.posts.clear()
             press(pg, FWD, hold_ms=1500)
             ts = [p['t'] for p in h.posts if 'action=drive' in (p['body'] or '')]
+            press_ids = {x.split('press=')[1].split('&')[0] for x in (p['body'] or '' for p in h.posts) if 'press=' in x}
+            starts = sum('start=1' in (p['body'] or '') for p in h.posts)
             gaps = [round((b - a) * 1000) for a, b in zip(ts, ts[1:])]
             last = h.posts[-1]['body'] if h.posts else None
-            out[f'{vp_name}_hold'] = {'drive_posts': len(ts), 'median_gap_ms': statistics.median(gaps) if gaps else None,
+            out[f'{vp_name}_hold'] = {'drive_posts': len(ts), 'press_ids': len(press_ids), 'start_flags': starts,
+                                      'median_gap_ms': statistics.median(gaps) if gaps else None,
                                       'last_post': last, 'stop_on_release': last == 'action=stop'}
             ctx.close()
         # 2. release paths with the pointer still physically down
