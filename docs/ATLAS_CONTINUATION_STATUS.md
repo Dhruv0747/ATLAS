@@ -1,5 +1,11 @@
 # ATLAS continuation status — 2026-10-11
 
+LATEST: owner-approved stage 8 and views stages 9b/9c are deployed. See
+`ATLAS_MASTER_DEPLOYMENT_2026-10-11.md` for the authoritative current table.
+BMS retry ownership now live and stable, but BLE remains offline. Original-byte
+camera and TF-based LiDAR views are live; source camera sharpness is unresolved.
+The earlier rollback status below is historical, not the final installed state.
+
 Latest rollout supersedes the older recorder/deployment gates below: see
 `ATLAS_ROLLOUT_2026-10-11.md`. Bounded writer installed at `0c1d520`, sixteen
 offline tests pass, Humble 47,887-message readback passes, and parked 3,203-message

@@ -11,7 +11,9 @@ reconnect backoff while preserving five-second healthy polling and fail-closed
 freshness. See `docs/ATLAS_ROLLOUT_2026-10-11.md` for staged deployment evidence;
 this does not by itself establish BLE endurance or autonomous readiness. The
 live BMS stage was rolled back after a competing supervisor restart was found.
-The tested retry-ownership correction is offline only, awaiting deployment approval.
+The tested retry-ownership correction was subsequently approved and deployed
+as stage 8; the underlying BLE connection timeout remains unresolved. See
+`docs/ATLAS_MASTER_DEPLOYMENT_2026-10-11.md` for current evidence and rollback.
 
 ### Motion-triggered diagnostics
 

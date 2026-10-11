@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+Latest 11 October 16:33 IST: owner-approved BMS ownership fix deployed; no
+competing restart, but connect still times out (one/120 s, zero healthy samples).
+Read-only LiDAR/camera/Home views deployed. All 62 sampled HTTP JPEGs exactly
+match original ROS JPEGs: current blur is upstream of V2, precise cause unknown.
+See `../ATLAS_MASTER_DEPLOYMENT_2026-10-11.md`; older rollback notes below retained.
+
 2026-10-11 staged rollout update: bounded motion recorder installed and parked
 capture verified (3,203 messages; one DDS-reported loss; zero application drops).
 No continuous service, no movement. BMS link reuse/backoff stage rolled back

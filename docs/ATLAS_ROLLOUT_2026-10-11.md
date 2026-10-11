@@ -1,5 +1,9 @@
 # ATLAS controlled rollout — 2026-10-11
 
+Later owner-approved deployment supersedes this report's pending/rollback
+state: see `ATLAS_MASTER_DEPLOYMENT_2026-10-11.md`. Preserve this earlier
+report as the record of unsuccessful stages and their rollback evidence.
+
 Owner directive: staged diagnostic/reliability deployment while stopped and
 latched; no motor, steering, autonomy, map, calibration or network authority
 changes. Dedicated branch: `agent/sync-developer-20261011`; never merge main.

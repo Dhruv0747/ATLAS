@@ -1,5 +1,13 @@
 # Changelog
 
+2026-10-11: Owner-approved live stages 8, 9b and 9c verified.
+- Single BMS retry ownership now deployed; connection still times out, but no
+  competing restart. New camera/LiDAR/Home views are installed on the Jetson.
+- 62/62 HTTP JPEG hashes match original ROS frames; current image softness
+  is upstream of UI rendering. Do not claim optical/source cause resolved.
+- Consolidated deployment report records resources, outstanding acceptance,
+  exact rollback directories and unchanged motor-control process identities.
+
 2026-10-11: Operator-approved camera/LiDAR/Home stage.
 - Add full-size original-JPEG view and bounded visible-only 360-degree scan
   display; exact scan-time base_link TF, invalid points and stale data explicit.

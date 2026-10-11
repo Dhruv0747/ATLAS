@@ -301,6 +301,11 @@
           "date": "2026-10-11",
           "kind": "rollout_rolled_back_competing_retry_owner",
           "description": "Recovery supervisor restarted BMS at 60-second intervals while its bounded retry loop was alive, resetting backoff. Stage rolled back and only BMS restarted. Four failures versus fifteen per 120 seconds is confounded by those restarts; no healthy BLE sample in either window. Phone app disconnected per owner. Offline explicit fresh-heartbeat retry ownership fix passes regression tests but is not deployed; supervisor restart needs approval. BLE connection root cause remains unverified."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "owner_approved_single_retry_owner_live",
+          "description": "Stage 8 deployed d5d1c59 three-file fix at 16:21 IST after scratch rollback and live hashes passed. Only BMS/recovery restarted; motor/mux/remote PIDs unchanged. Latest 120 seconds: one connect timeout, no healthy samples, no competing restart or bonding event. BMS CPU 0.70% one core/RSS 66.25 MiB. Backoff reaches approximately 130-second attempt intervals including transaction overhead. Retry contention fixed in this observation; underlying BLE connection still unresolved. Full evidence: docs/ATLAS_MASTER_DEPLOYMENT_2026-10-11.md."
         }
       ]
     },
