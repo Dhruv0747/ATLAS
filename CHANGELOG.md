@@ -1,5 +1,14 @@
 # Changelog
 
+2026-10-11 19:46: **CHECK MY LOCATION works without an AMCL pose** (stage 13, deployed).
+- Precise rejection codes and a stage table replace the merged "SCAN UNAVAILABLE or AMCL reference
+  unavailable".
+- AMCL status is reported separately; the independent LiDAR search runs anyway. Without AMCL the
+  best answer is LIDAR_ONLY_MATCH, never VERIFIED.
+- Last success is kept apart from the current result.
+- See the [stage 13 record](docs/deploy/ATLAS_LOCATION_CHECK_NO_AMCL_2026-10-11.md).
+- Voice: latch and release are both announced (source only, `27ccfcd`, not deployed).
+
 2026-10-11: CHECK MY LOCATION Stage A deployed and browser verified.
 - Fixed snapshot clock/lock race with a deterministic regression; 73 scoped
   Python tests pass. Two pre-existing rosbags-dependent cases remain excluded.

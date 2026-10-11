@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-11T18:55:00+05:30",
+  "updated_at": "2026-10-11T19:50:00+05:30",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -24,10 +24,28 @@
       "confirmed_findings": "Actual recovery methods treat missing sectors as infinity and accept above-range-max samples. Four offline safety assertions failed. Runtime controller inflation conversion is 3, local costmap factor 15. No physical incident attribution established.",
       "test_results": "Full installed RPP/controller-server/obstacle-layer replay plus exact live-based mux guard: 15/15 checks. Native RPP 11/11. Offline 38 tests pass. Unknown rear and old/missing scans produce final zeros with guard; clear straight/arcs and manual source preserved. Physical loaded validation remains open.",
       "remaining_verification": "Both approved fixes deployed with matching hashes and runtime factor 15; direct ROS stop and remote input verified. Real scans have missing observation bins (68/68 dry checks veto autonomy); safe swept-path observation qualification, loaded stopping/timeout qualification, moving localization and autonomous acceptance remain unresolved.",
-      "evidence": ["docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md", "docs/audits/ATLAS_NAVIGATION_GUARD_DEPLOYMENT_2026-10-11.md", "docs/audits/ATLAS_CORE_RELIABILITY_CHECKPOINT_2026-10-11.md"],
-      "events": [{"date":"2026-10-11","kind":"parked_decision_audit","description":"No movement, goals or live configuration changes. E-STOP latched. Read-only costmap capture and no-ROS native checker fixture executed."},
-        {"date":"2026-10-11","kind":"isolated_controller_validation","description":"Controller-only replay continued commands with old/missing scans and unknown rear. expected_update_rate alone rejected missing arrivals but not old acquisition stamps. User approved stop-only mux guard. Exact live-based candidate passed 15 integration checks; source/live AMCL differences deliberately excluded. Two installation attempts rolled back on dashboard freshness/HTTP-timeout verification failures; direct ROS afterward observed 94 zeros, 199 latched policies, fresh sensors and inactive navigation units. No movement or autonomy enabled."},
-        {"date":"2026-10-11","kind":"approved_staged_deployment","description":"Guard/recovery deployed from 95add0c/14234fe with exact live-based mux patch; only mux/recovery restarted. Inflation correction 6b0f462 deployed to both YAML copies and dynamically applied 3->15 without AMCL restart. All five hashes match. Final remote check: 338 Joy, 95 zero commands, 202 latched policies; no unsafe observation. Real scan availability dry run vetoes all directions across 68 scans, a conservative unresolved usability limitation, not occupied-space proof. CPU/RAM windows and exact rollback paths in deployment report; no autonomous or physical acceptance claimed."}]
+      "evidence": [
+        "docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md",
+        "docs/audits/ATLAS_NAVIGATION_GUARD_DEPLOYMENT_2026-10-11.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_CHECKPOINT_2026-10-11.md"
+      ],
+      "events": [
+        {
+          "date": "2026-10-11",
+          "kind": "parked_decision_audit",
+          "description": "No movement, goals or live configuration changes. E-STOP latched. Read-only costmap capture and no-ROS native checker fixture executed."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "isolated_controller_validation",
+          "description": "Controller-only replay continued commands with old/missing scans and unknown rear. expected_update_rate alone rejected missing arrivals but not old acquisition stamps. User approved stop-only mux guard. Exact live-based candidate passed 15 integration checks; source/live AMCL differences deliberately excluded. Two installation attempts rolled back on dashboard freshness/HTTP-timeout verification failures; direct ROS afterward observed 94 zeros, 199 latched policies, fresh sensors and inactive navigation units. No movement or autonomy enabled."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "approved_staged_deployment",
+          "description": "Guard/recovery deployed from 95add0c/14234fe with exact live-based mux patch; only mux/recovery restarted. Inflation correction 6b0f462 deployed to both YAML copies and dynamically applied 3->15 without AMCL restart. All five hashes match. Final remote check: 338 Joy, 95 zero commands, 202 latched policies; no unsafe observation. Real scan availability dry run vetoes all directions across 68 scans, a conservative unresolved usability limitation, not occupied-space proof. CPU/RAM windows and exact rollback paths in deployment report; no autonomous or physical acceptance claimed."
+        }
+      ]
     },
     {
       "id": "ATLAS-020",
@@ -39,10 +57,23 @@
       "resolution": "UNRESOLVED",
       "confirmed_findings": "0.509072 m FRONT minimum is ray 318 at base bearing -44.695 degrees; raw sensor range 0.545750 m. All 64 paired samples preserve finite ranges and their minima. Dashboard uses 90-degree quadrants, not centreline wall distance. Raw valid counts varied 1-215 in first capture; second capture 204-212.",
       "suspected_causes_and_limits": "Physical close-object, reflection, occlusion or cable identity remains unverified. Density variation is upstream of dashboard/filter, but its physical cause is not established. No new cause of historic AMCL jumps proven.",
-      "evidence": ["docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md"],
+      "evidence": [
+        "docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md"
+      ],
       "test_results": "26 payload-preserving samples replayed; 15 projection and seven route tests pass, plus UI logic checks and 12 isolated Jetson E-STOP regressions. New provenance core/UI not deployed.",
       "remaining_verification": "Stage 10 diagnostic UI deployed; parked measured targets and identify persistent front-right return. Combined map/scan overlay and arbitrary-click raw metadata unfinished. No close-return removal or motion until separately qualified.",
-      "events": [{"date":"2026-10-11","kind":"paired_scan_provenance","description":"Confirmed measurement semantics and raw point identity; preserved all close returns and production configuration."}, {"date":"2026-10-11","kind":"stage10_live_deployment","description":"Owner-approved 1a9f077 three-file deployment, hashes and byte-identical rollback verified; only dashboard restarted. 60/60 parked requests LIVE. Owner hand-occlusion observation lacks synchronized capture; physical cause remains unknown. Passive BMS btmon denied by OS permissions."}]
+      "events": [
+        {
+          "date": "2026-10-11",
+          "kind": "paired_scan_provenance",
+          "description": "Confirmed measurement semantics and raw point identity; preserved all close returns and production configuration."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "stage10_live_deployment",
+          "description": "Owner-approved 1a9f077 three-file deployment, hashes and byte-identical rollback verified; only dashboard restarted. 60/60 parked requests LIVE. Owner hand-occlusion observation lacks synchronized capture; physical cause remains unknown. Passive BMS btmon denied by OS permissions."
+        }
+      ]
     },
     {
       "id": "ATLAS-001",
@@ -511,7 +542,8 @@
         "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md",
         "docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md",
         "docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md",
-        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md"
+        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md",
+        "docs/deploy/ATLAS_LOCATION_CHECK_NO_AMCL_2026-10-11.md"
       ],
       "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live safety reporter initially said SLAM MAP DATA LOST; a new transient-local subscriber received the saved map, and diagnostic-only reporter restart restored LOCALIZATION/map ONLINE. Root cause of stale prior status not proven; navigation remains unvalidated.",
       "remaining_verification": "The operator confirmed the exact saved Dhruv Room point and heading; stationary scan/map fit identified the earlier out-of-map AMCL pose as wrong, and one saved-pose reseed corrected it. A new operator-confirmed Hall endpoint passes exact saved-map footprint clearance; the taught route still has an older map ID. The recorded manual Hall-to-home return showed >2 m stationary AMCL jumps, 32 traction samples with critical encoder consensus, and disagreement between wheel and IM10A yaw-rate integration. Different endpoint displacements alone do not establish wheel-distance scale error. Diagnose same-time scan/AMCL/odom/TF, wheel agreement and heading before autonomous motion. Audit stale mapping-session marker lifecycle; require an actual Nav2 plan and supervised recorded round trip only after localization is stable.",
@@ -656,6 +688,11 @@
           "date": "2026-10-11",
           "kind": "readonly_reliability_pass",
           "description": "Live repeat: monitor VERIFIED 13:10-13:23 (fit 0.91-0.96); operator web reset + short web drive 13:23:16-13:24:11; first check 13:24:15 LOST 1.05 m/24 deg (AMCL fit 0.51), still LOST 0.74 m/21 deg at 13:30. Monitor detected 4 s after stop. GAP: no recording; bounded drive recorder proposed. Not reseeded."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "location_check_blocked_without_amcl",
+          "description": "19:06 restart: verify-before-seed refused (best 0.90<0.93) so AMCL had no pose; CHECK MY LOCATION required an AMCL pose before its independent search and returned the merged message SCAN UNAVAILABLE or AMCL reference unavailable while scan/TF/map were fresh. Stage 13 (2e10355) deployed 19:45 latched: precise codes, AMCL optional, LIDAR_ONLY_MATCH never VERIFIED. Live Dhruv Room (0.235,-1.435,72-78 deg) fit 0.994-1.000 margin 0.079-0.107. Replay of Oct 10 bag: AMCL alias MISMATCH 3.95 m reproduced. Gap: boot-time fit 0.90 unexplained (no recording). No reseed."
         }
       ]
     },
@@ -843,6 +880,11 @@
           "date": "2026-10-11",
           "kind": "readonly_reliability_pass",
           "description": "8-boot parse: failures only at start (0-21/boot), first scan 20-257 s, never a runtime failure once scanning; signatures T (no reply) and I/S (health OK, start-scan invalid data/timeout); no USB re-enumeration; ModemManager strict filter does not probe the CP2102 (rejected); no other open handle; b28819c deferral observed working on Jetson. LiDAR on VL817 USB-C hub behind Realtek hub with ESP32-S3 and CH340. 5 V supply still SUSPECTED; needs measurement. No change made."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "restart_1906",
+          "description": "19:06 boot: 15 failed RPLIDAR starts, scanning at 216 s; atlas-localization failed 5 times waiting for it. Same start-only pattern."
         }
       ]
     },

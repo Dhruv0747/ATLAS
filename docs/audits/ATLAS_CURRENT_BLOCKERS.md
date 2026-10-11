@@ -1,5 +1,18 @@
 # ATLAS current blockers
 
+11 October 19:47 IST: CHECK MY LOCATION "UNAVAILABLE" after the 19:06 restart. **Root cause:**
+the startup verifier refused to seed (best 0.90 < 0.93), so AMCL was active with no pose. The
+check required an AMCL pose before even starting its independent LiDAR search and reported a
+merged "SCAN UNAVAILABLE or AMCL reference unavailable"; scan, scan-time TF and map were all
+fresh. **Fix (stage 13, deployed latched):** precise blocking codes and a stage table; AMCL
+reported separately; without AMCL the search runs and the best answer is LIDAR_ONLY_MATCH, never
+VERIFIED. Live result in Dhruv Room: (0.235, −1.435, 72–78°), fit 0.994–1.000, margin
+0.079–0.107; runner-up is the known alias near (3.9, −0.6). The isolated replay of the Oct 10 bag
+reproduces the 3.95 m AMCL alias MISMATCH. AMCL is still un-seeded; no reseed was performed. Only
+the location monitor was restarted. Evidence gap: why the boot-time fit was 0.90.
+The voice stop announcement (latch spoken, release silent) is fixed in source (27ccfcd), not
+deployed. See [stage 13 record](../deploy/ATLAS_LOCATION_CHECK_NO_AMCL_2026-10-11.md).
+
 11 October 18:55 IST: CHECK MY LOCATION Stage A is now deployed on both
 dashboard pages with fresh scan/IMU/odometry/TF/map/AMCL validation. 73 scoped
 Python tests, 6 UI assertions, isolated ROS smoke tests and both live buttons
