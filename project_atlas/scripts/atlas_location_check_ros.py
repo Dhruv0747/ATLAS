@@ -24,9 +24,9 @@ def stamp(message):
     return message.header.stamp.sec+message.header.stamp.nanosec*1e-9
 
 
-def checked_age(receipt_age, source_age):
+def checked_age(receipt_age, source_age, label='sensor'):
     if not all(math.isfinite(v) and v >= 0 for v in (receipt_age,source_age)):
-        raise ValueError('future or invalid sensor timestamp')
+        raise ValueError('%s future/invalid timestamp (receipt=%s s, source=%s s)'%(label,receipt_age,source_age))
     return max(receipt_age,source_age)
 
 
@@ -138,8 +138,12 @@ class ManualLocationCheck:
 
     def evidence(self,with_tf=False):
         from rclpy.time import Time
-        n=self.node;now=time.monotonic();ros_now=n.get_clock().now().nanoseconds*1e-9
+        n=self.node
         with self.lock, n.data_lock:
+            # Read clocks AFTER acquiring both snapshot locks. A callback may
+            # have run while we waited; a pre-lock clock makes its receipt
+            # falsely appear to be in the future during an active search.
+            now=time.monotonic();ros_now=n.get_clock().now().nanoseconds*1e-9
             if not n.scans or n.amcl is None:raise ValueError('SCAN UNAVAILABLE or AMCL reference unavailable')
             received,scan=n.scans[-1]
             def get(key):
@@ -150,8 +154,8 @@ class ManualLocationCheck:
             policy=json.loads(policy.data)
             coverage,detail=scan_coverage(scan,n.logic.policy)
             e=dict(scan_age_s=ros_now-stamp(scan),scan_receipt_age_s=now-received,
-                   odom_age_s=checked_age(now-oat,ros_now-stamp(odom)),imu_age_s=checked_age(now-iat,ros_now-stamp(imu)),
-                   amcl_age_s=checked_age(now-(n.amcl_at or 0),ros_now-(n.amcl_stamp or 0)),amcl_pose=list(n.amcl),
+                   odom_age_s=checked_age(now-oat,ros_now-stamp(odom),'odom'),imu_age_s=checked_age(now-iat,ros_now-stamp(imu),'imu'),
+                   amcl_age_s=checked_age(now-(n.amcl_at or 0),ros_now-(n.amcl_stamp or 0),'amcl'),amcl_pose=list(n.amcl),
                    amcl_stamp=n.amcl_stamp,amcl_covariance=n.amcl_covariance,
                    map_id=self.map_id,loaded_map_id=self.loaded_id,stationary_epoch=self.motion_epoch,
                    localization_epoch=self.map_epoch,scan_stamp=stamp(scan),scan_frame=scan.header.frame_id,

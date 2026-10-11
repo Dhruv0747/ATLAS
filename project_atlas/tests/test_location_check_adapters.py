@@ -6,6 +6,7 @@ import sys
 import tempfile
 from types import SimpleNamespace as N
 import unittest
+from unittest.mock import patch
 from email.message import Message
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import atlas_location_check_web as web
@@ -57,6 +58,30 @@ class WebTests(unittest.TestCase):
 
 @unittest.skipUnless(importlib.util.find_spec('numpy'),'numpy required for ROS snapshot geometry tests')
 class GeometryTests(unittest.TestCase):
+    def test_snapshot_clock_is_sampled_after_lock_acquisition(self):
+        import math
+        import threading
+        from atlas_location_check_ros import ManualLocationCheck
+        from atlas_localization_verify_core import VerifyPolicy
+        clock=[10.]
+        class ContendedLock:
+            def __enter__(self):clock[0]=11.
+            def __exit__(self,*args):pass
+        header=N(stamp=N(sec=10,nanosec=500000000),frame_id='laser_frame')
+        zero=lambda:N(x=0.,y=0.,z=0.)
+        cmd=N(linear=zero(),angular=zero())
+        scan=N(header=header,ranges=[2.]*360,angle_min=-math.pi,angle_increment=math.pi/180,range_min=.15,range_max=12.)
+        tf=N(transform=N(translation=zero(),rotation=N(x=0.,y=0.,z=0.,w=1.)))
+        n=N(data_lock=threading.Lock(),scans=[(10.5,scan)],amcl=(0.,0.,0.),amcl_at=10.5,amcl_stamp=10.5,amcl_covariance=[0.]*36,
+            get_clock=lambda:N(now=lambda:N(nanoseconds=int(clock[0]*1e9))),logic=N(policy=VerifyPolicy()),tf=N(lookup_transform=lambda *args:tf))
+        a=ManualLocationCheck.__new__(ManualLocationCheck)
+        a.node=n;a.lock=ContendedLock();a.map_id=a.loaded_id='map';a.motion_epoch=0;a.map_epoch=1;a.last_motion=0.
+        a.values={'odom':(10.5,N(header=header,twist=N(twist=cmd))),'imu':(10.5,N(header=header)),
+                  'policy':(10.5,N(data='{"stop_latched":true}')),'cmd':(10.5,cmd)}
+        with patch.dict(sys.modules,{'rclpy.time':N(Time=N(from_msg=lambda msg:None))}),patch('atlas_location_check_ros.time.monotonic',side_effect=lambda:clock[0]):
+            evidence,_=a.evidence()
+        self.assertEqual(evidence['odom_age_s'],.5)
+        self.assertTrue(evidence['tf_at_scan'])
     def test_future_timestamps_cannot_hide_behind_receipt_age(self):
         from atlas_location_check_ros import checked_age
         self.assertEqual(checked_age(.2,.3),.3)
