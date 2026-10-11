@@ -1,5 +1,13 @@
 # Changelog
 
+2026-10-11: Bounded recorder background writer.
+- Single ordered worker with bounded 32 MiB / 30,000-message queue, atomic pre-roll
+  enqueue, explicit errors and drain-on-stop. Fifteen offline tests pass.
+- Added finite parked validation, root ownership lock, QoS discovery and DDS
+  reported-loss counters. Normal pre-roll expiry is no longer labelled data loss.
+- No motor/control changes or autostart installation. Deployment evidence is
+  maintained in `docs/ATLAS_ROLLOUT_2026-10-11.md`.
+
 2026-10-11: Isolated Humble recorder validation.
 - Fixed missing preroll on closely spaced captures; nine offline tests pass. Real Jetson synthetic serialization/SQLite readback passes for 47,887 messages. Added repeatable smoke/flush harness and measured resource report. Live deployment remains held for synchronous preroll callback blocking; no production service changed.
 

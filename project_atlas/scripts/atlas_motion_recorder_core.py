@@ -38,13 +38,18 @@ class RecorderEngine:
         self.pinned = {}
         self.completed = []
         self.disabled_reason = None
+        self.expired_samples = 0
 
     def _evict(self, now_s):
         while self.buffer and (now_s - self.buffer[0].monotonic_s > self.pre_s
                                or self.buffer_bytes > self.pre_max_bytes):
+            expired = now_s - self.buffer[0].monotonic_s > self.pre_s
             old = self.buffer.popleft()
             self.buffer_bytes -= len(old.payload)
-            self.dropped['prebuffer_evicted'] += 1
+            if expired:
+                self.expired_samples += 1
+            else:
+                self.dropped['prebuffer_memory_pressure'] += 1
 
     def _write(self, sample):
         if self.capture_bytes + len(sample.payload) > self.capture_limit_bytes:
@@ -97,12 +102,18 @@ class RecorderEngine:
                     break
                 self._write(Sample(sample.topic, sample.type_name, sample.payload,
                                    now_s, first_ns or sample.ros_time_ns))
-            for sample in self.buffer:
-                if self.sink is None:
-                    break
-                self._write(sample)
+            if self.sink is not None and hasattr(self.sink, 'write_many'):
+                if self.capture_bytes + self.buffer_bytes > self.capture_limit_bytes:
+                    raise BufferError('pre-roll exceeds capture budget')
+                self.sink.write_many(self.buffer)
+                self.capture_bytes += self.buffer_bytes
+            else:
+                for sample in self.buffer:
+                    if self.sink is None:
+                        break
+                    self._write(sample)
         except Exception as exc:
-            self.sink = None
+            self.close('open_error')
             self.disabled_reason = f'open_error:{type(exc).__name__}'
             self.dropped['open_error'] += 1
 
@@ -131,6 +142,7 @@ class RecorderEngine:
         return dict(active=self.sink is not None, disabled=self.disabled_reason,
                     missing=missing, stale=stale, dropped=dict(self.dropped),
                     received=dict(self.received),
+                    normal_preroll_expired=self.expired_samples,
                     buffered_bytes=self.buffer_bytes,
                     payload_bytes=self.capture_bytes,
                     middleware_drops='unmeasured')

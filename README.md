@@ -1,6 +1,13 @@
 # Project ATLAS - Autonomous Service Rover
 
-### Motion-triggered diagnostics (not deployed)
+### Motion-triggered diagnostics
+
+The bounded background writer removes SQLite I/O from ROS callbacks. Fifteen
+offline recorder tests pass; Jetson transfer of 7,874 pre-roll samples measured
+5–37 ms (previously 463–512 ms). No autostart service is added. The current
+rollout and live-validation status is tracked in `docs/ATLAS_ROLLOUT_2026-10-11.md`.
+
+Earlier baseline (before the background writer):
 
 Isolated Jetson Humble validation: 47,887 messages read back exactly, both SQLite bags healthy, 17.17% of one CPU core and 60.49 MiB recording RSS. Live deployment is held for a measured 0.46–0.51 s synchronous preroll flush. See `docs/MOTION_RECORDER_HUMBLE_VALIDATION_2026-10-11.md`.
 

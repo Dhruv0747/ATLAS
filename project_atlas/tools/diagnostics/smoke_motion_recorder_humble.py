@@ -19,6 +19,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
 from atlas_motion_recorder import RosbagSink, TOPICS, MIB, owned_bytes
 from atlas_motion_recorder_core import RecorderEngine, Sample
+from atlas_motion_recorder_writer import QueuedWriter
 
 
 def proc_values(path):
@@ -92,7 +93,8 @@ def main():
         results = []
         fixtures = templates()
         for attempt in range(3):
-            engine = RecorderEngine(lambda: RosbagSink(args.root, 480*MIB, rosbag2_py))
+            worker = QueuedWriter(lambda: RosbagSink(args.root, 480*MIB, rosbag2_py))
+            engine = RecorderEngine(worker.open_capture)
             for tick in range(1001):
                 for topic, (msg, type_name, period) in fixtures.items():
                     if topic == '/tf_static' or tick % period:
@@ -107,6 +109,9 @@ def main():
             results.append({'attempt': attempt+1, 'buffered_messages': count,
                             'callback_block_seconds': elapsed})
             engine.close('flush_probe')
+            assert worker.shutdown(), 'writer drain timeout'
+            assert not worker.error, worker.error
+            results[-1]['writer'] = worker.health()
         (args.root/'flush_result.json').write_text(json.dumps(results, indent=2)+'\n')
         print(json.dumps(results, indent=2), flush=True)
         return
@@ -132,7 +137,8 @@ def main():
         sinks.append(sink)
         return sink
 
-    engine = RecorderEngine(factory)
+    worker = QueuedWriter(factory)
+    engine = RecorderEngine(worker.open_capture)
     messages = templates()
     base_ns = time.time_ns()
     static_msg, static_type, _ = messages['/tf_static']
@@ -174,6 +180,8 @@ def main():
         if tick % 1500 == 0:
             print(json.dumps({'progress_s': t, 'captures': len(sinks), 'active': engine.sink is not None}), flush=True)
     engine.close('smoke_end')
+    assert worker.shutdown(), 'writer drain timeout'
+    assert not worker.error, worker.error
     wall = time.monotonic() - start
     cpu = time.process_time() - cpu_before
     after_io = proc_values('/proc/self/io')
@@ -233,7 +241,7 @@ def main():
               'available_ram_before_mib': before_system['available_ram_kib']/1024,
               'available_ram_after_mib': after_system['available_ram_kib']/1024,
               'late_ticks_over_100ms': late_ticks, 'dropped': dict(engine.dropped),
-              'bags': expected, 'result': 'PASS'}
+              'writer': worker.health(), 'bags': expected, 'result': 'PASS'}
     (args.root / 'smoke_result.json').write_text(json.dumps(result, indent=2)+'\n')
     print(json.dumps(result, indent=2), flush=True)
 

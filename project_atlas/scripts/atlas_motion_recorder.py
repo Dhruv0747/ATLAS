@@ -8,13 +8,17 @@ write bags; deployment and any background operation need operator approval.
 import argparse
 import gc
 import json
+import math
 import os
 from pathlib import Path
 import shutil
+import signal
 import time
+import urllib.request
 import uuid
 
 from atlas_motion_recorder_core import RecorderEngine, Sample
+from atlas_motion_recorder_writer import QueuedWriter
 
 
 # Subset of record_atlas_demonstration.sh: no camera stream or full /map.
@@ -99,7 +103,13 @@ def main():
                         help='explicit opt-in; do not use before deployment approval')
     parser.add_argument('--root', type=Path,
                         default=Path('/home/jetson/project_atlas/data/diagnostics/motion_capture'))
+    parser.add_argument('--duration', type=float, default=0,
+                        help='exit after this many seconds; zero runs until stopped')
+    parser.add_argument('--stationary-probe', action='store_true',
+                        help='one diagnostic-only capture after 12 s; requires fresh latched/stopped status')
     args = parser.parse_args()
+    if not math.isfinite(args.duration) or args.duration < 0:
+        parser.error('duration must be finite and nonnegative')
     if not args.record:
         parser.error('no recording started; --record is required')
     if not args.root.is_absolute() or args.root == Path('/'):
@@ -115,6 +125,12 @@ def main():
     args.root.mkdir(parents=True, exist_ok=True)
     if args.root.is_symlink():
         parser.error('recording root must not be a symlink')
+    import fcntl
+    lock = (args.root / '.recorder.lock').open('a')
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        parser.error('another recorder already owns this capture root')
 
     rclpy.init()
     node = Node('atlas_motion_recorder')
@@ -125,7 +141,13 @@ def main():
         remaining = quota - owned_bytes(args.root) - 20 * MIB
         return RosbagSink(args.root, remaining, rosbag2_py)
 
-    recorder = RecorderEngine(open_sink, cap_bytes=quota)
+    writer = QueuedWriter(open_sink)
+    recorder = RecorderEngine(writer.open_capture, cap_bytes=quota)
+    started = time.monotonic()
+    probe_done = False
+    stopped = False
+    reported_state = None
+    middleware_events = {'reported_lost': 0, 'unsupported_topics': []}
     sensor_qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.BEST_EFFORT)
     reliable_qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.RELIABLE)
     static_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
@@ -159,12 +181,31 @@ def main():
                 qos = static_qos if topic == '/tf_static' else (
                     sensor_qos if topic in ('/scan', '/scan_raw', '/imu/data')
                     or topic.startswith('/im10a/') else reliable_qos)
-                subscriptions[topic] = node.create_subscription(
-                    msg_class, topic, make_callback(topic, types[0], msg_class), qos, raw=True)
+                endpoints = node.get_publishers_info_by_topic(topic)
+                if topic != '/tf_static' and any(e.qos_profile.reliability == ReliabilityPolicy.BEST_EFFORT for e in endpoints):
+                    qos = sensor_qos
+                try:
+                    from rclpy.event_handler import SubscriptionEventCallbacks
+                    def lost(event):
+                        middleware_events['reported_lost'] += event.total_count_change
+                    events = SubscriptionEventCallbacks(message_lost=lost)
+                    subscriptions[topic] = node.create_subscription(
+                        msg_class, topic, make_callback(topic, types[0], msg_class), qos,
+                        raw=True, event_callbacks=events)
+                except Exception as event_error:
+                    if type(event_error).__name__ not in ('UnsupportedEventTypeException', 'UnsupportedEventTypeError', 'ImportError'):
+                        raise
+                    middleware_events['unsupported_topics'].append(topic)
+                    subscriptions[topic] = node.create_subscription(
+                        msg_class, topic, make_callback(topic, types[0], msg_class), qos, raw=True)
             except Exception as exc:
                 node.get_logger().warning(f'Cannot subscribe {topic}: {type(exc).__name__}')
 
     def heartbeat():
+        nonlocal probe_done, reported_state
+        if writer.error:
+            recorder.close('worker_error')
+            recorder.disabled_reason = writer.error
         recorder.tick(time.monotonic())
         if recorder.sink is not None and owned_bytes(args.root) >= quota:
             recorder.close('storage_cap')
@@ -172,6 +213,14 @@ def main():
         health = recorder.health(time.monotonic(), REQUIRED)
         health['owned_bytes'] = owned_bytes(args.root)
         health['subscribed'] = sorted(subscriptions)
+        health['writer'] = writer.health()
+        health['middleware_events'] = middleware_events
+        health['state'] = ('STOPPED' if stopped else 'ERROR' if recorder.disabled_reason else
+                           'RECORDING' if recorder.sink else 'READY')
+        health['updated_utc'] = time.time()
+        if health['state'] != reported_state:
+            print(json.dumps({'recorder': health['state'], 'root': str(args.root)}), flush=True)
+            reported_state = health['state']
         # One summary file only; never changes or prunes a bag.
         tmp = args.root / 'recorder_health.json.tmp'
         final = args.root / 'recorder_health.json'
@@ -180,16 +229,42 @@ def main():
             os.replace(tmp, final)
         except OSError:
             recorder.dropped['health_write_error'] += 1
+        if not stopped and args.stationary_probe and not probe_done and time.monotonic()-started >= 12:
+            probe_done = True
+            try:
+                with urllib.request.urlopen('http://127.0.0.1:8088/api/status', timeout=2) as response:
+                    status = json.load(response)
+                policy = status['ros']['control_policy']
+                command = status['ros']['cmd_vel']
+                values = json.loads(policy['value'])
+                if (policy['age'] > 2 or command['age'] > 2 or not values.get('stop_latched')
+                    or command['value']['lin'] != 0 or command['value']['ang'] != 0
+                    or any(status['services'].get(k) != 'inactive' for k in ('atlas-nav2','atlas-explore'))):
+                    raise RuntimeError('stationary probe requires fresh latched stop and inactive navigation')
+                recorder.motion(time.monotonic())  # Recorder trigger only. No ROS publication.
+                print('STATIONARY_CAPTURE_STARTED: no motion requested', flush=True)
+            except Exception as exc:
+                recorder.disabled_reason = 'stationary_probe_refused:' + type(exc).__name__
 
     node.create_timer(2.0, discover)
     node.create_timer(1.0, heartbeat)
     discover()
+    def terminate(signum, frame):
+        nonlocal stopped
+        stopped = True
+    signal.signal(signal.SIGTERM, terminate)
     try:
-        rclpy.spin(node)
+        while rclpy.ok() and not stopped and (args.duration <= 0 or time.monotonic()-started < args.duration):
+            rclpy.spin_once(node, timeout_sec=0.25)
     finally:
         recorder.close('shutdown')
+        if not writer.shutdown():
+            recorder.disabled_reason = 'writer_shutdown_timeout'
+        stopped = True
+        heartbeat()
         node.destroy_node()
-        rclpy.shutdown()
+        rclpy.try_shutdown()
+        lock.close()
 
 
 if __name__ == '__main__':
