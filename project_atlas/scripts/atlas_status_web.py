@@ -2038,8 +2038,9 @@ class Handler(BaseHTTPRequestHandler):
                 json_response(self, 200, {"ok": True, "latched": True, "detail": detail,
                                           "message": "EMERGENCY STOP LATCHED. Release with the remote: sticks neutral, hold LB, let go."})
             else:
+                zero = "Zero speed sent" if detail == "published" else "Zero speed NOT sent (ROS link not ready)"
                 json_response(self, 503, {"ok": False, "latched": False, "detail": detail,
-                                          "message": "Zero speed sent but the stop latch is unavailable. Use the remote stop (B)."})
+                                          "message": f"{zero}; the stop latch is unavailable. Use the remote stop (B)."})
             return
         if SHUTDOWN_PENDING.is_set():
             json_response(self, 409, {"ok": False, "message": "Shutdown already requested; controls disabled"})

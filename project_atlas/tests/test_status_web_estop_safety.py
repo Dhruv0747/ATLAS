@@ -129,6 +129,13 @@ class EStopSafety(unittest.TestCase):
         self.assertEqual(r.events, [('TWIST', 0.0, 0.0)])
         self.assertIn('remote stop', p['message'].lower())
 
+    def test_e_stop_when_ros_not_ready_says_zero_not_sent(self):
+        r = self.use(ready=False)
+        status, p = post({'action': 'e_stop'})
+        self.assertEqual(status, 503); self.assertFalse(p['latched'])
+        self.assertIn('NOT sent', p['message']); self.assertIn('remote stop', p['message'].lower())
+        self.assertEqual(r.events, [])
+
     def test_stop_and_e_stop_accepted_while_shutdown_pending(self):
         r = self.use()
         web.SHUTDOWN_PENDING.set()
