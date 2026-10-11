@@ -1,5 +1,135 @@
 # ATLAS current blockers
 
+2026-10-11 13:35 read-only reliability pass (no changes, no motion; see
+[core reliability report](ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md)).
+- **Wi-Fi.** Roams to AP B or the extender X failed DHCP 4 of 16 times (plus 1
+  unresolved when the journal ends); the
+  main router succeeded 26 of 26. The longest outage (73 s on cellular) was a
+  DHCP failure, not radio loss. The fallback agent also saw 5 Wi-Fi Internet
+  failures (17–109 s), one today at 09:39 with no roam. Six 1 s cellular
+  default-route flips with no Wi-Fi event have unknown cause. Power save is on
+  at two levels, the regulatory domain is 00, and BT coexistence runs against
+  1,164 BMS bonding failures this boot.
+- **Correction:** the Oct 10 "46 roams 14:00–15:00" cannot be reproduced from
+  the retained journal (6 found); treat it as unverified.
+- **LiDAR.** Start-only failures: 0–21 per boot, first scan at 20–257 s, never
+  a runtime failure once scanning. No USB re-enumeration. ModemManager,
+  vc02 voice and other port users are ruled out. The deferral fix works. The
+  5 V supply remains suspected; it needs a measurement.
+- **IMU.** The EKF's IM10A gyro outputs exactly 0 when parked (587 of 587
+  samples; 54% zeros on the Oct 2 drive). The Oct 2 "zero drift"
+  qualification therefore did not observe the bias. This does not explain the
+  0.46× fast turn.
+- **Localization.** It failed again live. The operator's web drive at
+  13:23–13:24 took a VERIFIED pose to LOST, 1.05 m / 24°. The monitor caught
+  it 4 s after the stop. There was no recording, so a bounded drive recorder
+  is proposed. ATLAS is currently LOST, with the latch released by the
+  operator. Not reseeded.
+- **Boot −1** ended uncleanly at 00:55:16. Boot 0 began 07:36:51 real time
+  with the clock at 01:16 until NTP.
+
+2026-10-11 00:00 local map validation. Candidate v1 is REJECTED: it opened
+new passages and deleted real surfaces. The safe v3 gives no benefit. The
+corridor needs a supervised slow re-map at ≤ 0.15 m/s and ≤ 15°/s, driven
+by the operator. Fresh scans at the corridor midpoint and the Hall are still
+pending.
+
+2026-10-10 23:30 local map audit, Dhruv Room → Hall (read-only). About 17%
+of the mapped walls in this section are contradicted by 6 independent drives,
+mostly shifted copies drawn by the mapping run's return leg. A candidate map
+(not promoted) improves offline AMCL replays but leaves the corridor weak. A
+slow local re-map is recommended. See
+[local map repair](ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md).
+
+2026-10-10 21:29: steps 1 and 2 of the reliability review were deployed with
+approval. The step 3 LiDAR restart limit is on HOLD. On the Jetson:
+- Dhruv Room was verified by the monitor and by an independent dry run;
+- monitor CPU fell from 0.28 to 0.10 core;
+- in a replay, all states and all stale-input rejections behaved correctly.
+
+Still open: stop latency on a real drive, and LiDAR start failures at boot.
+Autonomy is still disabled.
+
+2026-10-10 21:30 reliability review (offline fixes, **nothing deployed**).
+The monitor took 30–40 s to verify after a stop because the search took
+17–20 s on the Jetson. The monitor also had no stopped/verifying state, could
+apply a result from before a move, and had no input freshness checks. Fixed
+offline:
+- search 2.2–2.6 s on the Jetson with identical hypotheses;
+- expected about 5 s from odometry stop to result.
+
+LiDAR start failures are chronic: 6 of the last 10 boots had 10–21 failed
+starts. The restart loop is unbounded, and two restarters compete. The cause
+of the start failure is unconfirmed; suspected supply at boot, which needs a
+measurement. Mission's 0.85 scan-fit gate is below the alias peak (0.872);
+the autonomy-gate integration is proposed separately. `CPUQuota` is not
+enforced on user services, which corrects an earlier claim. The crash boot
+left no journal. Awaiting approval for the deployment steps. See [reliability review](ATLAS_RELIABILITY_REVIEW_2026-10-10.md).
+
+2026-10-10 19:16–19:27: localization monitor deployed in suggest-only mode,
+with backups and the operator's approval. It marked the live 4 m error LOST
+(fit 0.785), and the page showed red LOST. ATLAS was reseeded while parked
+by the verify-mode seeder (fit 1.00) and independently re-checked VERIFIED
+(monitor fit 0.962, 0.09 m; separate dry run fit 1.00). Autonomy remains
+blocked (`navigation_validated: false`). Next: startup LiDAR stability, then
+supervised recorded slow/fast drives.
+
+2026-10-10 18:30 moving failure after a verified start. A fast remote drive
+from a verified start (3.72, −0.70) to Dhruv Room left AMCL at (4.13, −0.77,
+160°), 4.0 m wrong, while the page said START VERIFIED. Confirmed:
+- the wrong pose is a recurring Dhruv Room alias (fit 0.87), found in 4
+  recordings;
+- EKF odometry reported 0.77 of the distance and **0.46 of the −97.5° turn**,
+  and wheel yaw had the wrong sign;
+- the encoder consensus went CRITICAL at the stop;
+- the cloud collapsed to one particle.
+
+The cause of the heading shortfall is unproven (no drive bag). A
+continuous parked LiDAR check, built and tested offline, flags all 12
+known-wrong AMCL states as LOST and confirmed 14 correct ones on 29 parked
+checks. It is not deployed. "START VERIFIED" no longer turns the page green.
+A recorded repeat drive is needed. See
+[moving failure report](ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md).
+
+2026-10-10 household movement vs start-pose verifier. Quiet Hall scans fit
+0.97–1.00. With people moving (operator confirmed 17:05–17:15) the dry runs
+fit 0.86–0.95; that is a time correlation, because those scans were not
+saved. Stress test: simulated people in real scans from 11 windows, 484
+runs: **0 wrong-place verdicts**. With people, 111 of 176 were verified
+correctly and the rest were UNKNOWN. A wrong place out-scored the truth in 10
+runs (up to 0.919), and both guards rejected them. Percentile aggregation and
+lower thresholds were rejected on this evidence; deployed settings unchanged.
+A people recording is needed to confirm on real data.
+
+2026-10-10 Hall cold start localized as Dhruv Room (confirmed): every
+localization start seeds AMCL at the saved Dhruv Room pose without checking
+the LiDAR. No recovery particles are injected, and 1 Hz parked updates
+collapsed the cloud to one pose duplicated 2,000 times. The covariance is
+round-off (±1e−14) that the map page can show as CONFIDENT and the mux and
+mission control clamp to "perfect". A no-prior LiDAR search finds the Hall
+uniquely (fit 0.976, margin 0.187) and was correct in 11/11 parked windows.
+Replays: saved seed 0/24 correct, Nav2 global 12/24, search seed 24/24.
+A verify-before-seed mode (UNKNOWN instead of guessing) is implemented and
+dry-run on the Jetson: 3 correct VERIFIED, 4 UNKNOWN, 0 wrong. Installed and
+switched on 17:25–17:30 IST with backups (operator approved). AMCL was
+reseeded at the Hall (fit 0.991). Controlled reboot validation is pending. The delayed start was 25
+LiDAR start failures over 11.5 min. See
+[Hall cold-start report](ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
+
+2026-10-10 localization during motion: wheel odometry reports only ~0.6×
+the distance LiDAR scan matching measures (M1/M2/M4 raw counts 0.60–0.62;
+EKF 0.36–0.54 above 0.3 m/s), matching tape results of Sep 16 and Sep 25.
+That drives UNCERTAIN while moving, forward map→odom corrections and the
+"falls behind" symptom. A validated AMCL motion replay shows corrected
+distance raises held-out fit from 0.69–0.74 to 0.84–0.94 on 3 of 4 drives.
+Lowering alphas alone looks confident but is less accurate: rejected.
+CONFIDENT-after-stop is the 1 Hz forced resampling. Wi-Fi roams caused no
+Jetson-side ROS gaps. The dashboard mislabelled link stalls as POSE DELAYED:
+fixed and deployed (display only). Four unclean reboots today followed NVMe
+PCIe error storms. The next gate is a supervised tape-measured distance
+calibration; no calibration, EKF or AMCL change was made. See
+[motion investigation](ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md).
+
 2026-10-10 operator confirms ATLAS was moved by hand on Oct 9. Manual
 relocation (AMCL cannot see it) is the confirmed cause class for the
 outbound 1636 start offset; exact move times were not recorded.

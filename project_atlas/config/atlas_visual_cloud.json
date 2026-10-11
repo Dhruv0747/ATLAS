@@ -1,5 +1,6 @@
 {
-  "cloud_url": "https://atlas-visual-cloud.example/api/v1/ingest",
+  "cloud_url": "http://127.0.0.1:8095/api/v1/ingest",
+  "upload_mode": "local",
   "token_file": "/home/jetson/.config/project_atlas/visual_cloud.token",
   "robot_id": "project-atlas-jetson",
   "publish_interval_s": 1.0,
@@ -9,6 +10,8 @@
   "idle_value_interval_s": 1.0,
   "active_hold_s": 30.0,
   "history_seconds": 10,
+  "viewer_hold_s": 30.0,
+  "demand_check_s": 5.0,
   "topics": {
     "/scan": 8.0,
     "/yahboom/odom": 10.0,

@@ -1,0 +1,13 @@
+ATLAS stage 2: Glass UI V2 at /v2/ (V1 at / stays the default and unchanged)
+Report: docs/ui/ATLAS_GLASS_UI_V2_PROTOTYPE_REPORT_2026-10-11.md   REQUIRES YOUR EXPLICIT APPROVAL
+
+Adds web/v2/ (static files), scripts/atlas_web_v2.py and a 3-line /v2 route in atlas_status_web.py
+(after the existing client_allowed() check). V1 pages, endpoints and POST handling are not changed.
+The V2 E-STOP buttons fire on pointerdown and cancel hold-to-drive (V2 only).
+
+PRECONDITIONS  rover parked, remote stop latched.
+INSTALL        bash install.sh        (restarts nothing)
+RESTART        systemctl --user restart rover-status-web.service
+VERIFY         bash verify.sh stage2   (V1 pages byte-identical before/after; /v2/ assets served)
+PHONE TEST     PC powered OFF; phone on LAN IP, local name and Tailscale: http://<atlas>:8088/v2/
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage2-glass-ui-v2/ROLLBACK.sh, then restart

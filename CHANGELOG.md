@@ -1,5 +1,162 @@
 # Changelog
 
+2026-10-11 13:40: read-only core-reliability pass. No runtime change, no motion, no restart.
+- New read-only tools in `project_atlas/tools/diagnostics/`: `net_timeline.py`, `lidar_starts.py`,
+  `stationary_sample.py`, `im10a_counts.py`.
+- Findings: [core reliability report](docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md)
+  covers Wi-Fi DHCP on secondary APs, LiDAR start-only failures, IM10A static zeroing, and a live
+  moving-localization repeat.
+- Correction: the Oct 10 "46 roams" figure could not be reproduced and is marked unverified.
+
+2026-10-11 (later): four approved preparation stages are **built, tested and staged, not
+installed**. They are staged on the Jetson in `data/staging/2026-10-11/`, and each needs separate
+approval. See the [staged deployment plan](docs/deploy/ATLAS_STAGED_DEPLOYMENT_2026-10-11.md).
+1. **Safety:**
+   - web E-STOP latches the existing mux stop;
+   - drive refused while latched;
+   - stops accepted during shutdown;
+   - unauthenticated reboot action removed.
+
+   See the [safety review](docs/security/ATLAS_ESTOP_SAFETY_REVIEW_2026-10-11.md). New finding:
+   during a two-finger touch, V1's E-STOP sends nothing.
+2. **Glass UI V2 `/v2/` package.** The V2 E-STOP fires on pointerdown and cancels hold-to-drive.
+3. **rover-status-web hot/cold executor split:** 57% → 40.7% of one core (real module, isolated
+   benchmark).
+4. **Visual Cloud** becomes local-only and viewer/activity-activated, with bounded history in a
+   new file (the 25 GB legacy DB is untouched). Measured live: idle 11.5% → 1.4% of one core.
+
+2026-10-11 Glass UI V2 prototype plus three read-only audits. **Nothing was
+deployed or changed on the Jetson.**
+- **Glass UI V2** (`project_atlas/web/v2/`). It is served at `/v2/` by a new allow-listed
+  static route (`scripts/atlas_web_v2.py`). Offline, V2 sends requests identical to V1 for every
+  control. The full results are in the
+  [prototype report](docs/ui/ATLAS_GLASS_UI_V2_PROTOTYPE_REPORT_2026-10-11.md).
+- **Security and safety fix proposal.** It covers the E-STOP-while-holding hazard, the reboot
+  password, same-origin checks and stop during shutdown. See the
+  [proposal](docs/security/ATLAS_DASHBOARD_SECURITY_FIX_PROPOSAL_2026-10-11.md).
+- **Visual Cloud** has received no data since the Oct 4 deployment, which replaced the local
+  URL with the placeholder. The agent still uses 11% of a core, and a 25 GB history DB has no
+  reader. See the
+  [Visual Cloud audit](docs/audits/ATLAS_VISUAL_CLOUD_AUDIT_2026-10-11.md).
+- **rover-status-web** spends about 54% of a core in the rclpy executor (≈290 msgs/s). An
+  isolated benchmark shows a hot/cold executor split saves 29%. See the
+  [server audit](docs/audits/ATLAS_DASHBOARD_SERVER_PERF_AUDIT_2026-10-11.md).
+
+2026-10-10 local map candidate validation (read-only, nothing deployed).
+Candidate v1 is **rejected**: it deleted real surfaces and opened new
+plannable space. The safe v3 adds no passages but localizes the same as the
+active map. Recommendation: a supervised slow re-map of the corridor. The
+plan is in the
+[local map repair analysis](docs/audits/ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md).
+
+2026-10-10 local map audit, Dhruv Room → Hall (read-only). The doubled and
+broken walls trace to the Oct 2 mapping run's return leg. A local candidate
+map is in `maps/candidates/local_dhruv_hall_20261010/` and is **not
+promoted**. Offline:
+- AMCL replay ends correct: 65 / 5 / 100 / 100% → 100 / 90 / 100 / 100%;
+- parked checks: still 15/15.
+
+The corridor still needs a slow local re-map. See the
+[local map repair analysis](docs/audits/ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md).
+
+2026-10-10 22:30: fixed a boot ordering cycle that stopped
+`atlas-localization-monitor` from starting after the 22:24 power-off. The fix
+is deployed, the old unit is backed up in
+`data/backups/2026-10-10-monitor-unit/`, and the monitor is VERIFIED again.
+On the 22:01–22:24 drive:
+- 5 of 11 checked stops gave a result in 4.1–4.2 s;
+- 6 took 6.4–15.3 s because AMCL kept changing after the stop;
+- ATLAS was LOST for most of the drive.
+
+SSD SMART: healthy, with 0 media errors and 1% used, but 442 of 647 power
+cycles were unsafe shutdowns.
+
+2026-10-10 22:21 the live map page (`/mapping`) gained the confirmed
+**SHUT DOWN** button that the Command Center already has. It uses the same
+server action: stop the rover, then a clean `shutdown -h now`. Deployed;
+only `rover-status-web` was restarted. The previous page is backed up in
+`data/backups/2026-10-10-shutdown-button/`. A read-only SSD scan found only
+corrected PCIe link errors, in four boots on Oct 9–10, and none since Oct 10
+14:29. Details are in ATLAS-018.
+
+2026-10-10 21:29 deployed reliability steps 1 and 2 (faster LiDAR search,
+monitor state machine, dashboard labels, sensor-recovery deferral) from
+`2120613`, with approval. Step 3, the LiDAR restart limit, is on hold. Results
+on the Jetson:
+- monitor CPU 0.281 → 0.099 core;
+- recheck search about 2 s;
+- replayed stops reach a result in 4.1–5.3 s.
+
+The deployment record and rollback are in the
+[reliability review](docs/audits/ATLAS_RELIABILITY_REVIEW_2026-10-10.md).
+
+2026-10-10 reliability fixes on branch `claude/localization-motion-investigation`
+(not deployed):
+- LiDAR global search about 8× faster with identical scores (Jetson
+  18.5–20.2 s → 2.2–2.6 s).
+- Monitor states: PARKED_SETTLING, VERIFYING and INPUT_STALE. It also adds
+  episode tokens against stale results, input freshness checks, locking,
+  timing fields and a bounded history in
+  `~/.local/state/project_atlas/localization_check_history.jsonl`.
+- Map page: **STOPPED - CHECKING LOCALIZATION WITH LIDAR**, and a red
+  **LOCALIZATION UNKNOWN - <stale input>**.
+- Sensor recovery defers while systemd is already restarting a unit.
+- A bounded LiDAR restart drop-in is proposed, not installed.
+
+See the
+[reliability review](docs/audits/ATLAS_RELIABILITY_REVIEW_2026-10-10.md).
+
+2026-10-10 deployed the localization monitor (suggest-only) and the map-page
+fix. The live wrong pose was reported LOST, then recovered by the
+verify-mode seeder and independently re-verified. Only `rover-status-web` was
+restarted; the new `atlas-localization-monitor` user service was enabled.
+Backups are in `data/backups/2026-10-10-localization-monitor/`. See the
+[moving failure report](docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md).
+
+2026-10-10 moving localization failure. After a LiDAR-verified start and a
+fast drive, AMCL was 4 m wrong at a recurring Dhruv Room alias while the page
+showed START VERIFIED. Added `atlas_localization_monitor.py` (opt-in, not
+deployed). While parked, it checks the live AMCL pose against a no-prior LiDAR
+search and reports VERIFIED, DEGRADED or LOST. It suggests, or in `auto` mode
+after two agreeing checks applies, a LiDAR reseed, and never grants autonomy.
+`/api/map` adds `localization_check`. The map page is green only on a fresh
+LiDAR check; a start verdict alone shows amber. See the
+[moving failure report](docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md).
+
+2026-10-10 start-pose verifier under household movement. Added an offline
+stress test that inserts simulated walking and standing people into real
+parked scans. Across 484 runs there were 0 wrong-place verdicts; ambiguous
+cases reported UNKNOWN. Percentile aggregation and lower fit thresholds were
+tested and rejected, so the deployed verifier settings are unchanged. See the
+[Hall cold-start report](docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
+
+2026-10-10 Hall cold start investigation. Restarted in the Hall, ATLAS
+showed Dhruv Room as CONFIDENT. The cause: the startup seeder always seeds the
+saved Dhruv Room pose without checking the LiDAR, AMCL injects no recovery
+particles, and parked updates collapsed the cloud to one particle whose
+round-off covariance looks confident. Added a pure LiDAR-to-map verifier, plus
+an opt-in `verify` seed mode (`~/.config/project_atlas/seed_mode`) that seeds
+only a unique LiDAR match and otherwise reports LOCALIZATION UNKNOWN. A
+`--dry-run` check is included. `/api/map` adds `start_verdict`, and the map
+page shows green CONFIDENT only after this boot's LiDAR verification. Deployed
+with backups and switched on at the operator's request; AMCL was reseeded at
+the LiDAR-verified Hall pose. Reboot validation is pending. See
+[Hall cold-start report](docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
+
+2026-10-10 localization during motion investigation. Wheel odometry
+reports ~0.6× the distance LiDAR scan matching measures (raw M1/M2/M4
+0.60–0.62; EKF 0.36–0.54 above 0.3 m/s). This matches the Sep 16/25 tape
+results and is the top-ranked cause of UNCERTAIN-while-moving, forward
+corrections and lag. A new AMCL 1.1.20 motion replay reproduces the recorded
+behaviour. Corrected distance raised held-out scan fit from 0.69–0.74 to
+0.84–0.94 on 3 of 4 drives. Alpha-only tuning made the pose look confident
+but less accurate, so it was rejected. Wi-Fi roams caused no Jetson-side ROS
+gaps. Fixed and deployed (display only, backup kept, no restart): the
+`/mapping` page no longer labels a network stall as POSE DELAYED and keeps
+rover-side ages separate from link age. Added read-only tools and tests. No
+calibration, EKF, AMCL or network setting was changed. See
+[motion investigation](docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md).
+
 2026-10-10 developer branch review: compared the three new GitHub branches
 with baseline `cc5862a` and read-only Jetson state. Confirmed offline AMCL
 particle-loss evidence and a loaded mission-start scan gate. The observed

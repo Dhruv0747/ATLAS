@@ -39,6 +39,39 @@ No physical movement, firmware flashing, safety bypass, calibration or navigatio
 
 ## Findings in plain language
 
+Oct 10 evening review: the LiDAR check itself was right but slow. A 17–20 s
+search and a state machine with no "stopped" state made the page look stuck
+on MOVING for 30–40 s. It could also accept a result from before a move.
+Offline fixes keep the same thresholds and bring the expected time to about
+5 s after odometry shows ATLAS stopped. LiDAR start failures recur on most
+boots; their cause is not yet proven. See [reliability review](ATLAS_RELIABILITY_REVIEW_2026-10-10.md).
+
+Oct 10 moving failure: a verified start is not continuous proof. After a
+fast drive, AMCL sat 4 m wrong at a pose that looks like Dhruv Room from the
+LiDAR, the same alias seen in three earlier recordings. Odometry had
+under-reported the turn by half. A parked LiDAR check of the live pose
+separates right from wrong on all 29 recorded parked checks. It is the
+proposed basis for LOST reporting and operator-confirmed recovery. See
+[moving failure report](ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md).
+
+Oct 10 Hall cold start: the startup seed, not AMCL tuning, put ATLAS in
+Dhruv Room. The seeder always seeds the saved pose. AMCL has no way to
+escape, and a collapsed cloud's near-zero covariance looks like
+confidence. A no-prior LiDAR-to-map search identified the true room every
+time, and is the basis of a verify-before-seed start that reports UNKNOWN
+rather than guess. See
+[Hall cold-start report](ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
+
+Oct 10 motion investigation (supersedes nothing; adds a ranked cause): the
+wheel odometry distance scale is ~0.6 of true distance, measured three
+independent ways and consistent with two earlier tape tests. In a validated
+offline AMCL replay, correcting it is what restores pose accuracy while
+moving. Lowering AMCL noise without fixing it gives confident, wrong poses.
+CONFIDENT-after-stop is forced resampling, and jumps are cloud-winner switches
+on top of that. Wi-Fi only affects the dashboard, whose stall label is now
+fixed. Four crash reboots today (NVMe PCIe errors) reseed AMCL at home. See
+[motion investigation](ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md).
+
 New diagnostic implementation distinguishes actual AMCL scan callback
 completion from pose publication. An isolated stationary replay produced 238
 processing events with only one pose sequence; subsequent scan loss was

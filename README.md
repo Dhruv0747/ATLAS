@@ -1,5 +1,29 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Staged deployment packages — 2026-10-11 (not installed)
+
+`project_atlas/tools/deploy/make_package.py` builds one patch-based package per approved stage:
+- the install rehearses on a scratch copy, backs up, then applies;
+- `ROLLBACK.sh` has its install root pinned;
+- nothing is restarted.
+
+`check_packages.py` rehearses every install order against the deployed baseline, and `verify.sh`
+runs GET-only post-install checks. The current stages and their status are in the
+[staged deployment plan](docs/deploy/ATLAS_STAGED_DEPLOYMENT_2026-10-11.md).
+
+### Glass UI V2 prototype — 2026-10-11 (not deployed)
+
+`project_atlas/web/v2/` is a restyled, phone-first dashboard. It puts the camera and drive pad
+together and keeps a sticky E-STOP on every screen size. It reuses the V1 logic:
+- `command.js` and the sub-pages are generated from V1 by `tools/ui_v2/build_*.py`, with asserted
+  patches;
+- the same server serves it at `/v2/` (`scripts/atlas_web_v2.py`; no new runtime).
+
+V1 at `/` stays the default and the rollback. Regression tests:
+`python3 project_atlas/tools/ui_v2/test_ui_v2.py <snapshot_dir> <out_dir>` and
+`python3 -m unittest tests.test_atlas_web_v2`. See the
+[prototype report](docs/ui/ATLAS_GLASS_UI_V2_PROTOTYPE_REPORT_2026-10-11.md).
+
 ### Mission-start LiDAR check — 2026-10-10
 
 Before any saved-map goal (return home, named place, taught route), mission
@@ -540,6 +564,34 @@ The map page also reports fresh AMCL position/heading uncertainty and flags
 recent large pose corrections. A fresh but uncertain map pose is drawn as an
 amber **estimate**, not a confidently located rover. These are display-only
 diagnostics; the existing Jetson-local motion safety gates remain authoritative.
+Since 2026-10-10 the status chip separates the link from the rover: if this
+browser has not heard from ATLAS for 2.5 s it shows **CONNECTION DELAYED - NO
+DATA FROM ATLAS (ROVER STATE UNKNOWN)**. **POSE DELAYED ON ATLAS** appears only
+when a fresh response reports a stale Jetson-side pose. The pose panel lists
+"Data age on ATLAS" and "Link to this screen" separately. Wi-Fi or Tailscale
+drops therefore no longer look like localization failures.
+A low AMCL covariance alone no longer turns the chip green. Green **LIVE / AMCL
+CONFIDENT (START VERIFIED)** also needs this boot's LiDAR start check
+(`seed_atlas_localization.py` in `verify` mode). Otherwise the page shows
+**AMCL CONFIDENT - START POSE NOT VERIFIED** or **LOCALIZATION UNKNOWN**. To
+opt in, run `echo verify > ~/.config/project_atlas/seed_mode`. To check
+without seeding, run `seed_atlas_localization.py --dry-run`. Neither grants
+navigation authority.
+A start check is not continuous proof. Green **LIVE / LOCALIZATION VERIFIED BY
+LIDAR** needs `atlas_localization_monitor.py`. That monitor checks the current
+AMCL pose against the LiDAR whenever ATLAS has been parked for 2 s, and the
+check must be under 60 s old. Otherwise the page shows **MOVING – LOCALIZATION
+NOT VERIFIED**, **LOCALIZATION NOT CONFIRMED – PARK TO CHECK**, **LOCALIZATION
+LOST** (with the LiDAR's pose), or **START VERIFIED ONLY, NOT RE-CHECKED**.
+Recovery mode is set in `~/.config/project_atlas/relocalize_mode`: `suggest`
+(the default) or `auto`. In `auto`, AMCL is reseeded only after two agreeing
+parked checks. No mode grants autonomy.
+After a stop, the monitor shows **STOPPED - CHECKING LOCALIZATION WITH LIDAR**
+(PARKED_SETTLING, then VERIFYING) until the check finishes. If odometry, the
+LiDAR or the AMCL pose stops arriving, it shows red **LOCALIZATION UNKNOWN**
+(INPUT_STALE). A result is discarded if ATLAS moved, an input went stale or
+AMCL changed during the check. Each transition and its timing is appended to
+`~/.local/state/project_atlas/localization_check_history.jsonl`.
 
 ### AI/robotics adaptation Phase 0 — 2026-09-30
 

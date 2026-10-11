@@ -1,0 +1,11 @@
+ATLAS stage 1: E-STOP latch, drive refusal while latched, stops during shutdown, reboot removal
+Review: docs/security/ATLAS_ESTOP_SAFETY_REVIEW_2026-10-11.md      REQUIRES YOUR EXPLICIT APPROVAL
+
+Changes rover-status-web only (scripts/atlas_status_web.py). No mux, motor, Nav2 or network change.
+
+PRECONDITIONS  rover parked, remote stop latched (B), Xbox remote in hand, autonomy disabled.
+INSTALL        bash install.sh        (dry-run, backup + ROLLBACK.sh, apply; restarts nothing)
+RESTART        systemctl --user restart rover-status-web.service      (dashboard gone ~5 s)
+VERIFY         bash verify.sh stage1   then the no-motion phone checks in the review document
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage1-safety/ROLLBACK.sh
+               systemctl --user restart rover-status-web.service

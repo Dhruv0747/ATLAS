@@ -1,0 +1,13 @@
+ATLAS stage 1b: authenticated web reset of the software E-STOP latch (requires stage 1 first)
+Review: docs/security/ATLAS_ESTOP_SAFETY_REVIEW_2026-10-11.md      REQUIRES YOUR EXPLICIT APPROVAL
+
+Adds scripts/atlas_estop_reset.py and changes scripts/atlas_status_web.py (state + reset endpoints,
+fresh-press rule, event log, classic-dashboard panel). The web never releases the latch itself: it
+calls the mux's existing /atlas/remote_stop/reset, which requires the physical remote, neutral >= 1 s.
+
+PRECONDITIONS  stage 1 installed; rover parked; remote stop latched; remote in hand.
+ONE-TIME PIN   python3 ~/project_atlas/scripts/atlas_estop_reset.py set-pin   (you type it; hash only)
+INSTALL        bash install.sh        (refuses unless stage 1 is already installed; restarts nothing)
+RESTART        systemctl --user restart rover-status-web.service
+EVENT LOG      ~/project_atlas/data/safety/estop_events.jsonl
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage1b-estop-reset/ROLLBACK.sh, then restart

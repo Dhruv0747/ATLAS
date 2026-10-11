@@ -103,3 +103,34 @@ They do not validate the combined production runtime, repair AMCL jumps, or
 prove the scan-fit threshold under dynamic obstacles. The source-timestamp/TF
 synchronization concern above remains open. Do not fast-forward the production
 branch or deploy this merge solely on these test results.
+
+## Oct 11 developer sync
+
+The newer `claude/localization-motion-investigation` branch was fetched and
+merged cleanly into a separate source-integration branch. This brings in the
+developer's localization monitor, bounded diagnostic tools, web safety and V2
+dashboard source, tests, and deployment records. The merge itself did **not**
+run a deployment script or change the rover. The developer's records state
+that stages 1, 1b, 2, 3 and 4 were separately installed on the Jetson; that
+claim is not a validation of their combined behavior in this merge.
+
+On this Windows checkout, 23 scan-fit/mission-pose tests and 6 V2 tests pass.
+The new localization tests cannot import because this Python lacks NumPy;
+web-server safety tests cannot import because it lacks OpenCV. Two Visual
+Cloud tests hit Windows SQLite file-lock cleanup errors. Those suites are
+**not** counted as passes on this integrated branch. Earlier developer test
+reports remain evidence for their own branch, not a substitute for integrated
+regression testing.
+
+The new read-only reliability audit reports that a short manual drive moved
+the monitor from VERIFIED to LOST, about 1.05 m / 24° away from its scan-based
+estimate. No bag captured that drive, so wheel scale versus AMCL cannot be
+assigned from it. Localization is not ready for autonomous release. The same
+audit reports a 60-second parked IM10A gyro stream of 587 exact zero samples;
+that observation does not verify moving-turn accuracy.
+
+The FlySky FS-iA10B receiver is **not** integrated by this branch. The UNO R4
+firmware still reserves D0/RX (`Serial1`) for its legacy GNSS reader, even
+though the commissioned GNSS is now on USB/Jetson. Do not attach the i-BUS
+signal or enable receiver-to-motion authority until firmware, Jetson bridge,
+loss-of-signal stop, and lifted-wheel tests are implemented and reviewed.

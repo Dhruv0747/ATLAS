@@ -1,0 +1,12 @@
+ATLAS stage 4: Visual Cloud local-only, viewer/activity-activated, bounded history
+Audit: docs/audits/ATLAS_VISUAL_CLOUD_AUDIT_2026-10-11.md   REQUIRES YOUR EXPLICIT APPROVAL
+
+Agent, core, server and config/atlas_visual_cloud.json. No unit-file change. The 25 GB legacy
+data/visual_cloud/history.sqlite3 is never opened; bounded history goes to history_bounded.sqlite3.
+Live measurement: idle 11.5% -> 1.4% of one core; with a viewer unchanged (~11%).
+
+PRECONDITIONS  none safety-related (observability only; publishes nothing to ROS).
+INSTALL        bash install.sh        (restarts nothing)
+RESTART        systemctl --user restart atlas-visual-cloud-server.service atlas-visual-cloud-agent.service
+VERIFY         bash verify.sh stage4   (no DNS warnings; idle CPU; legacy DB unchanged; viewer works)
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage4-visual-cloud/ROLLBACK.sh, then restart both

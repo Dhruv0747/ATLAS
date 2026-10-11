@@ -251,6 +251,27 @@ class AtlasRecovery(Node):
         self.service_cache[service] = (now, active)
         return active
 
+    def restart_pending(self, service):
+        """True while systemd itself is already (re)starting the unit.
+
+        2026-10-10 boot: atlas-lidar.service was in its own Restart=on-failure
+        cycle when this node also ran `systemctl restart`, killing a fresh
+        rplidar handshake one second after systemd started it. One restarter
+        per unit: defer to systemd while it is mid-cycle.
+        """
+        if not service:
+            return False
+        try:
+            result = subprocess.run(
+                ["systemctl", "--user", "show", "-p", "ActiveState", "-p", "SubState", service],
+                capture_output=True, text=True, timeout=5, check=False,
+            )
+        except Exception:
+            return False
+        fields = dict(line.split("=", 1) for line in str(result.stdout).splitlines() if "=" in line)
+        return fields.get("ActiveState") == "activating" or fields.get("SubState") in (
+            "auto-restart", "start-pre", "start", "start-post")
+
     def bad_status(self, name):
         # Preserve the legacy text-monitor scope; JSON keys such as
         # "faults":[] in a BMS payload are not themselves evidence of failure.
@@ -313,6 +334,11 @@ class AtlasRecovery(Node):
             # slow call as well, directly before the restart operation.
             if not self.restart_allowed(item):
                 self.publish_status(f"RECOVERY CANCELED: {item.name}; stop guard changed")
+                return
+            if self.restart_pending(item.service):
+                # Counts as an attempt (keeps the 60 s cooldown and 3/600 s bound).
+                self.publish_status(
+                    f"RECOVERY DEFERRED: {item.name}; systemd is already restarting {item.service}")
                 return
             attempt = len(self.attempts[item.name])
             self.publish_status(
