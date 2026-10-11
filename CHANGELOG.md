@@ -1,5 +1,8 @@
 # Changelog
 
+2026-10-11: Isolated Humble recorder validation.
+- Fixed missing preroll on closely spaced captures; nine offline tests pass. Real Jetson synthetic serialization/SQLite readback passes for 47,887 messages. Added repeatable smoke/flush harness and measured resource report. Live deployment remains held for synchronous preroll callback blocking; no production service changed.
+
 2026-10-11: Motion diagnostic recorder (offline only).
 - Added an opt-in, motion-triggered ROS bag recorder with ten-second pre/post capture, bounded storage, per-topic health and drop reporting, and no motor-control dependency. Offline tests and synthetic benchmark added. Not deployed or enabled on the Jetson.
 

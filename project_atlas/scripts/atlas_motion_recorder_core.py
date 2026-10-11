@@ -65,12 +65,11 @@ class RecorderEngine:
         self.last_seen[sample.topic] = sample.monotonic_s
         if self.disabled_reason:
             return
-        if self.sink is not None:
-            self._write(sample)
-            return
         self.buffer.append(sample)
         self.buffer_bytes += len(sample.payload)
         self._evict(sample.monotonic_s)
+        if self.sink is not None:
+            self._write(sample)
 
     def pin(self, sample):
         """Retain the newest latched context without extending the ten-second ring."""
@@ -102,8 +101,6 @@ class RecorderEngine:
                 if self.sink is None:
                     break
                 self._write(sample)
-            self.buffer.clear()
-            self.buffer_bytes = 0
         except Exception as exc:
             self.sink = None
             self.disabled_reason = f'open_error:{type(exc).__name__}'

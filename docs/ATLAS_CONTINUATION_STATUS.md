@@ -1,5 +1,7 @@
 # ATLAS continuation status — 2026-10-11
 
+Recorder update: isolated Jetson Humble serialization and SQLite readback passed (47,887 messages). Closely spaced capture preroll was fixed and nine offline tests pass. No live recorder service was enabled. Next recorder gate is removal of the measured 0.46–0.51 s synchronous preroll flush before a separately approved supervised subscription trial. See `MOTION_RECORDER_HUMBLE_VALIDATION_2026-10-11.md`; the older task register below is the reconciliation baseline.
+
 This is a source-and-read-only-runtime reconciliation, not an autonomy release.
 The handoff baseline `3ad76db` is historical. The developer branch had advanced
 to `248d42c` when checked; its commits are included in review branch

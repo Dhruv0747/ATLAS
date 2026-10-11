@@ -88,6 +88,25 @@ class RecorderTests(unittest.TestCase):
         self.assertTrue(h['active'])
         r.close()
 
+    def test_next_capture_keeps_ten_seconds_including_previous_postroll(self):
+        sinks = []
+
+        def factory():
+            sinks.append(Sink())
+            return sinks[-1]
+
+        r = RecorderEngine(factory)
+        for t in range(31):
+            r.ingest(sample(t))
+            if t in (10, 11, 25):
+                r.motion(t)
+            r.tick(t)
+        self.assertEqual(len(sinks), 2)
+        self.assertEqual(sinks[1].samples[0].monotonic_s, 15)
+        self.assertEqual(len({s.monotonic_s for s in sinks[1].samples}),
+                         len(sinks[1].samples))
+        r.close()
+
     def test_write_error_fail_closed(self):
         r = RecorderEngine(lambda: Sink(fail=True))
         r.ingest(sample(0))

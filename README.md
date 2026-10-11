@@ -2,6 +2,8 @@
 
 ### Motion-triggered diagnostics (not deployed)
 
+Isolated Jetson Humble validation: 47,887 messages read back exactly, both SQLite bags healthy, 17.17% of one CPU core and 60.49 MiB recording RSS. Live deployment is held for a measured 0.46–0.51 s synchronous preroll flush. See `docs/MOTION_RECORDER_HUMBLE_VALIDATION_2026-10-11.md`.
+
 An opt-in, bounded ROS bag recorder is available for offline review in `project_atlas/scripts/atlas_motion_recorder.py`. It has no autostart service and has not been deployed on ATLAS. Design, safety limits, validation and approval-gated installation are in `docs/MOTION_TRIGGERED_RECORDER_2026-10-11.md`.
 
 ### Staged deployment packages — 2026-10-11 (not installed)
