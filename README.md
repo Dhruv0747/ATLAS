@@ -7,6 +7,10 @@ prepared, NOT deployed. See the decision-path appendix in
 [LiDAR evidence](docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md). This is not
 autonomous-navigation acceptance; stop remains latched.
 
+A separate source-only RPP correction explicitly matches obstacle-cost
+conversion factor 15 to the existing inflation layer (live controller was 3).
+Inflation geometry and motion limits are unchanged; deployment requires approval.
+
 2026-10-11 sensing audit: the reproduced 0.51 m FRONT minimum is a raw
 front-right return near -44.7 degrees, not the wall straight ahead.
 [Evidence, candidate diagnostics and remaining validation](docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md).

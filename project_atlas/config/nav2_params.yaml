@@ -118,6 +118,9 @@ controller_server:
       max_allowed_time_to_collision_up_to_carrot: 0.8
       use_regulated_linear_velocity_scaling: true
       use_cost_regulated_linear_velocity_scaling: true
+      # Must match local_costmap inflation_layer.cost_scaling_factor. This
+      # converts cell cost back to distance; it is not new inflation tuning.
+      inflation_cost_scaling_factor: 15.0
       regulated_linear_scaling_min_radius: 0.35
       regulated_linear_scaling_min_speed: 0.11
       use_rotate_to_heading: false

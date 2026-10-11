@@ -398,3 +398,14 @@ Next engineering gate is actual isolated controller + obstacle-layer replay,
 including missing rear data, stale scans, clearing and candidate paths. No
 physical drive is needed to close those software questions. Final loaded
 stopping/turn validation needs separate permission afterward.
+
+### Separate inflation conversion candidate
+
+Both source YAML copies now explicitly set RPP inflation_cost_scaling_factor
+to 15, matching the unchanged local inflation cost_scaling_factor. For a
+nonlethal cost of 100 and inscribed radius 0.18 m, the distance inferred using
+3 is about 0.488 m, versus 0.242 m using 15. This is a cell-cost inversion,
+not a directly measured obstacle range. Integer-cost roundtrip tests across
+0.20–0.28 m stay within 2 mm with the corrected factor. Proximity speed floors
+still apply; physical stopping safety and actual controller outputs remain
+unvalidated. No live parameter was changed and no restart performed.

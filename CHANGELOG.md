@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-11: Separate RPP inflation-distance contract candidate, NOT deployed.
+- Explicit conversion factor 15 matches the existing local inflation layer
+  instead of default 3; synchronize both Nav2 YAML copies. No radius/footprint,
+  steering, speed, reverse or collision-detection setting changed.
+- Configuration and cost-distance inversion tests added. This corrects a
+  measured contract mismatch, not proof of complete controller acceptance.
+
 2026-10-11: Decision-path audit; recovery unknown-clearance candidate, NOT deployed.
 - Actual recovery methods reproduced four unsafe unknown/out-of-range cases;
   reject missing sectors as unavailable clearance and reject ranges above max.
