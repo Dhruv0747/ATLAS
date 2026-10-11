@@ -225,9 +225,15 @@ class Announcements:
             if self.transition(key, state) and state in ('CRITICAL', 'DEGRADED', 'STALE'):
                 output.append((key, f'{label} reports {state.lower()}. Check the dashboard before driving.'))
         policy = as_object(values.get('control_policy'))
+        was_latched = self.seen.get('stop') is True
         if policy and self.transition('stop', bool(policy.get('stop_latched'))):
+            # Announce both edges, so a spoken "latched" is never left standing after a release
+            # (2026-10-11: boot-time latch was announced, the later LB release was silent).
             if policy.get('stop_latched'):
-                output.append(('stop', 'Remote safety stop is latched. Check the dashboard. Only the remote can release it.'))
+                output.append(('stop', 'Safety stop latched. Release it with the remote, sticks centred and L B held, '
+                                       'or with the dashboard reset and PIN.'))
+            elif was_latched:   # never announce a "release" of a stop that was not announced as latched
+                output.append(('stop', 'Safety stop released. Nothing moves until a new drive command.'))
         mission = str(values.get('mission_status', ''))
         if self.transition('mission', mission):
             text = mission_announcement(mission)

@@ -126,6 +126,26 @@ class VoicePolicyTest(unittest.TestCase):
         self.assertIn('stale', a.evaluate(self.values)[0][1])
         self.assertEqual(a.evaluate(self.values), [])
 
+    def test_stop_latch_and_release_are_both_announced(self):
+        a = Announcements(lambda: self.now)
+        def say(policy):
+            self.values['control_policy'] = json.dumps(policy)
+            out = []
+            for step in (0, 2.1):
+                self.now += step
+                out += a.evaluate(self.values)
+            return [text for key, text in out if key == 'stop']
+        self.now = 16
+        self.assertEqual(say({'stop_latched': False}), [])            # startup: nothing was latched, no "released"
+        latched = say({'stop_latched': True})
+        self.assertEqual(len(latched), 1)
+        self.assertIn('latched', latched[0])
+        self.assertIn('dashboard reset', latched[0])                  # the web reset exists; not "only the remote"
+        released = say({'stop_latched': False})
+        self.assertEqual(len(released), 1)
+        self.assertIn('released', released[0])
+        self.assertEqual(say({'stop_latched': False}), [])           # no repeats
+
     def test_mission_no_false_success(self):
         for status in ('RETURN HOME GOAL DISPATCHED', 'RETURN HOME FINISHED status=4', 'QUEUED save_map', 'READY'):
             self.assertIsNone(mission_announcement(status))
