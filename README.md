@@ -1,5 +1,12 @@
 # Project ATLAS - Autonomous Service Rover
 
+11 October approved follow-up: the isolated installed Nav2 controller + exact
+live-based command-mux candidate passed 15 safety/behavior checks. The new
+stop-only LiDAR availability veto applies to NAV2/recovery only; it is not a
+path-clearance estimator and leaves manual steering unchanged. Deployment
+status and limits: [navigation guard report](docs/audits/ATLAS_NAVIGATION_GUARD_DEPLOYMENT_2026-10-11.md).
+The historical source-only entries below describe earlier stages.
+
 11 October follow-up: recovery now rejects stale acquisition timestamps as
 well as stale arrival times, including before its first pulse. Thirteen
 source regressions pass; this extension is NOT installed. Deployment remains

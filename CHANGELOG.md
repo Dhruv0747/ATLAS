@@ -1,5 +1,17 @@
 # Changelog
 
+2026-10-11: Approved scan-availability guard and full-controller validation.
+- Actual installed controller/action/costmap replay reproduced continued commands
+  with missing/stale scans and an unobserved rear sector; expected_update_rate
+  alone did not reject fresh-arrival old-stamp messages.
+- Stop-only mux veto rejects unavailable/stale directional observations for
+  NAV2/recovery. Manual remote commands and steering calibration are untouched.
+- Exact live-based candidate passes 15 isolated integration checks; 12 guard,
+  13 recovery, 6 stop-hold, 4 replay-acceptance and 3 inflation tests pass.
+- Stage-specific patch generator preserves unrelated undeployed AMCL changes;
+  native RPP dynamic inflation update validated without localization restart.
+- Deployment evidence is maintained in the navigation guard report.
+
 2026-10-11: Recovery freshness extension, NOT deployed.
 - Reject old/zero/future scan acquisition times, expired arrival times and
   malformed scan geometry. Recheck before the first post-clearing pulse.

@@ -14,7 +14,8 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import Empty, Float32, String
-from sensor_msgs.msg import Joy
+from sensor_msgs.msg import Joy, LaserScan
+from atlas_lidar_availability import LidarAvailability
 from nav_msgs.msg import Odometry
 from std_srvs.srv import Trigger
 from atlas_remote_stop import RemoteStop
@@ -61,6 +62,14 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("watchdog_period", 0.05)
         self.declare_parameter("manual_timeout", 0.35)
         self.declare_parameter("nav_timeout", 0.50)
+        self.declare_parameter('lidar_guard_timeout_s', 0.75)
+        self.declare_parameter('lidar_guard_frame', 'laser_frame')
+        self.declare_parameter('lidar_guard_yaw_deg', 180.0)
+        self.lidar_availability = LidarAvailability(
+            float(self.get_parameter('lidar_guard_timeout_s').value),
+            str(self.get_parameter('lidar_guard_frame').value),
+            float(self.get_parameter('lidar_guard_yaw_deg').value))
+        self.create_subscription(LaserScan, '/scan', self.on_guard_scan, qos_profile_sensor_data)
         self.declare_parameter("foxglove_max_linear", 0.20)
         self.declare_parameter("foxglove_max_angular", 0.45)
         self.declare_parameter("foxglove_steering_expo", 2.0)
@@ -294,6 +303,19 @@ class AtlasCmdVelMux(Node):
                 msg.angular.x, msg.angular.y, msg.angular.z,
             )
         )
+
+    def on_guard_scan(self, msg):
+        self.lidar_availability.update(msg, time.monotonic())
+
+    def lidar_command_guard(self, source, command, now):
+        # Manual operator control is deliberately unchanged. This never grants
+        # authority: it can only veto NAV2/recovery after selection by the mux.
+        if source not in ('NAV2', 'RECOVERY'):
+            return None
+        reason = self.lidar_availability.reason(
+            command.linear.x, command.angular.z,
+            self.get_clock().now().nanoseconds * 1e-9, now)
+        return 'LIDAR AVAILABILITY STOP: ' + reason if reason else None
 
     @staticmethod
     def copy_twist(msg: Twist) -> Twist:
@@ -824,6 +846,8 @@ class AtlasCmdVelMux(Node):
             blocked_reason = blocked_reason or self.autonomous_guard(
                 selected.command, now
             )
+            blocked_reason = blocked_reason or self.lidar_command_guard(
+                selected.name, selected.command, now)
             if blocked_reason:
                 if selected.name == 'COMMISSION':
                     self.revoke_commission(

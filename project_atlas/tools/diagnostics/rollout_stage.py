@@ -22,12 +22,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--package', type=Path, required=True)
     parser.add_argument('--install', action='store_true')
+    parser.add_argument('--root', choices=('/home/jetson/project_atlas',
+        '/home/jetson/project_atlas_ws/src/tortoisebot_bringup'),
+        default='/home/jetson/project_atlas')
     args = parser.parse_args()
-    live = Path('/home/jetson/project_atlas')
+    live = Path(args.root)
     manifest = (args.package/'MANIFEST').read_text().splitlines()
     files = [line.split()[1] for line in manifest if line.startswith(('ADD ', 'PATCH '))]
     if not files or any(Path(f).is_absolute() or '..' in Path(f).parts for f in files):
         raise ValueError('invalid manifest')
+    if args.root.endswith('tortoisebot_bringup') and files != ['config/nav2_params.yaml']:
+        raise ValueError('workspace installation restricted to the Nav2 config copy')
     status()
     scratch = Path(tempfile.mkdtemp(prefix='atlas_stage_rehearsal_'))
     for folder in ('scripts','config','web/v2'):
