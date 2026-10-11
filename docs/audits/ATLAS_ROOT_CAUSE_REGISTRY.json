@@ -291,6 +291,16 @@
           "date": "2026-10-09",
           "kind": "post_freshness_deployment",
           "description": "10:07:12 IST new BMS process had another connect-stage deadline, then complete reads resumed. Freshness repair did not fix BLE connectivity."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "bounded_reconnect_rollout",
+          "description": "Baseline 120 s: 15 connect-stage timeouts, zero healthy samples, no bonding failures in this window. Healthy-link reuse and 10/20/40/80/120 s reconnect backoff deployed at bff88ac after 19 focused tests and exact rollback rehearsal. Five-second healthy polling and invalid status heartbeats retained. Owner confirms phone BMS app disconnected. Connection failure remains unresolved; see docs/ATLAS_ROLLOUT_2026-10-11.md."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "rollout_rolled_back_competing_retry_owner",
+          "description": "Recovery supervisor restarted BMS at 60-second intervals while its bounded retry loop was alive, resetting backoff. Stage rolled back and only BMS restarted. Four failures versus fifteen per 120 seconds is confounded by those restarts; no healthy BLE sample in either window. Phone app disconnected per owner. Offline explicit fresh-heartbeat retry ownership fix passes regression tests but is not deployed; supervisor restart needs approval. BLE connection root cause remains unverified."
         }
       ]
     },

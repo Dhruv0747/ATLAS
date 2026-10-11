@@ -1,5 +1,15 @@
 # Changelog
 
+2026-10-11: Parked rollout validation and BMS rollback.
+- Recorder installed opt-in: 3,203 live messages, one DDS-reported loss, no
+  application drops; 29.29% of one CPU core and 78.27 MiB RSS. No autostart.
+- BMS rollout rolled back after competing supervisor restarts reset backoff.
+  Offline ownership fix exempts only fresh, explicit BMS retry heartbeats;
+  faults remain faults and stale heartbeats retain existing recovery policy.
+- Parse BMS health as JSON rather than whitespace-sensitive text. Nineteen
+  recovery, nineteen Daly and sixteen recorder tests pass. Ownership fix is
+  NOT deployed. No motor, network, steering or autonomy changes.
+
 2026-10-11: Daly reconnect control (separate rollout stage).
 - Reuse a healthy GATT connection, drain old transaction bytes, close on protocol
   failure, and back off reconnect attempts 10/20/40/80/120 seconds.

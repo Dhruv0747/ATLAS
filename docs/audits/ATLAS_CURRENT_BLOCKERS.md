@@ -1,5 +1,15 @@
 # ATLAS current blockers
 
+2026-10-11 staged rollout update: bounded motion recorder installed and parked
+capture verified (3,203 messages; one DDS-reported loss; zero application drops).
+No continuous service, no movement. BMS link reuse/backoff stage rolled back
+after confirmed competing recovery-supervisor restarts. Offline ownership fix
+awaits approval to restart the supervisor; no motor-related restart performed.
+connection root cause still unresolved. Owner confirms phone BMS app disconnected.
+Current Wi-Fi baseline had no losses/disconnects over 120 s; this does not erase
+historical roaming/DHCP faults. No network settings changed. See
+`../ATLAS_ROLLOUT_2026-10-11.md` for deployment identities, rollback and measurements.
+
 2026-10-11 13:35 read-only reliability pass (no changes, no motion; see
 [core reliability report](ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md)).
 - **Wi-Fi.** Roams to AP B or the extender X failed DHCP 4 of 16 times (plus 1

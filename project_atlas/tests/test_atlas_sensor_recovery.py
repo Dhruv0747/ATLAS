@@ -54,6 +54,45 @@ class RecoveryTests(unittest.TestCase):
     def update(self, data):
         self.node.on_message('encoder_health', String(data))
 
+    def bms_setup(self):
+        item = SimpleNamespace(name='bms', service='rover-daly-bms.service', stale_after=15.)
+        self.node.last_seen['bms'] = self.now
+        self.node.last_value['bms'] = json.dumps({'ok': False,
+            'retry_owner': 'daly_transport_v1', 'reconnect_in_s': 120})
+        self.node.last_notice['bms'] = 0
+        return item
+
+    def test_bms_owned_retry_stays_fault_without_restart(self):
+        item = self.bms_setup()
+        self.assertTrue(self.node.bad_status('bms'))
+        self.node.schedule_recovery(item, 'offline')
+        self.ns['threading'].Thread.assert_not_called()
+        self.process.run.assert_not_called()
+
+    def test_bms_stale_or_invalid_ownership_not_exempt(self):
+        item = self.bms_setup()
+        self.assertTrue(self.node.bms_retry_owned(item, self.now))
+        self.assertFalse(self.node.bms_retry_owned(item, self.now + 16))
+        self.assertFalse(self.node.bms_retry_owned(item, self.now - 1))
+        for value in (None, True, -1, 121, float('nan'), '10'):
+            self.node.last_value['bms'] = json.dumps({'retry_owner': 'daly_transport_v1', 'reconnect_in_s': value})
+            self.assertFalse(self.node.bms_retry_owned(item, self.now))
+        for value in ('[]', 'broken', '{}'):
+            self.node.last_value['bms'] = value
+            self.assertFalse(self.node.bms_retry_owned(item, self.now))
+
+    def test_retry_ownership_never_exempts_motor_service(self):
+        item = self.bms_setup()
+        item.service = 'rover-base-telemetry.service'
+        self.assertFalse(self.node.bms_retry_owned(item, self.now))
+
+    def test_worker_rechecks_bms_ownership(self):
+        item = self.bms_setup()
+        self.node.restart_allowed = Mock(return_value=True)
+        self.node.classify = Mock(return_value=('FAULT', 0, 'offline'))
+        self.node.recover(item, 'queued before heartbeat', 3)
+        self.process.run.assert_not_called()
+
     def zero(self):
         self.node.on_velocity(SimpleNamespace(linear=SimpleNamespace(x=0, y=0), angular=SimpleNamespace(z=0)))
 

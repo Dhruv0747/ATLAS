@@ -276,6 +276,12 @@ class AtlasRecovery(Node):
         # Preserve the legacy text-monitor scope; JSON keys such as
         # "faults":[] in a BMS payload are not themselves evidence of failure.
         value = self.last_value[name][:DISPLAY_STATUS_CHARS].lower()
+        if name == 'bms':
+            try:
+                payload = json.loads(self.last_value[name])
+                return not isinstance(payload, dict) or payload.get('ok') is not True
+            except (TypeError, ValueError):
+                return True
         if name == "encoder_health":
             try:
                 payload = json.loads(self.last_value[name])
@@ -286,8 +292,33 @@ class AtlasRecovery(Node):
                 return True
         return any(word in value for word in BAD_WORDS)
 
+    def bms_retry_owned(self, item, now):
+        """Fresh explicit transport ownership prevents competing retry loops.
+
+        This does not make battery data healthy or permit motion. A missing or
+        stale heartbeat still falls through to the existing recovery policy.
+        """
+        if item.name != 'bms' or item.service != 'rover-daly-bms.service':
+            return False
+        age = now - self.last_seen.get(item.name, float('-inf'))
+        if not 0 <= age <= item.stale_after:
+            return False
+        try:
+            data = json.loads(self.last_value.get(item.name, ''))
+            wait = data.get('reconnect_in_s')
+            return (data.get('retry_owner') == 'daly_transport_v1'
+                    and type(wait) in (int, float) and math.isfinite(wait)
+                    and 0 <= wait <= 120)
+        except (ValueError, TypeError, AttributeError):
+            return False
+
     def schedule_recovery(self, item, reason):
         now = time.monotonic()
+        if self.bms_retry_owned(item, now):
+            if now - self.last_notice[item.name] >= COOLDOWN:
+                self.last_notice[item.name] = now
+                self.publish_status('BMS OFFLINE: transport retry owner active; no competing restart')
+            return
         attempt_limit = 1 if item.name == "encoder_health" else MAX_ATTEMPTS
         if not self.restart_allowed(item):
             if now - self.last_notice[item.name] >= COOLDOWN:
@@ -339,6 +370,9 @@ class AtlasRecovery(Node):
                 # Counts as an attempt (keeps the 60 s cooldown and 3/600 s bound).
                 self.publish_status(
                     f"RECOVERY DEFERRED: {item.name}; systemd is already restarting {item.service}")
+                return
+            if self.bms_retry_owned(item, time.monotonic()):
+                self.publish_status('RECOVERY DEFERRED: BMS transport retry owner active')
                 return
             attempt = len(self.attempts[item.name])
             self.publish_status(

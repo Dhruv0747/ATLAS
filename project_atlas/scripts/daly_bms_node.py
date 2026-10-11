@@ -102,6 +102,8 @@ class DalyBmsNode(Node):
             self.backoff.succeeded()
             data['connection_attempts'] = self.link.connections
             data['poll_interval_s'] = 5.0
+            data['retry_owner'] = 'daly_transport_v1'
+            data['reconnect_in_s'] = 0.0
             self.last = data
             self.publish_data(data)
             self.get_logger().info(
@@ -118,6 +120,7 @@ class DalyBmsNode(Node):
     def publish_unavailable(self, error):
         fallback = dict(self.last)
         fallback.update(ok=False, error=error, source='bluetooth',
+                        retry_owner='daly_transport_v1',
                         age_s=None if self.last_success_at is None else round(time.monotonic()-self.last_success_at, 1),
                         reconnect_in_s=round(self.backoff.remaining(), 1),
                         connection_attempts=self.link.connections)

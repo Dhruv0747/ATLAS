@@ -1,24 +1,26 @@
 # Project ATLAS - Autonomous Service Rover
 
-Daly BMS transport now supports persistent healthy connections and bounded
+Daly BMS transport source now supports persistent healthy connections and bounded
 reconnect backoff while preserving five-second healthy polling and fail-closed
 freshness. See `docs/ATLAS_ROLLOUT_2026-10-11.md` for staged deployment evidence;
-this does not by itself establish BLE endurance or autonomous readiness.
+this does not by itself establish BLE endurance or autonomous readiness. The
+live BMS stage was rolled back after a competing supervisor restart was found.
+The tested retry-ownership correction is offline only, awaiting deployment approval.
 
 ### Motion-triggered diagnostics
 
-The bounded background writer removes SQLite I/O from ROS callbacks. Fifteen
+The bounded background writer removes SQLite I/O from ROS callbacks. Sixteen
 offline recorder tests pass; Jetson transfer of 7,874 pre-roll samples measured
 5–37 ms (previously 463–512 ms). No autostart service is added. The current
 rollout and live-validation status is tracked in `docs/ATLAS_ROLLOUT_2026-10-11.md`.
 
-Earlier baseline (before the background writer):
+Installed as an opt-in process (not an autostart service). Final Humble test:
+47,887 messages read back exactly; parked live capture: 3,203 messages, SQLite
+healthy, 29.29% of one core / 78.27 MiB RSS. One DDS-reported lost message, no
+application drops. The finite trial stopped; it is not recording continuously.
+See `docs/ATLAS_ROLLOUT_2026-10-11.md` for exact versions and rollback.
 
-Isolated Jetson Humble validation: 47,887 messages read back exactly, both SQLite bags healthy, 17.17% of one CPU core and 60.49 MiB recording RSS. Live deployment is held for a measured 0.46–0.51 s synchronous preroll flush. See `docs/MOTION_RECORDER_HUMBLE_VALIDATION_2026-10-11.md`.
-
-An opt-in, bounded ROS bag recorder is available for offline review in `project_atlas/scripts/atlas_motion_recorder.py`. It has no autostart service and has not been deployed on ATLAS. Design, safety limits, validation and approval-gated installation are in `docs/MOTION_TRIGGERED_RECORDER_2026-10-11.md`.
-
-### Staged deployment packages — 2026-10-11 (not installed)
+### Staged deployment packages — 2026-10-11
 
 `project_atlas/tools/deploy/make_package.py` builds one patch-based package per approved stage:
 - the install rehearses on a scratch copy, backs up, then applies;

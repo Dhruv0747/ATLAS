@@ -1,6 +1,16 @@
 # ATLAS continuation status — 2026-10-11
 
-Recorder update: isolated Jetson Humble serialization and SQLite readback passed (47,887 messages). Closely spaced capture preroll was fixed and nine offline tests pass. No live recorder service was enabled. Next recorder gate is removal of the measured 0.46–0.51 s synchronous preroll flush before a separately approved supervised subscription trial. See `MOTION_RECORDER_HUMBLE_VALIDATION_2026-10-11.md`; the older task register below is the reconciliation baseline.
+Latest rollout supersedes the older recorder/deployment gates below: see
+`ATLAS_ROLLOUT_2026-10-11.md`. Bounded writer installed at `0c1d520`, sixteen
+offline tests pass, Humble 47,887-message readback passes, and parked 3,203-message
+capture passes with one reported DDS loss. Finite process is stopped; no autostart.
+BMS retry control at `bff88ac` was rolled back: the recovery supervisor reset
+its backoff through repeated restarts. Offline ownership fix passes tests but
+needs approval to restart that supervisor. BLE connectivity remains unresolved.
+Owner confirmed V2 E-STOP/reset/manual
+driving functional; retain only untested edge cases for the supervised session.
+No motion, calibration, network or control-unit changes. Older register below
+remains the historical reconciliation, not the current installation status.
 
 This is a source-and-read-only-runtime reconciliation, not an autonomy release.
 The handoff baseline `3ad76db` is historical. The developer branch had advanced
