@@ -14,6 +14,20 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-021",
+      "title": "Unknown LiDAR sectors grant recovery motion; controller inflation conversion mismatch",
+      "first_available_occurrence": "2026-10-11",
+      "latest_reviewed_occurrence": "2026-10-11",
+      "subsystem": "recovery / collision decision",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "confirmed_findings": "Actual recovery methods treat missing sectors as infinity and accept above-range-max samples. Four offline safety assertions failed. Runtime controller inflation conversion is 3, local costmap factor 15. No physical incident attribution established.",
+      "test_results": "Source-only recovery correction passes six tests; six mux stop and three scan-frame tests pass. Native Nav2 footprint checker shows corner alone does not block straight path; current surroundings intersect both sustained turn arcs.",
+      "remaining_verification": "No deployment. Isolated full controller/obstacle-layer replay, sparse/unknown coverage, stale-source handling, full swept-body recovery checks and separately approved loaded validation remain.",
+      "evidence": ["docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md"],
+      "events": [{"date":"2026-10-11","kind":"parked_decision_audit","description":"No movement, goals or live configuration changes. E-STOP latched. Read-only costmap capture and no-ROS native checker fixture executed."}]
+    },
+    {
       "id": "ATLAS-020",
       "title": "Directional LiDAR minimum mistaken for forward wall distance and variable scan density",
       "first_available_occurrence": "2026-10-11",

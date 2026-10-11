@@ -153,10 +153,10 @@ class TightRecovery(Node):
 
     def sector_min(self, center_deg, width_deg):
         if self.scan is None:
-            return math.inf
+            return 0.0
         vals = []
         for i, value in enumerate(self.scan.ranges):
-            if not math.isfinite(value) or value < self.scan.range_min:
+            if not math.isfinite(value) or not self.scan.range_min <= value <= self.scan.range_max:
                 continue
             angle = math.degrees(self.scan.angle_min + i * self.scan.angle_increment)
             if ray_in_base_sector(
@@ -166,7 +166,12 @@ class TightRecovery(Node):
                 self.get_parameter('laser_yaw_deg').value,
             ):
                 vals.append(value)
-        return min(vals) if vals else math.inf
+        # This is a permission-to-move input, unlike optional ultrasonic vetoes.
+        # An unobserved sector must never satisfy `distance > clearance`.
+        # Zero means clearance UNAVAILABLE here, not a fabricated scan return;
+        # the original LaserScan is never modified. This does not prove full
+        # swept-footprint coverage when only a few valid rays exist.
+        return min(vals) if vals else 0.0
 
     def sensors_fresh(self):
         age = self.get_parameter('sensor_timeout_s').value

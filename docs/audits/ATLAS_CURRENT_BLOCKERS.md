@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+11 October decision-path audit: STOP remains latched; no movement or live
+control changes. Confirmed recovery defect: all-invalid sectors were infinite
+clearance, permitting forward/reverse choices. Source-only correction passes
+six regressions. Local costmap does not track unknown space; expected scan
+update rate is zero. Neither proves observed free space or a scan-loss stop.
+Live RPP inflation-cost conversion is 3 versus costmap scaling 15: confirmed
+configuration mismatch. Both need bounded approval-backed commissioning, not
+arbitrary range suppression. Full controller action replay remains unfinished.
+
 Latest 11 October 17:15 IST: LiDAR provenance stage 10 is now installed from
 `1a9f077`; new markers and raw-ray details verified in the browser. All 60
 parked API samples LIVE. Only dashboard restarted. The physical object behind

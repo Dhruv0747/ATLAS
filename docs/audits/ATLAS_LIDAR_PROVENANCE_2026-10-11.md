@@ -272,3 +272,129 @@ is the missing evidence needed to identify which rays actually change.
 BMS passive monitor attempt: bounded `btmon -i hci0` denied with `Operation not
 permitted`, so no HCI evidence captured. Existing single retry owner still
 reports connection deadline exceeded; valid battery percentage is not restored.
+
+## Navigation decision-path audit — 11 October, parked, no control changes
+
+### Separate consumers and actual runtime settings
+
+The dashboard's `atlas_lidar_view` is imported only by the web server; no
+navigation subscriber consumes its quadrant summary. AMCL receives `/scan`
+and uses up to 60 beams with likelihood-field matching. Local/global obstacle
+layers also consume `/scan`, with marking and clearing enabled; marking range
+2.5 m, raytrace range 3 m. Both footprints are the configured rectangle
+0.50 m long by 0.36 m wide, padding zero, resolution 0.05 m. Inflation radius
+0.28 m, scaling 15. Physical loaded/swept steering envelope is not measured
+by this audit; commanded steering is not angle feedback.
+
+Runtime parameter reads confirmed RPP collision detection, 0.8 s projection
+horizon, 0.15 m/s desired speed, reversing enabled. Smac uses REEDS_SHEPP,
+minimum turning radius 0.35 m, allow_unknown true. These are current settings,
+not the older DUBIN/forward-only generation. Local track_unknown_space false;
+global true. Local scan expected_update_rate 0.0 and inf_is_valid false.
+Unknown/default-free local cells must not be described as observed clear.
+The zero update-rate setting does not provide a scan-age expiry gate.
+
+The `atlas-localization` launch starts Nav2 components even when the separate
+atlas-nav2 unit is inactive. Service inactivity alone was not evidence that
+the controller was absent. This audit observed no `/cmd_vel_nav` messages,
+E-STOP latched, final output zero, and no new recovery journal entries.
+No node activation, goal, motor publication or service restart was performed.
+
+### Fresh parked evidence
+
+Bounded read-only subscriber/parameter probe, approximately 18 seconds:
+128 scans (7.09 Hz), 30 local raw costmaps (1.67 Hz), 11 global raw costmaps
+(0.72 Hz), 18 AMCL messages (1.01 Hz). Sampled source-age ranges: scan
+0.130–0.448 s; local grid 0.001–0.695 s; global grid 0.119–1.959 s; AMCL
+0.254–1.152 s. These are observed delivery/publication rates, not update-loop
+rates or DDS loss counts. Initial TF warmup produced missing samples.
+
+At the historical beam endpoint transformed at each grid timestamp, 27/27
+valid local queries and 27/27 global queries returned lethal cost 254. This
+establishes that the surrounding cell is occupied, not that this beam alone
+caused the cost; existing/static surfaces may contribute. It is not a matched
+scan-to-grid attribution. Whether it is physically false remains unknown.
+
+Parked independent localization monitor: VERIFIED, fit 1.0, disagreement
+0.053 m / 5.4 degrees, check age 12 s. AMCL covariance was small, but covariance
+alone is not accuracy. The old start-verdict age was about 35,143 s, so it is
+not a fresh navigation authorization. Motion confidence/freshness was NOT
+validated: no movement was authorized or performed.
+
+### Offline native Nav2 footprint tests (not a controller action replay)
+
+Compiled and used the installed Humble 1.1.20 `FootprintCollisionChecker`,
+without calling rclcpp init, creating a ROS node or publishing commands.
+Constant-twist trajectories use the configured rectangle and 0.35 m turn
+radius, sampled every 20 ms over 4 s. This tests grid/footprint intersections,
+not the actual RPP controller's discrete sampling, path choice, speed regulation,
+steering dynamics, observation clearing or braking distance.
+
+| Frozen test geometry | Straight | Left arc | Right arc | Straight reverse |
+| --- | --- | --- | --- | --- |
+| 2 m wall + front-right point, other cells ASSUMED free | No lethal hit in 0.60 m | No lethal hit in 4 s | Lethal at 2.04 s | No lethal hit in 0.48 m |
+| Captured live local grid | No lethal hit in 0.60 m | Lethal at 1.58 s | Lethal at 1.26 s | No lethal hit in 0.48 m |
+| 26 saved scans rasterized into known-free fixture | 0/26 lethal hits | 26/26 at 1.80 s | 26/26 at 1.40 s | 0/26 lethal hits |
+
+The synthetic fixtures use explicit configured inflation arithmetic; they do
+NOT replay the obstacle-layer marking/clearing implementation. Saved scan
+projection uses each retained TF and preserves all valid points. Unobserved
+fixture cells are deliberately free only to isolate geometry: never interpret
+these results as authorization to enter unknown space. The frozen live grid
+uses the final nearby parked TF sample; it is not a moving synchronized replay.
+
+In the corner-only fixture, straight maximum footprint cost was 186, left 170,
+right 254. Thus the corner does not geometrically block the whole forward
+direction. Other observed surroundings make both sustained turns intersect
+obstacles. A separate rear obstacle produced a reverse collision at 0.84 s;
+all-unknown grid returned 255 immediately. No reverse permission follows from
+a blocked front. Inflation cost 253 is not a lethal hit under the Humble RPP
+threshold; it is also not a clearance guarantee. The 0.8 s live horizon checks
+only about 0.12 m at desired speed, and requires repeated fresh checks plus
+adequate stopping response; the 4-second fixture is not its current horizon.
+
+RPP follows the supplied path and collision-checks it; it does not itself
+select a left detour simply because the right is blocked. Smac plans the route,
+and failure can invoke the BT's bounded clear/back-up/wait sequence (six outer
+retries, 0.18 m backup at 0.12 m/s). We did not reproduce a replan/recovery loop
+caused by this point, so unnecessary looping remains unproven.
+
+### Confirmed defects versus unresolved safety gaps
+
+1. Separate `atlas_tight_space_recovery` uses sectors, not the Nav2 full-footprint
+   checker. Its front half-width is 35 degrees (not dashboard 45); the disputed
+   beam is a right-side input there. Empty sectors returned infinity. Actual
+   extracted production methods selected forward with all rays absent, reverse
+   with blocked front/unknown rear, and allowed continuing reverse with missing
+   rear data. Values above range_max also granted clearance. Four tests failed
+   before the fix; after changing unavailable clearance to zero and enforcing
+   range_max, all six pass. The original LaserScan is unchanged. This narrow
+   fix does NOT establish dense swept-footprint coverage or odometry freshness.
+2. Runtime RPP `inflation_cost_scaling_factor=3.0` disagrees with local inflation
+   `cost_scaling_factor=15.0`. The Humble documented contract requires equality.
+   This overestimates inferred obstacle distance and weakens proximity slowing;
+   it is not evidence of false stopping. A separate candidate correction follows.
+3. Local unknown-space handling, source-age gating, reporter no-return semantics
+   and recovery full swept-body checks remain gaps. Do not blindly enable
+   track_unknown_space as a fix: Humble RPP has version-specific unknown handling.
+   No live calibration, inflation radius, scan suppression or control setting
+   was changed. Stop is currently the only authorized action.
+
+Humble sources: [RPP parameter contract](https://api.nav2.org/nav2-humble/html/md_nav2_regulated_pure_pursuit_controller_README.html)
+and [RPP collision implementation](https://api.nav2.org/nav2-humble/html/regulated__pure__pursuit__controller_8cpp_source.html).
+
+### Tests, approval and next necessary work
+
+Recovery regressions 6/6; mux E-STOP hold 6/6; scan-frame helpers 3/3;
+native checker compiled; 26 retained scan geometries evaluated. Source compiles.
+Private evidence: `nav_geometry_20261011.json`, `collision_sweeps_20261011.json`
+in the existing Jetson scratch directory; do not publish indoor geometry.
+
+Prepare separate patch/backup/rollback stages, do not install them. Recovery
+fix would require only the recovery service restart under separately approved
+parked conditions. The controller conversion correction requires its own
+isolated RPP regression and approved Nav2 restart/configuration procedure.
+Next engineering gate is actual isolated controller + obstacle-layer replay,
+including missing rear data, stale scans, clearing and candidate paths. No
+physical drive is needed to close those software questions. Final loaded
+stopping/turn validation needs separate permission afterward.

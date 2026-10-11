@@ -1,5 +1,12 @@
 # Project ATLAS - Autonomous Service Rover
 
+11 October decision-path audit: native Nav2 footprint checks distinguish the
+front-right return from a blocked straight path. A separate recovery defect
+allowed unknown sectors to grant motion; a tested fail-closed source fix is
+prepared, NOT deployed. See the decision-path appendix in
+[LiDAR evidence](docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md). This is not
+autonomous-navigation acceptance; stop remains latched.
+
 2026-10-11 sensing audit: the reproduced 0.51 m FRONT minimum is a raw
 front-right return near -44.7 degrees, not the wall straight ahead.
 [Evidence, candidate diagnostics and remaining validation](docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md).

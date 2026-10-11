@@ -1,5 +1,14 @@
 # Changelog
 
+2026-10-11: Decision-path audit; recovery unknown-clearance candidate, NOT deployed.
+- Actual recovery methods reproduced four unsafe unknown/out-of-range cases;
+  reject missing sectors as unavailable clearance and reject ranges above max.
+  Do not modify LaserScan or genuine returns. Six regression tests now pass.
+- Six mux stop-hold and three frame-sector regressions pass. Read-only live
+  parameter/costmap probe and native Nav2 footprint-checker fixtures added.
+- Candidate is limited: sparse sectors, full swept-body coverage, sensor
+  synchronization and loaded stopping behavior still need qualification.
+
 2026-10-11: Approved LiDAR diagnostic stage 10 deployed from `1a9f077`.
 - Three-file rehearsal, byte-identical rollback and live hashes passed; only
   rover-status-web restarted. Motor/mux/localization process IDs unchanged.
