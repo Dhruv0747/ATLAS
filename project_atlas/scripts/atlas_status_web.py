@@ -796,6 +796,9 @@ class AtlasRosNode:
 
     def _scan_cb(self, msg):
         now = time.time()
+        previous = getattr(self, 'surround_scan', None)
+        dt = now-previous[1] if previous else 0
+        self.surround_scan = (msg, now, 1/dt if dt > 0 else None)
         if now - self.last_scan_summary < 0.50:
             return
         self.last_scan_summary = now
@@ -808,6 +811,32 @@ class AtlasRosNode:
             "range_max": msg.range_max,
             "frame": msg.header.frame_id,
         })
+
+    def surround_snapshot(self):
+        from atlas_lidar_view import project
+        sample = getattr(self, 'surround_scan', None)
+        if sample is None:
+            return {'state': 'MISSING', 'points': [], 'reason': 'No /scan received'}
+        msg, received, hz = sample
+        age = max(0, time.time()-received)
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec/1e9
+        stamp_age = self.node.get_clock().now().nanoseconds/1e9-stamp
+        out = dict(state='STALE' if age > 2 else 'LIVE', age_s=age,
+                   stamp_s=stamp, source='/scan', frame=msg.header.frame_id,
+                   hz=hz, points=[], total=len(msg.ranges), stamp_age_s=stamp_age)
+        if age > 2 or stamp <= 0 or not -0.2 <= stamp_age <= 2:
+            out.update(state='STALE', reason='Scan receipt or source timestamp is stale/invalid')
+            return out
+        try:
+            # Exact scan-time transform. Never silently substitute latest TF.
+            tf = self.tf_buffer.lookup_transform('base_link', msg.header.frame_id,
+                                                 rclpy.time.Time.from_msg(msg.header.stamp))
+            out.update(project(msg, tf.transform))
+            out['display_frame'] = 'base_link'
+            out['reason'] = 'Distances from base_link origin, not chassis clearance'
+        except Exception as exc:
+            out.update(state='TF UNAVAILABLE', reason=str(exc)[:220])
+        return out
 
     def _map_cb(self, msg):
         """Cache a browser-ready occupancy image without changing Nav2 data."""
@@ -1955,6 +1984,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/api/map"):
             json_response(self, 200, ROS.map_snapshot())
+            return
+        if self.path.split('?')[0] == '/api/lidar-view':
+            json_response(self, 200, ROS.surround_snapshot())
             return
         if self.path.startswith("/map.png"):
             frame = ROS.map_frame()

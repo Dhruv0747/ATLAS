@@ -1,5 +1,14 @@
 # Changelog
 
+2026-10-11: Operator-approved camera/LiDAR/Home stage.
+- Add full-size original-JPEG view and bounded visible-only 360-degree scan
+  display; exact scan-time base_link TF, invalid points and stale data explicit.
+- Add consistent Home links to V2 and a return link on Visual Cloud.
+- Nine projection/freshness tests, 15 isolated Jetson route tests, 12 dashboard
+  safety regressions and 11 idle-camera tests pass. No sensor-driver change.
+- Current source JPEG itself is visibly soft; precise optical/source cause and
+  historical equal-frame quality acceptance remain unresolved, not claimed fixed.
+
 2026-10-11: Parked rollout validation and BMS rollback.
 - Recorder installed opt-in: 3,203 live messages, one DDS-reported loss, no
   application drops; 29.29% of one CPU core and 78.27 MiB RSS. No autostart.

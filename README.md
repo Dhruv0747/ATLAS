@@ -1,5 +1,11 @@
 # Project ATLAS - Autonomous Service Rover
 
+Parked operator views: `/v2/camera` displays the original JPEG without
+recompression; `/v2/lidar` projects actual scan returns using scan-time TF.
+Missing/stale scans and missing TF never imply clear space. Home navigation is
+injected consistently on V2 HTML pages. Map overlay remains unimplemented.
+These are observation views, not navigation authority or physical acceptance.
+
 Daly BMS transport source now supports persistent healthy connections and bounded
 reconnect backoff while preserving five-second healthy polling and fail-closed
 freshness. See `docs/ATLAS_ROLLOUT_2026-10-11.md` for staged deployment evidence;

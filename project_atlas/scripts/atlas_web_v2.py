@@ -12,7 +12,13 @@ from urllib.parse import unquote, urlsplit
 V2_DIR = Path(os.environ.get('ATLAS_WEB_V2_DIR') or Path(__file__).resolve().parent.parent / 'web' / 'v2').resolve()
 TYPES = {'.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
          '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8'}
-PAGES = {'': 'index.html', 'mapping': 'mapping.html', 'commissioning': 'commissioning.html', 'wifi': 'wifi.html'}
+PAGES = {'': 'index.html', 'mapping': 'mapping.html', 'commissioning': 'commissioning.html', 'wifi': 'wifi.html', 'camera': 'camera.html', 'lidar': 'lidar.html'}
+
+
+def decorate(body, mime):
+    if mime.startswith('text/html'):
+        return body.replace(b'</body>', b'<script src="/v2/home-nav.js"></script></body>')
+    return body
 
 
 # 2026-10-11: V2 is the default dashboard. The classic (V1) page routes are disabled, not deleted:
@@ -37,7 +43,7 @@ def serve_default(handler):
     if path in ROOT_PAGES:
         f, mime = resolve('/v2/')
         try:
-            body = f.read_bytes()
+            body = decorate(f.read_bytes(), mime)
         except OSError:
             handler.send_error(503); return True
         handler.send_response(200)
@@ -88,7 +94,7 @@ def serve(handler):
         handler.send_error(404); return
     f, mime = hit
     try:
-        body = f.read_bytes()
+        body = decorate(f.read_bytes(), mime)
     except OSError:
         handler.send_error(404); return
     handler.send_response(200)

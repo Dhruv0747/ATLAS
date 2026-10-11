@@ -46,7 +46,7 @@ class Base(unittest.TestCase):
 
 class V2IsDefault(Base):
     def test_root_serves_v2_index(self):
-        index = (REPO_V2 / 'index.html').read_bytes()
+        index = V2.decorate((REPO_V2 / 'index.html').read_bytes(), 'text/html')
         for path in ('/', '/?from=bookmark', '/index.html'):
             code, headers, body = get(path)
             self.assertEqual(code, 200, path)
@@ -54,9 +54,9 @@ class V2IsDefault(Base):
             self.assertTrue(headers['Content-Type'].startswith('text/html'))
 
     def test_v2_paths_unchanged(self):
-        self.assertEqual(get('/v2/')[2], (REPO_V2 / 'index.html').read_bytes())
+        self.assertEqual(get('/v2/')[2], V2.decorate((REPO_V2 / 'index.html').read_bytes(), 'text/html'))
         self.assertEqual(get('/v2')[0], 301)
-        self.assertEqual(get('/v2/mapping')[2], (REPO_V2 / 'mapping.html').read_bytes())
+        self.assertEqual(get('/v2/mapping')[2], V2.decorate((REPO_V2 / 'mapping.html').read_bytes(), 'text/html'))
 
     def test_old_page_paths_redirect_to_v2(self):
         for old, new in (('/mapping', '/v2/mapping'), ('/commissioning', '/v2/commissioning'), ('/wifi', '/v2/wifi')):

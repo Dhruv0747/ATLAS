@@ -78,6 +78,15 @@ class WebV2Route(unittest.TestCase):
                      'assets/michroma-latin-400.woff2'):
             self.assertEqual(self.get('/v2/' + name).status, 200, name)
 
+    def test_new_pages_have_home_and_existing_stop(self):
+        atlas_web_v2.V2_DIR = (Path(__file__).parents[1] / 'web' / 'v2').resolve()
+        for name in ('camera', 'lidar'):
+            body = self.get('/v2/'+name).wfile.getvalue()
+            self.assertIn(b'Home / Command Center', body)
+            self.assertIn(b'id="v2Estop"', body)
+            self.assertIn(b'/v2/estop.js', body)
+            self.assertEqual(body.count(b'/v2/home-nav.js'),1)
+
 
 if __name__ == '__main__':
     unittest.main()
