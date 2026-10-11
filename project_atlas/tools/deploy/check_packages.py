@@ -29,7 +29,10 @@ def export(commit, dest):
 def main():
     pkg, base, expect, stages = Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4:]
     ok = True
+    order_rules = [x.split(':') for x in os.environ.get('ATLAS_ORDER_AFTER', '').split(',') if x]   # "later:earlier"
     for order in itertools.permutations(stages):
+        if any(l in order and e in order and order.index(l) < order.index(e) for l, e in order_rules):
+            continue
         with tempfile.TemporaryDirectory() as d:
             root = Path(d) / 'project_atlas'; root.mkdir(); export(base, root); (root / 'data/backups').mkdir(parents=True)
             before = tree_hash(root)

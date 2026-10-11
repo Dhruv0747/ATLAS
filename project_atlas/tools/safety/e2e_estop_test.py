@@ -109,6 +109,12 @@ def post_reset(nonce, pin, headers=HDR, confirm='RESET_ESTOP'):
         return e.code, json.loads(e.read() or b'{}')
 
 
+def drive(press=None, start=False, timeout=3.0):
+    f = {'action': 'drive', 'linear': '.3', 'angular': '0'}
+    if press: f.update(press=press, start='1' if start else '0')
+    return post(f, timeout)
+
+
 def start_server():
     p = subprocess.Popen([sys.executable, os.path.join(HERE, 'e2e_web_server.py'), SCRIPTS, str(PORT)],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=os.environ)
@@ -150,7 +156,7 @@ def main():
         check('remote: neutral + LB >= 2 s + let go releases the latch', released, str(rig.policy and rig.policy.get('stop_reason')))
 
         # ---- normal drive works when unlatched (positive control) ----
-        t0 = time.monotonic(); codes = [post({'action': 'drive', 'linear': '.3', 'angular': '0'})[0] for _ in range(5)]
+        t0 = time.monotonic(); codes = [drive('p1', start=(i == 0))[0] for i in range(5)]
         post({'action': 'stop'}); time.sleep(0.3)
         check('unlatched: drive accepted by the server', codes == [200] * 5, str(codes))
         check('unlatched: web channel carried the drive command', bool(rig.moving_since(t0, 'web')))
@@ -160,8 +166,9 @@ def main():
         stop_loop = threading.Event(); codes_after = []
         estop_at = [None]
         def held_button():
+            first = True
             while not stop_loop.is_set():
-                c, _ = post({'action': 'drive', 'linear': '.3', 'angular': '0'}, timeout=1.5)
+                c, _ = drive('held1', start=first, timeout=1.5); first = False
                 if estop_at[0] is not None: codes_after.append(c)
                 time.sleep(0.12)
         th = threading.Thread(target=held_button); th.start(); time.sleep(0.6)
@@ -181,7 +188,7 @@ def main():
         server.send_signal(signal.SIGKILL); server.wait(); t_kill = time.monotonic(); time.sleep(3)
         check('web server killed (browser/network gone): still latched', rig.latched() is True)
         check('no motion while the web server is down', not rig.moving_since(t_kill))
-        server = start_server(); c, _ = post({'action': 'drive', 'linear': '.3', 'angular': '0'})
+        server = start_server(); c, _ = drive('p2', start=True)
         check('after web server restart: drive refused (latch survives restart)', c == 409 and rig.latched() is True, str(c))
         rig.joy('none', 2.0); check('remote signal lost for 2 s: still latched', rig.latched() is True, str(rig.policy and rig.policy.get('stop_reason')))
         rig.joy('neutral', 0.5); rig.joy('B', 0.3); rig.joy('neutral', 0.5)
@@ -193,7 +200,7 @@ def main():
         # ---- stops during shutdown ----
         server.send_signal(signal.SIGUSR1); time.sleep(0.3)
         r = {a: post(d)[0] for a, d in (('stop', {'action': 'stop'}), ('e_stop', {'action': 'e_stop'}),
-                                        ('drive', {'action': 'drive', 'linear': '.3', 'angular': '0'}),
+                                        ('drive', {'action': 'drive', 'linear': '.3', 'angular': '0', 'press': 'p3', 'start': '1'}),
                                         ('camera', {'action': 'camera', 'axis': 'pan', 'direction': '1'}))}
         check('shutdown pending: stop and e_stop accepted (200)', r['stop'] == 200 and r['e_stop'] == 200, str(r))
         check('shutdown pending: drive and camera refused (409)', r['drive'] == 409 and r['camera'] == 409, str(r))
@@ -204,7 +211,7 @@ def main():
         check('remote release after all of the above', released)
         time.sleep(2.0)
         check('after release: no motion without a new command (nothing replayed)', not rig.moving_since(t_rel - 0.1))
-        c, _ = post({'action': 'drive', 'linear': '.3', 'angular': '0'}); post({'action': 'stop'})
+        c, _ = drive('p4', start=True); post({'action': 'stop'})
         check('after release: a fresh drive command is accepted', c == 200, str(c))
         post({'action': 'e_stop'}); check('test ends latched', rig.wait_latched(True, 1.0))
         if '--reset' in sys.argv:
@@ -238,7 +245,7 @@ def reset_tests(rig, server):
     check('reset: rover moving -> RESET BLOCKED', not s['reset']['available'] and 'rover not stationary' in s['reset']['blocked'], str(s['reset']['blocked']))
     rig.joy('none', 1.0); s = get_state()
     check('reset: remote disconnected -> RESET BLOCKED', not s['reset']['available'] and 'physical remote not connected' in s['reset']['blocked'], str(s['reset']['blocked']))
-    quiet_ready(); post({'action': 'drive', 'linear': '.3', 'angular': '0'}); s = get_state()
+    quiet_ready(); drive('p5', start=True); s = get_state()
     check('reset: a drive request in the last 1.5 s -> RESET BLOCKED', not s['reset']['available'], str(s['reset']['blocked']))
     quiet_ready(); server.send_signal(signal.SIGUSR1); time.sleep(0.2); s = get_state(); server.send_signal(signal.SIGUSR2)
     check('reset: shutdown pending -> RESET BLOCKED', 'shutdown in progress' in s['reset']['blocked'])
@@ -252,18 +259,21 @@ def reset_tests(rig, server):
     c, _ = post_reset(n or 'none', PIN)
     check('reset: challenge from before a server restart (network loss) is rejected', c == 409 and rig.latched() is True, str(c))
     # granted reset: zero throughout, nothing resumes, fresh press required
+    drive('pre', start=True)                 # a press that began while latched (refused; its start is recorded)
     quiet_ready(); n = get_state()['reset']['challenge']; t0 = time.monotonic()
     c, p = post_reset(n, PIN)
     check('reset: correct PIN + confirmation + safe state -> released', c == 200 and p.get('released') is True and rig.wait_latched(False, 1.5), f'{c} {p.get("message")}')
     time.sleep(2.0)
     check('reset: motor output stayed zero during and after the reset', not rig.moving_since(t0 - 0.2), f'{len(rig.moving_since(t0 - 0.2))} non-zero')
-    codes = []
+    codes = {'pre': [], 'lost': [], 'legacy': []}
     for _ in range(8):
-        codes.append(post({'action': 'drive', 'linear': '.3', 'angular': '0'})[0]); time.sleep(0.12)
-    check('reset: a button held from before (posts every 120 ms) is refused', set(codes) == {409}, str(codes))
-    check('reset: no motion from the held button', not rig.moving_since(t0 - 0.2))
-    time.sleep(0.7); t1 = time.monotonic(); c, _ = post({'action': 'drive', 'linear': '.3', 'angular': '0'}); time.sleep(0.2); post({'action': 'stop'})
-    check('reset: a fresh press after release drives', c == 200 and bool(rig.moving_since(t1, 'web')), str(c))
+        codes['pre'].append(drive('pre')[0]); codes['lost'].append(drive('lost')[0]); codes['legacy'].append(drive()[0]); time.sleep(0.12)
+    check('reset: repeats of a press begun before the reset are refused', set(codes['pre']) == {409}, str(codes['pre']))
+    check('reset: repeats of a press whose start never arrived (network outage) are refused', set(codes['lost']) == {409})
+    check('reset: an old page without press ids is refused', set(codes['legacy']) == {409})
+    check('reset: no motion from any of them', not rig.moving_since(t0 - 0.2))
+    t1 = time.monotonic(); c, _ = drive('fresh', start=True); c2, _ = drive('fresh'); time.sleep(0.2); post({'action': 'stop'})
+    check('reset: a fresh press after the reset drives', c == 200 and c2 == 200 and bool(rig.moving_since(t1, 'web')), f'{c} {c2}')
     c, p = post({'action': 'e_stop'}); check('reset: E-STOP latches again afterwards', c == 200 and rig.wait_latched(True, 1.0))
     # wrong PIN lockout
     for _ in range(5):
