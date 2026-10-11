@@ -59,6 +59,12 @@ No network settings changed; no before/after network-change benefit claimed.
 
 ## Pending gates
 
+First parked subscriber trial failed: Humble exports SubscriptionEventCallbacks
+from `rclpy.qos_event`, not `rclpy.event_handler`. The writer test did not exercise
+live discovery. Preserve `live_parked` evidence; rollback this stage before the
+corrected install. READY now waits for required topics instead of falsely
+declaring readiness with no subscriptions. Regression covers the Humble import.
+
 - Recorder stage install + rollback rehearsal, parked finite capture/resource check.
 - Separately tested BMS healthy-link reuse and bounded reconnect backoff.
   Preserve five-second healthy polling: lifted commissioning has a ten-second

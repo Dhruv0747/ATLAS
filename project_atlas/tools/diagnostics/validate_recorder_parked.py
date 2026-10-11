@@ -77,7 +77,7 @@ def main():
             count, low, high = connection.execute('select count(*),min(timestamp),max(timestamp) from messages').fetchone()
             integrity = connection.execute('pragma integrity_check').fetchone()[0]
             topics = connection.execute('select name,count(messages.id) from topics left join messages on topics.id=messages.topic_id group by topics.id').fetchall()
-        bags.append(dict(path=str(db), messages=count, duration_s=(high-low)/1e9,
+        bags.append(dict(path=str(db), messages=count, duration_s=(high-low)/1e9 if count else 0,
                          integrity=integrity, topics=topics))
     result = dict(returncode=child.returncode, wall_s=wall, cpu_one_core_percent=100*cpu_seconds/wall,
                   peak_rss_mib=peak_rss/1024, baseline=baseline, final=status(),
@@ -90,6 +90,8 @@ def main():
     assert child.returncode == 0 and health.get('disabled') is None, 'recorder failed'
     assert len(bags) == 1 and bags[0]['integrity'] == 'ok', 'missing or broken bag'
     assert not health.get('dropped'), 'recorder application drops'
+    assert not health.get('missing'), 'required subscriptions missing'
+    assert bags[0]['messages'] > 0, 'empty capture'
 
 
 if __name__ == '__main__':

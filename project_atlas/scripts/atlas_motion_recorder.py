@@ -185,7 +185,7 @@ def main():
                 if topic != '/tf_static' and any(e.qos_profile.reliability == ReliabilityPolicy.BEST_EFFORT for e in endpoints):
                     qos = sensor_qos
                 try:
-                    from rclpy.event_handler import SubscriptionEventCallbacks
+                    from rclpy.qos_event import SubscriptionEventCallbacks
                     def lost(event):
                         middleware_events['reported_lost'] += event.total_count_change
                     events = SubscriptionEventCallbacks(message_lost=lost)
@@ -193,7 +193,7 @@ def main():
                         msg_class, topic, make_callback(topic, types[0], msg_class), qos,
                         raw=True, event_callbacks=events)
                 except Exception as event_error:
-                    if type(event_error).__name__ not in ('UnsupportedEventTypeException', 'UnsupportedEventTypeError', 'ImportError'):
+                    if not isinstance(event_error, ImportError) and type(event_error).__name__ not in ('UnsupportedEventTypeException', 'UnsupportedEventTypeError'):
                         raise
                     middleware_events['unsupported_topics'].append(topic)
                     subscriptions[topic] = node.create_subscription(
@@ -216,7 +216,8 @@ def main():
         health['writer'] = writer.health()
         health['middleware_events'] = middleware_events
         health['state'] = ('STOPPED' if stopped else 'ERROR' if recorder.disabled_reason else
-                           'RECORDING' if recorder.sink else 'READY')
+                           'RECORDING' if recorder.sink else
+                           'WAITING_FOR_TOPICS' if health['missing'] else 'READY')
         health['updated_utc'] = time.time()
         if health['state'] != reported_state:
             print(json.dumps({'recorder': health['state'], 'root': str(args.root)}), flush=True)

@@ -21,6 +21,11 @@ class Sink:
 
 
 class WriterTests(unittest.TestCase):
+    def test_humble_event_module_and_import_fallback(self):
+        source = (Path(__file__).resolve().parents[1]/'scripts/atlas_motion_recorder.py').read_text()
+        self.assertIn('from rclpy.qos_event import SubscriptionEventCallbacks', source)
+        self.assertIn('isinstance(event_error, ImportError)', source)
+
     def test_blocked_disk_does_not_block_caller_and_overflow_is_bounded(self):
         release, entered = threading.Event(), threading.Event()
         sink = Sink()
