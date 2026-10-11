@@ -270,3 +270,33 @@ EKF, motor or safety settings.
    - AMCL replays improve on the active map.
    - No new reachable space unless you confirm it physically.
    - Promotion is a separate approval.
+
+## Morning repeat, 2026-10-11 07:40 (read-only)
+
+**Restart.** The previous session (booted 22:24) ended without a clean
+shutdown: wtmp marks it "crash", and the journal ends at 01:37:49 with no
+shutdown messages. That counts as one more unsafe shutdown.
+- `gatttool` (the BMS BLE poller) logged order-7 page-allocation failures at
+  00:20 and 00:37. These are warnings, not an OOM kill. They are not linked
+  to the power loss.
+
+**This boot**
+- LiDAR: 6 failed starts, then scanning about 50 s after boot.
+- The seeder VERIFIED Dhruv Room (fit 1.00, margin 0.108) and seeded AMCL.
+- The monitor auto-started. That is the first real-boot confirmation of the
+  unit-ordering fix in `2120f45`.
+
+**Fresh Dhruv Room scans** (248 scans, 6 windows; all maps at
+(0.175, −1.695, 76°)):
+
+| Map | Verdicts | Fit | Margin | 2nd place | Within 5 cm | Through-wall rays |
+|---|---|---|---|---|---|---|
+| Active | 6/6 | 1.00 | 0.097–0.113 | alias (3.88, −0.58) 0.887 | 0.938 | 24/289 |
+| v1 (rejected) | 6/6 | 1.00 | 0.151–0.161 | 0.842 | 0.938 | 24/289 |
+| v3 | 6/6 | 1.00 | 0.076–0.105 | (1.21, −0.38) 0.908 | 0.938 | 24/289 |
+
+v3 gives no improvement; its margin is slightly lower. This confirms the
+conclusion above.
+
+Active map, named places and Nav2 config are byte-identical. Nothing was
+deployed, restarted or reseeded by Claude.
