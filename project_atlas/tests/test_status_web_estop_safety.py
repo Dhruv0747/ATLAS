@@ -32,6 +32,7 @@ def _stub_ros():
     module('sensor_msgs'); module('sensor_msgs.msg', NavSatFix=Msg, LaserScan=Msg, CompressedImage=Msg, Joy=Msg)
     module('std_msgs'); module('std_msgs.msg', Bool=Msg, Float32=Msg, String=Msg, Int32=Msg, Empty=Msg)
     module('tf2_ros', Buffer=Msg, TransformListener=Msg)
+    module('std_srvs'); module('std_srvs.srv', Trigger=Msg)
 
 
 _stub_ros()
@@ -39,19 +40,36 @@ import atlas_status_web as web  # noqa: E402
 
 
 class Recorder:
-    """Stands in for AtlasRosNode: records what would be published."""
-    def __init__(self, ready=True, latch_pub=True, policy=None):
-        import threading
+    """Stands in for AtlasRosNode: records what would be published; real E-STOP/reset methods."""
+    def __init__(self, ready=True, latch_pub=True, policy=None, tmp=None):
+        import threading, tempfile
         self.ready, self.lock, self.data, self.events = ready, threading.Lock(), {}, []
         self.commissioning_stop_pub = types.SimpleNamespace(publish=lambda m: self.events.append('LATCH')) if latch_pub else None
         self.web_estop_at = float('-inf')
+        self.last_drive_request = float('-inf'); self.drive_requires_fresh_press = False; self.drive_active = False
+        self.tmp = Path(tmp or tempfile.mkdtemp())
+        self.log_lines = []
+        self.estop_log = types.SimpleNamespace(write=lambda event, **f: self.log_lines.append({'event': event, **f}))
+        self.reset_pins = web.estop_reset.PinStore(self.tmp / 'pin.json')
+        self.reset_lockout = web.estop_reset.Lockout()
+        self.reset_challenges = web.estop_reset.Challenges()
+        self.mux_reset_reply = (True, 'REMOTE STOP: released by operator'); self.mux_reset_calls = 0
         if policy is not None:
             self.data['control_policy'] = {'value': json.dumps(policy), 'ts': time.time()}
     def publish(self, linear=0.0, angular=0.0):
         if not self.ready: return False
         self.events.append(('TWIST', float(linear), float(angular))); return True
+    def request_mux_reset(self, timeout_s=2.0):
+        self.mux_reset_calls += 1
+        ok, msg = self.mux_reset_reply
+        if ok:   # the real mux then publishes an unlatched policy
+            self.data['control_policy'] = {'value': json.dumps({'stop_latched': False, 'stop_reason': msg}), 'ts': time.time()}
+        return ok, msg
     latch_drive_stop = web.AtlasRosNode.latch_drive_stop
     drive_stop_latched = web.AtlasRosNode.drive_stop_latched
+    _item = web.AtlasRosNode._item
+    estop_observations = web.AtlasRosNode.estop_observations
+    estop_state = web.AtlasRosNode.estop_state
 
 
 def post(form, headers=None):

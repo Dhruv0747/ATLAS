@@ -9,6 +9,7 @@ import re
 import socket
 import atlas_wifi_web
 import atlas_web_v2
+import atlas_estop_reset as estop_reset
 import subprocess
 import threading
 SHUTDOWN_PENDING = threading.Event()
@@ -35,6 +36,7 @@ from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import NavSatFix, LaserScan, CompressedImage, Joy
 from std_msgs.msg import Bool, Float32, String, Int32, Empty
 from tf2_ros import Buffer, TransformListener
+from std_srvs.srv import Trigger
 
 PORT = 8088
 CAMERA_PAN_STEP_US = 150
@@ -350,6 +352,15 @@ class AtlasRosNode:
         self.last_camera_manual = 0.0
         self.last_drive_command = 0.0
         self.web_estop_at = float('-inf')
+        # Web E-STOP reset (stage 1b): server-side policy in atlas_estop_reset.py.
+        self.last_drive_request = float('-inf')     # any drive POST, accepted or refused
+        self.drive_requires_fresh_press = False     # set by a web reset; cleared by a fresh press
+        self.remote_stop_reset_client = None
+        self.estop_log = estop_reset.EventLog()
+        self.reset_pins = estop_reset.PinStore()
+        self.reset_lockout = estop_reset.Lockout()
+        self.reset_challenges = estop_reset.Challenges()
+        self.logged_latch = None
         self.drive_active = False
         self.camera_clients = CameraClientDemand(CAMERA_CLIENT_LEASE_SECONDS)
         # Prime one frame after service start so the existing commissioning
@@ -436,6 +447,8 @@ class AtlasRosNode:
             # Reuse the existing mux latch; never create a second motor path.
             self.commissioning_stop_pub = self.node.create_publisher(Empty, '/atlas/voice/stop', 10)
             self.steering_cal_pub = self.node.create_publisher(String, '/atlas/steering_calibration/request', 10)
+            # Existing mux service; the mux grants it only with the physical remote connected and neutral.
+            self.remote_stop_reset_client = self.node.create_client(Trigger, '/atlas/remote_stop/reset')
             self.node.create_subscription(String, '/atlas/steering_calibration/status', lambda m: self._set('steering_calibration', m.data), 10)
             self.node.create_subscription(String, '/atlas/control_policy', lambda m: self._set('control_policy', m.data), 10)
             self.pan_pub = self.node.create_publisher(
@@ -842,6 +855,7 @@ class AtlasRosNode:
         })
 
     def _map_pose_tick(self):
+        self.log_latch_transition()
         if self.tf_buffer is None:
             return
         try:
@@ -1338,6 +1352,71 @@ class AtlasRosNode:
         except (TypeError, ValueError, AttributeError):
             return False
 
+    def _item(self, key):
+        with self.lock:
+            item = self.data.get(key)
+            return (dict(item) if item else None)
+
+    def estop_observations(self):
+        now = time.time()
+        age = lambda it: (now - float(it.get('ts', 0.0))) if it else None
+        pol_item, joy, odom, cmd = (self._item(k) for k in ('control_policy', 'joy', 'odom', 'cmd_vel'))
+        try:
+            policy = json.loads(pol_item['value']) if pol_item else None
+        except (TypeError, ValueError):
+            policy = None
+        since = time.monotonic() - self.last_drive_request
+        return {
+            'ros_ready': bool(self.ready), 'shutdown_pending': SHUTDOWN_PENDING.is_set(),
+            'policy': policy, 'policy_age_s': age(pol_item), 'joy_age_s': age(joy),
+            'odom': odom and odom.get('value'), 'odom_age_s': age(odom),
+            'cmd_vel': cmd and cmd.get('value'), 'cmd_vel_age_s': age(cmd),
+            'drive_active': bool(self.drive_active), 'since_drive_request_s': since if since != float('inf') else None,
+            'pin_configured': self.reset_pins.configured(), 'lockout_s': self.reset_lockout.remaining(),
+        }
+
+    def estop_state(self, client):
+        obs = self.estop_observations()
+        blocked = estop_reset.evaluate(obs)
+        policy = obs['policy'] if obs['policy_age_s'] is not None and obs['policy_age_s'] <= estop_reset.POLICY_MAX_AGE_S else None
+        latched = None if policy is None else policy.get('stop_latched') is True
+        available = latched is True and not blocked
+        return {
+            'latched': latched, 'reason': policy and policy.get('stop_reason'),
+            'drive_requires_fresh_press': self.drive_requires_fresh_press,
+            'reset': {'available': available, 'blocked': [] if available else blocked,
+                      'challenge': self.reset_challenges.issue(client) if available else None,
+                      'challenge_ttl_s': estop_reset.CHALLENGE_TTL_S, 'pin_configured': obs['pin_configured'],
+                      'lockout_s': round(obs['lockout_s'], 1)},
+        }
+
+    def request_mux_reset(self, timeout_s=2.0):
+        client = self.remote_stop_reset_client
+        if not self.ready or client is None or not client.service_is_ready():
+            return False, 'mux reset service unavailable'
+        future = client.call_async(Trigger.Request())
+        end = time.monotonic() + timeout_s
+        while not future.done() and time.monotonic() < end:
+            time.sleep(0.02)          # the ROS executor thread completes the future
+        if not future.done():
+            future.cancel()
+            return False, 'mux did not answer'
+        result = future.result()
+        return bool(result.success), str(result.message)
+
+    def log_latch_transition(self):
+        item = self._item('control_policy')
+        if not item:
+            return
+        try:
+            policy = json.loads(item['value'])
+        except (TypeError, ValueError):
+            return
+        state = (policy.get('stop_latched'), policy.get('stop_reason'))
+        if state != self.logged_latch:
+            self.logged_latch = state
+            self.estop_log.write('latch_state', latched=state[0], reason=state[1])
+
     def snapshot(self):
         with self.lock:
             data = {key: dict(item) for key, item in self.data.items()}
@@ -1740,6 +1819,9 @@ class Handler(BaseHTTPRequestHandler):
         if not self.client_allowed():
             self.send_error(403)
             return
+        if self.path.split('?')[0] == '/api/estop/state':
+            json_response(self, 200, ROS.estop_state(self.client_address[0]))
+            return
         if atlas_web_v2.handles(self.path):   # Glass UI V2 static files (additive; V1 routes unchanged)
             atlas_web_v2.serve(self)
             return
@@ -1930,6 +2012,9 @@ class Handler(BaseHTTPRequestHandler):
         if not self.client_allowed():
             self.send_error(403)
             return
+        if self.path == '/api/estop/reset':
+            self.handle_estop_reset()
+            return
         if self.path.startswith('/api/commissioning'):
             if self.path != '/api/commissioning' or not atlas_wifi_web.same_origin(self.headers):
                 self.send_error(403)
@@ -1946,6 +2031,7 @@ class Handler(BaseHTTPRequestHandler):
                         json_response(self, 503, {'error': 'Stop publisher unavailable; use remote stop'})
                     else:
                         ROS.commissioning_stop_pub.publish(Empty())
+                        ROS.estop_log.write('commissioning_latch_stop', client=self.client_address[0])
                         json_response(self, 202, {'message': 'Mux latch requested, not physical stop confirmation'})
                 elif payload.get('action') == 'camera':
                     if SHUTDOWN_PENDING.is_set():
@@ -2030,11 +2116,16 @@ class Handler(BaseHTTPRequestHandler):
         action = form.get("action", [""])[0]
         # A stop is never refused, including while a shutdown is pending.
         if action == "stop":
-            json_response(self, 200, {"ok": True, "message": "Drive stopped", "detail": stop_rover()})
+            detail = stop_rover()
+            ROS.estop_log.write('stop', client=self.client_address[0], zero=detail, shutdown_pending=SHUTDOWN_PENDING.is_set())
+            json_response(self, 200, {"ok": True, "message": "Drive stopped", "detail": detail})
             return
         if action == "e_stop":
             detail = stop_rover()
-            if ROS.latch_drive_stop():
+            latched = ROS.latch_drive_stop()
+            ROS.estop_log.write('e_stop', client=self.client_address[0], zero=detail, latched=latched,
+                                shutdown_pending=SHUTDOWN_PENDING.is_set())
+            if latched:
                 json_response(self, 200, {"ok": True, "latched": True, "detail": detail,
                                           "message": "EMERGENCY STOP LATCHED. Release with the remote: sticks neutral, hold LB, let go."})
             else:
@@ -2046,6 +2137,16 @@ class Handler(BaseHTTPRequestHandler):
             json_response(self, 409, {"ok": False, "message": "Shutdown already requested; controls disabled"})
             return
         if action == "drive":
+            gap = time.monotonic() - ROS.last_drive_request
+            ROS.last_drive_request = time.monotonic()
+            if ROS.drive_requires_fresh_press:
+                # After a web reset only a NEW press may drive: the first drive request after a quiet gap.
+                # A button still held from before keeps posting every 120 ms and is refused until released.
+                if gap < estop_reset.FRESH_PRESS_GAP_S:
+                    stop_rover()
+                    json_response(self, 409, {"ok": False, "message": "Release all drive buttons, then press again to drive."})
+                    return
+                ROS.drive_requires_fresh_press = False
             if ROS.drive_stop_latched():
                 stop_rover()
                 json_response(self, 409, {"ok": False, "message": "Drive stop latched. Release it with the remote: sticks neutral, hold LB, let go."})
@@ -2115,6 +2216,7 @@ class Handler(BaseHTTPRequestHandler):
             # Also latch the mux so no other drive source can resume during the
             # poweroff delay; release remains physical (remote) after reboot.
             ROS.latch_drive_stop()
+            ROS.estop_log.write('shutdown_latch', client=self.client_address[0])
             def power_off():
                 time.sleep(2)
                 ok, detail = run_quiet(['sudo', '-n', '/sbin/shutdown', '-h', 'now'], timeout=8)
@@ -2125,6 +2227,53 @@ class Handler(BaseHTTPRequestHandler):
             json_response(self, 202, {"ok": True, "message": "Shutdown requested. Wait for Jetson to power off before disconnecting power."})
         else:
             json_response(self, 400, {"ok": False, "message": "unknown action"})
+
+    def handle_estop_reset(self):
+        """Release the software E-STOP latch: every check is made here, on the server."""
+        client = self.client_address[0]
+        def deny(code, why, event='reset_denied', **extra):
+            ROS.estop_log.write(event, result='denied', reason=why, client=client, **extra)
+            json_response(self, code, {'ok': False, 'released': False, 'message': 'RESET BLOCKED: ' + why})
+        if not atlas_wifi_web.same_origin(self.headers):
+            return deny(403, 'request did not come from the ATLAS dashboard page')
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+            if not 0 < length <= 1024 or self.headers.get_content_type() != 'application/json':
+                raise ValueError
+            payload = json.loads(self.rfile.read(length))
+            if not isinstance(payload, dict):
+                raise ValueError
+        except (ValueError, TypeError):
+            return deny(400, 'invalid request')
+        if payload.get('confirm') != estop_reset.CONFIRM_PHRASE:
+            return deny(400, 'confirmation missing')
+        if ROS.reset_lockout.remaining() > 0:
+            return deny(429, f'too many wrong PINs; wait {int(ROS.reset_lockout.remaining())} s')
+        if not ROS.reset_challenges.consume(payload.get('nonce'), client):
+            return deny(409, 'confirmation expired or page out of date; check the state and try again')
+        blocked = estop_reset.evaluate(ROS.estop_observations())
+        if blocked:
+            return deny(409, '; '.join(blocked))
+        if not ROS.reset_pins.verify(str(payload.get('pin', ''))):
+            ROS.reset_lockout.fail()
+            return deny(403, 'wrong operator PIN', event='reset_denied_pin')
+        ROS.reset_lockout.success()
+        zero = stop_rover()                              # motor commands stay at zero through the reset
+        ROS.drive_requires_fresh_press = True            # set BEFORE the release: no drive can slip through
+        ROS.last_drive_request = time.monotonic()
+        ok, mux_message = ROS.request_mux_reset()
+        if not ok:
+            ROS.estop_log.write('reset_refused_by_mux', result='denied', reason=mux_message, client=client, zero=zero)
+            return json_response(self, 409, {'ok': False, 'released': False, 'message': 'RESET BLOCKED by the stop multiplexer: ' + mux_message})
+        end = time.monotonic() + 1.0
+        while time.monotonic() < end and ROS.drive_stop_latched(estop_grace_s=0.0):
+            time.sleep(0.05)
+        released = not ROS.drive_stop_latched(estop_grace_s=0.0)
+        ROS.estop_log.write('reset_granted', result='released' if released else 'unconfirmed', client=client,
+                            mux=mux_message, zero=zero)
+        json_response(self, 200, {'ok': True, 'released': released, 'message': (
+            'E-STOP RELEASED. Nothing moves until you press a drive button again.' if released else
+            'Reset accepted by the mux but release not yet confirmed; treat as latched.')})
 
     def log_message(self, fmt, *args):
         return
@@ -2237,6 +2386,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
 .diagTable{width:100%;border-collapse:collapse;font-size:12px}.diagTable th,.diagTable td{text-align:left;padding:9px;border-bottom:1px solid #25475b;vertical-align:top}.diagTable th{color:#17d5ff}.diagTable tr:hover{background:#122b3d}.rawData{overflow-wrap:anywhere}.sensorModal{display:none;position:fixed;inset:0;z-index:20;background:rgba(0,5,10,.88);padding:3vh 3vw}.sensorModal.open{display:flex}.sensorSheet{width:min(980px,94vw);max-height:94vh;margin:auto;overflow:auto;background:#07131f;border:2px solid var(--cyan);border-radius:14px;padding:14px;box-shadow:0 0 38px rgba(23,213,255,.28)}.sensorHead{display:flex;align-items:center;gap:10px;border-bottom:1px solid #214761;padding-bottom:9px;margin-bottom:10px}.sensorHead h2{font-size:18px;margin:0}.closeDetail{margin-left:auto;background:#7f1722;border:1px solid #ff5966;color:#fff;border-radius:8px;padding:10px 18px;font-weight:800}.detailGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.detailTile{background:#0b1d2c;border:1px solid #214761;border-radius:9px;padding:10px;min-width:0}.detailTile b{display:block;color:var(--cyan);font-size:11px}.detailTile strong{display:block;font-size:22px;margin-top:5px;overflow-wrap:anywhere}.rangeBar{height:18px;background:#13283a;border-radius:9px;overflow:hidden;margin-top:8px}.rangeFill{height:100%;background:linear-gradient(90deg,#ff4655,#ffcc3d,#34e58b);transition:width .25s}.modalCamera{width:100%;max-height:65vh;object-fit:contain;background:#000;border-radius:8px}.modalHeat{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;max-width:460px;aspect-ratio:1;margin:auto}.modalHeat i{display:block;border-radius:3px}.rawData{font:12px ui-monospace,monospace;white-space:pre-wrap;color:#bcd3e5;background:#040a12;border-radius:8px;padding:10px;margin-top:9px}.sensorHint{color:#8ca6bb;font-size:11px;margin-top:8px}
 @media(max-width:700px){.detailGrid{grid-template-columns:1fr}.sensorModal{padding:1vh 2vw}.sensorSheet{max-height:98vh}}
 @media(max-width:900px){.grid{display:block;height:auto;width:100%;overflow:hidden}.col,.panel{overflow:visible;margin-bottom:8px;min-width:0}.camera{height:42vh}.envgrid{grid-template-columns:1fr}.heatmap{max-width:180px}canvas{max-width:100%}header .sub{display:none}.headerBtn{padding:7px 9px}.headerText{display:none}}
+.estopReset[hidden]{display:none}.estopReset{display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:8px;padding:8px;border:1px solid #31546b;border-radius:8px;font-size:12px}.estopReset b,.estopReset span{grid-column:1/-1}.estopReset b.bad{color:#ff6d7a}.estopReset b.warn{color:#ffcc3d}.estopReset b.ok{color:#53e7b1}.estopReset input{min-width:0;padding:8px;border-radius:6px;border:1px solid #385b70;background:#06121e;color:#fff;font:inherit}
 @media(min-width:1500px){body{font-size:15px}.grid{grid-template-columns:minmax(300px,20vw) minmax(600px,1fr) minmax(350px,23vw)}.camera{height:min(52vh,610px)}.speechText{font-size:16px}}
 @media(max-width:1150px) and (min-width:901px){.grid{grid-template-columns:265px minmax(390px,1fr) 295px}.companionGrid{grid-template-columns:1fr}.companionStatus{grid-template-columns:1fr 1fr}.voiceLedStates{grid-template-columns:repeat(3,1fr)}}
 </style></head><body>
@@ -2248,7 +2398,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
   <button class="btn" data-l=".45" data-a=".90">↖ FWD-L</button><button class="btn" data-l=".65" data-a="0">▲ FORWARD</button><button class="btn" data-l=".45" data-a="-.90">FWD-R ↗</button>
   <button class="btn" data-l="-.65" data-a=".90">BACK-L</button><button class="btn stop" id="stop">E-STOP</button><button class="btn" data-l="-.65" data-a="-.90">BACK-R</button>
   <span></span><button class="btn" data-l="-.65" data-a="0">▼ BACK</button><span></span>
- </div></div>
+ </div><div class="estopReset" id="estopResetPanel"><b id="estopState">STOP STATE CHECKING…</b><span id="estopWhy"></span><input id="estopPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN" aria-label="Operator PIN for E-STOP reset"><button class="btn" id="estopReset" disabled>RESET E-STOP</button></div></div>
  <div class="panel"><h2>CAMERA PAN / TILT</h2><div class="camctl">
   <span></span><button class="btn" data-cam="tilt" data-dir="-1">▲ UP</button><span></span>
   <button class="btn" data-cam="pan" data-dir="-1">◀ LEFT</button><button class="btn" data-cam="center" data-dir="0">CENTER</button><button class="btn" data-cam="pan" data-dir="1">RIGHT ▶</button>
@@ -2472,6 +2622,10 @@ async function stop(){await post({action:'stop'},false)}
 let hold=null;function beginDrive(b){stopDrive(false);b.classList.add('on');let send=()=>post({action:'drive',linear:b.dataset.l,angular:b.dataset.a},false);send();hold=setInterval(send,120)}
 function stopDrive(send=true){if(hold){clearInterval(hold);hold=null}document.querySelectorAll('[data-l]').forEach(b=>b.classList.remove('on'));if(send)stop()}
 document.querySelectorAll('[data-l]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);beginDrive(b)};b.onpointerup=()=>stopDrive();b.onpointercancel=()=>stopDrive();b.onlostpointercapture=()=>stopDrive()});
+let estopNonce=null;function showEstop(text,cls,why,canReset){$('estopState').textContent=text;$('estopState').className=cls;$('estopWhy').textContent=why;$('estopReset').disabled=!canReset}
+async function pollEstop(){try{let r=await fetch('/api/estop/state',{cache:'no-store'});if(r.status===404){$('estopResetPanel').hidden=true;return}let d=await r.json();let rs=d.reset||{};estopNonce=rs.challenge||null;if(d.latched===true){if(rs.available)showEstop('STOP LATCHED — RESET AVAILABLE','warn','Remote connected, rover still, drive buttons released. Reset needs the operator PIN and does not move the rover.',true);else showEstop('STOP LATCHED — RESET BLOCKED','bad',(rs.blocked||[]).join(' • ')||'Conditions not confirmed',false)}else if(d.latched===false)showEstop(d.drive_requires_fresh_press?'NOT LATCHED — RELEASE ALL DRIVE BUTTONS, THEN PRESS AGAIN':'NOT LATCHED','ok','',false);else showEstop('STOP STATE UNKNOWN — RESET BLOCKED','bad','No fresh stop state from ATLAS.',false)}catch(e){estopNonce=null;showEstop('CONNECTION LOST — RESET BLOCKED','bad','The latch stays engaged; use the physical remote.',false)}}
+async function resetEstop(){stopDrive(false);stopCameraHold();const nonce=estopNonce,pin=$('estopPin').value;if(!nonce){toast('RESET BLOCKED');return}if(!confirm('Release the E-STOP latch?\n\nThe rover will NOT move by itself. Release every drive button first; a new press is needed to drive.'))return;$('estopReset').disabled=true;try{let r=await fetch('/api/estop/reset',{method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Wifi':'1'},body:JSON.stringify({nonce,pin,confirm:'RESET_ESTOP'})});let d=await r.json();toast(d.message||('RESET '+r.status))}catch(e){toast('RESET NOT CONFIRMED — CONNECTION LOST')}finally{$('estopPin').value='';estopNonce=null;pollEstop()}}
+$('estopReset').onclick=resetEstop;setInterval(()=>{if(!document.hidden)pollEstop()},1000);pollEstop();
 let eStopPtrAt=0;const eStop=()=>{stopDrive(false);stopCameraHold();post({action:'e_stop'})};$('stop').onpointerdown=e=>{e.preventDefault();eStopPtrAt=Date.now();eStop()};$('stop').onclick=e=>{if(e.detail===0&&Date.now()-eStopPtrAt>1000)eStop()};window.addEventListener('blur',()=>stopDrive());document.addEventListener('visibilitychange',()=>{if(document.hidden)stopDrive()});
 let cameraHold=null,cameraBusy=false;
 function stopCameraHold(){if(cameraHold){clearInterval(cameraHold);cameraHold=null}document.querySelectorAll('[data-cam]').forEach(b=>b.classList.remove('on'))}
