@@ -21,8 +21,10 @@ def tree_hash(root):
 
 
 def export(commit, dest):
-    data = subprocess.run(['git', '-C', str(REPO), 'archive', commit, 'project_atlas/scripts', 'project_atlas/config'],
-                          check=True, capture_output=True).stdout
+    paths = ['project_atlas/scripts', 'project_atlas/config']
+    if subprocess.run(['git', '-C', str(REPO), 'cat-file', '-e', f'{commit}:project_atlas/web/v2'], capture_output=True).returncode == 0:
+        paths.append('project_atlas/web/v2')   # bases after stage 2 have V2 pages that later stages patch
+    data = subprocess.run(['git', '-C', str(REPO), 'archive', commit, *paths], check=True, capture_output=True).stdout
     subprocess.run(['tar', '-x', '--strip-components=1', '-C', str(dest)], input=data, check=True)
 
 

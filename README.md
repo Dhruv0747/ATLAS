@@ -11,18 +11,29 @@
 runs GET-only post-install checks. The current stages and their status are in the
 [staged deployment plan](docs/deploy/ATLAS_STAGED_DEPLOYMENT_2026-10-11.md).
 
-### Glass UI V2 prototype — 2026-10-11 (not deployed)
+### Glass UI V2 — the only dashboard since 2026-10-11 14:21 IST
 
-`project_atlas/web/v2/` is a restyled, phone-first dashboard. It puts the camera and drive pad
-together and keeps a sticky E-STOP on every screen size. It reuses the V1 logic:
-- `command.js` and the sub-pages are generated from V1 by `tools/ui_v2/build_*.py`, with asserted
-  patches;
-- the same server serves it at `/v2/` (`scripts/atlas_web_v2.py`; no new runtime).
+`project_atlas/web/v2/` is the phone-first dashboard, with the camera and drive pad together and a
+sticky E-STOP on every screen size.
+- It is served at `/` and at `/v2/` by the same `rover-status-web` process
+  (`scripts/atlas_web_v2.py`).
+- The old page paths `/mapping`, `/commissioning` and `/wifi` redirect (302) to their `/v2/`
+  versions. Other unknown GET paths return 404.
+- Every API, `POST /`, camera stream, JS asset, the manifest, E-STOP and the web reset are
+  unchanged.
 
-V1 at `/` stays the default and the rollback. Regression tests:
-`python3 project_atlas/tools/ui_v2/test_ui_v2.py <snapshot_dir> <out_dir>` and
-`python3 -m unittest tests.test_atlas_web_v2`. See the
-[prototype report](docs/ui/ATLAS_GLASS_UI_V2_PROTOTYPE_REPORT_2026-10-11.md).
+The classic V1 pages are disabled, not deleted:
+- `command.js` and the V2 sub-pages are still generated from the V1 sources by
+  `tools/ui_v2/build_*.py`, so those sources stay in place.
+- Setting `Environment=ATLAS_CLASSIC_UI=1` in a `rover-status-web` drop-in, then restarting,
+  restores the classic routing with no file change.
+- The full rollback is the stage 5 backup's `ROLLBACK.sh`.
+
+Tests:
+- `python3 -m unittest test_v2_default_route test_atlas_web_v2` (from `project_atlas/tests`);
+- `tools/ui_v2/test_ui_v2.py <snapshot_dir> <out_dir>`.
+
+Deployment record: [V2 default](docs/deploy/ATLAS_V2_DEFAULT_2026-10-11.md).
 
 ### Mission-start LiDAR check — 2026-10-10
 
