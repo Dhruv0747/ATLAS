@@ -1,5 +1,16 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Staged deployment packages — 2026-10-11 (not installed)
+
+`project_atlas/tools/deploy/make_package.py` builds one patch-based package per approved stage:
+- the install rehearses on a scratch copy, backs up, then applies;
+- `ROLLBACK.sh` has its install root pinned;
+- nothing is restarted.
+
+`check_packages.py` rehearses every install order against the deployed baseline, and `verify.sh`
+runs GET-only post-install checks. The current stages and their status are in the
+[staged deployment plan](docs/deploy/ATLAS_STAGED_DEPLOYMENT_2026-10-11.md).
+
 ### Glass UI V2 prototype — 2026-10-11 (not deployed)
 
 `project_atlas/web/v2/` is a restyled, phone-first dashboard. It puts the camera and drive pad

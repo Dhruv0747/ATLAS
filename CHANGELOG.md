@@ -1,5 +1,22 @@
 # Changelog
 
+2026-10-11 (later): four approved preparation stages are **built, tested and staged, not
+installed**. They are staged on the Jetson in `data/staging/2026-10-11/`, and each needs separate
+approval. See the [staged deployment plan](docs/deploy/ATLAS_STAGED_DEPLOYMENT_2026-10-11.md).
+1. **Safety:**
+   - web E-STOP latches the existing mux stop;
+   - drive refused while latched;
+   - stops accepted during shutdown;
+   - unauthenticated reboot action removed.
+
+   See the [safety review](docs/security/ATLAS_ESTOP_SAFETY_REVIEW_2026-10-11.md). New finding:
+   during a two-finger touch, V1's E-STOP sends nothing.
+2. **Glass UI V2 `/v2/` package.** The V2 E-STOP fires on pointerdown and cancels hold-to-drive.
+3. **rover-status-web hot/cold executor split:** 57% → 40.7% of one core (real module, isolated
+   benchmark).
+4. **Visual Cloud** becomes local-only and viewer/activity-activated, with bounded history in a
+   new file (the 25 GB legacy DB is untouched). Measured live: idle 11.5% → 1.4% of one core.
+
 2026-10-11 Glass UI V2 prototype plus three read-only audits. **Nothing was
 deployed or changed on the Jetson.**
 - **Glass UI V2** (`project_atlas/web/v2/`). It is served at `/v2/` by a new allow-listed

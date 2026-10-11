@@ -47,7 +47,12 @@ def main():
                         if changed and not filecmp.cmp(root / rel, exp / rel, shallow=False):
                             print('FAIL result', order, rel); ok = False
                 for bk in sorted((root / 'data/backups').iterdir(), reverse=True):   # newest first (ns timestamps)
-                    r = subprocess.run(['bash', str(bk / 'ROLLBACK.sh')], env=env, capture_output=True, text=True)
+                    rb = (bk / 'ROLLBACK.sh').read_text()
+                    if f'ROOT="{root}"' not in rb:
+                        print('FAIL rollback root not pinned', bk.name); ok = False; continue
+                    # Run WITHOUT ATLAS_ROOT so a missing pin could never fall back to a real tree.
+                    clean = {k: v for k, v in os.environ.items() if k != 'ATLAS_ROOT'}
+                    r = subprocess.run(['bash', str(bk / 'ROLLBACK.sh')], env=clean, capture_output=True, text=True)
                     if r.returncode:
                         print('FAIL rollback', bk.name, r.stderr[-300:]); ok = False
                 after = tree_hash(root)

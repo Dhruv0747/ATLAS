@@ -81,12 +81,14 @@ cat > "$BK/ROLLBACK.sh" <<'RB'
 #!/usr/bin/env bash
 # Restore the files changed by stage {stage} and remove the files it added. Restarts nothing.
 set -euo pipefail
-BK="$(cd "$(dirname "$0")" && pwd)"; ROOT="${{ATLAS_ROOT:-$HOME/project_atlas}}"; cd "$ROOT"
+BK="$(cd "$(dirname "$0")" && pwd)"; ROOT="__ATLAS_INSTALL_ROOT__"   # fixed at install time; never taken from the environment
+cd "$ROOT"
 (cd "$BK/orig" && find . -type f -print0) | while IFS= read -r -d '' f; do cp -a "$BK/orig/$f" "$ROOT/$f"; echo "restored $f"; done
 while read -r f; do [ -z "$f" ] || {{ rm -f -- "$ROOT/$f" && echo "removed $f"; }}; done < "$BK/added.txt"
 find "$ROOT/web/v2" -depth -type d -empty -delete 2>/dev/null || true
 echo "rollback of {stage} complete; restart the affected service when coordinated."
 RB
+sed -i "s#__ATLAS_INSTALL_ROOT__#$ROOT#" "$BK/ROLLBACK.sh"; grep -qF -- "$ROOT" "$BK/ROLLBACK.sh"
 chmod +x "$BK/ROLLBACK.sh"; cp "$PKG/MANIFEST" "$BK/"
 echo "== apply"; {''.join(f'patch -p1 --forward --no-backup-if-mismatch -s < "$PKG/patches/{n}"; ' for _, n in patched) or 'true; '}
 (cd "$PKG/files" && find . -type f -print0) | while IFS= read -r -d '' f; do mkdir -p "$(dirname "$f")"; cp "$PKG/files/$f" "$f"; done
