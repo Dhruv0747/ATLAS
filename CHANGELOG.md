@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-11: Read-only reliability and location-check foundation (not deployed).
+- Paired raw/filtered guard audit plus finite settled resource probe; five audit tests.
+- Manual location job lifecycle with cancellation, timeout, provenance invalidation,
+  single-worker ownership and historical-result labeling; optional matcher checkpoint.
+- 33 scoped Jetson tests pass; two people-experiment tests blocked by missing rosbags.
+- UI, trusted ROS adapter, end-to-end location replay and correction remain pending.
+
 2026-10-11: Approved scan-availability guard and full-controller validation.
 - Actual installed controller/action/costmap replay reproduced continued commands
   with missing/stale scans and an unobserved rear sector; expected_update_rate

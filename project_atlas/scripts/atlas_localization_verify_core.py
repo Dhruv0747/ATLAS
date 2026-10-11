@@ -216,9 +216,11 @@ def _coarse_scores(index: dict, pts: np.ndarray, yaw: float, res: float) -> np.n
 
 
 def global_search(m: dict, all_pts: np.ndarray, heldout_pts: np.ndarray,
-                  policy: VerifyPolicy = VerifyPolicy()) -> List[dict]:
+                  policy: VerifyPolicy = VerifyPolicy(), checkpoint=None) -> List[dict]:
     """Distinct pose hypotheses (>= separation_m apart or >= separation_deg
     rotated), best held-out fit first. Uses no prior pose."""
+    check = checkpoint or (lambda: None)
+    check()
     index = _search_index(m, policy)
     xs, ys = index['xs'], index['ys']
     if len(xs) == 0:
@@ -226,6 +228,7 @@ def global_search(m: dict, all_pts: np.ndarray, heldout_pts: np.ndarray,
     sub = all_pts[::max(1, len(all_pts) // 120)]
     coarse = []
     for yaw in np.radians(np.arange(-180.0, 180.0, policy.yaw_step_deg)):
+        check()
         f = _coarse_scores(index, sub, yaw, m['res'])
         for i in np.argsort(f)[-policy.keep_per_heading:]:
             coarse.append((float(f[i]), float(xs[i]), float(ys[i]), float(yaw)))
@@ -233,6 +236,7 @@ def global_search(m: dict, all_pts: np.ndarray, heldout_pts: np.ndarray,
     tol = policy.tolerance_m
     hyps = []
     for _, x0, y0, t0 in coarse:
+        check()
         if any(_same(h, x0, y0, t0, policy) for h in hyps):
             continue
         bx, by, bt = x0, y0, t0
@@ -240,6 +244,7 @@ def global_search(m: dict, all_pts: np.ndarray, heldout_pts: np.ndarray,
         for dxy, dth in ((0.06, math.radians(2.0)), (0.02, math.radians(0.5))):
             improved = True
             while improved:
+                check()
                 improved = False
                 for dx in (-dxy, 0.0, dxy):
                     for dy in (-dxy, 0.0, dxy):
@@ -254,6 +259,7 @@ def global_search(m: dict, all_pts: np.ndarray, heldout_pts: np.ndarray,
                      'fit_heldout': round(fit(m, heldout_pts, bx, by, bt, tol), 3)})
         if len(hyps) >= policy.hypotheses:
             break
+    check()
     hyps.sort(key=lambda h: -h['fit_heldout'])
     return hyps
 

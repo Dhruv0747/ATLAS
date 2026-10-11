@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+11 October follow-up: 26 saved plus 18 fresh paired scans locate all missing
+returns in raw +inf, not self-filter removal. Physical cause remains unknown;
+guard permissions unchanged. Settled CPU 70.35%, RAM 5442.83 MiB; no basis to
+attribute the earlier entire increase to the guard. CHECK MY LOCATION has an
+isolated-tested lifecycle foundation only; adapter/UI/replay/deployment remain.
+See [checkpoint](ATLAS_CORE_RELIABILITY_CHECKPOINT_2026-10-11.md) and
+[location feature status](ATLAS_CHECK_MY_LOCATION_IMPLEMENTATION_REPORT.md).
+
 11 October 18:10 IST: approved recovery freshness + stop-only NAV2/recovery
 LiDAR guard deployed; RPP conversion 3 -> 15 deployed in both config copies
 and running controller, without AMCL restart. 15 full-controller/mux checks,

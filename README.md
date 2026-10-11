@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+11 October follow-up: [CHECK MY LOCATION checkpoint](docs/audits/ATLAS_CHECK_MY_LOCATION_IMPLEMENTATION_REPORT.md)
+adds an isolated-tested bounded-job foundation; no UI/API or correction is yet deployed.
+[New guard/resource evidence](docs/audits/ATLAS_CORE_RELIABILITY_CHECKPOINT_2026-10-11.md)
+traces missing rays to raw infinity, not self-filter removal. Existing safety and maps remain unchanged.
+
 11 October approved follow-up: the isolated installed Nav2 controller + exact
 live-based command-mux candidate passed 15 safety/behavior checks. The new
 stop-only LiDAR availability veto applies to NAV2/recovery only; it is not a
