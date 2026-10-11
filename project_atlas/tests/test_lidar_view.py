@@ -31,6 +31,38 @@ class ProjectionTests(unittest.TestCase):
     def test_invalid_quaternion_rejected(self):
         t=self.tf();t.rotation.w=0
         with self.assertRaises(ValueError):project(self.scan(),t)
+    def test_front_sector_not_forward_wall(self):
+        s=self.scan();s.angle_min=math.radians(-44);s.angle_increment=math.radians(44)
+        s.ranges=[.51,2.0];s.time_increment=.001
+        p=project(s,self.tf())
+        self.assertEqual(p['closest']['front'],.51)
+        self.assertEqual(p['minima']['front']['index'],0)
+        self.assertAlmostEqual(math.degrees(p['minima']['front']['bearing_rad']),-44)
+        self.assertEqual(len(p['points']),2)
+    def test_minimum_keeps_raw_provenance_and_ray_time(self):
+        s=self.scan();s.time_increment=.002
+        p=project(s,self.tf(math.pi/2))['minima']['front']
+        self.assertEqual(p['index'],3)
+        self.assertEqual(p['raw_range_m'],4)
+        self.assertEqual(p['ray_offset_s'],.006)
+        self.assertAlmostEqual(p['raw_angle_rad'],3*math.pi/2)
+    def test_cluster_estimate_does_not_remove_isolated_obstacle(self):
+        s=self.scan();s.angle_min=-.3;s.angle_increment=.02
+        s.ranges=[.4,float('inf')]+[2.]*20
+        p=project(s,self.tf())
+        self.assertEqual(p['closest']['front'],.4)
+        self.assertEqual(p['valid'],21)
+        self.assertAlmostEqual(p['surfaces']['front']['distance_m'],2.)
+    def test_sparse_returns_do_not_invent_surface(self):
+        p=project(self.scan(),self.tf())
+        self.assertTrue(all(v is None for v in p['surfaces'].values()))
+    def test_invalid_translation_rejected(self):
+        t=self.tf();t.translation.x=float('nan')
+        with self.assertRaises(ValueError):project(self.scan(),t)
+    def test_scan_not_mutated(self):
+        s=self.scan();before=list(s.ranges)
+        project(s,self.tf())
+        self.assertEqual(s.ranges,before)
 
 class SnapshotTests(unittest.TestCase):
     def setUp(self):

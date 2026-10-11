@@ -1,5 +1,15 @@
 # Changelog
 
+2026-10-11: LiDAR distance provenance investigation (not deployed).
+- Reproduced 0.509 m FRONT minimum at front-right quadrant boundary; matching
+  original raw ray excludes dashboard fabrication for that observation.
+- Add minimum ray/angle/time diagnostics and separately labelled cluster
+  estimates; preserve every valid point and nearest distance. UI marks minima.
+- Add finite paired-scan probe and offline replay: 26/26 captured projections
+  reproduced; 15 projection tests, seven route tests and UI logic checks pass.
+- Physical return identity, scan-density variation and localization remain
+  unresolved. No production configuration, map or control change.
+
 2026-10-11: Owner-approved live stages 8, 9b and 9c verified.
 - Single BMS retry ownership now deployed; connection still times out, but no
   competing restart. New camera/LiDAR/Home views are installed on the Jetson.

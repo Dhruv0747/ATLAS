@@ -14,6 +14,21 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-020",
+      "title": "Directional LiDAR minimum mistaken for forward wall distance and variable scan density",
+      "first_available_occurrence": "2026-10-11",
+      "latest_reviewed_occurrence": "2026-10-11",
+      "subsystem": "LiDAR / dashboard / shared scan geometry",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "confirmed_findings": "0.509072 m FRONT minimum is ray 318 at base bearing -44.695 degrees; raw sensor range 0.545750 m. All 64 paired samples preserve finite ranges and their minima. Dashboard uses 90-degree quadrants, not centreline wall distance. Raw valid counts varied 1-215 in first capture; second capture 204-212.",
+      "suspected_causes_and_limits": "Physical close-object, reflection, occlusion or cable identity remains unverified. Density variation is upstream of dashboard/filter, but its physical cause is not established. No new cause of historic AMCL jumps proven.",
+      "evidence": ["docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md"],
+      "test_results": "26 payload-preserving samples replayed; 15 projection and seven route tests pass, plus UI logic checks and 12 isolated Jetson E-STOP regressions. New provenance core/UI not deployed.",
+      "remaining_verification": "Deploy diagnostic UI with backup/rollback; parked measured targets and identify persistent front-right return. No close-return removal or motion until separately qualified.",
+      "events": [{"date":"2026-10-11","kind":"paired_scan_provenance","description":"Confirmed measurement semantics and raw point identity; preserved all close returns and production configuration."}]
+    },
+    {
       "id": "ATLAS-001",
       "title": "Encoder channel response and post-replacement metric calibration",
       "first_available_occurrence": "2026-08-04",

@@ -388,6 +388,22 @@ small. A fail-closed start-cell check was deployed in mission control with
 validation under motion and across reboot, and no autonomous movement was
 attempted.
 
+## Latest LiDAR priority on 11 October 2026
+
+The owner reprioritized sensing provenance before further BMS/network work.
+The reproduced 0.509 m FRONT minimum is raw ray 318 at -44.7 degrees in
+base_link, not a fabricated dashboard range or forward-wall estimate.
+64 paired raw/filtered samples preserved all finite measurements; scan-density
+variation was already present upstream. A second 26-sample capture retained
+raw payloads and replayed identically on Jetson. Physical obstacle/reflection
+identity remains unknown; do not remove the close point. Candidate provenance
+markers and cluster diagnostics are tested but not deployed. No motion,
+localization, map, network or calibration change. See
+[the consolidated sensing report](ATLAS_LIDAR_PROVENANCE_2026-10-11.md).
+Next physical action, after authorized diagnostic deployment, is a parked
+measured target check, not another manual room loop. Earlier observations below
+remain dated evidence rather than current readiness guarantees.
+
 ## Current verified boundary
 
 Latest observed motor owner: IDLE, stop latched, raw test interface disabled, all outputs zero; PID 3120, NRestarts=0. At 10:07 IST live encoder health reported fresh packets and selected encoders M1–M4, no exclusions, but this is **not** dynamic encoder qualification or proof M3 is physically reliable. At that time autonomy separately reported `FAULT: STOP: SLAM MAP DATA LOST`; see the later stopped diagnostic recovery below. No autonomous readiness can be inferred from the encoder flag alone.
