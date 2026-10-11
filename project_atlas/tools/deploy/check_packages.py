@@ -61,5 +61,34 @@ def main():
     sys.exit(0 if ok else 1)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__' and not os.environ.get('ATLAS_TAMPER_STAGE'):
     main()
+
+
+def tamper_test(pkg, base, stage):
+    """A patch that also touches a file outside the stage must be rolled back by install.sh (exit 3)."""
+    import shutil
+    with tempfile.TemporaryDirectory() as d:
+        bad = Path(d) / 'pkg'; shutil.copytree(pkg / stage, bad)
+        victim = 'scripts/atlas_cmd_vel_mux.py'
+        root = Path(d) / 'project_atlas'; root.mkdir(); export(base, root); (root / 'data/backups').mkdir(parents=True)
+        before = tree_hash(root)
+        lines = (root / victim).read_text().splitlines()
+        extra = (f'diff --git a/{victim} b/{victim}\n--- a/{victim}\n+++ b/{victim}\n@@ -1,1 +1,2 @@\n {lines[0]}\n+# tampered\n')
+        if os.environ.get('ATLAS_TAMPER_KIND') == 'newfile':
+            extra = ('diff --git a/scripts/evil.py b/scripts/evil.py\nnew file mode 100644\n--- /dev/null\n+++ b/scripts/evil.py\n'
+                     '@@ -0,0 +1 @@\n+print("tampered")\n')
+        patch = sorted((bad / 'patches').iterdir())[0]; patch.write_text(patch.read_text() + extra)
+        env = {**os.environ, 'ATLAS_ROOT': str(root)}
+        r = subprocess.run(['bash', str(bad / 'install.sh')], env=env, capture_output=True, text=True)
+        restored = tree_hash(root) == before
+        refused = r.returncode == 2 and 'refusing' in r.stdout          # caught before any live change
+        rolled = r.returncode == 3 and 'SCOPE VIOLATION' in r.stdout    # caught after apply and undone
+        ok = (refused or rolled) and restored
+        print('PASS' if ok else 'FAIL', f'tamper[{os.environ.get("ATLAS_TAMPER_KIND", "editfile")}] {stage}: exit {r.returncode}, '
+              f'{"refused before change" if refused else "rolled back" if rolled else "?"}, tree restored={restored}')
+        return ok
+
+
+if __name__ == '__main__' and os.environ.get('ATLAS_TAMPER_STAGE'):
+    sys.exit(0 if tamper_test(Path(sys.argv[1]), sys.argv[2], os.environ['ATLAS_TAMPER_STAGE']) else 1)

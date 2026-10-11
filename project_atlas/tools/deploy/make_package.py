@@ -90,9 +90,21 @@ echo "rollback of {stage} complete; restart the affected service when coordinate
 RB
 sed -i "s#__ATLAS_INSTALL_ROOT__#$ROOT#" "$BK/ROLLBACK.sh"; grep -qF -- "$ROOT" "$BK/ROLLBACK.sh"
 chmod +x "$BK/ROLLBACK.sh"; cp "$PKG/MANIFEST" "$BK/"
+ALLOWED="$BK/allowed.txt"; printf '%s\\n' {' '.join(list(dict.fromkeys(r for r, _ in patched)) + added)} > "$ALLOWED"
+scope(){{ {{ find scripts config web -type f -not -path '*/__pycache__/*' 2>/dev/null || true; }} | sort | {{ grep -vxF -f "$ALLOWED" || true; }} | xargs -r -d '\\n' sha256sum; }}
+scope > "$BK/scope_before.sha256"
+mkdir -p "$BK/scope_restore"; cut -c67- "$BK/scope_before.sha256" | while IFS= read -r f; do mkdir -p "$BK/scope_restore/$(dirname "$f")"; cp -a "$f" "$BK/scope_restore/$f"; done
 echo "== apply"; {''.join(f'patch -p1 --forward --no-backup-if-mismatch -s < "$PKG/patches/{n}"; ' for _, n in patched) or 'true; '}
 (cd "$PKG/files" && find . -type f -print0) | while IFS= read -r -d '' f; do mkdir -p "$(dirname "$f")"; cp "$PKG/files/$f" "$f"; done
 {'python3 -m py_compile ' + ' '.join(py) + ' && echo "byte-compile ok"' if py else 'true'}
+scope > "$BK/scope_after.sha256"
+if ! cmp -s "$BK/scope_before.sha256" "$BK/scope_after.sha256"; then
+  echo "SCOPE VIOLATION: files outside this stage changed; rolling back"; {{ diff "$BK/scope_before.sha256" "$BK/scope_after.sha256" || true; }} | head
+  comm -13 <(cut -c67- "$BK/scope_before.sha256") <(cut -c67- "$BK/scope_after.sha256") | while IFS= read -r f; do rm -f -- "$f"; echo "removed unexpected $f"; done
+  (cd "$BK/scope_restore" 2>/dev/null && find . -type f -print0) | while IFS= read -r -d '' f; do cp -a "$BK/scope_restore/$f" "$ROOT/$f"; done
+  bash "$BK/ROLLBACK.sh"; exit 3
+fi
+echo "== scope check: only the $(wc -l < "$ALLOWED") files listed in $ALLOWED changed"
 echo "== result hashes (MATCH expected when the live files were the recorded baseline)"
 grep -E '^(PATCH|ADD) ' "$PKG/MANIFEST" | tac | awk '!seen[$2]++' | while read -r kind f rest; do
   want="${{rest##*result=}}"; [ "$kind" = ADD ] && want="$rest"
