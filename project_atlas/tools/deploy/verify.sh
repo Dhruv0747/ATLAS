@@ -12,7 +12,7 @@ cpu60(){ local p=$1 hz=$(getconf CLK_TCK) a b; a=$(awk '{print $14+$15}' /proc/$
          python3 -c "print(round(100*($b-$a)/$hz/60,1))"; }
 v1_pages(){ for p in / /mapping /commissioning /wifi /diagnostics.js /commissioning.js; do
               n=$(echo "$p" | tr '/.' '__'); curl -s -m 5 "$B$p" -o "$1/page$n"; done; }
-case "$1" in capture|stage1|stage2|stage3|stage4) ;; *) echo "usage: verify.sh capture|stage1|stage2|stage3|stage4"; exit 2;; esac
+case "$1" in capture|stage1|stage2|stage3|stage4|stage5) ;; *) echo "usage: verify.sh capture|stage1|stage2|stage3|stage4|stage5"; exit 2;; esac
 case "$1" in
 capture)
   mkdir -p "$CAP"; v1_pages "$CAP"
@@ -36,6 +36,24 @@ stage3)
   nodes=$(timeout 40 ros2 node list --no-daemon --spin-time 8 2>/dev/null); echo "$nodes" | grep -qx /atlas_web_control && pass "node /atlas_web_control" || fail "node /atlas_web_control missing"
   echo "$nodes" | grep -qx /atlas_web_status && pass "node /atlas_web_status" || fail "node /atlas_web_status missing"
   P=$(systemctl --user show rover-status-web -p MainPID --value); echo "INFO rover-status-web CPU over 60 s: $(cpu60 $P)% of one core (before: ~57%)"
+  ;;
+stage5)
+  systemctl --user is-active --quiet rover-status-web && pass "rover-status-web active" || fail "rover-status-web not active"
+  hosts="127.0.0.1 $(ip -4 -o addr show wlP1p1s0 2>/dev/null | awk '{sub(/\/.*/,"",$4);print $4}') $(tailscale ip -4 2>/dev/null | head -1)"
+  for h in $hosts; do H=http://$h:8088
+    a=$(curl -s -m 5 "$H/" | sha256sum | cut -c1-16); b=$(curl -s -m 5 "$H/v2/" | sha256sum | cut -c1-16)
+    [ "$a" = "$b" ] && [ "$(code "$H/")" = 200 ] && pass "$h / serves V2 ($a)" || fail "$h / is not V2 ($a vs $b)"
+    for p in mapping commissioning wifi; do
+      r=$(curl -s -o /dev/null -m 5 -w '%{http_code} %{redirect_url}' "$H/$p"); [ "$r" = "302 $H/v2/$p" ] && pass "$h /$p -> /v2/$p" || fail "$h /$p: $r"; done
+  done
+  for p in /v2/ /v2/mapping /v2/commissioning /v2/wifi /v2/command.js /v2/estop.js /api/status /api/map /api/radar /api/wifi /api/estop/state \
+           /api/commissioning /diagnostics.js /commissioning.js /steering-commissioning.js /commissioning-evidence.js /manifest.webmanifest /logo.png /map.png; do
+    c=$(code "$B$p"); [ "$c" = 200 ] && pass "GET $p 200" || fail "GET $p $c"; done
+  for p in /camera.jpg /camera_panel.jpg /camera_overview.jpg; do echo "INFO GET $p $(code "$B$p") (404 only when no frame is cached)"; done
+  c=$(code "$B/old-bookmark"); [ "$c" = 404 ] && pass "unknown path 404 (classic catch-all disabled)" || fail "unknown path $c"
+  curl -s -m 5 "$B/" | grep -q 'v2/command.js' && pass "root page loads V2 command.js" || fail "root page is not the V2 command center"
+  P=$(systemctl --user show rover-status-web -p MainPID --value)
+  echo "INFO rover-status-web RSS $(awk '/VmRSS/{print $2" kB"}' /proc/$P/status); CPU over 60 s: $(cpu60 $P)% of one core"
   ;;
 stage4)
   for s in atlas-visual-cloud-server atlas-visual-cloud-agent; do systemctl --user is-active --quiet $s && pass "$s active" || fail "$s not active"; done

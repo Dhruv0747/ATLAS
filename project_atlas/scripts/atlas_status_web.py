@@ -1865,6 +1865,8 @@ class Handler(BaseHTTPRequestHandler):
         if atlas_web_v2.handles(self.path):   # Glass UI V2 static files (additive; V1 routes unchanged)
             atlas_web_v2.serve(self)
             return
+        if atlas_web_v2.serve_default(self):  # V2 at /; old V1 page paths redirect to /v2/...
+            return
         commissioning_assets = {'/commissioning': ('atlas_commissioning.html', 'text/html'),
                                 '/mapping': ('atlas_mapping.html', 'text/html'),
                                 '/commissioning.js': ('atlas_commissioning_ui.js', 'application/javascript'),
@@ -2041,6 +2043,11 @@ class Handler(BaseHTTPRequestHandler):
                     time.sleep(0.10)
                 except (BrokenPipeError, ConnectionResetError, TimeoutError):
                     break
+            return
+        if not atlas_web_v2.CLASSIC_UI:
+            # Unknown paths used to fall through to the classic page. With V2 the default they
+            # are 404; render_control_page() is kept for ATLAS_CLASSIC_UI=1 and V2's build.
+            self.send_error(404)
             return
         body = render_control_page().encode()
         self.send_response(200)

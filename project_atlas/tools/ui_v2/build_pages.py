@@ -6,7 +6,8 @@ must match the expected number of times so V1 drift fails the build instead of s
   * <html> gets the V2 page classes; base.css + pages.css are linked after the V1 <style>
     (so V2 styling overrides by cascade order, never by editing V1 rules);
   * links to "/" (command center) point to "/v2/"; the 1.19 MB /logo.png becomes a 2 KB WebP;
-  * a bottom dock is appended: mapping and Wi-Fi get an E-STOP that sends exactly the
+  * a bottom dock is appended (its link returns to the V2 command center; the classic pages
+    are disabled since V2 became the default on 2026-10-11): mapping and Wi-Fi get an E-STOP that sends exactly the
     command-center request (form POST "/" action=e_stop); commissioning keeps its own
     LATCH DRIVE STOP button (#stop), which CSS pins in the dock, so no second stop is added.
 Usage: build_pages.py <repo>/project_atlas   (writes web/v2/{mapping,commissioning,wifi}.html)
@@ -29,11 +30,11 @@ def wifi_page():
 ESTOP_DOCK = '''<div class="v2dock" role="region" aria-label="Emergency stop">
 <button class="v2estop" id="v2Estop" type="button"><svg class="v2icon" aria-hidden="true"><use href="/v2/assets/icons.svg#i-stop"/></svg>E-STOP</button>
 <span class="v2dock-msg" id="v2EstopMsg" role="status">Sends one zero-speed command. Keep the physical remote stop available.</span>
-<a class="v2dock-link" href="{classic}">Classic page</a></div>
+<a class="v2dock-link" href="/v2/">Command center</a></div>
 <script src="/v2/estop.js" defer></script>'''
 LATCH_DOCK = '''<div class="v2dock v2dock-latch" role="region" aria-label="Drive stop">
 <span class="v2dock-msg">LATCH DRIVE STOP latches drive at zero. Releasing it needs the remote: sticks neutral, hold LB.</span>
-<a class="v2dock-link" href="{classic}">Classic page</a></div>'''
+<a class="v2dock-link" href="/v2/">Command center</a></div>'''
 
 PAGES = {
     'mapping': dict(src=lambda: (scripts / 'atlas_mapping.html').read_text(encoding='utf-8'), classic='/mapping',
