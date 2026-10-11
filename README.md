@@ -11,6 +11,8 @@
 runs GET-only post-install checks. The current stages and their status are in the
 [staged deployment plan](docs/deploy/ATLAS_STAGED_DEPLOYMENT_2026-10-11.md).
 
+**Developer handoff (2026-10-11):** start with [docs/HANDOFF_2026-10-11.md](docs/HANDOFF_2026-10-11.md).
+
 ### Glass UI V2 — the only dashboard since 2026-10-11 14:21 IST
 
 `project_atlas/web/v2/` is the phone-first dashboard, with the camera and drive pad together and a
