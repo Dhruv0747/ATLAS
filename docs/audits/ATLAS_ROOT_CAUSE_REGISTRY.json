@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-11T00:00:00+05:30",
+  "updated_at": "2026-10-11T13:40:00+05:30",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -373,7 +373,7 @@
       "id": "ATLAS-010",
       "title": "IMU authority changes and drift",
       "first_available_occurrence": "2026-08-04",
-      "latest_reviewed_occurrence": "2026-10-10",
+      "latest_reviewed_occurrence": "2026-10-11",
       "subsystem": "IMU / EKF / mounting",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
@@ -391,7 +391,8 @@
         "docs/IM10A_COMMISSIONING_2026-09-16.md",
         "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md",
         "CHANGELOG.md",
-        "docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md"
+        "docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md"
       ],
       "test_results": "Historical static and manual-turn observations; live qualification lifecycle inconsistent across versions, not proof of current permanent pass.",
       "remaining_verification": "Stationary thermal/bias and signed manual-turn tests on exact deployed config, then synchronized EKF/TF comparison under load; magnetic heading remains excluded unless independently validated.",
@@ -411,6 +412,11 @@
           "date": "2026-10-10",
           "kind": "drive_heading_shortfall",
           "description": "Same drive: EKF /odom (IM10A gyro-Z yaw) net turn -44.9 deg vs LiDAR-derived truth -97.5 deg (0.46); wheel /yahboom/odom +15.4 deg (wrong sign); rf2o -102.3 deg. On Oct 9 the IM10A matched ICP at all yaw rates (0.87-1.15), so cause unproven (sample loss/dead-band/fast spin hypotheses). No drive bag."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "readonly_reliability_pass",
+          "description": "Parked 60 s: EKF imu0 (/im10a/imu/bias_corrected_candidate) gyro-Z exactly 0.0 for 587/587 samples; Oct 2 qualification bag 471/877 exact zeros with sparse +/-1..3 counts: on-sensor static zeroing likely, so the Oct 2 'zero drift' qualification did not observe bias. Board IMU /imu/data std 0.32 deg/s, orientation drift -0.66 deg/min (not EKF yaw input). Does not explain 0.46x fast-turn. No change made."
         }
       ]
     },
@@ -430,7 +436,7 @@
       "update_gate_validation": "4a4ea9a REJECTED for deployment: actual mux guard fails closed above 2.5 s pose age while candidate suppresses stationary/sub-threshold updates. Five contract tests pass as rejection evidence, not navigation acceptance. Need independent processed-scan/TF/estimate health; no timeout bypass or stale-pose republishing. Production unchanged.",
       "title": "Mapping startup race, stale places and pose corrections",
       "first_available_occurrence": "2026-08-24",
-      "latest_reviewed_occurrence": "2026-10-10",
+      "latest_reviewed_occurrence": "2026-10-11",
       "subsystem": "mapping / localization / TF",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
@@ -457,7 +463,8 @@
         "docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md",
         "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md",
         "docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md",
-        "docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md"
+        "docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md"
       ],
       "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live safety reporter initially said SLAM MAP DATA LOST; a new transient-local subscriber received the saved map, and diagnostic-only reporter restart restored LOCALIZATION/map ONLINE. Root cause of stale prior status not proven; navigation remains unvalidated.",
       "remaining_verification": "The operator confirmed the exact saved Dhruv Room point and heading; stationary scan/map fit identified the earlier out-of-map AMCL pose as wrong, and one saved-pose reseed corrected it. A new operator-confirmed Hall endpoint passes exact saved-map footprint clearance; the taught route still has an older map ID. The recorded manual Hall-to-home return showed >2 m stationary AMCL jumps, 32 traction samples with critical encoder consensus, and disagreement between wheel and IM10A yaw-rate integration. Different endpoint displacements alone do not establish wheel-distance scale error. Diagnose same-time scan/AMCL/odom/TF, wheel agreement and heading before autonomous motion. Audit stale mapping-session marker lifecycle; require an actual Nav2 plan and supervised recorded round trip only after localization is stable.",
@@ -597,6 +604,11 @@
           "date": "2026-10-10",
           "kind": "local_map_candidate_validation",
           "description": "Read-only validation. Fresh Dhruv Room scans: active and v1 6/6 VERIFIED (v1 margin 0.15 vs 0.11-0.13). Corridor: v1 40/5/3 -> 37/11/0 (OK/UNK/WRONG) because 138/258 v1 removals were real intermittently-seen surfaces; v1 also opens new reachable space (incl. into unknown, planner allow_unknown=true) -> v1 REJECTED. Safe v3 (never-hit removals only, no new reachability; 31 removed/17 added) localizes the same as the active map (AMCL replay within seed noise). Fresh parked scans show active-map errors drives cannot fix: front wall/door recess mapped 0.15-0.34 m short, exit jamb at (0.66,-1.06), inner left-wall copy. Conclusion: local deletion insufficient; supervised slow corridor re-map (<=0.15 m/s, <=15 deg/s) planned. Corridor/Hall fresh scans pending operator placement."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "readonly_reliability_pass",
+          "description": "Live repeat: monitor VERIFIED 13:10-13:23 (fit 0.91-0.96); operator web reset + short web drive 13:23:16-13:24:11; first check 13:24:15 LOST 1.05 m/24 deg (AMCL fit 0.51), still LOST 0.74 m/21 deg at 13:30. Monitor detected 4 s after stop. GAP: no recording; bounded drive recorder proposed. Not reseeded."
         }
       ]
     },
@@ -741,7 +753,7 @@
       "id": "ATLAS-015",
       "title": "LiDAR startup recovery and boot clock chronology",
       "first_available_occurrence": "2026-10-09",
-      "latest_reviewed_occurrence": "2026-10-10",
+      "latest_reviewed_occurrence": "2026-10-11",
       "subsystem": "LiDAR / startup / logs",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
@@ -753,7 +765,8 @@
         "journalctl --list-boots",
         "journalctl --user -b -u atlas-lidar.service",
         "journalctl --user -b -u atlas-sensor-recovery.service",
-        "docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md"
+        "docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md"
       ],
       "test_results": "Later service running with NRestarts=2 and device health OK; scan stream endurance not tested.",
       "remaining_verification": "Bind logs to boot ID and monotonic time; verify scan freshness/frame geometry and startup dependencies read-only before navigation.",
@@ -778,6 +791,11 @@
           "date": "2026-10-10",
           "kind": "lidar_startup_restart_storm",
           "description": "Boot 18:11: atlas-lidar exited 21 times (SL_RESULT_OPERATION_TIMEOUT, then health OK + 'Can not start scan 80008000/80008002') before scanning ~3 min after boot; 6 of last 10 boots had 10-21 failed starts. Restart=on-failure RestartSec=5 makes the 5-in-10s limit unreachable (unbounded loop); atlas_sensor_recovery also restarted the unit (18:24:35 restart killed the instance systemd started at 18:24:34). CH340 discovery (atlas_usb_identity) cannot open the CP2102 LiDAR: hypothesis rejected. Suspected (unconfirmed): LiDAR 5 V/USB hub supply at boot. Offline fix b28819c: recovery defers while systemd is mid-restart; proposed drop-in StartLimitBurst=40/900s. Not deployed."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "readonly_reliability_pass",
+          "description": "8-boot parse: failures only at start (0-21/boot), first scan 20-257 s, never a runtime failure once scanning; signatures T (no reply) and I/S (health OK, start-scan invalid data/timeout); no USB re-enumeration; ModemManager strict filter does not probe the CP2102 (rejected); no other open handle; b28819c deferral observed working on Jetson. LiDAR on VL817 USB-C hub behind Realtek hub with ESP32-S3 and CH340. 5 V supply still SUSPECTED; needs measurement. No change made."
         }
       ]
     },
@@ -845,7 +863,7 @@
       "id": "ATLAS-018",
       "title": "Unclean Jetson reboots with NVMe PCIe error storms; boot reseeds AMCL at home",
       "first_available_occurrence": "2026-10-09",
-      "latest_reviewed_occurrence": "2026-10-10",
+      "latest_reviewed_occurrence": "2026-10-11",
       "subsystem": "Compute / storage / localization startup",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
@@ -854,7 +872,8 @@
       "suspected_causes_and_limits": "SSD seating, power or vibration; causal link between AER storms and the crashes is suspected, not proven (the 13:54 and 14:29 crashes had no storm immediately before). Link to the operator report that localization did not recover at home is a hypothesis.",
       "attempted_fix_commits": [],
       "evidence": [
-        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md"
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md"
       ],
       "test_results": "No AER lines since the 14:29 boot as of 15:50 IST.",
       "remaining_verification": "Stopped soak with kernel AER monitoring after reseating/checking the SSD; record boot IDs; never treat a post-crash home seed as localization without a scan-fit check.",
@@ -884,6 +903,11 @@
           "date": "2026-10-10",
           "kind": "smart_log_and_2224_poweroff",
           "description": "User-run SMART (22:2x): critical_warning 0, spare 100%, used 1%, media_errors 0, temp 57 C, power_on_hours 12,466, power_cycles 647, unsafe_shutdowns 442 (68% of power cycles), error-log entries all empty (num_err_log_entries 7). 22:24:29 clean systemd poweroff (poweroff.target) with no logged initiator (no logind power-key, sudo or dashboard entry); back up 22:25:38. Journal of earlier boots is NOT lost: boot started with clock at 1970, which hides older boots from journalctl --list-boots; `journalctl -D /var/log/journal/<id> --list-boots` shows them. The earlier \"crash boot left no journal\" finding must be re-checked with -D."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "readonly_reliability_pass",
+          "description": "Boot -1 ended uncleanly 00:55:16 (journal stops mid-stream). Boot 0 began 07:36:51 real time (uptime) with wall clock 01:16:30 until NTP 07:37:24: early journal labels 6h20m early. No AER lines boots -3..0. Power-cut vs crash undetermined."
         }
       ]
     },
@@ -891,7 +915,7 @@
       "id": "ATLAS-019",
       "title": "Multi-AP Wi-Fi roaming, extender DHCP failures and cellular route flips interrupt the dashboard link",
       "first_available_occurrence": "2026-10-09",
-      "latest_reviewed_occurrence": "2026-10-10",
+      "latest_reviewed_occurrence": "2026-10-11",
       "subsystem": "Networking / operator UI",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
@@ -900,7 +924,8 @@
       "suspected_causes_and_limits": "Power save and aggressive roaming plausibly add latency; no ping log exists to quantify it.",
       "attempted_fix_commits": [],
       "evidence": [
-        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md"
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md"
       ],
       "test_results": "Dashboard link/rover status separation deployed (see ATLAS-014).",
       "remaining_verification": "10-minute ping logs parked and carried, before/after Wi-Fi power save off; fix or avoid the 8c:a3:99 extender DHCP.",
@@ -910,6 +935,11 @@
           "date": "2026-10-10",
           "kind": "first_review",
           "description": "Roam/DHCP/route-flip timeline correlated with drive bags and ping-timeout reports."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "readonly_reliability_pass",
+          "description": "Read-only 8-boot review: DHCP after roam 26/26 on main router A (0-2 s) vs B/X 12/16 with 4 failures (+1 open); 73 s cellular period Oct10 14:50 was DHCP failure on B/X; fallback agent Wi-Fi Internet failures 17-109 s incl. Oct11 09:39 with no roam; six 1 s NM cellular default-route flips with no Wi-Fi event (trigger unknown at info level); wifi.powersave=3 + rtw_power_mgnt=2, regdomain 00, txpower 7 dBm, BT coex active with 1164 BMS bonding failures this boot; ICMP over Tailscale p50 54 ms vs gateway 1.6 ms. CORRECTION: Oct10 '46 roams 14:00-15:00' not reproducible from retained journal (6 found). No change made. See ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md."
         }
       ]
     }

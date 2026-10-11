@@ -121,3 +121,20 @@ approval. D needs the stand and its own approval.
 Undo the stages in reverse order: 4, 3, 2, 1b, 1. Run each with
 `bash <backup>/ROLLBACK.sh`, then restart that stage's service(s). Every rollback is pinned to the
 live tree and restores the exact previous files.
+
+## Update 13:35 IST: operator use after deployment (logged, not counted as tests)
+
+`data/safety/estop_events.jsonl` shows the following, all from the operator's PC (`100.98.59.32`):
+- `reset_granted` at 13:23:16 and 13:26:29;
+- one web `e_stop` at 13:26:18;
+- 39 web drive hold-releases between 13:23:20 and 13:24:09.
+
+The latch was released after 13:26:29, with the fresh-press rule active. These events show the
+reset path working end to end in production. They are **not** the formal block B/C session and
+are not marked passed.
+
+After the 13:23–13:24 drive, the localization monitor went from VERIFIED to **LOST
+(1.05 m / 24°)**. ATLAS has not been reseeded. See
+`docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md` §4.
+
+Claude made no deployment, restart or latch change after 13:05.

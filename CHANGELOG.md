@@ -1,5 +1,13 @@
 # Changelog
 
+2026-10-11 13:40: read-only core-reliability pass. No runtime change, no motion, no restart.
+- New read-only tools in `project_atlas/tools/diagnostics/`: `net_timeline.py`, `lidar_starts.py`,
+  `stationary_sample.py`, `im10a_counts.py`.
+- Findings: [core reliability report](docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md)
+  covers Wi-Fi DHCP on secondary APs, LiDAR start-only failures, IM10A static zeroing, and a live
+  moving-localization repeat.
+- Correction: the Oct 10 "46 roams" figure could not be reproduced and is marked unverified.
+
 2026-10-11 (later): four approved preparation stages are **built, tested and staged, not
 installed**. They are staged on the Jetson in `data/staging/2026-10-11/`, and each needs separate
 approval. See the [staged deployment plan](docs/deploy/ATLAS_STAGED_DEPLOYMENT_2026-10-11.md).

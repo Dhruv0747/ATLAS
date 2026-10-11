@@ -1,5 +1,33 @@
 # ATLAS current blockers
 
+2026-10-11 13:35 read-only reliability pass (no changes, no motion; see
+[core reliability report](ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md)).
+- **Wi-Fi.** Roams to AP B or the extender X failed DHCP 4 of 16 times (plus 1
+  unresolved when the journal ends); the
+  main router succeeded 26 of 26. The longest outage (73 s on cellular) was a
+  DHCP failure, not radio loss. The fallback agent also saw 5 Wi-Fi Internet
+  failures (17–109 s), one today at 09:39 with no roam. Six 1 s cellular
+  default-route flips with no Wi-Fi event have unknown cause. Power save is on
+  at two levels, the regulatory domain is 00, and BT coexistence runs against
+  1,164 BMS bonding failures this boot.
+- **Correction:** the Oct 10 "46 roams 14:00–15:00" cannot be reproduced from
+  the retained journal (6 found); treat it as unverified.
+- **LiDAR.** Start-only failures: 0–21 per boot, first scan at 20–257 s, never
+  a runtime failure once scanning. No USB re-enumeration. ModemManager,
+  vc02 voice and other port users are ruled out. The deferral fix works. The
+  5 V supply remains suspected; it needs a measurement.
+- **IMU.** The EKF's IM10A gyro outputs exactly 0 when parked (587 of 587
+  samples; 54% zeros on the Oct 2 drive). The Oct 2 "zero drift"
+  qualification therefore did not observe the bias. This does not explain the
+  0.46× fast turn.
+- **Localization.** It failed again live. The operator's web drive at
+  13:23–13:24 took a VERIFIED pose to LOST, 1.05 m / 24°. The monitor caught
+  it 4 s after the stop. There was no recording, so a bounded drive recorder
+  is proposed. ATLAS is currently LOST, with the latch released by the
+  operator. Not reseeded.
+- **Boot −1** ended uncleanly at 00:55:16. Boot 0 began 07:36:51 real time
+  with the clock at 01:16 until NTP.
+
 2026-10-11 00:00 local map validation. Candidate v1 is REJECTED: it opened
 new passages and deleted real surfaces. The safe v3 gives no benefit. The
 corridor needs a supervised slow re-map at ≤ 0.15 m/s and ≤ 15°/s, driven
