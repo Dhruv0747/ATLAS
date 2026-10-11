@@ -1,5 +1,8 @@
 # Changelog
 
+2026-10-11: Motion diagnostic recorder (offline only).
+- Added an opt-in, motion-triggered ROS bag recorder with ten-second pre/post capture, bounded storage, per-topic health and drop reporting, and no motor-control dependency. Offline tests and synthetic benchmark added. Not deployed or enabled on the Jetson.
+
 2026-10-11 14:21: **Glass UI V2 is the only dashboard.**
 - `/` serves V2.
 - `/mapping`, `/commissioning` and `/wifi` redirect (302) to `/v2/...`; unknown pages return 404.
