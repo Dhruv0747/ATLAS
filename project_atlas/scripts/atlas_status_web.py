@@ -2046,9 +2046,8 @@ class Handler(BaseHTTPRequestHandler):
             verb = {"restart": "restart", "start": "start", "stop_service": "stop"}[action]
             ok, detail = run_quiet(["systemctl", "--user", verb, svc], timeout=8)
             json_response(self, 200 if ok else 500, {"ok": ok, "message": f"{verb} {svc}", "detail": detail})
-        elif action == "reboot":
-            subprocess.Popen(["bash", "-lc", "sleep 1; echo password | sudo -S reboot"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            json_response(self, 200, {"ok": True, "message": "Reboot requested"})
+        # "reboot" was removed on 2026-10-11: it piped a hard-coded sudo password and had
+        # no confirmation, same-origin check or stop. No page used it; it now gets 400.
         elif action == "shutdown":
             if form.get('confirm', [''])[0] != 'POWER_OFF_ATLAS' or not atlas_wifi_web.same_origin(self.headers):
                 json_response(self, 403, {"ok": False, "message": "Shutdown requires dashboard confirmation"})
