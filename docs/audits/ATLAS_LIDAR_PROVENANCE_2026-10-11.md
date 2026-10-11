@@ -409,3 +409,30 @@ not a directly measured obstacle range. Integer-cost roundtrip tests across
 0.20–0.28 m stay within 2 mm with the corrected factor. Proximity speed floors
 still apply; physical stopping safety and actual controller outputs remain
 unvalidated. No live parameter was changed and no restart performed.
+
+### Deployment preparation and final validation status
+
+Source commits: recovery `c7b54815a4532a990d383c8d450d2c9e5c17f59e`;
+inflation conversion `6b0f462abcff5d1c59bbf90f1585a2c13939acf5`.
+Both remain undeployed. Native geometry fixture assertions passed 5/5;
+inflation-contract regressions passed 3/3 in isolated Jetson source copies.
+
+Separate stage11/stage12 packages were applied ONLY to temporary copies of
+live files. Scope checks and byte-identical rollback passed for both. Stage12
+initially failed its exact-result hash because the live YAML retains two CRLF
+lines while Git normalizes them to LF. The resulting content matches the
+source; LF-normalized hash is
+`adfb5b38ff483cc3d0771f37816b2b635dd23dc374ed105e3fae7944ec77f2be`.
+The private package records the exact preserved-line-ending result hash
+`2411371c89751eba9f817b3e6728ab08fa3e8820f6727c08713298c18ee08631`.
+After that audited manifest correction, scratch rehearsal and rollback passed.
+No live file was installed, service restarted or motion commanded.
+
+Installation remains approval-gated. First complete isolated controller and
+obstacle-layer replay, including stale scans and unknown rear coverage; then
+review each stage separately with ATLAS parked and E-STOP latched. Each package
+creates an original-file backup and ROLLBACK.sh; an approved live installation
+would require restoring that backup and restarting only the affected service
+to roll back. Scratch rollback paths are NOT live rollback commands. No new
+drive test is requested now. Full controller decisions, dynamic clearance and
+localization confidence during motion remain unvalidated by this parked audit.
