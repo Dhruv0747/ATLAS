@@ -86,3 +86,26 @@ These fail identically at baseline `aa93355` in this container:
 - `test_ultrasonic_validity`: `AtlasCmdVelMux` has no `navigation_localization_guard` in the
   extracted test scope;
 - `test_opposite_steering_geometry`: no tests ran.
+
+## Update 2026-10-11 ~12:05 IST: re-staged with stage 1b and the V1 fix
+
+- **Rebuilt packages:** `stage1-safety` (now includes the approved classic E-STOP fix),
+  `stage1b-estop-reset` (new, requires stage 1), `stage2-glass-ui-v2`, `stage3-executor-split`
+  and `stage4-visual-cloud`. Built by `tools/deploy/build_2026_10_11.sh`. They replace the earlier
+  staged files; nothing was installed.
+- **Install scope guard.** Every `install.sh` snapshots all other files under `scripts/`,
+  `config/` and `web/`. If anything outside the stage changed, it removes unexpected files,
+  restores changed ones, runs `ROLLBACK.sh` and exits 3. Tamper tests pass for every stage.
+- **Rehearsals:**
+  - all **60** valid install orders of the five stages produce the expected files and roll back
+    byte-identical;
+  - stage 1b alone is refused before any change.
+- **Isolated end-to-end E-STOP tests:** 26/26 for stage 1 and 49/49 for stages 1 + 1b. See
+  `ATLAS_STAGE1_ISOLATED_TEST_RESULTS_2026-10-11.md`.
+- **Your rules for every stage:**
+  - one stage at a time, never several at once;
+  - V1 stays the default;
+  - autonomy and auto-reseeding stay disabled;
+  - no reboot, drive, navigation-setting, network or 25 GB-database changes without approval.
+- **Next step:** the supervised procedure in `ATLAS_STAGE1_ONDEVICE_PROCEDURE_2026-10-11.md`,
+  only after your go-ahead.

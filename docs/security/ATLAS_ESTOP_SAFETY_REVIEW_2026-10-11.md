@@ -105,3 +105,48 @@ The package is `deploy/stage1-safety/`. It contains a patch against the deployed
 
 The V2 frontend part (1c) ships with the `/v2/` package (Stage 2), because V2 is not installed
 yet.
+
+## Update 2026-10-11 ~12:00: classic V1 fix approved, stage 1b added, corrections
+
+**V1 one-line fix (approved, `bd76afb`).** The classic E-STOP:
+- fires on **pointerdown**;
+- first cancels the hold-to-drive and camera-repeat timers;
+- keeps keyboard activation;
+- ignores the extra click a touch tap produces, so one tap sends exactly one `e_stop`.
+
+**Correction to the table above.** The figure "V1 keeps driving (13 posts per 1.5 s)" came from
+the **mouse plus DOM-click** test, not the two-finger touch test.
+
+What the two-finger touch emulation actually showed for the unfixed V1:
+- Chromium cancelled the first finger's pointer when the second touch began. That sent a plain
+  `stop` and ended the drive repeat.
+- **No `e_stop` was sent and nothing latched.**
+- Whether a real phone cancels the first touch the same way depends on the device. This is still
+  checked on your phone in step C2 of the procedure.
+
+**Stage 1b (web reset), separate package.**
+- **Endpoints:** `GET /api/estop/state` and `POST /api/estop/reset`.
+- **Checks:** all made on the server. They are listed in `scripts/atlas_estop_reset.py` and the
+  procedure document.
+- **Fresh-press rule** (commit `e65fe67`): applies after *any* latch release, remote or web.
+  - A drive is accepted only for a press whose `start=1` request reached the server after the
+    release.
+  - The isolated end-to-end test showed that the earlier timing-only rule would accept a client
+    whose repeat requests resumed after a pause, for example a network outage.
+  - Old pages without press ids are refused after a release until reloaded.
+
+**Remote identity: open question.** The code's stop and release buttons are a gamepad's index 1
+("B") and index 4 ("LB"), recorded as an Xbox controller. You referred to a FlySky remote. The
+mapping must be confirmed before step C6.
+
+## Correction to the security proposal (item 3)
+
+The proposal said that access by raw IP fails the `same_origin()` hostname allowlist. **That is
+wrong.** `same_origin()` also accepts any private or Tailscale (100.64/10) IP address.
+
+The real requirements are:
+- the browser's `Origin` matches the `Host`;
+- the request carries `X-Atlas-Wifi: 1`.
+
+The stage 1b reset endpoint uses the same check, so it works from the LAN IP, the local name and
+Tailscale.

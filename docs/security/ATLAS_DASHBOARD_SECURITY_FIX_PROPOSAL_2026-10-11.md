@@ -172,3 +172,10 @@ Glass UI V2 sends the same requests as V1 (see the feature-preservation report).
 request path is the dock E-STOP on the Live map and Wi-Fi pages. It is byte-identical to the
 command-center E-STOP (`action=e_stop`, form-encoded, POST `/`). None of the five issues above
 is fixed or made worse by V2.
+
+## Correction (2026-10-11 ~12:00)
+
+Item 3's "Risk of the fix" is wrong about raw-IP access. `same_origin()`
+(`atlas_wifi_web.py`) accepts private and Tailscale IPs, not only the listed hostnames. Requiring
+it on form POSTs would therefore not lock out operators who browse by IP. The other points of
+item 3 stand.
