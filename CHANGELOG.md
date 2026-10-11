@@ -1,5 +1,14 @@
 # Changelog
 
+2026-10-11: Daly reconnect control (separate rollout stage).
+- Reuse a healthy GATT connection, drain old transaction bytes, close on protocol
+  failure, and back off reconnect attempts 10/20/40/80/120 seconds.
+- Keep five-second healthy polling and invalid/offline status publication during
+  backoff; age now refers to the last actual successful snapshot. No stale scalar
+  republishing, pairing command, battery safety limit or hardware setting change.
+- Nineteen focused offline Daly tests pass. Live connection recovery/endurance
+  remains a separate observation, not a promise from unit tests.
+
 2026-10-11: Bounded recorder background writer.
 - Single ordered worker with bounded 32 MiB / 30,000-message queue, atomic pre-roll
   enqueue, explicit errors and drain-on-stop. Fifteen offline tests pass.

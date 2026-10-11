@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+Daly BMS transport now supports persistent healthy connections and bounded
+reconnect backoff while preserving five-second healthy polling and fail-closed
+freshness. See `docs/ATLAS_ROLLOUT_2026-10-11.md` for staged deployment evidence;
+this does not by itself establish BLE endurance or autonomous readiness.
+
 ### Motion-triggered diagnostics
 
 The bounded background writer removes SQLite I/O from ROS callbacks. Fifteen

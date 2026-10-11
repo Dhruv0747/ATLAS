@@ -3,7 +3,7 @@ import json
 import re
 import subprocess
 import time
-from atlas_daly_transport import read_snapshot
+from atlas_daly_transport import PersistentDalyClient, ReconnectBackoff
 
 import rclpy
 from rclpy.node import Node
@@ -70,8 +70,12 @@ class DalyBmsNode(Node):
             self.create_publisher(Float32, f"/bms/cell{i}_voltage", 10)
             for i in range(1, 5)
         ]
-        self.timer = self.create_timer(5.0, self.poll)
         self.last = {}
+        self.last_success_at = None
+        self.last_error = 'No fresh snapshot yet'
+        self.link = PersistentDalyClient(MAC, ADDR_TYPE, NOTIFY_CCCD_HANDLE, WRITE_HANDLE)
+        self.backoff = ReconnectBackoff()
+        self.timer = self.create_timer(5.0, self.poll)
         self.poll()
 
     def publish_float(self, pub, value):
@@ -80,7 +84,9 @@ class DalyBmsNode(Node):
         pub.publish(msg)
 
     def poll(self):
-        started = time.time()
+        if self.backoff.remaining() > 0:
+            self.publish_unavailable(self.last_error)
+            return
         try:
             out = self.read_ble()
             data = self.decode(out)
@@ -90,8 +96,12 @@ class DalyBmsNode(Node):
             data["age_s"] = 0
             data["ok"] = all(key in data for key in ("voltage_v", "current_a", "soc_percent")) and data.get("cells_complete", False)
             if not data["ok"]:
-                data["error"] = "Incomplete Daly snapshot; missing pack or cell frames"
+                raise RuntimeError('Incomplete Daly snapshot; missing pack or cell frames')
             data["source"] = "bluetooth"
+            self.last_success_at = time.monotonic()
+            self.backoff.succeeded()
+            data['connection_attempts'] = self.link.connections
+            data['poll_interval_s'] = 5.0
             self.last = data
             self.publish_data(data)
             self.get_logger().info(
@@ -99,16 +109,26 @@ class DalyBmsNode(Node):
                 f"{data.get('current_a', 0):+.2f}A {data.get('soc_percent', 0):.1f}%"
             )
         except Exception as exc:
-            fallback = dict(self.last)
-            fallback["ok"] = False
-            fallback["error"] = str(exc)
-            fallback["age_s"] = round(time.time() - started, 1)
-            self.publish_data(fallback)
+            self.link.close()
+            self.backoff.failed()
+            self.last_error = str(exc)
+            self.publish_unavailable(self.last_error)
             self.get_logger().warn(f"Daly read failed: {exc}")
 
+    def publish_unavailable(self, error):
+        fallback = dict(self.last)
+        fallback.update(ok=False, error=error, source='bluetooth',
+                        age_s=None if self.last_success_at is None else round(time.monotonic()-self.last_success_at, 1),
+                        reconnect_in_s=round(self.backoff.remaining(), 1),
+                        connection_attempts=self.link.connections)
+        self.publish_data(fallback)
+
+    def destroy_node(self):
+        self.link.close()
+        return super().destroy_node()
+
     def read_ble(self):
-        return read_snapshot(MAC, ADDR_TYPE, NOTIFY_CCCD_HANDLE, WRITE_HANDLE,
-                             COMMANDS, self.decode)
+        return self.link.read_snapshot(COMMANDS, self.decode)
 
     def decode(self, text):
         stream = []
