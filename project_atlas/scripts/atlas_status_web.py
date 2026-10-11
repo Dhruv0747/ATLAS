@@ -9,7 +9,6 @@ import re
 import socket
 import atlas_wifi_web
 import atlas_web_v2
-import atlas_estop_reset as estop_reset
 import subprocess
 import threading
 SHUTDOWN_PENDING = threading.Event()
@@ -20,6 +19,7 @@ from pathlib import Path
 from atlas_web_diagnostics import DiagnosticCache, service_logs
 from atlas_commissioning import Console, hardware_check
 from atlas_localization_display import summarize_amcl_pose
+import atlas_estop_reset as estop_reset
 import sqlite3
 
 import cv2
@@ -1819,9 +1819,6 @@ class Handler(BaseHTTPRequestHandler):
         if not self.client_allowed():
             self.send_error(403)
             return
-        if self.path.split('?')[0] == '/api/estop/state':
-            json_response(self, 200, ROS.estop_state(self.client_address[0]))
-            return
         if atlas_web_v2.handles(self.path):   # Glass UI V2 static files (additive; V1 routes unchanged)
             atlas_web_v2.serve(self)
             return
@@ -1844,6 +1841,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             except OSError:
                 self.send_error(404)
+            return
+        if self.path.split('?')[0] == '/api/estop/state':
+            json_response(self, 200, ROS.estop_state(self.client_address[0]))
             return
         if self.path == '/api/commissioning':
             data = ROS.snapshot()
