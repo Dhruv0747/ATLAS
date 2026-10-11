@@ -13,6 +13,9 @@ class Harness:
                      (('status', 'status.json'), ('radar', 'radar.json'), ('diag', 'diagnostics.json'), ('map', 'map.json'),
                       ('comm', 'commissioning.json'), ('evidence', 'evidence.json'), ('wifi', 'wifi.json'))}
         self.offline = False; self.delay_s = 0.0
+        self.data['estop'] = {'latched': True, 'reason': 'REMOTE STOP: joystick unavailable', 'drive_requires_fresh_press': False,
+                              'reset': {'available': False, 'blocked': ['physical remote not connected'], 'challenge': None,
+                                        'challenge_ttl_s': 10.0, 'pin_configured': True, 'lockout_s': 0}}
 
     def mutate(self, fn):
         fn(self.data)
@@ -44,7 +47,7 @@ class Harness:
                   '/diagnostics.js': 'diagnostics.js', '/commissioning.js': 'commissioning.js', '/steering-commissioning.js': 'steering.js',
                   '/commissioning-evidence.js': 'evidence.js', '/camera.jpg': 'camera.jpg', '/map.png': 'map.png', '/manifest.webmanifest': 'manifest.json'}
         api = {'/api/status': 'status', '/api/radar': 'radar', '/api/diagnostics': 'diag', '/api/map': 'map', '/api/commissioning': 'comm',
-               '/api/commissioning/evidence': 'evidence', '/api/wifi': 'wifi'}
+               '/api/commissioning/evidence': 'evidence', '/api/wifi': 'wifi', '/api/estop/state': 'estop'}
         if path in api:
             return self._json(route, self.data[api[path]])
         if path == '/logo.png':

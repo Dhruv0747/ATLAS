@@ -85,6 +85,15 @@ header.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;g
 .drive .btn{min-height:62px;font-size:13px;flex-direction:column;gap:4px}
 .drive .btn .icon{width:22px;height:22px}
 .drive .stop{font-size:12.5px;letter-spacing:.02em;white-space:nowrap}
+/* E-STOP latch state and authenticated reset (server decides; this only displays) */
+.estopReset{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:12px;padding:10px 12px;border-radius:var(--r-ctl);
+  border:1px solid var(--line);background:rgba(5,14,26,.55)}
+.estopReset b,.estopReset span{grid-column:1/-1}
+.estopReset b{font-weight:700;font-size:13px;letter-spacing:.02em}
+.estopReset b.bad{color:#FF8A95}.estopReset b.warn{color:var(--amber)}.estopReset b.ok{color:var(--terrain)}
+.estopReset span{font-size:12px;color:var(--mute)}
+.estopReset input{min-width:0;min-height:44px;padding:8px 10px;border-radius:var(--r-ctl);border:1px solid var(--line-strong);background:rgba(3,9,16,.8);color:var(--ink);font:inherit}
+.estopReset .btn{min-height:44px;border-color:rgba(242,179,61,.6)}
 .camctl .btn{min-height:48px}
 .mode-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .mode-row .btn{min-height:46px;font-size:12.5px}

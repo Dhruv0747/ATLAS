@@ -46,6 +46,12 @@
     <button class="btn" data-l="-.65" data-a="0"><svg class="icon"><use href="/v2/assets/icons.svg#i-down"/></svg>Back</button>
     <span></span>
    </div>
+   <div class="estopReset" id="estopResetPanel" aria-live="polite">
+    <b id="estopState">Stop state checking…</b>
+    <span id="estopWhy"></span>
+    <input id="estopPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN" aria-label="Operator PIN for E-STOP reset">
+    <button class="btn" id="estopReset" disabled>Reset E-STOP</button>
+   </div>
   </div>
   <div class="panel" data-area style="--a:camctl;--o:3">
    <h2>Camera pan and tilt</h2>
