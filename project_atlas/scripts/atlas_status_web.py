@@ -27,6 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 
 import rclpy
+import rclpy.executors
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
@@ -285,6 +286,38 @@ def sensor_hub_cache_snapshot():
         return _sensor_hub_cache_payload
 
 
+# Topics delivered at >= 5 Hz on ATLAS (measured 2026-10-11). They, the TF listener, every timer, every
+# publisher and the on-demand camera subscriptions stay on the original node ("atlas_web_control") and
+# its executor thread. All other status topics move to a second node ("atlas_web_status") with its own
+# executor thread. Topic names, types, QoS and callbacks are unchanged; only which executor dispatches
+# them changes. rclpy's executor scans every entity of its node on each wake, so separating the two
+# groups cuts the per-message cost (isolated benchmark: 55.7% -> 39.6% of one core).
+HOT_STATUS_TOPICS = frozenset({
+    '/radar/hub/status', '/radar/targets', '/joy', '/ultrasonic/status', '/scan', '/odom',
+    '/im10a/dashboard_json', '/atlas/drive_pid/diagnostics', '/atlas/encoder_health',
+    '/yahboom/encoder/m1', '/yahboom/encoder/m2', '/yahboom/encoder/m3', '/yahboom/encoder/m4',
+    '/yahboom/imu/roll', '/yahboom/imu/pitch', '/yahboom/imu/heading',
+    '/steering/front_angle_deg', '/steering/rear_angle_deg', '/steering/mode',
+    '/atlas/steering_calibration/status', '/atlas/control_policy',
+})
+
+
+class _SubscriptionRouter:
+    """Stand-in for ``node`` while subscriptions are declared: hot topics and every timer go to
+    the original node, the remaining status subscriptions to the status node. Callbacks in the
+    two groups share mutable state only through AtlasRosNode.lock (tests/test_status_web_executor_split.py)."""
+
+    def __init__(self, hot, cold, hot_topics=HOT_STATUS_TOPICS):
+        self.hot, self.cold, self.hot_topics = hot, cold, hot_topics
+
+    def create_subscription(self, msg_type, topic, callback, qos, **kwargs):
+        node = self.hot if topic in self.hot_topics else self.cold
+        return node.create_subscription(msg_type, topic, callback, qos, **kwargs)
+
+    def create_timer(self, *args, **kwargs):
+        return self.hot.create_timer(*args, **kwargs)
+
+
 class AtlasRosNode:
     def __init__(self):
         self.ready = False
@@ -296,6 +329,7 @@ class AtlasRosNode:
         # updates so a touch hold cannot race itself and jump several steps.
         self.camera_lock = threading.Lock()
         self.node = None
+        self.status_node = None
         self.pub = None
         self.pan_pub = None
         self.tilt_pub = None
@@ -375,6 +409,22 @@ class AtlasRosNode:
             samples = self.update_times.setdefault(key, deque(maxlen=128))
             samples.append(time.monotonic())
 
+    def _spin_status(self):
+        """Executor thread for the low-rate status node. A failure here fails the same way a
+        failure of the single executor did before: record it and stop publishing drive."""
+        executor = rclpy.executors.SingleThreadedExecutor()
+        try:
+            executor.add_node(self.status_node)
+            executor.spin()
+        except Exception as exc:
+            self._set("web_error", "status executor: " + str(exc))
+            self.ready = False
+        finally:
+            try:
+                executor.shutdown()
+            except Exception:
+                pass
+
     def _spin(self):
         try:
             rclpy.init(args=None)
@@ -400,7 +450,8 @@ class AtlasRosNode:
             self.ai_pub = self.node.create_publisher(
                 Bool, "/atlas/ai_enabled", 10
             )
-            n = self.node
+            self.status_node = rclpy.create_node("atlas_web_status")
+            n = _SubscriptionRouter(self.node, self.status_node)
             n.create_subscription(String, "/ultrasonic/status", self._ultrasonic_status_cb, 10)
             n.create_subscription(String, "/ultrasonic/validity", lambda m: self._set('us_validity', m.data), 1)
             n.create_subscription(
@@ -586,18 +637,20 @@ class AtlasRosNode:
                 self._camera_subscription_tick,
             )
             self.ready = True
-            rclpy.spin(n)
+            threading.Thread(target=self._spin_status, name="atlas-web-status-spin", daemon=True).start()
+            rclpy.spin(self.node)
         except Exception as exc:
             self._set("web_error", str(exc))
             self.ready = False
         finally:
             self.ready = False
-            try:
-                if self.node is not None:
-                    self.node.destroy_node()
-            except Exception:
-                pass
-            self.node = None
+            for attr in ("status_node", "node"):
+                try:
+                    if getattr(self, attr) is not None:
+                        getattr(self, attr).destroy_node()
+                except Exception:
+                    pass
+                setattr(self, attr, None)
 
     def close(self):
         self.ready = False

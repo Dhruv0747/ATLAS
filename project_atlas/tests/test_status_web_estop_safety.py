@@ -25,6 +25,7 @@ def _stub_ros():
         return
     def no_ros(*a, **k): raise RuntimeError('ROS unavailable in unit test')
     module('rclpy', init=no_ros, create_node=no_ros, spin=no_ros, ok=lambda: False, shutdown=lambda: None, _atlas_stub=True)
+    module('rclpy.executors', SingleThreadedExecutor=Msg)
     module('rclpy.qos', DurabilityPolicy=Msg, QoSProfile=Msg, ReliabilityPolicy=Msg, qos_profile_sensor_data=None)
     module('geometry_msgs'); module('geometry_msgs.msg', PoseWithCovarianceStamped=Msg, Twist=Msg, PoseStamped=Msg)
     module('nav_msgs'); module('nav_msgs.msg', OccupancyGrid=Msg, Odometry=Msg, Path=Msg)
