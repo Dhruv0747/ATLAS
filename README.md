@@ -1,5 +1,18 @@
 # Project ATLAS - Autonomous Service Rover
 
+### Glass UI V2 prototype — 2026-10-11 (not deployed)
+
+`project_atlas/web/v2/` is a restyled, phone-first dashboard. It puts the camera and drive pad
+together and keeps a sticky E-STOP on every screen size. It reuses the V1 logic:
+- `command.js` and the sub-pages are generated from V1 by `tools/ui_v2/build_*.py`, with asserted
+  patches;
+- the same server serves it at `/v2/` (`scripts/atlas_web_v2.py`; no new runtime).
+
+V1 at `/` stays the default and the rollback. Regression tests:
+`python3 project_atlas/tools/ui_v2/test_ui_v2.py <snapshot_dir> <out_dir>` and
+`python3 -m unittest tests.test_atlas_web_v2`. See the
+[prototype report](docs/ui/ATLAS_GLASS_UI_V2_PROTOTYPE_REPORT_2026-10-11.md).
+
 ### Mission-start LiDAR check — 2026-10-10
 
 Before any saved-map goal (return home, named place, taught route), mission

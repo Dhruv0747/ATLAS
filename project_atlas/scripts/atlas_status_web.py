@@ -8,6 +8,7 @@ import math
 import re
 import socket
 import atlas_wifi_web
+import atlas_web_v2
 import subprocess
 import threading
 SHUTDOWN_PENDING = threading.Event()
@@ -1657,6 +1658,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.client_allowed():
             self.send_error(403)
+            return
+        if atlas_web_v2.handles(self.path):   # Glass UI V2 static files (additive; V1 routes unchanged)
+            atlas_web_v2.serve(self)
             return
         commissioning_assets = {'/commissioning': ('atlas_commissioning.html', 'text/html'),
                                 '/mapping': ('atlas_mapping.html', 'text/html'),

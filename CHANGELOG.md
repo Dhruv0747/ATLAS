@@ -1,5 +1,22 @@
 # Changelog
 
+2026-10-11 Glass UI V2 prototype plus three read-only audits. **Nothing was
+deployed or changed on the Jetson.**
+- **Glass UI V2** (`project_atlas/web/v2/`). It is served at `/v2/` by a new allow-listed
+  static route (`scripts/atlas_web_v2.py`). Offline, V2 sends requests identical to V1 for every
+  control. The full results are in the
+  [prototype report](docs/ui/ATLAS_GLASS_UI_V2_PROTOTYPE_REPORT_2026-10-11.md).
+- **Security and safety fix proposal.** It covers the E-STOP-while-holding hazard, the reboot
+  password, same-origin checks and stop during shutdown. See the
+  [proposal](docs/security/ATLAS_DASHBOARD_SECURITY_FIX_PROPOSAL_2026-10-11.md).
+- **Visual Cloud** has received no data since the Oct 4 deployment, which replaced the local
+  URL with the placeholder. The agent still uses 11% of a core, and a 25 GB history DB has no
+  reader. See the
+  [Visual Cloud audit](docs/audits/ATLAS_VISUAL_CLOUD_AUDIT_2026-10-11.md).
+- **rover-status-web** spends about 54% of a core in the rclpy executor (≈290 msgs/s). An
+  isolated benchmark shows a hot/cold executor split saves 29%. See the
+  [server audit](docs/audits/ATLAS_DASHBOARD_SERVER_PERF_AUDIT_2026-10-11.md).
+
 2026-10-10 local map candidate validation (read-only, nothing deployed).
 Candidate v1 is **rejected**: it deleted real surfaces and opened new
 plannable space. The safe v3 adds no passages but localizes the same as the

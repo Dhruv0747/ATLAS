@@ -126,3 +126,29 @@ blur and visibility events. Then:
    stopped the rover).
 5. Telemetry strings go into `innerHTML` unescaped in places. V2 will
    escape everything.
+
+## Google Antigravity evaluation (2026-10-11)
+
+Question: would Antigravity give a measurable advantage over the workflow already in use?
+
+**What Antigravity is.** Google's agent-first IDE: a VS Code-based editor driven by Gemini
+agents. It can operate a browser to check its own work and produce screenshot or recording
+artifacts.
+
+**What it would change for ATLAS.**
+
+| Goal | Already in place | Would Antigravity add something measurable? |
+|---|---|---|
+| Preserve every function | Generated `command.js` and sub-pages with asserted patches. `test_ui_v2.py`: ID, link and request-contract equality on 218 control comparisons, plus release-to-stop and E-STOP checks | No. Its browser agent checks work by looking at pages; it would not replace contract tests. Any edits it made would still have to pass this suite |
+| Visual design iteration | Headless screenshots at phone, tablet and desktop against recorded real data, plus a state gallery | Marginal. Side-by-side visual iteration on your PC is convenient, but it gives the same output: static HTML and CSS |
+| Jetson CPU | Measured: the cost is the rclpy executor in `rover-status-web` (57% of one core) and the Visual Cloud agent (11%) | **None.** These are backend and executor issues; an IDE cannot change runtime cost |
+| Browser and network cost | Visibility-gated camera and radar polling, 2 KB logo, measured with CDP | None beyond what is measured |
+| PC independence | Static files served by the Jetson; no build step | Neutral, as long as it does not introduce a toolchain. A second agent editing the same generated files would create drift risk |
+
+**Recommendation: do not install it for this project now.** It is optional at most, for your own
+hands-on visual tweaking on the PC. If you do use it, use it under two rules:
+1. Edit `glass.css`, `pages.css` and `index.html` only. Never edit the generated `command.js` or
+   the generated sub-pages; change their V1 sources or build scripts instead.
+2. Run `tools/ui_v2/test_ui_v2.py` before anything is proposed for deployment.
+
+Sources: [Google Antigravity overview (gend.co)](https://www.gend.co/blog/google-antigravity), [DEV Community review](https://dev.to/tashfia_a8008e6a542/google-antigravity-i-tested-the-ai-ide-and-heres-the-unfiltered-truth-1fj4).
