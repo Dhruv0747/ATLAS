@@ -42,6 +42,8 @@ STEERING_VALIDATION_EXTRA = (
     '/odom/lidar_fused_candidate', '/atlas/steering_calibration/status',
     '/joy', '/bms/status', '/bms/voltage',
     '/atlas/steering_validation/marker',
+    '/atlas/steering_validation/event', '/atlas/steering_validation/status',
+    '/atlas/steering_calibration/request', '/im10a/dashboard_json',
 )
 STEERING_VALIDATION_REQUIRED = REQUIRED + (
     '/scan_raw', '/atlas/encoder_update', '/im10a/imu/unvalidated',

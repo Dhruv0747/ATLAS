@@ -792,6 +792,11 @@
           "date": "2026-10-14",
           "kind": "stage17_measurement_preparation",
           "description": "Live owner/config hashes match source: front PWM 2, rear PWM 1, centres 90/90, commanded-only feedback. Both axles historically operated, but current physical connectivity and road-wheel angles require approved stationary measurement. Prepared perspective/sync/rolling-observability harness and guarded-owner test plan. Unused direct-serial helper swapped channel mapping and bypassed ownership; source now refuses actuation, with no evidence it caused recorded yaw errors. No live control/calibration changes. See ATLAS_STAGE17_STEERING_YAW_VALIDATION.md."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage17b_single_person_preparation",
+          "description": "Disabled opt-in front-only sequence and paused Vernier observations implemented through existing steering owner; 62 offline Python checks plus mock UI passed. Phone tilt is not road-wheel feedback. No live deployment, actuation, calibration or localization fix; physical measurements and expanded-profile resource validation pending. See ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md."
         }
       ]
     },

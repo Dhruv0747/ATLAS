@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-14: Stage 17B single-person steering commissioning prepared, not deployed.
+- Added disabled-by-default bounded front-only sequence through the existing lease owner, paused caliper mode, explicit delegation and stop-only cancellation.
+- Added interlock acknowledgement metadata and optional recorder event topics; no calibration, rear target, EKF or live deployment changed.
+- 62 offline Python checks plus mock UI/syntax validation passed. Tilt-only phone app cannot measure road-wheel angle; physical measurements and Jetson resource validation remain pending.
+- See [Stage 17B report](ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md).
+
 2026-10-14: Stage 17 steering/yaw instrumentation prepared, physical approval pending.
 - Optional recorder profile adds raw IM10A, exact encoder updates, particles and LiDAR odometry; stationary steering changes trigger bounded capture with 20 s post-roll.
 - Isolated parked Jetson trial: 7,032 messages, all required topics present, zero application/DDS-reported drops; ~40.48% one-core CPU and 84.98 MiB RSS. Production recorder stays unchanged.

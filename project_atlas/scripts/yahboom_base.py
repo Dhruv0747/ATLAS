@@ -1236,7 +1236,14 @@ class YahboomBase(Node):
         now = time.monotonic()
         self._steering_cal.tick(now, self._cal_applied(), self._cal_safe())
         self._apply_steering_calibration()
-        self._cal_status_pub.publish(String(data=json.dumps(self._steering_cal.status())))
+        cal_status = self._steering_cal.status()
+        cal_status.update({
+            'applied_motor_outputs': list(self._applied_motor_outputs),
+            'zero_motor_command': all(value == 0 for value in self._applied_motor_outputs),
+            'traction_inhibited': self._steering_cal.locked,
+            'remote_b_stop': self._lifted_remote_b_stop,
+        })
+        self._cal_status_pub.publish(String(data=json.dumps(cal_status)))
         if time.time() - self._last_cmd_time > CMD_TIMEOUT_S:
             self._last_vx = 0.0
             self._last_vy = 0.0

@@ -578,3 +578,11 @@ M1/M4.
 
 **Evidence gap:** tape-measured straight runs at two speeds. **No calibration change is proposed.**
 See [encoder scale by speed](ATLAS_ENCODER_SCALE_BY_SPEED_2026-10-11.md).
+
+## 2026-10-14 Stage 17B preparation — ATLAS-013
+
+Disabled-by-default single-person front steering measurement sequence is prepared
+and mock-tested. Tilt-only phone orientation is not physical steering feedback.
+No live deployment, motion, calibration or localization repair is claimed.
+Physical wheel-angle evidence and expanded-profile Jetson resource validation
+remain pending. See [Stage 17B](../../ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md).

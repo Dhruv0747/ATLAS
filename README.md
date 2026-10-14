@@ -1409,3 +1409,10 @@ Publish `inspect` on `/atlas/active_vision/request`; results appear on
 live LiDAR clearance. The scan cancels if rover motion begins, returns the camera to
 its saved home position, and never publishes velocity. Its recommendation is advisory:
 LiDAR, the Nav2 costmaps, and local safety guards retain movement authority.
+
+## Stage 17B commissioning (prepared, not deployed)
+
+Opt-in single-person front steering sequence, paused Vernier observations and
+bounded diagnostic capture are documented in
+[Stage 17B](ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md).
+Disabled by default; no physical-angle feedback or autonomy qualification is claimed.

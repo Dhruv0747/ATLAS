@@ -10,6 +10,7 @@ import socket
 import atlas_wifi_web
 import atlas_web_v2
 import atlas_location_check_web
+from atlas_single_person_steering_web import SinglePersonSteeringService
 import subprocess
 import threading
 SHUTDOWN_PENDING = threading.Event()
@@ -341,6 +342,10 @@ class AtlasRosNode:
         self.voice_mute_pub = None
         self.commissioning_stop_pub = None
         self.steering_cal_pub = None
+        self.single_person_steering = None
+        self.steering_test_event_pub = None
+        self.steering_test_status_pub = None
+        self.steering_test_speech_pub = None
         self.pan_us = CAMERA_PAN_HOME_US
         self.tilt_us = CAMERA_TILT_HOME_US
         self.camera_home_pan_us = CAMERA_PAN_HOME_US
@@ -455,6 +460,12 @@ class AtlasRosNode:
             # Reuse the existing mux latch; never create a second motor path.
             self.commissioning_stop_pub = self.node.create_publisher(Empty, '/atlas/voice/stop', 10)
             self.steering_cal_pub = self.node.create_publisher(String, '/atlas/steering_calibration/request', 10)
+            self.steering_test_event_pub = self.node.create_publisher(String, '/atlas/steering_validation/event', 10)
+            self.steering_test_status_pub = self.node.create_publisher(String, '/atlas/steering_validation/status', 10)
+            self.steering_test_speech_pub = self.node.create_publisher(String, '/atlas/voice/test_speak', 10)
+            self.single_person_steering = SinglePersonSteeringService(
+                self, String, Empty, shutdown_check=SHUTDOWN_PENDING.is_set)
+            self.node.create_timer(.1, self.single_person_steering.tick)
             # Existing mux service; the mux grants it only with the physical remote connected and neutral.
             self.remote_stop_reset_client = self.node.create_client(Trigger, '/atlas/remote_stop/reset')
             self.location_check_clients = {op: self.node.create_client(Trigger, '/atlas/location_check/'+op) for op in ('start','cancel')}
@@ -665,6 +676,11 @@ class AtlasRosNode:
             self._set("web_error", str(exc))
             self.ready = False
         finally:
+            if self.single_person_steering is not None:
+                try:
+                    self.single_person_steering.close()
+                except Exception:
+                    pass  # Continue ROS cleanup even if diagnostic persistence fails.
             self.ready = False
             for attr in ("status_node", "node"):
                 try:
@@ -2125,11 +2141,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 length = int(self.headers.get('Content-Length', '0'))
-                if not 0 < length <= 1024 or self.headers.get_content_type() != 'application/json':
+                if not 0 < length <= 8192 or self.headers.get_content_type() != 'application/json':
                     raise ValueError('Invalid request')
                 payload = json.loads(self.rfile.read(length))
                 if not isinstance(payload, dict):
                     raise ValueError('Expected object')
+                if length > 1024 and payload.get('action') != 'single_person_steering':
+                    raise ValueError('Existing commissioning request limit is 1024 bytes')
                 if payload.get('action') == 'stop':
                     if ROS.commissioning_stop_pub is None or not ROS.ready:
                         json_response(self, 503, {'error': 'Stop publisher unavailable; use remote stop'})
@@ -2150,6 +2168,16 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('Shutdown pending')
                     ok, message = ROS.save_camera_home()
                     json_response(self, 200 if ok else 503, {'ok': ok, 'message': message})
+                elif payload.get('action') == 'single_person_steering':
+                    if ROS.single_person_steering is None:
+                        raise ValueError('Single-person steering service unavailable')
+                    command = payload.get('command')
+                    if not isinstance(command, dict):
+                        raise ValueError('Invalid single-person steering request')
+                    if SHUTDOWN_PENDING.is_set() and command.get('op') not in ('cancel', 'emergency'):
+                        raise ValueError('Shutdown pending')
+                    result = ROS.single_person_steering.command(command)
+                    json_response(self, 202, result)
                 elif payload.get('action') == 'steering':
                     if SHUTDOWN_PENDING.is_set() or not ROS.ready or ROS.steering_cal_pub is None:
                         raise ValueError('Steering owner unavailable')

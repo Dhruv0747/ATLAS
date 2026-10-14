@@ -128,6 +128,7 @@ class SteeringCommission:
 
     def status(self):
         return {'locked': self.locked, 'lease_active': self.token is not None, 'saving': self.saving, 'session': self.token,
+                'sequence_ack': self.sequence,
                 'targets': self.targets, 'saved': self.saved, 'draft': self.draft,
                 'result': self.result, 'error': self.error,
                 'feedback': 'COMMANDED, NOT MEASURED', 'envelope': self.envelope}
