@@ -35,7 +35,46 @@ TOPICS = (
 )
 REQUIRED = ('/scan', '/odom', '/yahboom/odom', '/amcl_pose', '/tf',
             '/atlas/encoder_health', '/atlas/control_policy')
+# Opt-in engineering profile. The existing/default recorder remains unchanged.
+STEERING_VALIDATION_EXTRA = (
+    '/atlas/encoder_update', '/im10a/imu/unvalidated', '/im10a/status',
+    '/particle_cloud', '/lidar/odom', '/lidar/odom_raw',
+    '/odom/lidar_fused_candidate', '/atlas/steering_calibration/status',
+    '/joy', '/bms/status', '/bms/voltage',
+    '/atlas/steering_validation/marker',
+)
+STEERING_VALIDATION_REQUIRED = REQUIRED + (
+    '/scan_raw', '/atlas/encoder_update', '/im10a/imu/unvalidated',
+    '/im10a/imu/bias_corrected_candidate', '/particle_cloud', '/lidar/odom',
+    '/yahboom/encoder/m1', '/yahboom/encoder/m2',
+    '/yahboom/encoder/m3', '/yahboom/encoder/m4',
+    '/steering/front_angle_deg', '/steering/rear_angle_deg', '/bms/status',
+)
 MIB = 1024 * 1024
+
+
+def recording_profile(name):
+    if name == 'default':
+        return TOPICS, REQUIRED, 10.0
+    if name == 'steering-validation':
+        return TOPICS + STEERING_VALIDATION_EXTRA, STEERING_VALIDATION_REQUIRED, 20.0
+    raise ValueError('unknown recorder profile')
+
+
+def topic_health(recorder, now, required):
+    health = recorder.health(now, required)
+    # BMS normally publishes every five seconds; do not call normal cadence stale.
+    health['stale'] = sorted(t for t in required if t in recorder.last_seen
+                             and now - recorder.last_seen[t] > (12.0 if t == '/bms/status' else 2.0))
+    return health
+
+
+def steering_changed(previous, value):
+    """A recording trigger only; no steering or traction command is generated."""
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError('nonfinite commanded steering sample')
+    return previous is not None and abs(value - previous) >= 0.1
 
 
 def owned_bytes(root):
@@ -107,11 +146,15 @@ def main():
                         help='exit after this many seconds; zero runs until stopped')
     parser.add_argument('--stationary-probe', action='store_true',
                         help='one diagnostic-only capture after 12 s; requires fresh latched/stopped status')
+    parser.add_argument('--profile', choices=('default', 'steering-validation'), default='default',
+                        help='Stage 17 adds raw gyro/exact encoder/particle data and steering-change capture')
     args = parser.parse_args()
     if not math.isfinite(args.duration) or args.duration < 0:
         parser.error('duration must be finite and nonnegative')
     if not args.record:
         parser.error('no recording started; --record is required')
+    if args.profile == 'steering-validation' and not 30 <= args.duration <= 600:
+        parser.error('steering-validation requires a bounded --duration of 30..600 seconds')
     if not args.root.is_absolute() or args.root == Path('/'):
         parser.error('root must be a specific absolute diagnostics directory')
 
@@ -142,7 +185,9 @@ def main():
         return RosbagSink(args.root, remaining, rosbag2_py)
 
     writer = QueuedWriter(open_sink)
-    recorder = RecorderEngine(writer.open_capture, cap_bytes=quota)
+    selected_topics, required_topics, post_s = recording_profile(args.profile)
+    recorder = RecorderEngine(writer.open_capture, cap_bytes=quota, post_s=post_s)
+    steering_previous = {}
     started = time.monotonic()
     probe_done = False
     stopped = False
@@ -162,6 +207,16 @@ def main():
                 recorder.pin(sample)
             else:
                 recorder.ingest(sample)
+            if args.profile == 'steering-validation' and topic in (
+                    '/steering/front_angle_deg', '/steering/rear_angle_deg'):
+                try:
+                    value = float(deserialize_message(raw, msg_class).data)
+                    changed = steering_changed(steering_previous.get(topic), value)
+                    steering_previous[topic] = value
+                    if changed:
+                        recorder.motion(mono)  # Capture event only, including stationary sweeps.
+                except (ValueError, TypeError, AttributeError):
+                    recorder.dropped['steering_decode_error'] += 1
             if topic in ('/cmd_vel', '/yahboom/odom'):
                 try:
                     moving = is_motion(topic, deserialize_message(raw, msg_class))
@@ -174,7 +229,7 @@ def main():
 
     def discover():
         for topic, types in node.get_topic_names_and_types():
-            if topic not in TOPICS or topic in subscriptions or len(types) != 1:
+            if topic not in selected_topics or topic in subscriptions or len(types) != 1:
                 continue
             try:
                 msg_class = get_message(types[0])
@@ -210,14 +265,19 @@ def main():
         if recorder.sink is not None and owned_bytes(args.root) >= quota:
             recorder.close('storage_cap')
             recorder.disabled_reason = 'storage_cap'
-        health = recorder.health(time.monotonic(), REQUIRED)
+        health = topic_health(recorder, time.monotonic(), required_topics)
+        health['profile'] = args.profile
+        health['postroll_s'] = post_s
+        health['preroll_ready'] = time.monotonic() - started >= 12.0
         health['owned_bytes'] = owned_bytes(args.root)
         health['subscribed'] = sorted(subscriptions)
         health['writer'] = writer.health()
         health['middleware_events'] = middleware_events
         health['state'] = ('STOPPED' if stopped else 'ERROR' if recorder.disabled_reason else
                            'RECORDING' if recorder.sink else
-                           'WAITING_FOR_TOPICS' if health['missing'] else 'READY')
+                           'WAITING_FOR_TOPICS' if health['missing'] else
+                           'STALE_TOPICS' if args.profile == 'steering-validation' and health['stale'] else
+                           'WARMING_UP' if args.profile == 'steering-validation' and not health['preroll_ready'] else 'READY')
         health['updated_utc'] = time.time()
         if health['state'] != reported_state:
             print(json.dumps({'recorder': health['state'], 'root': str(args.root)}), flush=True)

@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--recorder', type=Path, required=True)
     parser.add_argument('--root', type=Path, required=True)
+    parser.add_argument('--profile', choices=('default', 'steering-validation'), default='default')
     args = parser.parse_args()
     if not args.root.is_absolute() or args.root.exists():
         parser.error('use a NEW absolute test root')
@@ -43,7 +44,8 @@ def main():
     rows = []
     with (args.root/'console.log').open('w') as log:
         child = subprocess.Popen([sys.executable, str(args.recorder), '--record', '--root',
-                                  str(args.root/'bags'), '--duration', '60', '--stationary-probe'],
+                                  str(args.root/'bags'), '--duration', '60', '--stationary-probe',
+                                  '--profile', args.profile],
                                  env=env, stdout=log, stderr=subprocess.STDOUT)
         try:
             while child.poll() is None:
@@ -91,6 +93,7 @@ def main():
     assert len(bags) == 1 and bags[0]['integrity'] == 'ok', 'missing or broken bag'
     assert not health.get('dropped'), 'recorder application drops'
     assert not health.get('missing'), 'required subscriptions missing'
+    assert not health.get('stale'), 'required subscriptions stale'
     assert bags[0]['messages'] > 0, 'empty capture'
 
 

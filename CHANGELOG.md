@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-14: Stage 17 steering/yaw instrumentation prepared, physical approval pending.
+- Optional recorder profile adds raw IM10A, exact encoder updates, particles and LiDAR odometry; stationary steering changes trigger bounded capture with 20 s post-roll.
+- Isolated parked Jetson trial: 7,032 messages, all required topics present, zero application/DDS-reported drops; ~40.48% one-core CPU and 84.98 MiB RSS. Production recorder stays unchanged.
+- Added perspective/synchronization/rolling-observability harness and reference sheet; 27 offline regressions passed. Two-encoder feasibility is conditional and grants no control authority.
+- Retired unused direct-serial steering utility with incorrect front/rear mapping in source. No current steering, EKF, map or motor settings changed. See [Stage 17 report](ATLAS_STAGE17_STEERING_YAW_VALIDATION.md).
+
 2026-10-14: isolated two wrong-sign wheel-yaw windows in the Oct 9 Hall return.
 - Added a read-only CDR/SQLite diagnostic that traces exact accepted encoder distance, commanded-steering curvature and IM10A gyro yaw; 3 focused plus 29 related tests passed.
 - All four channels were accepted in 16/20 updates of one wrong-sign window, while nearby turns agreed, excluding a global sign flip or a proven M3-only cause.

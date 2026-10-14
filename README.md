@@ -1,5 +1,13 @@
 # Project ATLAS - Autonomous Service Rover
 
+14 October: [Stage 17 steering/yaw preparation](ATLAS_STAGE17_STEERING_YAW_VALIDATION.md)
+adds an opt-in bounded recorder profile with raw IM10A, exact encoder snapshots,
+particles and stationary steering-change capture. The isolated parked Humble
+test passed; perspective-corrected visual road-angle tools and a supervised
+test sequence are prepared. Physical steering measurements and moving
+localization remain unvalidated. Default recording and live drive settings
+are preserved; no autonomous-navigation release is implied.
+
 11 October follow-up: [CHECK MY LOCATION checkpoint](docs/audits/ATLAS_CHECK_MY_LOCATION_IMPLEMENTATION_REPORT.md)
 now includes the deployed fresh-sensor adapter and shared Command Center/Mapping
 button. Stage A is read-only; 73 scoped tests and live browser checks passed.

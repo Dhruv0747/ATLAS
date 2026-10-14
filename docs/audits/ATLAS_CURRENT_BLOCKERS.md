@@ -1,5 +1,19 @@
 # ATLAS current blockers
 
+14 October Stage 17: exact encoder/raw-gyro/particle/steering instrumentation
+is prepared and an isolated parked Humble capture passed (7,032 messages,
+zero application or DDS-reported losses, all required topics available).
+E-STOP stayed latched; no physical steering/movement or production deployment.
+Current PWM owner is front channel 2/rear 1, centres 90/90, with no physical
+angle readback. Visual perspective/sync tools are tested; actual road-wheel
+angles and loaded linkage behavior remain missing. The unused direct-serial
+utility's opposite channel mapping is disabled in source, not implicated in
+the recorded yaw failure. Recorder ~85 MiB/40.5% one-core CPU, whole-system
+sampled peak 99.4%; fresh timing/resource and functional remote checks remain
+physical-test prerequisites. Battery was charging. Next approval is stationary
+lifted front/rear measurement; ground movement remains separate. See
+[Stage 17 preparation](../../ATLAS_STAGE17_STEERING_YAW_VALIDATION.md).
+
 14 October read-only resumption: Stage 16 has four retained startup verdicts.
 Alternate-position checks failed for two distinct measured reasons: one best
 fit 0.923 below 0.93, another best fit 0.950 but ambiguity margin 0.028
