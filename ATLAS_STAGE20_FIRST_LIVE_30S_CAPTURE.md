@@ -1,5 +1,33 @@
 # First live30s capture — preflight only
 
+## Approved attempt — PREFLIGHT BLOCKED, no recording
+
+Owner approved one stationary capture. Initial independent resource observations
+68.98,74.07,68.90,68.38,69.24% CPU passed, dashboard71.6%,RAM73%,58C.
+Fresh topic probe and exact package verification completed. Immediately subsequent
+installed resource validation refused with `diagnostic headroom unavailable`, before
+grant creation or service start. No automatic retry. This supersedes earlier
+PREFLIGHT PASSED status below; it does not remove the owner's safeguards.
+
+Reporting limitation: supervisor called the resource checker before saving its raw
+response. The failure finalizer called it again and also raised, masking the first
+error detail. Exact rejecting CPU/RAM/temperature value was NOT retained, so it
+cannot be attributed numerically or exclusively to CPU. This is a supervisor
+evidence defect, not a collector failure or proof of safe load. No live package
+was modified. Future supervision must log raw admission response before validation
+and never let a secondary check prevent durable failure reporting.
+
+Recovered read-only verification: recorder inactive/static PID0/restarts0, no grant,
+no bag (only lock file), production PIDs/restart counts unchanged, stop latched and
+zero commands. Later CPU71.6%,RAM73%,59C is NOT the rejected sample or permission
+to retry. Capture duration/message totals/size: no capture,0 bytes; SQLite/CDR/
+checksum and during-recording impact not applicable. Stationary recording safety
+remains unverified. Evidence:
+`/tmp/atlas-stationary30-avHg8uSb/live-once-800a9dc29463462fa4363642622fb0ad`
+contains production baseline and recovered result; initial resource evidence:
+`/tmp/atlas-stationary30-avHg8uSb/approved-capture-admission-1791998292172633757.json`.
+Stop here; renewed direction required. No motion/fusion change occurred.
+
 14 October2026,22:44:55 IST resource observation. Status: **PREFLIGHT PASSED;
 AWAITING ACTIVATION APPROVAL**. No grant created, recorder not started, no recording.
 This is not RECORDING COMPLETED, LIVE CAPTURE VERIFIED or a localization fix.

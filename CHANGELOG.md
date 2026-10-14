@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-14: Approved first live capture blocked before activation by resource guard.
+- No grant/bag/service start; recorder OFF, production unchanged. No retry.
+- Exact rejecting resource sample lost by supervisor; reporting limitation documented,
+  later passing sample not substituted. No localization or capture success claim.
+
 2026-10-14: First live30s preflight passed; awaiting separate activation approval.
 - Single CPU sample series max69.71%, required topics received, hashes exact.
 - No grant, recording, movement or production restart; result is preflight only.
