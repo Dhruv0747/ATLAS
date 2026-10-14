@@ -1,5 +1,15 @@
 # ATLAS current blockers
 
+14 October Stage 19: full native Humble EKF/AMCL Hall-return baseline completed in
+private network/PID/device namespaces, without actuator access. Five original parked
+jumps NOT REPRODUCED; eight native pre-stop corrections instead. Cold EKF starts
+at zero while original starts (18.392,-3.654 m,-128.476 deg), with unrecorded prior
+relative wheel reference/full estimator state. Even after initial rigid alignment,
+native differs up to 1.343 m/18.401 deg. Candidate comparisons FIDELITY BLOCKED;
+B native launch refused by strengthened gate. No live configuration/service changed,
+E-STOP remained latched, Stage17B HOLD. Next evidence is initialization/checkpoint
+capture, not another repeated route. See [Stage19](../../ATLAS_STAGE19_NATIVE_EKF_AMCL_REPLAY.md).
+
 14 October Stage 18 supersedes the next-step approval request: Stage 17B is on
 HOLD, not authorized for deployment or motion. Offline general 4WS math and
 neutral-seeded ICP/gyro screening are tested. Final roundtrip also contains exact

@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-14: Stage 19 native Humble baseline and fail-closed replay-fidelity gate.
+- Ran full Hall-return native EKF/AMCL baseline in private network/PID/device namespaces, domain 187, with no actuator access or production service changes.
+- Original five parked jumps were not reproduced; native had eight pre-stop corrections. Cold EKF/relative-anchor history differs from the recording; zero parked jumps is not a fix.
+- Added native runner, inventory, result summaries and correction-comparison gate. 33 unique regressions passed; Candidate B refused before native launch because fidelity remains blocked.
+- No fusion or navigation correction deployed. See [Stage 19 report](ATLAS_STAGE19_NATIVE_EKF_AMCL_REPLAY.md).
+
 2026-10-14: Stage 18 offline motion-model correction and evidence comparison.
 - Stage 17B explicitly ON HOLD; no deployment/actuation authorized.
 - Added isolated general 4WS model and neutral-seeded ICP/gyro/wheel comparison with explicit uncertainty and no control authority.

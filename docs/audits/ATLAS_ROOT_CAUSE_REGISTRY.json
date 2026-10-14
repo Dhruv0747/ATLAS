@@ -711,6 +711,11 @@
           "date": "2026-10-11",
           "kind": "evening_recovery",
           "description": "2026-10-11 19:52 boot: existing verify-before-seed VERIFIED (0.235,-1.535,81 deg) fit 0.989 margin 0.111 and seeded AMCL; live CHECK MY LOCATION VERIFIED 3/3, AMCL vs LiDAR 0.069 m / 3-6 deg (3 deg search grid). 19:06-boot 0.90 refusal cause undetermined: verdict overwritten and journal lost; web driving 19:13-19:32 means its pose is uncertain. Replayable per-boot verdict capture prepared (b81d7ac), not deployed."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage19_native_baseline_fidelity_blocked",
+          "description": "Full 295 s native Humble EKF/AMCL baseline in private network/PID/devices, domain187. Original 384/80 poses and five parked jumps vs native382/80 and eight pre-stop/zero parked steps; NOT original failure reproduction or a fix. First recorded EKF (18.392,-3.654 m,-128.476deg) vs cold native zero; relative wheel anchor/prior full state absent. After initial rigid alignment up to1.343m/18.401deg replay difference. All selected inputs published but max sender lateness0.27849s; native2586 vs recorded2908 EKF samples. Strengthened gate refuses B before launch; no candidates accepted, no production service/settings/actuator change, EStop latched. See ATLAS_STAGE19_NATIVE_EKF_AMCL_REPLAY.md."
         }
       ]
     },

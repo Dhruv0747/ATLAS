@@ -1424,3 +1424,10 @@ Stage 18 owner directive places Stage 17B on HOLD, without deployment authorizat
 general 4WS model, independent motion screening and two-drive shadow comparison.
 No live sensor-fusion or reduced-encoder authority change is deployed. AMCL jumps
 remain unresolved; improved relative yaw alone is not a localization pass.
+
+## Stage 19 native replay (fidelity blocked)
+
+[Stage 19 report](ATLAS_STAGE19_NATIVE_EKF_AMCL_REPLAY.md) records the completed
+native Humble baseline, sandbox isolation and newly identified EKF initial-reference
+gap. Correction comparisons fail closed until baseline fidelity is established.
+No live fusion, calibration, map or autonomy change is authorized by these results.
