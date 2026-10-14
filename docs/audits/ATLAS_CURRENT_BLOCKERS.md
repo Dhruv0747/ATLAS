@@ -660,3 +660,7 @@ and mock-tested. Tilt-only phone orientation is not physical steering feedback.
 No live deployment, motion, calibration or localization repair is claimed.
 Physical wheel-angle evidence and expanded-profile Jetson resource validation
 remain pending. See [Stage 17B](../../ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md).
+# 2026-10-14 executor-profile clarification
+
+Owner-provided live py-spy evidence is now available, superseding the earlier profiler-access gap. Focused audit found measurable dashboard CPU, but no demonstrated avoidable executor defect or duplicate constant-topic subscriptions. Eleven offline checks passed; no runtime patch/deployment or CPU savings claimed. Stage 20 headroom remains blocked. See `ATLAS_STAGE20_DASHBOARD_EXECUTOR_CPU_FIX.md` for sample-attribution limits and the bounded thread measurement. Suppressing QoS, adding sleeps and replacing executors are rejected without further discriminating evidence.
+
