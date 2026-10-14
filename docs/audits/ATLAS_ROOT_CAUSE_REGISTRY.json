@@ -797,6 +797,11 @@
           "date": "2026-10-14",
           "kind": "stage17b_single_person_preparation",
           "description": "Disabled opt-in front-only sequence and paused Vernier observations implemented through existing steering owner; 62 offline Python checks plus mock UI passed. Phone tilt is not road-wheel feedback. No live deployment, actuation, calibration or localization fix; physical measurements and expanded-profile resource validation pending. See ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage18_isolated_motion_comparison",
+          "description": "Owner places Stage17B on HOLD. Isolated general 4WS lateral/path model and source-timed neutral ICP/gyro consistency evaluator tested. Expanded exact-update coverage: final roundtrip has 4591 snapshots, in addition to Hall return 2919; prior inventory incomplete. Same-command general model does not repair yaw sign; gyro-heading shadow improves median yaw but not translation consistently across both drives. Five original AMCL switches remain unresolved; no steering multiplier, distance scale, calibration, lower-encoder authority or fusion deployment. See ATLAS_STAGE18_ODOMETRY_SENSOR_FUSION_REPORT.md."
         }
       ]
     },

@@ -2,6 +2,10 @@
 
 2026-10-14. Source implementation only; NOT deployed. Autonomy remains disabled.
 
+Owner Stage 18 directive: **ON HOLD**. Deployment and physical execution are not
+authorized. Retained for history only; do not treat the earlier approval request
+as approval to install or run this feature.
+
 ## What is prepared
 
 The existing commissioning page gains an opt-in front steering sequence:

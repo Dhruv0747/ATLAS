@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-14: Stage 18 offline motion-model correction and evidence comparison.
+- Stage 17B explicitly ON HOLD; no deployment/actuation authorized.
+- Added isolated general 4WS model and neutral-seeded ICP/gyro/wheel comparison with explicit uncertainty and no control authority.
+- Expanded exact-update coverage to final roundtrip (4,591 updates). Same-command lateral correction does not repair wrong yaw; gyro-heading shadow improves yaw but not translation consistently. No live fusion/calibration change.
+- Original five AMCL jumps remain unresolved. See [Stage 18 report](ATLAS_STAGE18_ODOMETRY_SENSOR_FUSION_REPORT.md).
+
 2026-10-14: Stage 17B single-person steering commissioning prepared, not deployed.
 - Added disabled-by-default bounded front-only sequence through the existing lease owner, paused caliper mode, explicit delegation and stop-only cancellation.
 - Added interlock acknowledgement metadata and optional recorder event topics; no calibration, rear target, EKF or live deployment changed.

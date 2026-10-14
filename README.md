@@ -1416,3 +1416,11 @@ Opt-in single-person front steering sequence, paused Vernier observations and
 bounded diagnostic capture are documented in
 [Stage 17B](ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md).
 Disabled by default; no physical-angle feedback or autonomy qualification is claimed.
+Stage 18 owner directive places Stage 17B on HOLD, without deployment authorization.
+
+## Stage 18 motion reliability (offline only)
+
+[Stage 18 report](ATLAS_STAGE18_ODOMETRY_SENSOR_FUSION_REPORT.md) covers the isolated
+general 4WS model, independent motion screening and two-drive shadow comparison.
+No live sensor-fusion or reduced-encoder authority change is deployed. AMCL jumps
+remain unresolved; improved relative yaw alone is not a localization pass.

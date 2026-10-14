@@ -1871,7 +1871,7 @@ class YahboomBase(Node):
         # estimate. The controller reports counts in bursts; integrating the
         # half-second CPS estimate lost the beginning and end of short moves.
         # Deliberate exclusions never rejoin merely because counts reappear.
-        # Raw M4 remains diagnostic only. No fallback to rejected channels.
+        # Eligibility is dynamic; no fallback to rejected channels.
         valid_indexes = [i for i in range(4)
                          if i not in self._excluded_encoders
                          and i not in self._encoder_fault_since]
@@ -1879,7 +1879,10 @@ class YahboomBase(Node):
             valid_indexes = []
         # Normalize the naturally different inside/outside wheel path lengths
         # to body-centre distance before applying three-of-four consensus.
-        # This uses measured geometry and does not change steering commands.
+        # Dimensions are configured; steering deflections below are commanded
+        # PWM values, NOT measured road-wheel angles. The path model assumes
+        # symmetric counter-steering and zero midpoint lateral velocity.
+        # Stage 18 evaluates these assumptions offline; no calibration changes.
         front_delta = math.radians(
             self._front_applied_angle - FRONT_STEER_CENTER
         )

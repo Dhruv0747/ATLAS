@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+14 October Stage 18 supersedes the next-step approval request: Stage 17B is on
+HOLD, not authorized for deployment or motion. Offline general 4WS math and
+neutral-seeded ICP/gyro screening are tested. Final roundtrip also contains exact
+encoder updates (4,591), correcting the earlier incomplete inventory. General
+lateral correction using the same commands does not fix wrong yaw; gyro-heading
+shadow improves yaw but not translation consistently. Five original AMCL jumps
+remain unresolved. No calibration, fusion, map, policy or live service changed.
+See [Stage 18 report](../../ATLAS_STAGE18_ODOMETRY_SENSOR_FUSION_REPORT.md).
+
 14 October Stage 17: exact encoder/raw-gyro/particle/steering instrumentation
 is prepared and an isolated parked Humble capture passed (7,032 messages,
 zero application or DDS-reported losses, all required topics available).
