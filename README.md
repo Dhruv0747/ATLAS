@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest: [recorder startup CPU investigation](ATLAS_STAGE20_RECORDER_CPU_SPIKE_ROOT_CAUSE.md).
+Historical 76.23% attribution remains UNKNOWN. One isolated startup profile completed;
+no evidence-backed optimization or live retry. Recorder remains OFF;75% retained.
+
 Latest: [activation evidence fix](ATLAS_STAGE20_RECORDING_ACTIVATION_FAILURE_FIX.md).
 Supervisor now preserves exact refusal samples and non-masking final reports;
 18 PC/native isolated tests pass. Source only; recorder OFF, no live retry.

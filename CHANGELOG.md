@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-14: Bound recorder startup CPU investigation, no live retry.
+- Added isolated phase profiler; native initialization measured0.6521 CPU-seconds.
+- Historical process attribution remains UNKNOWN; no speculative optimization/deployment.
+- Documented timing evidence gaps and offboard-capture feasibility alternative.
+
 2026-10-14 23:02IST: One approved recorder attempt stopped on exact CPU76.2295%.
 - Preflight passed; optional start aborted before bag creation. Grant revoked,
   recorder OFF, production/services/450 protected files unchanged. No retry.

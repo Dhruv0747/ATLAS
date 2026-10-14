@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+Latest startup audit: exact post-start refusal76.2295% is confirmed, process attribution
+UNKNOWN. Isolated setup profile0.6521 CPU-seconds does not reproduce or attribute it.
+No justified correction, deployment or retry;75% preserved. See
+[CPU root-cause report](../../ATLAS_STAGE20_RECORDER_CPU_SPIKE_ROOT_CAUSE.md).
+Prior supervisor evidence-loss fix is deployed; older source-only status below is history.
+
 Latest: activation supervisor evidence-loss defect fixed in source;18 PC/native
 isolated tests pass. Original rejecting measurement UNKNOWN. Installed recorder
 unchanged/OFF, no grant or retry. Separate supervisor deployment/activation approval
