@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-11T20:45:00+05:30",
+  "updated_at": "2026-10-14T11:00:00+05:30",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -77,6 +77,7 @@
     },
     {
       "id": "ATLAS-001",
+      "packet_receipt_timing_20261014": "Read-only Oct 9 SQLite bags: Hall-to-Dhruv encoder topics published about 10 Hz (median 100 ms, p95 about 111 ms); /atlas/encoder_update has 2919 contiguous sequences, no stale packets, packet age 21.1 ms median/41.1 ms p95. Isolated receipt gaps up to 473 ms do not explain the persistent 0.51-0.72x metric distance ratio. Headerless Int32 lacks MCU sample timestamps, so controller-internal batching or missed counts remain unexcluded. See ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md.",
       "title": "Encoder channel response and post-replacement metric calibration",
       "first_available_occurrence": "2026-08-04",
       "latest_reviewed_occurrence": "2026-10-11",
@@ -510,6 +511,7 @@
     },
     {
       "id": "ATLAS-011",
+      "startup_trials_20261014": "Stage 16 history: 11 Oct 20:59 alternate search UNKNOWN (best 0.923 below 0.93); 11 Oct 21:08 Home VERIFIED fit 1.000, seeded via service; 13 Oct 21:23 alternate check UNKNOWN (best 0.950 but margin 0.028 below 0.06), same Jetson boot ID since 11 Oct; 14 Oct 10:47 Home VERIFIED fit 1.000, seeded via service. Same accepted map hash, 21-24 scans/attempt, >=58 valid rays per quadrant. PC backup accepted map YAML/PGM hashes d957f0fe/4beb26d5 differ from repo atlas_latest d483d018/7b8a4090; replay must use the accepted pair. Exact physical cause of poor alternate fit and moving-localization loss unresolved; no threshold or live changes. See ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md.",
       "manual_location_check_20261011": "Stage A diagnostic adapter/API deployed and both dashboard buttons verified using fresh scan, IMU, odometry, TF, map and AMCL evidence. Live checks complete in about 3 seconds and report approximately 1.6-1.7 m disagreement; rotational candidate ambiguity remains. No ground-truth assertion, pose correction, movement or autonomy clearance. New snapshot-clock race fixed with deterministic regression; not evidence of historical AMCL root cause. 73 scoped Python tests and 6 UI assertions pass. See ATLAS_CHECK_MY_LOCATION_IMPLEMENTATION_REPORT.md for resource measurements, limitations and rollback.",
       "weak_hypothesis_survival": "2026-10-10: room-near support (15 particles, 0.198-0.312 m / 1.6-19.2 deg from the refined room pose) was lost between +351.997 s and +362.854 s over 11 forced no-motion updates; odometry changed 0.23 mm / 0.0003 deg, below AMCL motion thresholds. Recomputed nav2_amcl 1.1.20 likelihood-field weights: exact room pose 5.57-6.51 beat every particle (cloud max 4.67-5.43) on every update, but room-near particles were ~average (0.88-1.13x mean), so scans did not reject them. Multinomial resampling with observed KLD counts (2000->1098) and frozen poses loses all room support in 14.2% (equal weights) / 9.6% (recomputed weights) of 4000 trials; drift is sufficient. No diversity source while parked (zero motion noise, recovery alphas 0); one particle on the peak survives 59% with median 13/1098 copies. Offline, one recording, no candidate fix evaluated, production unchanged. See ATLAS_AMCL_WEAK_HYPOTHESIS_TRACE_2026-10-10.md.",
       "parked_diversity_experiment": "2026-10-10: AMCL 1.1.20 core (unchanged harness first reproduced published Jetson scores exactly), 3 parked windows x 5 policies x 30 seeds. Return window: baseline 0/30, parked gate 0/30, jitter 0.02 m/1 deg 14/30, 0.05 m/2.5 deg 22/30 (held-out fit 1.000 when recovered), 0.10 m/5 deg 0/30 recovered to refined room pose. Control room and Hall windows: all jitter sizes 30/30 inside reference region; parked gate froze Hall window wrong 0/30 where baseline recovered 30/30. Rejected as standalone repair: parked gate. Promising but not deployable: 0.05 m/2.5 deg jitter (8/30 failures, some up to 3 m wander). One drive, retrospective references, zero-motion core only; production unchanged. See ATLAS_AMCL_PARKED_DIVERSITY_EXPERIMENT_2026-10-10.md.",

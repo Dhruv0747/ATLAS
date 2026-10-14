@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-14: resumed localization forensics from Stage 16 evidence.
+- Four retained verdicts distinguish absolute-fit and ambiguity failures at alternate positions; Home checks were seeded by the startup verifier.
+- Added a read-only encoder bag timing audit: 2 focused tests pass, no missing published diagnostic sequence in the main Hall-to-Dhruv bag.
+- Identified repository `atlas_latest` map drift from the accepted deployed map; use the archived accepted map for replay.
+- Published [`ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md`](ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md). No Jetson runtime or navigation change.
+
 2026-10-11 20:45: end-of-day checkpoint.
 - Verified backup: Jetson `data/backups/eod-20261011-203508/` plus a copy on the owner's PC.
 - Deployed-file check against HEAD `5eb0aad`.

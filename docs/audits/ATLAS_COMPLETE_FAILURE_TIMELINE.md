@@ -1,5 +1,15 @@
 # ATLAS complete failure timeline
 
+2026-10-11 20:59 IST: alternate-position startup UNKNOWN, three fits
+0.923/0.912/0.907 (<0.93); 21:08 Home VERIFIED 1.000, startup service seeded.
+2026-10-13 21:23: alternate-position service check UNKNOWN, fits
+0.945–0.950 but margins 0.014–0.032 (<0.06); same Oct 11 Jetson boot ID.
+2026-10-14 10:47: Home startup VERIFIED 1.000, service seeded. Stage 16
+retained scans/candidates/map identity for all four. New Oct 14 read-only
+encoder receipt audit finds no sustained packet-publication gap; physical
+localization cause remains unresolved. No rover motion or live change in this
+investigation. [Full report](../../ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md).
+
 2026-10-11 18:55 IST: deployed read-only CHECK MY LOCATION adapter/API and
 both dashboard buttons, then a separately reversible snapshot-clock race fix.
 Initial future-timestamp rejection is retained in the implementation report;

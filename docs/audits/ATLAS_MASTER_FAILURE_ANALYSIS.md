@@ -1,5 +1,15 @@
 # ATLAS master failure analysis
 
+2026-10-14: retained Stage 16 evidence identifies two different alternate-
+position startup refusal mechanisms: absolute fit 0.923 < 0.93 and ambiguity
+margin 0.028 < 0.06 despite fit 0.950. Home checks fit 1.000 and seeded AMCL
+via the startup service. Scan coverage and map hash were valid; physical cause
+of the alternate scan/map mismatch is still unproven. A new read-only Oct 9
+bag timing audit found ≈10 Hz encoder publications and no missing diagnostic
+sequences in the main Hall→Dhruv run, without resolving metric under-reading.
+No movement or production change. See
+[resumption report](../../ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md).
+
 2026-10-11: read-only CHECK MY LOCATION is deployed on both pages. Fresh live
 checks expose approximately 1.6–1.7 m disagreement between AMCL and independent
 LiDAR candidates; rotational ambiguity prevents treating the candidate as

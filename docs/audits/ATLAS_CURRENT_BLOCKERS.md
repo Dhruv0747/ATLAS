@@ -1,5 +1,19 @@
 # ATLAS current blockers
 
+14 October read-only resumption: Stage 16 has four retained startup verdicts.
+Alternate-position checks failed for two distinct measured reasons: one best
+fit 0.923 below 0.93, another best fit 0.950 but ambiguity margin 0.028
+below 0.06. Both had 21–24 scans and ≥58 valid rays per quadrant on the same
+accepted map; neither seeded AMCL. Two Home checks scored 1.000 and seeded via
+the startup service. The second alternate check reused an Oct 11 Jetson boot
+ID, so was not a new Jetson boot. Exact physical cause of poor/ambiguous fit
+is unverified; motion localization remains unvalidated. Oct 9 bag receipts
+show ≈10 Hz encoder publication and no diagnostic sequence gaps in the main
+Hall→Dhruv recording, while measured encoder distance remains low. No live
+settings changed. The repository's `atlas_latest` map differs from the
+accepted Jetson map: any offline replay must use the archived accepted pair.
+See [resumption report](../../ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md).
+
 11 October 20:15 IST: AMCL localized again, through the existing startup verifier, after the owner's
 19:52 dashboard restart (fit 0.989, margin 0.111). No manual seed was applied. Live CHECK MY
 LOCATION is VERIFIED 3/3: AMCL (0.178, −1.473, 78°) versus LiDAR (0.235, −1.435, 72–75°),
