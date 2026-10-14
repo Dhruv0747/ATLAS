@@ -1,5 +1,11 @@
 # Project ATLAS - Autonomous Service Rover
 
+14 October: [Stage20 aborted-install investigation](ATLAS_STAGE20_INSTALL_FAILURE_ROOT_CAUSE.md).
+Original abort cause remains UNKNOWN; discarded child error evidence is a confirmed
+wrapper defect. Durable, sanitized installer evidence and sandbox rollback checks
+are prepared. The public payload is unchanged. Production retry requires renewed
+owner approval; recording remains OFF and production installation has not occurred.
+
 14 October: [Minimum safe Stage20 public capture option](ATLAS_STAGE20_MINIMUM_SAFE_DEPLOYMENT.md)
 separates deployment safety from replay fidelity. A default-OFF finite public-only
 capsule is qualified for separate owner approval (65 offline tests and native

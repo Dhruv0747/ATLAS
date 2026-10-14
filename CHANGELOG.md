@@ -1,5 +1,13 @@
 # Changelog
 
+2026-10-14: Stage20 installation failure evidence repair; no production retry.
+- Preserve named phase, exit status, sanitized child output/traceback, manifest identity,
+  target changes and rollback outcome in an exclusive, fsynced evidence file.
+- Require reviewed manifest hash and evidence destination for the installation CLI.
+- Keep the nine approved diagnostic payload files and all safety/resource guards unchanged.
+- Native fake-root install/rollback, refusal matrix and POSIX permission test pass.
+  Original pre-write abort reason remains UNKNOWN; production remains untouched.
+
 2026-10-14: Stage20 minimum-safe PUBLIC-only alternative; owner approval pending.
 - Separate deployment safety from replay fidelity and optional work; exclude unqualified estimator overlays/hooks from the capsule.
 - Fix diagnostic receive bottleneck with raw CDR: 120s native case captures all97,901 source messages; exact receipt/header audit passes on separate40s case.

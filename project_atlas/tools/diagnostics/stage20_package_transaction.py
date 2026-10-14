@@ -44,12 +44,14 @@ def rollback(backup,root):
         elif dest.exists():dest.unlink()  # Exact added payload only; no recursive deletion.
     return {'restored':True,'services_restarted':[],'diagnostics_deleted':False}
 
-def install(manifest,package,root,*,owner_approved=False,fail_after=None):
+def install(manifest,package,root,*,owner_approved=False,fail_after=None,event=None):
+    event=event or (lambda *a,**k:None)
     if not owner_approved:raise ValueError('explicit installation approval required')
     package=Path(package).resolve();root=Path(root).resolve()
     decision=check(manifest,package,root)
     if decision['status']=='already_installed':return decision
     backup=target(root,'data/backups/'+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime())+'-stage20-'+uuid.uuid4().hex)
+    event('backup_create',backup=str(backup),filesystem_write_attempted=True)
     backup.mkdir(parents=True,exist_ok=False)
     (backup/'transaction.json').write_text(json.dumps(manifest,indent=2))
     for f in manifest['files']:
@@ -59,11 +61,22 @@ def install(manifest,package,root,*,owner_approved=False,fail_after=None):
             shutil.copy2(dest,out)
     try:
         for i,f in enumerate(manifest['files'],1):
+            event('payload_copy',path=f['path'],filesystem_write_attempted=True)
             dest=target(root,f['path']);dest.parent.mkdir(parents=True,exist_ok=True)
             atomic_copy(target(package,f['path']),dest,f['after'])
             if sha(dest)!=f['after']:raise ValueError('installed checksum mismatch')
             if fail_after==i:raise OSError('isolated failure injection')
-    except Exception:
-        rollback(backup,root);raise
+    except Exception as original:
+        # A failed evidence sink must never prevent restoring production targets.
+        def report(*a,**k):
+            try:event(*a,**k)
+            except Exception:pass
+        report('payload_rollback',rollback_attempted=True,original_error=str(original))
+        try:
+            rollback(backup,root)
+        except Exception as exc:
+            report('payload_rollback_failed',rollback_result='failed',error=str(exc));raise
+        report('payload_rollback_complete',rollback_result='restored')
+        raise
     return {'status':'files_installed_not_activated','backup':str(backup),
             'services_restarted':[],'services_enabled':[]}
