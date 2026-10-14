@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-14: Fix supervisor lost-resource-refusal evidence in source only.
+- Observe/log/fsync before validation; exact thresholds, safe finalization and
+  sanitized terminal fallback; owned partial-grant cleanup.18 PC/native tests pass.
+- Original refusing value UNKNOWN; no production deployment or recording retry.
+
 2026-10-14: Approved first live capture blocked before activation by resource guard.
 - No grant/bag/service start; recorder OFF, production unchanged. No retry.
 - Exact rejecting resource sample lost by supervisor; reporting limitation documented,

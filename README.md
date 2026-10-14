@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest: [activation evidence fix](ATLAS_STAGE20_RECORDING_ACTIVATION_FAILURE_FIX.md).
+Supervisor now preserves exact refusal samples and non-masking final reports;
+18 PC/native isolated tests pass. Source only; recorder OFF, no live retry.
+
 Latest17:11UTC: exact30s diagnostic upgrade installed with owner's installation-only
 CPU exception; recording OFF, runtime75% gate unchanged. Five hashes verified,
 production unchanged. See readiness report's latest deployment entry.

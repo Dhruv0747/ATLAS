@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+Latest: activation supervisor evidence-loss defect fixed in source;18 PC/native
+isolated tests pass. Original rejecting measurement UNKNOWN. Installed recorder
+unchanged/OFF, no grant or retry. Separate supervisor deployment/activation approval
+required; see recording activation failure fix report. Resource headroom unresolved.
+
 Latest17:11UTC: owner approved installation-only CPU exception. Five-file30s upgrade
 DEPLOYED/OFF; exact hashes match,328 protected files/production identities unchanged.
 Recording grant absent, static/inactive PID0. Runtime75% gate remains unchanged.
