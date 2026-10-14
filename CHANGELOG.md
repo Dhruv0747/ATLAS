@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-14 23:02IST: One approved recorder attempt stopped on exact CPU76.2295%.
+- Preflight passed; optional start aborted before bag creation. Grant revoked,
+  recorder OFF, production/services/450 protected files unchanged. No retry.
+- Exact rejection evidence retained; no capture/localization success claimed.
+
 2026-10-14 22:57IST: Owner-approved supervisor tooling e35006a deployed separately.
 - Exact Git hashes and installed refusal logging verified; recorder OFF/no grant.
 - Pre/post admission passed,75% retained; protected production/services unchanged.
