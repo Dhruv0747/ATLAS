@@ -14,7 +14,7 @@ from stage20_public_package import preflight
 UNIT='atlas-stage20-public-capture.service'
 
 def deploy(manifest,package,root,user_units,dependencies,*,owner_approved=False,
-           activate=False,activation_approved=False,runner=None,event=None):
+           activate=False,activation_approved=False,runner=None,event=None,admission=None):
     event=event or (lambda *a,**k:None)
     event('installation_approval')
     if not owner_approved:raise ValueError('separate installation approval required')
@@ -28,12 +28,16 @@ def deploy(manifest,package,root,user_units,dependencies,*,owner_approved=False,
             raise ValueError('installer checksum mismatch')
     event('unit_collision')
     if unit.exists() or unit.is_symlink():raise ValueError('existing user unit not overwritten')
-    event('disk_dependencies_live_hashes')
-    preflight(manifest,shutil.disk_usage(root).free,dependencies)
+    free_bytes=shutil.disk_usage(root).free
+    event('disk_dependencies_live_hashes',free_disk_bytes=free_bytes,minimum_free_disk_bytes=2*1024**3)
+    preflight(manifest,free_bytes,dependencies)
     if runner is None:runner=lambda args:subprocess.run(args,check=True,capture_output=True,text=True)
     # Parse the exact candidate unit before writing any production files.
     event('unit_parse')
     runner(['systemd-analyze','--user','verify',str(Path(package)/'tools/stage20_public'/UNIT)])
+    if admission:
+        event('resource_preflight')
+        admission('preflight',False)
     event('payload_validation_and_install')
     result=install(manifest,package,root,owner_approved=True,event=event)
     if result['status']=='already_installed':raise ValueError('use saved transaction for explicit activation; do not duplicate')
@@ -49,6 +53,9 @@ def deploy(manifest,package,root,user_units,dependencies,*,owner_approved=False,
         capture_root.mkdir(parents=True,exist_ok=True)  # Dedicated metadata/output only, never delete it on rollback.
         event('unit_registration')
         runner(['systemctl','--user','daemon-reload'])
+        if admission:
+            event('resource_postflight')
+            admission('postflight',True)
         if activate:
             runner(['systemctl','--user','start',UNIT])
             runner(['systemctl','--user','is-active','--quiet',UNIT])
@@ -116,15 +123,14 @@ if __name__=='__main__':
             evidence.paths=[a.root/f['path'] for f in manifest['files']]+[Path.home()/'.config/systemd/user'/UNIT]
             evidence.before=file_state(evidence.paths)
             evidence.emit('target_baseline',before=evidence.before,source_commit=manifest['source_commit'])
-            evidence.phase('fresh_stationary_headroom')
-            from stage20_public_preflight import check
-            evidence.emit('safety_pass',health=check())
+            from stage20_resource_admission import check as resource_check
             evidence.phase('dependency_query')
             dependencies=evidence.runner(['dpkg-query','-W','-f=${Package}=${Version}\n',
                 'ros-humble-rclpy','ros-humble-rosbag2-py','ros-humble-robot-localization','ros-humble-nav2-amcl']).stdout.splitlines()
             result=deploy(manifest,a.package,a.root,Path.home()/'.config/systemd/user',dependencies,
                 owner_approved=a.owner_approved_install,activate=a.activate,
-                activation_approved=a.owner_approved_capture,runner=evidence.runner,event=evidence.phase)
+                activation_approved=a.owner_approved_capture,runner=evidence.runner,event=evidence.phase,
+                admission=lambda phase,begun:resource_check(a.root,phase,begun,evidence.emit))
             evidence.emit('deployment_result',result=result)
         except Exception as exc:
             evidence.finish(exc)

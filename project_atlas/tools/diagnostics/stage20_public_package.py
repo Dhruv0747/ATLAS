@@ -14,7 +14,8 @@ DIAGNOSTICS=('stage20_capture.py','stage19_contract.py','stage20_production_gate
              'stage20_capture_integrity.py','stage20_public_preflight.py')
 SCRIPTS=('atlas_motion_recorder.py','atlas_motion_recorder_core.py','atlas_motion_recorder_writer.py')
 INSTALLER=('stage20_public_install.py','stage20_public_package.py','stage20_install_guard.py',
-           'stage20_package_transaction.py','stage20_public_preflight.py','stage20_install_evidence.py')
+           'stage20_package_transaction.py','stage20_public_preflight.py','stage20_install_evidence.py',
+           'stage20_resource_probe.py','stage20_resource_admission.py')
 
 def prepare(repo,output,inventory,source_commit):
     repo=Path(repo);output=Path(output)
