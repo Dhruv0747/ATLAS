@@ -1,5 +1,10 @@
 # ATLAS next localization milestone — 14 October 2026
 
+Tested implementation and report commit:
+[`04f9ad09025651e954d4e9bab03314a6a3700252`](https://github.com/Dhruv0747/ATLAS/commit/04f9ad09025651e954d4e9bab03314a6a3700252),
+pushed to `agent/sync-developer-20261011`. Subsequent handoff edit only records this
+identity; it changes no tested code. No merge to main.
+
 ## Decision and status
 
 Track A: **BUILT / TESTED OFFLINE / NATIVE VALIDATED (isolated synthetic ROS)**.
