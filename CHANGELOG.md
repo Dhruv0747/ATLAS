@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-14: Prepare exact five-file stationary30 upgrade, no production writes.
+- Pinned Git-blob builder and before/after manifest from read-only installed hashes.
+- Existing transaction reused in native isolation: success/rollback and failures
+  after all five writes restore originals and preserve evidence. No service starts.
+- Separate installation/parked/moving admission; retain75% limit. Recording NO-GO.
+
 2026-10-14: Opt-in stationary30 recorder and bounded fusion candidate preparation.
 - Preserve installed120s profile OFF; distinct grant,30s receipt deadline, bounded
   writer flush, freshness/completeness checks and retained static-TF capture.

@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+14 October upgrade readiness: exact five-file30s diagnostic patch prepared, six
+native install/rollback scenarios passed. Live nine hashes unchanged and unit OFF.
+Current parked dashboard~70% does not negate historical CPU refusal; six-core
+synthetic recorder estimate adds~8 percentage points. No higher admission justified.
+Installation-only approval requested; activation still NO-GO. See
+[readiness](../../ATLAS_STAGE20_30S_UPGRADE_READINESS.md). No repeated localization replay.
+
 14 October latest milestone: installed legacy Stage20 remains OFF, nine payloads
 and83 protected files unchanged. New30s source passed isolated native capture and
 failure checks; not deployed. Required static TF loss found/fixed in candidate.

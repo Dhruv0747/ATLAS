@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest: [Stage20 exact30s upgrade readiness](ATLAS_STAGE20_30S_UPGRADE_READINESS.md).
+Five-file diagnostic patch and native partial-failure rollback rehearsed; installed
+package remains unchanged/OFF. Installation-only approval requested; recording
+NO-GO pending real resource headroom. No CPU-limit change or localization claim.
+
 Latest 14 October: [30-second recorder and minimal fusion milestone](ATLAS_NEXT_LOCALIZATION_MILESTONE.md).
 Installed Stage20 legacy package remains OFF; older installation-blocked notes below
 are historical. New opt-in30s profile passed isolated native capture/failure tests,
