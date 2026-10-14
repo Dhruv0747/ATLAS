@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+14 October: [Single supervised Stage20 retry](ATLAS_STAGE20_SUPERVISED_RETRY_RESULT.md)
+installed the exact files and inactive unit, then failed the postflight resource gate.
+New diagnostic files were rolled back; production services remain unchanged and
+recording never started. No further attempt is authorized.
+
 14 October: [Stage20 aborted-install investigation](ATLAS_STAGE20_INSTALL_FAILURE_ROOT_CAUSE.md).
 Original abort cause remains UNKNOWN; discarded child error evidence is a confirmed
 wrapper defect. Durable, sanitized installer evidence and sandbox rollback checks

@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-14: Record one owner-approved Stage20 installation-only retry and rollback.
+- Exact nine payload hashes and inactive/static unit verified; installer exit0.
+- Postflight resource check failed; later CPU79.7% exceeds75% guard. Exact failing
+  sample unavailable, so no specific transient value or cause is invented.
+- Rollback verified, evidence/backup preserved, production identities unchanged,
+  E-STOP latched and commands zero. Collector never activated; no automatic retry.
+
 2026-10-14: Stage20 installation failure evidence repair; no production retry.
 - Preserve named phase, exit status, sanitized child output/traceback, manifest identity,
   target changes and rollback outcome in an exclusive, fsynced evidence file.

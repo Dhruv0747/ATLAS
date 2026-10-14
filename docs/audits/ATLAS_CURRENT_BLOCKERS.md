@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+14 October supervised retry: installer and unit registration succeeded, but immediate
+postflight resource guard refused acceptance. Exact threshold sample was not retained;
+subsequent CPU79.7% exceeds75%. Rolled back only new diagnostics; collector never ran.
+All production service identities/protected hashes unchanged, stop latched/zero commands.
+No automatic retry. See [retry result](../../ATLAS_STAGE20_SUPERVISED_RETRY_RESULT.md).
+
 14 October Stage20 installation update: initial install aborted before writes;
 original child error UNKNOWN because wrapper discarded captured stderr. Durable
 installer failure evidence fixed in source; 83 PC tests pass (one POSIX skip),
