@@ -1,0 +1,23 @@
+# PREPARATION TEMPLATE ONLY. Collector requires a separately approved finite boot session.
+# Not installable until production opt-in and rollback qualification pass.
+[Unit]
+Description=ATLAS bounded optional startup checkpoint evidence
+Before=atlas-ekf.service atlas-localization.service atlas-im10a.service atlas-lidar.service
+ConditionPathExists=%h/.config/project_atlas/checkpoint_capture.enabled.json
+
+[Service]
+Type=notify
+NotifyAccess=main
+TimeoutStartSec=15
+TimeoutStopSec=25
+Restart=no
+CPUWeight=10
+MemoryHigh=128M
+MemoryMax=192M
+Nice=15
+NoNewPrivileges=yes
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 %h/project_atlas/tools/diagnostics/stage20_capture.py --record --root %h/project_atlas/data/diagnostics/checkpoint_capture --duration 600 --approval-config %h/.config/project_atlas/checkpoint_capture.enabled.json'
+
+[Install]
+WantedBy=default.target

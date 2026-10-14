@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-14: Continue Stage20 initialization/consumer evidence, not Stage21.
+- Add version-pinned opt-in EKF/AMCL diagnostic overlays, bounded discovery buffering and read-only constructor retrieval; retain original algorithm expressions and default-OFF behavior.
+- Controlled native startup ledger and 609-sample static EKF comparison pass; preserve earlier discovery/order/shutdown failures and uncontrolled covariance mismatch.
+- Add comparator, capture integrity, native quota/crash/restart, strict installation/atomic rollback and future one-shot approval tooling. 46 current offline checks pass.
+- Correct RNG audit: Gaussian allocation reseeds with ++pf_pdf_seed after pf_alloc's wall seed; 20 cold-start cases are not independent randomized fidelity trials.
+- No production deployment/restart/motion/map/calibration change. Remaining readiness gates explicit in the Stage20 readiness report.
+
 2026-10-14: Stage 20 scoped checkpoint capture milestone, not deployment-ready.
 - Reuse bounded topic/CDR writer; add receipt ledger, hashes, incomplete flags and read-only parameter snapshots in a finite private-domain collector.
 - Native-build an upstream-library EKF observer exposing the actual relative reference and full 225-element covariance without filter-math edits.

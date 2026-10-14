@@ -1,5 +1,12 @@
 # Stage 20 — checkpoint capture development checkpoint
 
+Continuation: [deployment-readiness assessment](ATLAS_STAGE20_DEPLOYMENT_READINESS_REPORT.md)
+supersedes the initial milestone's remaining-work inventory. Native consumer/startup
+mechanics now pass in a controlled fixture; 46 current checks and diagnostic
+failure/restart tests pass. Readiness is still NO; do not confuse these with
+historical replay or moving-localization verification. The RNG audit below is
+corrected by the newly verified Gaussian reseeding behavior in that report.
+
 14 October 2026. Branch `agent/sync-developer-20261011`; base
 `d27e204cf61c96d1a90f4ca8b9d6a0f7b5b18389`. **Partial Stage 20 delivery, not a
 completed deployment package or localization repair.** The commit containing

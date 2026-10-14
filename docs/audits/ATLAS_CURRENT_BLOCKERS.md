@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+Stage20 continuation: controlled native startup/consumer audit passes (2734
+consumptions), static matched EKF comparison passes (609 samples; max full-covariance
+difference0.0895%). Earlier wall-time covariance3.223%/discovery losses retained;
+not a moving/historical repair. Gaussian allocation reseeds static pf_pdf_seed,
+correcting wall-seed-only explanation. 46 current checks and native crash/quota
+tests pass; package/systemd/reset/timing/full-rate qualification still pending.
+DEPLOYMENT READY NO; live unchanged, EStop latched, Stage17B HOLD and B–E blocked.
+See [readiness report](../../ATLAS_STAGE20_DEPLOYMENT_READINESS_REPORT.md).
+
 14 October Stage 20 partial milestone: sandbox-only collector and upstream-library
 EKF observer capture actual relative reference/full covariance; opt-in service-call
 hooks default OFF. Native synthetic smoke and 28 offline checks pass. NOT production

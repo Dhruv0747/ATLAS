@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+Stage20 continuation: [readiness report](ATLAS_STAGE20_DEPLOYMENT_READINESS_REPORT.md)
+records native startup/consumer ledger and controlled EKF comparator passes,
+preserved failure evidence, crash/quota tests and Gaussian RNG reseeding findings.
+Instrumentation is **not deployment-ready**; no production or navigation change.
+
 14 October: [Stage 20 checkpoint capture milestone](ATLAS_STAGE20_EKF_AMCL_CHECKPOINT_CAPTURE.md)
 adds sandbox-only startup evidence tooling and an isolated EKF observer for the
 actual relative anchor/full covariance. Service-call hooks default OFF. Native

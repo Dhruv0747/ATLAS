@@ -721,6 +721,11 @@
           "date": "2026-10-14",
           "kind": "stage20_partial_native_capture",
           "description": "Native private-domain synthetic capture validates actual EKF relative reference and full covariance, CDR read-back/order ledger and default-OFF service observation hooks. 28 offline tests pass. Installed Humble rclpy lacks configure_introspection; AMCL public weighted cloud is not PF/RNG checkpoint. Startup consumer order and complete internal events remain gaps; NOT deployment-ready or faithful replay. No live install/restart/seed/movement, map/config hashes unchanged, EStop remains latched. See ATLAS_STAGE20_EKF_AMCL_CHECKPOINT_CAPTURE.md."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage20_controlled_startup_qualification",
+          "description": "Version-pinned opt-in overlays expose real EKF consumer/relative-reference and AMCL initialization/resampling events. Preserve discovery/alias/shutdown failures and wall-time 3.223% covariance mismatch. Controlled synthetic clock plus wheel-first fixture: 2734 consumptions correlate, 609 matched static samples have zero XY/yaw and max covariance difference0.089457%; NOT historical/moving fidelity. 46 current offline checks, native quota/crash/restart pass. Twenty synthetic AMCL starts produce valid poses; Gaussian allocation srand48(++pf_pdf_seed) overrides wall seed, so they are not independent randomized trials. No production install/restart/seed/movement/calibration/map change; EStop latched. Package/reset/systemd/full-rate/statistical gates pending: DEPLOYMENT READY NO. See ATLAS_STAGE20_DEPLOYMENT_READINESS_REPORT.md."
         }
       ]
     },
