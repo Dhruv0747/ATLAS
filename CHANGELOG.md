@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-14: Audit offboard recording feasibility without live subscriptions.
+- Added transport-free PC CDR/SQLite fixture;30s/6300 messages and3 storage tests pass.
+- WSL/ROS absent and clock qualification pending; no live transport/CPU saving claim.
+- Preserved Stage20 OFF and all production settings; documented next setup approval.
+
 2026-10-14: Bound recorder startup CPU investigation, no live retry.
 - Added isolated phase profiler; native initialization measured0.6521 CPU-seconds.
 - Historical process attribution remains UNKNOWN; no speculative optimization/deployment.

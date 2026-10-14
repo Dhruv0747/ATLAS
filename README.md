@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest: [offboard PC recording feasibility](ATLAS_OFFBOARD_PC_RECORDING_FEASIBILITY.md).
+PC storage fixture passes; WSL/ROS absent, live transport and CPU benefit unverified.
+NO-GO for live capture; PC runtime setup requires separate approval. Jetson unchanged.
+
 Latest: [recorder startup CPU investigation](ATLAS_STAGE20_RECORDER_CPU_SPIKE_ROOT_CAUSE.md).
 Historical 76.23% attribution remains UNKNOWN. One isolated startup profile completed;
 no evidence-backed optimization or live retry. Recorder remains OFF;75% retained.
