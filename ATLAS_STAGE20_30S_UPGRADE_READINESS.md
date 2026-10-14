@@ -1,5 +1,25 @@
 # Stage20 30-second upgrade readiness — 14 October 2026
 
+## Latest: owner-approved CPU-exempt installation-only — SUCCESS, 17:11 UTC
+
+Owner explicitly requested installation ignoring CPU after the rollback. Exception
+applied ONLY in the one-shot installer validation, never in installed collector or
+runtime preflight. Actual CPU measurements retained; other checks unchanged.
+Preflight intervals67.75,67.86,73.64,68.01,68.68%; postflight71.07,67.70,72.99,
+67.57,68.21%. Thus observed intervals happened to remain below75%, although approval
+waived installation CPU ceiling. RAM70%,59C,394351915008 bytes free postflight.
+Five installed hashes exactly match candidate manifest. All328 protected files and
+production service PID/start/restart identities unchanged. Unit static/inactive,
+PID0/restarts0, no grant, no autostart. E-STOP latched, commands zero. No movement.
+Runtime recording75% CPU gate remains byte-identical; activation NOT approved.
+
+Backup/rollback transaction:
+`/home/jetson/data/backups/20261014T171133Z-stage20-78070115044743b29df6a4fb030f6204`.
+Durable evidence copied into backup:
+`upgrade30-install-cff663ae10e7458b9e9ded6be6589238.jsonl`.
+Status: **30s diagnostic upgrade DEPLOYED, recording OFF**. Previous failed attempt
+below retained; it is not the current installed state.
+
 ## Owner-approved installation attempt, 17:10 UTC — ROLLED BACK
 
 Exact approved five-file manifest verified. Preflight CPU intervals68.95,72.79,

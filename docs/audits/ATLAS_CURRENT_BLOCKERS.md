@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+Latest17:11UTC: owner approved installation-only CPU exception. Five-file30s upgrade
+DEPLOYED/OFF; exact hashes match,328 protected files/production identities unchanged.
+Recording grant absent, static/inactive PID0. Runtime75% gate remains unchanged.
+Activation and localization validation still pending; earlier rollback preserved below.
+
 14 October17:10UTC approved30s installation passed preflight, failed postflight
 CPU77.35%>75%, rolled back all five exact originals. Recorder never started;
 production identities and328 protected hashes unchanged. No retry. See readiness

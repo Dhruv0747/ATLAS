@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest17:11UTC: exact30s diagnostic upgrade installed with owner's installation-only
+CPU exception; recording OFF, runtime75% gate unchanged. Five hashes verified,
+production unchanged. See readiness report's latest deployment entry.
+
 Latest: [Stage20 exact30s upgrade readiness](ATLAS_STAGE20_30S_UPGRADE_READINESS.md).
 Five-file diagnostic patch and native partial-failure rollback rehearsed; installed
 package remains unchanged/OFF. Installation-only approval requested; recording
