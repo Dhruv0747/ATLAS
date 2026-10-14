@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-14: Stage20 CPU admission evidence and transactional rollback correction.
+- Retain every one-second CPU interval, process attribution, RAM/temperature/disk,
+  safety evidence and exact refusal before raising; same pre/post method.
+- Refuse any interval above75%; preserve additional dashboard guard and all limits.
+- Move postflight refusal inside installer rollback; no public runtime changes.
+- Read-only baseline and isolated native validation only; production remains untouched.
+
 2026-10-14: Record one owner-approved Stage20 installation-only retry and rollback.
 - Exact nine payload hashes and inactive/static unit verified; installer exit0.
 - Postflight resource check failed; later CPU79.7% exceeds75% guard. Exact failing

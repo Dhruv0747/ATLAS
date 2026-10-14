@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+14 October CPU admission follow-up: read-only baseline demonstrates actual CPU
+excursions above75% with collector absent and no installation running. Historical
+postflight exact sample remains unavailable; causality is not retrospectively proved.
+Exact resource evidence and transactional postflight rollback are corrected in
+`bb8ec665ed5474d7b2b0db22e9b5624ddd137b06`; nine runtime payloads unchanged.
+No third production attempt, recording activation, motion or service restart.
+See [CPU investigation](../../ATLAS_STAGE20_CPU_HEADROOM_AND_INSTALLATION_FIX.md).
+
 14 October supervised retry: installer and unit registration succeeded, but immediate
 postflight resource guard refused acceptance. Exact threshold sample was not retained;
 subsequent CPU79.7% exceeds75%. Rolled back only new diagnostics; collector never ran.

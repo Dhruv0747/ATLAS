@@ -1,5 +1,11 @@
 # Project ATLAS - Autonomous Service Rover
 
+14 October: [Stage20 CPU admission investigation](ATLAS_STAGE20_CPU_HEADROOM_AND_INSTALLATION_FIX.md)
+adds exact five-interval resource evidence and transactional postflight rollback.
+All resource ceilings and the nine public runtime payloads remain unchanged.
+This is diagnostic preparation only; no third production installation or recording
+activation is authorized. Genuine production CPU excursions must not be bypassed.
+
 14 October: [Single supervised Stage20 retry](ATLAS_STAGE20_SUPERVISED_RETRY_RESULT.md)
 installed the exact files and inactive unit, then failed the postflight resource gate.
 New diagnostic files were rolled back; production services remain unchanged and

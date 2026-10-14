@@ -14,6 +14,20 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-STAGE20-CPU-20261014",
+      "title": "Stage20 postflight resource refusal lost exact measurement",
+      "first_available_occurrence": "2026-10-14",
+      "latest_reviewed_occurrence": "2026-10-14",
+      "subsystem": "diagnostic installation admission",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "confirmed_findings": "Previous installation succeeded but outer postflight resource refusal required rollback. Exact rejected sample was not retained. Read-only monitoring now observes CPU above75% without installation or collector. Later rollback79.7% is not the original rejected sample.",
+      "attempted_fix": "Installer-only exact five-interval evidence and transactional postflight rollback; thresholds and nine public runtime files unchanged. Source bb8ec665ed5474d7b2b0db22e9b5624ddd137b06. No production installation.",
+      "rejected_experiments": "No threshold relaxation, low-sample retry loop, production workload suppression or live daemon-reload for benchmarking.",
+      "remaining_verification": "Production admission headroom and separately authorized installation. Historical spike attribution cannot be recovered from missing evidence.",
+      "evidence": ["ATLAS_STAGE20_CPU_HEADROOM_AND_INSTALLATION_FIX.md", "ATLAS_STAGE20_SUPERVISED_RETRY_RESULT.md"]
+    },
+    {
       "id": "ATLAS-021",
       "title": "Unknown LiDAR sectors grant recovery motion; controller inflation conversion mismatch",
       "first_available_occurrence": "2026-10-11",
