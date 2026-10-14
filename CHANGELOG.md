@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-14: Stage20 minimum-safe PUBLIC-only alternative; owner approval pending.
+- Separate deployment safety from replay fidelity and optional work; exclude unqualified estimator overlays/hooks from the capsule.
+- Fix diagnostic receive bottleneck with raw CDR: 120s native case captures all97,901 source messages; exact receipt/header audit passes on separate40s case.
+- Actual530-unit graph, one-use fake-root adapter, resource bounds and scratch rollback pass;65 current offline tests pass.
+- Document unavailable CPU-quota/device-sandbox enforcement; native-tested kernel CPU lifetime, memory, task and runtime bounds retained.
+- Hashed default-OFF public capsule, source SHA, live-drift guards and approval/rollback plan prepared. No live installation or localization repair asserted.
+
 2026-10-14: Continue Stage20 initialization/consumer evidence, not Stage21.
 - Add version-pinned opt-in EKF/AMCL diagnostic overlays, bounded discovery buffering and read-only constructor retrieval; retain original algorithm expressions and default-OFF behavior.
 - Controlled native startup ledger and 609-sample static EKF comparison pass; preserve earlier discovery/order/shutdown failures and uncontrolled covariance mismatch.

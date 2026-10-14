@@ -1,5 +1,9 @@
 # Stage 20 — checkpoint capture development checkpoint
 
+Later: [public-only alternative](ATLAS_STAGE20_MINIMUM_SAFE_DEPLOYMENT.md) is
+qualified only for lower-fidelity public capture after separate owner approval.
+It does not supply the private checkpoint or prove localization fixed.
+
 Continuation: [deployment-readiness assessment](ATLAS_STAGE20_DEPLOYMENT_READINESS_REPORT.md)
 supersedes the initial milestone's remaining-work inventory. Native consumer/startup
 mechanics now pass in a controlled fixture; 46 current checks and diagnostic

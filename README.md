@@ -1,5 +1,13 @@
 # Project ATLAS - Autonomous Service Rover
 
+14 October: [Minimum safe Stage20 public capture option](ATLAS_STAGE20_MINIMUM_SAFE_DEPLOYMENT.md)
+separates deployment safety from replay fidelity. A default-OFF finite public-only
+capsule is qualified for separate owner approval (65 offline tests and native
+rate/ledger/resource/adapter/rollback checks). No private EKF/AMCL overlay is shipped.
+No production installation, service restart, motion or localization-fix claim.
+Full checkpoint and moving replay remain unqualified; the partial capsule does not
+unlock autonomous navigation or fidelity-blocked candidates.
+
 Stage20 continuation: [readiness report](ATLAS_STAGE20_DEPLOYMENT_READINESS_REPORT.md)
 records native startup/consumer ledger and controlled EKF comparator passes,
 preserved failure evidence, crash/quota tests and Gaussian RNG reseeding findings.

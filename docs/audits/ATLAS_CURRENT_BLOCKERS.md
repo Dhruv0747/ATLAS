@@ -1,5 +1,15 @@
 # ATLAS current blockers
 
+Stage20: **PUBLIC-ONLY alternative qualified, approval pending; private checkpoint
+NOT ready**. Native120s rate/2000-particle test captures all97,901 source messages;
+raw CDR fixes a demonstrated diagnostic receive bottleneck. Actual530-unit graph,
+adapter/grant, resource bounds and scratch rollback pass;65 offline checks pass.
+CPUQuota/device filesystem sandbox unavailable; actual total-CPU75s/memory192MiB/
+tasks48/runtime bounds distinguished. No overlays/hooks shipped or live changes.
+Private initialization/covariance/reference/consumption/RNG unavailable in partial
+scope; localization unresolved, B–E blocked, Stage17B HOLD. See
+[minimum-safe scope](../../ATLAS_STAGE20_MINIMUM_SAFE_DEPLOYMENT.md).
+
 Stage20 continuation: controlled native startup/consumer audit passes (2734
 consumptions), static matched EKF comparison passes (609 samples; max full-covariance
 difference0.0895%). Earlier wall-time covariance3.223%/discovery losses retained;

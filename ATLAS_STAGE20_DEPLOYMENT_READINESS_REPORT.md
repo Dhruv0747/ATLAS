@@ -1,5 +1,9 @@
 # Stage 20 deployment-readiness assessment — 14 October 2026
 
+Later scope decision: [PUBLIC-only alternative](ATLAS_STAGE20_MINIMUM_SAFE_DEPLOYMENT.md)
+is separately qualified and awaits owner approval. Private-checkpoint gaps below
+are preserved, not declared fixed by public capture.
+
 **NOT DEPLOYMENT READY. No production installation or restart approved/performed.**
 This continuation builds on `cbe39269e29d23a9142c93fede5f1bacc73e7cc2`, not a
 new localization investigation. GitHub had no newer working-branch commits at

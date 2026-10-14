@@ -724,6 +724,11 @@
         },
         {
           "date": "2026-10-14",
+          "kind": "stage20_minimum_safe_public_alternative",
+          "description": "Implementation aa0bb06 qualifies ONLY a finite public read-only capsule, with unqualified private overlays/hooks excluded rather than safety-downgraded. Raw CDR fixes native diagnostic receive loss:173-175/1500 fast samples before vs all97901 sources in full120s qualification.65 offline checks; actual530-unit graph, header/receipt ledger, fake-root one-use adapter and resource/scratch rollback checks pass. Collector76.66MiB,63.8094 CPU seconds/120.066s,197.72MB logical output. User CPUQuota/device sandbox unavailable; actual RLIMIT_CPU75s/memory192MiB/tasks48 bounds documented. No production install/restart/seed/steering/motor/map/calibration changes; EStop latched. PUBLIC readiness is not private checkpoint/fidelity: full state/reference/consumption/RNG remain unavailable and five jumps unresolved. See ATLAS_STAGE20_MINIMUM_SAFE_DEPLOYMENT.md."
+        },
+        {
+          "date": "2026-10-14",
           "kind": "stage20_controlled_startup_qualification",
           "description": "Version-pinned opt-in overlays expose real EKF consumer/relative-reference and AMCL initialization/resampling events. Preserve discovery/alias/shutdown failures and wall-time 3.223% covariance mismatch. Controlled synthetic clock plus wheel-first fixture: 2734 consumptions correlate, 609 matched static samples have zero XY/yaw and max covariance difference0.089457%; NOT historical/moving fidelity. 46 current offline checks, native quota/crash/restart pass. Twenty synthetic AMCL starts produce valid poses; Gaussian allocation srand48(++pf_pdf_seed) overrides wall seed, so they are not independent randomized trials. No production install/restart/seed/movement/calibration/map change; EStop latched. Package/reset/systemd/full-rate/statistical gates pending: DEPLOYMENT READY NO. See ATLAS_STAGE20_DEPLOYMENT_READINESS_REPORT.md."
         }
