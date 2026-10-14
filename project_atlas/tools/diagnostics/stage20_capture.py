@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import signal
 import socket
+import struct
 import sys
 import time
 import uuid
@@ -29,6 +30,7 @@ EXTRA = ('/initialpose', '/parameter_events', '/amcl/transition_event',
          '/atlas_amcl/processing', '/diagnostics')
 TOPIC_LIST = tuple(dict.fromkeys(TOPICS + STEERING_VALIDATION_EXTRA + EXTRA))
 KNOWN_TYPES = {
+    '/amcl_pose':'geometry_msgs/msg/PoseWithCovarianceStamped',
     '/scan':'sensor_msgs/msg/LaserScan','/scan_raw':'sensor_msgs/msg/LaserScan',
     '/odom':'nav_msgs/msg/Odometry','/yahboom/odom':'nav_msgs/msg/Odometry',
     '/im10a/imu/bias_corrected_candidate':'sensor_msgs/msg/Imu',
@@ -62,6 +64,27 @@ class Timing:
         return {'count':self.n,'max_s':self.maximum,'mean_s':self.total/max(1,self.n),
             'bucket_upper_s':[v if v!=float('inf') else None for v in self.bounds],
             'bucket_counts':self.counts}
+
+HEADER_TYPES={'sensor_msgs/msg/LaserScan','sensor_msgs/msg/Imu','nav_msgs/msg/Odometry',
+              'geometry_msgs/msg/PoseWithCovarianceStamped','nav2_msgs/msg/ParticleCloud'}
+
+def serialized_source_stamp(raw,type_name):
+    """Read only the first standard CDR Header/TF stamp, without reserialization.
+
+The entire original CDR is retained. TF ledger uses its first transform stamp,
+not an assertion that every transform has that stamp. Unsupported types return None.
+"""
+    if len(raw)<12:return None
+    endian='<' if raw[1]&1 else '>'
+    offset=4 if type_name in HEADER_TYPES else None
+    if type_name=='tf2_msgs/msg/TFMessage':
+        count=struct.unpack_from(endian+'I',raw,4)[0]
+        if count==0 or len(raw)<16:return None
+        offset=8
+    if offset is None:return None
+    sec,nsec=struct.unpack_from(endian+'iI',raw,offset)
+    if nsec>=1000000000:raise ValueError('invalid source nanoseconds')
+    return sec*1000000000+nsec
 
 class TimedSink(RosbagSink):
     def __init__(self,*args):
@@ -103,6 +126,7 @@ def main():
     p.add_argument('--ready-file', type=Path, help='exclusive sandbox readiness marker; not fidelity proof')
     p.add_argument('--sim-time', action='store_true',help='isolated deterministic fixtures only')
     p.add_argument('--approval-config',type=Path,help='separately approved finite production capture; default OFF')
+    p.add_argument('--public-only',action='store_true',help='lower-fidelity read-only sidecar; never requests internal checkpoint services')
     a = p.parse_args()
     if not a.record or not 5 <= a.duration <= 600 or not 64 <= a.quota_mib <= 500:
         p.error('explicit opt-in; duration 5..600 s and quota 64..500 MiB required')
@@ -110,6 +134,15 @@ def main():
         if a.sim_time:p.error('production capture cannot change its clock')
         from stage20_production_gate import verify_approval
         isolation=verify_approval(a.approval_config)
+        if isolation['mode']=='read_only_partial_public' and not a.public_only:
+            p.error('partial-sidecar approval requires public-only mode')
+        if a.public_only:
+            if isolation['mode']!='read_only_partial_public' or str(a.root)!=isolation['capture_root']:
+                p.error('production partial capture requires exact approved scope and output root')
+            if a.duration!=120 or a.quota_mib!=500:
+                p.error('production public capture is bounded to the reviewed 120 s/500 MiB profile')
+            from stage20_public_preflight import check
+            check()  # GET only: reject this diagnostic, never change safety state.
     else:isolation = require_isolation()
     if not a.root.is_absolute() or a.root == Path('/') or a.root.is_symlink():
         p.error('specific absolute non-symlink root required')
@@ -153,17 +186,20 @@ def main():
     first_headers = {}
     callback_timing=Timing()
     boot_future=[]
-    boot_client=n.create_client(Trigger,'/atlas_ekf/checkpoint_bootstrap')
+    boot_client=None if a.public_only else n.create_client(Trigger,'/atlas_ekf/checkpoint_bootstrap')
 
     def receive(topic, type_name, message):
         nonlocal seq
         received = n.get_clock().now().nanoseconds
         mono = time.monotonic()
         seq += 1; counts[topic] += 1
-        stamp = getattr(getattr(message, 'header', None), 'stamp', None)
-        source = None if stamp is None else stamp.sec*1000000000+stamp.nanosec
+        if isinstance(message,bytes):
+            raw=message;source=serialized_source_stamp(raw,type_name)
+        else:
+            stamp = getattr(getattr(message, 'header', None), 'stamp', None)
+            source = None if stamp is None else stamp.sec*1000000000+stamp.nanosec
+            raw=serialize_message(message)
         first_headers.setdefault(topic, source)
-        raw = serialize_message(message)
         ledger = String(data=json.dumps({'seq': seq, 'topic': topic, 'source_ns': source,
             'receive_ros_ns': received, 'receive_monotonic_ns': time.monotonic_ns(),
             'payload_sha256': hashlib.sha256(raw).hexdigest()}, separators=(',', ':')))
@@ -180,7 +216,7 @@ def main():
                 '/tf_static','/atlas/diagnostics/amcl_event','/atlas/diagnostics/ekf_event')
             else DurabilityPolicy.VOLATILE)
         subs[topic] = n.create_subscription(get_message(t), topic,
-            lambda m, topic=topic, t=t: receive(topic, t, m), q)
+            lambda m, topic=topic, t=t: receive(topic, t, m), q, raw=True)
 
     # Subscribe BEFORE producers advertise. Discovery only verifies actual endpoints/types.
     for topic,t in KNOWN_TYPES.items(): subscribe(topic,t)
@@ -194,7 +230,7 @@ def main():
     notify_ready()
 
     def discover():
-        if not boot_future and boot_client.service_is_ready():
+        if boot_client is not None and not boot_future and boot_client.service_is_ready():
             f=boot_client.call_async(Trigger.Request());boot_future.append(f)
             def boot_done(f):
                 try:
@@ -251,6 +287,10 @@ def main():
                 discover(); next_discovery = time.monotonic()+1
                 if owned_bytes(a.root) > quota-16*MIB:
                     reason = 'storage_reserve_reached'; break
+                if __import__('shutil').disk_usage(a.root).free < 1024*MIB:
+                    reason = 'disk_free_reserve_reached'; break
+                if drops:
+                    reason = 'capture_loss'; break
             if worker.error: reason = 'writer_error'; break
             rclpy.spin_once(n, timeout_sec=.05)
     finally:
@@ -269,7 +309,12 @@ def main():
         'middleware_drops':'unmeasured', 'first_source_stamps':first_headers,
         'endpoints':endpoints, 'parameter_snapshots':parameter_snapshots,
         'identities':identities, 'writer':worker.health(),
-        'status':'NATIVE_PUBLIC_CAPTURE_ONLY', 'complete_restorable_checkpoint':False,
+        'status':'PARTIAL_PUBLIC_CAPTURE' if a.public_only else 'NATIVE_PUBLIC_CAPTURE_ONLY',
+        'public_only':a.public_only, 'initial_state_history':'NOT_CAPTURED' if a.public_only else 'requires_event_audit',
+        'full_ekf_covariance_available':False if a.public_only else 'requires_event_audit',
+        'actual_consumed_measurements_available':False if a.public_only else 'requires_event_audit',
+        'relative_wheel_reference_available':False if a.public_only else 'requires_event_audit',
+        'complete_restorable_checkpoint':False,
         'consumer_order_verified':False, 'startup_before_sources':False,
         'service_events_complete':False, 'amcl_rng_restored':False,
         'cpu_seconds':after.ru_utime+after.ru_stime-before.ru_utime-before.ru_stime,
@@ -282,5 +327,8 @@ def main():
     print(json.dumps({'path':str(path), 'cpu_seconds':evidence['cpu_seconds'],
         'wall_seconds':evidence['wall_seconds'], 'peak_rss_kib':evidence['peak_rss_kib'],
         'counts':dict(counts), 'complete_restorable_checkpoint':False}))
+    if reason not in ('duration_complete','sigterm','sigint') or drops or worker.error:
+        return 2  # Optional diagnostic service fails; never retries or affects controls.
+    return 0
 
-if __name__ == '__main__': main()
+if __name__ == '__main__': sys.exit(main())
