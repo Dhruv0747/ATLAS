@@ -729,6 +729,11 @@
         },
         {
           "date": "2026-10-14",
+          "kind": "stage20_installation_abort_evidence_repair",
+          "description": "Original approved install exited1 before payload/unit/backup creation. Exact trigger UNKNOWN: supervisor captured but discarded child stderr; no original error recovered from available output/scoped journal. Implementation0d216ec adds durable sanitized phase/exit/traceback/hash/write/rollback evidence and reviewed-manifest gate without changing nine runtime files or safety thresholds.83 PC tests pass, one POSIX skip;19 native targeted tests pass including actual permission refusal. Exact candidate fake-root install/rollback and native parser/offline static-unit checks pass; daemon-reload simulated, no live manager mutation. Production payload/grant/unit absent, EStop latched/commands zero, PIDs/restarts/protected hashes unchanged. Renewed installation approval required. No localization fix claimed. See ATLAS_STAGE20_INSTALL_FAILURE_ROOT_CAUSE.md."
+        },
+        {
+          "date": "2026-10-14",
           "kind": "stage20_controlled_startup_qualification",
           "description": "Version-pinned opt-in overlays expose real EKF consumer/relative-reference and AMCL initialization/resampling events. Preserve discovery/alias/shutdown failures and wall-time 3.223% covariance mismatch. Controlled synthetic clock plus wheel-first fixture: 2734 consumptions correlate, 609 matched static samples have zero XY/yaw and max covariance difference0.089457%; NOT historical/moving fidelity. 46 current offline checks, native quota/crash/restart pass. Twenty synthetic AMCL starts produce valid poses; Gaussian allocation srand48(++pf_pdf_seed) overrides wall seed, so they are not independent randomized trials. No production install/restart/seed/movement/calibration/map change; EStop latched. Package/reset/systemd/full-rate/statistical gates pending: DEPLOYMENT READY NO. See ATLAS_STAGE20_DEPLOYMENT_READINESS_REPORT.md."
         }

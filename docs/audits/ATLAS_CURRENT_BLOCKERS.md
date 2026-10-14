@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+14 October Stage20 installation update: initial install aborted before writes;
+original child error UNKNOWN because wrapper discarded captured stderr. Durable
+installer failure evidence fixed in source; 83 PC tests pass (one POSIX skip),
+19 native targeted tests and fake-root install/rollback pass. Unit parser/offline
+static state verified; manager reload simulated. Nine runtime payloads unchanged.
+No production retry authorized or performed; collector absent/OFF, stop latched,
+production identities unchanged. See [installation investigation](../../ATLAS_STAGE20_INSTALL_FAILURE_ROOT_CAUSE.md).
+
 Stage20: **PUBLIC-ONLY alternative qualified, approval pending; private checkpoint
 NOT ready**. Native120s rate/2000-particle test captures all97,901 source messages;
 raw CDR fixes a demonstrated diagnostic receive bottleneck. Actual530-unit graph,
