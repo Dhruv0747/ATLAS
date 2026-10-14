@@ -1899,7 +1899,8 @@ def clean_json(value):
     return value
 
 def json_response(handler, status, payload):
-    body = json.dumps(clean_json(payload), indent=2, allow_nan=False).encode()
+    # Machine-readable API: retain every value/freshness field, omit only whitespace.
+    body = json.dumps(clean_json(payload), separators=(",", ":"), allow_nan=False).encode()
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json")
     handler.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
