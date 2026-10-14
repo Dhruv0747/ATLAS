@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-14: isolated two wrong-sign wheel-yaw windows in the Oct 9 Hall return.
+- Added a read-only CDR/SQLite diagnostic that traces exact accepted encoder distance, commanded-steering curvature and IM10A gyro yaw; 3 focused plus 29 related tests passed.
+- All four channels were accepted in 16/20 updates of one wrong-sign window, while nearby turns agreed, excluding a global sign flip or a proven M3-only cause.
+- Physical steering/traction cause and AMCL repair remain unverified; no live motion/fusion settings changed. See [`ATLAS_MOVING_LOCALIZATION_ROOT_CAUSE_AND_FIX.md`](ATLAS_MOVING_LOCALIZATION_ROOT_CAUSE_AND_FIX.md).
+
 2026-10-14: resumed localization forensics from Stage 16 evidence.
 - Four retained verdicts distinguish absolute-fit and ambiguity failures at alternate positions; Home checks were seeded by the startup verifier.
 - Added a read-only encoder bag timing audit: 2 focused tests pass, no missing published diagnostic sequence in the main Hall-to-Dhruv bag.
