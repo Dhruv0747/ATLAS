@@ -1,5 +1,25 @@
 # Stage20 30-second upgrade readiness — 14 October 2026
 
+## Owner-approved installation attempt, 17:10 UTC — ROLLED BACK
+
+Exact approved five-file manifest verified. Preflight CPU intervals68.95,72.79,
+69.21,70.00,67.50%; RAM70%,58C,394352947200 free bytes; stop latched/zero commands.
+Files installed, optional user manager metadata reloaded only. Postflight CPU
+74.54,70.02,71.95,77.35,71.43% exceeded unchanged75% gate. RAM70%,59C.
+No attribution of that spike to installation is proved. Recording never started.
+Restored all five original hashes; legacy package remains OFF/static/inactive PID0,
+restarts0. All production service PID/start/restart identities and328 protected
+script/config/map/launch hashes unchanged. Final policy latched STOPPED, zero commands.
+No production restart, motion, retry, threshold change or activation performed.
+
+Backup and rollback transaction:
+`/home/jetson/data/backups/20261014T171012Z-stage20-061f2b3807ca4425b1dd8a8bcebce2b6`.
+Durable full subprocess/error/measurement evidence copied there:
+`upgrade30-install-e5228697976d498e801abe988470fc14.jsonl`.
+Original evidence also remains under `/tmp/atlas-stationary30-avHg8uSb/`.
+**Installation NOT accepted; upgrade NOT deployed. Stop for further instructions.**
+The readiness/preparation discussion below is retained as historical context.
+
 **GO for separately approved installation-only, subject to fresh preflight. NO-GO
 for recording activation.** No production writes, services, calibration, maps,
 steering or control authority changed. Stage17B HOLD. Existing collector OFF.

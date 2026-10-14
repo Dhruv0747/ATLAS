@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-14: Approved30s installation rolled back after postflight CPU77.35% refusal.
+- Five original hashes restored; recorder remains OFF, production unchanged.
+- Durable exact interval/error/rollback evidence retained; no automatic retry.
+
 2026-10-14: Prepare exact five-file stationary30 upgrade, no production writes.
 - Pinned Git-blob builder and before/after manifest from read-only installed hashes.
 - Existing transaction reused in native isolation: success/rollback and failures

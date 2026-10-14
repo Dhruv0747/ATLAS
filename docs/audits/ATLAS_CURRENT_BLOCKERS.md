@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+14 October17:10UTC approved30s installation passed preflight, failed postflight
+CPU77.35%>75%, rolled back all five exact originals. Recorder never started;
+production identities and328 protected hashes unchanged. No retry. See readiness
+report installation addendum and preserved transaction evidence.
+
 14 October upgrade readiness: exact five-file30s diagnostic patch prepared, six
 native install/rollback scenarios passed. Live nine hashes unchanged and unit OFF.
 Current parked dashboard~70% does not negate historical CPU refusal; six-core
