@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest saved checkpoint: [PC runtime installed; morning handoff](ATLAS_PC_RECORDER_MORNING_HANDOFF.md).
+WSL2/Ubuntu22.04/Humble installed; isolated native30s test passed1454/1454.
+Paused overnight. Live transport/recording not authorized; Jetson unchanged.
+
 Latest: [offboard PC recording feasibility](ATLAS_OFFBOARD_PC_RECORDING_FEASIBILITY.md).
 PC storage fixture passes; WSL/ROS absent, live transport and CPU benefit unverified.
 NO-GO for live capture; PC runtime setup requires separate approval. Jetson unchanged.

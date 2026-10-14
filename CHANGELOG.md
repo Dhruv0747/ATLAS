@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-14: Save PC-only runtime setup and native test checkpoint.
+- WSL2/Ubuntu22.04/Humble installed without PC reboot;1454/1454 native messages pass.
+- Preserve source scripts, local evidence locations and morning approval boundaries.
+- No live capture, Jetson configuration change or overnight testing.
+
 2026-10-14: Audit offboard recording feasibility without live subscriptions.
 - Added transport-free PC CDR/SQLite fixture;30s/6300 messages and3 storage tests pass.
 - WSL/ROS absent and clock qualification pending; no live transport/CPU saving claim.
