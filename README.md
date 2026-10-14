@@ -1,5 +1,12 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest 14 October: [30-second recorder and minimal fusion milestone](ATLAS_NEXT_LOCALIZATION_MILESTONE.md).
+Installed Stage20 legacy package remains OFF; older installation-blocked notes below
+are historical. New opt-in30s profile passed isolated native capture/failure tests,
+but is NOT deployed. CPU admission remains blocked. Minimal wheel-pose removal
+candidate is contract-tested, not a proven localization fix; missing initialization
+history prevents trustworthy historical A/B. No production or steering changes.
+
 14 October: [CPU optimization candidate](ATLAS_STAGE20_CPU_OPTIMIZATION_REPORT.md)
 removes unnecessary JSON formatting without caching telemetry or reducing rates.
 Native serialization savings verified, but too small to establish installation

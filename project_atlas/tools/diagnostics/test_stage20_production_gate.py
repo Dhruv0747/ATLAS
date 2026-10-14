@@ -7,6 +7,16 @@ import uuid
 from unittest.mock import patch
 from stage20_production_gate import verify_approval,IDENTITY_FILES,PUBLIC_RUNTIME_FILES
 class ApprovalTests(unittest.TestCase):
+    def test_profile_authority_cannot_be_reused(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'approval.json'
+            base={'enabled':True,'owner_approved':True,'deployment_ready':True}
+            p.write_text(json.dumps(base))
+            with self.assertRaisesRegex(ValueError,'stationary_30_v1'):
+                verify_approval(p,Path(d),stationary_30=True)
+            p.write_text(json.dumps(dict(base,capture_profile='stationary_30_v1')))
+            with self.assertRaisesRegex(ValueError,'legacy'):
+                verify_approval(p,Path(d))
     def test_default_disabled(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'approval';p.write_text(json.dumps({'enabled':False}))

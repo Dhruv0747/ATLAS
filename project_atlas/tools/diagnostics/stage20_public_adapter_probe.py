@@ -19,7 +19,9 @@ from stage20_production_gate import IDENTITY_FILES,current_boot_id,PUBLIC_RUNTIM
 require_isolation()
 import argparse
 parser=argparse.ArgumentParser();parser.add_argument('--capsule',default='/tmp/replay/public_capsule_v3')
+parser.add_argument('--stationary-30',action='store_true')
 args=parser.parse_args()
+stationary_30=args.stationary_30
 root=Path('/home/jetson/project_atlas')
 assert (root/'STAGE20_FAKE_ROOT').is_file(),'production root must never be used by fixture'
 identity={}
@@ -47,10 +49,11 @@ for name in PUBLIC_RUNTIME_FILES:
 grant={'enabled':True,'owner_approved':True,'deployment_ready':True,'source_commit':'PRIVATE_FIXTURE',
     'mode':'read_only_partial_public','expires_after_boot_session':current_boot_id(),
     'grant_id':str(uuid.uuid4()),'identity':identity,'runtime_identity':runtime}
+if stationary_30:grant['capture_profile']='stationary_30_v1'
 approval.write_text(json.dumps(grant));ready=root/'ready.json'
 args=[sys.executable,str(root/'tools/stage20_public/tools/diagnostics/stage20_capture.py'),'--record','--public-only',
-    '--root',str(capture_root),'--duration','120','--quota-mib','500',
-    '--approval-config',str(approval),'--ready-file',str(ready)]
+    '--root',str(capture_root),'--duration','30' if stationary_30 else '120','--quota-mib','500',
+    '--approval-config',str(approval),'--ready-file',str(ready)]+(['--stationary-30'] if stationary_30 else [])
 child=subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
 try:
     deadline=time.monotonic()+15
@@ -58,10 +61,11 @@ try:
         if child.poll() is not None:raise RuntimeError(child.communicate())
         time.sleep(.05)
     assert ready.exists();child.terminate();out,error=child.communicate(timeout=25)
-    assert child.returncode==0,error
+    assert child.returncode==(2 if stationary_30 else 0),error
     result=json.loads(out.strip().splitlines()[-1]);e=json.loads((Path(result['path'])/'stage20_evidence.json').read_text())
     assert e['initial_state_history']=='NOT_CAPTURED' and e['missing_topics']
-    assert inspect(result['path'])['complete']
+    if stationary_30:assert not e['public_topic_window_complete']
+    assert inspect(result['path'])['complete']==(not stationary_30)
     repeat=subprocess.run(args,capture_output=True,text=True,timeout=10)
     assert repeat.returncode!=0 and 'FileExistsError' in repeat.stderr
     assert len(list(capture_root.glob('capture_*')))==1
@@ -69,6 +73,7 @@ try:
         'grant_single_use':True,'graceful_operator_termination':True,
         'missing_topics_explicit':True,'private_state_unavailable_explicit':True,
         'production_approval_created':False,'production_changed':False}
+    report['stationary_30_profile']=stationary_30
     (root/'adapter_result.json').write_text(json.dumps(report,indent=2));print(json.dumps(report))
 finally:
     if child.poll() is None:child.kill();child.wait()

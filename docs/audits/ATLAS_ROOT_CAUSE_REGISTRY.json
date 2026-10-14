@@ -14,6 +14,19 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-STATIONARY30-STATIC-TF-20261014",
+      "title": "Candidate stationary recorder missed retained static TF after preflight",
+      "first_available_occurrence": "2026-10-14",
+      "latest_reviewed_occurrence": "2026-10-14",
+      "subsystem": "isolated diagnostic recorder candidate",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "confirmed_findings": "Strict native fixture published static TF only during preflight; candidate bag missed it and correctly failed completeness. Production recorder unchanged.",
+      "attempted_fix": "New profile reliable transient subscription re-created after preflight; native final bag includes retained TF and exact CDR ledger verification passes. Deadline cancellation completeness also unit-tested.",
+      "remaining_verification": "Source-only scope. Live deployment/activation not approved; CPU admission remains blocked. Five AMCL jumps unresolved; fusion candidate performance unknown.",
+      "evidence": ["ATLAS_NEXT_LOCALIZATION_MILESTONE.md", "ATLAS_MINIMAL_WHEEL_POSE_FUSION_EVALUATION.md"]
+    },
+    {
       "id": "ATLAS-DASHBOARD-JSON-20261014",
       "title": "Avoidable dashboard JSON whitespace serialization, insufficient to explain total CPU",
       "first_available_occurrence": "2026-10-14",

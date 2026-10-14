@@ -18,13 +18,17 @@ PUBLIC_RUNTIME_FILES=tuple('tools/stage20_public/tools/diagnostics/'+name for na
     'tools/stage20_public/atlas-stage20-public-capture.service',)
 def current_boot_id():return Path('/proc/sys/kernel/random/boot_id').read_text().strip()
 
-def verify_approval(path,root=Path('/home/jetson/project_atlas')):
+def verify_approval(path,root=Path('/home/jetson/project_atlas'), *, stationary_30=False):
     path=Path(path);root=Path(root).resolve()
     if not path.is_absolute() or path.is_symlink():raise ValueError('absolute regular approval file required')
     data=json.loads(path.read_text())
     if data.get('enabled') is not True or data.get('owner_approved') is not True:
         raise ValueError('capture disabled; separate owner approval required')
     if data.get('deployment_ready') is not True:raise ValueError('package qualification incomplete')
+    if stationary_30 and data.get('capture_profile')!='stationary_30_v1':
+        raise ValueError('separate exact stationary_30_v1 grant required')
+    if not stationary_30 and data.get('capture_profile')=='stationary_30_v1':
+        raise ValueError('30-second grant cannot authorize legacy capture')
     if data.get('mode') not in ('read_only_stationary_startup','read_only_partial_public'):
         raise ValueError('wrong approval scope')
     if not data.get('source_commit'):

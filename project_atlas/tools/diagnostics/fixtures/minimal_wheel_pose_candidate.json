@@ -1,0 +1,21 @@
+{
+  "schema": "atlas.offline-ekf-candidate.v1",
+  "status": "BUILT_NOT_DEPLOYABLE",
+  "baseline_path": "project_atlas/config/atlas_ekf.yaml",
+  "baseline_sha256": "69dd4479cdf84ea9d878b1d8c4d0e5129fb894b82003126c9c5f19052afc90ed",
+  "existing_builder": "project_atlas/tools/diagnostics/stage19_contract.py:variants",
+  "variant": "B",
+  "shared_replay_adaptation": {"use_sim_time": true},
+  "only_candidate_change": {
+    "parameter": "atlas_ekf.ros__parameters.odom0_config",
+    "indices": [0, 1],
+    "from": [true, true],
+    "to": [false, false]
+  },
+  "candidate_odom0_config": [false, false, false, false, false, false, true, true, false, false, false, false, false, false, false],
+  "candidate_imu0_config": [false, false, false, false, false, false, false, false, false, false, false, true, false, false, false],
+  "historical_candidate_comparison": "BLOCKED_MISSING_INITIAL_REFERENCE_AND_FILTER_HISTORY",
+  "allow_live_deployment": false,
+  "allow_motor_commands": false,
+  "amcl_improvement_claim": false
+}

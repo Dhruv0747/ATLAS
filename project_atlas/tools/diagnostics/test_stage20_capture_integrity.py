@@ -19,6 +19,10 @@ class IntegrityTests(unittest.TestCase):
         self.fixture();r=inspect(self.p);self.assertTrue(r['complete']);self.assertFalse(r['replay_fidelity_verified'])
     def test_tamper_rejected(self):
         self.fixture();(self.p/'data.db3').write_bytes(b'changed');self.assertFalse(inspect(self.p)['complete'])
+    def test_stationary_cancellation_not_complete(self):
+        e=self.fixture();e.update(capture_profile='stationary_30_v1',public_topic_window_complete=False)
+        (self.p/'stage20_evidence.json').write_text(json.dumps(e))
+        r=inspect(self.p);self.assertFalse(r['complete']);self.assertTrue(r['finalization_integrity_verified'])
     def test_drop_rejected(self):
         e=self.fixture();e['drops']={'scan':1};(self.p/'stage20_evidence.json').write_text(json.dumps(e))
         self.assertFalse(inspect(self.p)['complete'])

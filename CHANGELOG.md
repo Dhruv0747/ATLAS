@@ -1,5 +1,14 @@
 # Changelog
 
+2026-10-14: Opt-in stationary30 recorder and bounded fusion candidate preparation.
+- Preserve installed120s profile OFF; distinct grant,30s receipt deadline, bounded
+  writer flush, freshness/completeness checks and retained static-TF capture.
+- Native isolated CDR/SQLite and failure tests pass;106 regression tests with one
+  environment skip, plus four fusion contract tests. No deployment or motion.
+- Candidate removes only wheel XY pose observations; historical filter state still
+  missing, so no AMCL-jump improvement claimed. See milestone report for metrics,
+  retained failed tests, CPU refusal and rollback preparation.
+
 2026-10-14: Dashboard JSON serialization optimization, source only.
 - Compact API whitespace with identical decoded values, ages and cache-control policy.
 - Native real-payload function benchmark confirms54–61% serialization CPU reduction,

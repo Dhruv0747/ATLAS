@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+14 October latest milestone: installed legacy Stage20 remains OFF, nine payloads
+and83 protected files unchanged. New30s source passed isolated native capture and
+failure checks; not deployed. Required static TF loss found/fixed in candidate.
+CPU79.496% admission refusal preserved,75% limit unchanged. Minimal fusion candidate
+contract-tested only; missing EKF initialization prevents faithful A/B and five AMCL
+jumps remain unresolved. No new drive requested. See
+[milestone](../../ATLAS_NEXT_LOCALIZATION_MILESTONE.md) for current status, superseding
+older installation-absent status below without erasing historical attempts.
+
 14 October CPU optimization: compact dashboard JSON is verified faster in isolated
 native response tests, but its absolute budget cannot establish Stage20 headroom.
 Live dashboard stack profiling refused OS access; noninteractive sudo requires a

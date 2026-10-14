@@ -1,0 +1,29 @@
+# CANDIDATE ONLY. Requires separately approved replacement of the optional unit.
+# No Install section, no autostart, no production dependencies or restarts.
+[Unit]
+Description=ATLAS single-use 30-second stationary public evidence
+DefaultDependencies=no
+After=basic.target
+Conflicts=shutdown.target
+Before=shutdown.target
+ConditionPathExists=%h/.config/project_atlas/stage20_public_approval.json
+
+[Service]
+Type=exec
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 %h/project_atlas/tools/stage20_public/tools/diagnostics/stage20_capture.py --record --public-only --stationary-30 --root %h/project_atlas/data/diagnostics/stage20_public --duration 30 --quota-mib 500 --approval-config %h/.config/project_atlas/stage20_public_approval.json'
+Restart=no
+# Includes startup/sensor preflight and recording. SIGTERM then bounded cleanup.
+RuntimeMaxSec=50
+TimeoutStopSec=12
+KillMode=control-group
+Nice=15
+CPUWeight=10
+CPUQuota=60%
+LimitCPU=30
+MemoryHigh=128M
+MemoryMax=192M
+TasksMax=48
+LimitNOFILE=256
+NoNewPrivileges=yes
+UMask=0077
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
