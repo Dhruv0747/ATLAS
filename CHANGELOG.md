@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-14: First live30s preflight passed; awaiting separate activation approval.
+- Single CPU sample series max69.71%, required topics received, hashes exact.
+- No grant, recording, movement or production restart; result is preflight only.
+
 2026-10-14 17:11UTC:30s upgrade installed under explicit installation-only CPU waiver.
 - Actual pre/post CPU below75%; all other checks retained, runtime75% gate unchanged.
 - Five hashes verified;328 protected files and production identities unchanged.
