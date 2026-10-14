@@ -1,5 +1,33 @@
 # Stage20 activation evidence correction — 14 October 2026
 
+## Latest deployment — 14 October2026 22:57 IST
+
+Owner-approved installation-only from exact commit e35006a completed. Status:
+**DEPLOYED AND VERIFIED (tooling only), recording OFF**. The source-only statements
+below describe the preceding development stage, not current deployment status.
+Installed in `/home/jetson/project_atlas/tools/stage20_activation_supervisor_e35006a`.
+Exact Git-blob SHA256 (not Windows working-copy CRLF bytes):
+- stage20_activation_evidence.py: `88dc0aa66e89e20e18d6058225e6a2345d99e2702ee4f8eb3f48bc4e630d960b`
+- stage20_live_capture_supervisor.py: `ed53570078ff715855d2416733ca74e328d2d57bf2c12e20e23ecf2365cd9945`
+- stage20_install_evidence.py: `5407a3a648be19db960f24bf36ba5a246a16a928b141bbcc261d8a739dda98b9`
+
+Archive SHA256 `77f3aa4ce9087eaab5653bc217df5e6e69c1f1089f0839e30c3e12f5822de5b6`.
+Fresh pre/post installation admission passed unchanged75% CPU safeguard. Postflight
+CPU68.60,71.35,68.98,68.97,67.48%; RAM68%,58C,394320609280 free bytes.
+Stop latched, commands zero, commissioning false. Installed recorder capsule hashes,
+protected production files and service PID/start/restart identities unchanged.
+No grant, recording, production restart, reboot, autostart or motion.
+No-approval supervisor invocation refused before any action. Installed evidence
+module preserved a synthetic76.123% refusal exactly in durable JSONL (fixture, not
+an actual CPU measurement). Future runtime activation remains separately approved.
+
+Backup/source archive, exact manifest, measurements and durable event/result files:
+`/home/jetson/project_atlas/data/backups/supervisor-e35006a-834bb41002014f03aa33a095819ba060`.
+Target previously absent; rollback is to move only this verified new tooling
+directory into that backup and stop using it, preserving evidence. No production
+restore or service restart required. Existing temporary manifest/probe dependencies
+must be rechecked before any separately approved invocation.
+
 **ROOT CAUSE CONFIRMED / ORIGINAL REFUSAL VALUE UNKNOWN / FIXED IN SOURCE /
 TESTED OFFLINE / NATIVE VALIDATED (evidence/cleanup logic). NOT DEPLOYED;
 NOT RECORDING VERIFIED.** Resource admission itself is not fixed or waived.

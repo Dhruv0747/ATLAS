@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-14 22:57IST: Owner-approved supervisor tooling e35006a deployed separately.
+- Exact Git hashes and installed refusal logging verified; recorder OFF/no grant.
+- Pre/post admission passed,75% retained; protected production/services unchanged.
+
 2026-10-14: Fix supervisor lost-resource-refusal evidence in source only.
 - Observe/log/fsync before validation; exact thresholds, safe finalization and
   sanitized terminal fallback; owned partial-grant cleanup.18 PC/native tests pass.
