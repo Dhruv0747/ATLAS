@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+14 October CPU optimization: compact dashboard JSON is verified faster in isolated
+native response tests, but its absolute budget cannot establish Stage20 headroom.
+Live dashboard stack profiling refused OS access; noninteractive sudo requires a
+password. No permissions/services changed. Live/repository dashboard drift includes
+undeployed steering diagnostics: future rollout must be JSON-only, not whole-file
+repository replacement. See [optimization report](../../ATLAS_STAGE20_CPU_OPTIMIZATION_REPORT.md).
+
 14 October CPU admission follow-up: read-only baseline demonstrates actual CPU
 excursions above75% with collector absent and no installation running. Historical
 postflight exact sample remains unavailable; causality is not retrospectively proved.

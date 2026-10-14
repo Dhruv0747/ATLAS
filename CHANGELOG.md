@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-14: Dashboard JSON serialization optimization, source only.
+- Compact API whitespace with identical decoded values, ages and cache-control policy.
+- Native real-payload function benchmark confirms54–61% serialization CPU reduction,
+  not whole-robot CPU reduction; predicted absolute saving is small.
+- Added isolated response tests/profiling tool. Live stack profiling lacks permissions;
+  no deployment/restart or Stage20 installation; existing steering integration preserved.
+
 2026-10-14: Stage20 CPU admission evidence and transactional rollback correction.
 - Retain every one-second CPU interval, process attribution, RAM/temperature/disk,
   safety evidence and exact refusal before raising; same pre/post method.

@@ -14,6 +14,19 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-DASHBOARD-JSON-20261014",
+      "title": "Avoidable dashboard JSON whitespace serialization, insufficient to explain total CPU",
+      "first_available_occurrence": "2026-10-14",
+      "latest_reviewed_occurrence": "2026-10-14",
+      "subsystem": "dashboard API",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "confirmed_findings": "Native isolated actual-response benchmark shows54–61% serialization CPU savings with compact JSON and equal decoded values. Absolute modeled saving about0.06 whole-machine percentage points for one stated client workload; not sufficient headroom recovery.",
+      "attempted_fix": "Source e364e932b997342214738c6196cf856a4de38132; no deployment. Preserve ages, values, rates, safety and nonfinite sanitization. Minimal live-only candidate required because repository contains undeployed steering integration.",
+      "remaining_verification": "Live stack profiler permission denied and sudo requires password. Dominant CPU source, production callback timing and parked-load A/B remain unverified; no service restart authorized.",
+      "evidence": ["ATLAS_STAGE20_CPU_OPTIMIZATION_REPORT.md"]
+    },
+    {
       "id": "ATLAS-STAGE20-CPU-20261014",
       "title": "Stage20 postflight resource refusal lost exact measurement",
       "first_available_occurrence": "2026-10-14",

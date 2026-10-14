@@ -1,5 +1,11 @@
 # Project ATLAS - Autonomous Service Rover
 
+14 October: [CPU optimization candidate](ATLAS_STAGE20_CPU_OPTIMIZATION_REPORT.md)
+removes unnecessary JSON formatting without caching telemetry or reducing rates.
+Native serialization savings verified, but too small to establish installation
+headroom; dominant dashboard stack profiling is blocked by OS permissions.
+Source only, not deployed; preserve live/repository steering-integration differences.
+
 14 October: [Stage20 CPU admission investigation](ATLAS_STAGE20_CPU_HEADROOM_AND_INSTALLATION_FIX.md)
 adds exact five-interval resource evidence and transactional postflight rollback.
 All resource ceilings and the nine public runtime payloads remain unchanged.
