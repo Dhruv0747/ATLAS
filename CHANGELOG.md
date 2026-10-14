@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-14: Stage 20 scoped checkpoint capture milestone, not deployment-ready.
+- Reuse bounded topic/CDR writer; add receipt ledger, hashes, incomplete flags and read-only parameter snapshots in a finite private-domain collector.
+- Native-build an upstream-library EKF observer exposing the actual relative reference and full 225-element covariance without filter-math edits.
+- Prepare default-OFF initial-pose/no-motion service evidence hooks preserving exactly-one-call/Future semantics; no live installation.
+- 28 offline tests and native synthetic capture/read-back pass. Consumer order, AMCL internal state, startup ordering, total resource and failure qualification remain open.
+- Candidates B–E remain blocked; no drive, seed, map, calibration or production service change. See Stage20 report.
+
 2026-10-14: Stage 19 native Humble baseline and fail-closed replay-fidelity gate.
 - Ran full Hall-return native EKF/AMCL baseline in private network/PID/device namespaces, domain 187, with no actuator access or production service changes.
 - Original five parked jumps were not reproduced; native had eight pre-stop corrections. Cold EKF/relative-anchor history differs from the recording; zero parked jumps is not a fix.

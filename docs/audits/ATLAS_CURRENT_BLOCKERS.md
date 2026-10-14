@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+14 October Stage 20 partial milestone: sandbox-only collector and upstream-library
+EKF observer capture actual relative reference/full covariance; opt-in service-call
+hooks default OFF. Native synthetic smoke and 28 offline checks pass. NOT production
+ready: complete startup/consumer order, AMCL internal events, total overhead and
+failure/rollback qualification remain missing. Fidelity and B–E still BLOCKED;
+no live installation, motion, seed or calibration. See [Stage20](../../ATLAS_STAGE20_EKF_AMCL_CHECKPOINT_CAPTURE.md).
+
 14 October Stage 19: full native Humble EKF/AMCL Hall-return baseline completed in
 private network/PID/device namespaces, without actuator access. Five original parked
 jumps NOT REPRODUCED; eight native pre-stop corrections instead. Cold EKF starts

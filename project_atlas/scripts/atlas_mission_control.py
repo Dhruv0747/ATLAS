@@ -63,6 +63,8 @@ from atlas_scan_fit_core import (
 )
 
 
+from atlas_initialization_observer import InitializationObserver
+
 class AtlasMissionControl(Node):
     """Expose topic and service controls without blocking the ROS executor."""
 
@@ -86,6 +88,7 @@ class AtlasMissionControl(Node):
 
     def __init__(self):
         super().__init__("atlas_mission_control")
+        self.checkpoint_observer = InitializationObserver(self)
         self.camera_pan_home_us, self.camera_tilt_home_us = self.load_camera_home()
         self.declare_parameter(
             "map_prefix", "/home/jetson/project_atlas/maps/atlas_latest"
@@ -586,7 +589,7 @@ class AtlasMissionControl(Node):
         if key == self.guarded_refresh_key:
             return
         self.guarded_refresh_key=key
-        self.localization_update_future=self.nomotion_client.call_async(EmptyService.Request())
+        self.localization_update_future=self.checkpoint_observer.call(self.nomotion_client, EmptyService.Request(), '/request_nomotion_update')
 
     def request_periodic_localization_update(self) -> None:
         """Request at most one update for fresh, accumulated odometry progress.
@@ -602,8 +605,8 @@ class AtlasMissionControl(Node):
         if not self.amcl_motion_gated_updates:
             # Preserve deployed baseline unless the full experimental contract
             # is deliberately enabled. Still prevent overlapping requests.
-            self.localization_update_future = self.nomotion_client.call_async(
-                EmptyService.Request())
+            self.localization_update_future = self.checkpoint_observer.call(
+                self.nomotion_client, EmptyService.Request(), '/request_nomotion_update')
             return
         msg = self.localization_odom
         if msg is None or msg.header.frame_id.lstrip('/') != 'odom':
@@ -616,8 +619,8 @@ class AtlasMissionControl(Node):
         stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         now = self.get_clock().now().nanoseconds * 1e-9
         if self.amcl_update_gate.allow(p.x, p.y, yaw, stamp, now):
-            self.localization_update_future = self.nomotion_client.call_async(
-                EmptyService.Request())
+            self.localization_update_future = self.checkpoint_observer.call(
+                self.nomotion_client, EmptyService.Request(), '/request_nomotion_update')
 
     def refresh_localization_before_motion(self, timeout_s: float = 5.0) -> None:
         """Force one fresh AMCL sample immediately before releasing motion.
@@ -651,7 +654,7 @@ class AtlasMissionControl(Node):
             self.localization_samples[-1][0]
             if self.localization_samples else 0.0
         )
-        future = self.nomotion_client.call_async(EmptyService.Request())
+        future = self.checkpoint_observer.call(self.nomotion_client, EmptyService.Request(), '/request_nomotion_update')
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
             if future.done() and future.exception() is not None:

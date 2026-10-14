@@ -716,6 +716,11 @@
           "date": "2026-10-14",
           "kind": "stage19_native_baseline_fidelity_blocked",
           "description": "Full 295 s native Humble EKF/AMCL baseline in private network/PID/devices, domain187. Original 384/80 poses and five parked jumps vs native382/80 and eight pre-stop/zero parked steps; NOT original failure reproduction or a fix. First recorded EKF (18.392,-3.654 m,-128.476deg) vs cold native zero; relative wheel anchor/prior full state absent. After initial rigid alignment up to1.343m/18.401deg replay difference. All selected inputs published but max sender lateness0.27849s; native2586 vs recorded2908 EKF samples. Strengthened gate refuses B before launch; no candidates accepted, no production service/settings/actuator change, EStop latched. See ATLAS_STAGE19_NATIVE_EKF_AMCL_REPLAY.md."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage20_partial_native_capture",
+          "description": "Native private-domain synthetic capture validates actual EKF relative reference and full covariance, CDR read-back/order ledger and default-OFF service observation hooks. 28 offline tests pass. Installed Humble rclpy lacks configure_introspection; AMCL public weighted cloud is not PF/RNG checkpoint. Startup consumer order and complete internal events remain gaps; NOT deployment-ready or faithful replay. No live install/restart/seed/movement, map/config hashes unchanged, EStop remains latched. See ATLAS_STAGE20_EKF_AMCL_CHECKPOINT_CAPTURE.md."
         }
       ]
     },

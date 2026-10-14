@@ -1,5 +1,11 @@
 # Project ATLAS - Autonomous Service Rover
 
+14 October: [Stage 20 checkpoint capture milestone](ATLAS_STAGE20_EKF_AMCL_CHECKPOINT_CAPTURE.md)
+adds sandbox-only startup evidence tooling and an isolated EKF observer for the
+actual relative anchor/full covariance. Service-call hooks default OFF. Native
+smoke passes; full startup/consumer-order/AMCL fidelity and deployment readiness
+remain incomplete. No production change or localization success is claimed.
+
 14 October: [Stage 17 steering/yaw preparation](ATLAS_STAGE17_STEERING_YAW_VALIDATION.md)
 adds an opt-in bounded recorder profile with raw IM10A, exact encoder snapshots,
 particles and stationary steering-change capture. The isolated parked Humble
