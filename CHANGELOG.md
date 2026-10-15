@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-15 13:45 (preparation only; nothing deployed, recorded or moved):
+- Motion-validation readiness: stage 22 optional recorder profile package; stage 23 Candidate B procedure.
+- `ekf_continuity_config.py` prevents the 1.15 m `/odom` jump a plain EKF restart causes.
+- AMCL found unseeded on this boot.
+- See [`ATLAS_STAGE21_MOTION_VALIDATION_READINESS.md`](ATLAS_STAGE21_MOTION_VALIDATION_READINESS.md).
+
 2026-10-15 13:10:
 - **Stage 21 deployed** (driver: zero velocity trusted only after 1 s of verified stillness).
 - Parked-verified: `/odom` drift 0.0 cm over 600 s.
