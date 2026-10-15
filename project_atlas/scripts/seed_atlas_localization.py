@@ -29,7 +29,6 @@ from nav_msgs.msg import Odometry
 from nav2_msgs.srv import SetInitialPose
 from rclpy.node import Node
 from std_srvs.srv import Empty
-from atlas_initialization_observer import InitializationObserver
 
 
 POSE_FILES = (
@@ -282,7 +281,6 @@ def main():
     pose = None if (verify or args.dry_run) else load_pose(args.place)
     rclpy.init()
     node = Node("atlas_localization_seeder")
-    checkpoint_observer = InitializationObserver(node)
     if args.dry_run:
         pose, record = verify_start_pose(node, args.map)
         print(json.dumps(dict(record, dry_run=True, seeded=False, navigation_authorized=False), indent=2))
@@ -352,7 +350,7 @@ def main():
     if pose_client.wait_for_service(timeout_sec=5.0):
         request = SetInitialPose.Request()
         request.pose = message
-        future = checkpoint_observer.call(pose_client, request, '/set_initial_pose')
+        future = pose_client.call_async(request)
         rclpy.spin_until_future_complete(node, future, timeout_sec=5.0)
         service_applied = future.done() and future.exception() is None
     if not service_applied:
@@ -361,7 +359,7 @@ def main():
             publisher.publish(message)
             rclpy.spin_once(node, timeout_sec=0.5)
     if update_client.wait_for_service(timeout_sec=2.0):
-        future = checkpoint_observer.call(update_client, Empty.Request(), '/request_nomotion_update')
+        future = update_client.call_async(Empty.Request())
         rclpy.spin_until_future_complete(node, future, timeout_sec=3.0)
     if verify:
         write_verdict(dict(record, seeded=True,
