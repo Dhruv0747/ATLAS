@@ -14,6 +14,17 @@
   ],
   "issues": [
     {
+      "id": "20261015-stage24-poses-were-physical-moves",
+      "confidence": "CONFIRMED",
+      "resolution": "PARTIALLY_RESOLVED",
+      "date": "2026-10-15",
+      "description": "Candidates A (0.115,-2.155) and B (0.335,-0.935) were each correct for the rover's placement at the time; ATLAS was physically moved at ~19:46 and ~20:19 and now sits at C (0.235,-1.435,75). Evidence: beam-by-beam range comparison (0 to 3 mm within stationary periods, 0.19 and 0.34 m median across moves), monitor MOVING bursts at those times, owner CHECK MY LOCATION at 20:17:45 returned B. /odom and /yahboom/odom stayed at (-0.0255,-0.0001), so odometry is blind to hand moves (cause lifted vs slid unconfirmed). Blind right/front-right sector at the old spot is placement-dependent, cause unproven. Supersedes the 'stationary rover, two poses' reading in 20261015-stage24-live-deploy-seed-blocked. Tape confirmation and seed approval pending.",
+      "evidence": [
+        "ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md"
+      ],
+      "safety": "Read-only. Latched, manual-only true, commands zero, AMCL unseeded; Stage 21/22/24 hashes unchanged; no restart, no movement."
+    },
+    {
       "id": "20261015-stage24-live-deploy-seed-blocked",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

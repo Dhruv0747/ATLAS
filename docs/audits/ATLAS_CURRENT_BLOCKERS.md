@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+15 October 2026 20:40 UPDATE (supersedes the 20:12 stationary reading below): ATLAS was physically moved at
+~19:46 and ~20:19 (scan range images change 0.19 m and 0.34 m median between periods, identical within them;
+monitor MOVING bursts at those times); /odom did not register the moves. Five read-only samples: global and Dhruv
+Room agree on (0.235,-1.435,75), fit1.0, margin0.105-0.125 (4 of4 completed global; 1 global run failed on the
+seeder's 3 s /odom discovery under load). AMCL still NOT seeded; one seed awaits owner approval; tape check
+requested. Boot success depends on placement (4 of8 boots UNKNOWN). See
+[recovery report](../../ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md).
+
 15 October 2026 20:12 Stage 24 deployed; AMCL seed BLOCKED. Live dry runs on a stationary ATLAS
 (/odom static) returned (0.115,-2.155,71.5) at 19:44 and (0.335,-0.935,72.0, fit1.0, margin0.116) at 20:08
 as front LiDAR arcs reappeared (cause unknown). Poses disagree by1.2 m, so no seed; AMCL

@@ -1,3 +1,8 @@
+> **Erratum, 2026-10-15 20:40.** §6–§7 and §9 below describe ATLAS as *stationary* when A and B were produced.
+> That inference (from `/odom` ≈ 0) was wrong: beam-by-beam scan comparison and the monitor's motion log show ATLAS
+> was physically moved at ~19:46 and ~20:19. See `ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md`.
+> The original text is kept unchanged below.
+
 # Stage 24: live deployment and startup localization recovery, 2026-10-15 20:05–20:12 IST
 
 **Statuses: DEPLOYED. REGIONAL VERIFIED: NO (see §6). AMCL SEEDED: NO. PARKED VERIFIED: N/A (no seed).

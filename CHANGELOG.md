@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-15 20:40 (read-only; no deployment, no seed, no movement):
+- Post-deployment location recovery: five live samples. Global and Dhruv Room searches agree on (0.235, -1.435, 75 deg), margin 0.105-0.125.
+- The earlier A and B poses were correct for where ATLAS stood: it was physically moved ~19:46 and ~20:19 (beam-by-beam scan comparison, monitor motion log). Odometry did not register the moves.
+- Corrects the 20:12 "stationary" claim. AMCL still unseeded; one seed awaits owner approval.
+- See [`ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md`](ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md).
+
 2026-10-15 20:12:
 - **Stage 24 deployed** (verify-place seeder, core region filter, `place_regions.json`; 3 files MATCH, no restart).
 - AMCL **not seeded**: stationary ATLAS gave two different VERIFIED poses (1.2 m apart) as the LiDAR front arcs changed. BLOCKED pending owner confirmation.
