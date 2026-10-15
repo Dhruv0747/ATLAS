@@ -36,6 +36,8 @@ POSE_FILES = (
     Path.home() / ".config/project_atlas/home_pose.json",
 )
 PLACES_FILE = Path.home() / ".config/project_atlas/named_places.json"
+# Operator-confirmed place regions for --verify-place (repository config, bound to one map).
+PLACE_REGIONS_FILE = Path(__file__).resolve().parents[1] / "config" / "place_regions.json"
 VERDICT_FILE = Path.home() / ".local/state/project_atlas/localization_verdict.json"
 # Every boot's verdict, appended (the file above is overwritten each boot). 2026-10-11: the
 # 19:06 boot refused at fit 0.90, and its attempt detail was lost when the next boot overwrote
@@ -185,7 +187,21 @@ VERIFY_ATTEMPTS = 3
 VERIFY_BUDGET_S = 60.0
 
 
-def verify_start_pose(node, map_yaml, attempts=VERIFY_ATTEMPTS, budget_s=VERIFY_BUDGET_S):
+def load_place_region(name, path=None):
+    """Search box of an operator-confirmed named place, or raise. The box is only used to
+    exclude aliases OUTSIDE the confirmed place; thresholds are unchanged."""
+    data = json.loads(Path(path or PLACE_REGIONS_FILE).read_text(encoding="utf-8"))
+    key = str(name).strip().lower().replace("_", " ")
+    region = (data.get("places") or {}).get(key)
+    if region is None:
+        raise RuntimeError(f"no search region for place {name!r}")
+    box = {k: float(region[k]) for k in ("x_min", "x_max", "y_min", "y_max")}
+    if not (box["x_min"] < box["x_max"] and box["y_min"] < box["y_max"]):
+        raise RuntimeError(f"invalid search region for place {name!r}")
+    return dict(box, place=key, map_yaml_sha256=str(data.get("map_yaml_sha256", "")))
+
+
+def verify_start_pose(node, map_yaml, attempts=VERIFY_ATTEMPTS, budget_s=VERIFY_BUDGET_S, region=None):
     """Return (pose dict or None, verdict record). Uses no saved pose.
 
     Up to ``attempts`` independent parked-scan checks (people walking past
@@ -193,11 +209,17 @@ def verify_start_pose(node, map_yaml, attempts=VERIFY_ATTEMPTS, budget_s=VERIFY_
     best place to agree with it; any disagreement is UNKNOWN.
     """
     import atlas_localization_verify_core as core
-    record = {"mode": "verify", "map_yaml": str(map_yaml), "attempts": []}
+    record = {"mode": "verify" if region is None else "verify_in_place", "map_yaml": str(map_yaml),
+              "attempts": []}
+    if region is not None:
+        record["place_region"] = region
     policy = core.VerifyPolicy()
     started = time.monotonic()
     try:
         record["map_sha256"] = hashlib.sha256(Path(map_yaml).read_bytes()).hexdigest()
+        if region is not None and region.get("map_yaml_sha256") != record["map_sha256"]:
+            record.update(state="UNKNOWN", reason="place region was drawn for a different map")
+            return None, record
         grid = core.load_map(map_yaml)
         laser = None
         verdict = None
@@ -210,7 +232,9 @@ def verify_start_pose(node, map_yaml, attempts=VERIFY_ATTEMPTS, budget_s=VERIFY_
                 laser = laser_in_base(node, scans[0].header.frame_id)
             ranges = core.median_ranges([list(m.ranges) for m in scans])
             all_pts, held = core.endpoints(scans[0].angle_min, scans[0].angle_increment, ranges, laser, policy)
-            hypotheses = core.global_search(grid, all_pts, held, policy)
+            # positional: region is None for the normal boot check (whole map, unchanged)
+            hypotheses = (core.global_search(grid, all_pts, held, policy) if region is None
+                          else core.global_search(grid, all_pts, held, policy, None, region))
             verdict = core.decide(hypotheses, len(all_pts), None, policy)
             try:   # capture must never alter a verdict, even if the helper is missing or fails
                 evidence = scan_evidence(scans, ranges, laser, all_pts, verdict.hypotheses, policy)
@@ -276,19 +300,26 @@ def main():
     parser.add_argument("--map", type=Path, default=DEFAULT_MAP)
     parser.add_argument("--dry-run", action="store_true",
                         help="verify only: print the verdict; seed nothing, write nothing")
+    parser.add_argument("--verify-place",
+                        help="operator-confirmed named place: LiDAR search limited to that place's "
+                             "region; seeds only a VERIFIED LiDAR pose (same thresholds); never "
+                             "overwrites the saved seed")
     args = parser.parse_args()
-    verify = args.mode == "verify" and args.place is None
+    if args.place and args.verify_place:
+        parser.error("--place and --verify-place are mutually exclusive")
+    region = load_place_region(args.verify_place) if args.verify_place else None
+    verify = (args.mode == "verify" and args.place is None) or region is not None
     pose = None if (verify or args.dry_run) else load_pose(args.place)
     rclpy.init()
     node = Node("atlas_localization_seeder")
     if args.dry_run:
-        pose, record = verify_start_pose(node, args.map)
+        pose, record = verify_start_pose(node, args.map, region=region)
         print(json.dumps(dict(record, dry_run=True, seeded=False, navigation_authorized=False), indent=2))
         node.destroy_node()
         rclpy.shutdown()
         return
     if verify:
-        pose, record = verify_start_pose(node, args.map)
+        pose, record = verify_start_pose(node, args.map, region=region)
         if pose is None:
             write_verdict(record)
             node.get_logger().warn(
