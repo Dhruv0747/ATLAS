@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+15 October2026 authorized fixed-probe check: six thermal readings59.625–60.656C,
+CPU peak71.43%, RAM66.46%; CV0/1/2 return EAGAIN, precise paths/traces preserved.
+Full admission blocks. Separate safety status could not be fetched: SSH timeouts
+over Tailscale and Wi-Fi. Fresh E-STOP/recorder state unverified; no activation.
+See [Jetson check](../../ATLAS_PC_BRIDGE_TEMPERATURE_JETSON_CHECK.md).
+
 15 October2026 offline correction: bounded binary thermal reads replace the
 UTF-8 read path; exact None-read exception reproduced offline. Per-file paths and
 tracebacks now preserved, unavailable data still blocks.17 focused tests pass

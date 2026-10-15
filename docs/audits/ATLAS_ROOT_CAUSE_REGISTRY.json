@@ -23,8 +23,15 @@
       "resolution": "VERIFIED FIXED",
       "confirmed_findings": "Saved preflight aborted during thermal collection with TypeError: can't concat NoneType to bytes and no attribute path/traceback. Offline UTF-8 TextIOWrapper over a None-returning raw stream reproduces the exact error. The original Jetson failing read and underlying cause are not verified.",
       "attempted_fix": "Offline software handling only: bounded binary reads, strict parsing, per-path exceptions/tracebacks, duplicate-zone preservation, no retry or default temperature. Every unavailable thermal attribute still blocks admission. 13 new tests and 4 receive-only contract regressions pass on Ubuntu22.04 Python3.10.",
-      "remaining_verification": "VERIFIED FIXED applies to offline read/error handling only. No new Jetson read, deployment, live recording or movement. Original hardware/read availability and full stationary admission remain unvalidated; resource safeguards unchanged.",
-      "evidence": ["ATLAS_PC_BRIDGE_STATIONARY_ATTEMPT_20261015.md", "ATLAS_PC_BRIDGE_TEMPERATURE_OFFLINE_FIX.md", "project_atlas/tools/diagnostics/test_offboard_bridge_preflight.py"]
+      "remaining_verification": "VERIFIED FIXED applies to software read/error handling. One later authorized Jetson probe identified EAGAIN at CV0/1/2 with six other readings below70C; current gate remains blocked. Why CV zones are unavailable is unverified. Follow-up safety queries timed out; full stationary admission remains unvalidated. No recording, deployment or movement; safeguards unchanged.",
+      "evidence": ["ATLAS_PC_BRIDGE_STATIONARY_ATTEMPT_20261015.md", "ATLAS_PC_BRIDGE_TEMPERATURE_OFFLINE_FIX.md", "ATLAS_PC_BRIDGE_TEMPERATURE_JETSON_CHECK.md", "project_atlas/tools/diagnostics/test_offboard_bridge_preflight.py"],
+      "events": [
+        {
+          "date": "2026-10-15",
+          "kind": "authorized_readonly_jetson_probe",
+          "description": "Corrected probe read six zones59.625–60.656C and identified cv0/cv1/cv2 temp EAGAIN. CPU5s mean69.87%, max71.43%, RAM66.46%. Full gate blocked before dashboard/service inspection. Separate safety SSH queries timed out over Tailscale and LAN; fresh stop/recorder state unverified. No recording or movement."
+        }
+      ]
     },
     {
       "id": "ATLAS-STATIONARY30-STATIC-TF-20261014",

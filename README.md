@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest: [fixed temperature probe checked once on Jetson](ATLAS_PC_BRIDGE_TEMPERATURE_JETSON_CHECK.md).
+CPU/RAM and six thermal zones under limits;CV0/1/2 unavailable, so admission blocks.
+Subsequent SSH checks timed out; fresh safety/recorder state unverified. No recording.
+
 Latest: [temperature probe corrected offline](ATLAS_PC_BRIDGE_TEMPERATURE_OFFLINE_FIX.md).
 Bounded thermal reads and per-file error traces;17 focused offline tests pass on
 Ubuntu22.04. No Jetson deployment, live probe or recording retry.

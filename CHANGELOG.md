@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-15: Check corrected temperature probe once on Jetson, preserve blocked result.
+- CPU peak71.43%, RAM66.46%, CPU/GPU60.66/60.31C; six thermal readings valid.
+- CV0/1/2 return EAGAIN with precise paths/tracebacks; full admission remains blocked.
+- Separate SSH safety queries time out on both existing endpoints; state unverified.
+- No code/deployment change, bridge connection, recording or movement.
+
 2026-10-15: Correct temperature admission read handling offline.
 - Reproduce UTF-8/None exception; replace thermal text reads with bounded binary reads.
 - Retain zone paths, valid partial readings and tracebacks; missing data still blocks.
