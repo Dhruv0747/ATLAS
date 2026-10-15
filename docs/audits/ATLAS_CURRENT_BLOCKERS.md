@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+15 October 2026 parked CPU/manual-only update supersedes the earlier false
+manual-only state below: live manual-only now true, E-STOP latched, commands zero,
+recorder OFF. Unused AI preview rendering fixed and deployed; 19 tests pass.
+Final short resource check passes, but sustained CPU still peaks above 75%.
+Rejected diagnostic CPU-quota trial restored to 60%; localization still ambiguous.
+See [measurement and rollback report](../../ATLAS_PARKED_CPU_MANUAL_ONLY_20261015.md).
+
 15 October2026 Nano thermal policy corrected: NVIDIA documents CV0/1/2 absence
 on Nano; fresh device-tree identity verified and exact CV EAGAIN is now N/A.
 26 offline tests pass. Fresh Jetson check: thermal reads pass, E-STOP latched,

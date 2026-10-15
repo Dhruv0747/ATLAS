@@ -60,19 +60,24 @@ class Annotator(Node):
             self.get_logger().warning(f"infer failed: {exc}")
             return
         structured = []
+        # Structured detections are needed by safety/fusion even without a viewer.
+        # Rendering and JPEG encoding have no consumer when this count is zero.
+        render_image = self.pub.get_subscription_count() > 0
         for x1, y1, x2, y2, cid, conf in dets:
             name = COCO[cid] if cid < len(COCO) else str(cid)
             structured.append({"label": name, "confidence": round(float(conf), 3),
                                "x1": int(x1), "y1": int(y1), "x2": int(x2), "y2": int(y2)})
-            label = f"{name} {conf*100:.0f}%"
-            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.rectangle(img, (x1, max(0, y1-20)), (x1 + 9*len(label), y1), (0, 255, 0), -1)
-            cv2.putText(img, label, (x1+2, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
-        out = CompressedImage()
-        out.header = msg.header
-        out.format = "jpeg"
-        out.data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 60])[1].tobytes()
-        self.pub.publish(out)
+            if render_image:
+                label = f"{name} {conf*100:.0f}%"
+                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.rectangle(img, (x1, max(0, y1-20)), (x1 + 9*len(label), y1), (0, 255, 0), -1)
+                cv2.putText(img, label, (x1+2, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
+        if render_image:
+            out = CompressedImage()
+            out.header = msg.header
+            out.format = "jpeg"
+            out.data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 60])[1].tobytes()
+            self.pub.publish(out)
         self.detection_pub.publish(String(data=json.dumps({"width": int(img.shape[1]), "height": int(img.shape[0]), "detections": structured})))
 
 def main():

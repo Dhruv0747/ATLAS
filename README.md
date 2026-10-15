@@ -1531,3 +1531,9 @@ remain unresolved; improved relative yaw alone is not a localization pass.
 native Humble baseline, sandbox isolation and newly identified EKF initial-reference
 gap. Correction comparisons fail closed until baseline fidelity is established.
 No live fusion, calibration, map or autonomy change is authorized by these results.
+
+## Parked CPU/manual-only checkpoint
+
+15 October 2026: manual-only restored live; AI previews render only when viewed.
+Recording stays off; sustained CPU headroom remains unresolved. See
+[measurements and rollback](ATLAS_PARKED_CPU_MANUAL_ONLY_20261015.md).

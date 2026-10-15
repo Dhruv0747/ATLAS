@@ -3055,3 +3055,9 @@ Historical first attempt; the later successful installation is recorded above.
 - Changed the low-battery reminder threshold to 10%, resetting only after recovery above 15%.
 - Added one-time humorous low and full-charge messages for the speaker and mobile notifier.
 - Retained the 99% full threshold, multiple-sample confirmation, and BMS balancing disclaimer.
+
+## 2026-10-15 parked CPU repair
+
+- Avoid unused AI preview drawing/JPEG encoding without changing detections.
+- Restore live manual-only override; preserve stop, steering and production owners.
+- Add bounded startup verification and regression tests; document remaining CPU peaks.

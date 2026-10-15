@@ -96,6 +96,19 @@ class MappingRemoteLimitTests(unittest.TestCase):
         self.assertAlmostEqual(command.linear.x, 0.18)
         self.assertAlmostEqual(command.angular.z, 0.30)
 
+    def test_manual_only_rejects_general_autonomous_and_web_sources(self):
+        self.mux.manual_only=True
+        for name in ('NAV2','WEB','FOXGLOVE'):
+            self.mux.on_command(name,twist(.2,.4))
+        self.assertEqual(self.mux.channels['REMOTE'].last_rx,0.)
+
+    def test_manual_only_preserves_commissioned_remote_response(self):
+        self.mux.manual_only=True
+        self.mux.operating_mode='LOCALIZATION'
+        self.mux.on_command('REMOTE',twist(.2,.4))
+        self.assertEqual(self.mux.channels['REMOTE'].command.linear.x,.2)
+        self.assertEqual(self.mux.channels['REMOTE'].command.angular.z,.4)
+
 
 if __name__ == "__main__":
     unittest.main()

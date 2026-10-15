@@ -14,6 +14,15 @@
   ],
   "issues": [
     {
+      "id": "20261015-unused-ai-preview-and-manual-override",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "AI rendered unconsumed previews; fixed demand-only rendering. Live manual-only override drifted to zero; restored one. These do not explain all CPU peaks: total sustained headroom remains unresolved. Runtime suggest-only search quota trial rejected and restored to original 60 percent without restart.",
+      "date": "2026-10-15",
+      "evidence": ["ATLAS_PARKED_CPU_MANUAL_ONLY_20261015.md"],
+      "safety": "E-STOP latched, commands zero, recording OFF, steering unchanged. Final short check passes; longer CPU peaks still exceed 75 percent."
+    },
+    {
       "id": "ATLAS-NANO-CV-THERMAL-POLICY-20261015",
       "title": "Admission incorrectly requires absent Orin Nano CV thermal readings",
       "first_available_occurrence": "2026-10-15",
