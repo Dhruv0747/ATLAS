@@ -30,10 +30,16 @@ class EncoderCalibrationTests(unittest.TestCase):
             calibration.positions,
             ("rear_left", "rear_right", "front_left", "front_right"),
         )
-        self.assertEqual(calibration.encoder_signs, (-1.0, 1.0, 1.0, 1.0))
+        # Pinned to the post-replacement calibration (b2f7668/338242b, 25 Sep), which
+        # replaced the original motors' values this test was first written with.
+        # Independent support (2026-10-15): in the 9 Oct drives raw M1, M2 and M4
+        # all read POSITIVE distance against LiDAR-ICP forward motion with these
+        # signs. M3 reads ~0, so its sign is not independently verified.
+        # Changing a sign here must come with new physical evidence, never to pass.
+        self.assertEqual(calibration.encoder_signs, (1.0, -1.0, 1.0, -1.0))
         self.assertEqual(
             calibration.counts_per_revolution,
-            (4048.7, 3300.6, 4080.1, 2697.8),
+            (2238.4, 2215.0, 2199.1, 2230.5),
         )
         self.assertTrue(all(
             motor.confidence != "commissioned" for motor in calibration.motors
