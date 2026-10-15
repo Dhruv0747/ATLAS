@@ -112,6 +112,9 @@
     return d && Date.now() - seenAt < 5000 ? d : null;
   };
   function motionText() {
+    // Stage 25: classification lives in motion-status.js so it can be tested against recorded data.
+    // The original odometry-only logic below stays as the fallback if that file did not load.
+    if (window.AtlasMotion) return window.AtlasMotion.classify(freshStatus());
     const d = freshStatus(), r = d && d.ros, o = r && r.odom;
     if (!d) return ['Motion unknown', 'fail', 'No fresh status from ATLAS. Rover state unknown.'];
     if (!o || !(o.age < 2) || !o.value) return ['Motion unknown', 'warn', 'Odometry is not fresh.'];

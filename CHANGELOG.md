@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-15 22:30 (offline only; no deployment, no movement, no restart):
+- Stage 25 round-trip root cause. Slow return lost because **M3 is near-dead and M2 froze then reversed at 21:40:24**, so 3-of-4 consensus failed closed on 37% of wheel travel. Stage 21 and the estimator behaved as designed; serial link clean.
+- Dashboard Motion chip showed "Stopped" while wheels counted. **Display-only fix** `web/v2/motion-status.js` (undeployed, rehearsed package `tools/deploy/stage25_motion_chip`, 7 recorded-frame tests).
+- Final AMCL pose unverified; recorder gaps match post-roll design; Candidate B fixes heading only and stays undeployed. See [`ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md`](ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md).
+
 2026-10-15 21:06 (no deployment, no movement, no recording):
 - Owner confirmed the 19:46 / 20:19 position changes were deliberate tests; earlier "stationary" reading withdrawn.
 - **AMCL seeded once** (20:52:54) at the LiDAR-verified Dhruv Room pose (0.235, -1.435, 78 deg). Parked 10 min: stable, no jump, all checks VERIFIED, commands zero.
