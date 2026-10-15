@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-15: Resolve publisher-presence uncertainty and bound next transport test.
+- All three endpoints observed; record actual AMCL/particle/raw-scan QoS.
+- Direct WSL graph discovery sees no Jetson nodes; existing bridge TCP reachable.
+- Windows Time stopped, WSL initial sync offset and unstable SSH bounds documented.
+- Prepare10s receive-only approval plan; no subscriptions or production modifications.
+
 2026-10-15: Validate isolated PC native full-topic recorder, not live ATLAS capture.
 - Reuse Stage20 writer/inventory; preserve raw CDR, source and receipt timestamps.
 - 21 topics /22,779 messages pass native SQLite readback and payload verification.

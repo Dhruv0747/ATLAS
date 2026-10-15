@@ -1,8 +1,13 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest: [PC–Jetson connectivity next action](ATLAS_PC_JETSON_CONNECTIVITY_AND_LOCALIZATION_NEXT.md).
+All three previously missing publishers now visible; direct WSL DDS discovery failed
+its bounded graph-only probe. Existing bridge reachable; live subscription needs approval.
+Clock uncertainty persists. No production change, recording or movement.
+
 Latest checkpoint: [PC full-contract recorder readiness](ATLAS_PC_OFFBOARD_RECORDER_READINESS.md).
 21-topic native synthetic capture passed22,779/22,779; live recording remains NO-GO.
-Clock relationship unstable, DDS transport unqualified, three publisher entries unavailable.
+Clock relationship unstable, DDS transport unqualified; publisher finding superseded above.
 Jetson unchanged; no production subscribers, recording, movement or service restarts.
 
 Latest saved checkpoint: [PC runtime installed; morning handoff](ATLAS_PC_RECORDER_MORNING_HANDOFF.md).

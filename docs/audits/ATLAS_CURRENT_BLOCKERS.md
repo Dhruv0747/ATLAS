@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+15 October2026 follow-up: publisher-presence blocker cleared by3/10/20s graph
+snapshots; AMCL/raw scan/particle publishers now visible. Earlier snapshot below
+is historical, not a device-fault diagnosis. WSL10s graph-only DDS probe found
+no Jetson nodes; existing bridge TCP reachable. Clock bounds still unstable;
+Windows Time stopped and WSL initial sync observed, causation not yet established.
+Next requires approval for10s stationary receive-only qualification; no movement.
+See [connectivity report](../../ATLAS_PC_JETSON_CONNECTIVITY_AND_LOCALIZATION_NEXT.md).
+
 15 October2026 PC offboard update: native21-topic synthetic capture verified,
 22,779/22,779. Live recording remains NO-GO: direct DDS over WSL NAT unqualified;
 clock-offset bounds varied by~944ms; bounded graph snapshot had no AMCL/scan_raw
