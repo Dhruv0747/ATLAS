@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+15 October2026 approved10s bridge attempt: BLOCKED before connection. Five fresh
+CPU intervals69.19–73.46%, RAM65.05%; temperature measurement path raised
+`TypeError: can't concat NoneType to bytes`. Exact cause unverified; thermal map
+empty and safety/sensor admission incomplete. No subscription, bag or retry.
+See [attempt evidence](../../ATLAS_PC_BRIDGE_STATIONARY_ATTEMPT_20261015.md).
+
 15 October2026 follow-up: publisher-presence blocker cleared by3/10/20s graph
 snapshots; AMCL/raw scan/particle publishers now visible. Earlier snapshot below
 is historical, not a device-fault diagnosis. WSL10s graph-only DDS probe found

@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest: [approved bridge attempt blocked before connecting](ATLAS_PC_BRIDGE_STATIONARY_ATTEMPT_20261015.md).
+Outgoing operation tests passed; fresh temperature measurement raised a Python
+exception. No production subscription, capture or retry. Safety admission incomplete.
+
 Latest: [PC–Jetson connectivity next action](ATLAS_PC_JETSON_CONNECTIVITY_AND_LOCALIZATION_NEXT.md).
 All three previously missing publishers now visible; direct WSL DDS discovery failed
 its bounded graph-only probe. Existing bridge reachable; live subscription needs approval.

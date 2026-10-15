@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-15: Stop approved bridge attempt at fresh preflight measurement failure.
+- Four isolated outgoing-operation/channel/payload-boundary tests pass.
+- CPU69.19–73.46%, RAM65.05%; temperature collection raises TypeError.
+- Preserve exact blocked result; no bridge connection, subscriptions, bag or retry.
+- Retain as-run diagnostic source; no production deployment or localization claim.
+
 2026-10-15: Resolve publisher-presence uncertainty and bound next transport test.
 - All three endpoints observed; record actual AMCL/particle/raw-scan QoS.
 - Direct WSL graph discovery sees no Jetson nodes; existing bridge TCP reachable.
