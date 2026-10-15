@@ -758,3 +758,27 @@ remain pending. See [Stage 17B](../../ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST
 
 Owner-provided live py-spy evidence is now available, superseding the earlier profiler-access gap. Focused audit found measurable dashboard CPU, but no demonstrated avoidable executor defect or duplicate constant-topic subscriptions. Eleven offline checks passed; no runtime patch/deployment or CPU savings claimed. Stage 20 headroom remains blocked. See `ATLAS_STAGE20_DASHBOARD_EXECUTOR_CPU_FIX.md` for sample-attribution limits and the bounded thread measurement. Suppressing QoS, adding sleeps and replacing executors are rejected without further discriminating evidence.
 
+
+## 2026-10-15 update: EKF translation/heading contamination, Candidate B-safe (offline; ATLAS-011, ATLAS-001)
+
+**Confirmed (offline):**
+- The production EKF's X/Y follows the wheel-integrated, commanded-steering trajectory while its
+  yaw follows the gyro. Its travel direction against its own heading has a 90th percentile of 22°;
+  LiDAR gives 9°.
+- Native replay reproduces the recorded EKF's relative motion, so a relative A/B is valid.
+  Stage 19's absolute/AMCL fidelity block still stands.
+- Removing wheel X/Y pose (Candidate B) cuts heading drift per about 1.4 m from 4.8 / 7.4 / 23.6°
+  to 0.5 / 2.3 / 3.4°.
+
+**New hazard, closed in source:** B coasts 2 m during a parked stop when encoder consensus is lost.
+The fresh-zero-count twist anchor in `yahboom_base.py` closes it in source (0.003 m in the
+synthetic test). **Not deployed.**
+
+**Separate open issue:** a constant +5.5° LiDAR travel-direction offset, either a LiDAR mount yaw
+error or a steering crab. B's sideways benefit depends on resolving it.
+
+**Unchanged:**
+- the wheel distance under-read (about 0.65×);
+- the five unexplained parked AMCL jumps.
+
+**Deployment gates:** see the [recovery handoff](../../ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md).

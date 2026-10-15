@@ -180,5 +180,29 @@ class EncoderSelectionTests(unittest.TestCase):
         self.assertTrue(blocked(True, state='CRITICAL'))
 
 
+class AllCountsUnchangedTests(unittest.TestCase):
+    def setUp(self):
+        from atlas_encoder_selection import all_counts_unchanged
+        self.f = all_counts_unchanged
+
+    def test_fresh_and_identical_is_still(self):
+        self.assertTrue(self.f((0.1, -0.2, 0.0, 0.3), [0.1, -0.2, 0.0, 0.3], True))
+
+    def test_any_channel_counting_is_not_still(self):
+        self.assertFalse(self.f((0.1, -0.2, 0.0, 0.3), (0.1, -0.2, 0.0, 0.3001), True))
+
+    def test_dead_channel_does_not_hide_motion(self):
+        # M3 frozen (dead/excluded) while the others count: not still.
+        self.assertFalse(self.f((0.1, -0.2, 0.0, 0.3), (0.2, -0.3, 0.0, 0.4), True))
+
+    def test_stale_packet_or_no_history_is_unknown(self):
+        self.assertFalse(self.f((0.1, 0.1, 0.1, 0.1), (0.1, 0.1, 0.1, 0.1), False))
+        self.assertFalse(self.f(None, (0.1, 0.1, 0.1, 0.1), True))
+
+    def test_non_finite_or_wrong_length_fails_closed(self):
+        self.assertFalse(self.f((float('nan'), 0, 0, 0), (float('nan'), 0, 0, 0), True))
+        self.assertFalse(self.f((0, 0, 0), (0, 0, 0), True))
+
+
 if __name__ == '__main__':
     unittest.main()

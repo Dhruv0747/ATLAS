@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-15 (offline; nothing deployed):
+- Native EKF A/B replay tools and LiDAR-ICP heading/sideslip analysis.
+- Production EKF translation found inconsistent with its own heading.
+- Candidate B (no wheel X/Y pose) cuts heading drift per 1.4 m by 5–7×.
+- `yahboom_base` keeps zero velocity trustworthy when a fresh packet shows no wheel counted, even without 3-of-4 consensus. This prevents a velocity-fusing EKF from coasting while parked; pose covariance, source label and stop policy are unchanged.
+- See [`ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md`](ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md).
+
 2026-10-15: Correct Orin Nano-specific CV temperature admission policy.
 - NVIDIA confirms absent DLA/PVA CV readings; exempt only CV-temp EAGAIN on verified Nano.
 - Require CPU/GPU/SoC/TJ, preserve all temperature limits and other failures.

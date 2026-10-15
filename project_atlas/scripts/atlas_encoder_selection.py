@@ -114,6 +114,27 @@ def feedback_state(excluded, faults, packet_fresh, qualifying, traction, fault_a
     return ('HEALTHY' if traction else 'READY'), 1.0, 'all selected feedback available'
 
 
+def all_counts_unchanged(previous, current, packet_fresh):
+    """True only when a fresh packet shows every one of the four raw wheel
+    distances exactly unchanged since the previous odometry update.
+
+    Used to keep a trustworthy zero-velocity observation when three-of-four
+    consensus cannot be formed (stale/faulted channels): if no channel counted,
+    including excluded ones, no wheel turned.  A single dead encoder cannot
+    produce this while the rover moves, because the other channels still count.
+    It never asserts motion and never changes the consensus or stop policy.
+    """
+    if not packet_fresh or previous is None or current is None:
+        return False
+    if len(previous) != 4 or len(current) != 4:
+        return False
+    for before, after in zip(previous, current):
+        before, after = float(before), float(after)
+        if not (math.isfinite(before) and math.isfinite(after)) or before != after:
+            return False
+    return True
+
+
 class EncoderDeltaEstimator:
     """Dynamic three-of-four consensus over per-wheel increments.
 
