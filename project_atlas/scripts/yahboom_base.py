@@ -34,7 +34,7 @@ from atlas_usb_identity import open_verified
 from atlas_steering_commission import SteeringCommission
 from atlas_encoder_selection import (
     ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator, EncoderLinkMonitor,
-    all_counts_unchanged, feedback_state, four_wheel_path_scales,
+    WheelStillnessDetector, feedback_state, four_wheel_path_scales,
     validate_selection,
 )
 from atlas_encoder_calibration import load_encoder_calibration
@@ -322,6 +322,7 @@ class YahboomBase(Node):
             self._encoder_packet_timeout, ENCODER_LINK_QUALIFY_S
         )
         self._encoder_delta_estimator = EncoderDeltaEstimator()
+        self._wheel_stillness = WheelStillnessDetector(hold_s=1.0)
         if os.environ.get('ATLAS_YAHBOOM_AUTO_USB', '0') == '1':
             # No library initialization/write until receive protocol is proven.
             link = open_verified('yahboom', os.environ.get('ATLAS_YAHBOOM_PORT', ''))
@@ -1903,11 +1904,12 @@ class YahboomBase(Node):
                 self._encoder_positions,
             )
         )
-        wheels_still = all_counts_unchanged(
-            self._last_odom_wheel_distance, self._wheel_distance_m,
+        wheels_still = self._wheel_stillness.update(
+            self._wheel_distance_m, self._encoder_packet_stamp,
             self._encoder_packet_fresh,
+            all(float(value) == 0.0 for value in self._applied_motor_outputs),
+            now,
         )
-        self._last_odom_wheel_distance = tuple(self._wheel_distance_m)
         distance_delta = self._encoder_delta_estimator.update(
             self._wheel_distance_m, valid_indexes, path_scales
         )

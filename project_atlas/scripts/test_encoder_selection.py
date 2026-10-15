@@ -204,5 +204,63 @@ class AllCountsUnchangedTests(unittest.TestCase):
         self.assertFalse(self.f((0, 0, 0), (0, 0, 0), True))
 
 
+class WheelStillnessDetectorTests(unittest.TestCase):
+    """Owner audit items: fresh only, stale vs unchanged, reversals, slow motion,
+    motors driven, re-read of one packet."""
+    Z = (0.1, -0.2, 0.0, 0.3)
+
+    def make(self):
+        from atlas_encoder_selection import WheelStillnessDetector
+        return WheelStillnessDetector(hold_s=1.0)
+
+    def run_ticks(self, d, ticks, distances=None, fresh=True, outputs_zero=True, stamp_step=0.1,
+                  start=0.0, stamp0=0.0):
+        out = []
+        for k in range(ticks):
+            t = start + 0.1 * k
+            dist = distances(k) if callable(distances) else (distances or self.Z)
+            out.append(d.update(dist, stamp0 + stamp_step * k, fresh, outputs_zero, t))
+        return out
+
+    def test_parked_qualifies_only_after_hold(self):
+        out = self.run_ticks(self.make(), 15)
+        self.assertFalse(any(out[:10]))          # < 1.0 s since the first observation
+        self.assertTrue(out[11])
+
+    def test_same_packet_reread_never_qualifies(self):
+        out = self.run_ticks(self.make(), 30, stamp_step=0.0)   # packet stamp never advances
+        self.assertFalse(any(out))
+
+    def test_stale_stream_resets_and_never_qualifies(self):
+        d = self.make()
+        self.assertFalse(any(self.run_ticks(d, 30, fresh=False)))
+        out = self.run_ticks(d, 12, start=3.0, stamp0=3.0)       # hold restarts after recovery
+        self.assertFalse(any(out[:10]))
+
+    def test_driven_motors_block_even_with_frozen_counts(self):
+        self.assertFalse(any(self.run_ticks(self.make(), 30, outputs_zero=False)))
+
+    def test_slow_motion_with_count_bursts_every_0_8_s_never_qualifies(self):
+        bursts = lambda k: (0.1 + 0.01 * (k // 8), -0.2, 0.0, 0.3)
+        self.assertFalse(any(self.run_ticks(self.make(), 60, distances=bursts)))
+
+    def test_direction_reversal_pause_below_hold_does_not_qualify(self):
+        # forward, 0.7 s with no counts at the reversal, then reverse
+        def rev(k):
+            if k < 10: return (0.1 + 0.01 * k, -0.2, 0.0, 0.3)
+            if k < 17: return (0.19, -0.2, 0.0, 0.3)
+            return (0.19 - 0.01 * (k - 16), -0.2, 0.0, 0.3)
+        self.assertFalse(any(self.run_ticks(self.make(), 30, distances=rev)))
+
+    def test_any_count_change_resets_hold(self):
+        d = self.make()
+        self.assertTrue(self.run_ticks(d, 15)[-1])
+        self.assertFalse(d.update((0.1, -0.2, 0.0, 0.31), 2.0, True, True, 2.0))
+        self.assertFalse(d.update((0.1, -0.2, 0.0, 0.31), 2.1, True, True, 2.5))
+
+    def test_non_finite_counts_fail_closed(self):
+        self.assertFalse(any(self.run_ticks(self.make(), 20, distances=(float('nan'), 0, 0, 0))))
+
+
 if __name__ == '__main__':
     unittest.main()

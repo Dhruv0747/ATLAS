@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace as N
 import unittest
 from unittest.mock import Mock
-from atlas_encoder_selection import EncoderDeltaEstimator, all_counts_unchanged, four_wheel_path_scales
+from atlas_encoder_selection import EncoderDeltaEstimator, WheelStillnessDetector, four_wheel_path_scales
 
 
 def odometry():
@@ -18,8 +18,7 @@ def odometry():
 tree=ast.parse(Path(__file__).with_name('yahboom_base.py').read_text(encoding='utf-8'))
 method=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='_publish_yahboom_odom')
 scope=dict(math=math,json=json,Odometry=odometry,String=lambda **kw:N(**kw),
-           FRONT_STEER_CENTER=90,REAR_STEER_CENTER=90,four_wheel_path_scales=four_wheel_path_scales,
-           all_counts_unchanged=all_counts_unchanged)
+           FRONT_STEER_CENTER=90,REAR_STEER_CENTER=90,four_wheel_path_scales=four_wheel_path_scales)
 exec(compile(ast.Module(body=[method],type_ignores=[]),'odometry_method','exec'),scope)
 
 
@@ -28,7 +27,8 @@ class SnapshotTest(unittest.TestCase):
         estimator=EncoderDeltaEstimator()
         estimator.update([0]*4,range(4))
         s=N(_last_odom_t=.9,_excluded_encoders=set(),_encoder_fault_since={},
-            _encoder_packet_fresh=True,_last_odom_wheel_distance=None,_front_applied_angle=90,_rear_applied_angle=90,
+            _encoder_packet_fresh=True,_wheel_stillness=WheelStillnessDetector(1.0),
+            _applied_motor_outputs=(0.,0.,0.,0.),_front_applied_angle=90,_rear_applied_angle=90,
             _wheelbase_m=.367,_drive_pid_config=N(geometry=N(track_width_m=.26)),
             _encoder_positions=['rear_left','rear_right','front_left','front_right'],
             _encoder_delta_estimator=estimator,_wheel_distance_m=[.02]*4,
@@ -75,26 +75,31 @@ class SnapshotTest(unittest.TestCase):
         msg=s._pub_odom.publish.call_args.args[0]
         return msg.pose.covariance[0],msg.twist.covariance[0]
 
-    def test_parked_without_consensus_keeps_zero_velocity_trustworthy(self):
-        # Two channels faulted -> no 3-of-4 consensus. A fresh packet with every raw
-        # distance unchanged still proves no wheel turned: twist stays at normal
-        # covariance (pose stays inflated, source label unchanged).
+    def test_parked_without_consensus_trusts_zero_velocity_only_after_hold(self):
+        # Two channels faulted -> no 3-of-4 consensus. Pose stays inflated; the zero-velocity
+        # twist keeps normal covariance only after 1 s of identical counts confirmed by newer
+        # packets with motors off. Source label unchanged.
         s=self.make();s._encoder_fault_since={0:0.,1:0.}
-        scope['_publish_yahboom_odom'](s,0,0,0,1.)        # first update: no history yet
+        for k in range(8):
+            s._encoder_packet_stamp=1.0+0.1*k
+            scope['_publish_yahboom_odom'](s,0,0,0,1.0+0.1*k)
         self.assertEqual(self._cov(s),(0.05*1000,0.10*1000))
-        scope['_publish_yahboom_odom'](s,0,0,0,1.1)       # identical counts, fresh
+        for k in range(8,14):
+            s._encoder_packet_stamp=1.0+0.1*k
+            scope['_publish_yahboom_odom'](s,0,0,0,1.0+0.1*k)
         self.assertEqual(self._cov(s),(0.05*1000,0.10))
         self.assertEqual(s._pub_odom_source.publish.call_args.args[0].data,'feedback_unavailable')
         self.assertEqual(s._x,0)
 
-    def test_counting_or_stale_without_consensus_stays_inflated(self):
-        s=self.make();s._encoder_fault_since={0:0.,1:0.}
-        scope['_publish_yahboom_odom'](s,0,0,0,1.)
-        s._wheel_distance_m=[.02,.02,.03,.02]               # a channel counted
-        scope['_publish_yahboom_odom'](s,0,0,0,1.1)
+    def test_driven_motors_or_stale_packets_stay_inflated(self):
+        s=self.make();s._encoder_fault_since={0:0.,1:0.};s._applied_motor_outputs=(0.,20.,0.,0.)
+        for k in range(20):
+            s._encoder_packet_stamp=1.0+0.1*k
+            scope['_publish_yahboom_odom'](s,0,0,0,1.0+0.1*k)
         self.assertEqual(self._cov(s)[1],0.10*1000)
-        s._encoder_packet_fresh=False                      # stale packet, unchanged values
-        scope['_publish_yahboom_odom'](s,0,0,0,1.2)
+        s=self.make();s._encoder_fault_since={0:0.,1:0.};s._encoder_packet_fresh=False
+        for k in range(20):
+            scope['_publish_yahboom_odom'](s,0,0,0,1.0+0.1*k)
         self.assertEqual(self._cov(s)[1],0.10*1000)
 
 
