@@ -3058,6 +3058,11 @@ Historical first attempt; the later successful installation is recorded above.
 
 ## 2026-10-15 parked CPU repair
 
+- Pace only the diagnostic localization-search worker; preserve exact search
+  results, sensor/control rates and30-second deadline.56 focused tests pass.
+- Deploy and verify with protected service/hash checks and rollback; document
+  reduced worker burst but unresolved total CPU peaks and denied polkit tracing.
+
 - Avoid unused AI preview drawing/JPEG encoding without changing detections.
 - Restore live manual-only override; preserve stop, steering and production owners.
 - Add bounded startup verification and regression tests; document remaining CPU peaks.

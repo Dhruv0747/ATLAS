@@ -31,6 +31,7 @@ import threading
 import time
 
 import atlas_localization_verify_core as core
+from atlas_background_search_budget import BackgroundSearchBudget
 
 CHECK_FILE = Path.home() / ".local/state/project_atlas/localization_check.json"
 HISTORY_FILE = Path.home() / ".local/state/project_atlas/localization_check_history.jsonl"
@@ -384,9 +385,12 @@ def main():
 
         def check(self, scans, amcl, token):
             deadline = time.monotonic() + CHECK_TIMEOUT_S
-            def checkpoint():
+            def check_deadline():
                 if time.monotonic() >= deadline:
                     raise TimeoutError('passive search deadline exceeded')
+            # Pace only this read-only background worker. Search results, the
+            # 30-second deadline and all ROS/control callback rates stay intact.
+            checkpoint = BackgroundSearchBudget(check_deadline)
             try:
                 t = self.tf.lookup_transform("base_link", scans[0].header.frame_id, Time(),
                                              timeout=Duration(seconds=0.5)).transform

@@ -14,6 +14,15 @@
   ],
   "issues": [
     {
+      "id": "20261015-background-search-cpu-burst",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-15",
+      "description": "Paced suggest-only background search preserves exact results and original deadline; monitor peak falls from74.27 to23.24 percent of one core. Total system still peaks78.696 percent. Largest remaining peak coincides with polkitd32.29 percent of one core, but requester/cause is unverified. Unprivileged header-only system-bus monitor denied; no security/network changes made.",
+      "evidence": ["ATLAS_BACKGROUND_SEARCH_CPU_20261015.md"],
+      "safety": "Manual-only, E-STOP latched, commands zero, recorder OFF; essential control/localization/camera service identities and steering calibration preserved.56 focused tests pass; not a localization or recorder-admission pass."
+    },
+    {
       "id": "20261015-unused-ai-preview-and-manual-override",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

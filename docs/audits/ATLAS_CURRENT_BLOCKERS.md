@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+15 October2026 CPU continuation: diagnostic search paced without changing its
+math, inputs or30-second deadline. Monitor burst74.27%→23.24% of one core;
+56 focused tests pass, exact geometry results preserved. Final90-second system
+CPU mean70.747%, peak78.696% (3 excursions>75): sustained headroom still NOT
+resolved. Largest peak coincides with polkitd32.29%; requester unknown, unprivileged
+headers-only trace denied. Need bounded privileged attribution before further
+changes. E-STOP latched, manual-only true, commands zero, recordingOFF; essential
+services/steering unchanged. See [CPU continuation](../../ATLAS_BACKGROUND_SEARCH_CPU_20261015.md).
+
 15 October 2026 parked CPU/manual-only update supersedes the earlier false
 manual-only state below: live manual-only now true, E-STOP latched, commands zero,
 recorder OFF. Unused AI preview rendering fixed and deployed; 19 tests pass.

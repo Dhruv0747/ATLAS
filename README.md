@@ -1534,6 +1534,10 @@ No live fusion, calibration, map or autonomy change is authorized by these resul
 
 ## Parked CPU/manual-only checkpoint
 
+Continuation: background diagnostic-search burst reduced about69%; whole-system
+CPU still exceeds75% briefly. No recording/autonomy admission. See
+[paced search measurements and remaining blocker](ATLAS_BACKGROUND_SEARCH_CPU_20261015.md).
+
 15 October 2026: manual-only restored live; AI previews render only when viewed.
 Recording stays off; sustained CPU headroom remains unresolved. See
 [measurements and rollback](ATLAS_PARKED_CPU_MANUAL_ONLY_20261015.md).
