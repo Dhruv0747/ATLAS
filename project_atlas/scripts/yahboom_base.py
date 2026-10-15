@@ -1975,8 +1975,8 @@ class YahboomBase(Node):
         if len(accepted_indexes) < 4:
             # Conservative provisional uncertainty, not a measured accuracy.
             factor = 4.0 if len(accepted_indexes) == 3 else 1000.0
-            # Zero velocity is still a direct observation when a fresh packet
-            # shows no channel counted at all; inflating it lets a velocity-
+            # Zero velocity stays a trusted observation after 1 s of verified
+            # stillness (WheelStillnessDetector); inflating it lets a velocity-
             # fusing EKF coast while parked. Pose uncertainty stays inflated
             # and the source label/stop policy are unchanged.
             twist_factor = 1.0 if (wheels_still and not encoder_motion) else factor
