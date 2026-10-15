@@ -14,6 +14,19 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-NANO-CV-THERMAL-POLICY-20261015",
+      "title": "Admission incorrectly requires absent Orin Nano CV thermal readings",
+      "first_available_occurrence": "2026-10-15",
+      "latest_reviewed_occurrence": "2026-10-15",
+      "subsystem": "PC-supervised diagnostic thermal admission",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "confirmed_findings": "NVIDIA staff documents CV0/1/2 as expected offline on Orin Nano because DLA/PVA hardware is absent. Fresh runtime device-tree identifies Orin Nano Super, CV reads return EAGAIN. Requiring every sysfs zone caused a false thermal admission failure.",
+      "attempted_fix": "Only CV-temp EAGAIN on freshly identified Orin Nano is not_applicable with null temperature and retained errno/path. Six CPU/GPU/SoC/TJ readings required. Other models/errors remain strict and all available temperatures retain70C limit. 26 offline tests and one authorized read-only Jetson check verify thermal correction.",
+      "remaining_verification": "Overall admission remains BLOCKED on CPU interval77.891156%>75% and manual_only=false. E-STOP latched, zero commands, commission disarmed and Stage20 OFF verified. No live recording, movement, production deployment or service changes.",
+      "evidence": ["ATLAS_ORIN_NANO_CV_THERMAL_POLICY_FIX.md", "project_atlas/tools/diagnostics/offboard_bridge_preflight.py", "project_atlas/tools/diagnostics/test_offboard_bridge_preflight.py"]
+    },
+    {
       "id": "ATLAS-BRIDGE-THERMAL-READ-20261015",
       "title": "Thermal admission text-read failure loses attribute path and traceback",
       "first_available_occurrence": "2026-10-15",

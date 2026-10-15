@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest: [Orin Nano CV readings correctly treated as not applicable](ATLAS_ORIN_NANO_CV_THERMAL_POLICY_FIX.md).
+26 offline tests pass; fresh Jetson thermal/safety check confirms stop latched,
+zero commands and Stage20 OFF. Admission still blocks on CPU77.89% and manual_only=false.
+
 Latest: [fixed temperature probe checked once on Jetson](ATLAS_PC_BRIDGE_TEMPERATURE_JETSON_CHECK.md).
 CPU/RAM and six thermal zones under limits;CV0/1/2 unavailable, so admission blocks.
 Subsequent SSH checks timed out; fresh safety/recorder state unverified. No recording.

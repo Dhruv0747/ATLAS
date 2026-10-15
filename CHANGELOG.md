@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-15: Correct Orin Nano-specific CV temperature admission policy.
+- NVIDIA confirms absent DLA/PVA CV readings; exempt only CV-temp EAGAIN on verified Nano.
+- Require CPU/GPU/SoC/TJ, preserve all temperature limits and other failures.
+- 26 offline regressions pass; fresh Jetson check has no thermal-read errors.
+- Stop/zero-command/commission-disarmed/recorder-OFF verified; admission blocked by
+  CPU77.89% and manual_only=false. No recording, movement or production changes.
+
 2026-10-15: Check corrected temperature probe once on Jetson, preserve blocked result.
 - CPU peak71.43%, RAM66.46%, CPU/GPU60.66/60.31C; six thermal readings valid.
 - CV0/1/2 return EAGAIN with precise paths/tracebacks; full admission remains blocked.

@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+15 October2026 Nano thermal policy corrected: NVIDIA documents CV0/1/2 absence
+on Nano; fresh device-tree identity verified and exact CV EAGAIN is now N/A.
+26 offline tests pass. Fresh Jetson check: thermal reads pass, E-STOP latched,
+commands zero, commissioning false, Stage20 inactive/PID0. Admission remains
+BLOCKED: CPU sample77.89%>75%, manual_only=false. No recording/movement/change
+to production settings. See [verified policy/check](../../ATLAS_ORIN_NANO_CV_THERMAL_POLICY_FIX.md).
+
 15 October2026 authorized fixed-probe check: six thermal readings59.625–60.656C,
 CPU peak71.43%, RAM66.46%; CV0/1/2 return EAGAIN, precise paths/traces preserved.
 Full admission blocks. Separate safety status could not be fetched: SSH timeouts

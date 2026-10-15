@@ -5,6 +5,7 @@ network configuration or retry. This probe only admits the approved stationary
 test; it cannot activate recording itself.
 """
 import datetime
+import errno
 import json
 import math
 import os
@@ -17,6 +18,12 @@ import traceback
 import urllib.request
 
 THERMAL_ROOT = Path('/sys/class/thermal')
+DEVICE_MODEL = Path('/proc/device-tree/model')
+NANO_EXPECTED_UNAVAILABLE = frozenset(('cv0-thermal','cv1-thermal','cv2-thermal'))
+NANO_REQUIRED_THERMAL = frozenset(('cpu-thermal','gpu-thermal','soc0-thermal',
+                                  'soc1-thermal','soc2-thermal','tj-thermal'))
+# NVIDIA confirms Nano has no DLA/PVA: these CV readings are not applicable.
+# https://forums.developer.nvidia.com/t/offline-cv0-cv1-and-cv2/318940/39
 
 
 def read_sysfs_text(path, limit=256):
@@ -42,16 +49,31 @@ def read_sysfs_text(path, limit=256):
     return value
 
 
-def read_thermal(root=None):
-    """Retain every valid zone and path-specific failure; any failure blocks."""
+def read_thermal(root=None, model=None):
+    """Recognize Nano's absent CV hardware; retain all genuine thermal failures.
+
+    Only CV temperature EAGAIN on an identified Orin Nano is not applicable.
+    Unknown models and other errors keep the previous conservative behavior.
+    """
     root = THERMAL_ROOT if root is None else Path(root)
+    model_error = None
+    if model is None:
+        try:
+            model = read_sysfs_text(DEVICE_MODEL).rstrip('\x00').strip()
+        except Exception as exc:
+            model_error = {'path':str(DEVICE_MODEL),'exception_type':type(exc).__name__,
+                           'error':str(exc),'traceback':traceback.format_exc()}
+    nano = isinstance(model,str) and re.search(r'\bJetson Orin Nano\b',model) is not None
     result = {'thermal_zones_c': {}, 'thermal_measurements': [],
-              'thermal_read_errors': [], 'thermal_read_method':
+              'platform_model':model,'platform_model_error':model_error,
+              'thermal_policy':'orin_nano' if nano else 'strict_unidentified_or_other_model',
+              'thermal_not_applicable':[], 'thermal_read_errors': [], 'thermal_read_method':
               'one os.read <=257 bytes per attribute; ASCII; integer millidegrees; no retry'}
 
     def failure(path, stage, exc):
         result['thermal_read_errors'].append({
             'path': str(path), 'stage': stage, 'exception_type': type(exc).__name__,
+            'errno':getattr(exc,'errno',None),
             'error': str(exc), 'traceback': traceback.format_exc()})
 
     try:
@@ -63,7 +85,8 @@ def read_thermal(root=None):
         return result
     for zone in zones:
         row = {'zone': zone.name, 'type_path': str(zone / 'type'),
-               'temp_path': str(zone / 'temp'), 'type': None, 'temperature_c': None}
+               'temp_path': str(zone / 'temp'), 'type': None, 'temperature_c': None,
+               'status':'unavailable'}
         for attribute in ('type', 'temp'):
             path = zone / attribute
             try:
@@ -77,11 +100,28 @@ def read_thermal(root=None):
                     if not math.isfinite(temperature) or temperature < -273.15:
                         raise ValueError('temperature is nonfinite or below absolute zero')
                     row['temperature_c'] = temperature
+                    row['status'] = 'available'
                     # Stable zone ids preserve different zones with the same type.
                     result['thermal_zones_c'][zone.name] = temperature
             except Exception as exc:
-                failure(path, attribute, exc)
+                if (nano and attribute=='temp' and row['type'] in NANO_EXPECTED_UNAVAILABLE
+                        and isinstance(exc,OSError) and exc.errno==errno.EAGAIN):
+                    row['status']='not_applicable'
+                    result['thermal_not_applicable'].append({
+                        'zone':zone.name,'type':row['type'],'path':str(path),
+                        'errno':exc.errno,'error':str(exc),
+                        'reason':'Orin Nano has no DLA/PVA hardware; NVIDIA-documented CV unavailability'})
+                else:
+                    failure(path, attribute, exc)
         result['thermal_measurements'].append(row)
+    if nano:
+        available={x['type'] for x in result['thermal_measurements'] if x['temperature_c'] is not None}
+        missing=sorted(NANO_REQUIRED_THERMAL-available)
+        if missing:
+            try:
+                raise ValueError('required Orin Nano thermal readings unavailable: '+', '.join(missing))
+            except ValueError as exc:
+                failure(root,'required_zones',exc)
     return result
 
 
