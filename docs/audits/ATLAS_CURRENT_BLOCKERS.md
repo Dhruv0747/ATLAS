@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+15 October2026 PC offboard update: native21-topic synthetic capture verified,
+22,779/22,779. Live recording remains NO-GO: direct DDS over WSL NAT unqualified;
+clock-offset bounds varied by~944ms; bounded graph snapshot had no AMCL/scan_raw
+publishers and no particle_cloud topic. These are observations, not new root-cause
+claims. Jetson unchanged, recorder OFF. See
+[readiness report](../../ATLAS_PC_OFFBOARD_RECORDER_READINESS.md).
+
 Latest startup audit: exact post-start refusal76.2295% is confirmed, process attribution
 UNKNOWN. Isolated setup profile0.6521 CPU-seconds does not reproduce or attribute it.
 No justified correction, deployment or retry;75% preserved. See

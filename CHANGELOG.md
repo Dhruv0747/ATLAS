@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-15: Validate isolated PC native full-topic recorder, not live ATLAS capture.
+- Reuse Stage20 writer/inventory; preserve raw CDR, source and receipt timestamps.
+- 21 topics /22,779 messages pass native SQLite readback and payload verification.
+- Missing-source, disconnect, cancel, queue and four admission/cleanup checks pass.
+- Record unstable WSL–Jetson clock bounds and unqualified DDS/missing-publisher gates.
+- No production subscription, deployment, clock/network change or movement.
+
 2026-10-14: Save PC-only runtime setup and native test checkpoint.
 - WSL2/Ubuntu22.04/Humble installed without PC reboot;1454/1454 native messages pass.
 - Preserve source scripts, local evidence locations and morning approval boundaries.

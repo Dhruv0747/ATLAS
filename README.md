@@ -1,12 +1,17 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest checkpoint: [PC full-contract recorder readiness](ATLAS_PC_OFFBOARD_RECORDER_READINESS.md).
+21-topic native synthetic capture passed22,779/22,779; live recording remains NO-GO.
+Clock relationship unstable, DDS transport unqualified, three publisher entries unavailable.
+Jetson unchanged; no production subscribers, recording, movement or service restarts.
+
 Latest saved checkpoint: [PC runtime installed; morning handoff](ATLAS_PC_RECORDER_MORNING_HANDOFF.md).
 WSL2/Ubuntu22.04/Humble installed; isolated native30s test passed1454/1454.
 Paused overnight. Live transport/recording not authorized; Jetson unchanged.
 
 Latest: [offboard PC recording feasibility](ATLAS_OFFBOARD_PC_RECORDING_FEASIBILITY.md).
-PC storage fixture passes; WSL/ROS absent, live transport and CPU benefit unverified.
-NO-GO for live capture; PC runtime setup requires separate approval. Jetson unchanged.
+Historical pre-installation report; WSL/ROS are now installed as noted above.
+Live transport and Jetson CPU benefit remain unverified. Jetson unchanged.
 
 Latest: [recorder startup CPU investigation](ATLAS_STAGE20_RECORDER_CPU_SPIKE_ROOT_CAUSE.md).
 Historical 76.23% attribution remains UNKNOWN. One isolated startup profile completed;
