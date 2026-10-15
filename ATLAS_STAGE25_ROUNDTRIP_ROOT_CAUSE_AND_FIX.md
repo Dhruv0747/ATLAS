@@ -323,7 +323,7 @@ per request with `Cache-Control: no-cache`; a page reload picks them up).
 
 ## 16. GitHub commit ID
 
-(filled on push — see CHANGELOG)
+Commit of this report: `596bfdc` on `agent/sync-developer-20261011` (the follow-up commit that records this ID is the branch head).
 
 ## Files
 
