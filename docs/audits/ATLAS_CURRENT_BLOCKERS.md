@@ -805,3 +805,21 @@ heading benefit transfers.
 - `test_atlas_safety_status_camera_heartbeat`.
 
 **Not deployed.** See the [deployment plan](../../ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md).
+
+## 2026-10-15 13:10 update: Stage 21 deployed and parked-verified
+
+**Deployed** (12:53:45, owner-approved): the driver stop anchor. Only `rover-base-telemetry` was
+restarted.
+
+**600 s parked check:**
+- `/odom` drift 0.0 cm;
+- encoders fresh, 4/4 accepted;
+- safety state unchanged;
+- protected services untouched.
+
+**Not yet shown:**
+- **NOT LIVE EXERCISED:** the new fewer-than-3 branch.
+- **MOVING VALIDATION PENDING.**
+
+**Not deployed:** Candidate B and the Foxglove hardening. See the
+[Stage 21 report](../../ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md).

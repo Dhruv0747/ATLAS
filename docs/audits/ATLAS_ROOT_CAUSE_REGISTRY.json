@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-15T13:30:00+05:30",
+  "updated_at": "2026-10-15T13:10:00+05:30",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -865,6 +865,11 @@
           "date": "2026-10-15",
           "kind": "humble_ab_and_stop_anchor_revision",
           "description": "Native Humble (robot_localization 3.5.4, same as Jetson) reproduces the Jazzy A/B: chain heading drift A 5.11/7.39/23.58 -> B 0.56/2.26/3.48 deg; fidelity vs recorded EKF <=0.16 cm lateral, <=0.32 deg. First stop anchor (3eff519, one unchanged tick) found too weak: 9 Oct encoder_update snapshots show all four counts unchanged up to 0.79 s while ICP shows motion; replaced by a 1.0 s WheelStillnessDetector (fresh stream, motor outputs zero, newer packet required). Realistic synthetic consensus loss at stop: B 1.61 m -> 0.135 m bounded. Stage 21 package prepared (patch onto live 0872973 driver; undeployed Stage 17 commits excluded). Nothing deployed. Evidence: ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md"
+        },
+        {
+          "date": "2026-10-15",
+          "kind": "stage21_deployed_parked_verified",
+          "description": "Stage 21 driver stop anchor (a2ad1c9/46424ff, patch onto live 0872973 driver) deployed 12:53:45 IST; only rover-base-telemetry restarted (PID 3162->45674). Live hashes yahboom_base c551be00..., atlas_encoder_selection 7d457c9f... 600 s parked: encoders fresh (max age 55 ms), 4/4 accepted, /odom drift 0.0 cm/0.0 deg, no backwards stamps, cmd_vel all zero, policy latched/manual-only, protected PIDs unchanged, 0 driver errors. Fewer-than-3 branch NOT LIVE EXERCISED; moving validation pending. Backup data/backups/2026-10-15-125345-601344477-stage21-driver-stop-anchor."
         }
       ]
     },

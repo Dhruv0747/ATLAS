@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-15 13:10:
+- **Stage 21 deployed** (driver: zero velocity trusted only after 1 s of verified stillness).
+- Parked-verified: `/odom` drift 0.0 cm over 600 s.
+- Moving validation pending.
+- See [`ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md`](ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md).
+
 2026-10-15 13:30 (offline; nothing deployed):
 - The stop anchor now needs 1 s of verified stillness.
 - Stage 21 driver package prepared.
