@@ -1,0 +1,7 @@
+{
+  "comment": "Search boxes for operator-confirmed places (seed_atlas_localization.py --verify-place). Only valid for the accepted map with this YAML hash. A box removes aliases outside a place the operator has confirmed; it never lowers fit/margin thresholds. Dhruv Room drawn from the accepted map 2026-10-15: walls at x ~-0.6 / +0.65, y ~-2.75, corridor opening at y ~-0.9.",
+  "map_yaml_sha256": "d957f0fe3b8b48166751ef0226ba5f7abdd5454e6f44fac4c9e7b430f00c45e4",
+  "places": {
+    "dhruv room": {"x_min": -0.7, "x_max": 0.7, "y_min": -2.8, "y_max": -0.9}
+  }
+}

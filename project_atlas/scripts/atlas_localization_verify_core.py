@@ -215,13 +215,29 @@ def _coarse_scores(index: dict, pts: np.ndarray, yaw: float, res: float) -> np.n
     return hits.sum(axis=1) / float(len(pts))
 
 
+def in_region(x: float, y: float, region: dict, pad: float = 0.0) -> bool:
+    return (region['x_min'] - pad <= x <= region['x_max'] + pad
+            and region['y_min'] - pad <= y <= region['y_max'] + pad)
+
+
 def global_search(m: dict, all_pts: np.ndarray, heldout_pts: np.ndarray,
-                  policy: VerifyPolicy = VerifyPolicy(), checkpoint=None) -> List[dict]:
+                  policy: VerifyPolicy = VerifyPolicy(), checkpoint=None,
+                  region: Optional[dict] = None) -> List[dict]:
     """Distinct pose hypotheses (>= separation_m apart or >= separation_deg
-    rotated), best held-out fit first. Uses no prior pose."""
+    rotated), best held-out fit first. Uses no prior pose.
+
+    ``region`` (default None = whole map, unchanged behaviour) limits candidate
+    positions to an axis-aligned box {x_min, x_max, y_min, y_max} in the map
+    frame. It is only for an operator-CONFIRMED place: it removes aliases
+    outside that place; fit/margin thresholds are applied unchanged by decide().
+    """
     check = checkpoint or (lambda: None)
     check()
     index = _search_index(m, policy)
+    if region is not None:
+        keep = ((index['xs'] >= region['x_min']) & (index['xs'] <= region['x_max'])
+                & (index['ys'] >= region['y_min']) & (index['ys'] <= region['y_max']))
+        index = dict(index, xs=index['xs'][keep], ys=index['ys'][keep], flat=index['flat'][keep])
     xs, ys = index['xs'], index['ys']
     if len(xs) == 0:
         return []
@@ -255,6 +271,8 @@ def global_search(m: dict, all_pts: np.ndarray, heldout_pts: np.ndarray,
         bt = math.atan2(math.sin(bt), math.cos(bt))
         if any(_same(h, bx, by, bt, policy) for h in hyps):
             continue
+        if region is not None and not in_region(bx, by, region, pad=policy.tolerance_m):
+            continue   # local refinement walked out of the confirmed place
         hyps.append({'x': bx, 'y': by, 'yaw': bt, 'fit_all': round(bf, 3),
                      'fit_heldout': round(fit(m, heldout_pts, bx, by, bt, tol), 3)})
         if len(hyps) >= policy.hypotheses:
