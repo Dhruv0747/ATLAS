@@ -7,11 +7,82 @@ test; it cannot activate recording itself.
 import datetime
 import json
 import math
+import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import time
+import traceback
 import urllib.request
+
+THERMAL_ROOT = Path('/sys/class/thermal')
+
+
+def read_sysfs_text(path, limit=256):
+    """One bounded binary read; never feed an unavailable read to TextIOWrapper.
+
+    Sysfs attributes are small ASCII values. An EAGAIN/None/empty read fails this
+    attempt; there are no retries, default temperatures or dashboard fallbacks.
+    """
+    # Linux uses NONBLOCK; Windows offline fixtures require binary mode instead.
+    flags = os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0) | getattr(os, 'O_BINARY', 0)
+    descriptor = os.open(path, flags)
+    try:
+        raw = os.read(descriptor, limit + 1)
+    finally:
+        os.close(descriptor)
+    if not isinstance(raw, bytes):
+        raise OSError('sysfs read returned no bytes object')
+    if not raw or len(raw) > limit:
+        raise ValueError('sysfs attribute empty or larger than %s bytes' % limit)
+    value = raw.decode('ascii').strip()
+    if not value:
+        raise ValueError('sysfs attribute is blank')
+    return value
+
+
+def read_thermal(root=None):
+    """Retain every valid zone and path-specific failure; any failure blocks."""
+    root = THERMAL_ROOT if root is None else Path(root)
+    result = {'thermal_zones_c': {}, 'thermal_measurements': [],
+              'thermal_read_errors': [], 'thermal_read_method':
+              'one os.read <=257 bytes per attribute; ASCII; integer millidegrees; no retry'}
+
+    def failure(path, stage, exc):
+        result['thermal_read_errors'].append({
+            'path': str(path), 'stage': stage, 'exception_type': type(exc).__name__,
+            'error': str(exc), 'traceback': traceback.format_exc()})
+
+    try:
+        zones = sorted(root.glob('thermal_zone*'))
+        if not zones:
+            raise ValueError('no thermal zones available')
+    except Exception as exc:
+        failure(root, 'enumerate', exc)
+        return result
+    for zone in zones:
+        row = {'zone': zone.name, 'type_path': str(zone / 'type'),
+               'temp_path': str(zone / 'temp'), 'type': None, 'temperature_c': None}
+        for attribute in ('type', 'temp'):
+            path = zone / attribute
+            try:
+                value = read_sysfs_text(path)
+                if attribute == 'type':
+                    row['type'] = value
+                else:
+                    if not re.fullmatch(r'[+-]?[0-9]+', value):
+                        raise ValueError('temperature must be integer millidegrees Celsius')
+                    temperature = int(value) / 1000.0
+                    if not math.isfinite(temperature) or temperature < -273.15:
+                        raise ValueError('temperature is nonfinite or below absolute zero')
+                    row['temperature_c'] = temperature
+                    # Stable zone ids preserve different zones with the same type.
+                    result['thermal_zones_c'][zone.name] = temperature
+            except Exception as exc:
+                failure(path, attribute, exc)
+        result['thermal_measurements'].append(row)
+    return result
 
 
 def ticks():
@@ -40,6 +111,7 @@ def main():
     result={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
             'bridge_connected':False,'production_subscriptions_started':False,
             'cpu_samples':[],'decision':'BLOCKED','reasons':[]}
+    phase='cpu'
     try:
         previous=ticks();last=time.monotonic()
         for _ in range(5):
@@ -48,17 +120,26 @@ def main():
             if total<=0 or not 0<=idle<=total:raise ValueError('invalid CPU delta')
             result['cpu_samples'].append({'duration_s':now-last,'percent':100*(total-idle)/total})
             previous,last=current,now
+        phase='memory'
         mem={line.split(':')[0]:int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines()}
         result['ram_percent']=100*(1-mem['MemAvailable']/mem['MemTotal'])
-        result['thermal_zones_c']={}
-        for zone in Path('/sys/class/thermal').glob('thermal_zone*'):
-            result['thermal_zones_c'][(zone/'type').read_text().strip()]=float((zone/'temp').read_text())/1000
+        phase='temperature'
+        result.update(read_thermal())
+        if result['thermal_read_errors']:
+            for error in result['thermal_read_errors']:
+                result['reasons'].append('temperature %s %s: %s: %s' % (
+                    error['stage'],error['path'],error['exception_type'],error['error']))
+            raise ValueError('temperature measurement incomplete; admission blocked')
+        phase='disk'
         result['free_disk_bytes']=shutil.disk_usage('/home/jetson/project_atlas').free
+        phase='dashboard'
         result['dashboard']=status()
+        phase='service_inspection'
         units=subprocess.run(['systemctl','--user','show','atlas-stage20-public-capture.service',
             'atlas-localization.service','rover-base-telemetry.service','--property=Id,ActiveState,MainPID,NRestarts'],
             capture_output=True,text=True,timeout=3,check=True).stdout
         result['services']=units
+        phase='validation'
         reasons=result['reasons']
         for index,sample in enumerate(result['cpu_samples']):
             if not .9<=sample['duration_s']<=2:reasons.append('CPU interval %s duration invalid'%index)
@@ -93,6 +174,8 @@ def main():
         result['decision']='RESOURCE_SAFETY_PASS_SENSOR_ADMISSION_PENDING' if not reasons else 'BLOCKED'
     except Exception as exc:
         result['reasons'].append(type(exc).__name__+': '+str(exc))
+        result['measurement_error']={'phase':phase,'exception_type':type(exc).__name__,
+                                     'error':str(exc),'traceback':traceback.format_exc()}
     print(json.dumps(result,indent=2,allow_nan=False),flush=True)
     return 0 if result['decision']!='BLOCKED' else 2
 

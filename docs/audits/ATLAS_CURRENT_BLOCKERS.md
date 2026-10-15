@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+15 October2026 offline correction: bounded binary thermal reads replace the
+UTF-8 read path; exact None-read exception reproduced offline. Per-file paths and
+tracebacks now preserved, unavailable data still blocks.17 focused tests pass
+on Ubuntu22.04. Original live failing attribute/cause remains unproven without
+its traceback. No Jetson probe/deployment or recording retry. See
+[offline fix](../../ATLAS_PC_BRIDGE_TEMPERATURE_OFFLINE_FIX.md).
+
 15 October2026 approved10s bridge attempt: BLOCKED before connection. Five fresh
 CPU intervals69.19–73.46%, RAM65.05%; temperature measurement path raised
 `TypeError: can't concat NoneType to bytes`. Exact cause unverified; thermal map

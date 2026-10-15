@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-14T11:31:07+05:30",
+  "updated_at": "2026-10-15",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -13,6 +13,19 @@
     "VERIFIED FIXED"
   ],
   "issues": [
+    {
+      "id": "ATLAS-BRIDGE-THERMAL-READ-20261015",
+      "title": "Thermal admission text-read failure loses attribute path and traceback",
+      "first_available_occurrence": "2026-10-15",
+      "latest_reviewed_occurrence": "2026-10-15",
+      "subsystem": "PC-supervised diagnostic admission probe",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "confirmed_findings": "Saved preflight aborted during thermal collection with TypeError: can't concat NoneType to bytes and no attribute path/traceback. Offline UTF-8 TextIOWrapper over a None-returning raw stream reproduces the exact error. The original Jetson failing read and underlying cause are not verified.",
+      "attempted_fix": "Offline software handling only: bounded binary reads, strict parsing, per-path exceptions/tracebacks, duplicate-zone preservation, no retry or default temperature. Every unavailable thermal attribute still blocks admission. 13 new tests and 4 receive-only contract regressions pass on Ubuntu22.04 Python3.10.",
+      "remaining_verification": "VERIFIED FIXED applies to offline read/error handling only. No new Jetson read, deployment, live recording or movement. Original hardware/read availability and full stationary admission remain unvalidated; resource safeguards unchanged.",
+      "evidence": ["ATLAS_PC_BRIDGE_STATIONARY_ATTEMPT_20261015.md", "ATLAS_PC_BRIDGE_TEMPERATURE_OFFLINE_FIX.md", "project_atlas/tools/diagnostics/test_offboard_bridge_preflight.py"]
+    },
     {
       "id": "ATLAS-STATIONARY30-STATIC-TF-20261014",
       "title": "Candidate stationary recorder missed retained static TF after preflight",

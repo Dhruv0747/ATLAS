@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-15: Correct temperature admission read handling offline.
+- Reproduce UTF-8/None exception; replace thermal text reads with bounded binary reads.
+- Retain zone paths, valid partial readings and tracebacks; missing data still blocks.
+- 13 new temperature/admission tests pass;17 focused tests pass on Ubuntu22.04.
+- Preserve75%/80%/70C limits. No live probe, connection, recording or deployment.
+
 2026-10-15: Stop approved bridge attempt at fresh preflight measurement failure.
 - Four isolated outgoing-operation/channel/payload-boundary tests pass.
 - CPU69.19–73.46%, RAM65.05%; temperature collection raises TypeError.

@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest: [temperature probe corrected offline](ATLAS_PC_BRIDGE_TEMPERATURE_OFFLINE_FIX.md).
+Bounded thermal reads and per-file error traces;17 focused offline tests pass on
+Ubuntu22.04. No Jetson deployment, live probe or recording retry.
+
 Latest: [approved bridge attempt blocked before connecting](ATLAS_PC_BRIDGE_STATIONARY_ATTEMPT_20261015.md).
 Outgoing operation tests passed; fresh temperature measurement raised a Python
 exception. No production subscription, capture or retry. Safety admission incomplete.
