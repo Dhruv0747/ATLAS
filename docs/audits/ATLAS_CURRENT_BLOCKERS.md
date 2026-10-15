@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+15 October 2026 21:06 UPDATE: owner confirmed the 19:46/20:19 position changes were deliberate tests. AMCL seeded once
+(20:52:54) at (0.235,-1.435,78); parked 10 minutes stable (max step 0.015 m, 21 checks VERIFIED fit0.981-0.985,
+commands zero). OPEN: moving validation (needs separate approval); odometry response to hand moves unexplained
+(/odom ~0 during ~1.7 m of owner moves); Dashboard rendered page not visually confirmed by agent; global
+ambiguity unproven for other placements; one unexplained MOVING blip at 21:03:43. E-STOP latched, manual-only.
+See [seed validation](../../ATLAS_STAGE24_AMCL_SEED_VALIDATION.md).
+
 15 October 2026 20:40 UPDATE (supersedes the 20:12 stationary reading below): ATLAS was physically moved at
 ~19:46 and ~20:19 (scan range images change 0.19 m and 0.34 m median between periods, identical within them;
 monitor MOVING bursts at those times); /odom did not register the moves. Five read-only samples: global and Dhruv

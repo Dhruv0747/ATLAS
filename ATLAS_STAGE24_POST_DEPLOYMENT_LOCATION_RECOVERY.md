@@ -1,5 +1,10 @@
 # Stage 24 post-deployment location recovery, 2026-10-15 20:22–20:40 IST
 
+> **Owner confirmation, 2026-10-15 20:49.** The owner deliberately moved ATLAS forward and backward inside Dhruv Room
+> around 19:46 and 20:19 as a localization test. This confirms §4: A, B and C were three real placements. Questions 3 in
+> §6 and "who moved it" are answered. The odometry mechanism (carried / slid / rolled) remains **unconfirmed**.
+> Results of the seed and the 10-minute watch: `ATLAS_STAGE24_AMCL_SEED_VALIDATION.md`.
+
 **Status:** Stage 24 DEPLOYED (unchanged). **AMCL NOT SEEDED: awaiting your explicit approval.**
 Candidate **C = (0.235, −1.435, 75°)** is STABLE and GLOBALLY UNIQUE in 4 of 4 completed global samples
 and 5 of 5 Dhruv Room samples. READY FOR SEED APPROVAL, with the conditions in §7. GLOBAL AMBIGUITY has not

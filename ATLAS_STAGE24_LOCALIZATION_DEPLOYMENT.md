@@ -1,6 +1,7 @@
 > **Erratum, 2026-10-15 20:40.** §6–§7 and §9 below describe ATLAS as *stationary* when A and B were produced.
 > That inference (from `/odom` ≈ 0) was wrong: beam-by-beam scan comparison and the monitor's motion log show ATLAS
 > was physically moved at ~19:46 and ~20:19. See `ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md`.
+> **Owner confirmed 20:49:** the moves at ~19:46 and ~20:19 were deliberate localization tests.
 > The original text is kept unchanged below.
 
 # Stage 24: live deployment and startup localization recovery, 2026-10-15 20:05–20:12 IST

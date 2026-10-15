@@ -14,11 +14,22 @@
   ],
   "issues": [
     {
+      "id": "20261015-stage24-amcl-seed-success",
+      "confidence": "CONFIRMED",
+      "resolution": "SEEDED_PARKED_STABLE_MOVING_UNVALIDATED",
+      "date": "2026-10-15",
+      "description": "One owner-authorized AMCL seed at 20:52:54 via seed_atlas_localization.py --verify-place 'dhruv room': LiDAR-verified (0.235,-1.435,78.0) fit 0.981 margin 0.105, 0.0 m / 3 deg from Candidate C. AMCL settled at (0.158,-1.400,74.3), std 0.022 m / 1.4 deg. 10-minute parked watch (20 samples): max step 0.015 m, no jump, 21 monitor checks VERIFIED (fit 0.981-0.985), 0 of 2838 cmd_vel non-zero. Dashboard feed reports Localization verified / Stopped; rendered page not seen by the agent. Seed is in the running AMCL only; boot verification unchanged. Global CHECK MY LOCATION ambiguity not proven fixed for other placements. Moving validation pending separate approval.",
+      "evidence": [
+        "ATLAS_STAGE24_AMCL_SEED_VALIDATION.md"
+      ],
+      "safety": "Latched, manual-only true, disarmed, commands zero; Stage 21/22/24 hashes unchanged; no restart, no movement, no recording."
+    },
+    {
       "id": "20261015-stage24-poses-were-physical-moves",
       "confidence": "CONFIRMED",
-      "resolution": "PARTIALLY_RESOLVED",
+      "resolution": "RESOLVED_FOR_LOCALIZATION_POSE; ODOMETRY_RESPONSE_TO_HAND_MOVES_UNRESOLVED",
       "date": "2026-10-15",
-      "description": "Candidates A (0.115,-2.155) and B (0.335,-0.935) were each correct for the rover's placement at the time; ATLAS was physically moved at ~19:46 and ~20:19 and now sits at C (0.235,-1.435,75). Evidence: beam-by-beam range comparison (0 to 3 mm within stationary periods, 0.19 and 0.34 m median across moves), monitor MOVING bursts at those times, owner CHECK MY LOCATION at 20:17:45 returned B. /odom and /yahboom/odom stayed at (-0.0255,-0.0001), so odometry is blind to hand moves (cause lifted vs slid unconfirmed). Blind right/front-right sector at the old spot is placement-dependent, cause unproven. Supersedes the 'stationary rover, two poses' reading in 20261015-stage24-live-deploy-seed-blocked. Tape confirmation and seed approval pending.",
+      "description": "Candidates A (0.115,-2.155) and B (0.335,-0.935) were each correct for the rover's placement at the time; ATLAS was physically moved at ~19:46 and ~20:19 and now sits at C (0.235,-1.435,75). Evidence: beam-by-beam range comparison (0 to 3 mm within stationary periods, 0.19 and 0.34 m median across moves), monitor MOVING bursts at those times, owner CHECK MY LOCATION at 20:17:45 returned B. /odom and /yahboom/odom stayed at (-0.0255,-0.0001), so odometry is blind to hand moves (cause lifted vs slid unconfirmed). Blind right/front-right sector at the old spot is placement-dependent, cause unproven. Supersedes the 'stationary rover, two poses' reading in 20261015-stage24-live-deploy-seed-blocked. Tape confirmation and seed approval pending. OWNER CONFIRMED 2026-10-15 20:49: the moves at ~19:46 and ~20:19 were deliberate forward/back tests inside Dhruv Room. Odometry mechanism still unconfirmed (carried, slid, or rolled without registering); raw wheel counts changed only ~90 on one wheel between 20:37 and 20:50.",
       "evidence": [
         "ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md"
       ],

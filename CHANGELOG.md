@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-15 21:06 (no deployment, no movement, no recording):
+- Owner confirmed the 19:46 / 20:19 position changes were deliberate tests; earlier "stationary" reading withdrawn.
+- **AMCL seeded once** (20:52:54) at the LiDAR-verified Dhruv Room pose (0.235, -1.435, 78 deg). Parked 10 min: stable, no jump, all checks VERIFIED, commands zero.
+- Moving validation and Candidate B remain pending. See [`ATLAS_STAGE24_AMCL_SEED_VALIDATION.md`](ATLAS_STAGE24_AMCL_SEED_VALIDATION.md).
+
 2026-10-15 20:40 (read-only; no deployment, no seed, no movement):
 - Post-deployment location recovery: five live samples. Global and Dhruv Room searches agree on (0.235, -1.435, 75 deg), margin 0.105-0.125.
 - The earlier A and B poses were correct for where ATLAS stood: it was physically moved ~19:46 and ~20:19 (beam-by-beam scan comparison, monitor motion log). Odometry did not register the moves.
