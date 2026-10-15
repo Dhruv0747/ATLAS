@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-15 20:12:
+- **Stage 24 deployed** (verify-place seeder, core region filter, `place_regions.json`; 3 files MATCH, no restart).
+- AMCL **not seeded**: stationary ATLAS gave two different VERIFIED poses (1.2 m apart) as the LiDAR front arcs changed. BLOCKED pending owner confirmation.
+- See [`ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md`](ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md).
+
 2026-10-15 13:30:
 - **Stage 22 deployed** (recorder `steering-validation` profile, installation only, recording OFF).
 - Found: the live `atlas_steering_calibrate.py` is the old direct-serial servo tool; it is harmless at present only because `/dev/yahboom` is absent.

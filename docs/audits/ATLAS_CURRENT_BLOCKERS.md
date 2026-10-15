@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+15 October 2026 20:12 Stage 24 deployed; AMCL seed BLOCKED. Live dry runs on a stationary ATLAS
+(/odom static) returned (0.115,-2.155,71.5) at 19:44 and (0.335,-0.935,72.0, fit1.0, margin0.116) at 20:08
+as front LiDAR arcs reappeared (cause unknown). Poses disagree by1.2 m, so no seed; AMCL
+NOT_INITIALIZED, Dashboard unknown. Global ambiguity not proven fixed. E-STOP latched,
+manual-only, commands zero. See [Stage 24 deployment](../../ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md).
+
 15 October2026 CPU continuation: diagnostic search paced without changing its
 math, inputs or30-second deadline. Monitor burst74.27%→23.24% of one core;
 56 focused tests pass, exact geometry results preserved. Final90-second system
