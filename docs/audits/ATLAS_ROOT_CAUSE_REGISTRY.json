@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-15T12:30:00+05:30",
+  "updated_at": "2026-10-15T13:30:00+05:30",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -674,7 +674,8 @@
         "docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md",
         "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md",
         "docs/deploy/ATLAS_LOCATION_CHECK_NO_AMCL_2026-10-11.md",
-        "ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md"
+        "ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md",
+        "ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md"
       ],
       "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live safety reporter initially said SLAM MAP DATA LOST; a new transient-local subscriber received the saved map, and diagnostic-only reporter restart restored LOCALIZATION/map ONLINE. Root cause of stale prior status not proven; navigation remains unvalidated.",
       "remaining_verification": "The operator confirmed the exact saved Dhruv Room point and heading; stationary scan/map fit identified the earlier out-of-map AMCL pose as wrong, and one saved-pose reseed corrected it. A new operator-confirmed Hall endpoint passes exact saved-map footprint clearance; the taught route still has an older map ID. The recorded manual Hall-to-home return showed >2 m stationary AMCL jumps, 32 traction samples with critical encoder consensus, and disagreement between wheel and IM10A yaw-rate integration. Different endpoint displacements alone do not establish wheel-distance scale error. Diagnose same-time scan/AMCL/odom/TF, wheel agreement and heading before autonomous motion. Audit stale mapping-session marker lifecycle; require an actual Nav2 plan and supervised recorded round trip only after localization is stable.",
@@ -859,6 +860,11 @@
           "date": "2026-10-15",
           "kind": "ekf_translation_heading_inconsistency",
           "description": "Offline, 4 Oct9 drives, 933 LiDAR-ICP pairs: recorded /odom travel direction vs its own heading p90 22 deg (40% >10 deg) vs ICP 9 deg (7%); production EKF fuses wheel X/Y pose (fixed 0.05 m^2 covariance) integrated along commanded-steering yaw while yaw comes from the gyro. Native robot_localization replay (Jazzy 3.8) reproduces recorded relative motion per pair to <=0.11 cm lateral / <=0.6 cm forward / <=0.3 deg, so relative A/B is valid (absolute/AMCL reproduction remains blocked per Stage 19). Candidate B (Vx,Vy only) cut chain heading drift per ~1.4 m from 4.8/7.4/23.6 to 0.5/2.3/3.4 deg; lateral/sideslip benefit only after correcting a separate 5.5 deg LiDAR-travel offset; forward under-read ~1 cm/pair worse. B coasts 2.01 m in a synthetic 20 s parked stop with encoder consensus lost; fresh-zero-count twist anchoring (driver, built, not deployed) reduces it to 0.003 m. No AMCL improvement claimed; nothing deployed. Evidence: ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md"
+        },
+        {
+          "date": "2026-10-15",
+          "kind": "humble_ab_and_stop_anchor_revision",
+          "description": "Native Humble (robot_localization 3.5.4, same as Jetson) reproduces the Jazzy A/B: chain heading drift A 5.11/7.39/23.58 -> B 0.56/2.26/3.48 deg; fidelity vs recorded EKF <=0.16 cm lateral, <=0.32 deg. First stop anchor (3eff519, one unchanged tick) found too weak: 9 Oct encoder_update snapshots show all four counts unchanged up to 0.79 s while ICP shows motion; replaced by a 1.0 s WheelStillnessDetector (fresh stream, motor outputs zero, newer packet required). Realistic synthetic consensus loss at stop: B 1.61 m -> 0.135 m bounded. Stage 21 package prepared (patch onto live 0872973 driver; undeployed Stage 17 commits excluded). Nothing deployed. Evidence: ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md"
         }
       ]
     },

@@ -3,7 +3,7 @@
 Drive 4 s straight at 0.3 m/s with a constant gyro of 0, then stop. During the stop the wheel driver
 publishes exactly what yahboom_base publishes when fewer than 3 encoders agree: zero velocity, pose
 frozen, covariances x1000. Measures how far the EKF keeps moving over the 20 s stop.
-With --anchored the stop is published as yahboom_base does after the fresh-unchanged-counts change:
+With --anchored [--hold=S] the stop is published (after S seconds of stillness, as stage 21 does) as yahboom_base does after the fresh-unchanged-counts change:
 pose still x1000, twist at normal covariance.
   ekf_consensus_loss_synthetic.py <params.yaml> [--anchored]   (run while no other ekf_node exists)
 """
@@ -17,7 +17,8 @@ from builtin_interfaces.msg import Time
 
 params = sys.argv[1]
 anchored = '--anchored' in sys.argv[2:]
-ekf = subprocess.Popen(['/opt/ros/jazzy/lib/robot_localization/ekf_node', '--ros-args', '-r', '__node:=atlas_ekf',
+hold = next((float(a.split('=')[1]) for a in sys.argv[2:] if a.startswith('--hold=')), 0.0)   # stage 21 uses 1.0 s
+ekf = subprocess.Popen([f"/opt/ros/{__import__('os').environ.get('ROS_DISTRO', 'jazzy')}/lib/robot_localization/ekf_node", '--ros-args', '-r', '__node:=atlas_ekf',
                         '--params-file', params, '-r', 'odometry/filtered:=/odom', '-p', 'use_sim_time:=true'],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 try:
@@ -42,7 +43,7 @@ try:
             o.pose.pose.position.x = x; o.pose.pose.orientation.w = 1.0; o.twist.twist.linear.x = v
             f = 1.0 if moving else 1000.0
             o.pose.covariance[0] = o.pose.covariance[7] = 0.05 * f; o.pose.covariance[35] = 0.10 * f
-            g = 1.0 if anchored else f
+            g = 1.0 if (anchored and (moving or t - 1004.0 >= hold)) else f
             o.twist.covariance[0] = o.twist.covariance[7] = 0.10 * g; o.twist.covariance[35] = 0.20 * g
             po.publish(o)
         i = Imu(); i.header.stamp = stamp; i.header.frame_id = 'base_link'; i.orientation_covariance[0] = -1

@@ -782,3 +782,26 @@ error or a steering crab. B's sideways benefit depends on resolving it.
 - the five unexplained parked AMCL jumps.
 
 **Deployment gates:** see the [recovery handoff](../../ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md).
+
+## 2026-10-15 13:30 update: Humble transfer, stop-anchor revision, bridge exposure
+
+**Candidate B on native Humble (robot_localization 3.5.4):** it reproduces the Jazzy A/B. B's
+heading benefit transfers.
+
+**Stop anchor revised:**
+- The `3eff519` one-tick rule was too weak: all four counts stay unchanged for up to 0.79 s while
+  moving.
+- Replaced by a 1.0 s stillness detector.
+- The stage 21 package is prepared and rehearsed against byte-identical live files.
+
+**Foxglove bridge (production):**
+- Any tailnet/LAN client can publish `/goal_pose` (relayed to Nav2), write any node's parameters
+  and call services. Demonstrated in isolation.
+- Read-only config prepared.
+- Bridge 3.x requires subprotocol `foxglove.sdk.v1`.
+
+**Pre-existing test failures, not caused by this work:**
+- `test_status_web_estop_reset` wrong-PIN lockout (409 ≠ 403);
+- `test_atlas_safety_status_camera_heartbeat`.
+
+**Not deployed.** See the [deployment plan](../../ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md).

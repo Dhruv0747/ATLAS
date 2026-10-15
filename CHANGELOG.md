@@ -1,5 +1,13 @@
 # Changelog
 
+2026-10-15 13:30 (offline; nothing deployed):
+- The stop anchor now needs 1 s of verified stillness.
+- Stage 21 driver package prepared.
+- Candidate B confirmed on native Humble; config prepared as `config/atlas_ekf_candidate_b.yaml`.
+- Least-privilege Foxglove bridge config, plus an isolated privilege test.
+- The calibration test is pinned to the post-replacement calibration.
+- See [`ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md`](ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md).
+
 2026-10-15 (offline; nothing deployed):
 - Native EKF A/B replay tools and LiDAR-ICP heading/sideslip analysis.
 - Production EKF translation found inconsistent with its own heading.

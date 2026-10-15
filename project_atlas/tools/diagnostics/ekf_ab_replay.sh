@@ -7,14 +7,14 @@
 set -eo pipefail
 PARAMS=$(realpath "$1"); BAG=$(realpath "$2"); OUT=$(realpath -m "$3"); RATE=${4:-4}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-91}   # private domain; the workspace has no robot on its network
-PY=/usr/bin/python3.12   # ROS Jazzy binaries are built for 3.12
+PY=${PY:-/usr/bin/python3.12}   # the Python the ROS distro was built for (Humble/jammy: /usr/bin/python3)
 source /opt/ros/${ROS_DISTRO_NAME:-jazzy}/setup.bash
 # `ros2 run` leaves its child alive when the wrapper is killed, so the binary is started directly and
 # a run refuses to start while any other EKF replay exists (a second /odom publisher would mix results).
 pgrep -f "robot_localization/ekf_node" >/dev/null && { echo "refusing: another ekf_node is running"; exit 2; }
-PIDS=(); trap 'for p in "${PIDS[@]}"; do kill $p 2>/dev/null; done; sleep 1; for p in "${PIDS[@]}"; do kill -9 $p 2>/dev/null; done' EXIT
+PIDS=(); trap 'for p in "${PIDS[@]}"; do kill $p 2>/dev/null || true; done; sleep 1; for p in "${PIDS[@]}"; do kill -9 $p 2>/dev/null || true; done' EXIT
 /opt/ros/${ROS_DISTRO_NAME:-jazzy}/lib/robot_localization/ekf_node --ros-args -r __node:=atlas_ekf --params-file "$PARAMS" -r odometry/filtered:=/odom -p use_sim_time:=true > "$OUT.ekf.log" 2>&1 & PIDS+=($!)
-/usr/bin/python3.12 - "$OUT" > "$OUT.logger.log" 2>&1 <<'PY' & PIDS+=($!)
+"$PY" - "$OUT" > "$OUT.logger.log" 2>&1 <<'PY' & PIDS+=($!)
 import math, sys, rclpy
 from nav_msgs.msg import Odometry
 from rclpy.parameter import Parameter
@@ -27,7 +27,8 @@ def cb(m):
 n.create_subscription(Odometry, '/odom', cb, 50); rclpy.spin(n)
 PY
 sleep 3
-/usr/bin/python3.12 /opt/ros/jazzy/bin/ros2 bag play "$BAG" --clock 200 --rate "$RATE" --topics /yahboom/odom /im10a/imu/bias_corrected_candidate /tf_static > "$OUT.play.log" 2>&1
+"$PY" /opt/ros/${ROS_DISTRO_NAME:-jazzy}/bin/ros2 bag play "$BAG" --clock 200 --rate "$RATE" --topics /yahboom/odom /im10a/imu/bias_corrected_candidate /tf_static > "$OUT.play.log" 2>&1
 sleep 2
 N=$(pgrep -fc "robot_localization/ekf_node" || true); [ "$N" = 1 ] || { echo "invalid run: $N ekf_node processes"; exit 3; }
 wc -l < "$OUT"
+exit 0
