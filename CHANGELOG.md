@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-15 13:30:
+- **Stage 22 deployed** (recorder `steering-validation` profile, installation only, recording OFF).
+- Found: the live `atlas_steering_calibrate.py` is the old direct-serial servo tool; it is harmless at present only because `/dev/yahboom` is absent.
+- See [`ATLAS_STAGE22_RECORDER_DEPLOYMENT.md`](ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
+
 2026-10-15 13:45 (preparation only; nothing deployed, recorded or moved):
 - Motion-validation readiness: stage 22 optional recorder profile package; stage 23 Candidate B procedure.
 - `ekf_continuity_config.py` prevents the 1.15 m `/odom` jump a plain EKF restart causes.

@@ -823,3 +823,17 @@ restarted.
 
 **Not deployed:** Candidate B and the Foxglove hardening. See the
 [Stage 21 report](../../ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md).
+
+## 2026-10-15 13:30 update: Stage 22 recorder profile deployed (recording OFF)
+
+**Deployed:** the steering-validation recorder profile. Recording is OFF.
+
+**New finding:** the live `atlas_steering_calibrate.py` is the August direct-serial tool, which can
+command the steering servos. The repository version is retired. The repository tests execute it.
+- In the Stage 22 rehearsal it was run against a scratch copy and failed safely, because
+  `/dev/yahboom` is absent.
+- **Replacing it needs owner approval.**
+
+**Still blocking the baseline drive:** AMCL is unseeded on this boot.
+
+See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
