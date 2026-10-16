@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+16 October 2026 09:30 UPDATE: Dashboard Motion Chip correction DEPLOYED and verified (static files, no restart). OPEN and
+now the main blocker: physical check of the M2 (rear-right) and M3 (front-left) encoder channels; evidence shows
+direction-dependent count loss that has moved M4 -> M3 -> M2 since 2 Oct (connector/harness/supply suspected, unproven).
+Jetson was power-cycled overnight; an AMCL/Nav2 launch started outside systemd at ~08:56 by an unknown actor (mux
+manual-only, E-STOP latched, no goal). No drive, Candidate B or fallback deployment until the hand test is done.
+See [report](../../ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md).
+
 15 October 2026 22:30 UPDATE (Stage 25): the slow return failed because encoders M3 (front-left, near-dead) and M2
 (rear-right, froze 21:40:24 then reversed) removed the 3-of-4 consensus; the base failed closed (37% of travel
 discarded). Physical encoder check on M2/M3 is the blocker before any further drive. Final AMCL pose unverified

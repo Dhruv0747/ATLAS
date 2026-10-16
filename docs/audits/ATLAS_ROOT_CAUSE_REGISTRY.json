@@ -290,6 +290,11 @@
         {
           "date": "2026-10-15",
           "event": "Stage 25 round trip: M3 near-dead and M2 froze then reversed at 21:40:24; 3-of-4 consensus fail-closed on 37% of travel. See ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md"
+        },
+        {
+          "date": "2026-10-16",
+          "kind": "direction_dependent_channel_loss_history",
+          "description": "Read-only scan of 41 bags (Aug-Oct): channels symmetric until 24 Aug; M4 reverse loss from 2 Oct; M3 forward loss from 8 Oct; M2 fault 15 Oct 21:40:24. Config unchanged since 25 Sep. See ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md section 7. Hardware hand test pending."
         }
       ]
     },
@@ -1277,17 +1282,17 @@
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
       "date": "2026-10-15",
-      "description": "Slow return not integrated: M3 (front-left) near-dead (44 vs ~25,000 counts outbound) and M2 (rear-right) froze at raw -40584 for 4.5 s at 21:40:24.2 then counted the opposite direction (178/290 opposite vs 12/2715 in 4-9 Oct bags). No 3 wheels agree, so 3-of-4 consensus fails closed (feedback_unavailable 313/3635 intervals, 3.47 of 9.33 m M1/M4 travel). Serial link clean. Cause of the M2/M3 faults (encoder/wiring/decode) is physical and not determined.",
-      "evidence": "ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md sections 4-5; bags capture_20261015T160704Z..T161222Z (hashes in report).",
+      "description": "Slow return not integrated: M3 (front-left) near-dead (44 vs ~25,000 counts outbound) and M2 (rear-right) froze at raw -40584 for 4.5 s at 21:40:24.2 then counted the opposite direction (178/290 opposite vs 12/2715 in 4-9 Oct bags). No 3 wheels agree, so 3-of-4 consensus fails closed (feedback_unavailable 313/3635 intervals, 3.47 of 9.33 m M1/M4 travel). Serial link clean. Cause of the M2/M3 faults (encoder/wiring/decode) is physical and not determined. 2026-10-16 refinement: M2 after 21:40:24 is not a clean sign inversion (slope -0.65, r -0.4; 0% same direction forward, mostly zero in reverse); M3 loses counts going forward (0.0-0.13 of reference) but counts ~0.96 in reverse. History scan of 41 bags: direction-dependent loss moved M4 (reverse, from 2 Oct) -> M3 (forward, from 8 Oct) -> M2 (15 Oct). Shared harness/connector/supply cause plausible, unproven; hand test pending.",
+      "evidence": "ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md sections 4-5; bags capture_20261015T160704Z..T161222Z (hashes in report). ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md sections 6-9.",
       "safety": "Fail-closed policy worked as designed; not weakened. No threshold, scale or CPR change."
     },
     {
       "id": "20261015-stage25-dashboard-stopped-chip",
       "confidence": "CONFIRMED",
-      "resolution": "VERIFIED FIXED (offline only; not deployed)",
+      "resolution": "VERIFIED FIXED (deployed 2026-10-16 09:03:38 IST; static files, no restart)",
       "date": "2026-10-15",
       "description": "Dashboard Motion chip reads /odom velocity only and showed Stopped while wheels counted (668/898 wheel-moving samples caught). Display-only fix web/v2/motion-status.js catches 898/898, 0/252 false flags at rest. Localization monitor MOVING flag shares the /odom blind spot (unchanged).",
-      "evidence": "ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md sections 5, 11-13; tests/test_motion_status.py with recorded frames.",
+      "evidence": "ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md sections 5, 11-13; tests/test_motion_status.py with recorded frames. Deployment and live verification: ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md sections 2-5.",
       "safety": "Display only; no E-STOP, gating, Stage 21 or consensus change. Live deployment needs owner approval."
     },
     {

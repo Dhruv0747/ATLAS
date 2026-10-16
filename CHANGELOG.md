@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-16 09:30 (display-only deployment; no movement, no restart, nothing actuated):
+- **Dashboard Motion Chip correction deployed** (09:03:38 IST): `web/v2/motion-status.js` (new), `shell.js`, `index.html`; hashes match; status-web not restarted. Verified in a real browser: no console errors, "Stopped" at rest, warning path exercised on live data. Backup `web/v2/.pre_stage25_motion_chip_20261016_090338`.
+- M2/M3 encoder analysis refined (direction-dependent loss, not a sign flip); 41-bag history scan; offline LiDAR+gyro fallback evaluated (not deployed). Read-only `tools/diagnostics/encoder_hand_test.py` for a lifted hand test (not deployed). Hardware check pending.
+- See [`ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md`](ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md).
+
 2026-10-15 22:30 (offline only; no deployment, no movement, no restart):
 - Stage 25 round-trip root cause. Slow return lost because **M3 is near-dead and M2 froze then reversed at 21:40:24**, so 3-of-4 consensus failed closed on 37% of wheel travel. Stage 21 and the estimator behaved as designed; serial link clean.
 - Dashboard Motion chip showed "Stopped" while wheels counted. **Display-only fix** `web/v2/motion-status.js` (undeployed, rehearsed package `tools/deploy/stage25_motion_chip`, 7 recorded-frame tests).
