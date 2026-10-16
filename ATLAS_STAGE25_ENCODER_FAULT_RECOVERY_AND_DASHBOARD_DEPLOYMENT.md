@@ -217,7 +217,7 @@ Conclusion: **worth a design note, not a deployment.** It is a candidate AMCL ob
 **Not ready; remains undeployed.** Stage 25 showed it improves heading while the wheels are healthy (−145° versus gyro −146°; production −78°), and that it cannot recover movement lost when consensus fails. The M1/M4-only fix would not help either. Reassess after the encoders are repaired and a tape-measured baseline exists.
 
 ## 13. GitHub commit ID
-See the commit recorded below after push.
+Source, tests and report: `ca3b02c` on `agent/sync-developer-20261011` (a follow-up docs commit records this ID).
 
 ## 14. Next action requiring your approval
 **Do the unpowered inspection and the lifted hand test (section 9), starting with A.** Reply with: (1) photos of the M2 and M3 encoder connectors, (2) the hand-test output, and (3) how you normally power "logic only" (and whether the motor-board branch has its own switch/fuse). Also tell me whether you started the AMCL/Nav2 launch at ~08:56.
