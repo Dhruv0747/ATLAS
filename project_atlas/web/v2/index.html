@@ -7,6 +7,12 @@
 <title>ATLAS Command Center</title>
 <script src="/v2/location-check.js" defer></script>
 <link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/glass.css">
+<style>/* Stage 26b: make the Test Lab shortcut clearly visible (label always shown, accent outline). Remove this block to revert. */
+.nav a.btn.testlabShortcut{border-color:var(--sky);background:rgba(34,184,240,.16);font-weight:600}
+.nav a.btn.testlabShortcut .lbl{display:inline}
+.nav a.btn.testlabShortcut:hover{background:rgba(34,184,240,.28)}
+@media (max-width:759px){.nav a.btn.testlabShortcut{order:-1}}
+</style>
 <script>try{if(localStorage.getItem('atlasV2Lite')==='1')document.documentElement.classList.add('lite')}catch(e){}</script>
 </head><body>
 <a class="skip" href="#main">Skip to controls</a>
@@ -24,7 +30,7 @@
   <nav class="nav" aria-label="Pages">
     <a class="btn ghost" href="/v2/mapping" title="Live map" aria-label="Live map"><svg class="icon"><use href="/v2/assets/icons.svg#i-map"/></svg><span class="lbl">Live map</span></a>
     <a class="btn ghost" href="/v2/commissioning" title="Commissioning and hardware check" aria-label="Commissioning"><svg class="icon"><use href="/v2/assets/icons.svg#i-wrench"/></svg><span class="lbl">Commissioning</span></a>
-    <a class="btn ghost" href="/v2/testlab" title="Motor and encoder test lab: check all four wheel encoders" aria-label="Motor and encoder test lab"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.2"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/></svg><span class="lbl">Test lab</span></a>
+    <a class="btn ghost testlabShortcut" href="/v2/testlab" title="Open the Motor &amp; Encoder Test Lab" aria-label="Motor &amp; Encoder Test Lab"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.2"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/></svg><span class="lbl">Motor &amp; Encoder Test Lab</span></a>
     <a class="btn ghost" title="Diagnostics and logs" aria-label="Diagnostics" href="#diagnosticsPanel" onclick="document.getElementById('diagnosticsPanel').open=true;refreshDiagnostics(true)"><svg class="icon"><use href="/v2/assets/icons.svg#i-pulse"/></svg><span class="lbl">Diagnostics</span></a>
     <a class="btn ghost headerBtn cloud" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/" title="Open the read-only ATLAS Visual Cloud live ROS observability dashboard."><svg class="icon"><use href="/v2/assets/icons.svg#i-cloud"/></svg><span class="headerText lbl">Visual cloud</span></a>
     <a class="btn ghost headerBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" title="Open two-way ATLAS intercom. The camera stream closes to preserve call quality and AI Voice pauses during the call."><svg class="icon"><use href="/v2/assets/icons.svg#i-phone"/></svg><span class="headerText lbl">Talk / listen</span></a>

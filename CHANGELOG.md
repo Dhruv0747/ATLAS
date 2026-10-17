@@ -1,5 +1,8 @@
 # Changelog
 
+2026-10-17 18:50 (shortcut only; Web UI static file; no restart of any motor service, nothing actuated):
+- **Home V2: "Motor & Encoder Test Lab" shortcut made clearly visible.** The existing Home link to `/v2/testlab` had its label hidden below 1600 px (icon only). It now always shows its label with an accent outline, and sits first in the nav strip on phones. `web/v2/index.html` only; Test Lab page, safety locks and all other features untouched. Revert: restore the previous `index.html` (sha256 prefix 4d4dea5620c80e91).
+
 2026-10-17 18:15 (read-only deployment; no movement, only rover-status-web restarted, nothing actuated):
 - **Stage 26 Test Lab deployed live** (17:29:51 IST): `/v2/testlab` now 200 (404 was because it was never installed). Live encoders verified, CSV tested, motor pulses LOCKED, base driver untouched.
 - See [`ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md`](ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md).
