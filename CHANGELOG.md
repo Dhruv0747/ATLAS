@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-17 18:15 (read-only deployment; no movement, only rover-status-web restarted, nothing actuated):
+- **Stage 26 Test Lab deployed live** (17:29:51 IST): `/v2/testlab` now 200 (404 was because it was never installed). Live encoders verified, CSV tested, motor pulses LOCKED, base driver untouched.
+- See [`ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md`](ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md).
+
 2026-10-17 16:30 (offline only; NOT deployed, no movement, no restart, nothing actuated):
 - **Motor & Encoder Test Lab built** (Dashboard V2 page `/v2/testlab`, Home link): live raw counts, direction/RPM/health, graph, forward/reverse comparison, read-only hand test, CSV sessions, fault detection, and a gated single-wheel pulse path through the EXISTING lifted-drive interface (locked unless every owner gate passes). 61 new tests pass; no serial access, no new actuator API, safety files untouched.
 - Deployment package `tools/deploy/stage26_testlab/` (patches the live status-web in place because the repo copy holds undeployed steering work; rollback rehearsed). Base-driver lifted flags shipped DISABLED. Awaiting owner approval.
