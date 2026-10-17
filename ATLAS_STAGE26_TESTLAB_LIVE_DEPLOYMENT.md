@@ -68,4 +68,4 @@ Backup: `/home/jetson/project_atlas/.pre_stage26_testlab_20261017_172948` (with 
 - Temporary files left on the owner's PC `~/Downloads` (`live_status_web.py`, `stage26_pkg.tgz`, `pre*.sh`, `post.sh`, `cpu.sh`, `s26verify/`) and `/tmp` on the Jetson.
 
 ## 16. Final commit
-Recorded in the commit that adds this file (see git log on `agent/sync-developer-20261011`).
+`543878b2ed063ed047169e0206f34b7a117869da` (report commit; any later docs-only commit on the branch only records this ID).
