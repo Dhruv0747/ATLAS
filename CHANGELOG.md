@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-17 20:10 (OFFLINE ONLY; nothing installed on the Jetson, nothing restarted, nothing actuated):
+- **Stage 27 FlySky Remote Test Lab built and tested offline.** Read-only page `/v2/flysky-testlab`, one subscription / zero publishers, SIGNAL NOT VERIFIED until real frames arrive, no invented RSSI. No live SBUS frame verified; Jetson cannot see receiver data today. Reversible package in `project_atlas/tools/deploy/stage27_flysky/`. Awaiting owner approval.
+- See [`ATLAS_FLYSKY_SBUS_TEST_LAB.md`](ATLAS_FLYSKY_SBUS_TEST_LAB.md).
+
 2026-10-17 18:45 (static Web UI file only; no restart, nothing actuated):
 - **Home shortcut deployed** (18:37 IST): `index.html` a03baf88... (was 4d4dea56...), backup `.pre_stage26b_shortcut_20261017_183749`. Live-verified one click to `/v2/testlab` at 1440/1920/390 px.
 - See [`ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md`](ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md).
