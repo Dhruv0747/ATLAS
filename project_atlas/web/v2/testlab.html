@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en" class="v2page v2-testlab"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ATLAS · Motor &amp; Encoder Test Lab</title>
+<link rel="icon" href="/v2/assets/atlas-logo-96.png">
+<link rel="preload" href="/v2/assets/michroma-latin-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/pages.css"><link rel="stylesheet" href="/v2/testlab.css">
+</head><body>
+<header class="tl-head">
+  <div class="tl-title">
+    <a class="tl-back" href="/v2/">← Command center</a>
+    <h1>Motor &amp; Encoder Test Lab</h1>
+    <p>Check each JGB37-520 encoder from here. Watching and hand-turning never power a motor.</p>
+  </div>
+  <div class="tl-chips" id="chips" role="status" aria-live="polite">
+    <span class="chip" id="chipData">Encoder data …</span>
+    <span class="chip" id="chipOwner">Pulse interface …</span>
+    <span class="chip" id="chipRec">Not recording</span>
+  </div>
+</header>
+
+<main class="tl-main">
+  <section class="tl-banner" id="banner" hidden></section>
+
+  <section aria-labelledby="hChan">
+    <h2 id="hChan">Wheels <span class="tl-note">Front of the rover is at the top. Tap a wheel to select it for the tests below. Dials turn clockwise when a wheel counts forward.</span></h2>
+    <div class="tl-rover" id="wheels"></div>
+  </section>
+
+  <section class="tl-two">
+    <div class="tl-card">
+      <div class="tl-row">
+        <h2>Live history</h2>
+        <div class="tl-seg" role="group" aria-label="Graph units">
+          <button type="button" data-unit="turns" class="on">Turns</button>
+          <button type="button" data-unit="raw">Raw counts</button>
+        </div>
+      </div>
+      <canvas id="graph" height="260" role="img" aria-label="Live encoder history for M1 to M4, last 30 seconds"></canvas>
+      <div class="tl-legend" id="legend"></div>
+    </div>
+    <div class="tl-card">
+      <h2>Forward and reverse</h2>
+      <p class="tl-note" id="cmpHelp">Each wheel's travel compared with the median of the other three. A healthy wheel counts about 1.0 both ways.</p>
+      <div id="cmp"></div>
+    </div>
+  </section>
+
+  <section class="tl-card" aria-labelledby="hFault">
+    <h2 id="hFault">Faults</h2>
+    <ul class="tl-faults" id="faults"></ul>
+  </section>
+
+  <section class="tl-three">
+    <div class="tl-card" id="handCard">
+      <h2>Hand rotation test <span class="tl-tag">read-only</span></h2>
+      <p class="tl-note">Lift the rover, latch the E-STOP, then turn the selected wheel by hand. Nothing here can energize a motor.</p>
+      <ol class="tl-steps">
+        <li>Mark the tyre with tape.</li>
+        <li>Choose a direction and press <b>Start turn</b>.</li>
+        <li>Turn the wheel exactly one revolution, then press <b>Finish turn</b>.</li>
+      </ol>
+      <div class="tl-row tl-gap">
+        <div class="tl-seg" role="group" aria-label="Direction to turn">
+          <button type="button" data-hdir="forward" class="on">Forward</button>
+          <button type="button" data-hdir="reverse">Reverse</button>
+        </div>
+        <span id="handWheel" class="tl-pill">M1</span>
+      </div>
+      <div class="tl-progress" aria-live="polite"><div class="tl-bar"><i id="handBar"></i></div><span id="handText">Waiting to start.</span></div>
+      <div class="tl-row tl-gap">
+        <button type="button" id="handStart" class="tl-primary">Start turn</button>
+        <button type="button" id="handFinish" disabled>Finish turn</button>
+        <button type="button" id="handReset" class="tl-quiet">Clear results</button>
+      </div>
+      <div id="handResults" class="tl-results"></div>
+    </div>
+
+    <div class="tl-card" id="pulseCard">
+      <h2>Powered pulse <span class="tl-tag warn" id="pulseTag">locked</span></h2>
+      <p class="tl-note">One short, bounded pulse to one wheel, through the existing lifted-wheel commissioning interface. The base driver checks everything again.</p>
+      <ul class="tl-gates" id="gates"></ul>
+      <p class="tl-lock" id="lockWhy"></p>
+      <fieldset id="pulseSet" disabled>
+        <legend class="sr">Pulse settings</legend>
+        <div class="tl-field"><label for="pwm">Power <output id="pwmOut">20</output> of 50</label><input type="range" id="pwm" min="1" max="50" step="1" value="20"></div>
+        <div class="tl-field"><label for="dur">Duration <output id="durOut">0.30</output> s</label><input type="range" id="dur" min="0.20" max="0.50" step="0.05" value="0.30"></div>
+        <div class="tl-check" id="checks">
+          <label><input type="checkbox" data-ck="wheels_lifted"> All four wheels are off the ground</label>
+          <label><input type="checkbox" data-ck="support_secure"> The rover is held securely on its support</label>
+          <label><input type="checkbox" data-ck="owner_present"> The owner is present and watching the wheel</label>
+          <label><input type="checkbox" data-ck="power_cutoff_in_reach"> I can reach the physical motor-power cut-off now</label>
+        </div>
+        <div class="tl-field"><label for="phrase">Type the confirmation phrase</label><input type="text" id="phrase" autocomplete="off" spellcheck="false" autocapitalize="characters" placeholder=""></div>
+        <div class="tl-ctl">
+          <button type="button" id="goFwd" class="tl-go">Forward pulse</button>
+          <button type="button" id="goRev" class="tl-go">Reverse pulse</button>
+        </div>
+      </fieldset>
+      <div class="tl-ctl"><button type="button" id="stopBtn" class="tl-stop">STOP</button></div>
+      <div class="tl-run" id="run" aria-live="assertive"></div>
+      <div id="pulseResults" class="tl-results"></div>
+    </div>
+
+    <div class="tl-card" id="recCard">
+      <h2>Session record</h2>
+      <p class="tl-note">Each session is saved as a CSV with a timestamp, motor and channel on every row.</p>
+      <div class="tl-row tl-gap">
+        <button type="button" id="recStart" class="tl-primary">Start recording</button>
+        <button type="button" id="recStop" disabled>Stop and save</button>
+      </div>
+      <p class="tl-note" id="recInfo">No session open.</p>
+      <a class="tl-link" id="csvCurrent" href="#" hidden>Download this session (CSV)</a>
+      <h3>Saved on the rover</h3>
+      <ul class="tl-files" id="files"></ul>
+    </div>
+  </section>
+
+  <p class="tl-foot">Raw counts come from the base driver's encoder telemetry. This page does not connect to the controller board, change calibration, or release the E-STOP. A pulse test is not passed until it has been seen on the lifted rover with the owner supervising.</p>
+</main>
+
+<div class="v2dock" role="region" aria-label="Emergency stop">
+<button class="v2estop" id="v2Estop" type="button"><svg class="v2icon" aria-hidden="true"><use href="/v2/assets/icons.svg#i-stop"/></svg>E-STOP</button>
+<span class="v2dock-msg" id="v2EstopMsg" role="status">Sends one zero-speed command. Keep the physical remote stop available.</span>
+<a class="v2dock-link" href="/v2/">Command center</a></div>
+<script src="/v2/estop.js"></script><script src="/v2/testlab.js"></script>
+</body></html>

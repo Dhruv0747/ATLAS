@@ -10,6 +10,7 @@ import socket
 import atlas_wifi_web
 import atlas_web_v2
 import atlas_location_check_web
+import atlas_testlab_web   # Motor & Encoder Test Lab (additive; own node, read-only unless the lifted gates are open)
 from atlas_single_person_steering_web import SinglePersonSteeringService
 import subprocess
 import threading
@@ -1928,6 +1929,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if atlas_location_check_web.serve(self, ROS):
             return
+        if atlas_testlab_web.serve(self, ROS):
+            return
         if atlas_web_v2.handles(self.path):   # Glass UI V2 static files (additive; V1 routes unchanged)
             atlas_web_v2.serve(self)
             return
@@ -2132,6 +2135,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(403)
             return
         if atlas_location_check_web.serve(self, ROS, post=True):
+            return
+        if atlas_testlab_web.serve(self, ROS, post=True):
             return
         if self.path == '/api/estop/reset':
             self.handle_estop_reset()

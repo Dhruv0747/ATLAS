@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-17 16:30 (offline only; NOT deployed, no movement, no restart, nothing actuated):
+- **Motor & Encoder Test Lab built** (Dashboard V2 page `/v2/testlab`, Home link): live raw counts, direction/RPM/health, graph, forward/reverse comparison, read-only hand test, CSV sessions, fault detection, and a gated single-wheel pulse path through the EXISTING lifted-drive interface (locked unless every owner gate passes). 61 new tests pass; no serial access, no new actuator API, safety files untouched.
+- Deployment package `tools/deploy/stage26_testlab/` (patches the live status-web in place because the repo copy holds undeployed steering work; rollback rehearsed). Base-driver lifted flags shipped DISABLED. Awaiting owner approval.
+- See [`ATLAS_STAGE26_MOTOR_ENCODER_TEST_LAB.md`](ATLAS_STAGE26_MOTOR_ENCODER_TEST_LAB.md).
+
 2026-10-16 09:30 (display-only deployment; no movement, no restart, nothing actuated):
 - **Dashboard Motion Chip correction deployed** (09:03:38 IST): `web/v2/motion-status.js` (new), `shell.js`, `index.html`; hashes match; status-web not restarted. Verified in a real browser: no console errors, "Stopped" at rest, warning path exercised on live data. Backup `web/v2/.pre_stage25_motion_chip_20261016_090338`.
 - M2/M3 encoder analysis refined (direction-dependent loss, not a sign flip); 41-bag history scan; offline LiDAR+gyro fallback evaluated (not deployed). Read-only `tools/diagnostics/encoder_hand_test.py` for a lifted hand test (not deployed). Hardware check pending.
