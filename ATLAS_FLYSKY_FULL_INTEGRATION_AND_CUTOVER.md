@@ -6,7 +6,7 @@ Branch `agent/sync-developer-20261011`. Date 2026-10-17. Builds on `ATLAS_FLYSKY
 | Stage | State |
 |---|---|
 | BUILT | Test Lab page and service, receiver bridge (proposal), channel mapping model, dual-remote arbiter model, deploy/rollback package |
-| TESTED OFFLINE | Yes: 117 FlySky, mapping, failsafe-matrix, arbiter, package and Test Lab tests pass |
+| TESTED OFFLINE | Yes: 115 FlySky, mapping, failsafe-matrix, arbiter, package and Test Lab tests pass (2 skipped: git-history checks) |
 | INSTALLED | **Read-only Test Lab page only** (20:11 IST). Bridge, adapter and arbiter are NOT installed |
 | LIVE SBUS VERIFIED | **No.** No real receiver frame has been seen anywhere |
 | FLYSKY DRIVING VALIDATED | **No.** Not implemented for activation, never tested physically |
@@ -55,7 +55,7 @@ Not yet covered: explicit SBUS failsafe/frame-lost on live hardware, sudden swit
 Offline (container): 0.025 ms per frame decode, 0.37 ms per page snapshot, 0.26 MB session memory. Live after install: `rover-status-web` was ~32% of one core in the first minute (restart transient; the pre-existing level is ~41 to 45%), 25 threads. Load average on the Jetson was 12 to 34 (6 cores, ~35% idle) before and after, so it is pre-existing. Control latency under Jetson load is **unmeasured**, because there is no frame source and no drive path.
 
 ## 8. Offline regression
-117 passed across FlySky core/web/static/overhead/render/bridge, arbiter, mapping and failsafe matrix, package and Test Lab static (`evidence/stage27_flysky/test_output.txt`). Full repo suite earlier: 812 passed, 2 pre-existing unrelated failures.
+115 passed (2 skipped) across FlySky core/web/static/overhead/render/bridge, arbiter, mapping and failsafe matrix, package and Test Lab static (`evidence/stage27_flysky/test_output.txt`). Full repo suite earlier: 812 passed, 2 pre-existing unrelated failures.
 
 ## 9. Deployment and rollback
 Installed 2026-10-17 20:11 IST via `tools/deploy/stage27_flysky/apply.sh` from commit 4159f07 (archive sha256 `2c581fc4...`). Backup `~/project_atlas/.pre_stage27_flysky_20261017_201114`. Rollback: `tools/deploy/stage27_flysky/rollback.sh` (restores 3 files, removes 5 new, restarts only `rover-status-web`).
