@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-17 18:45 (static Web UI file only; no restart, nothing actuated):
+- **Home shortcut deployed** (18:37 IST): `index.html` a03baf88... (was 4d4dea56...), backup `.pre_stage26b_shortcut_20261017_183749`. Live-verified one click to `/v2/testlab` at 1440/1920/390 px.
+- See [`ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md`](ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md).
+
 2026-10-17 18:50 (shortcut only; Web UI static file; no restart of any motor service, nothing actuated):
 - **Home V2: "Motor & Encoder Test Lab" shortcut made clearly visible.** The existing Home link to `/v2/testlab` had its label hidden below 1600 px (icon only). It now always shows its label with an accent outline, and sits first in the nav strip on phones. `web/v2/index.html` only; Test Lab page, safety locks and all other features untouched. Revert: restore the previous `index.html` (sha256 prefix 4d4dea5620c80e91).
 
