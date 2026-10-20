@@ -3058,6 +3058,14 @@ Historical first attempt; the later successful installation is recorded above.
 
 ## 2026-10-15 parked CPU repair
 
+### 2026-10-20 UNO transport timing
+
+- Use monotonic receive/silence elapsed time for the existing eight-second USB
+  watchdog; preserve protocol, reconnect rates, camera release and motion safety.
+- 67 offline tests pass; scoped bridge-only deployment verified. Document separate
+  I2C/USB failure phases and restored firmware without claiming a permanent
+  electrical fix or condemning functioning sensors.
+
 - Pace only the diagnostic localization-search worker; preserve exact search
   results, sensor/control rates and30-second deadline.56 focused tests pass.
 - Deploy and verify with protected service/hash checks and rollback; document

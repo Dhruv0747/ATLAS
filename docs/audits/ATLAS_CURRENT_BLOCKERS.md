@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+20 October2026 UNO incident: full operator power cycle restored native USB and
+all3 I2C devices. Initial I2C-offline/LOW reports and later USB enumeration failure
+are separate observations; common root cause not proven. A reproducible wall-clock
+serial-watchdog defect was fixed with monotonic elapsed time (same8-second limit),
+67 tests pass, scoped bridge deployment verified with essential owners/calibration
+unchanged and stop/recording safeguards preserved. Original electrical/firmware
+lockup remains UNRESOLVED, not a permanent stability certification. See
+[evidence, deployment and rollback](ATLAS_I2C_USB_RECOVERY_2026-10-20.md).
+
 15 October2026 CPU continuation: diagnostic search paced without changing its
 math, inputs or30-second deadline. Monitor burst74.27%→23.24% of one core;
 56 focused tests pass, exact geometry results preserved. Final90-second system

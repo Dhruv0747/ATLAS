@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-15",
+  "updated_at": "2026-10-20",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -13,6 +13,14 @@
     "VERIFIED FIXED"
   ],
   "issues": [
+    {
+      "id": "ATLAS-UNO-SILENCE-WALLCLOCK-20261020",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "date": "2026-10-20",
+      "description": "Serial silence watchdog used calendar time: reproduced delayed stale reopening after backward clock correction and spurious reopening after forward correction. Switched receive/deadline elapsed time to monotonic without changing eight-second threshold.67 offline tests pass; scoped live bridge deployment verified. This does NOT prove the cause of the preceding I2C lockup or subsequent kernel USB enumeration failure; those remain unresolved.",
+      "evidence": ["docs/audits/ATLAS_I2C_USB_RECOVERY_2026-10-20.md", "project_atlas/tests/test_sensor_hub_transport_clock.py"]
+    },
     {
       "id": "20261015-background-search-cpu-burst",
       "confidence": "CONFIRMED",

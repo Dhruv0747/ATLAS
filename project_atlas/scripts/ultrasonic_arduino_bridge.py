@@ -142,7 +142,7 @@ class UltrasonicArduinoBridge(Node):
                 self.camera_socket = None
                 self.get_logger().error(f'camera command socket unavailable: {exc}')
         self.last_ok = 0.0
-        self.last_serial_rx = 0.0
+        self.last_serial_rx_mono = 0.0
         self.last_wait_status = 0.0
         self.last_connect_log = 0.0
         self.next_connect_attempt = 0.0
@@ -223,7 +223,7 @@ class UltrasonicArduinoBridge(Node):
             # returning empty reads forever, so tick() reopens it if no bytes
             # arrive before this deadline.
             self.last_ok = now
-            self.last_serial_rx = now
+            self.last_serial_rx_mono = time.monotonic()
             self.status_pub.publish(String(data=f'connected port={resolved_port}'))
             if HUB_TRANSPORT == 'uno_r4_i2c_hub':
                 # Firmware setup already performs the authoritative scan and
@@ -664,7 +664,7 @@ class UltrasonicArduinoBridge(Node):
                         break
                     self.rx_lines.feed(chunk)
                     received += len(chunk)
-                    self.last_serial_rx = time.time()
+                    self.last_serial_rx_mono = time.monotonic()
                     continue
                 if raw:
                     self.handle_line(raw)
@@ -707,16 +707,18 @@ class UltrasonicArduinoBridge(Node):
             return
         if not received and not processed:
             now = time.time()
-            if now - self.last_serial_rx >= SERIAL_STALE_REOPEN_SECONDS:
+            # Calendar time can step during boot/NTP correction. Only elapsed
+            # monotonic time may decide whether the USB transport is silent.
+            serial_idle_s = time.monotonic() - self.last_serial_rx_mono
+            if serial_idle_s >= SERIAL_STALE_REOPEN_SECONDS:
                 self.status_pub.publish(String(
-                    data=(f'serial_stale_reopening age_s='
-                          f'{now - self.last_serial_rx:.1f}')))
+                    data=f'serial_stale_reopening age_s={serial_idle_s:.1f}'))
                 try:
                     self.ser.close()
                 except Exception:
                     pass
                 self.ser = None
-                self.last_serial_rx = now
+                self.last_serial_rx_mono = time.monotonic()
                 self.last_wait_status = now
                 return
             if now - self.last_ok > 2.5 and now - self.last_wait_status >= 1.0:

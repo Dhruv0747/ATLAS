@@ -203,6 +203,9 @@ class MuxIntegrationTests(unittest.TestCase):
         m.remote_stop, m.active_name = NS(check=lambda _: False), None
         m.encoder_health_rx, m.encoder_health = 10, {'state': 'HEALTHY', 'autonomy_ready': True}
         m.localization_guard = lambda _: None
+        # Isolate ultrasound from the independently tested localization guard;
+        # this AST fixture does not load that subsystem.
+        m.navigation_localization_guard = lambda *_: None
         m.output, m.safety_output = Mock(), Mock()
         m.get_logger = lambda: NS(error=Mock())
         m.last_blocked_reason = None
@@ -262,7 +265,7 @@ class BridgeIntegrationTests(unittest.TestCase):
         b.ser = NS(in_waiting=0)
         b.rx_lines = NS(data=b'', pop=lambda: None)
         b.rx_high_water = b.rx_processed = 0
-        b.rx_diag_time, b.last_serial_rx, b.last_ok = 10, 1000, 1000
+        b.rx_diag_time, b.last_serial_rx_mono, b.last_ok = 10, 10, 1000
 
     def published(self):
         return json.loads(self.bridge.validity_pub.publish.call_args.args[0].data)

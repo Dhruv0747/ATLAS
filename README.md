@@ -1534,6 +1534,10 @@ No live fusion, calibration, map or autonomy change is authorized by these resul
 
 ## Parked CPU/manual-only checkpoint
 
+20 October2026: UNO USB/all3 I2C devices recovered after operator power cycle.
+Clock-safe serial-silence watchdog deployed; initial lockup cause remains unproven.
+See [scoped fix and evidence](docs/audits/ATLAS_I2C_USB_RECOVERY_2026-10-20.md).
+
 Continuation: background diagnostic-search burst reduced about69%; whole-system
 CPU still exceeds75% briefly. No recording/autonomy admission. See
 [paced search measurements and remaining blocker](ATLAS_BACKGROUND_SEARCH_CPU_20261015.md).
