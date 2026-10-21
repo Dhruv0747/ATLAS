@@ -11,9 +11,12 @@ request does not authorize a new live driver or production dashboard deployment.
 
 Repository branch: `agent/sync-developer-20261011`. Baseline merge `8384343`
 preserves developer stages 21–27 (`8351fc5`) and the UNO watchdog fix (`250afeb`).
-Feature commit: find via `git log -1 --format=%H -- ATLAS_ASTRA_PRO_3D_VISION_LAB.md`.
-This avoids embedding an impossible self-referential commit hash. The exact feature
-SHA is also supplied in the delivery message and candidate ZIP manifest.
+Tested implementation commit: `13570fc12f5397d6d787c84a93a9136016bfb23d`.
+Subsequent report-only provenance changes do not change the candidate code.
+Local package: `artifacts/vision3d_20261021/candidate-13570fc.zip`, SHA256
+`1521390ebcdc8ad94348265b3eab83c595cf4dd06c63242bcf3ff3e17a4cb504`.
+Its eight file hashes were independently verified against the manifest. It has
+empty topics, recording false and deployment_authorized false; no install scripts.
 
 ## 1. Confirmed hardware, live inspection
 

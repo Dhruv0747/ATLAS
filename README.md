@@ -1545,10 +1545,10 @@ CPU still exceeds75% briefly. No recording/autonomy admission. See
 15 October 2026: manual-only restored live; AI previews render only when viewed.
 Recording stays off; sustained CPU headroom remains unresolved. See
 [measurements and rollback](ATLAS_PARKED_CPU_MANUAL_ONLY_20261015.md).
+
 # Astra Pro Vision Lab candidate — 21 October 2026
 
 Read-only identification confirms Astra Pro depth `2bc5:0403` and RGB `2bc5:0501`.
 The additive `/v2/vision3d` viewer and Home shortcut are offline-tested candidates,
 **not deployed**; no Astra ROS driver is running or authorized by this change.
 See [hardware evidence, tests and approval/rollback plan](ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
-
