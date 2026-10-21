@@ -1388,7 +1388,14 @@
       "attempted_fix": "Avoid the restart: Stage32 IR diagnostic repackaged so no file loaded by rover-status-web changes (tools/vision3d/stage32_ir_diag_package.py). No guard, service or DDS change.",
       "remaining_gap": "No per-process sample of the failed second. If a future change needs a web restart, capture one approved restart with tools/vision3d/stage31_cpurec.py (passive /proc, 1 Hz) and gate post-restart camera work on the unchanged guard only after the transient has settled.",
       "safety": "No restart, policy, service or camera action taken during analysis.",
-      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 21"
+      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 21",
+      "observations": [
+        {
+          "date": "2026-10-21",
+          "kind": "owner_approved_monitored_restart",
+          "description": "U2+P monitored rover-status-web restart 19:17:18 IST: peak 98.9% at +14.4 s, 19 one-second samples >75%, settled (5 consecutive <=75%) at 30.6 s; camera off; reproduces the documented transient. Evidence evidence/stage32_u2p_deploy/."
+        }
+      ]
     },
     {
       "id": "ATLAS-ASTRA-IR-CANDIDATE-MANIFEST-MISMATCH-20261021",

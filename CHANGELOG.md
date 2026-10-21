@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-21 19:16–19:25 (owner-approved U2+P; then owner 3-day pause):
+- **DEPLOYED U2+P:** Infrared "Tested" label, device serial for the calibration gate, and the UNCALIBRATED 3D preview receiver + UI.
+  - One monitored `rover-status-web` restart: settled in 30.6 s, transient peak 98.9% with the camera off. All post-checks passed; no rollback.
+  - Backup: `.pre_stage32_config_u2p_20261021_191658`.
+- **Live 3D preview test NOT started:** the owner's pause arrived before Start, and the camera was never started. The viewer script `stage32_preview_live.py` is prepared and dry-run verified.
+- **Paused** with E-STOP latched, commands zero, recording off and the camera off. See `ATLAS_3_DAY_PAUSE_HANDOVER.md`.
+
 2026-10-21 18:57– (offline only; nothing deployed, no restart, camera never started):
 - **UNCALIBRATED 3D preview (diagnostic mode) READY:** while Depth is live, the Vision Lab can draw the real depth frame as an interactive 3D cloud (orbit, zoom, pan, click). Geometry is nominal field of view, ≤ 6,000 points, browser-only.
   - It is labelled **UNCALIBRATED — DIAGNOSTIC ONLY** on the canvas itself, off by default, and never combined with the calibrated cloud.

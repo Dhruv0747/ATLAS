@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+21 October 19:25 PAUSED 3 DAYS by owner (see ATLAS_3_DAY_PAUSE_HANDOVER.md).
+U2+P DEPLOYED 19:17 (monitored restart, all post-checks passed). Live Depth-only
+3D preview test NOT started (camera never started); needs owner re-confirmation.
+Calibration still needs owner measurements; metric cloud still gated.
+
 21 October 19:30 UNCALIBRATED 3D preview (diagnostic only) built and tested offline;
 packaged with U2 as U2+P (one monitored rover-status-web restart), rehearsed on a
 copy, NOT deployed, camera not started. A4 / 25 mm target and tools ready; they

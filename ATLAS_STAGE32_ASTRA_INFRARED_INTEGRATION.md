@@ -1876,3 +1876,76 @@ Production was untouched: web.py `889881c0`, `rover-status-web` MainPID 189640, 
 | 4 | A5a IR checkerboard and A5b depth targets — after the owner's measurements | no | yes |
 
 The calibrated XYZ cloud, `/astra/points`, navigation use, recording, motor movement and any safety-policy change remain blocked.
+
+## 29. U2+P deployed (owner-approved); live 3D preview test NOT started (owner pause) — 21 October 2026, 19:16–19:25
+
+**Owner approval 19:16:** U2+P deployment, then ONE guarded Depth-only preview session, sequential and conditional.
+
+**Owner instruction 19:21:** finish only what is already in progress and can be finished safely, start nothing new, save everything, and pause for 3 days.
+
+### 29.1 Step 1 — U2+P deployment: DEPLOYED
+
+**Pre-checks (19:16):**
+- The staged `pkg_v4` passed its checksums and is byte-identical to commit `c23b42c`.
+- All seven production pre-hashes matched; runtime `fc807489`.
+- E-STOP latched, manual-only, camera off; sensor ages ≤ 0.2 s.
+
+**Run:** `u2_restart_monitored.sh` ran as a persistent user unit (`s32-u2p-deploy`), with a passive 1 Hz `/proc` recorder started 20 s before the restart. `rover-status-web` restarted at 19:17:18 IST.
+
+**Result:** `U2P_DEPLOYED`. Every post-check passed, so no rollback was needed.
+
+| Check | Result |
+|---|---|
+| Settle (5 consecutive samples ≤ 75%) | **30.6 s** |
+| CPU before / restart peak / after +60 s | mean 65.5% (max 69.1) / **98.9% at +14.4 s** / mean 64.8% (max 66.7) |
+| Samples > 75% | 19, all inside the known web-restart transient (ATLAS-WEB-RESTART-CPU-TRANSIENT); camera off, so no guard involved |
+| `rover-status-web` | active, MainPID 189640 → 253946, NRestarts 0 |
+| Protected services | identities unchanged (camera, base telemetry, cmd-vel mux, EKF, localization, LiDAR) |
+| Pi Camera / LiDAR / odom / IMU / encoder | 200 / 0.3 / 0.1 / 0.1 / 0.0 s |
+| E-STOP / policy | latched / manual-only |
+| Infrared mode | `verified`, page note "Tested" |
+| Device serial | 17122120830 in the installed manifest, read by the calibration gate (the status API does not expose it, by design) |
+| Calibration gate | NOT VALIDATED (unchanged) |
+| Raw depth route, camera off | "stream unavailable" (new receiver is live) |
+| Calibrated cloud route | 409 (still blocked) |
+
+**Installed hashes:**
+
+| File | Hash |
+|---|---|
+| `config/vision3d_live.json` | `7f9e5ff6` |
+| `scripts/atlas_vision3d_geometry.py` | `6eb23c25` |
+| `scripts/atlas_vision3d_web.py` | `10bdc9db` |
+| `web/v2/vision3d.js` | `d23fe88b` |
+| `web/v2/vision3d_state.js` | `bedbeed1` |
+| `web/v2/vision3d.html` | `d6ebc4be` |
+| `web/v2/vision3d.css` | `69af9900` |
+
+The runtime is unchanged at `fc807489`.
+
+**Backup:** `~/project_atlas/.pre_stage32_config_u2p_20261021_191658`, which holds the seven pre-deployment files; its SHA256SUMS verified. Earlier backups are kept: `.pre_stage32_20261021_155609` and `.pre_stage32_ui_20261021_183816`.
+
+**Rollback (not needed, available):**
+
+```
+OWNER_APPROVED=yes bash ~/project-atlas-migration/stage32-u2p/pkg_v4/tools/deploy/stage32_ui/stage32_ui.sh rollback-config
+```
+
+This restores all seven files and restarts `rover-status-web` once. It was rehearsed byte-identical on a copy before deployment.
+
+**Evidence:** `evidence/stage32_u2p_deploy/` contains `log.txt`, `trace.jsonl` (1 Hz CPU, 86 s) and `post_checks.txt`. The Jetson originals are in `~/project-atlas-migration/stage32-u2p/deploy_20261021_191658/`.
+
+### 29.2 Step 2 — live Depth-only 3D preview: NOT STARTED
+
+- **Prepared:** the viewer script `tools/vision3d/stage32_preview_live.py`. It uses the same safety model as the IR acceptance: 60-s heartbeat pre-check, exactly one Start, no API requests of its own, preview ticked through the UI, orbit/zoom/pan/click checks on a held cloud, and screenshots.
+- **Dry run:** passed against the synthetic receiver — pre-check, label drawn, 4,680 points, orbit/zoom/pan all changed the view, a point click returned an UNCALIBRATED Z reading, about 1.5 preview updates/s, 0 cloud requests, 0 page errors, and the preview was disabled after the session.
+- **Not run:** the script was copied to the PC (`Downloads/atlas_deploy/s32_preview_live_v1.py` and `s32_acc_for_preview_v1.py`). The owner's pause instruction arrived before Start, so **the camera was never started**. The owner's 19:16 approval for this one session is treated as **consumed by the pause and must be re-confirmed** on resume.
+- **Therefore:** no live preview results, point counts, FPS or live screenshots exist yet. Do not report the preview as live-verified.
+
+### 29.3 State at pause (19:22 IST, verified read-only)
+
+- E-STOP latched (REMOTE STOP: joystick unavailable); policy manual-only; `commission_armed` false.
+- `cmd_vel` 0 / 0; motor_speed 0; stationary.
+- Vision Lab runtime OFF; recording false.
+- No `astra_camera_node`, worker, cloud node, `ros2 bag` or recorder process; no `s32*` systemd units left.
+- Guards 75 / 80 / 70 and the 4-s lease unchanged.

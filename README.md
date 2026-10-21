@@ -1,9 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
-**Prepared, not deployed (21 October): an UNCALIBRATED — DIAGNOSTIC ONLY 3D preview** of the Astra's real depth
-(orbit/zoom/pan in the browser; nominal field of view; no metric output, no ROS, no navigation). It needs the U2+P
-monitored web restart, which awaits owner approval. An A4 / 25 mm checkerboard target is ready. See
-[Stage32 report section 28](ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md).
+**Deployed 21 October 19:17 (U2+P): an UNCALIBRATED — DIAGNOSTIC ONLY 3D preview** of the Astra's real depth
+(orbit/zoom/pan in the browser; nominal field of view; no metric output, no ROS, no navigation). It has not yet been
+viewed live: the live Depth session awaits owner re-confirmation. **Development is paused for 3 days**; see
+[ATLAS_3_DAY_PAUSE_HANDOVER.md](ATLAS_3_DAY_PAUSE_HANDOVER.md) and
+[Stage32 report section 29](ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md).
 
 **Latest (21 October 18:02): real Astra infrared is live in the 3D Vision Lab.** Infrared mode now requests
 640x480@30 GRAY8. This camera never serves the advertised 320x240 IR mode. A 60-second IR-only acceptance

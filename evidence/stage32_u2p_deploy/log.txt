@@ -1,0 +1,22 @@
+identities_before 1982 0 3534 1 1975 0 3260 0 5713 1 5523 5 
+Running as unit: s32rec-u2.service
+2026-10-21T19:17:18+05:30
+restart_at=1792590438.792399152
+manifest ok 17122120830 verified NOT VALIDATED
+note: node not available for a syntax check on this host
+backup: /home/jetson/project_atlas/.pre_stage32_config_u2p_20261021_191658
+installed config/vision3d_live.json 7f9e5ff655fe3163
+installed scripts/atlas_vision3d_geometry.py 6eb23c251dc78fb2
+installed scripts/atlas_vision3d_web.py 10bdc9db35ab8b85
+installed web/v2/vision3d.js d23fe88bf07ccffc
+installed web/v2/vision3d_state.js bedbeed1a16a1a2d
+installed web/v2/vision3d.html d6ebc4bee73f341b
+installed web/v2/vision3d.css 69af9900d408bdbc
+rover-status-web active; /v2/vision3d 200
+apply_rc=0
+settle_s=30.6
+policy True True ages {'lidar': 0.3, 'odom': 0.1, 'imu_yaw': 0.1, 'enc_m1': 0.0}
+ir_mode verified calibration NOT VALIDATED
+raw_depth_camera_off {"error":"stream unavailable"}
+cloud_route_http 409
+result=U2P_DEPLOYED

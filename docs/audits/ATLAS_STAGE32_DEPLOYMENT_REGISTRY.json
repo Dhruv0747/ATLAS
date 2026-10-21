@@ -25,7 +25,7 @@
   },
   "last_verified_state": "E-STOP latched; manual-only; zero commands; recorder and Astra OFF; Pi Camera healthy; protected identities unchanged except approved web restarts",
   "state_freshness": "Historical postrollback evidence, not a new live admission",
-  "next_action": "Owner: confirm U2 (monitored web restart); approve one IR+Depth session; supply printed-target measurements and target distances for A5",
+  "next_action": "PAUSED 2026-10-21 19:25 IST for 3 days by owner; see ATLAS_3_DAY_PAUSE_HANDOVER.md",
   "handover": "ATLAS_STAGE32_DEVELOPER_HANDOVER.md",
   "takeover_20261021": {
     "from_commit": "c68ba4891645d9985f3da882a13bce8d3b2e965d",
@@ -148,7 +148,7 @@
     "config/vision3d_live.json": "e27bc0c0551d22babb7a477c551d49c5ab20937e56b6aa4fe8a8ce6aff9f9c9a"
   },
   "uncalibrated_preview_20261021": {
-    "status": "PREPARED_OFFLINE_NOT_DEPLOYED",
+    "status": "U2P_DEPLOYED_LIVE_PREVIEW_TEST_NOT_STARTED",
     "owner_request": "18:57 uncalibrated 3D preview, diagnostic only; metric XYZ and navigation stay blocked",
     "package": "s32_u2p_pkg_v4_b.tgz md5 5aa7a9636d4cee93ea4906a0f1fc5f0c; Jetson ~/project-atlas-migration/stage32-u2p/pkg_v4 (SHA256SUMS verified)",
     "replaces": {
@@ -186,8 +186,30 @@
     "offline_tests": "236 passed, 8 skipped (pytest -s); synthetic browser session: label drawn, 4680 points, orbit/zoom/pan, click Z 1.200 m, 0 cloud requests, 0 page errors",
     "safety_unchanged": "calibration gate, cloud() CALIBRATION BLOCKED, no xyz_m, no ROS publisher, lease 4 s, guards 75/80/70, E-STOP, runtime fc807489",
     "camera_started": false,
-    "restart_performed": false,
+    "restart_performed": true,
     "a4_target": "tools/vision3d/calibration_target/atlas_astra_checkerboard_9x6_25mm_A4.pdf sha256 c53e2e7e47b1f7e87e7e4aad8e412759ffe1391efb488fa5ad8befec0b7f4c4b; verified 25.0 mm squares at 10 px/mm",
-    "next_action": "owner approval for U2+P (monitored restart), then separately one Depth-only session to view the preview"
+    "next_action": "on resume: owner re-confirms ONE Depth-only preview session (tools/vision3d/stage32_preview_live.py)",
+    "deployment": {
+      "approved": "2026-10-21 19:16 IST",
+      "restart_at": "2026-10-21 19:17:18 IST",
+      "result": "U2P_DEPLOYED",
+      "settle_s": 30.6,
+      "cpu": "pre mean 65.5/max 69.1; peak 98.9 at +14.4 s (known restart transient, camera off); after +60 s mean 64.8/max 66.7",
+      "rover_status_web_mainpid": "189640 -> 253946",
+      "backup": "~/project_atlas/.pre_stage32_config_u2p_20261021_191658 (SHA256SUMS ok)",
+      "post_checks": "all passed (estop, policy, sensor ages, protected identities, picam 200, IR verified, calibration NOT VALIDATED, raw depth route live, cloud 409)",
+      "evidence": "evidence/stage32_u2p_deploy/"
+    },
+    "live_preview_test": "NOT STARTED: owner pause instruction 19:21 arrived before Start; camera never started; re-approval needed on resume"
+  },
+  "production_hashes_after_u2p": {
+    "config/vision3d_live.json": "7f9e5ff655fe3163",
+    "scripts/atlas_vision3d_geometry.py": "6eb23c251dc78fb2",
+    "scripts/atlas_vision3d_web.py": "10bdc9db35ab8b85",
+    "web/v2/vision3d.js": "d23fe88bf07ccffc",
+    "web/v2/vision3d_state.js": "bedbeed1a16a1a2d",
+    "web/v2/vision3d.html": "d6ebc4bee73f341b",
+    "web/v2/vision3d.css": "69af9900d408bdbc",
+    "scripts/atlas_vision3d_runtime.py": "fc807489b06699d7"
   }
 }
