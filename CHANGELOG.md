@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-21 (final documentation-only handover):
+- Added ATLAS_STAGE32_DEVELOPER_HANDOVER.md and focused deployment registry with exact restored/candidate hashes, evidence/backup/build locations, working versus pending features, hypotheses and approval boundaries.
+- All historical evidence preserved; no deployment, restart, test or new Jetson inspection. Incoming priority is passive read-only web-restart CPU diagnosis. Session ends after GitHub synchronization.
+
 2026-10-21 (Stage32 approved conditional install; ROLLED BACK):
 - Source/package/live hashes and fresh preflight passed; ARM64 RTLD_NOW load passed without starting a camera. Backed up and installed only the three approved payloads; restarted only rover-status-web.
 - Post-restart CPU95.6376% failed unchanged75% guard. Restored originals and restarted web for rollback; exact hashes verified. No IR session, retry, movement or recording.

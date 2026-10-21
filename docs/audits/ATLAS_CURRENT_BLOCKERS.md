@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+Final documentation-only handover: `ATLAS_STAGE32_DEVELOPER_HANDOVER.md` and
+`ATLAS_STAGE32_DEPLOYMENT_REGISTRY.json` index exact versions/evidence/approvals.
+No new live checks. Next developer: passive read-only restart-CPU investigation
+first; no unchanged install or IR retry. Last safe state is historical section19.
+
 21 October Stage32 conditional installation ROLLED BACK: package/hash/safety
 preflight and ARM64 dependency load passed; after web restart CPU95.64% failed75%
 guard. Original three files restored; only web restarted (install+rollback).

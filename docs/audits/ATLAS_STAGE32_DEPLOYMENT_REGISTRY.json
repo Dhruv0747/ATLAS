@@ -1,0 +1,30 @@
+{
+  "scope": "Stage32 diagnostic candidate only; not an exhaustive deployment registry",
+  "date": "2026-10-21",
+  "branch": "agent/sync-developer-20261011",
+  "candidate_source_commit": "baa1f26e96b8976aed0785f62c0891558c5930f0",
+  "result_report_commit": "2376ede16eefa5579bba69ff229da80974ee4811",
+  "status": "ROLLED_BACK",
+  "candidate_archive_sha256": "1e6704adb163747328b1a9f37dfd0053e713fb8d16aa09afbb1ae7744e5a3473",
+  "failure": "Post-web-restart CPU 95.63758389261746 percent exceeded unchanged 75 percent guard",
+  "ir_test_started": false,
+  "retry_performed": false,
+  "restart_scope": "rover-status-web only: installation and rollback",
+  "backups_and_evidence": "/home/jetson/project-atlas-migration/stage32-instrumented-approved-20261021/",
+  "pc_copy": "artifacts/astra_stationary_20261021/stage32-instrumented-approved-20261021/",
+  "restored_hashes": {
+    "lib/libastra_camera.so": "6ae876010c824be97d2545996f897e40e07e0c97fa7a45694f96f342cf6e22a6",
+    "scripts/atlas_vision3d_web.py": "889881c062717d076430414f57825b14f7f0de36ba4cf8c20b0c74fbff9ec1bf",
+    "web/v2/vision3d.js": "76f9a20267e7d90a9d4b0a3be7f75a6c0e0ca594ddc1254e337e618215cf3fba"
+  },
+  "evidence_sha256": {
+    "result.json": "0153ed3b6b99ff2455c07aaceb30cc3309ef833f3b4b3702ca85657531c151e0",
+    "postrollback.json": "fa9d5ef970b1634686d821422c5b2872469cefde2d3f65ccbf15da6a2553e03b",
+    "terminal.txt": "65d9d8028d1f79275f0abef6f1aaef16c96e4553f360bd2636e619bc5cccc9d9",
+    "rollback-ledger.json": "bbc179cb0c68ae97678d80f1496b216feddbef9710c7b83181f440ef706a670a"
+  },
+  "last_verified_state": "E-STOP latched; manual-only; zero commands; recorder and Astra OFF; Pi Camera healthy; protected identities unchanged except approved web restarts",
+  "state_freshness": "Historical postrollback evidence, not a new live admission",
+  "next_action": "Read-only diagnosis of web-restart CPU spike before new deployment approval",
+  "handover": "ATLAS_STAGE32_DEVELOPER_HANDOVER.md"
+}

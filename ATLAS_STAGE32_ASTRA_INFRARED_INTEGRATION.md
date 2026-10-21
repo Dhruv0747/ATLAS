@@ -866,3 +866,13 @@ driver instrumentation is still offline-only. Next necessary action is a scoped
 read-only diagnosis of the web-restart CPU spike and a reviewed deployment plan,
 not another IR start. Fresh owner approval is required for another installation/
 test attempt. This failed sequence cannot establish IR LIVE VERIFIED.
+
+## 20. Documentation-only session handover
+
+See `ATLAS_STAGE32_DEVELOPER_HANDOVER.md` for exact installed/candidate identities,
+preserved WSL build tree, local/Jetson evidence, backups, hypotheses and next task.
+Focused deployment ledger: `docs/audits/ATLAS_STAGE32_DEPLOYMENT_REGISTRY.json`.
+No additional Jetson checks or technical execution performed for handover. Last
+verified stopped state is section19's historical evidence, not fresh admission.
+Incoming developer starts with passive restart-CPU analysis, not another install
+or camera test. All operational approvals must be renewed. Current session ends.

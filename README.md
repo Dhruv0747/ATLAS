@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+**Next developer:** start with [Stage32 final handover](ATLAS_STAGE32_DEVELOPER_HANDOVER.md).
+Documentation-only checkpoint; no new operational authorization. Diagnose the
+web-restart CPU spike read-only before requesting another deployment/test.
+
 **Latest Stage32 deployment outcome:** approved instrumentation install was rolled
 back after post-web-restart CPU95.64% exceeded75%. Original hashes restored;
 IR test NOT started, no retry. Protected services unchanged except approved web
