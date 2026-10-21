@@ -1,5 +1,8 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Snapshot deployment blocked](ATLAS_STAGE32_SNAPSHOT_DEPLOYMENT_BLOCKED.md):
+live source differs from reviewed baseline; no installation/restart performed.
+
 [Offline dashboard snapshot candidate](ATLAS_STAGE32_DASHBOARD_SNAPSHOT_OPTIMIZATION.md):
 Linux fixture CPU0.475->0.082 ms per snapshot;60 dashboard tests pass. Single-file
 candidate NOT deployed; whole-Jetson savings and camera admission unproven.

@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-21 snapshot deployment ABORTED before modification: live web hash
+fa62787f differs substantively from reviewed baseline73094079. Repository file
+would introduce unrelated steering/HTTP/JSON changes. No restart/Start or CPU
+comparison. Prepare exact-live-baseline candidate; see
+ATLAS_STAGE32_SNAPSHOT_DEPLOYMENT_BLOCKED.md.
+
 2026-10-21 offline snapshot profiling: redundant timestamp scans confirmed;
 single-file candidate reduces Linux synthetic snapshot CPU82.81%,60 dashboard
 tests pass. NOT deployed, no live CPU savings/camera admission claim. Needs

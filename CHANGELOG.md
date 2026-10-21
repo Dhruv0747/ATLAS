@@ -1,5 +1,8 @@
 # Changelog
 
+2026-10-21 approved snapshot installation aborted on substantive live baseline
+hash mismatch. No production changes; corrected live-based package required.
+
 2026-10-21 OFFLINE dashboard candidate: avoid repeated history-list scans and
 discarded deque allocations. Differential freshness/rate tests and60 Linux
 dashboard tests pass. No live services, limits or camera sessions changed.
