@@ -2,7 +2,9 @@
 
 21 October offline launch optimization: [direct worker candidate](ATLAS_STAGE32_DIRECT_WORKER_LAUNCH.md).
 Repeated login-shell/ROS setup removed; PC launch CPU work down66.1%,79 tests pass.
-Not deployed; Jetson savings and real Preview success remain unverified.
+[Now deployed and verified](ATLAS_STAGE32_DIRECT_LAUNCH_DEPLOYMENT.md) with web-only
+restart. Jetson launch savings and real Preview success remain unverified;
+Astra and recorder OFF. Separate camera-test approval required.
 
 21 October: [startup guard deployment verified](ATLAS_STAGE32_STARTUP_GUARD_DEPLOYMENT.md).
 One runtime file and approved web-only restart; CPU peaked99.83%, settled below75%

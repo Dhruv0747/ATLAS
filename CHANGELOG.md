@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 direct worker candidate ed450f9 DEPLOYED/VERIFIED: one runtime file,
+web-only restart, persistent CPU trace (peak100%, settled below75% by28s).
+Protected services unchanged, sensors fresh, Astra/recorder OFF; no camera test.
+Hashes/backup/helper pre-install abort evidence: ATLAS_STAGE32_DIRECT_LAUNCH_DEPLOYMENT.md.
+
 2026-10-21 OFFLINE direct worker launch: inherit web owner's sourced ROS environment
 instead of repeating login shell/setup. PC median launch CPU0.162734->0.055208s;
 79 focused tests pass. Guard and modes unchanged. No deployment or camera start.
