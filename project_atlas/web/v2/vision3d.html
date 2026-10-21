@@ -1,23 +1,80 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ATLAS 3D Vision Lab</title><link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/glass.css"><link rel="stylesheet" href="/v2/vision3d.css">
+<!doctype html><html lang="en" class="v2-vision"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATLAS 3D Vision Lab</title><link rel="icon" href="/v2/assets/atlas-logo-96.png">
+<link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/glass.css"><link rel="stylesheet" href="/v2/vision3d.css">
 <script src="/v2/vision3d.js" defer></script></head><body>
-<header class="topbar"><a class="brand" href="/v2/">ATLAS / HOME</a><h1>3D Vision Lab</h1><span class="chip">READ ONLY · NO NAVIGATION AUTHORITY</span></header>
-<main id="visionLab"><p class="notice" id="sourceNotice" role="status">Waiting for verified streams. USB presence alone is not a working depth camera.</p>
-<section class="panel controls"><label>Verified hardware mode <select id="mode" disabled><option>MODE UNSUPPORTED / not yet verified</option></select></label>
-<label>Bounded test <select id="viewerMode"><option value="depth">Depth only (lower load)</option><option value="concurrent">RGB + Depth (resource gated)</option></select></label>
-<button class="btn" id="startViewer">Start 60-second viewer</button><span id="runtimeState">OFF · explicit Start required</span>
-<button class="btn" id="pause">Pause / stop camera</button><label><input type="checkbox" id="showCloud" disabled> 3D cloud disabled until calibrated</label>
-<button class="btn" disabled title="Requires separate recording approval">Recording OFF</button></section>
-<section class="vision-grid" aria-label="Live camera streams">
-<article class="panel"><h2>RGB <span class="state" id="rgbState">UNAVAILABLE</span></h2><div class="image-box"><img id="rgbImage" alt="Live Astra RGB; unavailable until verified"></div><p id="rgbMeta">No sensor data</p></article>
-<article class="panel"><h2>Depth <span class="state" id="depthState">UNAVAILABLE</span></h2><div class="image-box"><img id="depthImage" alt="Colorized real depth; click for source pixel measurement"></div><p id="depthMeta">No sensor data</p><small>Red = near, blue = far (0–5 m display scale); black = invalid. Click measures original pixel, not color.</small></article>
-<article class="panel"><h2>Infrared <span class="state" id="irState">UNAVAILABLE</span></h2><div class="image-box"><img id="irImage" alt="Live infrared when supported"></div><p id="irMeta">No sensor data</p></article>
-<article class="panel cloud-panel"><h2>3D point cloud <span class="state" id="cloudState">UNAVAILABLE</span></h2><canvas id="cloudCanvas" aria-label="Interactive 3D cloud. Drag to orbit, shift-drag to pan, scroll to zoom. Click selects point." tabindex="0"></canvas>
-<div class="cloud-tools"><button class="btn" id="resetView">Reset view</button><button class="btn" id="panMode" aria-pressed="false">Pan mode</button><button class="btn" id="zoomIn">Zoom +</button><button class="btn" id="zoomOut">Zoom −</button></div>
-<p id="cloudMeta">No PointCloud2 publication</p><small>Drag: orbit · shift-drag / Pan mode: pan · wheel / buttons: zoom · click: select. Optical axes: X right, Y down, Z forward. Maximum 6,000 sampled points.</small></article>
-</section>
-<section class="detail-grid"><article class="panel"><h2>Distance inspection — UNCALIBRATED</h2><output id="measurement" aria-live="polite">Start a bounded depth session, then click a valid depth pixel.</output><p>Axial Z is the sensor reading in metres, NOT verified physical accuracy. Factory calibration is invalid. XYZ, range, registration and metric PointCloud2 remain disabled. No ±3 mm accuracy claim.</p></article>
-<article class="panel"><h2>Sensor diagnostics</h2><pre id="diagnostics">Waiting</pre></article>
-<article class="panel"><h2>Shadow obstacle awareness</h2><pre id="obstacles">Not active</pre><p>Camera-frame ROI only. No ground removal, LiDAR registration or production costmap output. Pi camera object detections are not automatically Astra detections.</p></article></section>
-<p class="notice">Pausing, hiding or closing stops the camera lease (within 4 seconds plus safety-check/shutdown time). Maximum session 60 seconds; explicit Start required again. CPU75% / RAM80% / 70°C limits apply. No snapshots or recordings are created.</p>
-</main></body></html>
+<header class="topbar vl-top">
+ <a class="brand" href="/v2/" aria-label="Back to ATLAS Home"><picture><source srcset="/v2/assets/atlas-logo-96.webp" type="image/webp"><img src="/v2/assets/atlas-logo-96.png" width="40" height="40" alt=""></picture>
+  <span><h1>3D Vision Lab</h1><span class="sub">Orbbec Astra Pro · read-only viewer</span></span></a>
+ <span class="chip info">No driving or navigation authority</span>
+ <a class="btn ghost vl-home" href="/v2/"><svg class="icon"><use href="/v2/assets/icons.svg#i-home"/></svg>Home</a>
+</header>
+<main id="visionLab">
+ <section class="vl-state" id="vlState" aria-live="polite">
+  <div class="vl-state-main">
+   <span class="vl-dot"></span>
+   <div><h2 id="vlTitle">Checking viewer</h2><p id="vlText">Waiting for the Vision Lab service.</p></div>
+  </div>
+  <dl class="vl-res" id="vlRes">
+   <div><dt>CPU</dt><dd><span class="vl-bar"><i id="vlCpuBar"></i><em style="left:75%"></em></span><b id="vlCpu">—</b><small>limit 75%</small></dd></div>
+   <div><dt>RAM</dt><dd><span class="vl-bar"><i id="vlRamBar"></i><em style="left:80%"></em></span><b id="vlRam">—</b><small>limit 80%</small></dd></div>
+   <div><dt>Temperature</dt><dd><span class="vl-bar"><i id="vlTempBar"></i><em style="left:70%"></em></span><b id="vlTemp">—</b><small>limit 70 °C</small></dd></div>
+   <div><dt>Camera driver</dt><dd><b id="vlDriver">—</b></dd></div>
+  </dl>
+ </section>
+
+ <section class="panel vl-controls" aria-label="Viewer controls">
+  <div class="vl-seg" role="radiogroup" aria-label="Stream mode">
+   <label><input type="radio" name="vlMode" value="depth" checked><span><b>Depth only</b><small>Lower load</small></span></label>
+   <label><input type="radio" name="vlMode" value="concurrent"><span><b>Depth + RGB</b><small>Higher load</small></span></label>
+  </div>
+  <button class="btn vl-start" id="startViewer"><svg class="icon"><use href="/v2/assets/icons.svg#i-eye"/></svg>Start 60-second view</button>
+  <button class="btn" id="pause"><svg class="icon"><use href="/v2/assets/icons.svg#i-stop"/></svg>Stop camera</button>
+  <span class="vl-run" id="runtimeState">Camera off · press Start</span>
+  <p class="vl-note">Leaving or hiding this page stops the camera within about 4 seconds. Nothing is recorded.</p>
+ </section>
+
+ <section class="vl-streams" aria-label="Live camera streams">
+  <article class="panel vl-stream vl-depth">
+   <header><h2>Depth</h2><span class="vl-chip" id="depthState">Off</span><span class="vl-fps" id="depthFps"></span></header>
+   <div class="image-box"><img id="depthImage" alt="Colour-coded live depth. Click a pixel to read its distance."><div class="vl-empty" id="depthEmpty">No depth frames. Start the viewer to see live depth.</div></div>
+   <div class="vl-legend" aria-hidden="true"><span>near</span><i></i><span>5 m</span><span class="vl-invalid">black = no reading</span></div>
+   <p class="vl-meta" id="depthMeta"></p>
+   <div class="vl-measure"><b>Click to measure</b><output id="measurement" aria-live="polite">Start the viewer, then click a point on the depth image.</output>
+    <small>Distance is the sensor's raw axial reading. Calibration is not valid yet, so accuracy is not verified.</small></div>
+  </article>
+  <article class="panel vl-stream">
+   <header><h2>Colour (RGB)</h2><span class="vl-chip" id="rgbState">Off</span><span class="vl-fps" id="rgbFps"></span></header>
+   <div class="image-box"><img id="rgbImage" alt="Live Astra colour image"><div class="vl-empty" id="rgbEmpty">Colour runs only in Depth + RGB mode.</div></div>
+   <p class="vl-meta" id="rgbMeta"></p>
+  </article>
+ </section>
+
+ <details class="hm-drawer vl-drawer">
+  <summary><span>Disabled until calibration</span><small>Infrared and 3D point cloud</small></summary>
+  <div class="vl-disabled">
+   <p>The factory calibration read from this camera is invalid (NaN), so 3D geometry, point clouds and RGB–depth alignment stay off. These panels turn on only after a valid calibration is established.</p>
+   <article class="panel"><h2>Infrared <span class="vl-chip" id="irState">Off</span></h2><div class="image-box small"><img id="irImage" alt="Live infrared when supported"></div><p class="vl-meta" id="irMeta"></p></article>
+   <article class="panel cloud-panel"><h2>3D point cloud <span class="vl-chip" id="cloudState">Disabled</span></h2>
+    <label class="vl-check"><input type="checkbox" id="showCloud" disabled> Show cloud (requires calibration)</label>
+    <canvas id="cloudCanvas" aria-label="3D cloud view. Drag to orbit, shift-drag to pan, scroll to zoom." tabindex="0"></canvas>
+    <div class="cloud-tools"><button class="btn" id="resetView">Reset view</button><button class="btn" id="panMode" aria-pressed="false">Pan mode</button><button class="btn" id="zoomIn">Zoom +</button><button class="btn" id="zoomOut">Zoom −</button></div>
+    <p class="vl-meta" id="cloudMeta">No point cloud</p></article>
+   <article class="panel"><h2>Shadow obstacle prototype</h2><pre id="obstacles">Not active</pre></article>
+  </div>
+ </details>
+
+ <details class="hm-drawer vl-drawer">
+  <summary><span>Developer diagnostics</span><small>Raw runtime, stream and calibration data</small></summary>
+  <div class="vl-dev">
+   <p class="vl-meta" id="sourceNotice">Waiting for status</p>
+   <label class="vl-check">Verified hardware modes <select id="mode" disabled><option>Not yet verified</option></select></label>
+   <pre id="diagnostics">Waiting</pre>
+  </div>
+ </details>
+</main>
+<div class="dock" role="region" aria-label="Emergency stop">
+ <button class="estop" id="v2Estop" type="button" title="Sends the same immediate zero-speed command as the Home E-STOP"><svg class="icon"><use href="/v2/assets/icons.svg#i-stop"/></svg> E-STOP</button>
+ <span class="dock-note" id="v2EstopMsg">E-STOP sends one zero-speed command to the drive.</span>
+</div>
+<script src="/v2/estop.js" defer></script>
+</body></html>

@@ -121,7 +121,7 @@ class ServiceTests(unittest.TestCase):
             self.s.frame('depth');self.s.frame('depth');self.assertEqual(p.call_count,1)
     def test_exact_route_and_home(self):
         self.assertTrue(V.resolve('/v2/vision3d'));src=(Path(__file__).parents[1]/'web/v2/index.html').read_text(encoding='utf-8')
-        self.assertEqual(src.count('href="/v2/vision3d"'),1)
+        import re;self.assertEqual(len(re.findall(r'<a [^>]*href="/v2/vision3d"',src)),1)
     def test_no_control_interfaces(self):
         src=Path(W.__file__).read_text()
         for forbidden in ('create_publisher(', 'create_client(', 'subprocess.', 'serial.Serial(', 'VideoCapture('):self.assertNotIn(forbidden,src)

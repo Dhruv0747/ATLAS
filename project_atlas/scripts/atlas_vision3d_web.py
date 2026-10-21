@@ -97,8 +97,8 @@ class BridgeTransport:
 
 
 class RosTransport:
-    def __init__(self):
-        self.node=self.executor=self.context=self.thread=None
+    def __init__(self,domain_id=None):
+        self.node=self.executor=self.context=self.thread=None;self.domain_id=domain_id
 
     def start(self,topics,callback):
         import rclpy
@@ -106,7 +106,9 @@ class RosTransport:
         from rclpy.executors import SingleThreadedExecutor
         from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
         from sensor_msgs.msg import Image,CameraInfo,PointCloud2
-        self.context=Context(); rclpy.init(context=self.context)
+        self.context=Context()
+        if self.domain_id is None:rclpy.init(context=self.context)
+        else:rclpy.init(context=self.context,domain_id=self.domain_id)  # private domain: invisible to production nodes
         self.node=rclpy.create_node('atlas_vision3d_readonly',context=self.context)
         self.executor=SingleThreadedExecutor(context=self.context); self.executor.add_node(self.node)
         qos=QoSProfile(depth=1,reliability=ReliabilityPolicy.BEST_EFFORT,durability=DurabilityPolicy.VOLATILE)
@@ -116,7 +118,7 @@ class RosTransport:
             graph=dict(self.node.get_topic_names_and_types())
             for kind,topic in topics.items():
                 if kind in subscribed or TYPES[kind] not in graph.get(topic,[]):continue
-                typ=CameraInfo if kind=='depth_info' else PointCloud2 if kind=='cloud' else Image
+                typ=CameraInfo if kind in ('depth_info','rgb_info') else PointCloud2 if kind=='cloud' else Image
                 self.node.create_subscription(typ,topic,lambda msg,k=kind:callback(k,msg),qos)
                 subscribed.add(kind)
         discover()
@@ -128,6 +130,13 @@ class RosTransport:
         if self.thread: self.thread.join(timeout=2)
         if self.node: self.node.destroy_node()
         if self.context and self.context.ok(): self.context.shutdown()
+
+
+def viewer_transport():
+    """Stage31: receive in the Astra driver's private domain. BridgeTransport is kept for rollback only: it needs the
+    driver in the production domain, which is what caused the measured discovery CPU spike."""
+    from atlas_vision3d_runtime import ISOLATED_DOMAIN_ID
+    return RosTransport(domain_id=ISOLATED_DOMAIN_ID)
 
 
 class VisionService:
@@ -149,7 +158,7 @@ class VisionService:
                 if SESSION.status()['state']!='ACTIVE':return
             if not self.manifest.get('topics') or self.transport or self.clock()<self.retry_after:return
             try:
-                t=BridgeTransport() if self.manifest.get('viewer_runtime') else self.factory()
+                t=viewer_transport() if self.manifest.get('viewer_runtime') else self.factory()
                 t.start(self.manifest['topics'],self.ingest);self.transport=t
             except Exception as e:
                 self.error='ROS unavailable: '+str(e)
@@ -238,6 +247,30 @@ class VisionService:
                     'detections':'Existing Pi-camera detections are not registered to Astra; overlay unavailable',
                     'tf':'Camera-frame only. base_link extrinsics unverified; no navigation output.'}
 
+    def summary(self):
+        """Stage31 Home card: viewer state WITHOUT touching the viewer lease or starting a transport."""
+        runtime=None
+        try:
+            if self.manifest is None:self.manifest=read_manifest()
+            if (self.manifest or {}).get('viewer_runtime'):
+                from atlas_vision3d_runtime import SESSION
+                runtime=SESSION.status()
+        except Exception as e:runtime={'state':'OFF','reason':'Vision Lab unavailable: '+str(e)}
+        runtime=runtime or {'state':'OFF','reason':'viewer runtime not installed'}
+        failed=runtime.get('failed_resources') or {}
+        lim=runtime.get('limits') or {'cpu_percent':75,'ram_percent':80,'temperature_c':70}
+        def fps(kind):
+            with self.lock:
+                ts=list(self.stats.get(kind,{}).get('times',[]))
+            return (len(ts)-1)/(ts[-1]-ts[0]) if len(ts)>1 and ts[-1]>ts[0] and self.clock()-ts[-1]<2 else None
+        cpu=failed.get('cpu')
+        return {'state':str(runtime.get('state','OFF')),'reason':str(runtime.get('reason',''))[:300],
+                'blocked_cpu_percent':cpu if isinstance(cpu,(int,float)) and cpu==cpu else None,
+                'cpu_limit_percent':lim.get('cpu_percent'),'ram_limit_percent':lim.get('ram_percent'),
+                'temperature_limit_c':lim.get('temperature_c'),'driver_stopped':bool(runtime.get('driver_stopped')),
+                'mode':runtime.get('mode'),'depth_fps':fps('depth'),'rgb_fps':fps('rgb'),
+                'calibration':'UNVALIDATED','read_only':True}
+
     def frame(self,kind):
         if kind not in ('rgb','depth','ir'):raise ValueError('unknown image kind')
         with self.lock:
@@ -304,6 +337,10 @@ def serve(handler,service=None,post=False):
             else:raise ValueError('only bounded viewer start/stop supported')
             send(202,SESSION.status())
         except (ValueError,KeyError) as e:send(409,{'error':str(e)})
+        return True
+    if route=='summary':   # Stage31: Home status card; never touches the viewer lease
+        try:send(200,svc.summary())
+        except Exception as e:send(503,{'error':'SENSOR ERROR: '+str(e)})
         return True
     if route not in ('status','frame','pixel','cloud'):send(404,{'error':'unknown read-only route'});return True
     try:

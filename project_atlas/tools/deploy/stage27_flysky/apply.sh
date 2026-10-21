@@ -20,6 +20,8 @@ want web/v2/index.html           "${PRE_INDEX:-a03baf884e43ae1c}"
 for f in "${NEW[@]}"; do [ ! -e "$TARGET/$f" ] || { echo "REFUSE: $f already exists (already deployed?)" >&2; exit 2; }; done
 for f in scripts/atlas_testlab_web.py scripts/atlas_wifi_web.py; do [ -f "$TARGET/$f" ] || { echo "REFUSE: missing $f (Stage 26 must be installed)" >&2; exit 2; }; done
 for f in "${NEW[@]}" web/v2/index.html; do [ -f "$SRC/$f" ] || { echo "REFUSE: package is missing $f" >&2; exit 2; }; done
+# 2026-10-21: the repository Home was redesigned later (Stage 31); this package may only ever install its own Home.
+[ "$(h16 "$SRC/web/v2/index.html")" = "${PKG_INDEX:-50c0040bad62ec3b}" ] || { echo "REFUSE: package index.html is not the Stage 27 Home (use the 4159f07 archive)" >&2; exit 2; }
 if [ "${SKIP_SAFETY_CHECK:-}" != "yes" ]; then
   curl -s -m5 http://127.0.0.1:8088/api/estop/state | python3 -c "import sys,json;sys.exit(0 if json.load(sys.stdin)['latched'] else 1)" \
     || { echo "REFUSE: E-STOP is not latched (or the dashboard is unreachable). Latch it with remote B first." >&2; exit 2; }

@@ -20,6 +20,27 @@ RUNTIME = STAGE/'astra-arm64-stage29-v2'
 STATE = Path(os.environ.get('ATLAS_VISION3D_STATE_PATH') or
              str(Path('/run/user')/str(os.getuid())/'atlas-vision3d-viewer.json'))
 MAX_SECONDS = 60
+# Stage31: the Astra driver joins a PRIVATE ROS domain. Measured on the Jetson (21 Oct): a participant joining the
+# production domain wakes ~34 existing nodes for ~3 s (65% -> 92% CPU); the same join in a private domain cost only the
+# joiner itself.  Only the Vision Lab receiver joins this domain, so no production node sees the camera graph.
+ISOLATED_DOMAIN_ID = 77
+
+
+def domain_in_use(domain_id, proc=Path('/proc')):
+    """True if any readable process already declares this ROS_DOMAIN_ID (read-only /proc scan)."""
+    want=('ROS_DOMAIN_ID=%d' % domain_id).encode()
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():continue
+        try:
+            if want in (entry/'environ').read_bytes().split(b'\0'):return True
+        except OSError:continue
+    return False
+
+
+def driver_env(base):
+    env=dict(base,OPENBLAS_NUM_THREADS='1',OMP_NUM_THREADS='1')
+    env['ROS_DOMAIN_ID']=str(ISOLATED_DOMAIN_ID)
+    return env
 
 
 def process_metrics(pid, previous=None):
@@ -152,11 +173,14 @@ def worker(mode):
         for _ in range(3):time.sleep(1);sample();write()
         if subprocess.run(['pgrep','-x','astra_camera_no'],stdout=subprocess.DEVNULL).returncode==0:
             raise ValueError('existing Astra process; refusing second owner')
+        if domain_in_use(ISOLATED_DOMAIN_ID):
+            raise ValueError('private Vision Lab ROS domain %d already in use; refusing' % ISOLATED_DOMAIN_ID)
+        state['ros_domain_id']=ISOLATED_DOMAIN_ID
         # Linux prctl in this single-threaded worker: camera dies if guardian dies.
         def parent_death():
             import ctypes
             if ctypes.CDLL(None).prctl(1,signal.SIGKILL,0,0,0)!=0:os._exit(127)
-        env=dict(os.environ,OPENBLAS_NUM_THREADS='1',OMP_NUM_THREADS='1')
+        env=driver_env(os.environ)
         env['LD_LIBRARY_PATH']=str(RUNTIME/'lib')+':/opt/ros/humble/lib:'+env.get('LD_LIBRARY_PATH','')
         env['AMENT_PREFIX_PATH']=str(RUNTIME)+':/opt/ros/humble'
         child=subprocess.Popen(driver_args(mode),env=env,cwd=RUNTIME,stdout=subprocess.DEVNULL,

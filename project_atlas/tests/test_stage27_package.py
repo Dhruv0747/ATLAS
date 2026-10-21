@@ -17,24 +17,38 @@ def h16(p):
 
 class Package(unittest.TestCase):
     def setUp(self):
+        # The Home page was redesigned after Stage 27, so the package is exercised with its own Stage 27 sources (4159f07).
+        try:
+            self.stage27_index = subprocess.run(['git', 'show', '4159f07:project_atlas/web/v2/index.html'], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+        except Exception:
+            self.skipTest('git history unavailable')
+        self.src = Path(tempfile.mkdtemp())
+        for rel in ('scripts/atlas_flysky_core.py', 'scripts/atlas_flysky_web.py', 'web/v2/flysky-testlab.html', 'web/v2/flysky-testlab.js', 'web/v2/flysky.css'):
+            (self.src / rel).parent.mkdir(parents=True, exist_ok=True); shutil.copy(ROOT / rel, self.src / rel)
+        (self.src / 'web/v2/index.html').write_text(self.stage27_index)
         self.t = Path(tempfile.mkdtemp())
         (self.t / 'scripts').mkdir(); (self.t / 'web/v2').mkdir(parents=True)
         # stand-in for the live Stage 26 tree: the repo files minus the FlySky hooks / link
-        s = (ROOT / 'scripts/atlas_status_web.py').read_text()
+        hist = lambda rel: subprocess.run(['git', 'show', '4159f07:project_atlas/' + rel], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+        s = hist('scripts/atlas_status_web.py')
         for line in ("import atlas_flysky_web   # FlySky Remote Test Lab (additive; read-only, lazy subscriber, no publishers)\n",
                      "        if atlas_flysky_web.serve(self, ROS):\n            return\n", "        if atlas_flysky_web.serve(self, ROS, post=True):\n            return\n"):
             self.assertEqual(s.count(line), 1); s = s.replace(line, '')
-        w = (ROOT / 'scripts/atlas_web_v2.py').read_text().replace(", 'flysky-testlab': 'flysky-testlab.html'", '')
-        idx = (ROOT / 'web/v2/index.html').read_text()
+        w = hist('scripts/atlas_web_v2.py').replace(", 'flysky-testlab': 'flysky-testlab.html'", '')
+        idx = self.stage27_index
         idx = '\n'.join(l for l in idx.splitlines() if 'flysky' not in l.lower() and 'lblShort' not in l and 'lblFull' not in l) + '\n'
         (self.t / 'scripts/atlas_status_web.py').write_text(s); (self.t / 'scripts/atlas_web_v2.py').write_text(w); (self.t / 'web/v2/index.html').write_text(idx)
         for f in ('atlas_testlab_web.py', 'atlas_wifi_web.py'):
             shutil.copy(ROOT / 'scripts' / f, self.t / 'scripts' / f)
         self.pre = {k: h16(self.t / v) for k, v in (('PRE_STATUS_WEB', 'scripts/atlas_status_web.py'), ('PRE_WEB_V2', 'scripts/atlas_web_v2.py'), ('PRE_INDEX', 'web/v2/index.html'))}
-        self.env = {**os.environ, **self.pre, 'TARGET': str(self.t), 'SRC': str(ROOT), 'STAMP': 'x', 'NO_RESTART': 'yes', 'SKIP_SAFETY_CHECK': 'yes'}
+        self.env = {**os.environ, **self.pre, 'TARGET': str(self.t), 'SRC': str(self.src), 'STAMP': 'x', 'NO_RESTART': 'yes', 'SKIP_SAFETY_CHECK': 'yes'}
 
     def tearDown(self):
-        shutil.rmtree(self.t, ignore_errors=True)
+        shutil.rmtree(self.t, ignore_errors=True); shutil.rmtree(self.src, ignore_errors=True)
+
+    def test_refuses_a_later_home_page(self):
+        (self.src / 'web/v2/index.html').write_text((ROOT / 'web/v2/index.html').read_text())
+        r = self.run_sh('apply.sh', OWNER_APPROVED='yes'); self.assertEqual(r.returncode, 2); self.assertIn('Stage 27 Home', r.stderr)
 
     def run_sh(self, name, **extra):
         return subprocess.run(['bash', str(PKG / name)], env={**self.env, **extra}, capture_output=True, text=True)

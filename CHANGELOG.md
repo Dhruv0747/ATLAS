@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 (Stage 31; OFFLINE + camera-free Jetson diagnostics only; nothing deployed, no restart, camera never opened):
+- **Astra resource block root cause:** ROS/DDS discovery fan-out. A participant joining production domain 0 lifts CPU 65% -> 92% for ~3 s (34 nodes wake); private domain 77 has no fan-out. Fix implemented: Astra driver and Vision Lab receiver use private domain 77 (`atlas_vision3d_runtime.py`, `atlas_vision3d_web.py`), plus a lease-free `/api/vision3d/summary`. Receiver verified on the Jetson with a synthetic 30 Hz stream. Thresholds unchanged.
+- **Dashboard V2 Home redesign and 3D Vision Lab UI:** systems cards, safety pill, collapsible drawers, developer diagnostics kept; all ids/controls preserved; old Home kept at `/v2/classic.html`. Vision Lab explains RESOURCE BLOCKED with measured CPU vs limit.
+- Package `project_atlas/tools/deploy/stage31/stage31.sh` (apply-ui static, apply-astra restarts rover-status-web only); rehearsed on a Jetson copy with byte-identical rollback. Awaiting owner approval.
+- See [`ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md`](ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md) and [`ATLAS_DASHBOARD_V2_UI_REDESIGN.md`](ATLAS_DASHBOARD_V2_UI_REDESIGN.md).
+
 2026-10-21 Stage30 approved three-file deployment and one Dashboard test:
 - Installed exact ac34cd3 observer/guard package with backups and hash checks; no service restart.
 - One Depth start through existing Dashboard stopped automatically at80.7786% CPU; zero delivered frames. No retry or safeguard change.

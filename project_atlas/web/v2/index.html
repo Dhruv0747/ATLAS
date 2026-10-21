@@ -1,187 +1,246 @@
 <!doctype html>
-<html lang="en"><head>
+<html lang="en" class="v2-home"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#050B14"><link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/v2/assets/atlas-logo-96.png">
 <title>ATLAS Command Center</title>
+<!-- Stage 31 Home layout. Every element id and control of the previous Home is kept (command.js is unchanged);
+     the previous page is preserved verbatim at /v2/classic.html. Layout and read-only status cards only:
+     no new control action, request path or repeat rate. -->
 <script src="/v2/location-check.js" defer></script>
-<link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/glass.css">
-<style>/* Stage 26b: make the Test Lab shortcut clearly visible (label always shown, accent outline). Remove this block to revert. */
-.nav a.btn.testlabShortcut{border-color:var(--sky);background:rgba(34,184,240,.16);font-weight:600}
-.nav a.btn.testlabShortcut .lbl{display:inline}
-.nav a.btn.testlabShortcut:hover{background:rgba(34,184,240,.28)}
-@media (max-width:759px){.nav a.btn.testlabShortcut{order:-1}}
-.flyskyShortcut .lblShort{display:none}
-@media (max-width:759px){.flyskyShortcut .lblFull{display:none}.flyskyShortcut .lblShort{display:inline}}
-</style>
+<link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/glass.css"><link rel="stylesheet" href="/v2/home.css">
 <script>try{if(localStorage.getItem('atlasV2Lite')==='1')document.documentElement.classList.add('lite')}catch(e){}</script>
 </head><body>
 <a class="skip" href="#main">Skip to controls</a>
-<header class="topbar">
+<header class="topbar hm-top">
   <a class="brand" href="/v2/" aria-label="ATLAS command center home">
     <picture><source srcset="/v2/assets/atlas-logo-96.webp" type="image/webp"><img src="/v2/assets/atlas-logo-96.png" width="40" height="40" alt=""></picture>
-    <span><h1>ATLAS</h1><span class="sub">Command center · hold to drive</span></span>
+    <span><h1>ATLAS</h1><span class="sub">Command center</span></span>
   </a>
+  <div class="hm-safety" id="hmSafety" role="status" aria-live="polite" title="Drive stop state reported by the command mux">
+    <span class="hm-safety-dot"></span><span><b id="hmSafetyText">Checking stop state</b><small id="hmSafetySub">Waiting for ATLAS</small></span>
+  </div>
   <div class="chips" aria-live="polite">
     <span class="live chip" id="online">CONNECTING</span>
+    <span class="chip" id="hmMode" title="Control policy reported by the command mux (read-only)">Mode …</span>
     <span class="chip" id="v2Loc" title="Localization from the LiDAR monitor (read-only)">Localization …</span>
     <span class="chip" id="v2Motion" title="Rover motion from odometry (read-only)">Motion …</span>
     <span class="chip" id="v2Latch" hidden title="Drive stop latch reported by the command mux">Stop latch</span>
   </div>
-  <nav class="nav" aria-label="Pages">
-    <a class="btn ghost" href="/v2/vision3d" title="Read-only Astra depth and point cloud viewer">3D Vision Lab</a>
-    <a class="btn ghost" href="/v2/mapping" title="Live map" aria-label="Live map"><svg class="icon"><use href="/v2/assets/icons.svg#i-map"/></svg><span class="lbl">Live map</span></a>
-    <a class="btn ghost" href="/v2/commissioning" title="Commissioning and hardware check" aria-label="Commissioning"><svg class="icon"><use href="/v2/assets/icons.svg#i-wrench"/></svg><span class="lbl">Commissioning</span></a>
-    <a class="btn ghost testlabShortcut" href="/v2/testlab" title="Open the Motor &amp; Encoder Test Lab" aria-label="Motor &amp; Encoder Test Lab"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.2"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/></svg><span class="lbl">Motor &amp; Encoder Test Lab</span></a>
-    <a class="btn ghost testlabShortcut flyskyShortcut" href="/v2/flysky-testlab" title="Open the FlySky Remote Test Lab (read-only)" aria-label="FlySky Remote Test Lab"><svg class="icon" viewBox="0 0 24 24"><path d="M5 17a8 8 0 0 1 14 0M8 14a4.5 4.5 0 0 1 8 0"/><circle cx="12" cy="18" r="1.4"/></svg><span class="lbl"><span class="lblFull">FlySky Remote Test Lab</span><span class="lblShort">FlySky Test Lab</span></span></a>
-    <a class="btn ghost" title="Diagnostics and logs" aria-label="Diagnostics" href="#diagnosticsPanel" onclick="document.getElementById('diagnosticsPanel').open=true;refreshDiagnostics(true)"><svg class="icon"><use href="/v2/assets/icons.svg#i-pulse"/></svg><span class="lbl">Diagnostics</span></a>
-    <a class="btn ghost headerBtn cloud" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/" title="Open the read-only ATLAS Visual Cloud live ROS observability dashboard."><svg class="icon"><use href="/v2/assets/icons.svg#i-cloud"/></svg><span class="headerText lbl">Visual cloud</span></a>
-    <a class="btn ghost headerBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" title="Open two-way ATLAS intercom. The camera stream closes to preserve call quality and AI Voice pauses during the call."><svg class="icon"><use href="/v2/assets/icons.svg#i-phone"/></svg><span class="headerText lbl">Talk / listen</span></a>
-    <button class="btn ghost warn-outline" id="shutdownButton" onclick="shutdownAtlas()"><svg class="icon"><use href="/v2/assets/icons.svg#i-power"/></svg>Shut down</button>
+  <nav class="nav hm-nav" aria-label="Pages">
+    <a class="btn ghost hm-current" href="/v2/" aria-current="page"><svg class="icon"><use href="/v2/assets/icons.svg#i-home"/></svg><span class="lbl">Home</span></a>
+    <a class="btn ghost" href="/v2/mapping" title="Live map and navigation"><svg class="icon"><use href="/v2/assets/icons.svg#i-map"/></svg><span class="lbl">Navigation</span></a>
+    <a class="btn ghost" title="Diagnostics and logs" href="#diagnosticsPanel" onclick="document.getElementById('diagnosticsPanel').open=true;refreshDiagnostics(true)"><svg class="icon"><use href="/v2/assets/icons.svg#i-pulse"/></svg><span class="lbl">Diagnostics</span></a>
+    <details class="hm-menu">
+      <summary class="btn ghost" aria-label="More pages and tools"><span class="lbl">More</span><svg class="icon"><use href="/v2/assets/icons.svg#i-down"/></svg></summary>
+      <div class="hm-menu-list">
+        <a href="/v2/commissioning"><svg class="icon"><use href="/v2/assets/icons.svg#i-wrench"/></svg>Commissioning</a>
+        <a href="/v2/camera"><svg class="icon"><use href="/v2/assets/icons.svg#i-camera"/></svg>Full-quality camera</a>
+        <a href="/v2/lidar"><svg class="icon"><use href="/v2/assets/icons.svg#i-radar"/></svg>LiDAR 360°</a>
+        <a href="/v2/wifi"><svg class="icon"><use href="/v2/assets/icons.svg#i-wifi"/></svg>Wi-Fi setup</a>
+        <a class="headerBtn cloud" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/" title="Open the read-only ATLAS Visual Cloud live ROS observability dashboard."><svg class="icon"><use href="/v2/assets/icons.svg#i-cloud"/></svg>Visual cloud</a>
+        <a class="headerBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" title="Open two-way ATLAS intercom. The camera stream closes to preserve call quality and AI Voice pauses during the call."><svg class="icon"><use href="/v2/assets/icons.svg#i-phone"/></svg>Talk / listen</a>
+        <a href="/v2/classic.html"><svg class="icon"><use href="/v2/assets/icons.svg#i-back"/></svg>Classic layout</a>
+        <button class="hm-danger" id="shutdownButton" onclick="shutdownAtlas()"><svg class="icon"><use href="/v2/assets/icons.svg#i-power"/></svg>Shut down Jetson</button>
+      </div>
+    </details>
   </nav>
 </header>
-<div class="statusline bootBanner"><b>LIVE TELEMETRY CHECK</b><span id="bootBannerState">COLLECTING LIVE DATA…</span><span class="buildTag">Glass UI V2 · web diagnostics v5</span></div>
 
-<main class="console" id="main">
- <section class="col">
-  <div class="panel" data-area style="--a:drive;--o:2">
-   <h2>Drive <span class="hint">hold a button to move, release to stop</span></h2>
-   <div class="drive">
-    <button class="btn" data-l=".45" data-a=".90"><svg class="icon"><use href="/v2/assets/icons.svg#i-upleft"/></svg>Fwd left</button>
-    <button class="btn" data-l=".65" data-a="0"><svg class="icon"><use href="/v2/assets/icons.svg#i-up"/></svg>Forward</button>
-    <button class="btn" data-l=".45" data-a="-.90"><svg class="icon"><use href="/v2/assets/icons.svg#i-upright"/></svg>Fwd right</button>
-    <button class="btn" data-l="-.65" data-a=".90"><svg class="icon"><use href="/v2/assets/icons.svg#i-backleft"/></svg>Back left</button>
-    <button class="btn stop" id="stop" title="Sends an immediate zero-speed command">E-STOP</button>
-    <button class="btn" data-l="-.65" data-a="-.90"><svg class="icon"><use href="/v2/assets/icons.svg#i-backright"/></svg>Back right</button>
-    <span></span>
-    <button class="btn" data-l="-.65" data-a="0"><svg class="icon"><use href="/v2/assets/icons.svg#i-down"/></svg>Back</button>
-    <span></span>
-   </div>
-   <div class="estopReset" id="estopResetPanel" aria-live="polite">
-    <b id="estopState">Stop state checking…</b>
-    <span id="estopWhy"></span>
-    <input id="estopPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN" aria-label="Operator PIN for E-STOP reset">
-    <button class="btn" id="estopReset" disabled>Reset E-STOP</button>
-   </div>
+<main id="main" class="hm-main">
+ <section class="hm-rail" aria-label="System and sensor status">
+  <div class="hm-rail-head">
+   <h2>Systems</h2>
+   <button class="hm-health" type="button" onclick="hmOpen('drawerHealth')" title="Open the full hardware health grid">Hardware health <span class="healthsummary" id="healthSummary">CHECKING</span></button>
+   <span class="hm-boot statusline bootBanner"><span id="bootBannerState">Collecting live data…</span></span>
   </div>
-  <div class="panel" data-area style="--a:camctl;--o:3">
-   <h2>Camera pan and tilt</h2>
-   <div class="camctl">
-    <span></span><button class="btn" data-cam="tilt" data-dir="-1" aria-label="Tilt up"><svg class="icon"><use href="/v2/assets/icons.svg#i-up"/></svg>Up</button><span></span>
-    <button class="btn" data-cam="pan" data-dir="-1" aria-label="Pan left"><svg class="icon"><use href="/v2/assets/icons.svg#i-left"/></svg>Left</button>
-    <button class="btn" data-cam="center" data-dir="0"><svg class="icon"><use href="/v2/assets/icons.svg#i-center"/></svg>Center</button>
-    <button class="btn" data-cam="pan" data-dir="1" aria-label="Pan right">Right<svg class="icon"><use href="/v2/assets/icons.svg#i-right"/></svg></button>
-    <span></span><button class="btn" data-cam="tilt" data-dir="1" aria-label="Tilt down"><svg class="icon"><use href="/v2/assets/icons.svg#i-down"/></svg>Down</button><span></span>
-   </div>
-   <div class="mode-row">
-    <button class="btn" data-track="0"><svg class="icon"><use href="/v2/assets/icons.svg#i-hand"/></svg>Manual control</button>
-    <button class="btn" data-track="1"><svg class="icon"><use href="/v2/assets/icons.svg#i-face"/></svg>Face follow</button>
-    <button class="btn" id="saveCameraHome"><svg class="icon"><use href="/v2/assets/icons.svg#i-save"/></svg>Save current as home</button>
-    <button class="btn" data-cam="center" data-dir="0"><svg class="icon"><use href="/v2/assets/icons.svg#i-home"/></svg>Go to saved home</button>
-   </div>
-   <div class="detail" id="cameraTracking">Camera mode checking</div>
-  </div>
-  <div class="panel" data-area style="--a:ai;--o:10">
-   <h2>Jetson AI power</h2>
-   <div class="cards"><button class="btn ai-on" data-ai="object"><svg class="icon"><use href="/v2/assets/icons.svg#i-chip"/></svg>AI on</button><button class="btn ai-off" data-ai="eco"><svg class="icon"><use href="/v2/assets/icons.svg#i-leaf"/></svg>AI eco / off</button></div>
-   <div class="detail" id="ai">AI status waiting</div>
-  </div>
-  <div class="panel card touch" data-area style="--a:motion;--o:11" onclick="openDetail('encoders')">
-   <h2>Smart drive report <span class="hint">all 4 wheels · tap for details</span></h2>
-   <div id="motion"></div>
-   <div class="detail">One combined view: link, selected feedback, exclusions, steering, odometry and readiness.</div>
+  <div class="hm-cards">
+   <article class="hm-card" id="cardSystem" data-detail="jetson" tabindex="0"><header><h3>Jetson</h3><span class="hm-pill" data-pill>…</span></header>
+    <div class="hm-meters" data-vis></div><p data-sub>Waiting for system report</p><footer data-age></footer></article>
+   <article class="hm-card" id="cardBattery" data-detail="bms_status" tabindex="0"><header><h3>Battery</h3><span class="hm-pill" data-pill>…</span></header>
+    <div class="hm-metric"><b data-main>—</b><span data-unit></span></div><div class="hm-batt" data-vis><i></i></div><p data-sub>Waiting for BMS</p><footer data-age></footer></article>
+   <article class="hm-card" id="cardLidar" data-detail="lidar" tabindex="0"><header><h3>LiDAR</h3><span class="hm-pill" data-pill>…</span></header>
+    <canvas class="hm-scan" data-vis width="220" height="120" aria-label="Top-down LiDAR points around ATLAS"></canvas><p data-sub>Waiting for scan</p><footer data-age></footer></article>
+   <article class="hm-card" id="cardDepth" data-href="/v2/vision3d" tabindex="0"><header><h3>Depth camera</h3><span class="hm-pill" data-pill>…</span></header>
+    <div class="hm-metric"><b data-main>—</b><span data-unit></span></div><p data-sub>Astra Pro status</p><footer data-age></footer></article>
+   <article class="hm-card" id="cardEncoders" data-detail="encoders" tabindex="0"><header><h3>Wheel encoders</h3><span class="hm-pill" data-pill>…</span></header>
+    <div class="hm-wheels" data-vis aria-label="Four wheel encoder counts"></div><p data-sub>Waiting for encoder health</p><footer data-age></footer></article>
+   <article class="hm-card" id="cardImu" data-detail="imu" tabindex="0"><header><h3>IMU</h3><span class="hm-pill" data-pill>…</span></header>
+    <div class="hm-imu"><canvas data-vis width="96" height="96" aria-label="Attitude: heading, roll and pitch"></canvas><div><b data-main>—</b><p data-sub>Waiting for IMU</p></div></div><footer data-age></footer></article>
+   <article class="hm-card" id="cardNetwork" data-detail="cellular" tabindex="0"><header><h3>Network</h3><span class="hm-pill" data-pill>…</span></header>
+    <div class="hm-metric small"><b data-main>—</b></div><div class="hm-routes" data-vis></div><p data-sub>Waiting for route</p><footer data-age></footer></article>
   </div>
  </section>
 
- <section class="col">
-  <div class="panel solid camera-pane" data-area data-pane="camera" style="--a:camera;--o:1">
+ <section class="hm-primary">
+  <div class="hm-left">
+  <div class="panel solid camera-pane hm-camera" data-pane="camera">
    <h2><svg class="icon"><use href="/v2/assets/icons.svg#i-camera"/></svg>Live camera <span class="cameraStatus warn" id="cameraStatus">CONNECTING</span>
-    <span class="pane-tools"><button class="btn ghost" id="v2CamRate" type="button" aria-pressed="false" title="Lower the camera refresh to save data">Data saver</button><button class="btn ghost" onclick="openDetail('camera')">Open data</button></span></h2>
+    <span class="pane-tools"><button class="btn ghost" id="v2CamRate" type="button" aria-pressed="false" title="Lower the camera refresh to save data">Data saver</button><button class="btn ghost" onclick="openDetail('camera')">Camera details</button></span></h2>
    <img class="camera" id="camera" src="/camera.jpg?latest=boot" alt="Live ATLAS camera" onclick="openDetail('camera')">
   </div>
-  <div class="panel companion" data-area style="--a:companion;--o:6">
-   <div class="companionHead"><h2>ATLAS companion</h2><div class="companionState" id="companionState">STANDBY</div></div>
-   <div class="companionGrid">
-    <div class="speech you"><div class="label">You said / heard</div><div class="speechText" id="companionHeard">Waiting for voice service</div></div>
-    <div class="speech atlas"><div class="label">ATLAS says</div><div class="speechText" id="companionReply">Voice bridge is being prepared</div></div>
-   </div>
-   <div class="thoughts">
-    <div class="thought"><strong>Understood intent</strong><span id="companionIntent">None</span></div>
-    <div class="thought"><strong>Action / tool selected</strong><span id="companionAction">No action selected</span></div>
-   </div>
-   <div class="companionStatus">
-    <div class="pill" id="companionMode">LOCAL SAFETY</div><div class="pill" id="companionConfirm">NO CONFIRMATION</div><div class="pill" id="companionCloud">CLOUD OFFLINE</div>
-    <div class="pill"><span class="rgbDot" id="rgbDot"></span><span id="companionRgb">BLUE</span></div>
-   </div>
-   <div class="voiceLedGuide">
-    <div class="voiceLedTitle"><span>Voice LED meaning</span><span class="voiceLedNow" id="companionLedNow">CHECKING</span></div>
-    <div class="voiceLedStates">
-     <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#198dff;background:#198dff"></i>Blue</b>Voice idle, not drive readiness</div>
-     <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#34e58b;background:#34e58b"></i>Green</b>Listening</div>
-     <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#eef7ff;background:#eef7ff"></i>White</b>Thinking</div>
-     <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#17d5ff;background:#17d5ff"></i>Blue pulse</b>Speaking</div>
-     <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#ff4655;background:#ff4655"></i>Red</b>Muted / error / live call: read status</div>
-    </div>
-    <div class="voiceUsbReason" id="voiceUsbReason">Checking ESP32-S3 voice USB connection</div>
-   </div>
-   <div class="detail" style="margin-top:8px" id="companionPrivacy">Privacy status unavailable</div>
-   <div class="detail" id="companionAlert">No recent announcement</div>
-   <div class="voice-actions">
-    <button class="btn" onclick="voiceMute(true)"><svg class="icon"><use href="/v2/assets/icons.svg#i-micoff"/></svg>Mute AI mic</button>
-    <button class="btn" onclick="voiceMute(false)"><svg class="icon"><use href="/v2/assets/icons.svg#i-mic"/></svg>Enable AI mic</button>
-   </div>
-   <div class="detail" style="margin-top:8px;color:#9FD97A">Talk / listen opens a separate live call and pauses AI Voice. Software mute is not a physical microphone disconnect. English + Hindi speech is AI-generated. Spoken questions use cloud transcription; automatic alerts use local speech. Use remote B for an immediate stop, not voice.</div>
+  <nav class="hm-labs" aria-label="Test labs">
+  <a class="hm-lab testlabShortcut" href="/v2/testlab" aria-label="Motor &amp; Encoder Test Lab" title="Open the Motor &amp; Encoder Test Lab"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.2"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/></svg><span><b>Motor &amp; Encoder Test Lab</b><small>Per-wheel counts and locked pulse tests</small></span></a>
+  <a class="hm-lab flyskyShortcut" href="/v2/flysky-testlab" aria-label="FlySky Remote Test Lab" title="Open the FlySky Remote Test Lab (read-only)"><svg class="icon" viewBox="0 0 24 24"><path d="M5 17a8 8 0 0 1 14 0M8 14a4.5 4.5 0 0 1 8 0"/><circle cx="12" cy="18" r="1.4"/></svg><span><b>FlySky Remote Test Lab</b><small>Receiver channels, read-only</small></span></a>
+  <a class="hm-lab" href="/v2/vision3d" aria-label="3D Vision Lab" title="Read-only Astra depth viewer"><svg class="icon"><use href="/v2/assets/icons.svg#i-eye"/></svg><span><b>3D Vision Lab</b><small>Astra depth and RGB viewer</small></span></a>
+ </nav>
   </div>
-  <div class="panel" data-area style="--a:sensors;--o:8"><h2>Range and attitude</h2><div class="cards" id="sensors"></div></div>
-  <div class="panel solid" data-area data-pane="radar" style="--a:radar;--o:7">
-   <h2><svg class="icon"><use href="/v2/assets/icons.svg#i-radar"/></svg>RD-03D motion radar <span class="hint">tap the display for details</span></h2>
-   <div class="radarViewBar"><button class="btn" id="radar2dBtn" onclick="setRadarView('2d')">2D radar</button><button class="btn active" id="radar3dBtn" onclick="setRadarView('3d')">3D people</button><span class="radarViewNote">Live RD-03D data<br>up to 3 targets</span></div>
-   <canvas class="radarScope radarHidden" id="radarScope" width="720" height="340" onclick="openDetail('radar')"></canvas>
-   <canvas class="radarScope" id="radarTwin" width="720" height="340" onclick="openDetail('radar')"></canvas>
-   <div class="detail" id="radarCaption">WAITING FOR RADAR UART DATA</div>
+
+  <div class="hm-side">
+   <div class="panel hm-drive">
+    <h2>Safety and manual drive <span class="hint">hold a button to move, release to stop</span></h2>
+    <div class="estopReset" id="estopResetPanel" aria-live="polite">
+     <b id="estopState">Stop state checking…</b>
+     <span id="estopWhy"></span>
+     <input id="estopPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN" aria-label="Operator PIN for E-STOP reset">
+     <button class="btn" id="estopReset" disabled>Reset E-STOP</button>
+    </div>
+    <div class="drive">
+     <button class="btn" data-l=".45" data-a=".90"><svg class="icon"><use href="/v2/assets/icons.svg#i-upleft"/></svg>Fwd left</button>
+     <button class="btn" data-l=".65" data-a="0"><svg class="icon"><use href="/v2/assets/icons.svg#i-up"/></svg>Forward</button>
+     <button class="btn" data-l=".45" data-a="-.90"><svg class="icon"><use href="/v2/assets/icons.svg#i-upright"/></svg>Fwd right</button>
+     <button class="btn" data-l="-.65" data-a=".90"><svg class="icon"><use href="/v2/assets/icons.svg#i-backleft"/></svg>Back left</button>
+     <button class="btn stop" id="stop" title="Sends an immediate zero-speed command">E-STOP</button>
+     <button class="btn" data-l="-.65" data-a="-.90"><svg class="icon"><use href="/v2/assets/icons.svg#i-backright"/></svg>Back right</button>
+     <span></span>
+     <button class="btn" data-l="-.65" data-a="0"><svg class="icon"><use href="/v2/assets/icons.svg#i-down"/></svg>Back</button>
+     <span></span>
+    </div>
+   </div>
+
+   <div class="panel hm-mission">
+    <h2>Mission and position <a class="hm-link" href="/v2/mapping">Open navigation</a></h2>
+    <div class="hm-mission-grid">
+     <a class="hm-map" href="/v2/mapping" title="Open the live map"><img id="hmMap" alt="Saved 2D map (open navigation for live pose)" src="/map.png?home=boot"></a>
+     <dl class="hm-facts">
+      <div><dt>Mission</dt><dd id="hmMission">—</dd></div>
+      <div><dt>Control</dt><dd id="hmControl">—</dd></div>
+      <div><dt>Localization</dt><dd id="hmLoc">—</dd></div>
+      <div><dt>Drive controller</dt><dd id="hmPid">—</dd></div>
+     </dl>
+    </div>
+    <div id="hmLocSlot"></div>
+   </div>
   </div>
  </section>
 
- <section class="col">
-  <div class="panel" data-area style="--a:health;--o:4">
-   <div class="healthhead"><h2>Hardware health <span class="hint">tap a tile for details</span></h2><div class="healthsummary" id="healthSummary">CHECKING</div></div>
-   <div class="selfTestStamp" id="selfTestStamp">Waiting for live sensor messages after dashboard startup…</div>
-   <div class="healthgrid" id="healthGrid"></div>
-  </div>
-  <div class="panel" data-area style="--a:power;--o:5"><h2>Power</h2><div class="cards" id="power"></div></div>
-  <div class="panel" data-area style="--a:env;--o:9">
-   <h2>Environment <span class="hint">inside and outside</span></h2>
-   <div class="envgrid">
-    <div class="card touch" onclick="openDetail('thermal')"><div class="heatmap" id="heatmap"></div><div class="detail" id="thermalStats">Inside thermal waiting</div><div class="detail">Tap for 64-pixel data</div></div>
-    <div class="card touch" onclick="openDetail('environment')"><div class="detail" id="outsideStats">Outside sensor waiting</div><canvas class="chart" id="insideChart" width="300" height="82"></canvas><canvas class="chart" id="outsideChart" width="300" height="82" style="margin-top:6px"></canvas><div class="detail">Tap for gas / pressure / IAQ</div></div>
-   </div>
-  </div>
-  <div class="panel" data-area style="--a:network;--o:12"><h2><svg class="icon"><use href="/v2/assets/icons.svg#i-wifi"/></svg>Network</h2><div id="network"></div></div>
-  <div class="panel" data-area style="--a:gnss;--o:13">
-   <h2>GNSS and cellular</h2><div id="gnss"></div>
-   <div class="constellation-grid" id="constellationGrid"></div>
-   <div class="constellation-note">Primary: Hiwonder GPS V1 USB. Bars show receiver-reported satellites in view, NOT signal strength. Zero means zero reported satellites. NMEA labels alone do not mean satellites detected. No report does not mean unsupported constellation. Touch GPS diagnostics for source, age and errors.</div>
-  </div>
-  <div class="panel card touch" data-area style="--a:system;--o:14" onclick="openDetail('jetson')"><h2>Jetson live report <span class="hint">tap for details</span></h2><div id="system"></div></div>
+
+ <section class="hm-drawers" aria-label="More controls and details">
+  <details class="hm-drawer" id="drawerHealth"><summary><span>Hardware health</span><small>Every sensor and service tile</small></summary>
+   <div class="panel">
+    <div class="selfTestStamp" id="selfTestStamp">Waiting for live sensor messages after dashboard startup…</div>
+    <div class="healthgrid" id="healthGrid"></div>
+   </div></details>
+
+  <details class="hm-drawer" id="drawerCamera"><summary><span>Camera pan, tilt and tracking</span><small id="hmCamSummary">Pan/tilt servos and face follow</small></summary>
+   <div class="panel">
+    <div class="camctl">
+     <span></span><button class="btn" data-cam="tilt" data-dir="-1" aria-label="Tilt up"><svg class="icon"><use href="/v2/assets/icons.svg#i-up"/></svg>Up</button><span></span>
+     <button class="btn" data-cam="pan" data-dir="-1" aria-label="Pan left"><svg class="icon"><use href="/v2/assets/icons.svg#i-left"/></svg>Left</button>
+     <button class="btn" data-cam="center" data-dir="0"><svg class="icon"><use href="/v2/assets/icons.svg#i-center"/></svg>Center</button>
+     <button class="btn" data-cam="pan" data-dir="1" aria-label="Pan right">Right<svg class="icon"><use href="/v2/assets/icons.svg#i-right"/></svg></button>
+     <span></span><button class="btn" data-cam="tilt" data-dir="1" aria-label="Tilt down"><svg class="icon"><use href="/v2/assets/icons.svg#i-down"/></svg>Down</button><span></span>
+    </div>
+    <div class="mode-row">
+     <button class="btn" data-track="0"><svg class="icon"><use href="/v2/assets/icons.svg#i-hand"/></svg>Manual control</button>
+     <button class="btn" data-track="1"><svg class="icon"><use href="/v2/assets/icons.svg#i-face"/></svg>Face follow</button>
+     <button class="btn" id="saveCameraHome"><svg class="icon"><use href="/v2/assets/icons.svg#i-save"/></svg>Save current as home</button>
+     <button class="btn" data-cam="center" data-dir="0"><svg class="icon"><use href="/v2/assets/icons.svg#i-home"/></svg>Go to saved home</button>
+    </div>
+    <div class="detail" id="cameraTracking">Camera mode checking</div>
+   </div></details>
+
+  <details class="hm-drawer" id="drawerVoice"><summary><span>Voice companion</span><small id="hmVoiceSummary">Speech, intent and microphone</small></summary>
+   <div class="panel companion">
+    <div class="companionHead"><h2>ATLAS companion</h2><div class="companionState" id="companionState">STANDBY</div></div>
+    <div class="companionGrid">
+     <div class="speech you"><div class="label">You said / heard</div><div class="speechText" id="companionHeard">Waiting for voice service</div></div>
+     <div class="speech atlas"><div class="label">ATLAS says</div><div class="speechText" id="companionReply">Voice bridge is being prepared</div></div>
+    </div>
+    <div class="thoughts">
+     <div class="thought"><strong>Understood intent</strong><span id="companionIntent">None</span></div>
+     <div class="thought"><strong>Action / tool selected</strong><span id="companionAction">No action selected</span></div>
+    </div>
+    <div class="companionStatus">
+     <div class="pill" id="companionMode">LOCAL SAFETY</div><div class="pill" id="companionConfirm">NO CONFIRMATION</div><div class="pill" id="companionCloud">CLOUD OFFLINE</div>
+     <div class="pill"><span class="rgbDot" id="rgbDot"></span><span id="companionRgb">BLUE</span></div>
+    </div>
+    <div class="voiceLedGuide">
+     <div class="voiceLedTitle"><span>Voice LED meaning</span><span class="voiceLedNow" id="companionLedNow">CHECKING</span></div>
+     <div class="voiceLedStates">
+      <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#198dff;background:#198dff"></i>Blue</b>Voice idle, not drive readiness</div>
+      <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#34e58b;background:#34e58b"></i>Green</b>Listening</div>
+      <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#eef7ff;background:#eef7ff"></i>White</b>Thinking</div>
+      <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#17d5ff;background:#17d5ff"></i>Blue pulse</b>Speaking</div>
+      <div class="voiceLedState"><b><i class="voiceSwatch" style="color:#ff4655;background:#ff4655"></i>Red</b>Muted / error / live call: read status</div>
+     </div>
+     <div class="voiceUsbReason" id="voiceUsbReason">Checking ESP32-S3 voice USB connection</div>
+    </div>
+    <div class="detail" style="margin-top:8px" id="companionPrivacy">Privacy status unavailable</div>
+    <div class="detail" id="companionAlert">No recent announcement</div>
+    <div class="voice-actions">
+     <button class="btn" onclick="voiceMute(true)"><svg class="icon"><use href="/v2/assets/icons.svg#i-micoff"/></svg>Mute AI mic</button>
+     <button class="btn" onclick="voiceMute(false)"><svg class="icon"><use href="/v2/assets/icons.svg#i-mic"/></svg>Enable AI mic</button>
+    </div>
+    <div class="detail" style="margin-top:8px;color:#9FD97A">Talk / listen opens a separate live call and pauses AI Voice. Software mute is not a physical microphone disconnect. English + Hindi speech is AI-generated. Spoken questions use cloud transcription; automatic alerts use local speech. Use remote B for an immediate stop, not voice.</div>
+   </div></details>
+
+  <details class="hm-drawer" id="drawerRange"><summary><span>Range sensors and radar</span><small>LiDAR sectors, ultrasonic, RD-03D, I²C bus</small></summary>
+   <div class="panel"><div class="cards" id="sensors"></div></div>
+   <div class="panel solid" data-pane="radar">
+    <h2><svg class="icon"><use href="/v2/assets/icons.svg#i-radar"/></svg>RD-03D motion radar <span class="hint">tap the display for details</span></h2>
+    <div class="radarViewBar"><button class="btn" id="radar2dBtn" onclick="setRadarView('2d')">2D radar</button><button class="btn active" id="radar3dBtn" onclick="setRadarView('3d')">3D people</button><span class="radarViewNote">Live RD-03D data<br>up to 3 targets</span></div>
+    <canvas class="radarScope radarHidden" id="radarScope" width="720" height="340" onclick="openDetail('radar')"></canvas>
+    <canvas class="radarScope" id="radarTwin" width="720" height="340" onclick="openDetail('radar')"></canvas>
+    <div class="detail" id="radarCaption">WAITING FOR RADAR UART DATA</div>
+   </div></details>
+
+  <details class="hm-drawer" id="drawerPower"><summary><span>Power and environment</span><small>BMS, motor board, Jetson rails, inside and outside air</small></summary>
+   <div class="panel"><div class="cards" id="power"></div></div>
+   <div class="panel">
+    <div class="envgrid">
+     <div class="card touch" onclick="openDetail('thermal')"><div class="heatmap" id="heatmap"></div><div class="detail" id="thermalStats">Inside thermal waiting</div><div class="detail">Tap for 64-pixel data</div></div>
+     <div class="card touch" onclick="openDetail('environment')"><div class="detail" id="outsideStats">Outside sensor waiting</div><canvas class="chart" id="insideChart" width="300" height="82"></canvas><canvas class="chart" id="outsideChart" width="300" height="82" style="margin-top:6px"></canvas><div class="detail">Tap for gas / pressure / IAQ</div></div>
+    </div>
+   </div></details>
+
+  <details class="hm-drawer" id="drawerNetwork"><summary><span>Network, GNSS and cellular</span><small>Routes, fallback, satellites</small></summary>
+   <div class="panel"><div id="network"></div></div>
+   <div class="panel">
+    <div id="gnss"></div>
+    <div class="constellation-grid" id="constellationGrid"></div>
+    <div class="constellation-note">Primary: Hiwonder GPS V1 USB. Bars show receiver-reported satellites in view, NOT signal strength. Zero means zero reported satellites. NMEA labels alone do not mean satellites detected. No report does not mean unsupported constellation. Touch GPS diagnostics for source, age and errors.</div>
+   </div></details>
+
+  <details class="hm-drawer" id="drawerJetson"><summary><span>Jetson report and AI power</span><small>CPU, GPU, storage, services, AI mode</small></summary>
+   <div class="panel card touch" onclick="openDetail('jetson')"><div id="system"></div></div>
+   <div class="panel">
+    <div class="cards"><button class="btn ai-on" data-ai="object"><svg class="icon"><use href="/v2/assets/icons.svg#i-chip"/></svg>AI on</button><button class="btn ai-off" data-ai="eco"><svg class="icon"><use href="/v2/assets/icons.svg#i-leaf"/></svg>AI eco / off</button></div>
+    <div class="detail" id="ai">AI status waiting</div>
+   </div></details>
+
+  <details class="hm-drawer" id="drawerDrive"><summary><span>Drive report</span><small>Encoder selection, steering, autonomy readiness</small></summary>
+   <div class="panel card touch" onclick="openDetail('encoders')"><div id="motion"></div>
+    <div class="detail">One combined view: link, selected feedback, exclusions, steering, odometry and readiness.</div></div></details>
+
+  <details class="panel hm-drawer hm-dev" id="diagnosticsPanel" ontoggle="if(this.open){renderDiagnostics();refreshDiagnostics(true)}">
+   <summary><span>Developer diagnostics</span><small>Services, raw telemetry, logs, USB identity, file fingerprints</small></summary>
+   <div class="detail" id="diagState">Open to collect diagnostics</div>
+   <p class="detail">Read-only. Active service does not prove a working sensor. Recent telemetry is not a mechanical test pass. Mapping services may be inactive when not selected. Safety stays on the Jetson.</p>
+   <button class="btn" onclick="refreshDiagnostics(true)">Refresh health</button><button class="btn" onclick="downloadDiagnostics()">Export diagnostic snapshot</button><a class="btn" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/">Visual cloud / ROS graph</a>
+   <h2>Service status and restarts</h2>
+   <div style="overflow:auto;max-height:420px"><table class="diagTable"><thead><tr><th>Subsystem</th><th>State / mode</th><th>Restarts</th><th>Result / exit</th><th>Read log</th></tr></thead><tbody id="diagServices"></tbody></table></div>
+   <pre class="rawData" id="diagLog" style="max-height:300px;overflow:auto">Select LOGS beside a service. No service is restarted.</pre>
+   <h2>All dashboard telemetry</h2>
+   <input id="diagFilter" type="search" placeholder="Filter: gps, enc, imu, bms, radar…" oninput="renderDiagnostics()" style="width:min(100%,480px)">
+   <p class="detail">Age = last update received by this web server. Observed Hz = recent callback rate, not source ROS topic Hz. Cached values have no measured Hz. OLDER means at least 10s; slow status topics can normally be older. Click a key for its full current value.</p>
+   <div style="overflow:auto;max-height:480px"><table class="diagTable"><thead><tr><th>Telemetry key</th><th>Freshness / age</th><th>Observed Hz</th><th>Source</th><th>Latest value</th></tr></thead><tbody id="diagTelemetry"></tbody></table></div>
+   <h2>USB serial identity (read-only)</h2><pre class="rawData" id="diagPorts"></pre>
+   <h2>Deployed web file fingerprints</h2><pre class="rawData" id="diagVersions"></pre>
+  </details>
  </section>
 </main>
-
-<details class="panel" id="diagnosticsPanel" ontoggle="if(this.open){renderDiagnostics();refreshDiagnostics(true)}">
- <summary>Diagnostic workbench · services, live data, logs, USB</summary>
- <div class="detail" id="diagState">Open to collect diagnostics</div>
- <p class="detail">Read-only. Active service does not prove a working sensor. Recent telemetry is not a mechanical test pass. Mapping services may be inactive when not selected. Safety stays on the Jetson.</p>
- <button class="btn" onclick="refreshDiagnostics(true)">Refresh health</button><button class="btn" onclick="downloadDiagnostics()">Export diagnostic snapshot</button><a class="btn" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/">Visual cloud / ROS graph</a>
- <h2>Service status and restarts</h2>
- <div style="overflow:auto;max-height:420px"><table class="diagTable"><thead><tr><th>Subsystem</th><th>State / mode</th><th>Restarts</th><th>Result / exit</th><th>Read log</th></tr></thead><tbody id="diagServices"></tbody></table></div>
- <pre class="rawData" id="diagLog" style="max-height:300px;overflow:auto">Select LOGS beside a service. No service is restarted.</pre>
- <h2>All dashboard telemetry</h2>
- <input id="diagFilter" type="search" placeholder="Filter: gps, enc, imu, bms, radar…" oninput="renderDiagnostics()" style="width:min(100%,480px)">
- <p class="detail">Age = last update received by this web server. Observed Hz = recent callback rate, not source ROS topic Hz. Cached values have no measured Hz. OLDER means at least 10s; slow status topics can normally be older. Click a key for its full current value.</p>
- <div style="overflow:auto;max-height:480px"><table class="diagTable"><thead><tr><th>Telemetry key</th><th>Freshness / age</th><th>Observed Hz</th><th>Source</th><th>Latest value</th></tr></thead><tbody id="diagTelemetry"></tbody></table></div>
- <h2>USB serial identity (read-only)</h2><pre class="rawData" id="diagPorts"></pre>
- <h2>Deployed web file fingerprints</h2><pre class="rawData" id="diagVersions"></pre>
-</details>
 
 <div id="toast" role="status"></div>
 <div class="sensorModal" id="sensorModal" role="dialog" aria-modal="true"><div class="sensorSheet"><div class="sensorHead"><h2 id="detailTitle">LIVE SENSOR</h2><span class="live chip" id="detailFresh">LIVE</span><button class="closeDetail" onclick="closeDetail()">Close</button></div><div id="detailBody"></div></div></div>
@@ -197,4 +256,5 @@
 <script src="/v2/command.js" defer></script>
 <script src="/v2/motion-status.js" defer></script>
 <script src="/v2/shell.js" defer></script>
+<script src="/v2/home-cards.js" defer></script>
 </body></html>

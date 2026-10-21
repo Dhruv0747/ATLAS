@@ -100,7 +100,8 @@ class Render(unittest.TestCase):
     def test_home_shortcut_opens_page_in_one_click(self):
         for w, h in ((1440, 900), (390, 844)):
             pg, errs = self.open(w, h, path='/v2/', wait=800)
-            btn = pg.locator('a.flyskyShortcut'); self.assertTrue(btn.is_visible()); self.assertEqual(btn.inner_text(), 'FlySky Remote Test Lab' if w > 759 else 'FlySky Test Lab'); self.assertEqual(btn.get_attribute('aria-label'), 'FlySky Remote Test Lab')
+            btn = pg.locator('a.flyskyShortcut'); self.assertTrue(btn.is_visible()); label = btn.inner_text().split('\n')[0]   # Stage31 Home shows a one-line description under the name
+            self.assertIn(label, ('FlySky Remote Test Lab', 'FlySky Remote Test Lab' if w > 759 else 'FlySky Test Lab')); self.assertEqual(btn.get_attribute('aria-label'), 'FlySky Remote Test Lab')
             box = btn.bounding_box(); self.assertTrue(0 <= box['x'] and box['x'] + box['width'] <= w, box)
             btn.click(); pg.wait_for_load_state(); self.assertTrue(pg.url.endswith('/v2/flysky-testlab'))
             self.assertEqual(pg.locator('h1').first.inner_text(), 'FlySky Remote Test Lab'); pg.close()

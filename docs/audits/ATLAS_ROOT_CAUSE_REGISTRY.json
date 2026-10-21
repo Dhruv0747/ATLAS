@@ -14,6 +14,18 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-ASTRA-DDS-DISCOVERY-FANOUT-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "description": "Any new ROS participant in production domain 0 makes ~34 existing (mostly Python rclpy) nodes process discovery for ~3 s, adding ~20-27 whole-machine CPU points on a 65% parked baseline. This, not camera frame handling, trips the 75% Vision Lab guard at Astra start (77.9/75.9/83.2/80.8% observed) and also tripped the camera-free Stage30 probe (81.7%).",
+      "evidence": "Passive /proc per-second sampling around one read-only ros2 topic list: domain 0 -> 75.1/92.0/92.1%, 34 processes +3-5% one-core each; domain 77 -> single 76.6% sample (joiner start-up only), no other process affected. evidence/stage31_astra/jp_main.json, jp_iso.json, jp_none.json.",
+      "attempted_fix": "Astra driver launched with ROS_DOMAIN_ID=77 and Vision Lab receiver uses RosTransport(domain_id=77) instead of the production Foxglove bridge; refuses if domain 77 is already in use. Camera-free Jetson probe received 300 synthetic frames at 30.01 Hz with whole-machine CPU 63-68% (one 74.5% probe-start sample). Not deployed; no camera start performed.",
+      "remaining_gap": "Projected start peak ~73% vs 75% limit (2-point margin on a 62-67% baseline). Needs owner-approved install (rover-status-web restart) and one guarded Depth start; if it still trips, a measured owner policy decision (nice-aware CPU accounting, viewing quiet mode or consecutive-sample rule).",
+      "safety": "No threshold, service, DDS configuration, motor, steering, map or navigation change. Production domain untouched.",
+      "reference": "ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md"
+    },
+    {
       "id": "ATLAS-VISION-GUARD-CPU-BEFORE-HTTP-20261021",
       "confidence": "CONFIRMED",
       "resolution": "VERIFIED FIXED",
@@ -46,7 +58,10 @@
       "resolution": "VERIFIED FIXED",
       "date": "2026-10-20",
       "description": "Serial silence watchdog used calendar time: reproduced delayed stale reopening after backward clock correction and spurious reopening after forward correction. Switched receive/deadline elapsed time to monotonic without changing eight-second threshold.67 offline tests pass; scoped live bridge deployment verified. This does NOT prove the cause of the preceding I2C lockup or subsequent kernel USB enumeration failure; those remain unresolved.",
-      "evidence": ["docs/audits/ATLAS_I2C_USB_RECOVERY_2026-10-20.md", "project_atlas/tests/test_sensor_hub_transport_clock.py"]
+      "evidence": [
+        "docs/audits/ATLAS_I2C_USB_RECOVERY_2026-10-20.md",
+        "project_atlas/tests/test_sensor_hub_transport_clock.py"
+      ]
     },
     {
       "id": "20261015-stage24-amcl-seed-success",

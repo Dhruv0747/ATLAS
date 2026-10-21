@@ -1,2 +1,87 @@
-#visionLab{max-width:1680px;margin:auto;padding:16px;color:#e5f5ff}h1{font-size:clamp(18px,3vw,28px)}.vision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}.panel{padding:16px;min-width:0}.panel h2{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:18px}.state{font:12px system-ui;border:1px solid #7d96ad;border-radius:20px;padding:5px 8px;color:#ffc88b}.state.active{color:#80f4cf;border-color:#47b79a}.controls{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:16px}.controls label{display:flex;gap:8px;align-items:center}.image-box{aspect-ratio:4/3;background:#030a11;display:flex;align-items:center;justify-content:center;border:1px solid #254658;border-radius:12px;overflow:hidden}.image-box img{width:100%;height:auto;max-height:100%;object-fit:contain}.image-box img:not([src]){visibility:hidden}#depthImage{cursor:crosshair}#cloudCanvas{display:block;width:100%;height:340px;background:#030a11;border:1px solid #254658;border-radius:12px;touch-action:none}.cloud-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}pre,output{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.6 ui-monospace,monospace}small,.panel p{font-size:13px;color:#b6cfdf;line-height:1.6}.notice{padding:12px;border-left:3px solid #57cde4;background:#112334;border-radius:6px}select{max-width:100%;padding:8px;background:#102b3c;color:#fff;border:1px solid #50798a}button:disabled{opacity:.6}.topbar{flex-wrap:wrap;padding:12px;gap:14px}@media(max-width:850px){.detail-grid{grid-template-columns:1fr}}@media(max-width:650px){.vision-grid{grid-template-columns:1fr}#visionLab{padding:10px}#cloudCanvas{height:280px}.panel{padding:12px}}
-#visionLab #diagnostics{max-height:330px;overflow:auto;padding:10px;background:#071521;border-radius:8px}header.topbar{position:static}#visionLab .panel p{overflow-wrap:anywhere}#visionLab .controls label{max-width:100%;min-width:0;flex-wrap:wrap}#visionLab select{min-width:0;width:100%}
+/* ATLAS 3D Vision Lab (Stage 31). Loaded after base.css + glass.css. */
+.vl-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 16px}
+.vl-top .brand h1{font:400 14px/1.15 var(--display)}
+.vl-home{margin-left:auto}
+#visionLab{max-width:1500px;margin:0 auto;padding:14px 16px 24px;display:grid;gap:14px;color:var(--ink)}
+
+/* state banner: the one thing to read first */
+.vl-state{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px 24px;align-items:center;padding:16px 18px;border-radius:18px;
+  border:1px solid var(--line);border-left:5px solid var(--mute);background:var(--glass)}
+.vl-state-main{display:flex;gap:14px;align-items:flex-start}
+.vl-dot{flex:none;width:14px;height:14px;margin-top:6px;border-radius:50%;background:var(--mute)}
+.vl-state h2{margin:0 0 4px;font:650 19px/1.25 var(--ui);letter-spacing:0;color:var(--ink)}
+.vl-state p{margin:0;font-size:14px;line-height:1.5;color:#C3D4E2;max-width:70ch}
+.vl-state.ok{border-left-color:var(--terrain)}.vl-state.ok .vl-dot{background:var(--terrain);box-shadow:0 0 0 4px rgba(124,194,66,.2)}
+.vl-state.warn{border-left-color:var(--amber);background:rgba(60,42,8,.45)}.vl-state.warn .vl-dot{background:var(--amber)}
+.vl-state.fail{border-left-color:var(--signal)}.vl-state.fail .vl-dot{background:var(--signal)}
+.vl-state.busy{border-left-color:var(--sky)}.vl-state.busy .vl-dot{background:var(--sky)}
+.vl-res{margin:0;display:grid;gap:8px}
+.vl-res div{display:grid;grid-template-columns:96px 1fr;gap:8px;align-items:center;font-size:12.5px}
+.vl-res dt{color:var(--mute)}
+.vl-res dd{margin:0;display:grid;grid-template-columns:1fr 64px 70px;gap:8px;align-items:center}
+.vl-res dd b{font-weight:650;text-align:right}
+.vl-res dd small{color:#6F879C;font-size:11px}
+.vl-res div:last-child dd{grid-template-columns:1fr}
+.vl-res div:last-child dd b{text-align:left}
+.vl-bar{position:relative;height:8px;border-radius:4px;background:rgba(128,190,236,.15)}
+.vl-bar i{position:absolute;inset:0 auto 0 0;width:0;border-radius:4px;background:var(--sky)}
+.vl-bar i.over{background:var(--signal)}
+.vl-bar em{position:absolute;top:-3px;bottom:-3px;width:2px;background:rgba(231,240,248,.65)}
+
+/* controls */
+.vl-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.vl-seg{display:inline-grid;grid-auto-flow:column;gap:4px;padding:4px;border-radius:14px;border:1px solid var(--line);background:rgba(5,14,26,.55)}
+.vl-seg label{cursor:pointer}
+.vl-seg input{position:absolute;opacity:0;pointer-events:none}
+.vl-seg span{display:block;padding:7px 14px;border-radius:10px;min-width:118px}
+.vl-seg b{display:block;font:600 13px var(--ui)}.vl-seg small{display:block;font-size:11px;color:var(--mute)}
+.vl-seg input:checked+span{background:rgba(34,184,240,.22);box-shadow:inset 0 0 0 1px var(--sky)}
+.vl-seg input:focus-visible+span{outline:2px solid var(--sky)}
+.vl-start{border-color:rgba(124,194,66,.6)}
+.vl-run{font-weight:600;font-size:13px}
+.vl-note{flex-basis:100%;margin:0;font-size:12px;color:var(--mute)}
+
+/* streams */
+.vl-streams{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start}
+.vl-stream header{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.vl-stream h2{margin:0;font:650 15px var(--ui);letter-spacing:0;color:var(--ink)}
+.vl-chip{font:600 11.5px var(--ui);padding:2px 9px;border-radius:999px;border:1px solid var(--line);color:var(--mute)}
+.vl-chip.ok{color:#BFF09A;border-color:rgba(124,194,66,.55)}.vl-chip.warn{color:#FFD58A;border-color:rgba(242,179,61,.55)}
+.vl-fps{margin-left:auto;font-size:12px;color:var(--mute)}
+.image-box{position:relative;aspect-ratio:4/3;background:#030a11;display:flex;align-items:center;justify-content:center;border:1px solid #1f3b4d;border-radius:12px;overflow:hidden}
+.image-box.small{max-width:420px}
+.vl-stream .image-box{max-height:58vh}
+.v2-vision nav[aria-label="Command center navigation"]{display:none!important}
+.image-box img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
+.image-box img:not([src]){visibility:hidden}
+.vl-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;color:var(--mute);font-size:13.5px}
+#depthImage{cursor:crosshair}
+.vl-legend{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11.5px;color:var(--mute)}
+.vl-legend i{flex:0 1 160px;height:8px;border-radius:4px;background:linear-gradient(90deg,#ff3b3b,#ffd23b,#3bff8a,#3bb6ff,#3b46ff)}
+.vl-legend .vl-invalid{margin-left:auto}
+.vl-meta{margin:8px 0 0;font-size:12px;color:var(--mute);overflow-wrap:anywhere}
+.vl-measure{margin-top:12px;padding:12px;border-radius:12px;background:rgba(5,14,26,.6);border:1px solid var(--line)}
+.vl-measure b{display:block;font:600 13px var(--ui);margin-bottom:4px}
+.vl-measure output{display:block;font:650 15px/1.5 var(--ui);white-space:pre-wrap}
+.vl-measure small{display:block;margin-top:6px;font-size:11.5px;color:var(--mute)}
+
+/* drawers (same look as Home) */
+.hm-drawer{border-radius:16px;border:1px solid var(--line);background:rgba(8,20,34,.55)}
+.hm-drawer>summary{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-height:50px;padding:14px 16px;cursor:pointer;list-style:none;font:400 14px var(--ui)}
+.hm-drawer>summary::-webkit-details-marker{display:none}
+.hm-drawer>summary span{font:600 14px var(--ui)}
+.hm-drawer>summary small{font:400 12px var(--ui);color:var(--mute)}
+.vl-disabled{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0 12px 12px}
+.vl-disabled>p{grid-column:1/-1;margin:0;font-size:13px;color:#C3D4E2}
+.vl-disabled h2{font:650 14px var(--ui);letter-spacing:0}
+.vl-dev{padding:0 14px 14px}
+.vl-check{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--mute);margin:6px 0}
+#cloudCanvas{display:block;width:100%;height:260px;background:#030a11;border:1px solid #1f3b4d;border-radius:12px;touch-action:none}
+.cloud-tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.cloud-tools .btn{min-height:36px;font-size:12px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.55 ui-monospace,monospace;margin:0}
+#diagnostics{max-height:360px;overflow:auto;padding:10px;background:#071521;border-radius:8px}
+select{max-width:100%;padding:6px;background:#102b3c;color:#fff;border:1px solid #50798a;border-radius:8px}
+.dock{display:flex;align-items:center;gap:12px}
+@media (max-width:980px){.vl-state{grid-template-columns:1fr}.vl-streams{grid-template-columns:1fr}.vl-disabled{grid-template-columns:1fr}}
+@media (max-width:560px){#visionLab{padding:10px}.vl-top .chip{display:none}.vl-seg span{min-width:0}.vl-res dd{grid-template-columns:1fr 56px}.vl-res dd small{display:none}}

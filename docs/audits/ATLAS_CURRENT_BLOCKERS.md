@@ -1,5 +1,17 @@
 # ATLAS current blockers
 
+21 October Stage31 takeover: Astra startup block traced to ROS/DDS discovery fan-out.
+Camera-free, passive /proc sampling: one participant joining production domain 0
+raised whole-machine CPU 65%->92% for ~3 s (34 existing nodes woke); the same
+join in private domain 77 affected no other process. Parked baseline 65.4% is
+spread over ~70 processes (20 points are nice-10/15 background). Fix IMPLEMENTED
+(Astra driver + Vision Lab receiver in private domain 77; receiver verified on
+Jetson at 30.01 Hz synthetic, no fan-out) but NOT DEPLOYED; projected guard peak
+~73% vs 75% limit, so a pass is likely but not certain. Live viewing still
+BLOCKED pending approval. Home/Vision Lab redesign built, tested offline and
+package-rehearsed on Jetson; not deployed. Thresholds unchanged. See
+ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md and ATLAS_DASHBOARD_V2_UI_REDESIGN.md.
+
 21 October Stage30 approved deployment follow-up: three-file ac34cd3 cleanup
 installed and hash-verified, no restarts. One real Dashboard Depth attempt
 stopped at80.7786% CPU; zero frames, no retry. Independent RAM69.916%,61.187C.
