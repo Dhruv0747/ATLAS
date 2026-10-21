@@ -19,7 +19,7 @@
       "resolution": "UNRESOLVED",
       "date": "2026-10-21",
       "evidence": "User cgroup controllers contain memory/pids only; cpu.max absent. Requested CPUQuota is not enforcement. Global CPU controller left unchanged to preserve robot timing.",
-      "scoped_fix": "Build fails closed; isolated test children duty-paced with independent aggregate CPU75/RAM80/thermal70 guards. Not a permanent global CPU fix.",
+      "scoped_fix": "Build fails closed; isolated test children duty-paced with independent aggregate CPU75/RAM80/thermal70 guards. Stage28 own-group paced incremental build also aborted at CPU80.8782%; no ROS driver launch or retry. Offboard ARM64 build feasibility is next. Not a permanent global CPU fix.",
       "reference": "ATLAS_ASTRA_PRO_3D_VISION_LAB.md"
     },
     {

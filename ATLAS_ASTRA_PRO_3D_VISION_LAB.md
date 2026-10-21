@@ -1,5 +1,73 @@
 # ATLAS Astra Pro 3D Vision Lab — 21 October 2026
 
+## Stage 28 — isolated build safety abort, 21 October 2026
+
+Owner authorized isolated ROS integration, bounded stationary streams and offline
+cloud preparation, not production deployment. Continued pinned source
+`f7e71d9ce806e788cb48d8580aac2c778fba4214` and existing private dependencies.
+
+Fresh preflight: CPU 63.38–66.21%, RAM <=68.26%, hottest thermal 61.13 C,
+GPU load single sample 405/1000 (40.5%; not a representative average), disk
+368 GiB available. Depth 2bc5:0403 remains USB001/014, RGB 2bc5:0501 USB001/011;
+both readable/writable with owner ACLs. Stop latched, manual-only, commission
+disarmed, zero command and recorder OFF confirmed. Essential service identities
+active. This limited gate did not establish every requested sensor's stream Hz,
+absence of action goals, or continuous Pi-camera frame health.
+
+One new strategy was attempted: single-worker incremental build, newly owned
+session process group duty-paced with 10 ms run / 90 ms hold windows, independent
+CPU75/RAM80/thermal70 admission. This is NOT cgroup CPU enforcement. No global
+controller, service quota, production environment or library was changed.
+
+**Build ABORTED:** aggregate CPU reached **80.8782%**, RAM 68%, hottest
+thermal 61.218 C. Nine preceding passing samples averaged 67.3871%, peak
+71.9708%. These are whole-system readings, NOT Astra/compiler CPU attribution.
+The build had produced no stdout/stderr before termination; no compiler-specific
+cause is proved. No unchanged-condition retry was made.
+
+Supervisor stopped its own group; follow-up found no colcon, cc1plus, paced-build
+or Astra-node process. Essential Pi-camera/base/mux/EKF/AMCL/LiDAR service PIDs and
+restart counts exactly matched preflight; Stage20 inactive/MainPID0. No camera
+stream, image/bag recording, motion, calibration, map or dashboard deployment.
+Four offline supervisor tests pass: opt-in required, preserve evidence, reject
+failed preflight without spawning, and terminate owned group on resource failure.
+
+| Milestone | Stage 28 status |
+| --- | --- |
+| DRIVER BUILT | NO — isolated build aborted at CPU guard |
+| ROS STREAM VERIFIED | NO — no Stage28 driver launch |
+| RGB + DEPTH VERIFIED | NO concurrent test; previous separate native smoke tests remain valid |
+| POINT CLOUD VERIFIED | NO |
+| DEPTH ACCURACY CHECKED | NO — physical references still required |
+| DASHBOARD READY | Offline prototype only; no verified ROS topic manifest |
+| DEPLOYED | NO production change |
+| NAV2 INTEGRATED | NO, explicitly out of scope |
+
+Vendor launch-source inspection confirms `astra_pro.launch.xml` supports a
+`camera_name` namespace, independent color/depth/IR switches, and uncolored cloud
+enablement. Those are candidate interfaces, NOT live verified topics. Defaults
+include IR and point cloud; do not launch defaults or publish assumed extrinsics.
+No manifest was updated with guessed topics, intrinsics or frame transforms.
+
+Evidence (Jetson isolated staging, preserved): `stage28_paced_build.json`,
+`stage28_build_stdout.txt`, `stage28_build_stderr.txt`. Rollback needs no production
+restart: owned build is stopped; leave staging unused and preserve evidence.
+
+Next necessary engineering action: assess an isolated offboard ARM64 build using
+the same pinned source, Humble/Jammy ARM64 dependencies and compatible sysroot.
+PC read-only check: WSL Ubuntu is x86_64 with Humble installed and 949 GiB free;
+`aarch64-linux-gnu-g++`, Docker, Podman and `qemu-aarch64-static` are not on PATH.
+Thus the current PC environment is not yet a verified ARM64 build environment.
+New system-level PC toolchain/runtime installation requires a separate explained
+installation/rollback approval; none was performed during this phase.
+Validate binary architecture, linkage and package hashes before transfer. Do not
+copy PC x86 binaries into Jetson or install global toolchains/libraries there.
+If a suitable offboard environment is unavailable, report its exact prerequisite
+instead of retrying Jetson unchanged or weakening the 75% limit. A build success
+must precede fresh full stream/sensor-health admission and bounded depth-only,
+RGB-only, concurrent and cloud tests. Production dashboard deployment still needs
+separate approval; no extra operator drive test is needed at this blocked stage.
+
 ## Verified stationary smoke tests — latest checkpoint
 
 21 October: operator granted temporary ACL access to Astra depth 001/014 and RGB

@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Stage28: isolated paced Astra build aborted safely at CPU80.88% (limit75%).
+No ROS stream/concurrent/cloud milestone claimed; no production deployment.
+[Exact status and offboard-build next step](ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
+
 21 October: [Astra isolated RGB/depth smoke tests verified](ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
 15 real frames per test; CPU peaks 71.43%/69.19%; depth SDK warning retained.
 No production driver/viewer deployment, movement or recording. Global CPU stability

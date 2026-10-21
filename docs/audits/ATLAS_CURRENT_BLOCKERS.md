@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October Stage28: fresh admission passed, but one incremental isolated build
+with own-process duty pacing aborted on aggregate CPU80.8782% >75%; RAM68%,
+thermal61.218 C. No automatic retry, ROS driver launch or production change.
+Owned processes gone; essential service identities unchanged, recorder OFF.
+Next: offboard ARM64 build feasibility, not another unchanged Jetson attempt.
+Four new supervisor failure-path tests pass. See Astra report for separate status gates.
+
 21 October latest: isolated Astra RGB/depth each returned 15 real frames within
 resource limits; depth warning/parser correction verified offline from preserved
 output. No recording or existing-service restart. User cgroup CPU quotas are NOT

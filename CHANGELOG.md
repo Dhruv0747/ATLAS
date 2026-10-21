@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 Stage28 isolated build:
+- Added opt-in own-process paced build supervisor; four offline failure-path tests pass.
+- Live one-shot incremental build stopped on CPU80.8782% >75%; evidence preserved, no retry or driver launch.
+- Existing production service identities unchanged; report distinguishes incomplete ROS/cloud/concurrent milestones.
+
 2026-10-21 Astra stationary validation:
 - Added guarded, opt-in RGB/depth smoke tools with own-child duty pacing; verified real frames without saving images or disturbing the Pi camera.
 - Fixed unsupported RGB FPS selection and strict depth JSON/native-warning parsing; retained failed evidence and SDK warning.
