@@ -309,7 +309,8 @@ No autostart, systemd unit, driver binary or production-domain change.
 
 ## 13. Commits
 
-See the commit that adds this report (the git log on this branch). The baseline is `2c4adbf`.
+- `2f91a3c`: Stage 32 implementation, tests, package, evidence and this report (offline; not installed).
+- Baseline: `2c4adbf` (Stage 31B live).
 
 ## 14. Approvals needed (minimum, in order)
 
