@@ -86,7 +86,9 @@ class Manifest(unittest.TestCase):
             m = W.read_manifest()
         self.assertEqual(m['topics']['ir'], '/astra/ir/image_raw'); self.assertEqual(m['topics']['ir_info'], '/astra/ir/camera_info')
         self.assertEqual(m['mode_support']['depth']['state'], 'verified')
-        for k in ('ir', 'ir_depth', 'rgb_ir', 'concurrent'):
+        self.assertEqual(m['mode_support']['ir']['state'], 'verified')      # 60-s live acceptance 21 Oct 2026 (section 25)
+        self.assertIn('640x480', m['mode_support']['ir']['note'])
+        for k in ('ir_depth', 'rgb_ir', 'concurrent'):
             self.assertEqual(m['mode_support'][k]['state'], 'untested', k)   # never claimed before a live test
 
     def test_invalid_mode_support_rejected(self):

@@ -38,9 +38,10 @@ def test_stale_distinguished_from_no_frames():
 
 def test_browser_no_frames_label_and_strict_native_encoding():
     js=(Path(__file__).resolve().parents[1]/'web/v2/vision3d.js').read_text()
-    assert 'IR NO FRAMES RECEIVED' in js
+    state=(Path(__file__).resolve().parents[1]/'web/v2/vision3d_state.js').read_text()
+    assert "'No frames received'" in state and "label: 'Waiting for frames'" in state   # Stage32 UI fix wording
     assert "['mono8', 'mono16', '16UC1'].includes(enc)" in js
-    assert "$('irState').textContent = 'Rendered'" in js
+    assert 'browserIr.rendered++' in js
 
 def test_api_prepared_is_not_browser_delivery_and_survives_stop():
     s=W.VisionService({},clock=lambda:100,wall=lambda:100)

@@ -1403,3 +1403,204 @@ To roll back, run `ATLAS_IR_DIAG_STATE=~/project-atlas-migration/stage32-ir-640-
 - Recording, autostart, firmware or emitter changes, movement.
 - The Vision Lab's mode note for Infrared still says "Not yet tested", because `config/vision3d_live.json` `mode_support` was deliberately not changed (only the IR setting was approved).
 - The page still says "Camera streaming" when IR delivers nothing. The banner fix is pending its own approval.
+
+## 26. Stage 32 continuation (offline): status/label fix, combined-mode readiness, calibration preparation — 21 October 2026, 18:12–
+
+This work was done under the continuation prompt's offline authorization only. Nothing was installed, nothing restarted, and the camera was not started. Read-only Jetson checks are listed where they were used.
+
+### Status labels
+
+| Label | Status |
+|---|---|
+| UI FIX READY | **YES:** package `s32_ui_pkg_v2.tgz`, SHA256 `7c21ce2d…9e79`, part U1 (no restart) |
+| UI DEPLOYED | **NO** |
+| IR-ONLY LIVE VERIFIED | **YES:** 640x480@30 on the production driver, section 25 |
+| IR+DEPTH LIVE VERIFIED | **NO:** not tested |
+| RGB+IR LIVE VERIFIED | **NO:** not tested |
+| DEPTH+RGB REGRESSION VERIFIED | **NO:** not run live. Its launch arguments are byte-identical to Stage 31B (test). |
+| CALIBRATION VALIDATED | **NO:** procedure and tools prepared |
+| XYZ CLOUD LIVE VERIFIED | **NO:** blocked by calibration |
+
+### 26.1 Actual deployed state (read-only, 18:30)
+
+| File | Production (Jetson) | Repository after this commit |
+|---|---|---|
+| scripts/atlas_vision3d_runtime.py | `fc807489…` (640x480 IR) | same |
+| scripts/atlas_vision3d_web.py | `889881c0…` | `a7b9f1f9…`: the earlier receiver-diagnostic candidate (`baa1f26`), **never deployed**, left unchanged |
+| web/v2/vision3d.js | `76f9a202…` | `2c06d110…` (U1, not deployed) |
+| web/v2/vision3d_state.js | absent | `641ca00b…` (U1, new) |
+| web/v2/vision3d.html / .css | `a930af83…` / `04f98c8c…` | `cf19258b…` / `e92cf062…` (U1) |
+| config/vision3d_live.json | `e27bc0c0…` | `7f9e5ff6…` (U2, not deployed) |
+| scripts/atlas_vision3d_geometry.py | `75d02012…` | `6eb23c25…` (U2) |
+| isolated runtime library / manifest | `6ae87601…` / `c1a6d1c0…` | unchanged |
+
+The U1 JavaScript was written and tested against the **deployed** receiver (`889881c0`). It uses none of the candidate-only fields (`ir_delivery`, `last_session`, `ir_boundaries`, `ir_api`); a static test checks this.
+
+### 26.2 P0: Dashboard status and label fix (U1 READY, static, no restart)
+
+The new pure module `web/v2/vision3d_state.js` derives every banner, chip and driver line from the receiver's **per-stream frame counts and freshness**. `vision3d.js` uses it, the existing layout, buttons and navigation are unchanged, and one CSS rule was added.
+
+**Banner states:**
+
+| Banner | When it shows |
+|---|---|
+| **Starting** | Safety and resource admission is running |
+| **Waiting for frames** | Driver running, no frame yet, within 10 s of ACTIVE. Measured first-frame delay is 2–3 s. |
+| **Live** | Every requested stream holds a fresh frame |
+| **No frames received** | A requested stream delivered nothing within 10 s, or the session ended without frames |
+| **Frames stopped** | A stream delivered, then went stale |
+| **Resource blocked** | Shows the measured value and limit, and says it "says nothing about whether the camera mode works" |
+| **Stopped safely** | Gives the reason (session complete, 4-s lease expired, Stop/hidden/closed) and **this session's frame count per stream**, kept by the page because the receiver clears its counters at stop |
+
+**Labels and chips:**
+
+- Mode notes read **Tested**, **Not yet tested** or **Not supported (tested)**. Depth + 3D cloud reads **Calibration required**.
+- Stream chips read Starting / Waiting for frames / Live / No frames received / No new frames / Off.
+- The camera-driver line separates "Running · no frames yet" from "Running · frames arriving".
+- The cloud chip reads "Calibration required".
+- Developer Diagnostics adds `session_view`, per-session `max_received` and the outcome, and browser IR fetch/render/failure counters.
+- `drawIr` keeps the strict native-encoding and exact-size checks.
+
+**Offline verification:**
+
+- 10 Node state tests cover each state, the combined-mode missing-stream case, the resource block wording, worker reset and mode notes.
+- The earlier developer's UI tests were updated to the new wording, with their intent preserved.
+- A Playwright timeline against the **deployed receiver code** with synthetic IR showed the sequence **Starting → Waiting for frames → No frames received → Live → Stopped safely**, "Infrared: 215 frames received", and no page errors.
+- A read-only preview served the new static files locally against the **live** Jetson status (GET status/summary only; no Start, no POST). Desktop and 390 px rendered with no errors and no horizontal scroll.
+
+**What U1 alone does and does not fix:**
+
+- The Infrared mode note comes from the receiver's manifest, which `rover-status-web` loads once. U1 alone therefore still shows "Not yet tested" for Infrared.
+- **U2** changes it to "Tested" (note: 640x480 verified, 1,624 frames, 29.7 fps; 320x240 never served). U2 needs one `rover-status-web` restart.
+
+### 26.3 P1: combined modes, evidence before any live test
+
+| Mode | Driver arguments (from `driver_args`) | Evidence |
+|---|---|---|
+| IR + Depth | OpenNI depth 160x120@30 + IR 640x480@30, no colour | The pinned driver has **no** IR/depth exclusion; it excludes only IR + OpenNI colour when UVC is off. The vendor `astra_pro` launch enables depth, IR and colour together at 640x480. That is not proof for this firmware, nor for mixed 160x120 depth + 640x480 IR. |
+| RGB + IR | UVC colour 320x240@15 MJPEG (device 0501) + OpenNI IR 640x480@30 (device 0403) | Separate USB devices, and the driver allows it when UVC is on. Not demonstrated. |
+| Depth + RGB | unchanged from Stage 31B (test) | Isolated Stage 29 run only |
+
+**Independent corroboration of the IR mode finding:** Orbbec staff on the Orbbec 3D Club forum advise setting the Astra Pro infrared stream to 640x480 or 1280x1024 ("Infrared Stream - Astra PRO"). That matches section 25.
+
+**USB (read-only):**
+
+- Both Astra devices run at **480 Mb/s (USB 2.0)**, at ports 1-2.3.1.1 (0501) and 1-2.3.1.2 (0403).
+- They sit behind two 4-port hubs that they share with other devices.
+- Expected payload is IR 9.2 MB/s + depth 1.15 MB/s, which is well within USB 2.0. UVC isochronous reservation for RGB + IR is the unknown.
+
+**CPU forecast (not a measurement):**
+
+- IR alone: 63.7–70.5% guard. Depth alone (Stage 31B): 63.7–71.1%.
+- IR+Depth may run close to the 75% limit.
+- A guard stop would be reported as *Resource blocked*, **not** as unsupported, and the UI wording enforces that.
+
+**Test order once approved:**
+
+1. IR+Depth.
+2. RGB+IR.
+3. Depth+RGB regression.
+
+Each would be one 60-s session through the heartbeat-checked viewer (`stage32_ir_acceptance.py`, which generalises to any mode), with the passive recorder and stop-on-failure.
+
+### 26.4 P3: calibration preparation and owner procedure
+
+**Factory access, final status:**
+
+- Per-device calibration (OpenNI property 14) reports *unsupported*.
+- The depth stream's ZPD/ZPPS give only the nominal f = 570.34 px at 640x480. That is identical to the FOV value, so it is not a calibration.
+- `DEPTH_SENSOR_CALIBRATION_INFO` is advertised, but its layout is undocumented for this model. It is not read, so nothing is guessed.
+- The device identity (serial 17122120830, fw 5.8.22, RD108C-009) is preserved in the manifest's `identity`. The calibration gate now reads `identity.device_serial`, which is needed because the manifest schema rejects a top-level `device_serial`. This is U2; a test covers it.
+
+**New tooling (tested offline, not run):**
+
+- **IR despeckle.** The IR projector cannot be switched off on this unit (laser property unsupported). On synthetic 640x480 views with a projector-like dot field, plain detection found the board in **1 of 24** views; with a 5x5 Gaussian despeckle it found **24 of 24**, and recovered fx 569.8 / fy 570.1 / cx 318.9 (truth 570.3 / 319.5). Held-out RMS was 0.34 px.
+- **Front-face reference model.** A tape measured from the Astra front face cannot see the internal depth origin. `fit_depth_offset` fits median = scale·reference + offset over at least 3 distances. Validation requires |offset| ≤ 25 mm and |scale − 1| ≤ 1%, plus per-distance residual ≤ max(10 mm, 1%), invalid ≤ 10%, and a plane fit. The offset is recorded, and depth data are never "corrected" with it.
+- **`stage32_ir_checkerboard_capture.py`:**
+  - one IR-only session through the heartbeat-checked page;
+  - the page itself fetches raw IR, so no second lease keeper exists;
+  - corners only, and every image is discarded after detection;
+  - `--merge` combines approved sessions, because each is ≤ 60 s;
+  - output is a CANDIDATE plus a 160x120 depth candidate (pixel-centre scaling, offset 0, flagged).
+- **`stage32_depth_target_capture.py`:**
+  - one Depth-only session per measured distance;
+  - the page samples a 9x9 grid in the central 30% through the existing read-only pixel route, tied to the displayed frame stamp;
+  - scalars only;
+  - `validate()` back-projects with the candidate intrinsics offline, fits the plane and runs `attach_validation(front_face_reference=True)`.
+
+**What the owner prepares:**
+
+1. **Checkerboard:**
+   - **9 x 6 inner corners** (10 x 7 squares), **35.0 mm squares**, giving a 350 x 245 mm pattern plus at least a 25 mm white border, on **A3**.
+   - Print at **100% / "actual size"**, never "fit to page", on **matte** paper; glossy paper reflects the IR projector.
+   - Mount it flat on rigid foam board, acrylic or glass. Flatness should be within about 1 mm; check with a straight edge.
+   - Measure **across 9 squares with a steel ruler**: expected 315.0 mm. Report the value to 0.5 mm. The square size used is measured / 9.
+2. **Capture positions** (rover stationary, E-STOP latched):
+   - distances 0.5, 0.8 and 1.2 m;
+   - board centred, then near each image corner and edge;
+   - tilted about ±30° left/right and up/down;
+   - **at least 20 distinct poses**, each held still for 2 s;
+   - the board must stay fully in the frame;
+   - prefer daylight or incandescent light, because both contain IR.
+3. **Depth targets:**
+   - a flat **matte** wall or board, at least 1 x 1 m, roughly square-on to the camera;
+   - tape-measured **from the Astra front face** to the target at about **1.00, 1.50, 2.00 m** and optionally **2.72 m**;
+   - report each to the millimetre;
+   - nothing reflective or dark in the central area.
+4. **Acceptance:**
+   - IR candidate: training RMS ≤ 0.5 px, held-out ≤ 0.8 px, coverage ≥ 60%, at least 15 views;
+   - depth model: limits as in "Front-face reference model" above, across at least 3 distances.
+   - The results are committed for review **before** anything is installed.
+5. **Install and rollback (A6, separate approval):**
+   - install `config/astra_calibration/depth_160x120.json`; the gate then reports VALIDATED;
+   - **rollback = delete that one file**, and the gate returns to NOT VALIDATED;
+   - the cloud node is launched only by the Depth + 3D cloud mode.
+
+**Open dependency:** the 160x120 depth candidate assumes **zero IR-to-depth pixel offset**. On PrimeSense-family cameras the depth image is usually shifted by a few pixels against IR. Measuring that offset needs a working **IR+Depth** mode, so P1-A comes before A6.
+
+### 26.5 P4: XYZ PointCloud2 readiness
+
+The code is unchanged and preserved: cached rays, `/astra/points` node with its domain-77 and calibration admission, optical frame, metres, invalid filtering, 6,000-point cap, orbit/pan/zoom/reset viewer, and the calibration gate.
+
+- **Jetson camera-off profile (section 9):** 6.95–7.07 ms CPU per cloud plus 2.3 ms packing, about 4.7% of one core at 5 Hz.
+- **Offline tests:** geometry, cloud, gate and serial-identity tests pass.
+- **Still pending:** live Depth + PointCloud2 waits for a VALIDATED calibration, and XYZRGB stays disabled.
+
+### 26.6 P5: regression results (offline)
+
+- **Vision Lab suites:** 230 passed, 3 skipped. They cover:
+  - IR 640x480 arguments, Depth and Depth+RGB arguments, Start/Pause/Stop and lease handling;
+  - no-frame detection, raw IR, click-to-measure, Home and lab links;
+  - E-STOP dock, domain-77 isolation, calibration restrictions, PointCloud2 and checkerboard tools;
+  - the new UI state tests.
+- **Full suite:** 1,071 passed, 5 skipped, 3 failed:
+  - the Pi camera heartbeat test and `test_status_web_estop_reset` lockout timing both **fail identically at `dabf95e` without these changes**;
+  - `test_protected_safety_files_untouched` flags the uncommitted `config/` change and clears on commit.
+
+### 26.7 Deployment package and rollback (rehearsed, not applied)
+
+`tools/deploy/stage32_ui/stage32_ui.sh`, inside `s32_ui_pkg_v2.tgz` (`7c21ce2d…`). It is staged on the Jetson at `~/project-atlas-migration/stage32-ui-continuation/pkg` (SHA256SUMS OK).
+
+- **`apply-ui` / `rollback-ui` (U1):**
+  - three static files plus the new `vision3d_state.js`;
+  - **no restart**;
+  - refuses unless E-STOP is latched, no camera-side process runs, and the live hashes equal production.
+- **`apply-config` / `rollback-config` (U2):**
+  - manifest plus geometry;
+  - runs a Jetson-Python import check (manifest OK, serial 17122120830, IR verified, calibration NOT VALIDATED);
+  - **restarts `rover-status-web` only**, with the camera off;
+  - the restart transient (section 21) is expected and is not a camera admission.
+- **Rehearsals:**
+  - on a byte copy of the production files on the Jetson: apply-ui → apply-config → rollback-config → rollback-ui, byte-identical;
+  - on a local `2f91a3c` tree: refused without approval, refused re-apply, byte-identical rollback.
+
+### 26.8 Next owner approvals needed (each separate)
+
+1. **U1:** `stage32_ui.sh apply-ui` (static, no restart).
+2. **U2:** `stage32_ui.sh apply-config`, **with one `rover-status-web` restart** (camera off), so Infrared shows "Tested" and the calibration gate knows the serial.
+3. **One IR+Depth 60-s session** through the heartbeat-checked viewer, stopping on any failure, no retry.
+4. Then, separately, **one RGB+IR** and **one Depth+RGB regression** session.
+5. **A5:** the IR checkerboard capture session(s), up to 3 merged 60-s IR sessions, corners only, plus 3–4 Depth-only target sessions. The owner provides the checkerboard and tape distances above.
+6. **A6:** install the validated calibration file and run one Depth + 3D cloud session.
+
+**Sources:** [Infrared Stream – Astra PRO (Orbbec 3D Club)](https://3dclub.orbbec3d.com/t/infrared-stream-astra-pro/257); [OpenCV: Using Orbbec Astra 3D cameras](https://docs.opencv.org/4.8.0/d4/d65/tutorial_orbbec_astra.html).

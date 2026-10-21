@@ -61,15 +61,15 @@ class StaleSummary(unittest.TestCase):
         with sync_playwright() as p:
             b = p.chromium.launch(); pg = b.new_page()
             pg.goto(srv.url + '/v2/vision3d'); pg.wait_for_timeout(1500)
-            self.assertIn('Camera off', pg.inner_text('#vlTitle'))          # before Start: last session shown
+            self.assertIn(pg.inner_text('#vlTitle'), ('Camera off', 'Stopped safely'))   # before Start: last session shown (Stage32 wording)
             pg.click('#startViewer'); seen = []
             for _ in range(28):
                 pg.wait_for_timeout(250); seen.append((pg.inner_text('#vlTitle'), pg.inner_text('#vlDriver')))
             b.close()
         srv.httpd.shutdown()
         titles = [t for t, _ in seen]
-        first_new = next(i for i, t in enumerate(titles) if t == 'Stopped to protect ATLAS')
-        self.assertTrue(all(t == 'Checking before start' for t in titles[:first_new]), titles)
+        first_new = next(i for i, t in enumerate(titles) if t == 'Resource blocked')   # Stage32 wording
+        self.assertTrue(all(t == 'Starting' for t in titles[:first_new]), titles)
         self.assertNotIn('Stopped safely', [d for _, d in seen[:first_new]])            # old driver state never reused
         self.assertEqual([x.get('action') for x in srv.posts], ['start'])
 

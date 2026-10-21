@@ -101,3 +101,4 @@ select{max-width:100%;padding:6px;background:#102b3c;color:#fff;border:1px solid
 .vl-cal.ok{color:#BFF09A}.vl-cal.blocked{color:#FFD58A}
 .vl-cloud #cloudCanvas{height:340px}
 .vl-sub{font:600 13px var(--ui);margin:12px 0 6px}
+.vl-chip.busy{color:#9FD8F5;border-color:rgba(34,184,240,.5)}

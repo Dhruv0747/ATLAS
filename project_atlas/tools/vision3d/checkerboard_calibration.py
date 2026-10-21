@@ -36,10 +36,16 @@ class CornerSet:
         self.pattern, self.size, self.views, self.rejected = pattern, (width, height), [], 0
         self.cells = set()
 
-    def add(self, gray):
+    def add(self, gray, despeckle=0):
+        """despeckle: odd Gaussian kernel (e.g. 5) applied before detection. The Astra's IR projector cannot be switched off
+        on this unit (laser-enable property unsupported, A4), so its dot pattern overlays the board in IR images."""
         cv2 = _cv()
         if gray.dtype != np.uint8 or gray.shape != (self.size[1], self.size[0]):
             raise ValueError('expected native 8-bit image at the declared resolution')
+        if despeckle:
+            if despeckle % 2 == 0 or not 3 <= despeckle <= 15:
+                raise ValueError('despeckle must be an odd kernel 3..15')
+            gray = cv2.GaussianBlur(gray, (despeckle, despeckle), 0)
         found, corners = cv2.findChessboardCorners(gray, self.pattern, cv2.CALIB_CB_ADAPTIVE_THRESH | cv2.CALIB_CB_NORMALIZE_IMAGE)
         if not found:
             self.rejected += 1
@@ -113,24 +119,48 @@ def distance_limit_m(distance_m):
     return max(0.010, 0.01 * distance_m)
 
 
-def attach_validation(doc, distance_tests, plane_tests):
+MAX_REFERENCE_OFFSET_M = 0.025   # tape is measured from the Astra front face; the depth origin is inside the housing
+MAX_SCALE_ERROR = 0.01
+
+
+def fit_depth_offset(distance_tests):
+    """Least-squares median_m = scale * reference_m + offset over >= 3 owner-measured distances.
+    offset absorbs the unknown front-face-to-depth-origin datum (and any constant bias; they cannot be separated)."""
+    pts = [(t['reference_m'], t['median_m']) for t in distance_tests]
+    if len({round(r, 2) for r, _ in pts}) < 3:
+        raise ValueError('need at least 3 distinct measured distances to fit scale and offset')
+    n = len(pts); mx = sum(r for r, _ in pts) / n; my = sum(m for _, m in pts) / n
+    sxx = sum((r - mx) ** 2 for r, _ in pts); sxy = sum((r - mx) * (m - my) for r, m in pts)
+    scale = sxy / sxx; offset = my - scale * mx
+    return {'scale': scale, 'offset_m': offset, 'residuals_m': [m - (scale * r + offset) for r, m in pts]}
+
+
+def attach_validation(doc, distance_tests, plane_tests, front_face_reference=False):
     """distance_tests: [{'reference_m', 'median_m', 'invalid_percent'}] from depth_statistics on owner-measured targets.
     plane_tests: [{'rms_m', 'distance_m', 'reference_m'}] from plane_fit on the calibrated cloud of the same targets.
     Validated only if >= 2 distinct distances pass every limit; otherwise the document stays a candidate."""
     if doc.get('status') != 'CANDIDATE':
         raise ValueError('only a CANDIDATE calibration can be validated')
     results, distances = [], set()
+    model = None
+    if front_face_reference:
+        model = fit_depth_offset(distance_tests)
+        ok = abs(model['offset_m']) <= MAX_REFERENCE_OFFSET_M and abs(model['scale'] - 1) <= MAX_SCALE_ERROR
+        results.append({'kind': 'depth_model', **model, 'limits': {'offset_m': MAX_REFERENCE_OFFSET_M, 'scale': MAX_SCALE_ERROR}, 'pass': ok})
     for t in distance_tests:
-        err = t['median_m'] - t['reference_m']
+        err = t['median_m'] - t['reference_m'] - (model['offset_m'] if model else 0.0)
         ok = abs(err) <= distance_limit_m(t['reference_m']) and t['invalid_percent'] <= 10
         results.append({'kind': 'axial_distance', **t, 'error_m': err, 'limit_m': distance_limit_m(t['reference_m']), 'pass': ok})
         if ok:
             distances.add(round(t['reference_m'], 2))
     for t in plane_tests:
-        ok = t['rms_m'] <= max(0.005, 0.005 * t['reference_m']) and abs(t['distance_m'] - t['reference_m']) <= distance_limit_m(t['reference_m'])
+        ref = t['reference_m'] + (model['offset_m'] if model else 0.0)
+        ok = t['rms_m'] <= max(0.005, 0.005 * t['reference_m']) and abs(t['distance_m'] - ref) <= distance_limit_m(t['reference_m'])
         results.append({'kind': 'plane_fit', **t, 'pass': ok})
     passed = len(distances) >= 2 and results and all(r['pass'] for r in results) and any(r['kind'] == 'plane_fit' for r in results)
     out = dict(doc, validation_results=results)
+    if model:
+        out['depth_reference_offset_m'] = model['offset_m']   # documented datum offset; depth data are NOT corrected by it
     if passed:
         out.update(status='VALIDATED', independently_validated=True, validation_evidence='owner-measured targets; see validation_results')
     return out

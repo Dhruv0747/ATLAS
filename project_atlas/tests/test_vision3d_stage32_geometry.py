@@ -174,3 +174,113 @@ class Checkerboard(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DeviceIdentity(unittest.TestCase):
+    def test_serial_from_manifest_identity_feeds_the_gate(self):
+        import json, tempfile
+        m = json.loads((Path(__file__).resolve().parents[1] / 'config/vision3d_live.json').read_text())
+        self.assertEqual(m['identity']['device_serial'], '17122120830')
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / 'cal.json'; doc = validated_doc(serial='17122120830'); p.write_text(json.dumps(doc))
+            self.assertEqual(G.calibration_state(m, p)['state'], 'VALIDATED')
+            p.write_text(json.dumps(validated_doc(serial='OTHER')))
+            self.assertEqual(G.calibration_state(m, p)['state'], 'NOT VALIDATED')
+
+
+class IrCalibrationPrep(unittest.TestCase):
+    """Stage32 continuation: IR-checkerboard calibration under the Astra's (unswitchable) projector speckle."""
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import cv2, numpy  # noqa: F401
+        except ImportError:
+            raise unittest.SkipTest('OpenCV not installed')
+        import checkerboard_calibration as CB
+        cls.CB = CB
+
+    def speckled(self, views):
+        import numpy as np
+        rng = np.random.default_rng(3); out = []
+        for v in views:
+            img = (v.astype(np.float32) * 0.55 + 30)           # IR-like low contrast
+            dots = rng.random(img.shape) < 0.04                  # projector dot field
+            img[dots] = 235
+            out.append(np.clip(img + rng.normal(0, 6, img.shape), 0, 255).astype(np.uint8))
+        return out
+
+    def test_despeckle_recovers_intrinsics_through_projector_dots(self):
+        CB = self.CB; k_true = [570.3, 0, 319.5, 0, 570.3, 239.5, 0, 0, 1]
+        views = self.speckled(Checkerboard.render_views(self, k_true, n=24))
+        raw = CB.CornerSet((9, 6), 640, 480); blur = CB.CornerSet((9, 6), 640, 480)
+        n_raw = sum(raw.add(v) for v in views); n_blur = sum(blur.add(v, despeckle=5) for v in views)
+        self.assertGreaterEqual(n_blur, 15); self.assertGreaterEqual(n_blur, n_raw)
+        doc = CB.calibrate(blur, 0.03, '17122120830', 'astra_ir_optical_frame')
+        self.assertLess(abs(doc['k'][0] - 570.3) / 570.3, 0.01); self.assertLess(abs(doc['k'][2] - 319.5), 3.0)
+        with self.assertRaises(ValueError): blur.add(views[0], despeckle=4)
+
+    def test_front_face_offset_model(self):
+        CB = self.CB
+        base = dict(validated_doc(serial='17122120830'), status='CANDIDATE', independently_validated=False, validation_evidence=None)
+        # camera depth origin 12 mm behind the front face: every median reads +12 mm against the tape
+        tests = [{'reference_m': d, 'median_m': d + 0.012 + e, 'invalid_percent': 2} for d, e in ((1.0, 0.001), (1.5, -0.002), (2.0, 0.002), (2.72, -0.001))]
+        plane = [{'rms_m': 0.004, 'distance_m': 1.0125, 'reference_m': 1.0}]
+        self.assertEqual(CB.attach_validation(base, tests, plane)['status'], 'CANDIDATE')        # raw 12 mm > 10 mm limit at 1 m
+        out = CB.attach_validation(base, tests, plane, front_face_reference=True)
+        self.assertEqual(out['status'], 'VALIDATED'); self.assertAlmostEqual(out['depth_reference_offset_m'], 0.012, delta=0.002)
+        far = [dict(t, median_m=t['median_m'] + 0.03) for t in tests]                             # 42 mm datum: implausible
+        self.assertEqual(CB.attach_validation(base, far, plane, front_face_reference=True)['status'], 'CANDIDATE')
+        scaled = [dict(t, median_m=t['reference_m'] * 1.02 + 0.012) for t in tests]               # 2 % scale error
+        self.assertEqual(CB.attach_validation(base, scaled, plane, front_face_reference=True)['status'], 'CANDIDATE')
+        with self.assertRaisesRegex(ValueError, '3 distinct'): CB.fit_depth_offset(tests[:2])
+
+
+class CaptureToolOffline(unittest.TestCase):
+    """The A5 capture pipeline keeps corners only and refuses non-IR data (no camera, no browser)."""
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import cv2, numpy  # noqa: F401
+        except ImportError:
+            raise unittest.SkipTest('OpenCV not installed')
+        import stage32_ir_checkerboard_capture as CAP
+        cls.CAP = CAP
+
+    def test_frames_to_corners_then_candidate_and_merge(self):
+        import base64, tempfile, json
+        CAP = self.CAP; t = IrCalibrationPrep(); views = t.speckled(Checkerboard.render_views(self, [570.3, 0, 319.5, 0, 570.3, 239.5, 0, 0, 1], n=24))
+        cs = CAP.CB.CornerSet((9, 6), 640, 480); last = None
+        for i, v in enumerate(views[:12]):
+            meta = {'w': 640, 'h': 480, 'step': 640, 'enc': 'mono8', 'stamp': str(i), 'b64': base64.b64encode(v.tobytes()).decode()}
+            ok, last = CAP.process(cs, meta, last); self.assertTrue(ok)
+            self.assertEqual(CAP.process(cs, meta, last)[0], None)                     # same stamp is not counted twice
+        with tempfile.TemporaryDirectory() as d:
+            first = CAP.summarize(cs, 0.03, d + '/s1'); self.assertEqual(first['ir_candidate']['status'], 'NOT ENOUGH DATA')
+            self.assertTrue(first['corners_only']); self.assertNotIn('image', json.dumps(first)[:2000])
+            cs2 = CAP.CB.CornerSet((9, 6), 640, 480); CAP.merge_views(cs2, json.loads(Path(d + '/s1_calibration_candidate.json').read_text()))
+            for i, v in enumerate(views[12:]):
+                CAP.process(cs2, {'w': 640, 'h': 480, 'step': 640, 'enc': 'mono8', 'stamp': 'b%d' % i, 'b64': base64.b64encode(v.tobytes()).decode()}, None)
+            out = CAP.summarize(cs2, 0.03, d + '/s2')
+        self.assertEqual(out['ir_candidate']['status'], 'CANDIDATE'); self.assertIn('depth_candidate_160x120', out)
+        self.assertFalse(out['depth_candidate_160x120']['independently_validated'])
+        with self.assertRaises(ValueError): CAP.frame_to_gray({'enc': 'rgb8', 'w': 1, 'h': 1, 'step': 3, 'b64': ''})
+
+
+class DepthTargetToolOffline(unittest.TestCase):
+    def test_grid_summary_and_validation_pipeline(self):
+        import stage32_depth_target_capture as DT, random
+        pts = DT.grid(9, 0.3); self.assertEqual(len(pts), 81)
+        self.assertTrue(all(0 <= u < 160 and 0 <= v < 120 for u, v in pts))
+        cand = dict(validated_doc(serial='17122120830'), status='CANDIDATE', independently_validated=False, validation_evidence=None)
+        rng = random.Random(1); runs = []
+        for ref in (1.0, 1.5, 2.0, 2.72):
+            z = ref + 0.012                                   # wall perpendicular to the optical axis, 12 mm datum offset
+            samples = [[u, v, (z + rng.gauss(0, 0.002)) if rng.random() > 0.03 else None] for u, v in pts]
+            runs.append({'samples': samples, 'summary': DT.summarize(samples, ref)})
+        self.assertLess(runs[0]['summary']['invalid_percent'], 10)
+        out = DT.validate(cand, runs)
+        self.assertEqual(out['status'], 'VALIDATED', out['validation_results'])
+        self.assertAlmostEqual(out['depth_reference_offset_m'], 0.012, delta=0.002)
+        bad = [dict(r, summary=dict(r['summary'], median_m=r['summary']['median_m'] * 1.03)) for r in runs]   # 3 % scale error
+        self.assertEqual(DT.validate(cand, bad)['status'], 'CANDIDATE')
+        with self.assertRaises(ValueError): DT.summarize([[1, 1, None]], 1.0)

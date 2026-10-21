@@ -101,8 +101,9 @@ class VisionLabUi(unittest.TestCase):
         self.assertNotIn('innerHTML', VJS)
 
     def test_blocked_explanation_uses_measured_values_and_limits(self):
+        state = (ROOT / 'web/v2/vision3d_state.js').read_text()
         for text in ('failed.cpu', 'lim.cpu_percent', 'driver_stopped', 'Nothing else on ATLAS was changed'):
-            self.assertIn(text, VJS)
+            self.assertIn(text, state)   # Stage32: banner wording moved to vision3d_state.js
 
     def test_cloud_and_calibration_stay_disabled(self):
         self.assertIn('id="showCloud" disabled', VHTML)

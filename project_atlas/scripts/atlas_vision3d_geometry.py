@@ -29,7 +29,10 @@ def calibration_state(manifest, path=None):
     """{'state': 'VALIDATED'|'NOT VALIDATED', 'reason', 'calibration'?}. Never raises."""
     path = Path(path or DEPTH_CALIBRATION)
     try:
-        serial = (manifest or {}).get('device_serial')
+        m = manifest or {}
+        # The receiver's manifest schema only admits 'identity' (a top-level device_serial is rejected by read_manifest),
+        # so the device serial recorded read-only on 21 Oct 2026 lives in identity.device_serial.
+        serial = m.get('device_serial') or (m.get('identity') or {}).get('device_serial')
         if not path.exists():
             return {'state': 'NOT VALIDATED', 'reason': 'No camera calibration file yet. Factory calibration reads as NaN; '
                                                          'a guided checkerboard calibration and physical distance checks are needed.'}

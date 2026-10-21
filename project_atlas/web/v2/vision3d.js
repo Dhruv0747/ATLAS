@@ -1,7 +1,9 @@
 /* ATLAS 3D Vision Lab (Stage 31/32 UI). Same-origin requests only: GET /api/vision3d/{status,frame,pixel,cloud,raw}
  * and POST /api/vision3d/viewer {start|stop}. Stage 32: infrared is fetched as the camera's native bytes and only
  * contrast-stretched in this browser for display; raw values are shown on click. No ROS control, driver parameter change or recording.
- * The status poll keeps the existing 4-second viewer lease alive only while this page is visible. */
+ * The status poll keeps the existing 4-second viewer lease alive only while this page is visible.
+ * Stage 32 UI fix: banner, chips and driver text come from AtlasVisionState.sessionView (vision3d_state.js), which
+ * uses real per-stream frame counts and freshness; "driver running" is never shown as a live view. */
 (() => {
   'use strict';
   const $ = id => document.getElementById(id), api = '/api/vision3d/';
@@ -9,13 +11,12 @@
   // Stage 31b: after Start, the previous session's state (same worker_pid, or a reply already in flight) must not be
   // shown as if it were the new session. Until the new worker reports, the banner says "Checking before start".
   let starting = null;   // {fromPid, at} while waiting for the new worker's first state
-  const irEvidence = { received: 0, rendered: 0, failures: 0, last_stamp: null, scope: 'this page lifetime; no image history' };
   function currentRuntime(rt) {
     if (!starting) return rt;
     const fresh = rt && rt.worker_pid && rt.worker_pid !== starting.fromPid;
     const ended = rt && !rt.worker_pid && rt.state === 'OFF' && rt.reason;     // new worker died before writing state
     if (fresh || ended || Date.now() - starting.at > 20000) { starting = null; return rt; }
-    return { state: 'CHECKING', limits: rt && rt.limits, reason: '' };
+    return { state: 'CHECKING', mode: mode(), limits: rt && rt.limits, reason: '' };
   }
   let yaw = 0, pitch = 0, zoom = 110, pan = [0, 0], panning = false, drag = null;
   const canvas = $('cloudCanvas'), ctx = canvas.getContext('2d');
@@ -24,15 +25,17 @@
   const mode = () => (document.querySelector('input[name="vlMode"]:checked') || {}).value || 'depth';
   const MODE_NAMES = { depth: 'depth only', concurrent: 'depth + RGB', ir: 'infrared only', ir_depth: 'infrared + depth', rgb_ir: 'infrared + RGB', depth_cloud: 'depth + 3D cloud' };
   let frozen = false, ir = null;   // ir: last native IR frame {w,h,bits,values}
+  const VS = window.AtlasVisionState, memo = VS.newMemo(), browserIr = { fetched: 0, rendered: 0, failures: 0, last_stamp: null };
+  let view = null;
 
   // ---------- supported-mode selection ----------
   function applyModes(support) {
     for (const label of document.querySelectorAll('#vlModes label[data-mode]')) {
       const m = label.dataset.mode, info = (support || {})[m], input = label.querySelector('input'), note = label.querySelector('[data-note]');
-      const st = info ? info.state : (m === 'depth' ? 'verified' : 'untested');
-      label.className = st; label.title = info ? info.note : '';
-      note.textContent = st === 'verified' ? 'Tested' : st === 'unsupported' ? (m === 'depth_cloud' ? 'Needs calibration' : 'Not supported') : 'Not yet tested';
-      input.disabled = st === 'unsupported';
+      const n = VS.modeNote(m, info);
+      label.className = n.state; label.title = info ? info.note : '';
+      note.textContent = n.note;
+      input.disabled = n.disabled;
       if (input.disabled && input.checked) document.querySelector('input[name="vlMode"][value="depth"]').checked = true;
     }
     const info = (support || {})[mode()];
@@ -82,39 +85,8 @@
     const st = rt ? String(rt.state || 'OFF') : 'NONE', reason = rt ? String(rt.reason || '') : '';
     const failed = (rt && rt.failed_resources) || {}, res = (rt && rt.resources) || {};
     const lim = (rt && rt.limits) || { cpu_percent: 75, ram_percent: 80, temperature_c: 70 };
-    let tone = 'idle', title = 'Camera off', text = 'Choose a mode and press Start. A session runs for up to 60 seconds.';
-    if (!rt) { tone = 'fail'; title = 'Viewer not installed'; text = 'The Vision Lab runtime is not available on this Jetson.'; }
-    else if (st === 'CHECKING') { tone = 'busy'; title = 'Checking before start'; text = 'ATLAS is confirming it is stopped and has enough CPU, memory and thermal headroom before turning the camera on.'; }
-    else if (st === 'ACTIVE') {
-      tone = 'ok'; title = 'Camera streaming'; text = `Live view for ${isNum(rt.remaining_s) ? Math.ceil(rt.remaining_s) : '—'} more seconds. Distances are uncalibrated sensor readings.`;
-      if (['ir', 'ir_depth', 'rgb_ir'].includes(rt.mode)) {
-        const s = status && status.streams && status.streams.ir;
-        if (!s || s.state !== 'ACTIVE') {
-          tone = 'warn'; title = s && s.state === 'STALE' ? 'IR STREAM STALE' : 'IR NO FRAMES RECEIVED';
-          text = 'The driver is running, but fresh infrared images have not reached the viewer. This is not a successful IR view.';
-        } else { title = 'IR frames received'; text = 'Receiver has fresh infrared frames. Browser rendering is reported below.'; }
-      }
-    }
-    else if (st === 'RESOURCE BLOCKED') {
-      tone = 'warn'; title = 'Stopped to protect ATLAS';
-      const cpu = isNum(failed.cpu) ? failed.cpu : null;
-      const what = cpu !== null ? `CPU reached ${cpu.toFixed(1)}%, above the ${lim.cpu_percent}% limit` :
-        /RAM/.test(reason) ? `memory went above the ${lim.ram_percent}% limit` : /temperature|thermal/i.test(reason) ? `temperature went above ${lim.temperature_c} °C` : 'a resource limit was exceeded';
-      text = `${what}, so the camera was turned off${rt.driver_stopped ? ' and the driver was stopped' : ''}. Nothing else on ATLAS was changed. You can try again later when the Jetson is less busy.`;
-    } else if (reason) {
-      const done = /session complete/i.test(reason);
-      tone = done ? 'idle' : 'warn'; title = done ? 'Session finished' : 'Camera off';
-      text = done ? 'The 60-second session ended. Press Start for another one.' :
-        /paused|closed|lease/i.test(reason) ? 'The camera was stopped because the page was paused, hidden or closed.' :
-        /domain .* in use/i.test(reason) ? 'Another program is already using the private Vision Lab ROS domain, so the camera was not started.' :
-        /existing Astra/i.test(reason) ? 'Another Astra camera process is already running, so a second one was not started.' :
-        /policy|stationary|nonzero|stale/i.test(reason) ? 'ATLAS was not confirmed stopped and E-STOP latched, so the camera was not started.' : reason;
-    }
-    const finalIr = status && status.last_session && status.last_session.streams && status.last_session.streams.ir;
-    if (st === 'OFF' && rt && rt.driver_pid && ['ir', 'ir_depth', 'rgb_ir'].includes(rt.mode) && finalIr && !finalIr.received) {
-      tone = 'warn'; title = 'IR NO FRAMES RECEIVED';
-      text = 'The driver stopped. No infrared frame reached the receiver in the last session; see Developer Diagnostics.';
-    }
+    view = VS.sessionView(rt, status && status.streams, memo, performance.now() / 1000);
+    const tone = view.tone, title = view.title, text = view.text;
     $('vlState').className = 'vl-state ' + tone; $('vlTitle').textContent = title; $('vlText').textContent = text;
     const cpu = isNum(failed.cpu) ? failed.cpu : res.cpu_percent, ram = res.ram_percent;
     const temps = res.thermal_c && typeof res.thermal_c === 'object' ? Object.values(res.thermal_c).filter(isNum) : [];
@@ -123,17 +95,17 @@
     $('vlRam').textContent = isNum(ram) ? ram.toFixed(0) + '%' : '—'; bar('vlRamBar', ram, lim.ram_percent);
     $('vlTemp').textContent = isNum(temp) ? temp.toFixed(1) + ' °C' : '—'; bar('vlTempBar', temp, lim.temperature_c);
     $('vlRes').title = isNum(failed.cpu) ? 'CPU value is the sample that stopped the camera; RAM and temperature are from the last passing check.' : 'Last safety check sample';
-    $('vlDriver').textContent = !rt ? '—' : st === 'ACTIVE' ? 'Running' : rt.driver_pid ? (rt.driver_stopped ? 'Stopped safely' : 'Stopping…') : st === 'CHECKING' ? 'Not started yet' : 'Off';
+    $('vlDriver').textContent = view.driver;
     const running = st === 'ACTIVE' || st === 'CHECKING';
-    $('runtimeState').textContent = running ? (st === 'ACTIVE' ? `Driver running · ${MODE_NAMES[String(rt.mode || mode())] || 'depth only'}${frozen ? ' · preview paused' : ''}` : 'Starting…') : 'Camera off · press Start';
+    $('runtimeState').textContent = view.run + (st === 'ACTIVE' && frozen ? ' · preview paused' : '');
     $('startViewer').disabled = running;
     $('freeze').disabled = st !== 'ACTIVE';
     if (st !== 'ACTIVE' && frozen) { frozen = false; $('freeze').textContent = 'Pause preview'; $('freeze').setAttribute('aria-pressed', 'false'); }
   }
   function streamView(k, s) {
-    const chip = $(k + 'State'), active = s.state === 'ACTIVE';
-    chip.textContent = active ? 'Live' : s.state === 'STALE' ? 'Stale' : s.state === 'SENSOR ERROR' ? 'Sensor error' : 'Off';
-    chip.className = 'vl-chip ' + (active ? 'ok' : s.state === 'STALE' || s.state === 'SENSOR ERROR' ? 'warn' : '');
+    const chip = $(k + 'State'), active = s.state === 'ACTIVE', c = view && view.chips[k];
+    chip.textContent = s.state === 'SENSOR ERROR' ? 'Sensor error' : c ? c.label : (active ? 'Live' : 'Off');
+    chip.className = 'vl-chip ' + (s.state === 'SENSOR ERROR' ? 'warn' : c ? c.cls : (active ? 'ok' : ''));
     const fps = $(k + 'Fps'); if (fps) fps.textContent = active && isNum(s.fps_observed) ? `${s.fps_observed.toFixed(1)} fps · ${isNum(s.source_age_s) ? s.source_age_s.toFixed(2) + ' s old' : ''}` : '';
     if (k !== 'cloud') $(k + 'Meta').textContent = s.width ? `${s.width} × ${s.height} ${s.encoding || ''} · ${s.received || 0} frames received · largest gap ${fmt(s.max_gap_s, 2)} s` : (s.state === 'ACTIVE' ? '' : '');
   }
@@ -166,12 +138,12 @@
       if ($('showCloud').disabled) $('showCloud').checked = false;
       for (const k of ['rgb', 'depth', 'ir', 'cloud']) {
         const s = status.streams[k]; streamView(k, s);
-        if (k === 'cloud') { if (cal.state !== 'VALIDATED') { $('cloudState').textContent = 'Blocked'; $('cloudState').className = 'vl-chip warn'; $('cloudFps').textContent = ''; } continue; }
+        if (k === 'cloud') { if (cal.state !== 'VALIDATED') { $('cloudState').textContent = 'Calibration required'; $('cloudState').className = 'vl-chip warn'; $('cloudFps').textContent = ''; } continue; }
         if (s.state !== 'ACTIVE') { clearImage(k); continue; }
         if (frozen) continue;                         // Pause preview: keep the last picture, camera keeps running
         if (k === 'ir') {
-          try { const response = await get('raw?kind=ir'); const bytes = await response.arrayBuffer(); irEvidence.received = Math.min(Number.MAX_SAFE_INTEGER, irEvidence.received + 1); drawIr(bytes, response.headers); irEvidence.rendered = Math.min(Number.MAX_SAFE_INTEGER, irEvidence.rendered + 1); irEvidence.last_stamp = ir.stamp; $('irState').textContent = 'Rendered'; }
-          catch (e) { irEvidence.failures = Math.min(Number.MAX_SAFE_INTEGER, irEvidence.failures + 1); clearIr(); $('irState').textContent = e.message; }
+          try { const response = await get('raw?kind=ir'); const bytes = await response.arrayBuffer(); browserIr.fetched++; drawIr(bytes, response.headers); browserIr.rendered++; browserIr.last_stamp = ir.stamp; }
+          catch (e) { browserIr.failures++; clearIr(); $('irState').textContent = 'Frame error'; $('irMeta').textContent = e.message; }
           continue;
         }
         try {
@@ -188,10 +160,8 @@
         }
       } else cloud = null;
       draw();
-      $('diagnostics').textContent = JSON.stringify({ runtime: status.runtime, ir_delivery: status.ir_delivery, ir_boundaries: status.ir_boundaries,
-        transport: status.transport, last_session: status.last_session, ir_api: status.ir_api, browser_ir_counters: irEvidence,
-        browser_ir: { rendered: !!ir, source_stamp: ir && ir.stamp, preview_paused: frozen },
-        calibration: status.calibration, camera_info: status.camera_info, usb_inventory: status.usb_verified, usb_note: status.usb_note, depth_validity_sample: status.depth_stats, streams: status.streams, drops: status.dropped_messages, tf: status.tf, detections: status.detections }, null, 2);
+      $('diagnostics').textContent = JSON.stringify({ session_view: view && { title: view.title, requested: view.requested, live: view.live, waiting: view.waiting, missing: view.missing, stale: view.stale },
+        session_frames: { worker: memo.key, max_received: memo.maxRx, outcome: memo.outcome }, browser_ir: browserIr, runtime: status.runtime, calibration: status.calibration, camera_info: status.camera_info, usb_inventory: status.usb_verified, usb_note: status.usb_note, depth_validity_sample: status.depth_stats, streams: status.streams, drops: status.dropped_messages, tf: status.tf, detections: status.detections }, null, 2);
     } catch (e) {
       if (e.name !== 'AbortError') { $('vlState').className = 'vl-state fail'; $('vlTitle').textContent = 'No reply from the Vision Lab'; $('vlText').textContent = e.message; }
       cloud = null; for (const k of ['rgb', 'depth', 'ir']) clearImage(k); draw();
@@ -204,7 +174,7 @@
   $('startViewer').onclick = async () => {
     frozen = false; $('freeze').textContent = 'Pause preview';
     starting = { fromPid: (status && status.runtime && status.runtime.worker_pid) || null, at: Date.now() };
-    explain({ state: 'CHECKING', limits: status && status.runtime && status.runtime.limits });
+    explain({ state: 'CHECKING', mode: mode(), limits: status && status.runtime && status.runtime.limits });
     try { $('startViewer').disabled = true; await viewer({ action: 'start', mode: mode() }); paused = false; clearTimeout(timer); refresh(); }
     catch (e) { starting = null; $('startViewer').disabled = false; $('runtimeState').textContent = e.message; }
   };

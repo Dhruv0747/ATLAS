@@ -79,4 +79,5 @@ async def main():
         'guard_cpu': [r['rt']['cpu'] for r in out['timeline'] if r.get('rt') and r['rt'].get('cpu') is not None],
         'errors': out['errors']}, indent=1, default=str))
 
-asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())

@@ -23,5 +23,5 @@ def test_instrumentation_preserves_settings_and_separates_boundaries():
 
 def test_browser_transport_and_render_counters_distinct():
     js=(TOOLS.parents[1]/'web/v2/vision3d.js').read_text()
-    assert js.index('irEvidence.received =') < js.index('drawIr(bytes, response.headers)') < js.index('irEvidence.rendered =')
-    assert 'scope: \'this page lifetime; no image history\'' in js
+    assert js.index('browserIr.fetched++') < js.index('drawIr(bytes, response.headers)') < js.index('browserIr.rendered++')
+    assert 'browser_ir: browserIr' in js   # page-lifetime scalars only; no image history

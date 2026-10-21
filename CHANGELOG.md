@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 18:12–18:40 (Stage 32 continuation; offline only, nothing deployed, no restart, camera never started):
+- **UI FIX READY:** `vision3d_state.js` derives Starting / Waiting for frames / Live / No frames received / Frames stopped / Resource blocked / Stopped safely / Calibration required from real per-stream frame counts. It never shows "driver running" as live. Package `s32_ui_pkg_v2.tgz` U1 is static with no restart; U2 (Infrared "Tested" label, device serial for the calibration gate) needs one `rover-status-web` restart.
+- **Combined modes:** readiness documented from driver source, a USB 2.0 read-only check, an Orbbec forum note on IR 640x480 and a CPU forecast. **Not tested live.**
+- **Calibration preparation:** IR despeckle for the unswitchable projector, a front-face depth-offset model, and corners-only checkerboard and depth-target capture tools. Owner checkerboard spec: 9x6 inner corners, 35 mm squares, A3, matte.
+- **Regression:** 230 Vision Lab tests pass. The two failures in the full suite are already present at `dabf95e`.
+
 2026-10-21 17:54–18:03 (owner-approved final IR acceptance):
 - **IR LIVE VERIFIED on the production driver; 640x480 correction DEPLOYED and retained.** `scripts/atlas_vision3d_runtime.py` now requests IR 640x480@30 (`fc807489`, one line, no restart).
 - **Acceptance session:** the 60-second IR-only session completed normally (60-second session complete). 1,624 frames, 29.7 fps median, 640x480 `mono8`, frame age ≤ 0.23 s, canvas rendered, raw click value read. Guard 63.7–70.5%, RAM ≤ 72%, ≤ 62 °C.

@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October 18:35 Stage32 continuation (offline): UI status fix READY (no-restart U1;
+label/serial U2 needs a web restart), not deployed. Combined modes NOT tested
+(driver has no IR/depth exclusion; both Astra devices on USB 2.0 behind shared hubs).
+Calibration tooling ready: IR despeckle (synthetic 1/24 -> 24/24 detection),
+front-face depth model, corners-only capture and depth-target tools. Calibration,
+XYZ cloud, XYZRGB still blocked. See Stage32 report section 26.
+
 21 October 18:02 IR RESOLVED (single acceptance): Vision Lab IR now requests
 640x480@30 GRAY8 (runtime fc807489, retained). A 60-s IR-only session on the
 production driver completed normally: 1624 frames, 29.7 fps, 640x480 mono8 rendered,

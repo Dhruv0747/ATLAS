@@ -25,7 +25,7 @@
   },
   "last_verified_state": "E-STOP latched; manual-only; zero commands; recorder and Astra OFF; Pi Camera healthy; protected identities unchanged except approved web restarts",
   "state_freshness": "Historical postrollback evidence, not a new live admission",
-  "next_action": "Separate approvals: IR-no-frames page banner; mode_support note for Infrared; IR+Depth / Depth+RGB regression; calibration (A5)",
+  "next_action": "Owner approvals: U1 (static), U2 (restart), one IR+Depth session, then RGB+IR and Depth+RGB regression, then A5/A6",
   "handover": "ATLAS_STAGE32_DEVELOPER_HANDOVER.md",
   "takeover_20261021": {
     "from_commit": "c68ba4891645d9985f3da882a13bce8d3b2e965d",
@@ -92,5 +92,43 @@
     "rollback": "stage32_ir_mode_override.py restore -> 454dd25f (backup ~/project-atlas-migration/stage32-ir-640-final/d2/)",
     "restarts": "none",
     "evidence": "evidence/stage32_ir640_final/"
+  },
+  "continuation_20261021": {
+    "ui_package": {
+      "archive": "s32_ui_pkg_v2.tgz",
+      "sha256": "7c21ce2dd9f8211839dc7c177fe361c73b956ffdd88b85916144a25ed4d89e79",
+      "U1_static_no_restart": {
+        "web/v2/vision3d.js": [
+          "76f9a20267e7d90a9d4b0a3be7f75a6c0e0ca594ddc1254e337e618215cf3fba",
+          "2c06d110c85671ce4fb02b355e7d3d275e8d0fc59aac30134fe0954a6379f435"
+        ],
+        "web/v2/vision3d_state.js": [
+          null,
+          "641ca00bc4536783e4593d31ce44c859302934114f5ab56e6d09ba275b6162ca"
+        ],
+        "web/v2/vision3d.html": [
+          "a930af8392b0fbaab3380eaf8dbc547780df487f27e44fb4d349ad1447e48c09",
+          "cf19258b030e4009df9797f43ec5ded3d73a44bbede8760c3bb98583b59e4ff4"
+        ],
+        "web/v2/vision3d.css": [
+          "04f98c8c0338b960add11346e84c149ae82dac48954d81ffdd726839b0a6971f",
+          "e92cf062ca99fdf444e575806b8788cc86c716034c757070ee2703af64ef2800"
+        ]
+      },
+      "U2_restart_rover_status_web": {
+        "config/vision3d_live.json": [
+          "e27bc0c0551d22babb7a477c551d49c5ab20937e56b6aa4fe8a8ce6aff9f9c9a",
+          "7f9e5ff655fe3163cc26fe15b0d48fe780cb2fee2f086000afcc72fc52ccb00d"
+        ],
+        "scripts/atlas_vision3d_geometry.py": [
+          "75d020120d22fe31d8cc6b741f1ae8b19192047aafb03396a47669ee9d4b4354",
+          "6eb23c251dc78fb2fbd54e77f51263c43f1bc668f1ace2732b0429e03ef16e4a"
+        ]
+      },
+      "jetson_location": "~/project-atlas-migration/stage32-ui-continuation/pkg",
+      "rehearsal": "Jetson byte copy and local tree: byte-identical rollback",
+      "status": "READY; NOT DEPLOYED"
+    },
+    "repo_vs_production_note": "repository scripts/atlas_vision3d_web.py is the undeployed candidate a7b9f1f9; production runs 889881c0"
   }
 }
