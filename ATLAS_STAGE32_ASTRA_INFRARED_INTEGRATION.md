@@ -1025,3 +1025,115 @@ The live `check`: both files are baseline, integrity PASS, safety admissible, an
 - calibration, the cloud, recording, movement or policy changes.
 
 **After D1:** the fix for the zero-frame problem depends on which boundary failed. It will be proposed as a separate, evidence-based change: for example a different advertised IR mode if boundary 1 fails, or a QoS or graph fix if boundary 6 or 7 fails. It will not be tried blind.
+
+## 22. Approved D1: instrumented IR-only diagnosis, then rollback — 21 October 2026, 17:28–17:30
+
+The owner approved D1 at 17:28. Evidence is in `evidence/stage32_d1/`. The raw driver log stays on the Jetson in `~/project-atlas-migration/stage32-takeover-ir-diag/`, SHA256 `36ab5586…320ab2`. Only its `ATLAS_IR_*` lines are committed, as `ir_counters_and_verdict.json`.
+
+### Result
+
+| Label | Status |
+|---|---|
+| ROOT CAUSE (zero frames) | **Boundary 1 identified:** OpenNI never reported an IR frame ready. |
+| IR LIVE VERIFIED | **NO** |
+| PRODUCTION DEPLOYED | Diagnostic files were installed for about 63 s, then **rolled back**. Production is back on the verified binary. |
+| Restarts | **None.** `rover-status-web` kept PID 189640 / NRestarts 0. All active user-service identities were unchanged at apply and at rollback. |
+
+### Step 1: install (17:28:55)
+
+- **Fresh checks at 17:28:40:**
+  - E-STOP latched; policy manual-only, stop-latched, disarmed;
+  - CPU 64.6%, RAM 71%, 60 °C;
+  - six protected units at the handover identities;
+  - no driver, worker or cloud process; domain 77 free;
+  - Pi Camera snapshot 200;
+  - package SHA256SUMS OK (archive `08da79c4…`);
+  - read-only `check`: both files baseline, 458-file integrity PASS.
+- **Apply:** backup written and verified, library and then manifest installed, worker-identical integrity check **PASS**.
+- **CPU record:** 65.66 / 65.33 / 63.01% before and 62.44 / 67.23 / 65.54% after (record only).
+
+### Step 2: one IR-only session (17:29:07–17:29:42; Start clicked once)
+
+- The runtime was ACTIVE from about 6 s.
+- The script found no IR frame 25 s after Start and pressed **Stop**. The runtime recorded 24 passing guard samples over 24.46 s, reason "viewer paused or closed", and `driver_stopped` true. No retry.
+
+**Driver counters** (instrumented `libastra_camera.so`, printed about every 2 s):
+
+```
+ATLAS_IR_PUBLISHER topic=/astra/ir/image_raw type=sensor_msgs/msg/Image qos=default
+ATLAS_IR_START create_rc=0 mode_rc=0 start_rc=0 requested=320x240@30 negotiated=320x240@30 domain=77
+...  (every ~2 s, wait_failed rising 1 → 11, wait_rc=102)
+ATLAS_IR_COUNTERS final=1 created=1 started=1 publisher=1 wait_ok=0 wait_failed=11 ready=0 read_ok=0 read_failed=0
+  callback=0 converted=0 publish_attempt=0 publish_returned=0 info_returned=0 exceptions=0 create_rc=0 mode_rc=0
+  start_rc=0 wait_rc=102 read_rc=-999 width=0 height=0 bytes=0 subscribers=0 (1 during the session)
+```
+
+**Boundary by boundary:**
+
+| # | Boundary | Evidence | Result |
+|---|---|---|---|
+| 1 | OpenNI readiness and `readFrame` | Stream created, mode set and started (all rc 0, negotiated 320x240@30). `waitForAnyStream` returned **102 = ONI_STATUS_TIME_OUT** 11 times out of 11 (2-s timeout, about 22 s). `ready` = 0 and `readFrame` was never reached. | **FAILED (earliest)** |
+| 2 | Frame metadata | No frame ever existed (width = height = bytes = 0) | not reached |
+| 3–5 | Callback, conversion, publish | 0 / 0 / 0, no exceptions | not reached |
+| 6 | Domain-77 matching | The driver's IR publisher saw **1 subscriber** throughout ACTIVE, so the receiver matched. It dropped to 0 only during teardown. | **passed** |
+| 7 | Receiver callbacks | Page polls during ACTIVE: `streams.ir.received` = 0 in 10 of 10 | 0 (expected: nothing was published) |
+| 8–9 | API and canvas | Page never obtained a raw IR frame | not reached |
+
+**Interpretation, separating fact from inference:**
+
+- **Fact:** the camera, through its OpenNI driver, accepted and started the IR stream but delivered **no IR frame at all** in 22 s.
+- **Fact:** the ROS, domain-77, receiver and web path is **not** the failure point. It matched and was never given a frame.
+- **Not yet known:** why the device delivers no IR frames at 320x240@30 GRAY8. The candidate explanations are:
+  - this mode is advertised but not served by firmware 5.8.22 on the Astra Pro (0x0403);
+  - IR needs a state that the IR-only launch does not set;
+  - a USB or isochronous issue. The "USB events thread – failed to set priority" warning appears in every session, Depth included, so it is not specific to IR.
+
+  None of these is proven. Fixing it needs a separately approved change, not a retry of the same mode.
+
+### Step 3: restore (17:29:58, about 16 s after Stop)
+
+- **No camera-side process was left running:** a process scan found no driver, worker or cloud process.
+- **Rollback:**
+  - `lib/libastra_camera.so` is back to `6ae876010c824be9…`;
+  - `manifest.json` is back to `c1a6d1c02f162085…`;
+  - the 458-file integrity check **PASSES**;
+  - every user-service identity is unchanged.
+- **CPU record:** 63.87 / 68.13 / 63.07% before and 64.76 / 64.63 / 62.80% after.
+- **Post-check at 17:30:08:**
+  - E-STOP latched, policy unchanged;
+  - `cmd_vel` 0 / 0 and motor speed 0;
+  - runtime `recording` false;
+  - protected units at the same PIDs and restart counts;
+  - CPU 67.3%, RAM 71%, 60.6 °C;
+  - Pi Camera snapshot 200;
+  - both Astra USB interfaces still enumerated;
+  - all ten Stage 32 production hashes unchanged.
+
+### CPU (passive recorder, 1 Hz, `systemd-run --user`)
+
+| Period | CPU |
+|---|---|
+| ACTIVE (21 samples) | 63.4–68.8%, mean 66.3% |
+| Before | mean 65.9% |
+| After | mean 65.4% |
+| Runtime guard samples | 64.1–67.8% (limit 75%, unchanged) |
+| Driver | 39.6% of one core at start, then 4–5%; RSS ≤ 77 MB |
+| RAM | ≤ 71.6% |
+| Temperature | ≤ 60.6 °C |
+
+- Two camera-off samples, at 73.6% and 76.9%, came 19 s and 29 s after Stop. They coincide with the rollback's own `systemctl show` identity checks (polkitd 17–31% of one core) and the post snapshot.
+- No camera was running then and no guard decision used them. They are a reminder that `systemctl show` across all units is not free.
+
+### Confirmed UI defect (not changed)
+
+During the session the deployed page said **"Camera streaming"** while IR delivered nothing. Only the IR chip said "Off". The rolled-back candidate `vision3d.js` contains a banner reading "IR NO FRAMES RECEIVED" for exactly this case. It needs its own review and approval as a static page change, which needs no restart.
+
+### Next step (not authorized; needs separate review)
+
+The proposal is **one** evidence-driven mode change, not a retry of the same mode:
+
+- a single IR-only session at **640x480@30 GRAY8**, the vendor launch's default IR mode, which the device advertises;
+- run with the same instrumented library and the same install, rollback and no-restart procedure;
+- it needs one runtime argument option.
+
+If 640x480 also times out at boundary 1, the next discriminator is a camera-only OpenNI IR read without ROS, and then the vendor or firmware route. The IR emitter and firmware remain untouched in all cases.

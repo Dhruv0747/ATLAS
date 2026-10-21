@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October 17:28-17:30 D1 (approved): instrumented driver installed WITHOUT any
+restart, one IR-only session, rolled back (integrity PASS, identities unchanged).
+Earliest failed boundary = 1: OpenNI started IR 320x240@30 (all rc 0) but
+waitForAnyStream timed out (102) 11/11; no frame ever ready, no publish. Receiver
+matched (subscribers=1), so the ROS/web path is not at fault. IR NOT verified. Next:
+separately approved single 640x480@30 GRAY8 instrumented session.
+
 21 October 17:20 Stage32 takeover from c68ba48 (offline/read-only; nothing installed,
 no restart, no camera). The 95.64% sample measured the rover-status-web restart
 transient itself: the same restart with a different payload (A1) averaged 93.6% with

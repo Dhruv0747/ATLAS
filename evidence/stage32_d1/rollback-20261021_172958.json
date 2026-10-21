@@ -1,0 +1,401 @@
+{
+  "cmd": "rollback",
+  "time": "2026-10-21T17:29:51+0530",
+  "live_before": {
+    "lib/libastra_camera.so": "8609f2641d181fb6fccda60e84f83d4c5d399b673dc65b27b723490a8b24cab9",
+    "manifest.json": "77726de62f98117dba83dc05ce26a895bc1b7375c4e4619c74d2744aeb692fa1"
+  },
+  "restart": false,
+  "camera_started": false,
+  "state_before": {
+    "lib/libastra_camera.so": "candidate",
+    "manifest.json": "candidate"
+  },
+  "safety": {
+    "estop_latched": true,
+    "policy": {
+      "manual_only": true,
+      "commission_armed": false,
+      "commission_remaining_s": 0.0,
+      "stop_latched": true,
+      "stop_reason": "REMOTE STOP: joystick unavailable",
+      "source": "STOPPED",
+      "mapping_remote_limited": false,
+      "mapping_remote_max_linear_mps": 0.3,
+      "mapping_remote_max_angular_radps": 1.2
+    },
+    "camera_processes": [],
+    "domain77_free": true
+  },
+  "identities_before": {
+    "at-spi-dbus-bus.service": [
+      "2617",
+      "0"
+    ],
+    "atlas-active-vision.service": [
+      "2157",
+      "0"
+    ],
+    "atlas-agent-supervisor.service": [
+      "2155",
+      "0"
+    ],
+    "atlas-agent-team.service": [
+      "2192",
+      "0"
+    ],
+    "atlas-ai-annotator.service": [
+      "2156",
+      "0"
+    ],
+    "atlas-camera-joystick.service": [
+      "17705",
+      "1"
+    ],
+    "atlas-camera-tracker.service": [
+      "4224",
+      "0"
+    ],
+    "atlas-camera.service": [
+      "1982",
+      "0"
+    ],
+    "atlas-carrier-health.service": [
+      "4222",
+      "0"
+    ],
+    "atlas-cmd-vel-mux.service": [
+      "1975",
+      "0"
+    ],
+    "atlas-ekf-lidar-candidate.service": [
+      "3261",
+      "0"
+    ],
+    "atlas-ekf.service": [
+      "3260",
+      "0"
+    ],
+    "atlas-experience-store.service": [
+      "4228",
+      "0"
+    ],
+    "atlas-follow-person.service": [
+      "2170",
+      "0"
+    ],
+    "atlas-foxglove-nav-goal.service": [
+      "2147",
+      "0"
+    ],
+    "atlas-foxglove.service": [
+      "2133",
+      "0"
+    ],
+    "atlas-frame-bridge.service": [
+      "1987",
+      "0"
+    ],
+    "atlas-gnss.service": [
+      "1990",
+      "0"
+    ],
+    "atlas-im10a.service": [
+      "1995",
+      "0"
+    ],
+    "atlas-ina3221-power.service": [
+      "4218",
+      "0"
+    ],
+    "atlas-intercom.service": [
+      "1997",
+      "0"
+    ],
+    "atlas-laser-tf.service": [
+      "2000",
+      "0"
+    ],
+    "atlas-lidar-odom-gate.service": [
+      "2012",
+      "0"
+    ],
+    "atlas-lidar-odom.service": [
+      "2004",
+      "0"
+    ],
+    "atlas-lidar.service": [
+      "5523",
+      "5"
+    ],
+    "atlas-local-llm.service": [
+      "3262",
+      "0"
+    ],
+    "atlas-localization-monitor.service": [
+      "2094",
+      "0"
+    ],
+    "atlas-localization.service": [
+      "5713",
+      "1"
+    ],
+    "atlas-mission-control.service": [
+      "2050",
+      "0"
+    ],
+    "atlas-mode-manager.service": [
+      "2048",
+      "0"
+    ],
+    "atlas-person-sensor-fusion.service": [
+      "2171",
+      "0"
+    ],
+    "atlas-remote.service": [
+      "2024",
+      "0"
+    ],
+    "atlas-safety-status.service": [
+      "2045",
+      "0"
+    ],
+    "atlas-scan-filter.service": [
+      "1977",
+      "0"
+    ],
+    "atlas-sensor-recovery.service": [
+      "2056",
+      "0"
+    ],
+    "atlas-tight-recovery.service": [
+      "2067",
+      "0"
+    ],
+    "atlas-uno-r4-sensor-hub.service": [
+      "2068",
+      "0"
+    ],
+    "atlas-vision-lidar-fusion.service": [
+      "2159",
+      "0"
+    ],
+    "atlas-visual-cloud-agent.service": [
+      "2114",
+      "0"
+    ],
+    "atlas-visual-cloud-server.service": [
+      "2126",
+      "0"
+    ],
+    "atlas-voice-companion.service": [
+      "2172",
+      "0"
+    ],
+    "dbus.service": [
+      "2201",
+      "0"
+    ],
+    "dconf.service": [
+      "3324",
+      "0"
+    ],
+    "evolution-addressbook-factory.service": [
+      "3435",
+      "0"
+    ],
+    "evolution-calendar-factory.service": [
+      "3340",
+      "0"
+    ],
+    "evolution-source-registry.service": [
+      "3304",
+      "0"
+    ],
+    "gnome-keyring-ssh.service": [
+      "0",
+      "0"
+    ],
+    "gnome-session-manager@ubuntu.service": [
+      "2796",
+      "0"
+    ],
+    "gnome-session-monitor.service": [
+      "2724",
+      "0"
+    ],
+    "gvfs-afc-volume-monitor.service": [
+      "3466",
+      "0"
+    ],
+    "gvfs-daemon.service": [
+      "2767",
+      "0"
+    ],
+    "gvfs-goa-volume-monitor.service": [
+      "3384",
+      "0"
+    ],
+    "gvfs-gphoto2-volume-monitor.service": [
+      "3462",
+      "0"
+    ],
+    "gvfs-metadata.service": [
+      "5655",
+      "0"
+    ],
+    "gvfs-mtp-volume-monitor.service": [
+      "3405",
+      "0"
+    ],
+    "gvfs-udisks2-volume-monitor.service": [
+      "3360",
+      "0"
+    ],
+    "org.freedesktop.IBus.session.GNOME.service": [
+      "3622",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.A11ySettings.service": [
+      "3624",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.Color.service": [
+      "3627",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.Datetime.service": [
+      "3631",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.Housekeeping.service": [
+      "3635",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.Keyboard.service": [
+      "3636",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.MediaKeys.service": [
+      "3645",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.Power.service": [
+      "3646",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.PrintNotifications.service": [
+      "3648",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.Rfkill.service": [
+      "3649",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.ScreensaverProxy.service": [
+      "3651",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.Sharing.service": [
+      "3654",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.Smartcard.service": [
+      "3657",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.Sound.service": [
+      "3672",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.Wacom.service": [
+      "3674",
+      "0"
+    ],
+    "org.gnome.SettingsDaemon.XSettings.service": [
+      "3682",
+      "0"
+    ],
+    "org.gnome.Shell@x11.service": [
+      "2833",
+      "0"
+    ],
+    "pipewire-media-session.service": [
+      "2077",
+      "0"
+    ],
+    "pipewire.service": [
+      "2075",
+      "0"
+    ],
+    "pulseaudio.service": [
+      "2078",
+      "0"
+    ],
+    "rover-base-telemetry.service": [
+      "3534",
+      "1"
+    ],
+    "rover-cellular.service": [
+      "4017",
+      "0"
+    ],
+    "rover-daly-bms.service": [
+      "2091",
+      "0"
+    ],
+    "rover-radar.service": [
+      "2093",
+      "0"
+    ],
+    "rover-status-web.service": [
+      "189640",
+      "0"
+    ],
+    "s32rec-d1.service": [
+      "205888",
+      "0"
+    ],
+    "tracker-miner-fs-3.service": [
+      "3983",
+      "0"
+    ],
+    "xdg-desktop-portal-gnome.service": [
+      "3830",
+      "0"
+    ],
+    "xdg-desktop-portal-gtk.service": [
+      "4003",
+      "0"
+    ],
+    "xdg-desktop-portal.service": [
+      "3702",
+      "0"
+    ],
+    "xdg-document-portal.service": [
+      "3756",
+      "0"
+    ],
+    "xdg-permission-store.service": [
+      "3280",
+      "0"
+    ]
+  },
+  "cpu_record_before": [
+    63.87,
+    68.13,
+    63.07
+  ],
+  "integrity_after": "PASS",
+  "identities_unchanged": true,
+  "result": "ROLLED_BACK",
+  "live_after": {
+    "lib/libastra_camera.so": "6ae876010c824be97d2545996f897e40e07e0c97fa7a45694f96f342cf6e22a6",
+    "manifest.json": "c1a6d1c02f1620850cd160022eb0d10dd269a1152f91c5436a0ada82e4e17dfb"
+  },
+  "cpu_record_after": [
+    64.76,
+    64.63,
+    62.8
+  ]
+}

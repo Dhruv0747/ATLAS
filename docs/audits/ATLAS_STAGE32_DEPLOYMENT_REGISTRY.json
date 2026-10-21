@@ -25,7 +25,7 @@
   },
   "last_verified_state": "E-STOP latched; manual-only; zero commands; recorder and Astra OFF; Pi Camera healthy; protected identities unchanged except approved web restarts",
   "state_freshness": "Historical postrollback evidence, not a new live admission",
-  "next_action": "Owner approval D1: no-restart diagnostic install, one IR-only session, immediate rollback",
+  "next_action": "Separate review/approval: one IR-only 640x480@30 GRAY8 instrumented session (same no-restart install/rollback); UI banner fix for IR-no-frames",
   "handover": "ATLAS_STAGE32_DEVELOPER_HANDOVER.md",
   "takeover_20261021": {
     "from_commit": "c68ba4891645d9985f3da882a13bce8d3b2e965d",
@@ -48,8 +48,16 @@
       "restart_required": false,
       "jetson_location": "/home/jetson/project-atlas-migration/stage32-takeover-ir-diag-rehearsal/pkg",
       "rehearsal": "PASS on byte copy; live check read-only PASS",
-      "status": "DEPLOYMENT READY; NOT INSTALLED",
+      "status": "APPLIED 17:28:55 and ROLLED BACK 17:29:58 (D1); production on baseline 6ae87601/c1a6d1c0, integrity PASS",
       "approval_needed": "D1"
     }
+  },
+  "d1_result": {
+    "session": "2026-10-21 17:29:07-17:29:42 IR-only, Start once, stopped at 25 s without frames, no retry",
+    "earliest_failed_boundary": 1,
+    "counters_final": "wait_ok=0 wait_failed=11 wait_rc=102 ready=0 read_ok=0 callback=0 publish_attempt=0 subscribers=1 during ACTIVE",
+    "restarts": "none",
+    "raw_driver_log": "/home/jetson/project-atlas-migration/stage32-takeover-ir-diag/d1_driver.log sha256 36ab55869f42e48718cee8938426ff46b21f20061fa3bbc5fe93a067cc76c328",
+    "evidence": "evidence/stage32_d1/"
   }
 }
