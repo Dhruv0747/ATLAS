@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+21 October 2026 Astra Vision Lab: read-only USB confirms Astra Pro0403/RGB0501,
+but no vendor ROS driver/publications and no user write access to depth USB.
+Offline viewer tested; NOT deployed and NOT a navigation/localization fix.
+72 targeted tests pass including native message serialization; all camera modes,
+real depth accuracy, TF/extrinsics and streaming resource impact remain unverified.
+Separate stationary driver/permission approval is next; no motion/recording or
+production dashboard/service change authorized. See
+[Vision Lab report](../../ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
+
 20 October2026 UNO incident: full operator power cycle restored native USB and
 all3 I2C devices. Initial I2C-offline/LOW reports and later USB enumeration failure
 are separate observations; common root cause not proven. A reproducible wall-clock

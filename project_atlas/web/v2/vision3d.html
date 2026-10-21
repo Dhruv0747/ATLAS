@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATLAS 3D Vision Lab</title><link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/glass.css"><link rel="stylesheet" href="/v2/vision3d.css">
+<script src="/v2/vision3d.js" defer></script></head><body>
+<header class="topbar"><a class="brand" href="/v2/">ATLAS / HOME</a><h1>3D Vision Lab</h1><span class="chip">READ ONLY · NO NAVIGATION AUTHORITY</span></header>
+<main id="visionLab"><p class="notice" id="sourceNotice" role="status">Waiting for verified streams. USB presence alone is not a working depth camera.</p>
+<section class="panel controls"><label>Verified hardware mode <select id="mode" disabled><option>MODE UNSUPPORTED / not yet verified</option></select></label>
+<span>Mode changes need an approved driver session. These controls only change the viewer.</span>
+<button class="btn" id="pause">Pause viewer</button><label><input type="checkbox" id="showCloud" checked> Show 3D cloud</label>
+<button class="btn" disabled title="Requires separate recording approval">Recording OFF</button></section>
+<section class="vision-grid" aria-label="Live camera streams">
+<article class="panel"><h2>RGB <span class="state" id="rgbState">UNAVAILABLE</span></h2><div class="image-box"><img id="rgbImage" alt="Live Astra RGB; unavailable until verified"></div><p id="rgbMeta">No sensor data</p></article>
+<article class="panel"><h2>Depth <span class="state" id="depthState">UNAVAILABLE</span></h2><div class="image-box"><img id="depthImage" alt="Colorized real depth; click for source pixel measurement"></div><p id="depthMeta">No sensor data</p><small>Red = near, blue = far (0–5 m display scale); black = invalid. Click measures original pixel, not color.</small></article>
+<article class="panel"><h2>Infrared <span class="state" id="irState">UNAVAILABLE</span></h2><div class="image-box"><img id="irImage" alt="Live infrared when supported"></div><p id="irMeta">No sensor data</p></article>
+<article class="panel cloud-panel"><h2>3D point cloud <span class="state" id="cloudState">UNAVAILABLE</span></h2><canvas id="cloudCanvas" aria-label="Interactive 3D cloud. Drag to orbit, shift-drag to pan, scroll to zoom. Click selects point." tabindex="0"></canvas>
+<div class="cloud-tools"><button class="btn" id="resetView">Reset view</button><button class="btn" id="panMode" aria-pressed="false">Pan mode</button><button class="btn" id="zoomIn">Zoom +</button><button class="btn" id="zoomOut">Zoom −</button></div>
+<p id="cloudMeta">No PointCloud2 publication</p><small>Drag: orbit · shift-drag / Pan mode: pan · wheel / buttons: zoom · click: select. Optical axes: X right, Y down, Z forward. Maximum 6,000 sampled points.</small></article>
+</section>
+<section class="detail-grid"><article class="panel"><h2>Distance inspection</h2><output id="measurement" aria-live="polite">Click a valid depth pixel or a 3D point.</output><p>Depth Z is distance along the optical axis. Range is √(X² + Y² + Z²). XYZ requires matching undistorted CameraInfo. Accuracy is NOT commissioned.</p></article>
+<article class="panel"><h2>Sensor diagnostics</h2><pre id="diagnostics">Waiting</pre></article>
+<article class="panel"><h2>Shadow obstacle awareness</h2><pre id="obstacles">Not active</pre><p>Camera-frame ROI only. No ground removal, LiDAR registration or production costmap output. Pi camera object detections are not automatically Astra detections.</p></article></section>
+<p class="notice">Closing or hiding this page stops requests. Subscriptions expire after 15–30 seconds idle; camera driver lifetime is separate. No snapshots or recordings are created.</p>
+</main></body></html>
