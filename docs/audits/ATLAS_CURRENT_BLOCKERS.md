@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+21 October 15:13 Stage31B: 1-s guard window and stale-summary fix DEPLOYED (no
+restart). One 60 s Depth-only session ran to completion: 607 real frames on the
+Dashboard, click-to-measure 2.721 m (uncalibrated), guard 63.7-71.1%, limits
+unchanged. Astra live viewing now WORKS uncalibrated; calibration/XYZ/cloud still
+blocked; single session is not a reliability qualification.
+
 21 October 14:44 second Depth test BLOCKED at start-up: guard sample 76.0% (~0.5 s
 window) = Astra start-up burst + kswapd0/kcompactd0 + network-fallback curl probe;
 no 1-s sample in 191 s exceeded 75%. No frames, no retry. Owner decision needed on

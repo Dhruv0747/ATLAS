@@ -16,7 +16,7 @@
     {
       "id": "ATLAS-ASTRA-DDS-DISCOVERY-FANOUT-20261021",
       "confidence": "CONFIRMED",
-      "resolution": "UNRESOLVED",
+      "resolution": "VERIFIED FIXED",
       "date": "2026-10-21",
       "description": "Any new ROS participant in production domain 0 makes ~34 existing (mostly Python rclpy) nodes process discovery for ~3 s, adding ~20-27 whole-machine CPU points on a 65% parked baseline. This, not camera frame handling, trips the 75% Vision Lab guard at Astra start (77.9/75.9/83.2/80.8% observed) and also tripped the camera-free Stage30 probe (81.7%).",
       "evidence": "Passive /proc per-second sampling around one read-only ros2 topic list: domain 0 -> 75.1/92.0/92.1%, 34 processes +3-5% one-core each; domain 77 -> single 76.6% sample (joiner start-up only), no other process affected. evidence/stage31_astra/jp_main.json, jp_iso.json, jp_none.json.",
@@ -24,7 +24,8 @@
       "remaining_gap": "Projected start peak ~73% vs 75% limit (2-point margin on a 62-67% baseline). Needs owner-approved install (rover-status-web restart) and one guarded Depth start; if it still trips, a measured owner policy decision (nice-aware CPU accounting, viewing quiet mode or consecutive-sample rule).",
       "safety": "No threshold, service, DDS configuration, motor, steering, map or navigation change. Production domain untouched.",
       "reference": "ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md",
-      "deployment_follow_up": "2026-10-21 14:28 owner-approved install (rover-status-web restart only). Live session: driver ROS_DOMAIN_ID=77, domain-0 SHM participant ports unchanged (102), real depth frames on Dashboard ~11 s with post-launch guard samples 63.5-69.4%; then one 77.8% sample stopped it (unattributed; coincided with mid-session SSH observer). Start-up fan-out fixed; sustained viewing not yet verified. Evidence: ATLAS_STAGE31_LIVE_DEPLOYMENT.md."
+      "deployment_follow_up": "2026-10-21 14:28 owner-approved install (rover-status-web restart only). Live session: driver ROS_DOMAIN_ID=77, domain-0 SHM participant ports unchanged (102), real depth frames on Dashboard ~11 s with post-launch guard samples 63.5-69.4%; then one 77.8% sample stopped it (unattributed; coincided with mid-session SSH observer). Start-up fan-out fixed; sustained viewing not yet verified. Evidence: ATLAS_STAGE31_LIVE_DEPLOYMENT.md.",
+      "verification": "2026-10-21 15:09 after Stage31B 1-s guard window: one 60 s Depth-only session completed, 607 frames, guard samples 63.7-71.1% (limit 75% unchanged). Evidence ATLAS_STAGE31B_LIVE_DEPLOYMENT.md. Single session; not an endurance qualification."
     },
     {
       "id": "ATLAS-VISION-GUARD-CPU-BEFORE-HTTP-20261021",

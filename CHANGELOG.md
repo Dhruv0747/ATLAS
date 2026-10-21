@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-21 15:07–15:13 (owner-approved Stage 31B install + one Depth-only test):
+- **UI fix DEPLOYED** and **guard update DEPLOYED** (no restart; `atlas_vision3d_runtime.py 077edc29…`, `vision3d.js 05b83020…`; backup `.pre_stage31b_20261021_150745`).
+- **Sustained Depth viewing VERIFIED (uncalibrated):** one uninterrupted 60 s session, 607 frames on the Dashboard (≈ 11 fps, 0.01–0.33 s old), click-to-measure 2.721 m. 59 guard samples (1.0 s windows) at 63.7–71.1%; recorder max 70.0%, session mean 66.8% vs 64.9% before. Protected services unchanged. See [`ATLAS_STAGE31B_LIVE_DEPLOYMENT.md`](ATLAS_STAGE31B_LIVE_DEPLOYMENT.md).
+
 2026-10-21 15:2x (Stage 31b; DEVELOPMENT ONLY; nothing installed, no restart, no camera start):
 - **Vision Lab stale-summary bug fixed** (`web/v2/vision3d.js`). A headless test reproduces the bug on the deployed file and passes with the fix.
 - **Candidate guard** (`scripts/atlas_vision3d_runtime.py`): every CPU sample covers at least 1.0 s; 75% single-sample fail-closed unchanged; a window over 2.0 s fails closed; RAM, thermal, policy and freshness still checked every sample; no grace period, no limit change, no service pausing.
