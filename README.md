@@ -1552,3 +1552,8 @@ Read-only identification confirms Astra Pro depth `2bc5:0403` and RGB `2bc5:0501
 The additive `/v2/vision3d` viewer and Home shortcut are offline-tested candidates,
 **not deployed**; no Astra ROS driver is running or authorized by this change.
 See [hardware evidence, tests and approval/rollback plan](ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
+
+Approved stationary setup follow-up: pinned vendor source/private dependencies
+are staged only. Build stopped at CPU75.88% (unchanged75% guard); camera USB
+permissions still require administrator execution. No live Astra stream,
+production page installation, recording or existing-camera restart occurred.

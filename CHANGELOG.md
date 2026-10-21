@@ -3162,3 +3162,10 @@ Historical first attempt; the later successful installation is recorded above.
   native Humble serialization tests; 72 targeted tests pass including regressions.
 - Document missing vendor driver/USB permission, JetPack6.2.1 observed version,
   real baseline resources and separate approvals required for streams/page install.
+
+- Stationary setup approval received: stage vendor ARM64/OpenNI source and seven
+  private dependency packages; no global installation. Add bounded opt-in build
+  supervision and14 offline admission tests. Preserve source-wrapper failure and
+  corrected launch attempt stopped by CPU75.884%>75%. No streams or retry after
+  resource rejection; sudo/USB permission execution remains blocked. Prepare
+  exact-ID0660/video udev rule as undeployed candidate only.

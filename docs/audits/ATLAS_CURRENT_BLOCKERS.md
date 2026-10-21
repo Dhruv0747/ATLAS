@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October2026 approved Astra stationary setup follow-up: vendor source and seven
+private dependency packages staged, no global install. Build aborted by unchanged
+CPU75% admission (75.884% measured); no auto retry. Depth/RGB USB permissions remain
+ungranted; SSH has no suitable passwordless sudo. No streams, movement, recordings
+or existing-service restart.86 targeted offline tests pass, not a vendor-build or
+live-camera pass. See [follow-up](../../ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
+
 21 October 2026 Astra Vision Lab: read-only USB confirms Astra Pro0403/RGB0501,
 but no vendor ROS driver/publications and no user write access to depth USB.
 Offline viewer tested; NOT deployed and NOT a navigation/localization fix.

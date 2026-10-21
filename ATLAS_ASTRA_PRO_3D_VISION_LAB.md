@@ -1,5 +1,111 @@
 # ATLAS Astra Pro 3D Vision Lab — 21 October 2026
 
+## Approved stationary setup follow-up — latest checkpoint
+
+The owner subsequently approved isolated driver setup and stationary RGB/depth
+testing, including targeted USB permissions. **Preparation progressed, but the
+build and live stream tests are BLOCKED. No Astra streams were started.**
+This supersedes the earlier pending-approval text below for the stationary test
+only. The production dashboard deployment is still NOT approved or performed.
+
+Confirmed completed preparation:
+
+- Cloned the pinned vendor wrapper revision
+  `f7e71d9ce806e788cb48d8580aac2c778fba4214` into
+  `/home/jetson/project-atlas-migration/astra-20261021/ws/src/ros2_astra_camera`.
+  Its OpenNI2 core and Orbbec plugin are ELF64 AArch64; their `ldd` dependency
+  checks resolve. This does not prove a working Humble driver or valid depth data.
+- Downloaded/extracted seven ARM64 dependency packages into this staging folder,
+  **not installed system-wide**: libuvc-dev/libuvc0 0.0.6-1.1,
+  libusb-1.0-0[-dev] 2:1.0.25-1ubuntu2, Humble camera-info-manager and
+  camera-calibration-parsers 3.1.13, image-publisher 3.0.9. Exact build suffixes,
+  package hashes and metadata are preserved in `dependency_manifest.json`.
+- Relocated only the private pkg-config paths and configured a separate
+  CMake/AMENT/library prefix. No `/etc`, `/usr`, `/usr/local`, production ROS
+  workspace, system package database or shell startup files were modified.
+- The vendor CMake hard-coded Debug; the isolated checkout now respects explicit
+  Release selection. No driver runtime logic, calibration or camera setting was
+  changed. Source is not redistributed here (upstream package has TODO license).
+- Added opt-in build tooling with one job, requested CPUQuota35% (0.35 core),
+  800MiB memory cap and 900s hard deadline. Live safety/resource supervisor stops
+  only this new build job; it never calls robot control APIs.
+
+Preserved failures, in order:
+
+1. Initial preflight used assumed `CPU-therm` names. Read-only sysfs inspection
+   found `cpu-thermal`, `gpu-thermal`, `soc0/1/2-thermal`, `tj-thermal`; the guard
+   was corrected to require these exact sources. Nano CV read failures are not
+   treated as temperatures or silently substituted with zero. No build started
+   under the failed preflight.
+2. First transient build exited immediately because Humble `setup.bash` reads an
+   optional unset `AMENT_TRACE_SETUP_FILES` under nounset. The isolated wrapper
+   now temporarily disables nounset while sourcing and restores it afterwards.
+   Evidence: `build_supervised_result.json` and its retained journal. No camera
+   was opened. Essential service identities before/after matched.
+3. Second build passed fresh preflight and began astra_camera_msgs configuration.
+   Total CPU reached **75.88424437299035%**, exceeding75%; the supervisor stopped
+   the build immediately. RAM at rejection **66.08189202890861%**, maximum required
+   temperature **60.093°C**. Thresholds were not relaxed. Evidence:
+   `build_supervised_result_2.json`, which retains the exact failed readings in
+   its failure text. Its sample list contains only admitted samples (peak73.71%);
+   do NOT misreport that admitted-only peak as the total peak. Future source
+   tooling also retains a structured rejected sample. That later enhancement
+   is offline-tested, not a fresh live retry.
+
+The stopped transient unit can report systemd `Result=success` / ExecMainStatus0
+after an intentional stop. That is **not compilation success**: the supervisor's
+overall result remains BLOCKED. No retry followed the CPU rejection. Both build
+units have MainPID0; no Astra driver, build or recording process remains running.
+CPU quota was requested, not independently profiled for sustained enforcement
+before this short abort. No claim that the Astra workload caused the CPU spike;
+it was total-system admission failure and prior baseline spikes already exist.
+
+USB permission blocker:
+
+- Fresh `/dev/bus/usb/001/014` depth and `001/011` RGB remain root:root0664,
+  without an ACL for jetson. The operator's initial “Done” was not accepted as
+  evidence of a permission change; direct checks still fail write access.
+- `sudo -n -l` permits passwordless shutdown only, not permission changes. General
+  sudo requires the operator's password. No credential retrieval, privilege
+  workaround, broad chmod, udev reload, shared hub reset or unsolicited GUI
+  authentication was attempted. The operator is busy; no further terminal prompt
+  will be repeated during this attempt.
+- `project_atlas/config/99-atlas-astra-pro.rules` is a **candidate, NOT installed**:
+  exact USB IDs0403/0501, group video (jetson is already a member), mode0660.
+  It does not match the Pi camera, UNO, modem or hubs. Applying/removing this rule
+  and refreshing only the two camera devices needs administrator execution;
+  current approval authorizes that scope but does not supply OS credentials.
+
+No image/point-cloud/rosbag/snapshot was saved. Logs here are build/admission
+metadata, not sensor recording. Real RGB/depth FPS, accuracy and simultaneous
+modes remain NOT TESTED. No RGB-only experiment was started after the failed CPU
+gate. Local private evidence copies: `artifacts/astra_stationary_20261021/`.
+Remote preparation occupies approximately12MiB, preserved for continuation.
+
+Final read-only checks: E-STOP latched, manual-only true, commissioning false,
+commands zero, Stage20 recorder inactive/PID0. Essential PID/restart counts
+matched: Pi camera1982/0, base3534/1, mux1975/0, EKF3260/0,
+localization5713/1, LiDAR5523/5. Historical restarts were not caused, cleared or
+certified by this work. No production service or Pi camera was restarted.
+
+**Next necessary action:** obtain actual administrator execution for the two
+targeted USB permissions and establish CPU headroom below the unchanged75% gate.
+Then resume the isolated build under fresh checks using a new evidence ID;
+the owner's stationary-test approval already exists. Do not repeat completed
+inventory or start streams merely because permission has been granted.
+No automatic retry, background driver, dashboard deployment or autonomy follows.
+
+Rollback: there is no production installation to undo. Keep the stopped build
+units stopped; do not source the private workspace into production processes.
+Retain the12MiB staging folder and failure evidence instead of deleting it.
+If a future administrator applies a camera ACL/rule, preserve its original mode/
+ACL/rule first and restore exactly those values on rollback; no such permission
+change was verified during this attempt.
+
+Fourteen new offline stationary-guard tests pass, in addition to the72 targeted
+Vision Lab/regression tests below (86 total). Full vendor build and live RGB/depth
+tests did not pass and are not included in that count.
+
 ## Status and authorization boundary
 
 **Read-only hardware identification COMPLETE. Offline viewer candidate TESTED.
