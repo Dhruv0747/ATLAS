@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October calibration continuation:120-byte ctypes layout matches pinned SDK;
+vendor validates only part of returned calibration. This does not explain NaNs
+or prove camera damage. Alternative supported read paths still untested.
+458 live hashes match; stationary admission passed, no stream activation.
+94 targeted offline tests pass. Valid intrinsics, measured depth accuracy and
+cloud remain blocked. See ATLAS_ASTRA_PRO_CALIBRATION_AND_POINTCLOUD_VALIDATION.md.
+
 21 October Stage29 continuation supersedes the incomplete-build status below:
 isolated PC-built ARM64 runtime installed and loader verified; concurrent RGB
 15.095 Hz/depth10.527 Hz passed while Pi camera stayed active. 88 targeted tests

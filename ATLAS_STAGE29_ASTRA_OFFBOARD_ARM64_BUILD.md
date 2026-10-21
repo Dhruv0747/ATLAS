@@ -1,5 +1,12 @@
 # Stage 29 — offboard ARM64 preparation, 21 October 2026
 
+Calibration continuation: [new evidence and gates](ATLAS_ASTRA_PRO_CALIBRATION_AND_POINTCLOUD_VALIDATION.md).
+120-byte layout matches pinned SDK; vendor validity check is incomplete, but
+NaN root cause remains unresolved. Fresh458 hashes match; stationary admission
+passed at CPU67.055%, RAM66%, hottest63.187C. No stream/rebuild/live change.
+94 targeted tests pass including six new offline calibration/statistics tests.
+Metric cloud remains blocked; physical accuracy needs separately approved targets.
+
 ## Continuation — current verified checkpoint, 21 October 2026
 
 **Driver cross-built, isolated target loader verified, and concurrent real ROS

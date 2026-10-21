@@ -19,7 +19,8 @@
       "resolution": "UNRESOLVED",
       "date": "2026-10-21",
       "evidence": "Read-only OpenNI property14 returned success and120 bytes but all factory fields NaN. Concurrent ROS RGB/depth passed with FOV-derived fallback CameraInfo; metric PointCloud2 withheld. This does not prove hardware failure or that every alternative calibration access path fails.",
-      "reference": "ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md"
+      "reference": "ATLAS_ASTRA_PRO_CALIBRATION_AND_POINTCLOUD_VALIDATION.md",
+      "follow_up": "120-byte layout matches pinned header, so simple struct-size mismatch is unsupported. Vendor checks only left intrinsics for NaN and ignores property status; weakness confirmed, NaN cause unproven. Alternative supported read paths and physical calibration remain pending. No live modification;94 targeted offline tests pass."
     },
     {
       "id": "ATLAS-ASTRA-USER-CPU-CONTROLLER-20261021",

@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Astra calibration continuation](ATLAS_ASTRA_PRO_CALIBRATION_AND_POINTCLOUD_VALIDATION.md):
+installed hashes reverified, ABI layout checked, offline provenance/depth-statistics
+tools prepared; 94 targeted tests pass. No new camera activation or production
+change. Calibration root cause and real metric geometry remain unresolved.
+
 [Stage29 continuation](ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md): ARM64 driver
 built on PC and installed in an isolated Jetson directory. Bounded concurrent ROS
 RGB (~15.1 Hz) and depth (~10.5 Hz) passed; existing Pi camera remained active.

@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 Astra calibration investigation:
+- Confirmed pinned120-byte SDK layout; identified incomplete vendor parameter validation, not a proven NaN cause.
+- Added offline calibration-document admission and measured-target scalar statistics; six new tests,94 targeted tests pass.
+- Reverified458 live package hashes and fresh stationary admission; no streams, production changes or threshold overrides.
+- Documented physical reference/approval requirements and unpassed geometry/deployment gates.
+
 2026-10-21 Stage29 continuation:
 - Built pinned Astra ARM64 driver offboard; isolated v2 package hashes and target loader verified.
 - Added bounded receive-only modern Foxglove SDK observer and explicit test-only owner CPU exception; production limits unchanged.
