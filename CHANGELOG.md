@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 15:2x (Stage 31b; DEVELOPMENT ONLY; nothing installed, no restart, no camera start):
+- **Vision Lab stale-summary bug fixed** (`web/v2/vision3d.js`). A headless test reproduces the bug on the deployed file and passes with the fix.
+- **Candidate guard** (`scripts/atlas_vision3d_runtime.py`): every CPU sample covers at least 1.0 s; 75% single-sample fail-closed unchanged; a window over 2.0 s fails closed; RAM, thermal, policy and freshness still checked every sample; no grace period, no limit change, no service pausing.
+- Replay on the captured traces: test 2 would pass (max 1-s sample 73.75%); production-domain join and one-second bursts are still blocked.
+- Package `tools/deploy/stage31b/stage31b.sh` (no restart) rehearsed on a Jetson copy with a byte-identical rollback. Awaiting separate approval. See [`ATLAS_STAGE31B_GUARD_WINDOW_CANDIDATE.md`](ATLAS_STAGE31B_GUARD_WINDOW_CANDIDATE.md).
+
 2026-10-21 14:44 (owner-approved second Depth-only test; passive persistent recorder; no intrusive diagnostics while streaming):
 - **Result: BLOCKED at start-up, no frames.** Guard sample 76.0% over a ~0.5 s window just after driver launch; driver stopped, no retry. Over 191 s no 1-s sample exceeded 75% (max 73.8%).
 - Cause: three short bursts collided in one half-second: Astra start-up (55.6% of a core), kernel reclaim/compaction (kswapd0/kcompactd0), and the network-fallback curl probe. Domain isolation held. Decision needed on guard window or background load; nothing changed. See [`ATLAS_STAGE31_LIVE_DEPLOYMENT.md`](ATLAS_STAGE31_LIVE_DEPLOYMENT.md) (second test).

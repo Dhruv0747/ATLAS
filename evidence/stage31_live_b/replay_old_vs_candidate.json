@@ -1,0 +1,57 @@
+{
+ "second_depth_test_14_44": {
+  "one_second_bins": 191,
+  "max_1s": 73.75,
+  "bins_over_75": [],
+  "deployed_guard_actual": "BLOCKED at 76.0% on a 0.68 s window (3.38->4.06 s); recorder bin for that second 73.75%",
+  "candidate_verdict": "PASS"
+ },
+ "production_domain_join_ros2_cli": {
+  "max_1s": 92.11,
+  "bins_over_75": [
+   75.08,
+   92.0,
+   92.11
+  ],
+  "candidate_verdict": "BLOCK"
+ },
+ "private_domain77_join_ros2_cli": {
+  "max_1s": 76.56,
+  "bins_over_75": [
+   76.56
+  ],
+  "candidate_verdict": "BLOCK"
+ },
+ "parked_no_join": {
+  "max_1s": 66.61,
+  "bins_over_75": [],
+  "candidate_verdict": "PASS"
+ },
+ "first_depth_test_14_32": {
+  "deployed_guard_samples_seen_by_page": [
+   "\u2014",
+   "66.7%",
+   "63.5%",
+   "66.0%",
+   "69.4%",
+   "66.4%",
+   "66.0%",
+   "77.8%"
+  ],
+  "note": "no per-second recorder survived; the final 77.8% sample window length is unknown, so this session cannot be replayed"
+ },
+ "max_full_machine_burst_absorbed_s": {
+  "baseline_62.6": {
+   "deployed_0.5s_window": 0.166,
+   "candidate_1.0s_window": 0.332
+  },
+  "baseline_65.0": {
+   "deployed_0.5s_window": 0.143,
+   "candidate_1.0s_window": 0.286
+  },
+  "baseline_69.8": {
+   "deployed_0.5s_window": 0.086,
+   "candidate_1.0s_window": 0.172
+  }
+ }
+}

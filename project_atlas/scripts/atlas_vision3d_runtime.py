@@ -37,6 +37,36 @@ def domain_in_use(domain_id, proc=Path('/proc')):
     return False
 
 
+# Stage31b candidate: every CPU guard sample covers at least MIN_CPU_WINDOW_S. Each sample is still a single
+# fail-closed decision against the unchanged 75% limit. A window longer than MAX_CPU_WINDOW_S (stalled guardian,
+# slow safety snapshot) fails closed, so a long average can never hide a sustained spike. Measured 21 Oct: a ~0.5 s
+# window caught the Astra start-up burst (76.0%) while every 1-s sample over 191 s stayed <=73.8%.
+MIN_CPU_WINDOW_S = 1.0
+MAX_CPU_WINDOW_S = 2.0
+LEASE_POLL_S = 0.25
+
+
+class CpuWindow:
+    """Times the CPU guard. due(): a full window has elapsed. close(): returns the window length or fails closed."""
+    def __init__(self, now):
+        self.start = now
+
+    def due(self, now):
+        return now - self.start >= MIN_CPU_WINDOW_S
+
+    def wait(self, now):
+        return max(0.02, min(LEASE_POLL_S, MIN_CPU_WINDOW_S - (now - self.start)))
+
+    def close(self, now):
+        width = now - self.start
+        if width < MIN_CPU_WINDOW_S - 1e-6:
+            raise RuntimeError('guard CPU window %.3f s shorter than %.1f s' % (width, MIN_CPU_WINDOW_S))
+        if width > MAX_CPU_WINDOW_S:
+            raise RuntimeError('RESOURCE BLOCKED: guard sampling interval %.2f s exceeded %.1f s; failing closed' % (width, MAX_CPU_WINDOW_S))
+        self.start = now
+        return width
+
+
 def driver_env(base):
     env=dict(base,OPENBLAS_NUM_THREADS='1',OMP_NUM_THREADS='1')
     env['ROS_DOMAIN_ID']=str(ISOLATED_DOMAIN_ID)
@@ -146,7 +176,11 @@ def worker(mode):
     signal.signal(signal.SIGTERM,interrupted);signal.signal(signal.SIGINT,interrupted)
     def sample():
         nonlocal last_ticks,process_last,worker_last
+        now=time.monotonic()
+        if not window.due(now):time.sleep(MIN_CPU_WINDOW_S-(now-window.start))   # never sample a short window
+        width=window.close(time.monotonic())
         ticks=G.ticks();cpu=G.cpu_delta(last_ticks,ticks);last_ticks=ticks
+        state['cpu_window_s']=round(width,3)
         state['worker_process'],worker_last=process_metrics(os.getpid(),worker_last)
         if child:state['astra_process'],process_last=process_metrics(child.pid,process_last)
         state['elapsed_s']=time.monotonic()-started
@@ -169,8 +203,8 @@ def worker(mode):
             p=(RUNTIME/f['path']).resolve()
             if not p.is_relative_to(RUNTIME) or hashlib.sha256(p.read_bytes()).hexdigest()!=f['sha256']:
                 raise ValueError('isolated runtime integrity failure')
-        units=G.services();last_ticks=G.ticks()
-        for _ in range(3):time.sleep(1);sample();write()
+        units=G.services();last_ticks=G.ticks();window=CpuWindow(time.monotonic())
+        for _ in range(3):time.sleep(MIN_CPU_WINDOW_S);sample();write()
         if subprocess.run(['pgrep','-x','astra_camera_no'],stdout=subprocess.DEVNULL).returncode==0:
             raise ValueError('existing Astra process; refusing second owner')
         if domain_in_use(ISOLATED_DOMAIN_ID):
@@ -190,13 +224,13 @@ def worker(mode):
         state.update(state='ACTIVE',reason='Bounded stationary viewing; accuracy NOT verified',driver_pid=child.pid)
         while time.monotonic()-started<MAX_SECONDS:
             if os.getppid()!=parent:raise RuntimeError('dashboard owner ended')
-            if select.select([sys.stdin.buffer],[],[],1)[0]:
+            if select.select([sys.stdin.buffer],[],[],window.wait(time.monotonic()))[0]:
                 lease=os.read(sys.stdin.fileno(),4096)
                 if not lease:raise RuntimeError('viewer paused or closed')
                 last_lease=time.monotonic()
             if time.monotonic()-last_lease>4:raise RuntimeError('viewer lease expired')
-            # Sample at >=1 second, never accept an effectively zero CPU window.
-            time.sleep(.5)
+            # Lease is checked every <=0.25 s; the CPU/RAM/thermal/policy guard runs once per full >=1 s window.
+            if not window.due(time.monotonic()):continue
             sample()
             if G.services()!=units:raise RuntimeError('essential service identity changed')
             if child.poll() is not None:raise RuntimeError('isolated camera exited')

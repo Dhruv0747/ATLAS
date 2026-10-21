@@ -16,6 +16,13 @@ import atlas_vision3d_web as W
 from test_vision3d import image,info_with_stamp
 
 
+class FakeClock:
+    """Stage31b: the guard measures real elapsed windows, so tests that patch sleep advance this clock instead."""
+    def __init__(self):self.t=1000.0
+    def tick(self):self.t+=0.001;return self.t
+    def sleep(self,s):self.t+=max(0,s)
+
+
 class LiveDeploymentTests(unittest.TestCase):
     def test_limits_keep_original_policy(self):
         R.limits(75,80,70)
@@ -133,16 +140,17 @@ class LiveDeploymentTests(unittest.TestCase):
                 self.assertEqual(json.loads((Path(tmp)/'state.json').read_text())['state'],'RESOURCE BLOCKED')
 
     def test_worker_lease_eof_stops_owned_child(self):
+        global CLOCK;CLOCK=FakeClock()
         with tempfile.TemporaryDirectory() as tmp:
             runtime,gate=self.worker_fixture(tmp,50)
             child=MagicMock(pid=98765);child.poll.return_value=None
             with patch.object(R,'RUNTIME',runtime),patch.object(R,'STATE',Path(tmp)/'state.json'),\
                  patch.dict(sys.modules,{'stationary_gate':gate,'stationary_ros_probe':SimpleNamespace(extra_safety=lambda **_:None,safety_snapshot=lambda:{'ros':{}})}),\
-                 patch.object(R.time,'sleep'),patch.object(R.signal,'signal'),\
+                 patch.object(R.signal,'signal'),\
                  patch.object(R.subprocess,'run',return_value=SimpleNamespace(returncode=1)),\
                  patch.object(R.subprocess,'Popen',return_value=child),\
                  patch('select.select',return_value=([1],[],[])),patch.object(R.os,'read',return_value=b''),\
-                 patch.object(R.os,'killpg') as kill:
+                 patch.object(R.os,'killpg') as kill,patch.object(R.time,'monotonic',side_effect=CLOCK.tick),patch.object(R.time,'sleep',side_effect=CLOCK.sleep):
                 R.worker('depth');kill.assert_called_once_with(98765,R.signal.SIGINT)
                 data=json.loads((Path(tmp)/'state.json').read_text())
                 self.assertTrue(data['driver_stopped']);self.assertIn('paused',data['reason'])

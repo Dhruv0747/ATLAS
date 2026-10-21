@@ -5,6 +5,16 @@
   'use strict';
   const $ = id => document.getElementById(id), api = '/api/vision3d/';
   let paused = false, busy = false, timer = null, controller = null, status = null, urls = {}, imageStamps = {}, cloud = null, projected = [];
+  // Stage 31b: after Start, the previous session's state (same worker_pid, or a reply already in flight) must not be
+  // shown as if it were the new session. Until the new worker reports, the banner says "Checking before start".
+  let starting = null;   // {fromPid, at} while waiting for the new worker's first state
+  function currentRuntime(rt) {
+    if (!starting) return rt;
+    const fresh = rt && rt.worker_pid && rt.worker_pid !== starting.fromPid;
+    const ended = rt && !rt.worker_pid && rt.state === 'OFF' && rt.reason;     // new worker died before writing state
+    if (fresh || ended || Date.now() - starting.at > 20000) { starting = null; return rt; }
+    return { state: 'CHECKING', limits: rt && rt.limits, reason: '' };
+  }
   let yaw = 0, pitch = 0, zoom = 110, pan = [0, 0], panning = false, drag = null;
   const canvas = $('cloudCanvas'), ctx = canvas.getContext('2d');
   const isNum = v => typeof v === 'number' && Number.isFinite(v);
@@ -83,6 +93,7 @@
     if (busy || paused || document.hidden) return; busy = true; controller = new AbortController();
     try {
       status = await (await get('status')).json();
+      status.runtime = currentRuntime(status.runtime);
       explain(status.runtime);
       $('sourceNotice').textContent = (status.simulated ? 'SIMULATED UI TEST — NOT JETSON DATA · ' : '') + status.configuration + (status.error ? ' · ' + status.error : '');
       $('mode').replaceChildren(...(status.modes.length ? status.modes : ['Not yet verified']).map(m => { const o = document.createElement('option'); o.textContent = typeof m === 'string' ? m : JSON.stringify(m); return o; }));
@@ -108,8 +119,10 @@
   }
   function suspend() { clearTimeout(timer); if (controller) controller.abort(); cloud = null; for (const k of ['rgb', 'depth', 'ir']) clearImage(k); draw(); }
   $('startViewer').onclick = async () => {
+    starting = { fromPid: (status && status.runtime && status.runtime.worker_pid) || null, at: Date.now() };
+    explain({ state: 'CHECKING', limits: status && status.runtime && status.runtime.limits });
     try { $('startViewer').disabled = true; await viewer({ action: 'start', mode: mode() }); paused = false; clearTimeout(timer); refresh(); }
-    catch (e) { $('startViewer').disabled = false; $('runtimeState').textContent = e.message; }
+    catch (e) { starting = null; $('startViewer').disabled = false; $('runtimeState').textContent = e.message; }
   };
   $('pause').onclick = async () => {
     paused = true; suspend();
