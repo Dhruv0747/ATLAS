@@ -1308,3 +1308,98 @@ The worker stops the camera if no viewer lease renewal arrives for more than 4 s
 ### What would complete the acceptance
 
 Under a new approval, re-apply the same verified one-line change and run one 60-s IR-only session from a viewer that does not pause, for example the Jetson HMI or the owner's own browser. My headless client would observe only passively, or would keep renewing from a second, separately hosted client. No code change is needed for IR. The lease watchdog worked correctly and must not be relaxed.
+
+## 25. Final IR-only acceptance on the production driver: PASSED, 640x480 correction retained — 21 October 2026, 17:54–18:03
+
+The owner approved this at 17:53. Evidence is in `evidence/stage32_ir640_final/`. The IR image in the screenshot is blurred. The driver log stays on the Jetson in `~/project-atlas-migration/stage32-ir-640-final/`, SHA256 `b9d0c5af…30de`.
+
+### Result
+
+| Label | Status |
+|---|---|
+| **IR LIVE VERIFIED** | **YES, on the production driver** (`libastra_camera.so` `6ae87601…`, unmodified), 640x480@30 GRAY8. A full 60-s session completed normally, with no resource or lease failure. |
+| **PRODUCTION DEPLOYED** | **YES:** `scripts/atlas_vision3d_runtime.py` is `fc807489b06699d73efdd246913849a3d11315d6bfcba707eedd0e1381c9b5aa`. That is one line, `ir_width/ir_height` 320/240 → 640/480. **Retained.** |
+| Restarts, library, manifest | **None:** `rover-status-web` 189640 / NRestarts 0. Library `6ae87601…` and manifest `c1a6d1c0…` unchanged; 458-file integrity PASS. |
+| Root cause of zero IR frames | **Resolved for this unit:** the advertised 320x240@30 IR mode is not served by firmware 5.8.22; 640x480@30 is. |
+
+### 1. Preflight (17:54:33)
+
+- **Safety:**
+  - E-STOP latched; manual-only, stop-latched, disarmed;
+  - `cmd_vel` 0 / 0, motor 0, recording false.
+- **Sensors:** LiDAR 0.5 s, odometry 0.0 s, IMU 0.1 s, encoders 0.0 s.
+- **Resources:** CPU 65.5%, RAM 73%, 60.4 °C.
+- **Services and camera side:**
+  - protected units camera 1982/0, base 3534/1, mux 1975/0, EKF 3260/0, localization 5713/1, LiDAR 5523/5, web 189640/0;
+  - no camera-side process; domain 77 free;
+  - Astra 0403/0501 on USB; Pi Camera 200.
+- **Integrity:** all Stage 32 production hashes at baseline; runtime library and manifest at baseline, 458-file integrity PASS; override tool `check` = baseline.
+
+### 2. Configuration change
+
+`stage32_ir_mode_override.py apply` changed one line, `454dd25f…` → `fc807489…`, with a verified backup at `stage32-ir-640-final/d2/atlas_vision3d_runtime.py.baseline`. Nothing else changed, and nothing restarted.
+
+### 3. Viewer choice and heartbeat verification
+
+- **Built-in browser, rejected:** I first tried the built-in browser on the owner's Windows desktop app.
+  - With the camera off, its page went **hidden for 54 s** (the side panel showed something else).
+  - Its status loop recorded **no requests at all**.
+  - It would have stopped any session, so it was closed **before** any Start. No Start was ever issued from it.
+- **Headless Chromium on the owner's PC VM, with a mandatory 60-s heartbeat pre-check before Start**, camera off. The pre-check passively wraps the page's own `fetch`; it sends no extra requests. Result:
+  - 100 status renewals; largest gap 0.69 s (median 0.61 s); latency ≤ 0.18 s;
+  - client-versus-server clock spread 0.98 s, at the 1-s resolution of the HTTP `Date` header, so no time loss;
+  - page visible, no visibility changes.
+  - The pass rule was: gap ≤ 1.5 s, spread ≤ 1.3 s, visible. **PASS.**
+- **During the session** the script sent **no API requests**. It read only the page's DOM and the page's own diagnostics JSON, so it neither created nor extended lease renewals. The lease stays at 4 s, unchanged.
+
+### 4. Session (Start clicked once, 17:59:5x; no retry)
+
+- The runtime went CHECKING → ACTIVE, and IR was live **8.0 s** after Start.
+- The runtime ended the session itself: **"60-second session complete; explicit Start required"** (elapsed 59.63 s, 59 guard samples, `driver_stopped` true, `recording` false).
+- The driver streamed IR for 56.3 s (`set ir video mode 640x480@30Hz` → `ir is started` → `Stopped stream ir`).
+
+| Check | Result |
+|---|---|
+| Real IR frames | 1,624 frames received by the domain-77 receiver; 0 rejected; 0 stamp regressions; source stamps strictly increasing across all 27 ACTIVE polls |
+| Dimensions and encoding | 640x480, `mono8`, frame `astra_ir_optical_frame` |
+| FPS | 29.2–30.6 (median 29.7) |
+| Freshness | frame age ≤ 0.23 s; largest inter-frame gap 0.073 s |
+| Dashboard rendering | IR canvas 640x480, displayed range 0–255 (mean 75.3); "Native 8-bit infrared (mono8), 640 × 480. Display stretched from raw 0 (black) to 255 (white)" |
+| Click-to-measure raw IR | "Raw infrared intensity 52 (of 255) at pixel 320, 239" |
+| Lease heartbeat during the session | 80 page renewals; largest gap 1.40 s (median 0.78 s), well under 4 s; clock spread 0.98 s; page visible throughout |
+| Page errors | none |
+
+### 5. CPU, RAM and temperature
+
+| Measure | Value |
+|---|---|
+| Runtime guard samples (30 seen by the page) | 63.7–70.5%; limit 75% unchanged; no failure |
+| Passive recorder, 1 Hz, ACTIVE (54 samples) | 62.6–70.2% (mean 66.8%); 64.8% before, 64.5% after; whole-trace maximum 72.4% |
+| RAM | ≤ 72.0% (limit 80%) |
+| Temperature | ≤ 62.0 °C (limit 70 °C) |
+| Astra driver | 8.2% of one core (start peak 39.9%); RSS 84 MB |
+| `rover-status-web` | 49.7% of one core vs 44.3% before (+5.4% of one core, about +0.9% of the machine) |
+
+### 6. Post-session verification (18:02:56)
+
+- No driver, worker or cloud process.
+- E-STOP latched; `cmd_vel` 0 / 0, motor 0.
+- LiDAR 0.1 s, odometry 0.1 s, IMU 0.1 s, encoders 0.1 s.
+- Protected unit PIDs and restart counts identical to preflight.
+- CPU 64.8%, RAM 71%, 61.8 °C; Pi Camera 200; Astra USB enumerated.
+- Production hashes:
+  - runtime **`fc807489…` (retained correction)**;
+  - `atlas_vision3d_web.py` `889881c0…`, `vision3d.html` `a930af83…`, `vision3d.js` `76f9a202…`, `vision3d.css` `04f98c8c…`, `vision3d_live.json` `e27bc0c0…`, `index.html` `19d5bb1f…`;
+  - runtime library and manifest at baseline, integrity PASS.
+
+### Rollback (kept ready, not used)
+
+To roll back, run `ATLAS_IR_DIAG_STATE=~/project-atlas-migration/stage32-ir-640-final OWNER_APPROVED=yes python3 stage32_ir_mode_override.py restore` from `~/project-atlas-migration/stage32-ir-640-final/tools/`. It restores `454dd25f…` byte-identically, as rehearsed twice today, and needs no restart. The repository source now matches production (`fc807489…`), and the tests were updated and pass (219 passed, 3 skipped).
+
+### Still not done or not enabled
+
+- IR+Depth, RGB+IR, Depth+RGB regression.
+- Calibration, XYZ PointCloud2, XYZRGB.
+- Recording, autostart, firmware or emitter changes, movement.
+- The Vision Lab's mode note for Infrared still says "Not yet tested", because `config/vision3d_live.json` `mode_support` was deliberately not changed (only the IR setting was approved).
+- The page still says "Camera streaming" when IR delivers nothing. The banner fix is pending its own approval.

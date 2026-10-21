@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 17:54–18:03 (owner-approved final IR acceptance):
+- **IR LIVE VERIFIED on the production driver; 640x480 correction DEPLOYED and retained.** `scripts/atlas_vision3d_runtime.py` now requests IR 640x480@30 (`fc807489`, one line, no restart).
+- **Acceptance session:** the 60-second IR-only session completed normally (60-second session complete). 1,624 frames, 29.7 fps median, 640x480 `mono8`, frame age ≤ 0.23 s, canvas rendered, raw click value read. Guard 63.7–70.5%, RAM ≤ 72%, ≤ 62 °C.
+- **Viewer:** a verified stable viewer was used, with a 60-s heartbeat pre-check before Start and no extra requests during the session. The lease stayed at 4 s and its largest gap was 1.40 s. The built-in desktop browser was rejected after its page went hidden.
+- **Post-checks:** E-STOP latched, commands zero, sensors fresh, protected services unchanged, Pi Camera 200. Repository source and tests updated to match production.
+
 2026-10-21 17:45–17:49 (owner-approved permanent IR 640x480 correction plus one confirming session):
 - One-line runtime change deployed without a restart. On the **production** driver, real IR at 640x480 `mono8` (29.7 fps median, 895 frames) reached the Dashboard and was drawn.
 - The session was stopped at about 42 s by the viewer-lease watchdog. A clock comparison points to a pause of about 3 s in the PC-hosted test client, not the Jetson.

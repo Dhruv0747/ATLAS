@@ -143,7 +143,7 @@ def driver_args(mode):
               'uvc_vendor_id':'0x2bc5','uvc_product_id':'0x0501','uvc_camera_format':'mjpeg',
               'uvc_retry_count':'0','oni_log_to_file':'false','oni_log_to_console':'false'}
     if m['ir']:   # IR parameters only when IR is requested, so depth / RGB+depth launches stay byte-identical
-        values.update(ir_width='320',ir_height='240',ir_fps='30')
+        values.update(ir_width='640',ir_height='480',ir_fps='30')
     args=[str(RUNTIME/'lib/astra_camera/astra_camera_node'),'--ros-args','-r','__ns:=/astra']
     for k,v in values.items():args+=['-p', k+':='+v]
     return args

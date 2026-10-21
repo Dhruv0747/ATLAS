@@ -53,7 +53,9 @@ class Driver(unittest.TestCase):
             a = R.driver_args(mode); return dict(a[i + 1].split(':=') for i in range(len(a)) if a[i] == '-p')
         p = params('ir')
         self.assertEqual((p['enable_ir'], p['enable_depth'], p['enable_color'], p['use_uvc_camera']), ('true', 'false', 'false', 'false'))
-        self.assertEqual((p['ir_width'], p['ir_height'], p['ir_fps']), ('320', '240', '30'))
+        # 21 Oct 2026: this Astra Pro (fw 5.8.22) never serves the advertised 320x240@30 IR mode; 640x480@30 GRAY8 is
+        # live-verified (60-s acceptance, ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 25)
+        self.assertEqual((p['ir_width'], p['ir_height'], p['ir_fps']), ('640', '480', '30'))
         p = params('ir_depth'); self.assertEqual((p['enable_ir'], p['enable_depth'], p['enable_color']), ('true', 'true', 'false'))
         p = params('rgb_ir'); self.assertEqual((p['enable_ir'], p['enable_depth'], p['enable_color'], p['use_uvc_camera']), ('true', 'false', 'true', 'true'))
         for mode in R.VIEW_MODES:

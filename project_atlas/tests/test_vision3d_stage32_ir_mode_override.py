@@ -22,7 +22,9 @@ class Override(unittest.TestCase):
     def setUp(self):
         self.d = Path(tempfile.mkdtemp())
         self.f = self.d / 'scripts/atlas_vision3d_runtime.py'; self.f.parent.mkdir()
-        shutil.copy2(ROOT / 'scripts/atlas_vision3d_runtime.py', self.f)
+        # The repository now carries the accepted 640x480 line; rebuild the pre-correction Stage32 baseline (454dd25f)
+        src = (ROOT / 'scripts/atlas_vision3d_runtime.py').read_bytes()
+        self.f.write_bytes(src.replace(b"ir_width='640',ir_height='480'", b"ir_width='320',ir_height='240'"))
         self.base = self.f.read_bytes()
         self.env = dict(os.environ, ATLAS_RUNTIME_FILE=str(self.f), ATLAS_IR_DIAG_STATE=str(self.d / 'state'))
 
@@ -38,7 +40,7 @@ class Override(unittest.TestCase):
         self.assertEqual(self.f.read_bytes(), self.base)
 
     def test_apply_changes_only_ir_resolution_then_restores(self):
-        base = load_runtime(ROOT / 'scripts/atlas_vision3d_runtime.py', 'rt_base')
+        shutil.copy2(self.f, self.d / 'scripts/rt_base.py'); base = load_runtime(self.d / 'scripts/rt_base.py', 'rt_base')
         p = self.run_tool('apply'); self.assertEqual(p.returncode, 0, p.stderr)
         new = load_runtime(self.f, 'rt_over')
         ir = new.driver_args('ir')
@@ -52,6 +54,12 @@ class Override(unittest.TestCase):
         self.assertNotEqual(self.run_tool('apply').returncode, 0)          # second apply refused
         p = self.run_tool('restore'); self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(self.f.read_bytes(), self.base)
+
+    def test_baseline_rebuild_is_the_verified_hash(self):
+        import hashlib
+        self.assertEqual(hashlib.sha256(self.base).hexdigest(), '454dd25fd0e5bafbb25b63983af865cca78a01354547e4129c2e2016b8023151')
+        self.assertEqual(hashlib.sha256((ROOT / 'scripts/atlas_vision3d_runtime.py').read_bytes()).hexdigest(),
+                         'fc807489b06699d73efdd246913849a3d11315d6bfcba707eedd0e1381c9b5aa')   # deployed production hash
 
     def test_refuses_unknown_runtime(self):
         self.f.write_bytes(self.base + b'\n# edited\n')

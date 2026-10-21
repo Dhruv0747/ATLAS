@@ -1,5 +1,11 @@
 # Project ATLAS - Autonomous Service Rover
 
+**Latest (21 October 18:02): real Astra infrared is live in the 3D Vision Lab.** Infrared mode now requests
+640x480@30 GRAY8. This camera never serves the advertised 320x240 IR mode. A 60-second IR-only acceptance
+session on the production driver completed normally at 29.7 fps with no restart. IR + Depth and the other
+combinations, calibration and the point cloud are still not enabled. See
+[Stage32 report section 25](ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md).
+
 **Next developer:** start with [Stage32 final handover](ATLAS_STAGE32_DEVELOPER_HANDOVER.md).
 Documentation-only checkpoint; no new operational authorization. Diagnose the
 web-restart CPU spike read-only before requesting another deployment/test.

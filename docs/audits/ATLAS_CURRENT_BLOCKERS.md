@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October 18:02 IR RESOLVED (single acceptance): Vision Lab IR now requests
+640x480@30 GRAY8 (runtime fc807489, retained). A 60-s IR-only session on the
+production driver completed normally: 1624 frames, 29.7 fps, 640x480 mono8 rendered,
+raw probe OK, guard 63.7-70.5%, no restart, lease heartbeat max gap 1.40 s. Still
+blocked or unapproved: IR+Depth/other combinations, Depth+RGB regression,
+calibration, XYZ cloud, XYZRGB, IR-no-frames banner.
+
 21 October 17:45-17:49 permanent IR 640x480 attempt (approved): on the PRODUCTION
 driver, real IR 640x480 mono8 ~29.7 fps was delivered and rendered for ~31 s, then
 the 4-s viewer lease watchdog stopped the camera at ~42 s (guard 64.5-68.0%, not

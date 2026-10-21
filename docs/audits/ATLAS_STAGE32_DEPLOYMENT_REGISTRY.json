@@ -4,7 +4,7 @@
   "branch": "agent/sync-developer-20261011",
   "candidate_source_commit": "baa1f26e96b8976aed0785f62c0891558c5930f0",
   "result_report_commit": "2376ede16eefa5579bba69ff229da80974ee4811",
-  "status": "ROLLED_BACK",
+  "status": "IR 640x480 DEPLOYED AND LIVE VERIFIED (production driver); instrumentation candidate not deployed",
   "candidate_archive_sha256": "1e6704adb163747328b1a9f37dfd0053e713fb8d16aa09afbb1ae7744e5a3473",
   "failure": "Post-web-restart CPU 95.63758389261746 percent exceeded unchanged 75 percent guard",
   "ir_test_started": false,
@@ -25,7 +25,7 @@
   },
   "last_verified_state": "E-STOP latched; manual-only; zero commands; recorder and Astra OFF; Pi Camera healthy; protected identities unchanged except approved web restarts",
   "state_freshness": "Historical postrollback evidence, not a new live admission",
-  "next_action": "Owner decision: re-apply the one-line 640x480 change and run one 60-s IR-only acceptance from a non-pausing viewer (Jetson HMI or owner browser)",
+  "next_action": "Separate approvals: IR-no-frames page banner; mode_support note for Infrared; IR+Depth / Depth+RGB regression; calibration (A5)",
   "handover": "ATLAS_STAGE32_DEVELOPER_HANDOVER.md",
   "takeover_20261021": {
     "from_commit": "c68ba4891645d9985f3da882a13bce8d3b2e965d",
@@ -80,5 +80,17 @@
     "restarts": "none",
     "result": "IR delivered and rendered ~31 s on production lib; session stopped ~42 s by viewer lease expiry (test-client pause suspected); acceptance FAILED-incomplete; correction NOT retained",
     "evidence": "evidence/stage32_ir640/"
+  },
+  "ir640_final_acceptance": {
+    "time": "2026-10-21 17:54-18:03",
+    "result": "PASSED - full 60 s on production driver; correction RETAINED",
+    "production_hashes": {
+      "scripts/atlas_vision3d_runtime.py": "fc807489b06699d73efdd246913849a3d11315d6bfcba707eedd0e1381c9b5aa",
+      "lib/libastra_camera.so": "6ae876010c824be97d2545996f897e40e07e0c97fa7a45694f96f342cf6e22a6",
+      "manifest.json": "c1a6d1c02f1620850cd160022eb0d10dd269a1152f91c5436a0ada82e4e17dfb"
+    },
+    "rollback": "stage32_ir_mode_override.py restore -> 454dd25f (backup ~/project-atlas-migration/stage32-ir-640-final/d2/)",
+    "restarts": "none",
+    "evidence": "evidence/stage32_ir640_final/"
   }
 }
