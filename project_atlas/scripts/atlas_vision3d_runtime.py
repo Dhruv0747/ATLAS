@@ -17,8 +17,23 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 STAGE = Path('/home/jetson/project-atlas-migration/astra-20261021')
 RUNTIME = STAGE/'astra-arm64-stage29-v2'
-STATE = Path('/run/user')/str(os.getuid())/'atlas-vision3d-viewer.json'
+STATE = Path(os.environ.get('ATLAS_VISION3D_STATE_PATH') or
+             str(Path('/run/user')/str(os.getuid())/'atlas-vision3d-viewer.json'))
 MAX_SECONDS = 60
+
+
+def process_metrics(pid, previous=None):
+    """Read only this process; retain attribution even when a guard rejects CPU."""
+    try:
+        root=Path('/proc')/str(pid)
+        fields=(root/'stat').read_text().rsplit(')',1)[1].split()
+        ticks=int(fields[11])+int(fields[12]);now=time.monotonic()
+        rss=next(int(s.split()[1]) for s in (root/'status').read_text().splitlines() if s.startswith('VmRSS:'))
+        row={'pid':pid,'rss_kib':rss,'cpu_one_core_percent':None}
+        if previous and now>previous[1]:
+            row['cpu_one_core_percent']=100*(ticks-previous[0])/os.sysconf('SC_CLK_TCK')/(now-previous[1])
+        return row,(ticks,now)
+    except (OSError,StopIteration,ValueError,IndexError):return {'pid':pid,'state':'unavailable'},None
 
 
 def limits(cpu, ram, hottest):
@@ -99,7 +114,7 @@ def worker(mode):
     sys.path.insert(0,str(ROOT/'tools/vision3d'))
     import stationary_gate as G
     import stationary_ros_probe as P
-    child=None; rows=[]; started=time.monotonic(); last_lease=started; process_last=None
+    child=None; rows=[]; started=time.monotonic(); last_lease=started; process_last=None;worker_last=None
     parent=os.getppid(); state={'state':'CHECKING','worker_pid':os.getpid(),'mode':mode,
                               'limits':{'cpu_percent':75,'ram_percent':80,'temperature_c':70},
                               'recording':False,'calibration':'UNVALIDATED; axial Z only'}
@@ -109,14 +124,20 @@ def worker(mode):
     def interrupted(*_):raise RuntimeError('viewer cancelled')
     signal.signal(signal.SIGTERM,interrupted);signal.signal(signal.SIGINT,interrupted)
     def sample():
-        nonlocal last_ticks
+        nonlocal last_ticks,process_last,worker_last
         ticks=G.ticks();cpu=G.cpu_delta(last_ticks,ticks);last_ticks=ticks
-        try:row=G.check(cpu)
+        state['worker_process'],worker_last=process_metrics(os.getpid(),worker_last)
+        if child:state['astra_process'],process_last=process_metrics(child.pid,process_last)
+        state['elapsed_s']=time.monotonic()-started
+        try:
+            G.require_cpu(cpu)
+            observation=P.safety_snapshot()
+            row=G.check(cpu,observation=observation)
         except G.AdmissionError as e:
             state['failed_resources']=e.evidence
             raise ValueError('RESOURCE BLOCKED: '+str(e)) from e
         limits(cpu,row['ram_percent'],max(row['thermal_c'].values()))
-        P.extra_safety();rows.append(row)
+        P.extra_safety(ros=observation['ros']);rows.append(row)
         state.update(resources=row,remaining_s=max(0,MAX_SECONDS-(time.monotonic()-started)))
     try:
         write()
@@ -140,6 +161,8 @@ def worker(mode):
         env['AMENT_PREFIX_PATH']=str(RUNTIME)+':/opt/ros/humble'
         child=subprocess.Popen(driver_args(mode),env=env,cwd=RUNTIME,stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL,start_new_session=True,preexec_fn=parent_death)
+        state['driver_launch_elapsed_s']=time.monotonic()-started
+        state['astra_process'],process_last=process_metrics(child.pid)
         state.update(state='ACTIVE',reason='Bounded stationary viewing; accuracy NOT verified',driver_pid=child.pid)
         while time.monotonic()-started<MAX_SECONDS:
             if os.getppid()!=parent:raise RuntimeError('dashboard owner ended')
@@ -153,14 +176,10 @@ def worker(mode):
             sample()
             if G.services()!=units:raise RuntimeError('essential service identity changed')
             if child.poll() is not None:raise RuntimeError('isolated camera exited')
-            try:
-                stat=Path('/proc')/str(child.pid)/'status'
-                state['astra_rss_kib']=next(int(s.split()[1]) for s in stat.read_text().splitlines() if s.startswith('VmRSS:'))
-                cpu_stat=(stat.parent/'stat').read_text().rsplit(')',1)[1].split()
-                tick_count=int(cpu_stat[11])+int(cpu_stat[12]);now=time.monotonic()
-                state['astra_cpu_one_core_percent']=100*(tick_count-process_last[0])/os.sysconf('SC_CLK_TCK')/(now-process_last[1]) if process_last else None
-                process_last=(tick_count,now)
-            except (OSError,StopIteration):raise RuntimeError('camera process unavailable')
+            metrics=state['astra_process']
+            if metrics.get('state')=='unavailable':raise RuntimeError('camera process unavailable')
+            state['astra_rss_kib']=metrics['rss_kib']
+            state['astra_cpu_one_core_percent']=metrics['cpu_one_core_percent']
             write()
         state.update(state='OFF',reason='60-second session complete; explicit Start required')
     except Exception as e:

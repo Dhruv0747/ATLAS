@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Stage30 resource investigation](ATLAS_STAGE30_ASTRA_RESOURCE_RECOVERY.md):
+camera-free ROS startup also exceeded75%; stable Astra viewing still blocked.
+Three-file observer-overhead/early-rejection cleanup prepared,119 focused tests
+pass, NO Stage30 production deployment or threshold change.
+
 [Read-only Vision Lab deployed](ATLAS_3D_VISION_LAB_LIVE_DEPLOYMENT.md) at
 `/v2/vision3d`, Home shortcut verified desktop/mobile. First bounded depth attempt
 stopped safely at CPU77.91% >75%; live frames/pixel measurements NOT verified.

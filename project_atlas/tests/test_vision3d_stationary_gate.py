@@ -14,6 +14,15 @@ def good():
 
 
 class StationaryGate(unittest.TestCase):
+    def test_batched_identity_has_same_shape(self):
+        raw='\n\n'.join('MainPID=1\nNRestarts=0\nId='+u+'\nActiveState=active' for u in G.UNITS)
+        rows=G.parse_services(raw)
+        self.assertEqual(tuple(rows),G.UNITS)
+        self.assertTrue(all(row=={'MainPID':'1','NRestarts':'0','ActiveState':'active'} for row in rows.values()))
+    def test_batch_missing_or_duplicate_refuses(self):
+        block='MainPID=1\nNRestarts=0\nId='+G.UNITS[0]+'\nActiveState=active'
+        for raw in (block,block+'\n\n'+block,block+'\nExtra=unknown'):
+            with self.assertRaises(RuntimeError):G.parse_services(raw)
     def test_stopped(self):self.assertTrue(G.validate_policy(good())['stop_latched'])
     def test_stop_released(self):
         r=good();r['control_policy']['value']['stop_latched']=False

@@ -14,6 +14,13 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-VISION-GUARD-CPU-BEFORE-HTTP-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Code read CPU then waited for dashboard HTTP before rejecting an already-failed sample; isolated runs also exposed HTTP timeouts and missed attribution. Candidate rejects CPU>75/nonfinite before HTTP, batches identical service reads, shares an existing lightweight safety snapshot and preserves process metrics.119 focused tests pass; production unchanged. Wider ROS-startup CPU contention and stable viewing remain unresolved.",
+      "reference": "ATLAS_STAGE30_ASTRA_RESOURCE_RECOVERY.md"
+    },
+    {
       "id": "ATLAS-ASTRA-FACTORY-CALIBRATION-20261021",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

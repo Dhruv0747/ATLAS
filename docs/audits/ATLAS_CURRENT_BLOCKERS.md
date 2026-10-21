@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+21 October Stage30: parked CPU65.24% mean/66.78% peak; normal Astra startup
+guard75.94%. Startup-only pacing failed to recover stable viewing and was
+removed from proposal. Camera-free ROS join also tripped81.68%, implicating
+native/graph startup but exact hot path unresolved.119 focused tests pass for
+three-file observer-overhead/early-CPU-rejection cleanup; NOT deployed and NOT
+a stable-camera pass. No threshold/production-service changes. See
+ATLAS_STAGE30_ASTRA_RESOURCE_RECOVERY.md for failures, measurements and approval.
+
 21 October read-only Vision Lab DEPLOYED (`/v2/vision3d`); only web restart,
 12 hashes verified, desktop/mobile/Home links pass. One Depth-only attempt
 RESOURCE BLOCKED CPU77.9097% >75%; camera stopped before frames, no retry/bypass.

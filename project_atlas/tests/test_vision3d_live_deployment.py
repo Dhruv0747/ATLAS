@@ -116,18 +116,18 @@ class LiveDeploymentTests(unittest.TestCase):
         (runtime/'manifest.json').write_text(json.dumps({'files':entries}))
         class AdmissionError(RuntimeError):
             evidence={'cpu':cpu,'ram':50,'temp':60}
-        def check(*_):
+        def check(*_,**kwargs):
             if cpu>75:raise AdmissionError('CPU limit')
             return {'ram_percent':50,'thermal_c':{'test':60}}
         gate=SimpleNamespace(services=lambda:{},ticks=lambda:(1,1),cpu_delta=lambda *_:cpu,
-                             check=check,AdmissionError=AdmissionError)
+                             check=check,require_cpu=check,AdmissionError=AdmissionError)
         return runtime,gate
 
     def test_worker_resource_failure_never_opens_camera(self):
         with tempfile.TemporaryDirectory() as tmp:
             runtime,gate=self.worker_fixture(tmp,90)
             with patch.object(R,'RUNTIME',runtime),patch.object(R,'STATE',Path(tmp)/'state.json'),\
-                 patch.dict(sys.modules,{'stationary_gate':gate,'stationary_ros_probe':SimpleNamespace(extra_safety=lambda:None)}),\
+                 patch.dict(sys.modules,{'stationary_gate':gate,'stationary_ros_probe':SimpleNamespace(extra_safety=lambda **_:None,safety_snapshot=lambda:{'ros':{}})}),\
                  patch.object(R.time,'sleep'),patch.object(R.signal,'signal'),patch.object(R.subprocess,'Popen') as launch:
                 R.worker('depth');launch.assert_not_called()
                 self.assertEqual(json.loads((Path(tmp)/'state.json').read_text())['state'],'RESOURCE BLOCKED')
@@ -137,7 +137,7 @@ class LiveDeploymentTests(unittest.TestCase):
             runtime,gate=self.worker_fixture(tmp,50)
             child=MagicMock(pid=98765);child.poll.return_value=None
             with patch.object(R,'RUNTIME',runtime),patch.object(R,'STATE',Path(tmp)/'state.json'),\
-                 patch.dict(sys.modules,{'stationary_gate':gate,'stationary_ros_probe':SimpleNamespace(extra_safety=lambda:None)}),\
+                 patch.dict(sys.modules,{'stationary_gate':gate,'stationary_ros_probe':SimpleNamespace(extra_safety=lambda **_:None,safety_snapshot=lambda:{'ros':{}})}),\
                  patch.object(R.time,'sleep'),patch.object(R.signal,'signal'),\
                  patch.object(R.subprocess,'run',return_value=SimpleNamespace(returncode=1)),\
                  patch.object(R.subprocess,'Popen',return_value=child),\
@@ -146,6 +146,10 @@ class LiveDeploymentTests(unittest.TestCase):
                 R.worker('depth');kill.assert_called_once_with(98765,R.signal.SIGINT)
                 data=json.loads((Path(tmp)/'state.json').read_text())
                 self.assertTrue(data['driver_stopped']);self.assertIn('paused',data['reason'])
+
+    def test_process_metrics_preserves_unknown_exit(self):
+        row,previous=R.process_metrics(999999999)
+        self.assertEqual(row['state'],'unavailable');self.assertIsNone(previous)
 
 
 if __name__=='__main__':unittest.main()

@@ -24,9 +24,17 @@ def resource_sample(cpu,report_only=False):
     return row
 
 
-def extra_safety():
+def safety_snapshot():
+    """Same fresh ROS snapshot without unrelated network/system dashboard work."""
     import urllib.request
-    ros=json.load(urllib.request.urlopen('http://127.0.0.1:8088/api/status',timeout=3))['ros']
+    data=json.load(urllib.request.urlopen('http://127.0.0.1:8088/api/commissioning',timeout=3))
+    mem={line.split(':')[0]:int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines()}
+    return {'ros':data['ros'],'system':{'ram_percent':100*(mem['MemTotal']-mem['MemAvailable'])/mem['MemTotal']}}
+
+
+def extra_safety(ros=None):
+    import urllib.request
+    if ros is None:ros=json.load(urllib.request.urlopen('http://127.0.0.1:8088/api/status',timeout=3))['ros']
     for key in ('lidar','imu_full','enc_m1','enc_m2','enc_m3','enc_m4','camera_info','drive_pid','mission_status','motor_speed'):
         value=ros.get(key,{})
         if not isinstance(value.get('age'),(float,int)) or not 0<=value['age']<=2:raise RuntimeError('stale required '+key)

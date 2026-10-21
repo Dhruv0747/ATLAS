@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 Stage30 resource investigation (isolated only):
+- Profiled parked load and isolated startup; reproduced81.68% CPU failure with a camera-free ROS participant.
+- Batched six identity reads into one, reused one existing lightweight ROS safety snapshot, and reject failed CPU before HTTP; thresholds unchanged.
+- Retained worker/Astra metrics on rejection. Rejected startup pacing removed from proposal; stable viewer NOT passed.
+-119 focused tests pass. Three-file worker cleanup requires separate production approval; no service/control/calibration changes deployed.
+
 2026-10-21 Vision Lab deployment verified:
 - Installed12 allowlisted files with exact hashes, backups and fixture rollback; only rover-status-web restarted.
 - Actual desktop/mobile render and Home navigation verified; existing pages/API/Pi camera healthy.
