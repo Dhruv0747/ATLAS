@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+21 October Stage29: PC ARM64 compiler installed and real ELF64/AArch64 probe
+passed (two offline tests). Compatible sysroot incomplete: read-only compressed
+target copy stopped at CPU75.7983%. Custom target OpenCV4.8 must not be replaced
+with host x86/stock4.5 libraries. No driver package or ROS stream verified.
+Existing safety/production identities unchanged. See [Stage29](../../ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md).
+
 21 October Stage28: fresh admission passed, but one incremental isolated build
 with own-process duty pacing aborted on aggregate CPU80.8782% >75%; RAM68%,
 thermal61.218 C. No automatic retry, ROS driver launch or production change.

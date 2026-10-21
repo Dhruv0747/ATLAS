@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Stage29 offboard preparation](ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md): PC ARM64
+compiler verified; compatible target-library snapshot incomplete. No Astra driver
+package or live ROS stream claimed; existing ATLAS deployments unchanged.
+
 Stage28: isolated paced Astra build aborted safely at CPU80.88% (limit75%).
 No ROS stream/concurrent/cloud milestone claimed; no production deployment.
 [Exact status and offboard-build next step](ATLAS_ASTRA_PRO_3D_VISION_LAB.md).

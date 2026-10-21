@@ -1,5 +1,10 @@
 # ATLAS Astra Pro 3D Vision Lab — 21 October 2026
 
+Stage29 update: [offboard ARM64 preparation report](ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md).
+Cross-compiler installed/ELF probe verified on PC; target snapshot incomplete after
+copy CPU guard75.80%. Astra driver/package/ROS streams remain unverified. No
+production change, motion, recording or dashboard deployment.
+
 ## Stage 28 — isolated build safety abort, 21 October 2026
 
 Owner authorized isolated ROS integration, bounded stationary streams and offline

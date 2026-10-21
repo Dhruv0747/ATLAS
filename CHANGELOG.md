@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 Stage29 offboard preparation:
+- Installed narrowly scoped ARM64 compiler in existing WSL; two PC tests verify actual AArch64 output and target-only toolchain search.
+- Pinned vendor source cloned on PC. Partial target snapshot retained after CPU75.7983% guard; no unverified driver package/deployment.
+- Documented exact tool versions, ABI blocker, resource observations and rollback in ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md.
+
 2026-10-21 Stage28 isolated build:
 - Added opt-in own-process paced build supervisor; four offline failure-path tests pass.
 - Live one-shot incremental build stopped on CPU80.8782% >75%; evidence preserved, no retry or driver launch.
