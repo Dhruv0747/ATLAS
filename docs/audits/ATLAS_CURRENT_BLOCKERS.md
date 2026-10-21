@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+21 October permanent USB audit: owner restored both temporary Astra ACLs; direct
+access passes. Subsequent preflight CPU75.2902% blocked before installation/Start;
+no retry. New owner task is offline persistence preparation. Eight static tests
+pass; proposed exact two-interface atlas-astra0660 rule NOT installed. Guardian
+still uses numbered nodes; group/session transition and native rule validation
+must precede any persistence claim. Existing serial access works; radar is UNO
+topic-fed. See ATLAS_PERMANENT_USB_ACCESS_AND_REBOOT_RECOVERY.md.
+
 21 October20:44 approved Astra recovery: three safety/resource samples PASS;
 administrator ACL access unavailable (sudo password required). Stopped before
 installation/ACL mutation, camera test NOT started. Original ACLs unchanged.

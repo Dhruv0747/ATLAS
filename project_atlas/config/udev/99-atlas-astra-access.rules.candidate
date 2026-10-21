@@ -1,0 +1,6 @@
+# OFFLINE CANDIDATE ONLY. Install requires owner approval and atlas-astra group.
+# Verified 2026-10-21 fixed ports; no USB serial descriptors exposed.
+# ID_PATH is populated by the existing persistent USB path rules before this file.
+# Never match BUSNUM/DEVNUM or give unrelated USB devices additional access.
+ACTION=="add|change", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{ID_PATH}=="platform-3610000.usb-usb-0:2.3.1.2", ATTR{idVendor}=="2bc5", ATTR{idProduct}=="0403", OWNER:="root", GROUP:="atlas-astra", MODE:="0660", SYMLINK+="atlas-astra-depth-usb"
+ACTION=="add|change", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{ID_PATH}=="platform-3610000.usb-usb-0:2.3.1.1", ATTR{idVendor}=="2bc5", ATTR{idProduct}=="0501", OWNER:="root", GROUP:="atlas-astra", MODE:="0660", SYMLINK+="atlas-astra-rgb-usb"

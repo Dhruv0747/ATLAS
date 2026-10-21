@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+21 October permanent USB access audit: [inventory, exact offline Astra rules,
+tests and approval gates](ATLAS_PERMANENT_USB_ACCESS_AND_REBOOT_RECOVERY.md).
+Serial access already works; only Astra needs the proposed persistent raw-USB
+grant. Rules NOT installed; no reboot/reconnect or preview test performed.
+
 Approved USB recovery currently blocked on administrator access; preflight passed,
 but no installation, ACL change or live preview test has occurred. See the USB
 access audit below. Persistent permissions are a proposal only.

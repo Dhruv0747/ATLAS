@@ -1,5 +1,15 @@
 # Changelog
 
+2026-10-21 permanent USB audit (offline only):
+- Verified actual USB owners/topology/access: radar is UNO topic-fed, three CH340
+  adapters share ambiguous by-id; existing dialout access works.
+- Prepared two-interface, topology-bound atlas-astra0660 candidate; eight static
+  matching tests pass. No live udev activation, membership or service changes.
+- Documented existing LiDAR0666 vendor rule, stale motor alias and guardian's
+  numbered USB paths; no unrelated fixes applied.
+- Prior approved Depth preflight stopped at CPU75.2902%; no Start/retry/install.
+- Report: ATLAS_PERMANENT_USB_ACCESS_AND_REBOOT_RECOVERY.md.
+
 2026-10-21 approved USB recovery preflight: safety/resources passed three samples;
 sudo requires a password, so stopped before any production installation or ACL
 change. Camera test NOT started. Recorded exact live hashes/service identities and
