@@ -1411,9 +1411,10 @@
       "description": "Astra Pro (0x0403, fw 5.8.22, serial 17122120830) IR stream at 320x240@30 GRAY8: OpenNI create/setVideoMode/start all return OK, but waitForAnyStream returns ONI_STATUS_TIME_OUT (102) every 2 s; no IR frame is ever ready. Earliest failed boundary = 1 (device/OpenNI). ROS publisher matched the domain-77 receiver (subscribers=1); web path not at fault.",
       "evidence": "D1 2026-10-21 17:29 instrumented driver (8609f264) counters: created=1 started=1 publisher=1 wait_ok=0 wait_failed=11 ready=0 read_ok=0 callback=0 publish_attempt=0 subscribers=1; page polls receiver rx=0 x10. Consistent with two earlier uninstrumented IR-only sessions. evidence/stage32_d1/.",
       "attempted_fix": "None (diagnosis only); diagnostic files rolled back at 17:29:58, integrity PASS.",
-      "remaining_gap": "Why the device serves no IR frames in this mode (mode not served by firmware vs required device state vs USB). Next discriminator needs approval: one IR-only session at 640x480@30 GRAY8 with the same instrumentation; then a camera-only OpenNI read.",
+      "remaining_gap": "Permanent fix (runtime IR request 640x480@30) needs separate review/approval and one confirming IR-only session on the production (uninstrumented) library. Why firmware advertises an unserved mode is unknown.",
       "safety": "No restart, emitter, firmware, policy or movement change.",
-      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 22"
+      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 22",
+      "discriminating_test": "2026-10-21 17:38 D2: same instrumented driver, same launch, IR 640x480@30 GRAY8 -> 1656/1656 frames ready/read/published (29.70 fps hardware), 1569 received, rendered on Dashboard. Only the requested IR resolution differed. Cause: on this unit (fw 5.8.22) the advertised 320x240@30 GRAY8 IR mode is not served; 640x480@30 GRAY8 is."
     }
   ]
 }

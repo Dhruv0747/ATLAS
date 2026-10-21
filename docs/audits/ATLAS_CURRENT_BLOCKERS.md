@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+21 October 17:37-17:40 D2 (approved): IR-only at 640x480@30 GRAY8 with the
+instrumented driver, no restart. REAL IR FRAMES ON THE DASHBOARD: 1656 frames
+read/published (29.70 fps hardware), 1569 received, canvas rendered, 60 s session
+completed, guard 65.0-71.3%. Zero-frame cause on this unit: advertised 320x240@30
+IR mode not served. All temporary files restored (runtime 454dd25f, lib 6ae87601,
+manifest c1a6d1c0; integrity PASS). Production IR still 320x240 = no frames until a
+separately approved permanent 640x480 change.
+
 21 October 17:28-17:30 D1 (approved): instrumented driver installed WITHOUT any
 restart, one IR-only session, rolled back (integrity PASS, identities unchanged).
 Earliest failed boundary = 1: OpenNI started IR 320x240@30 (all rc 0) but

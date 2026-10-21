@@ -1137,3 +1137,108 @@ The proposal is **one** evidence-driven mode change, not a retry of the same mod
 - it needs one runtime argument option.
 
 If 640x480 also times out at boundary 1, the next discriminator is a camera-only OpenNI IR read without ROS, and then the vendor or firmware route. The IR emitter and firmware remain untouched in all cases.
+
+## 23. Approved D2: one IR-only session at 640x480@30 GRAY8 — 21 October 2026, 17:37–17:40
+
+The owner approved D2 at 17:36. Evidence is in `evidence/stage32_d2/`. Screenshots have the IR image blurred because it shows the room. The raw driver log stays on the Jetson in `~/project-atlas-migration/stage32-takeover-ir-diag-d2/`, SHA256 `ca06759f…4299`.
+
+### Result
+
+| Label | Status |
+|---|---|
+| **IR LIVE VERIFIED** | **YES, in the diagnostic configuration (640x480@30 GRAY8, instrumented driver), in one 60 s session.** Real sensor frames reached the Dashboard and were drawn. |
+| Production IR | **Still not working as deployed.** Production is back on 320x240@30, the mode that delivers no frames. Changing it permanently needs separate review and approval. |
+| Root cause (zero frames) | **Identified for this unit:** firmware 5.8.22 advertises IR 320x240@30 GRAY8 but never delivers it (OpenNI timeouts, section 22). 640x480@30 GRAY8 delivers. Why the firmware lists a mode it does not serve is unknown. |
+| Restarts | **None.** `rover-status-web` stayed PID 189640 / NRestarts 0; identities unchanged at every step. |
+| Rollback | **Complete.** Library, manifest and runtime file are at their verified baseline hashes; integrity PASS. |
+
+### Preflight (17:37:24)
+
+- **Fresh read-only OpenNI enumeration** (`d2_devinfo.txt`; no stream started):
+  - serial 17122120830, firmware 5.8.22;
+  - IR advertises **`640x480@30 GRAY8`** among its 21 modes.
+- **Format match:** the driver requests `openni::PIXEL_FORMAT_GRAY8` (202) for IR (`format_[INFRA1]`). The driver later reported `pixel_format=202`.
+- **Safety and resources:**
+  - E-STOP latched; manual-only, stop-latched, disarmed;
+  - CPU 64.9%, RAM 73%, 61 °C;
+  - protected units at the handover identities;
+  - no camera-side process; domain 77 free.
+- **USB and other checks:**
+  - Astra 2bc5:0403 and 0501 enumerated;
+  - Pi Camera 200;
+  - all ten Stage 32 production hashes at baseline;
+  - diagnostic package SHA256SUMS OK; read-only `check` PASS.
+
+### Install (17:37:52; no restart)
+
+1. **Diagnostic two-file install** (`stage32_ir_diag_install.py`, state directory `stage32-takeover-ir-diag-d2`):
+   - APPLIED, integrity PASS, identities unchanged;
+   - CPU record 65.04 / 64.93 / 62.54% before and 64.02 / 64.86 / 67.34% after.
+2. **Minimum configuration change** (`tools/vision3d/stage32_ir_mode_override.py`):
+   - exactly one line of `scripts/atlas_vision3d_runtime.py` changes, `ir_width/ir_height` 320/240 → 640/480;
+   - hash `454dd25f…` → `fc807489…`, backed up and compile-checked;
+   - a fresh `driver_args('ir')` read back `ir_width:=640 ir_height:=480 ir_fps:=30`;
+   - Depth, Depth+RGB and cloud arguments are unchanged (test).
+3. **Why this needs no restart:** each Start spawns a fresh worker, `python3 atlas_vision3d_runtime.py --worker`, which builds the driver arguments from the file on disk. `rover-status-web` only validates the mode name.
+
+### Session (17:38:03–17:39:14; Start clicked once)
+
+- **Result:** IR was live 8.3 s after Start. The runtime ended the session itself at 60 s ("60-second session complete"). 59 passing guard samples, `driver_stopped` true, no retry, no other mode.
+- **Driver counters (final):**
+
+  ```
+  ATLAS_IR_START create_rc=0 mode_rc=0 start_rc=0 requested=640x480@30Hz negotiated=640x480@30Hz domain=77
+  ATLAS_IR_COUNTERS final=1 wait_ok=1656 wait_failed=0 ready=1656 read_ok=1656 read_failed=0 callback=1656 converted=1656
+    publish_attempt=1656 publish_returned=1656 info_returned=1656 exceptions=0 width=640 height=480 pixel_format=202
+    fps=30 stride=640 bytes=307200 frame_index=1656 hardware_timestamp_us=55758443 subscribers=1 (0 during the first second and after stop)
+  ```
+
+**Boundary by boundary:**
+
+| # | Boundary | Evidence |
+|---|---|---|
+| 1 | OpenNI readiness / `readFrame` | 1656 ready, 1656 read OK, 0 timeouts |
+| 2 | Frame metadata | 640x480, GRAY8 (202), stride 640, 307,200 bytes, 30 fps; hardware frame index 1656 over 55.76 s of device timestamps = **29.70 fps** |
+| 3–5 | Callback, conversion, publish | 1656 / 1656 / 1656 attempted and returned; 0 exceptions |
+| 6 | Domain-77 matching | subscriber present (1) from about the 2nd second |
+| 7 | Receiver callbacks | **1,569** IR messages received: 94.7% of those published. The first ~87 frames (~2.9 s) were published before the receiver's 2-s discovery timer subscribed. 0 rejected, 0 stamp regressions. Receiver rate 28.6–31.1 fps (median 29.6). Largest gap 0.077 s; frame age 0.03–0.22 s while live. |
+| 8 | Web API | Page received native `mono8` 640x480 frames with frame id `astra_ir_optical_frame` |
+| 9 | Canvas | Canvas drawn at 640x480, displayed range 0–255 (mean 49.3), stretch statement shown, raw probe "Raw infrared intensity 29 (of 255) at pixel 320, 239" |
+
+The classifier verdict (`stage32_ir_boundary.py`) is **ALL BOUNDARIES PASSED**.
+
+**CPU and resources:**
+
+| Measure | Value |
+|---|---|
+| Passive recorder, 1 Hz, ACTIVE (54 samples) | 64.3–70.3% (mean 67.2%); 66.0% before, 65.3% after; whole-trace max 71.6% |
+| Runtime guard samples seen by the page (26) | 65.0–71.3% |
+| RAM | ≤ 69.8% |
+| Temperature | ≤ 60.9 °C |
+| Driver | mean 8.0%, max 24.9% of one core; RSS 87.9 MB |
+| `rover-status-web` | 52.9% of one core while live vs 47.3% before (+5.6% of one core, about +0.9% of the machine) |
+
+The 75% limit was never reached, and the guard is unchanged.
+
+### Restore (17:39:33; about 19 s after the session ended)
+
+- The process scan found no driver, worker or cloud process.
+- The runtime override was restored: `fc807489…` → **`454dd25f…`**, byte-identical.
+- The diagnostic files were rolled back: `libastra_camera.so` **`6ae87601…`**, `manifest.json` **`c1a6d1c0…`**, 458-file integrity **PASS**, identities unchanged.
+- **Post-check at 17:40:38:**
+  - E-STOP latched, policy unchanged;
+  - `cmd_vel` 0 / 0, motor speed 0, recording false;
+  - protected units at the same PIDs and restart counts;
+  - CPU 65.2%, RAM 70%, 60.7 °C;
+  - Pi Camera snapshot 200;
+  - Astra USB interfaces enumerated;
+  - all ten Stage 32 production hashes at baseline.
+
+### Proposed permanent fix (NOT applied; needs separate review and approval)
+
+1. **The fix:** change the Vision Lab IR request from 320x240@30 to **640x480@30 GRAY8**. That is the same one-line runtime change, now tested, plus a matching mode note in the manifest's `mode_support`.
+   - It uses the **production** (uninstrumented) driver library, so no runtime manifest change is needed.
+   - It needs no restart.
+   - It must be confirmed by one IR-only session on the production library, because D2 ran on the instrumented build. The instrumentation only adds counters and logging, but that has not been proven live on the production build.
+2. **The page fix:** add a banner for "IR selected but no frames". This is a static `vision3d.js` change, from the candidate in section 18.
+3. **Combinations:** IR+Depth and RGB+IR stay untested. The 640x480 IR stream adds about 9 MB/s of domain-77 traffic. Combination tests are a separate decision.

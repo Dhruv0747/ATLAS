@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 17:37–17:40 (owner-approved D2):
+- **Real infrared verified once on the Dashboard** in the diagnostic configuration: 640x480@30 GRAY8, instrumented driver, temporary one-line runtime override, no restart. 1,656 frames read and published (29.70 fps hardware), 1,569 received, canvas rendered, and the full 60-second session completed. Guard 65.0–71.3%, RAM ≤ 69.8%, ≤ 60.9 °C.
+- **Zero-frame cause on this unit:** the advertised 320x240@30 IR mode is never served; 640x480 is.
+- **All temporary changes restored:** runtime `454dd25f`, library `6ae87601`, manifest `c1a6d1c0`, integrity PASS, protected services and Pi Camera healthy. The production IR request is still 320x240; the permanent change awaits separate approval.
+
 2026-10-21 17:28–17:30 (owner-approved D1):
 - **No-restart diagnostic install** of the instrumented driver library plus the one-entry runtime manifest fix. Integrity check PASS; no service restarted.
 - **One IR-only session:** the earliest failed boundary is **1**. OpenNI started IR at 320x240@30 GRAY8, but `waitForAnyStream` timed out 11 times out of 11 (rc 102), so no IR frame was ever ready. The domain-77 subscriber matched. CPU 63.4–68.8% while active.
