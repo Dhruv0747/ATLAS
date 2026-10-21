@@ -1,9 +1,11 @@
 # ATLAS Astra Pro 3D Vision Lab — 21 October 2026
 
-Stage29 update: [offboard ARM64 preparation report](ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md).
-Cross-compiler installed/ELF probe verified on PC; target snapshot incomplete after
-copy CPU guard75.80%. Astra driver/package/ROS streams remain unverified. No
-production change, motion, recording or dashboard deployment.
+Latest Stage29: [verified continuation report](ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md).
+PC-built ARM64 runtime isolated on Jetson; concurrent RGB15.1/depth10.5 Hz passed,
+Pi camera preserved. 88 targeted tests pass. Factory calibration query returned
+NaNs, so metric cloud remains blocked. Test runtime OFF, no autostart/dashboard
+deployment. Owner CPU exception applied only to bounded stationary tests; other
+safeguards retained. Earlier incomplete-build entries below are historical.
 
 ## Stage 28 — isolated build safety abort, 21 October 2026
 

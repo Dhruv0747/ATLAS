@@ -1,5 +1,12 @@
 # Changelog
 
+2026-10-21 Stage29 continuation:
+- Built pinned Astra ARM64 driver offboard; isolated v2 package hashes and target loader verified.
+- Added bounded receive-only modern Foxglove SDK observer and explicit test-only owner CPU exception; production limits unchanged.
+- Verified concurrent RGB/depth and preserved Pi camera; 88 targeted tests pass.
+- Read-only factory calibration returned NaNs; metric cloud blocked, no fabricated calibration or production launch.
+- Recorded resources, failed attempts, package provenance and rollback in Stage29 report.
+
 2026-10-21 Stage29 offboard preparation:
 - Installed narrowly scoped ARM64 compiler in existing WSL; two PC tests verify actual AArch64 output and target-only toolchain search.
 - Pinned vendor source cloned on PC. Partial target snapshot retained after CPU75.7983% guard; no unverified driver package/deployment.

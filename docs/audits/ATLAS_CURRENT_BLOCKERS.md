@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+21 October Stage29 continuation supersedes the incomplete-build status below:
+isolated PC-built ARM64 runtime installed and loader verified; concurrent RGB
+15.095 Hz/depth10.527 Hz passed while Pi camera stayed active. 88 targeted tests
+pass. Factory parameter query returns NaNs: metric cloud/registration remain
+blocked pending valid calibration. CPU-report-only owner exception allowed test
+CPU peak99.86%; no normal headroom/endurance pass. Runtime now OFF, production
+identities unchanged, no autostart/dashboard deployment. See Stage29 report.
+
 21 October Stage29: PC ARM64 compiler installed and real ELF64/AArch64 probe
 passed (two offline tests). Compatible sysroot incomplete: read-only compressed
 target copy stopped at CPU75.7983%. Custom target OpenCV4.8 must not be replaced

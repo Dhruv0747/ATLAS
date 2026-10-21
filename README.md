@@ -1,8 +1,12 @@
 # Project ATLAS - Autonomous Service Rover
 
-[Stage29 offboard preparation](ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md): PC ARM64
-compiler verified; compatible target-library snapshot incomplete. No Astra driver
-package or live ROS stream claimed; existing ATLAS deployments unchanged.
+[Stage29 continuation](ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md): ARM64 driver
+built on PC and installed in an isolated Jetson directory. Bounded concurrent ROS
+RGB (~15.1 Hz) and depth (~10.5 Hz) passed; existing Pi camera remained active.
+Factory calibration query returned NaNs: metric PointCloud2 stays blocked.
+88 targeted tests passed. Test runtime OFF; no autostart/dashboard deployment.
+Owner-approved CPU-report-only tests exceeded normal CPU admission; this is not
+CPU-headroom or endurance certification. Production control services unchanged.
 
 Stage28: isolated paced Astra build aborted safely at CPU80.88% (limit75%).
 No ROS stream/concurrent/cloud milestone claimed; no production deployment.

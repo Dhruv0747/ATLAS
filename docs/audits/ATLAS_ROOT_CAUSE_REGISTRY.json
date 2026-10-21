@@ -14,12 +14,20 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-ASTRA-FACTORY-CALIBRATION-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "evidence": "Read-only OpenNI property14 returned success and120 bytes but all factory fields NaN. Concurrent ROS RGB/depth passed with FOV-derived fallback CameraInfo; metric PointCloud2 withheld. This does not prove hardware failure or that every alternative calibration access path fails.",
+      "reference": "ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md"
+    },
+    {
       "id": "ATLAS-ASTRA-USER-CPU-CONTROLLER-20261021",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
       "date": "2026-10-21",
       "evidence": "User cgroup controllers contain memory/pids only; cpu.max absent. Requested CPUQuota is not enforcement. Global CPU controller left unchanged to preserve robot timing.",
-      "scoped_fix": "Build fails closed; isolated test children duty-paced with independent aggregate CPU75/RAM80/thermal70 guards. Stage28 build aborted at CPU80.8782%. Stage29 PC ARM64 compiler verified, but target compressed snapshot transfer stopped at CPU75.7983%; no driver package/live streams. Need bounded compatible dependency export. Not a permanent global CPU fix.",
+      "scoped_fix": "Stage29 continuation built ARM64 runtime offboard and verified concurrent ROS RGB/depth. Owner explicitly authorized CPU-report-only bounded stationary testing; normal production CPU75 safeguard unchanged. Concurrent CPU mean82.586/peak99.860%, RAM67.974%, thermal64.062C. Test runtime stopped; global CPU stability/headroom remains unresolved.",
       "reference": "ATLAS_ASTRA_PRO_3D_VISION_LAB.md"
     },
     {
