@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+21 October 17:20 Stage32 takeover from c68ba48 (offline/read-only; nothing installed,
+no restart, no camera). The 95.64% sample measured the rover-status-web restart
+transient itself: the same restart with a different payload (A1) averaged 93.6% with
+about 51 runnable tasks; the candidate does not touch domain 0. Separately found that
+the rolled-back candidate would have failed the worker's 458-file runtime integrity
+check on every Start. New no-restart diagnostic package (driver library plus runtime
+manifest only) rehearsed with byte-identical rollback. IR NOT verified; approval D1
+needed. See ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 21.
+
 Final documentation-only handover: `ATLAS_STAGE32_DEVELOPER_HANDOVER.md` and
 `ATLAS_STAGE32_DEPLOYMENT_REGISTRY.json` index exact versions/evidence/approvals.
 No new live checks. Next developer: passive read-only restart-CPU investigation

@@ -876,3 +876,152 @@ No additional Jetson checks or technical execution performed for handover. Last
 verified stopped state is section19's historical evidence, not fresh admission.
 Incoming developer starts with passive restart-CPU analysis, not another install
 or camera test. All operational approvals must be renewed. Current session ends.
+
+## 21. Takeover from `c68ba48`: restart CPU spike analysis and a no-restart IR diagnostic package — 21 October 2026
+
+Offline and read-only work only. No production file was changed, no service was restarted, no camera was started, and no CPU, RAM or thermal policy was touched.
+
+### Status
+
+| Label | Status |
+|---|---|
+| ROOT CAUSE IDENTIFIED (95.64% sample) | **Strongly supported, not per-process attributed.** The sample measures the restart transient of `rover-status-web` itself, not the candidate. See the evidence below. |
+| FIX IMPLEMENTED | **YES.** The new package needs **no restart**. It also fixes a latent defect that would have blocked every Vision Lab start. |
+| OFFLINE VERIFIED | **YES.** 19 new tests; the Vision Lab suites pass 215 with 3 skips. The full suite gives 1,054 passed and 5 skipped; the 1 failure is the pre-existing Pi camera heartbeat test, unchanged. |
+| DEPLOYMENT READY | **YES**, pending approval. Rehearsed on a byte copy of the Jetson runtime: apply, then a worker-identical integrity PASS, then rollback, which was byte-identical. A read-only `check` passed against the live runtime. |
+| PRODUCTION DEPLOYED | **NO** |
+| IR LIVE VERIFIED | **NO** |
+| BLOCKED | IR root cause: one approved instrumented session is needed. Calibration, XYZ cloud and XYZRGB remain blocked as before. |
+
+### 21.1 Baseline confirmed (read-only, 17:04)
+
+- **GitHub:** HEAD is `c68ba48`. Nothing has been pushed after the handover.
+- **Jetson files:** all ten Stage 32 file hashes equal the handover table and the `2f91a3c` package. The isolated runtime has `lib/libastra_camera.so` at `6ae87601…` (baseline), `astra_camera_node` at `2f7a58f9…`, and `manifest.json` at `c1a6d1c0…`.
+- **Services:** `rover-status-web` is PID 189640 with NRestarts 0, active since 16:55:30. The six protected units keep the handover PID and restart-count pairs.
+- **Camera side:** no Astra driver, worker or cloud process is running.
+- **Retained evidence and backups:** untouched. The evidence directory is `stage32-instrumented-approved-20261021/`. The archive `candidate.tar.gz` re-hashes to `1e6704ad…`, and the candidate library to `8609f264…`.
+- **My earlier uncommitted A1–A4 local edits:** set aside, not force-merged. Only non-conflicting artefacts were added:
+  - `evidence/stage32_live/`;
+  - `tools/vision3d/stage32_device_info.py`;
+  - its static read-only test.
+
+### 21.2 The 95.64% sample: measured facts
+
+1. **When it was taken.** In `install_ir_instrumented_once.py`, `restart()` returns as soon as `/api/vision3d/summary` answers. The script then lists units and immediately takes the first 1-s `/proc/stat` sample, judged against the camera-admission 75% limit. The failed sample therefore covers roughly the first 1–3 s after the new web process started serving HTTP. That is while it is still creating its domain-0 participant, 2 nodes and 107 subscriptions (`atlas_status_web.py`: `rclpy.init`, `atlas_web_control`, `atlas_web_status`, 107 `create_subscription` calls).
+2. **The same restart without the candidate showed the same magnitude.** In my A1 install at 15:56, with a different payload (the `2f91a3c` package) and no instrumented library:
+   - `/api/status` reported whole-machine CPU **93.6%** at 15:56:36, about 13–24 s after the restart. This is a `/proc/stat` average over the interval since the previous `/api/status` caller.
+   - The 1-min load average went 8.22 (15:56:00) → 16.58 (15:56:23) → 23.31 (15:56:36).
+   - Inverting the 60-s exponential average gives about 34 runnable tasks over 15:56:00–23 and about **51 over 15:56:23–36**, against a parked level of roughly 9–10.
+   - By 16:01:26 CPU was back to 64.7%.
+
+   A single Python process with 23 threads cannot add some 40 runnable tasks. A many-process event can. My A1 install script did not gate on a post-restart sample, which is why it "passed".
+3. **The web process's own start-up cost is small.** Passive `/proc/189640/stat` now: 252.9 CPU-s over 570 s, with a steady 0.455 core (7.6% of the machine) over a 20-s window. The extrapolated excess start-up CPU is about 0 (−6.6 s; the uncertainty is roughly ±10 CPU-s).
+4. **Previously confirmed mechanism** (registry `ATLAS-ASTRA-DDS-DISCOVERY-FANOUT-20261021`, CONFIRMED): a new participant in production domain 0 makes about 34 rclpy processes do discovery work. A bare `ros2 topic list` join measured 75.1 → 92.0 → 92.1%. `rover-status-web` re-joins domain 0 with far more endpoints on every restart.
+5. **The candidate changes nothing in domain 0.** Its `web.py` diff only adds counters inside the domain-77 `RosTransport` and `VisionService`, and its library runs only in the per-session driver process. Neither can affect a restart of the web process before any camera session.
+
+### 21.3 Hypotheses: what the evidence supports and what stays open
+
+| Hypothesis | Verdict |
+|---|---|
+| FastDDS / ROS graph discovery when the web re-joins domain 0 | **Primary (strongly supported):** timing, magnitude, many-process load signature, and the confirmed fan-out measurement. No per-process sample exists for the failed second. |
+| Re-creation of participants | Same event as above: one domain-0 participant and 107 readers per restart |
+| Python imports / type-support loading | Minor contributor: start-up excess of the web process itself is small (item 3) |
+| Dashboard init / background threads | Not supported as the main cause: same as item 3 |
+| Kernel reclaim / compaction | Not excluded; no evidence (RAM 66–72%) |
+| AI, voice and other services; network-fallback probe | Not restart-coupled; can coincide by chance, as in Stage 31 test 2, but cannot explain a 93.6% average over many seconds |
+| Monitoring overhead | Negligible: the installer's sampler is one `/proc/stat` read per second |
+
+**Missing measurement**, needed only if a future change must restart the web: per-process CPU at 1 Hz across one approved restart. The existing passive recorder `tools/vision3d/stage31_cpurec.py`, run via `systemd-run --user`, provides this with no ROS participant and no CLI. I have not run it, because reproducing the spike requires a restart and the owner said not to restart merely to reproduce it.
+
+### 21.4 The fix: make the deployment need no restart, and repair a latent blocker
+
+**A latent defect in the rolled-back candidate (CONFIRMED offline and on a Jetson copy).** The Vision Lab worker hash-checks all 458 isolated-runtime files against `manifest.json` before opening the camera (`atlas_vision3d_runtime.py`). The candidate replaced `lib/libastra_camera.so` (`6ae876…` → `8609f264…`, 2,825,416 → 2,835,096 bytes) but left the manifest entry unchanged. Had the install been accepted, **every** session, Depth included, would have been refused with "isolated runtime integrity failure" before any IR counter could run. Test `test_library_only_install_would_fail_worker_integrity` reproduces this.
+
+**The new package** (`tools/vision3d/stage32_ir_diag_package.py`; archive `s32_irdiag_pkg_v2.tgz`, SHA256 `08da79c4…aa54`) changes exactly two files, both inside the isolated runtime:
+
+| File | Baseline (live) | Diagnostic |
+|---|---|---|
+| `lib/libastra_camera.so` | `6ae876010c824be97d2545996f897e40e07e0c97fa7a45694f96f342cf6e22a6` | `8609f2641d181fb6fccda60e84f83d4c5d399b673dc65b27b723490a8b24cab9` (the existing, reviewed instrumented build; **not rebuilt**) |
+| `manifest.json` | `c1a6d1c02f1620850cd160022eb0d10dd269a1152f91c5436a0ada82e4e17dfb` | `77726de62f98117dba83dc05ce26a895bc1b7375c4e4619c74d2744aeb692fa1` (only the one library entry differs; same length; `json.tool` diff = 2 lines) |
+
+**What deploying it means:**
+
+- **No `rover-status-web` restart**, because no file loaded by a running process changes. The library is loaded only by the driver process each session starts.
+- The candidate `web.py` and `vision3d.js` are **deliberately dropped**. The deployed web already exposes the receiver-side numbers needed for boundary 7: `streams.ir.received`, `rejected` and `state`. Boundaries 8 and 9 come from the session script, which fetches raw IR and reads the canvas.
+
+**Installer** `tools/vision3d/stage32_ir_diag_install.py` (`check | apply | rollback`):
+
+- `check` is read-only.
+- `apply` and `rollback` require `OWNER_APPROVED=yes`. They refuse unless all of the following hold:
+  - E-STOP is latched;
+  - policy is manual-only, stop-latched and disarmed;
+  - no driver, worker or cloud process runs (a `/proc` scan with no `pgrep` self-match);
+  - domain 77 is free;
+  - both files equal the expected state.
+- It writes the library first, then the manifest, and re-runs the worker-identical 458-file integrity check.
+- It proves every active user-service (PID, NRestarts) pair is unchanged.
+- It restores the backup on any failure.
+- It records three 1-s CPU samples before and after for the record only. The camera guard is unchanged.
+
+**Rehearsal on a byte copy of the Jetson runtime** (`stage32-takeover-ir-diag-rehearsal/`):
+
+1. `check` passed.
+2. `apply` was refused without approval.
+3. `apply` with approval → APPLIED, integrity PASS.
+4. A second apply was refused.
+5. `rollback` → ROLLED_BACK, integrity PASS.
+6. `diff -r` of the copy against the live runtime is identical.
+
+The live `check`: both files are baseline, integrity PASS, safety admissible, and the production state directory was not created.
+
+### 21.5 Resource and scheduling impact
+
+- **Install:** none beyond two file copies and one 11 MB hash pass at nice 19; there is no restart transient.
+- **Per IR session:**
+  - an atomic counter add per IR event;
+  - one log line of about 420 B every 1–2 s, inside the existing 2 MB-bounded, 64 KB-retained driver log;
+  - the counter simulation does 10⁶ events in 0.022 s on the PC; the struct is 176 B.
+- **Depth-only session:** `reportIR()` returns at its first test, so the only cost is a branch. It is, however, a rebuilt library. The plan therefore rolls it back right after the IR diagnosis, so the verified Depth viewer runs on the verified binary again. No Depth session is run on the diagnostic binary unless separately approved.
+
+### 21.6 IR diagnosis (prepared) and evidence correction
+
+- **Correction to section 15** ("zero counters cannot establish zero delivery"). My A2 page-side record `evidence/stage32_live/a2_ir.json` was taken by polling `/api/vision3d/status` **during** the session, before Stop. It shows `streams.ir.received = 0`, state UNAVAILABLE, in all 10 ACTIVE polls up to 25.5 s. The independent revalidation in section 16 agrees. Zero receiver callbacks while the driver was ACTIVE is established twice. What is unknown is everything upstream of the receiver.
+- **Correction to section 15** on ZPD. Firmware 5.8.22 returns `XN_STREAM_PROPERTY_ZERO_PLANE_DISTANCE` as an IEEE double, which decodes to 130.0 mm. The tool was fixed. f = ZPD/ZPPS = 570.34 px at 640x480. That equals the FOV default exactly, so it is a nominal model value, not a calibration.
+- **Boundary classifier** `tools/vision3d/stage32_ir_boundary.py` parses the instrumented driver's `ATLAS_IR_START`, `ATLAS_IR_PUBLISHER` and `ATLAS_IR_COUNTERS` lines (format verified against the compiled `ir_counters.hpp`) together with the session JSON. It returns the earliest failed boundary from 1 (readiness / `readFrame`) to 9 (canvas). Eight tests cover each verdict.
+- **Source facts that narrow it before any test:**
+  - The vendor poll loop silently `continue`s on `waitForAnyStream` timeout.
+  - A `readFrame` failure *would* have logged ERROR, and neither IR session logged one.
+  - So either OpenNI never signalled an IR frame ready (boundary 1), or frames were published and not matched or received (boundaries 5–7). The counters separate the two in one session.
+
+### 21.7 Preservation checks
+
+- No change to the Dashboard, the Depth viewer, click-to-measure, the Pi Camera, LiDAR, STM32, IMU, maps, EKF, AMCL, Nav2, the labs or the domain-77 design.
+- The package touches no production process file.
+- Calibration gating, the cached-ray back-projection, `/astra/points`, the cloud viewer and the registration restrictions are unchanged. Their tests are in the 215-test Vision Lab run.
+
+### 21.8 Installation and rollback plan, and the exact approval requested
+
+**Approval D1** (one diagnostic window; no restart of any service):
+
+1. Run `stage32_ir_diag_install.py check` fresh (read-only). Then run `OWNER_APPROVED=yes … apply` from `~/project-atlas-migration/stage32-takeover-ir-diag-rehearsal/pkg` (SHA256SUMS verified). It touches only the two isolated-runtime files. Abort if any refusal occurs.
+2. Run **one** Infrared-only Vision Lab session through the real page (`stage32_session.py ir`). Rules:
+   - Start is clicked once.
+   - It runs at most 60 s; if no IR frame arrives within 25 s of ACTIVE, the script presses Stop.
+   - Guard limits are unchanged.
+   - There is no SSH or ROS CLI while it streams. Only the existing passive `/proc` recorder runs under `systemd-run --user`.
+   - No retry.
+3. After Stop:
+   - Copy the retained driver log lines (`ATLAS_IR_*`) and the runtime state, read-only.
+   - Run `stage32_ir_boundary.py` and report the earliest failed boundary.
+   - No pixels are kept; screenshots are blurred if they contain room imagery.
+4. Run `OWNER_APPROVED=yes … rollback` immediately. Production returns to `6ae87601…` / `c1a6d1c0…`, and integrity PASS is verified.
+
+**Not included:**
+
+- any `rover-status-web` restart;
+- IR+Depth or other combinations;
+- a Depth session on the diagnostic binary;
+- emitter, firmware or registration changes;
+- calibration, the cloud, recording, movement or policy changes.
+
+**After D1:** the fix for the zero-frame problem depends on which boundary failed. It will be proposed as a separate, evidence-based change: for example a different advertised IR mode if boundary 1 fails, or a QoS or graph fix if boundary 6 or 7 fails. It will not be tried blind.

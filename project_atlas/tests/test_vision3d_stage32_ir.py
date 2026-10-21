@@ -2,6 +2,7 @@
 import hashlib
 import io
 import json
+import re
 import os
 import struct
 import subprocess
@@ -156,3 +157,18 @@ class Static(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DeviceInfoReadOnly(unittest.TestCase):
+    """Stage32 A4: the device inspection script can only query and read."""
+    def test_binds_no_write_start_or_firmware_call(self):
+        src = (Path(__file__).resolve().parents[1] / 'tools/vision3d/stage32_device_info.py').read_text()
+        bound = set(re.findall(r"bind\('(oni[A-Za-z]+)'", src))
+        self.assertEqual(bound, {'oniInitialize', 'oniShutdown', 'oniSetLogFileOutput', 'oniSetLogConsoleOutput', 'oniGetDeviceList',
+                                 'oniReleaseDeviceList', 'oniDeviceOpen', 'oniDeviceClose', 'oniDeviceIsPropertySupported',
+                                 'oniDeviceGetProperty', 'oniDeviceGetSensorInfo', 'oniDeviceCreateStream', 'oniStreamDestroy',
+                                 'oniStreamIsPropertySupported', 'oniStreamGetProperty'})
+        for forbidden in ('SetProperty(', 'Invoke', 'oniStreamStart', 'subprocess', "DEVICE_READS = {'ob_cam_params'"):
+            self.assertNotIn(forbidden, src)
+        self.assertNotIn("'ob_cam_params'", src.split('DEVICE_READS')[1].split('}')[0])
+        self.assertNotIn("'ob_update_firmware'", src.split('DEVICE_READS')[1].split('}')[0])

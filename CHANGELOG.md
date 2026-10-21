@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 17:20 (Stage 32 takeover from `c68ba48`; offline and read-only only):
+- **Restart CPU spike analysed:** the 95.64% sample was taken 1–3 s after `rover-status-web` restarted. The same restart with a different payload (A1, 15:56) showed 93.6% and about 51 runnable tasks, so the candidate is not implicated. The mechanism fits the confirmed domain-0 discovery fan-out. Per-process attribution is still missing.
+- **Latent defect found:** the rolled-back candidate did not update the isolated runtime `manifest.json`, so every Vision Lab start would have failed its integrity check.
+- **No-restart IR diagnostic package** (`tools/vision3d/stage32_ir_diag_package.py`, `stage32_ir_diag_install.py`, `stage32_ir_boundary.py`): installs only the reviewed instrumented driver library and the one-entry manifest fix. Rehearsed on a Jetson copy (integrity PASS, byte-identical rollback). 19 new tests. **DEPLOYMENT READY, not installed; IR not verified.**
+
 2026-10-21 (final documentation-only handover):
 - Added ATLAS_STAGE32_DEVELOPER_HANDOVER.md and focused deployment registry with exact restored/candidate hashes, evidence/backup/build locations, working versus pending features, hypotheses and approval boundaries.
 - All historical evidence preserved; no deployment, restart, test or new Jetson inspection. Incoming priority is passive read-only web-restart CPU diagnosis. Session ends after GitHub synchronization.

@@ -1,0 +1,14 @@
+import ok NOT VALIDATED
+backup: /home/jetson/project_atlas/.pre_stage32_20261021_155609
+installed scripts/atlas_vision3d_runtime.py 454dd25fd0e5bafb
+installed scripts/atlas_vision3d_web.py 889881c062717d07
+installed web/v2/vision3d.html a930af8392b0fbaa
+installed web/v2/vision3d.js 76f9a20267e7d90a
+installed web/v2/vision3d.css 04f98c8c0338b960
+installed config/vision3d_live.json e27bc0c0551d22ba
+installed scripts/atlas_vision3d_geometry.py 75d020120d22fe31
+installed scripts/atlas_vision3d_cloud_node.py d2bfad1cfd970593
+installed tools/vision3d/calibration_validation.py 9ca7f52cdf8fe323
+installed tools/vision3d/checkerboard_calibration.py 132522ba2a2b780b
+rover-status-web active; /v2/vision3d 200
+calibration NOT VALIDATED | modes {'depth': 'verified', 'concurrent': 'untested', 'ir': 'untested', 'ir_depth': 'untested', 'rgb_ir': 'untested', 'depth_cloud': 'unsupported'}

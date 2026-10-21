@@ -25,6 +25,31 @@
   },
   "last_verified_state": "E-STOP latched; manual-only; zero commands; recorder and Astra OFF; Pi Camera healthy; protected identities unchanged except approved web restarts",
   "state_freshness": "Historical postrollback evidence, not a new live admission",
-  "next_action": "Read-only diagnosis of web-restart CPU spike before new deployment approval",
-  "handover": "ATLAS_STAGE32_DEVELOPER_HANDOVER.md"
+  "next_action": "Owner approval D1: no-restart diagnostic install, one IR-only session, immediate rollback",
+  "handover": "ATLAS_STAGE32_DEVELOPER_HANDOVER.md",
+  "takeover_20261021": {
+    "from_commit": "c68ba4891645d9985f3da882a13bce8d3b2e965d",
+    "live_verified_readonly": "2026-10-21T17:04+05:30: Stage32 ten hashes equal handover; runtime lib 6ae87601, manifest c1a6d1c0; web PID 189640/0",
+    "restart_spike_finding": "restart transient of rover-status-web itself (see registry ATLAS-WEB-RESTART-CPU-TRANSIENT-20261021); candidate not implicated",
+    "latent_defect": "ATLAS-ASTRA-IR-CANDIDATE-MANIFEST-MISMATCH-20261021",
+    "new_package": {
+      "archive": "s32_irdiag_pkg_v2.tgz",
+      "archive_sha256": "08da79c421a05199c72b88231ce28ef2cb059775dede7940c3f70bcdcb25aa54",
+      "files": {
+        "lib/libastra_camera.so": [
+          "6ae876010c824be97d2545996f897e40e07e0c97fa7a45694f96f342cf6e22a6",
+          "8609f2641d181fb6fccda60e84f83d4c5d399b673dc65b27b723490a8b24cab9"
+        ],
+        "manifest.json": [
+          "c1a6d1c02f1620850cd160022eb0d10dd269a1152f91c5436a0ada82e4e17dfb",
+          "77726de62f98117dba83dc05ce26a895bc1b7375c4e4619c74d2744aeb692fa1"
+        ]
+      },
+      "restart_required": false,
+      "jetson_location": "/home/jetson/project-atlas-migration/stage32-takeover-ir-diag-rehearsal/pkg",
+      "rehearsal": "PASS on byte copy; live check read-only PASS",
+      "status": "DEPLOYMENT READY; NOT INSTALLED",
+      "approval_needed": "D1"
+    }
+  }
 }

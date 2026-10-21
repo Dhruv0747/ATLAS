@@ -1377,6 +1377,31 @@
       "description": "Both bag gaps (65.9 s, 24.1 s) equal stationary time minus the 20 s post-roll plus 10 s pre-roll; 0 drops, 0 missing topics, all closes 'stopped'. Orchestration (arm just before driving, re-arm after stops over ~3 min) needs no recorder change. E-STOP was never latched during the loop (0/3665 policy messages).",
       "evidence": "ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md sections 0, 10.",
       "safety": "No recorder change."
+    },
+    {
+      "id": "ATLAS-WEB-RESTART-CPU-TRANSIENT-20261021",
+      "confidence": "SUSPECTED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "description": "Every rover-status-web restart produces a whole-machine CPU transient far above the 75% Vision Lab admission limit. The Stage32 instrumented install sampled it 1-3 s after HTTP came up (95.64%) and rolled back; it was not caused by the candidate.",
+      "evidence": "Installer timing (sample right after /api/vision3d/summary answered). Independent A1 restart 15:56 with a different payload: /api/status 93.6% at 15:56:36; 1-min load 8.22->16.58->23.31 (about 51 runnable tasks over 15:56:23-36 vs about 10 parked); 64.7% by 16:01. Web process self-cost small (252.9 CPU-s over 570 s; steady 0.455 core; start-up excess about 0 +/-10 CPU-s). Mechanism consistent with CONFIRMED ATLAS-ASTRA-DDS-DISCOVERY-FANOUT-20261021 (web re-joins domain 0 with 2 nodes/107 subscriptions).",
+      "attempted_fix": "Avoid the restart: Stage32 IR diagnostic repackaged so no file loaded by rover-status-web changes (tools/vision3d/stage32_ir_diag_package.py). No guard, service or DDS change.",
+      "remaining_gap": "No per-process sample of the failed second. If a future change needs a web restart, capture one approved restart with tools/vision3d/stage31_cpurec.py (passive /proc, 1 Hz) and gate post-restart camera work on the unchanged guard only after the transient has settled.",
+      "safety": "No restart, policy, service or camera action taken during analysis.",
+      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 21"
+    },
+    {
+      "id": "ATLAS-ASTRA-IR-CANDIDATE-MANIFEST-MISMATCH-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "date": "2026-10-21",
+      "description": "The rolled-back IR instrumentation candidate replaced lib/libastra_camera.so without updating the isolated runtime manifest.json entry; the Vision Lab worker's 458-file integrity check would refuse every session (Depth included) with 'isolated runtime integrity failure'.",
+      "evidence": "Live manifest c1a6d1c0 lists libastra_camera.so 6ae87601/2825416; candidate 8609f264/2835096. Regression test test_library_only_install_would_fail_worker_integrity.",
+      "attempted_fix": "New package ships manifest.json with only that entry updated (77726de6); rehearsal on a Jetson byte copy: integrity PASS after apply, byte-identical rollback.",
+      "remaining_gap": "Offline/copy verification only; not installed.",
+      "safety": "Isolated runtime only.",
+      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 21.4",
+      "verification": "2026-10-21 rehearsal on Jetson copy; not a production deployment."
     }
   ]
 }
