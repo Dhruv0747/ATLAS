@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+21 October Depth+RGB: CPU78.4615% guard stops startup; signal log precedes
+invalid-context error26.874ms. USB opening succeeded. Diagnostic/cleanup candidate
+offline,66 tests pass; actual resource-heavy cause and combined reliability NOT
+resolved. No live session/deployment. See ATLAS_DEPTH_RGB_STARTUP_FAILURE_20261021.md.
+USB native sandbox follow-up preserved separately; no rules installed.
+
 21 October permanent USB audit: owner restored both temporary Astra ACLs; direct
 access passes. Subsequent preflight CPU75.2902% blocked before installation/Start;
 no retry. New owner task is offline persistence preparation. Eight static tests

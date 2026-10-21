@@ -126,7 +126,52 @@ def driver_log():
 
 DRIVER_LOG_MAX = 2 * 1024 * 1024
 NEGOTIATION = ('video mode', 'Supported video modes', 'is started', 'not supported', 'disabled', 'Failed', 'ERROR',
-               'Error', 'Infrared', 'PixelFormat', 'fps', 'resolution')
+               'Error', 'Infrared', 'PixelFormat', 'fps', 'resolution', 'signal_handler(')
+
+
+def lifecycle_event(state, event, **details):
+    """Bounded scalar evidence; no frames, subscriptions or ROS discovery."""
+    state.setdefault('lifecycle',[]).append(dict(event=event,monotonic_s=time.monotonic(),
+                                               unix_s=time.time(),**details))
+    state['lifecycle']=state['lifecycle'][-32:]
+
+
+def shutdown_owned_process(child,state,role):
+    """Reap only the session-owned process; tolerate exit between poll and signal."""
+    if child is None:return True
+    if child.poll() is not None:
+        lifecycle_event(state,'already_exited',role=role,returncode=child.returncode)
+        return True
+    lifecycle_event(state,'signal_send',role=role,pid=child.pid,signal='SIGINT')
+    try:os.killpg(child.pid,signal.SIGINT)
+    except ProcessLookupError:pass
+    try:child.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        lifecycle_event(state,'signal_send',role=role,pid=child.pid,signal='SIGKILL')
+        try:os.killpg(child.pid,signal.SIGKILL)
+        except ProcessLookupError:pass
+        child.wait(timeout=2)
+    lifecycle_event(state,'process_reaped',role=role,returncode=child.returncode)
+    return child.poll() is not None
+
+
+def driver_error_order(text):
+    """Describe observed log ordering, never suppress exceptions or infer CPU cause."""
+    import re
+    signal_stamp=None;context_stamp=None
+    for line in text.splitlines():
+        stamp=re.search(r'\[(\d+\.\d+)\]',line)
+        if stamp is None:continue
+        if 'signal_handler(SIGINT/SIGTERM)' in line and signal_stamp is None:
+            signal_stamp=float(stamp.group(1))
+        if "context is invalid" in line and context_stamp is None:
+            context_stamp=float(stamp.group(1))
+    ordered=signal_stamp is not None and context_stamp is not None and signal_stamp<=context_stamp
+    return {'signal_log_unix_s':signal_stamp,'invalid_context_log_unix_s':context_stamp,
+            'signal_precedes_invalid_context':ordered,
+            'context_after_signal_ms':round((context_stamp-signal_stamp)*1000,3) if ordered else None,
+            'interpretation':'invalid context reported after signal; shutdown race supported' if ordered
+                else 'ordering unproven; preserve and investigate driver error'}
 
 
 def driver_args(mode):
@@ -217,10 +262,13 @@ def worker(mode):
     parent=os.getppid(); state={'state':'CHECKING','worker_pid':os.getpid(),'mode':mode,
                               'limits':{'cpu_percent':75,'ram_percent':80,'temperature_c':70},
                               'recording':False,'calibration':'UNVALIDATED; axial Z only'}
+    lifecycle_event(state,'worker_started')
     def write():
         temporary=STATE.with_suffix('.tmp')
         temporary.write_text(json.dumps(state,allow_nan=False));os.replace(temporary,STATE)
-    def interrupted(*_):raise RuntimeError('viewer cancelled')
+    def interrupted(*_):
+        lifecycle_event(state,'cancellation_received')
+        raise RuntimeError('viewer cancelled')
     signal.signal(signal.SIGTERM,interrupted);signal.signal(signal.SIGINT,interrupted)
     def sample():
         nonlocal last_ticks,process_last,worker_last
@@ -238,6 +286,7 @@ def worker(mode):
             row=G.check(cpu,observation=observation)
         except G.AdmissionError as e:
             state['failed_resources']=e.evidence
+            lifecycle_event(state,'resource_guard_failed',evidence=e.evidence)
             raise ValueError('RESOURCE BLOCKED: '+str(e)) from e
         limits(cpu,row['ram_percent'],max(row['thermal_c'].values()))
         P.extra_safety(ros=observation['ros']);rows.append(row)
@@ -269,6 +318,7 @@ def worker(mode):
         log=open(driver_log(),'wb')
         child=subprocess.Popen(driver_args(mode),env=env,cwd=RUNTIME,stdout=log,
                                stderr=subprocess.STDOUT,start_new_session=True,preexec_fn=parent_death)
+        lifecycle_event(state,'driver_spawned',pid=child.pid)
         log.close()
         if VIEW_MODES[mode].get('cloud'):
             cloud_admission(mode)   # re-check immediately before launching the cloud node
@@ -302,21 +352,22 @@ def worker(mode):
         state.update(state='OFF',reason='60-second session complete; explicit Start required')
     except Exception as e:
         reason=str(e)
+        lifecycle_event(state,'session_stopping',reason=reason)
         state.update(state='RESOURCE BLOCKED' if 'CPU' in reason or 'RAM' in reason or 'thermal' in reason or 'RESOURCE' in reason else 'OFF',reason=reason)
     finally:
-        if cloud_child is not None and cloud_child.poll() is None:
-            os.killpg(cloud_child.pid,signal.SIGINT)
-            try:cloud_child.wait(timeout=2)
-            except subprocess.TimeoutExpired:os.killpg(cloud_child.pid,signal.SIGKILL);cloud_child.wait(timeout=2)
-        if child and child.poll() is None:
-            os.killpg(child.pid,signal.SIGINT)
-            try:child.wait(timeout=2)
-            except subprocess.TimeoutExpired:os.killpg(child.pid,signal.SIGKILL);child.wait(timeout=2)
-        state.update(driver_stopped=True,sample_count=len(rows))
+        # Cleanup of one child must not prevent cleanup of the other.
+        stopped={}
+        for role,owned in (('cloud',cloud_child),('driver',child)):
+            try:stopped[role]=shutdown_owned_process(owned,state,role)
+            except Exception as e:
+                stopped[role]=False
+                lifecycle_event(state,'cleanup_failed',role=role,error=str(e))
+        state.update(driver_stopped=stopped['driver'],cloud_stopped=stopped['cloud'],sample_count=len(rows))
         if child:
             try:
                 with open(driver_log(),'rb') as f:text=f.read(65536).decode('utf-8','replace')
                 state['driver_negotiation']=negotiation_lines(text)
+                state['driver_error_order']=driver_error_order(text)
                 os.truncate(driver_log(),min(len(text.encode()),65536))
             except OSError:state['driver_negotiation']=['driver log unavailable']
         write()

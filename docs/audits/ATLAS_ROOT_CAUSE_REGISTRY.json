@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-ASTRA-CONCURRENT-CPU-CANCEL-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Worker CPU78.4615% rejection; driver signal handler precedes invalid context26.874ms; OpenNI connected serial17122120830. Exact original guardian signal monotonic timestamp absent. Additional CPU cause/RGB contention unverified.",
+      "candidate": "Offline bounded lifecycle timestamps, preserve signal/errors, owned-child cleanup race handling, truthful stopped state;66 tests pass, no parameter/safety change, NOT deployed. Does not claim CPU reduction or vendor startup race fixed.",
+      "report": "ATLAS_DEPTH_RGB_STARTUP_FAILURE_20261021.md"
+    },
+    {
       "id": "ATLAS-STAGE32-USB-ACL-LOSS-20261021",
       "permanent_access_audit": "Owner-restored jetson RW ACLs verified, direct access passes. CPU75.2902% abort before install/Start, no retry. Offline two-interface topology-bound group0660 proposal; eight static tests pass, native isolated matching and deployment approval pending. Serial dialout access already works; radar topic via UNO; motor/IMU/GPS CH340 by-id collision, stale unused motor alias; LiDAR vendor0666 exposure preserved for separate review. No system changes. See ATLAS_PERMANENT_USB_ACCESS_AND_REBOOT_RECOVERY.md.",
       "approved_recovery_attempt": "2026-10-21 20:44: three fresh safety/resource samples pass; CPU70.4293-73.2026%, RAMmax66.7793%, tempmax59.875C. Protected PIDs unchanged. sudo password required, so no installation/ACL change/camera test. Persistent device-specific permissions proposed only. Original ACL state preserved.",

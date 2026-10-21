@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+21 October combined-camera startup: [failure ordering and offline cleanup candidate](ATLAS_DEPTH_RGB_STARTUP_FAILURE_20261021.md).
+CPU guard triggered before observed ROS context error;66 focused tests pass.
+No live deployment or new session. Combined startup reliability remains unresolved.
+
 21 October permanent USB access audit: [inventory, exact offline Astra rules,
 tests and approval gates](ATLAS_PERMANENT_USB_ACCESS_AND_REBOOT_RECOVERY.md).
 Serial access already works; only Astra needs the proposed persistent raw-USB

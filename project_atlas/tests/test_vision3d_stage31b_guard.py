@@ -31,7 +31,7 @@ class Sim:
         self.lease_eof_at, self.extra, self.services_change_at = lease_eof_at, extra_safety, services_change_at
         self.next_lease = 0.0; self.launched_at = None
 
-    def run(self):
+    def run(self,mode='depth'):
         clock = self.clock
         with tempfile.TemporaryDirectory() as tmp:
             runtime = Path(tmp) / 'rt'; runtime.mkdir(); files = []
@@ -67,7 +67,10 @@ class Sim:
             def read(fd, n):
                 if self.lease_eof_at is not None and self.launched_at is not None and clock.now() - self.launched_at >= self.lease_eof_at: return b''
                 return b'1\n'
-            child = MagicMock(pid=4242); child.poll.return_value = None
+            child = MagicMock(pid=4242,returncode=None); child.poll.return_value = None
+            def wait(timeout):
+                child.returncode=-2;child.poll.return_value=-2;return -2
+            child.wait.side_effect=wait
             def popen(*a, **k):
                 self.launched_at = clock.now(); return child
             with patch.object(R, 'RUNTIME', runtime), patch.object(R, 'STATE', Path(tmp) / 'state.json'), \
@@ -78,7 +81,7 @@ class Sim:
                  patch('select.select', side_effect=select), patch.object(R.os, 'read', side_effect=read), \
                  patch.object(R, 'process_metrics', return_value=({'pid': 1, 'rss_kib': 1, 'cpu_one_core_percent': 1.0}, (0, 0))), \
                  patch.object(R.os, 'killpg') as kill:
-                R.worker('depth')
+                R.worker(mode)
                 self.state = json.loads((Path(tmp) / 'state.json').read_text()); self.killed = kill.call_args_list
         return self
 
@@ -102,6 +105,15 @@ class Window(unittest.TestCase):
 
 
 class GuardSimulation(unittest.TestCase):
+    def test_concurrent_cpu_failure_during_start_has_ordered_cleanup(self):
+        s=Sim(cpu=lambda i,w:78.4615 if i==3 else 70).run('concurrent')
+        self.assertEqual(s.state['state'],'RESOURCE BLOCKED')
+        self.assertTrue(s.state['driver_stopped'])
+        names=[e['event'] for e in s.state['lifecycle']]
+        self.assertLess(names.index('driver_spawned'),names.index('resource_guard_failed'))
+        self.assertLess(names.index('resource_guard_failed'),names.index('signal_send'))
+        self.assertEqual(s.state['failed_resources']['cpu'],78.4615)
+
     def test_full_session_samples_every_window_between_1_and_2_s(self):
         s = Sim().run()
         self.assertEqual(s.state['state'], 'OFF'); self.assertIn('session complete', s.state['reason'])
@@ -155,7 +167,9 @@ class Independence(unittest.TestCase):
         for bad in ('create_publisher', 'cmd_vel', 'e_stop', '/api/estop', 'systemctl', 'os.kill(', 'SIGSTOP', 'nice', 'cgroup'):
             self.assertNotIn(bad, SRC, bad)
         import re   # signals only ever go to the viewer's own camera child / own worker
-        self.assertEqual(set(re.findall(r'os\.killpg\(([a-z_.]+)', SRC)), {'child.pid', 'cloud_child.pid'})   # own children only
+        self.assertEqual(set(re.findall(r'os\.killpg\(([a-z_.]+)', SRC)), {'child.pid'})   # helper argument only
+        self.assertIn("(('cloud',cloud_child),('driver',child))",SRC)
+        self.assertIn('shutdown_owned_process(owned,state,role)',SRC)
         self.assertEqual(set(re.findall(r'([a-z_.]+)\.(?:kill|terminate)\(\)', SRC)), {'child'})
 
 

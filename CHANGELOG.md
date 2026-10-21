@@ -1,5 +1,13 @@
 # Changelog
 
+2026-10-21 Depth+RGB startup investigation (offline only):
+- Retained log shows signal handler26.874ms before invalid-context exception;
+  worker rejected aggregateCPU78.4615%. USB depth connection succeeded.
+- Preserve signal diagnostics and bounded dual-clock lifecycle evidence; fix
+  owned-child exit/signal cleanup race and truthful driver_stopped reporting.
+-66 focused tests pass; camera argument vectors and safety limits unchanged.
+-No vendor/context exception suppression, CPU tuning, deployment or camera test.
+
 2026-10-21 permanent USB audit (offline only):
 - Verified actual USB owners/topology/access: radar is UNO topic-fed, three CH340
   adapters share ambiguous by-id; existing dialout access works.
