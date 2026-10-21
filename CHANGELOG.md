@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 OFFLINE direct worker launch: inherit web owner's sourced ROS environment
+instead of repeating login shell/setup. PC median launch CPU0.162734->0.055208s;
+79 focused tests pass. Guard and modes unchanged. No deployment or camera start.
+See ATLAS_STAGE32_DIRECT_WORKER_LAUNCH.md for package and separate approvals.
+
 2026-10-21 startup guard74ff38f DEPLOYED after fresh admission. Web-only restart;
 runtime read-back hash verified. CPU transient99.83%, five passing samples by27s;
 protected identities/sensor freshness preserved. No camera/recording/movement.

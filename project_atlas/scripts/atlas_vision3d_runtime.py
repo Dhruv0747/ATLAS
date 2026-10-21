@@ -261,8 +261,10 @@ class ViewerSession:
             if self.child and self.child.poll() is None:
                 raise ValueError('viewer already running; pause before changing mode')
             self.generation+=1
-            command=['/bin/bash','-lc','source /opt/ros/humble/setup.bash; exec /usr/bin/python3 '
-                     +str(Path(__file__).resolve())+' --worker '+mode]
+            # Web service already sources Humble and its overlay. Re-sourcing in
+            # a login shell repeats setup subprocesses before the first sample.
+            # Inherit that environment; never move this work outside the guard.
+            command=['/usr/bin/python3',str(Path(__file__).resolve()),'--worker',mode]
             self.child=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,
                                         stderr=subprocess.DEVNULL,start_new_session=True,
                                         env=dict(os.environ, **{STARTUP_SEED:json.dumps(startup_sample())}))

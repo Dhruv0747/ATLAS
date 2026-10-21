@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+21 October offline launch optimization: [direct worker candidate](ATLAS_STAGE32_DIRECT_WORKER_LAUNCH.md).
+Repeated login-shell/ROS setup removed; PC launch CPU work down66.1%,79 tests pass.
+Not deployed; Jetson savings and real Preview success remain unverified.
+
 21 October: [startup guard deployment verified](ATLAS_STAGE32_STARTUP_GUARD_DEPLOYMENT.md).
 One runtime file and approved web-only restart; CPU peaked99.83%, settled below75%
 by27s. Protected sensor services unchanged. Astra/recorder OFF; no camera test.

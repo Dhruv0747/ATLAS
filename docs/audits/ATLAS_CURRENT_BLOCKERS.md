@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+Latest Depth-only attempt072a22c rejected76.0726% before hashing/snapshot/driver.
+Offline direct-Python launch candidate removes redundant shell/ROS setup: PC CPU
+0.162734->0.055208s,79 tests pass. No deployment. Jetson aggregate contention and
+live Preview remain unresolved. See ATLAS_STAGE32_DIRECT_WORKER_LAUNCH.md.
+
 Latest: startup guard74ff38f installed and hash-verified with approved web-only
 restart; transient99.83% settled under75% by27s. Sensors/protected PIDs unchanged;
 camera/recorder OFF. No live guard or preview test authorized/performed. Calibration

@@ -105,5 +105,27 @@ class StartupCoverage(unittest.TestCase):
             s.start('depth')
         self.assertEqual(json.loads(popen.call_args.kwargs['env'][R.STARTUP_SEED]),[10,100,20])
 
+    def test_direct_launch_preserves_environment_and_process_ownership(self):
+        s=R.ViewerSession()
+        env={'ROS_DISTRO':'humble','PYTHONPATH':'/test/overlay:/opt/ros/humble/local/lib/python3.10/dist-packages',
+             'LD_LIBRARY_PATH':'/test/overlay/lib','ROS_DOMAIN_ID':'0'}
+        with patch.dict(R.os.environ,env),patch.object(R.subprocess,'Popen') as popen,patch.object(R,'startup_sample',return_value=[10,100,20]):
+            s.start('depth')
+        args=popen.call_args.args[0];kwargs=popen.call_args.kwargs
+        self.assertEqual(args,['/usr/bin/python3',str(Path(R.__file__).resolve()),'--worker','depth'])
+        self.assertTrue(kwargs['start_new_session'])
+        self.assertEqual(kwargs['stdin'],R.subprocess.PIPE)
+        for k,v in env.items():self.assertEqual(kwargs['env'][k],v)
+        self.assertEqual(R.driver_env(kwargs['env'])['ROS_DOMAIN_ID'],'77')
+        self.assertNotIn('/bin/bash',args)
+
+    def test_blocked_first_sample_does_not_hash_or_query_sensors(self):
+        def unexpected(*args,**kwargs):raise AssertionError('later operation was reached')
+        with patch.object(R,'verify_runtime',side_effect=unexpected) as hashing:
+            s=Sim(cpu=lambda i,w:76.072607,extra_safety=unexpected).run('depth')
+        hashing.assert_not_called()
+        self.assertIsNone(s.launched_at)
+        self.assertEqual(s.state['state'],'RESOURCE BLOCKED')
+
 
 if __name__=='__main__':unittest.main()

@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-ASTRA-REDUNDANT-WORKER-ROS-SETUP-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Last rejection before hashing/snapshot/driver. Repeated shell ROS setup contributes measurable PC startup work:0.162734 vs0.055208 CPU seconds,7 runs. Actual Jetson savings unknown.",
+      "candidate": "Direct Python inheriting sourced parent environment, same prelaunch seed/guards/driver mode settings;79 tests pass; NOT DEPLOYED.",
+      "report": "ATLAS_STAGE32_DIRECT_WORKER_LAUNCH.md"
+    },
+    {
       "id": "ATLAS-ASTRA-STARTUP-GUARD-COVERAGE-20261021",
       "deployment_followup": "74ff38f single file installed/hash verified; approved web restart, CPU peak99.83 settled under75 by27s. Sensor/protected PIDs unchanged.12 offline coverage tests pass; no live worker/camera activation. See ATLAS_STAGE32_STARTUP_GUARD_DEPLOYMENT.md. Hardware coverage validation remains pending.",
       "confidence": "CONFIRMED",
