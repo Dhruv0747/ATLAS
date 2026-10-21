@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 15:30–16:00 (Stage 32 + addendum; DEVELOPMENT ONLY; nothing installed, no restart, camera never started):
+- **IR IMPLEMENTED (offline), NOT live verified.** Vision Lab modes Infrared, Infrared + Depth and Infrared + RGB (all untested); native IR bytes are shown with a stated display stretch and a raw-value probe; IR is never derived from RGB or depth. Depth and Depth+RGB launch arguments are unchanged (byte-identical test).
+- **CALIBRATION PREPARED, NOT validated.** Factory parameters are still NaN. A guided checkerboard tool (corners only, held-out error, coverage gate) and physical-validation rules are ready, and the metric-geometry gate stays closed.
+- **XYZ CLOUD IMPLEMENTED (offline); live BLOCKED by calibration.** `/astra/points` node (domain 77, ≤5 Hz, ≤6,000 points) refuses to run without a validated calibration. A Jetson camera-off probe cut back-projection from 52 ms to 7 ms per cloud (ray table).
+- **3D VIEWER READY, disabled until calibration.** Package `tools/deploy/stage32/stage32.sh` (rover-status-web restart only) rehearsed with a byte-identical rollback. See [`ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md`](ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md) for approvals A1–A6.
+
 2026-10-21 15:07–15:13 (owner-approved Stage 31B install + one Depth-only test):
 - **UI fix DEPLOYED** and **guard update DEPLOYED** (no restart; `atlas_vision3d_runtime.py 077edc29…`, `vision3d.js 05b83020…`; backup `.pre_stage31b_20261021_150745`).
 - **Sustained Depth viewing VERIFIED (uncalibrated):** one uninterrupted 60 s session, 607 frames on the Dashboard (≈ 11 fps, 0.01–0.33 s old), click-to-measure 2.721 m. 59 guard samples (1.0 s windows) at 63.7–71.1%; recorder max 70.0%, session mean 66.8% vs 64.9% before. Protected services unchanged. See [`ATLAS_STAGE31B_LIVE_DEPLOYMENT.md`](ATLAS_STAGE31B_LIVE_DEPLOYMENT.md).

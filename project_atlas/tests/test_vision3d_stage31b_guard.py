@@ -155,8 +155,8 @@ class Independence(unittest.TestCase):
         for bad in ('create_publisher', 'cmd_vel', 'e_stop', '/api/estop', 'systemctl', 'os.kill(', 'SIGSTOP', 'nice', 'cgroup'):
             self.assertNotIn(bad, SRC, bad)
         import re   # signals only ever go to the viewer's own camera child / own worker
-        self.assertEqual(set(re.findall(r'os\.killpg\(([a-z.]+)', SRC)), {'child.pid'})
-        self.assertEqual(set(re.findall(r'([a-z.]+)\.(?:kill|terminate)\(\)', SRC)), {'child'})
+        self.assertEqual(set(re.findall(r'os\.killpg\(([a-z_.]+)', SRC)), {'child.pid', 'cloud_child.pid'})   # own children only
+        self.assertEqual(set(re.findall(r'([a-z_.]+)\.(?:kill|terminate)\(\)', SRC)), {'child'})
 
 
 if __name__ == '__main__':

@@ -99,7 +99,12 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(self.s.status()['streams']['depth']['state'],'SENSOR ERROR')
     def test_pixel_and_cloud(self):
         self.s.ingest('depth',image());self.s.ingest('depth_info',info_with_stamp())
-        self.s.ingest('cloud',cloud());self.assertEqual(self.s.pixel(0,0)['depth_z_m'],1);self.assertTrue(self.s.cloud()['points'])
+        self.s.ingest('cloud',cloud());self.assertEqual(self.s.pixel(0,0)['depth_z_m'],1)
+        # Stage32: any metric cloud now requires a VALIDATED calibration file (none exists in the repository)
+        with self.assertRaisesRegex(ValueError,'CALIBRATION BLOCKED'):self.s.cloud()
+        doc={'frame_id':'astra_depth_optical_frame','width':2,'height':2,'k':[2.,0,0,0,2.,0,0,0,1],'d':[0,0,0,0,0]}
+        with patch.object(W.geometry,'calibration_state',return_value={'state':'VALIDATED','reason':'fixture','calibration':doc}):
+            self.assertTrue(self.s.cloud()['points'])
     def test_stop_clears(self):
         self.s.ingest('depth',image());self.s.stop();self.assertEqual(self.s.messages,{})
     def test_manifest_rejects_pi_camera(self):

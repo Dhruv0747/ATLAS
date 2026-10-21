@@ -95,20 +95,68 @@ def limits(cpu, ram, hottest):
         raise ValueError('RESOURCE BLOCKED: CPU75% / RAM80% / temperature70C limit')
 
 
+# Stage32: explicit stream combinations. Each is a bounded viewer mode, not a capability claim: whether the camera
+# actually delivers a stream is decided by the driver's OpenNI mode negotiation and recorded from its log.
+# Astra Pro: depth and IR come from the same OpenNI (2bc5:0403) sensor; RGB is the separate UVC camera (2bc5:0501).
+VIEW_MODES = {
+    'depth':      {'depth': True,  'ir': False, 'rgb': False},
+    'concurrent': {'depth': True,  'ir': False, 'rgb': True},    # RGB + depth (historical name kept)
+    'ir':         {'depth': False, 'ir': True,  'rgb': False},
+    'ir_depth':   {'depth': True,  'ir': True,  'rgb': False},
+    'rgb_ir':     {'depth': False, 'ir': True,  'rgb': True},
+    # Stage32 addendum: depth + XYZ PointCloud2 from a separate private-domain node; refused unless calibration VALIDATED
+    'depth_cloud': {'depth': True, 'ir': False, 'rgb': False, 'cloud': True},
+}
+CLOUD_NODE = ROOT / 'scripts/atlas_vision3d_cloud_node.py'
+
+
+def cloud_admission(mode):
+    """Refuse a cloud mode before any camera hardware is opened unless the calibration gate passes."""
+    if not VIEW_MODES[mode].get('cloud'):
+        return None
+    import atlas_vision3d_geometry as Geo
+    manifest = json.loads((ROOT / 'config/vision3d_live.json').read_text())
+    st = Geo.calibration_state(manifest)
+    if st['state'] != 'VALIDATED':
+        raise ValueError('CALIBRATION BLOCKED: ' + st['reason'])
+    return st
+def driver_log():
+    return STATE.with_name('atlas-vision3d-driver.log')   # next to the state file on tmpfs; capped; no frames
+
+
+DRIVER_LOG_MAX = 2 * 1024 * 1024
+NEGOTIATION = ('video mode', 'Supported video modes', 'is started', 'not supported', 'disabled', 'Failed', 'ERROR',
+               'Error', 'Infrared', 'PixelFormat', 'fps', 'resolution')
+
+
 def driver_args(mode):
-    if mode not in ('depth', 'concurrent'):
+    if mode not in VIEW_MODES:
         raise ValueError('unsupported viewer mode')
-    values = {'camera_name':'astra','use_uvc_camera':str(mode=='concurrent').lower(),
-              'enable_color':str(mode=='concurrent').lower(),'enable_depth':'true',
-              'enable_ir':'false','enable_point_cloud':'false','enable_colored_point_cloud':'false',
+    m = VIEW_MODES[mode]
+    on = lambda b: str(bool(b)).lower()
+    values = {'camera_name':'astra','use_uvc_camera':on(m['rgb']),
+              'enable_color':on(m['rgb']),'enable_depth':on(m['depth']),
+              'enable_ir':on(m['ir']),'enable_point_cloud':'false','enable_colored_point_cloud':'false',
               'publish_tf':'false','depth_registration':'false','enable_publish_extrinsic':'false',
               'depth_width':'160','depth_height':'120','depth_fps':'30','depth_scale':'1',
               'color_width':'320','color_height':'240','color_fps':'15',
               'uvc_vendor_id':'0x2bc5','uvc_product_id':'0x0501','uvc_camera_format':'mjpeg',
               'uvc_retry_count':'0','oni_log_to_file':'false','oni_log_to_console':'false'}
+    if m['ir']:   # IR parameters only when IR is requested, so depth / RGB+depth launches stay byte-identical
+        values.update(ir_width='320',ir_height='240',ir_fps='30')
     args=[str(RUNTIME/'lib/astra_camera/astra_camera_node'),'--ros-args','-r','__ns:=/astra']
     for k,v in values.items():args+=['-p', k+':='+v]
     return args
+
+
+def negotiation_lines(text, limit=40):
+    """Driver start-up lines about stream/mode negotiation only (no frame data)."""
+    out=[]
+    for line in text.splitlines():
+        if any(k in line for k in NEGOTIATION):
+            out.append(line.strip()[-240:])
+            if len(out)>=limit:break
+    return out
 
 
 class ViewerSession:
@@ -165,7 +213,7 @@ def worker(mode):
     sys.path.insert(0,str(ROOT/'tools/vision3d'))
     import stationary_gate as G
     import stationary_ros_probe as P
-    child=None; rows=[]; started=time.monotonic(); last_lease=started; process_last=None;worker_last=None
+    child=None; cloud_child=None; rows=[]; started=time.monotonic(); last_lease=started; process_last=None;worker_last=None
     parent=os.getppid(); state={'state':'CHECKING','worker_pid':os.getpid(),'mode':mode,
                               'limits':{'cpu_percent':75,'ram_percent':80,'temperature_c':70},
                               'recording':False,'calibration':'UNVALIDATED; axial Z only'}
@@ -203,6 +251,7 @@ def worker(mode):
             p=(RUNTIME/f['path']).resolve()
             if not p.is_relative_to(RUNTIME) or hashlib.sha256(p.read_bytes()).hexdigest()!=f['sha256']:
                 raise ValueError('isolated runtime integrity failure')
+        cloud_admission(mode)
         units=G.services();last_ticks=G.ticks();window=CpuWindow(time.monotonic())
         for _ in range(3):time.sleep(MIN_CPU_WINDOW_S);sample();write()
         if subprocess.run(['pgrep','-x','astra_camera_no'],stdout=subprocess.DEVNULL).returncode==0:
@@ -217,8 +266,15 @@ def worker(mode):
         env=driver_env(os.environ)
         env['LD_LIBRARY_PATH']=str(RUNTIME/'lib')+':/opt/ros/humble/lib:'+env.get('LD_LIBRARY_PATH','')
         env['AMENT_PREFIX_PATH']=str(RUNTIME)+':/opt/ros/humble'
-        child=subprocess.Popen(driver_args(mode),env=env,cwd=RUNTIME,stdout=subprocess.DEVNULL,
-                               stderr=subprocess.DEVNULL,start_new_session=True,preexec_fn=parent_death)
+        log=open(driver_log(),'wb')
+        child=subprocess.Popen(driver_args(mode),env=env,cwd=RUNTIME,stdout=log,
+                               stderr=subprocess.STDOUT,start_new_session=True,preexec_fn=parent_death)
+        log.close()
+        if VIEW_MODES[mode].get('cloud'):
+            cloud_admission(mode)   # re-check immediately before launching the cloud node
+            cloud_child=subprocess.Popen([sys.executable,str(CLOUD_NODE)],env=env,cwd=ROOT,stdout=subprocess.DEVNULL,
+                                         stderr=subprocess.DEVNULL,start_new_session=True,preexec_fn=parent_death)
+            state['cloud_pid']=cloud_child.pid
         state['driver_launch_elapsed_s']=time.monotonic()-started
         state['astra_process'],process_last=process_metrics(child.pid)
         state.update(state='ACTIVE',reason='Bounded stationary viewing; accuracy NOT verified',driver_pid=child.pid)
@@ -234,8 +290,12 @@ def worker(mode):
             sample()
             if G.services()!=units:raise RuntimeError('essential service identity changed')
             if child.poll() is not None:raise RuntimeError('isolated camera exited')
+            if cloud_child is not None and cloud_child.poll() is not None:raise RuntimeError('point cloud node exited')
             metrics=state['astra_process']
             if metrics.get('state')=='unavailable':raise RuntimeError('camera process unavailable')
+            try:
+                if driver_log().stat().st_size>DRIVER_LOG_MAX:os.truncate(driver_log(),0)   # bound tmpfs use
+            except OSError:pass
             state['astra_rss_kib']=metrics['rss_kib']
             state['astra_cpu_one_core_percent']=metrics['cpu_one_core_percent']
             write()
@@ -244,11 +304,21 @@ def worker(mode):
         reason=str(e)
         state.update(state='RESOURCE BLOCKED' if 'CPU' in reason or 'RAM' in reason or 'thermal' in reason or 'RESOURCE' in reason else 'OFF',reason=reason)
     finally:
+        if cloud_child is not None and cloud_child.poll() is None:
+            os.killpg(cloud_child.pid,signal.SIGINT)
+            try:cloud_child.wait(timeout=2)
+            except subprocess.TimeoutExpired:os.killpg(cloud_child.pid,signal.SIGKILL);cloud_child.wait(timeout=2)
         if child and child.poll() is None:
             os.killpg(child.pid,signal.SIGINT)
             try:child.wait(timeout=2)
             except subprocess.TimeoutExpired:os.killpg(child.pid,signal.SIGKILL);child.wait(timeout=2)
         state.update(driver_stopped=True,sample_count=len(rows))
+        if child:
+            try:
+                with open(driver_log(),'rb') as f:text=f.read(65536).decode('utf-8','replace')
+                state['driver_negotiation']=negotiation_lines(text)
+                os.truncate(driver_log(),min(len(text.encode()),65536))
+            except OSError:state['driver_negotiation']=['driver log unavailable']
         write()
 
 

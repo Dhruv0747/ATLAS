@@ -30,12 +30,12 @@ class LiveDeploymentTests(unittest.TestCase):
             with self.assertRaises(ValueError):R.limits(*values)
 
     def test_only_supported_viewer_modes_no_cloud(self):
-        for mode in ('depth','concurrent'):
+        for mode in ('depth','concurrent','ir','ir_depth','rgb_ir'):   # Stage32 adds explicit IR viewer modes
             args=R.driver_args(mode)
             for setting in ('enable_point_cloud:=false','enable_colored_point_cloud:=false',
                             'publish_tf:=false','depth_registration:=false'):
                 self.assertIn(setting,args)
-        for mode in ('cloud','ir','drive',''):
+        for mode in ('cloud','drive','','ir_rgb_depth','pointcloud'):
             with self.assertRaises(ValueError):R.driver_args(mode)
 
     def test_live_manifest_exact_topics(self):
@@ -43,7 +43,8 @@ class LiveDeploymentTests(unittest.TestCase):
             m=W.read_manifest()
         self.assertTrue(m['viewer_runtime'])
         self.assertEqual(set(m['topics'].values()),{'/astra/depth/image_raw','/astra/color/image_raw',
-                         '/astra/depth/camera_info','/astra/color/camera_info'})
+                         '/astra/depth/camera_info','/astra/color/camera_info',
+                         '/astra/ir/image_raw','/astra/ir/camera_info','/astra/points'})   # Stage32: IR + XYZ cloud
 
     def test_fallback_camera_info_cannot_unlock_xyz(self):
         s=W.VisionService({'viewer_runtime':True},clock=lambda:100,wall=lambda:100)

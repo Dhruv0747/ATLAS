@@ -23,11 +23,17 @@
  </section>
 
  <section class="panel vl-controls" aria-label="Viewer controls">
-  <div class="vl-seg" role="radiogroup" aria-label="Stream mode">
-   <label><input type="radio" name="vlMode" value="depth" checked><span><b>Depth only</b><small>Lower load</small></span></label>
-   <label><input type="radio" name="vlMode" value="concurrent"><span><b>Depth + RGB</b><small>Higher load</small></span></label>
+  <div class="vl-seg vl-modes" id="vlModes" role="radiogroup" aria-label="Stream mode">
+   <label data-mode="depth"><input type="radio" name="vlMode" value="depth" checked><span><b>Depth</b><small data-note>Tested</small></span></label>
+   <label data-mode="concurrent"><input type="radio" name="vlMode" value="concurrent"><span><b>Depth + RGB</b><small data-note>Not yet tested here</small></span></label>
+   <label data-mode="ir"><input type="radio" name="vlMode" value="ir"><span><b>Infrared</b><small data-note>Not yet tested</small></span></label>
+   <label data-mode="ir_depth"><input type="radio" name="vlMode" value="ir_depth"><span><b>Infrared + Depth</b><small data-note>Not yet tested</small></span></label>
+   <label data-mode="rgb_ir"><input type="radio" name="vlMode" value="rgb_ir"><span><b>Infrared + RGB</b><small data-note>Not yet tested</small></span></label>
+   <label data-mode="depth_cloud"><input type="radio" name="vlMode" value="depth_cloud" disabled><span><b>Depth + 3D cloud</b><small data-note>Needs calibration</small></span></label>
   </div>
+  <p class="vl-modenote" id="vlModeNote" aria-live="polite"></p>
   <button class="btn vl-start" id="startViewer"><svg class="icon"><use href="/v2/assets/icons.svg#i-eye"/></svg>Start 60-second view</button>
+  <button class="btn" id="freeze" aria-pressed="false" disabled>Pause preview</button>
   <button class="btn" id="pause"><svg class="icon"><use href="/v2/assets/icons.svg#i-stop"/></svg>Stop camera</button>
   <span class="vl-run" id="runtimeState">Camera off · press Start</span>
   <p class="vl-note">Leaving or hiding this page stops the camera within about 4 seconds. Nothing is recorded.</p>
@@ -47,21 +53,24 @@
    <div class="image-box"><img id="rgbImage" alt="Live Astra colour image"><div class="vl-empty" id="rgbEmpty">Colour runs only in Depth + RGB mode.</div></div>
    <p class="vl-meta" id="rgbMeta"></p>
   </article>
+  <article class="panel vl-stream vl-ir">
+   <header><h2>Infrared (IR)</h2><span class="vl-chip" id="irState">Off</span><span class="vl-fps" id="irFps"></span></header>
+   <div class="image-box"><canvas id="irCanvas" aria-label="Live infrared intensity in grayscale. Click a pixel to read its raw value."></canvas><div class="vl-empty" id="irEmpty">Infrared runs only in an Infrared mode.</div></div>
+   <p class="vl-meta" id="irScale">Grayscale shows the camera's own infrared intensity. Brightness is stretched for viewing; click a pixel for its raw value.</p>
+   <p class="vl-meta" id="irMeta"></p>
+   <output class="vl-probe" id="irProbe" aria-live="polite"></output>
+  </article>
  </section>
 
- <details class="hm-drawer vl-drawer">
-  <summary><span>Disabled until calibration</span><small>Infrared and 3D point cloud</small></summary>
-  <div class="vl-disabled">
-   <p>The factory calibration read from this camera is invalid (NaN), so 3D geometry, point clouds and RGB–depth alignment stay off. These panels turn on only after a valid calibration is established.</p>
-   <article class="panel"><h2>Infrared <span class="vl-chip" id="irState">Off</span></h2><div class="image-box small"><img id="irImage" alt="Live infrared when supported"></div><p class="vl-meta" id="irMeta"></p></article>
-   <article class="panel cloud-panel"><h2>3D point cloud <span class="vl-chip" id="cloudState">Disabled</span></h2>
-    <label class="vl-check"><input type="checkbox" id="showCloud" disabled> Show cloud (requires calibration)</label>
-    <canvas id="cloudCanvas" aria-label="3D cloud view. Drag to orbit, shift-drag to pan, scroll to zoom." tabindex="0"></canvas>
-    <div class="cloud-tools"><button class="btn" id="resetView">Reset view</button><button class="btn" id="panMode" aria-pressed="false">Pan mode</button><button class="btn" id="zoomIn">Zoom +</button><button class="btn" id="zoomOut">Zoom −</button></div>
-    <p class="vl-meta" id="cloudMeta">No point cloud</p></article>
-   <article class="panel"><h2>Shadow obstacle prototype</h2><pre id="obstacles">Not active</pre></article>
-  </div>
- </details>
+ <section class="panel vl-cloud cloud-panel" aria-label="3D point cloud">
+  <header class="vl-cloud-head"><h2>3D point cloud</h2><span class="vl-chip" id="cloudState">Off</span><span class="vl-fps" id="cloudFps"></span>
+   <label class="vl-check vl-cloud-toggle"><input type="checkbox" id="showCloud" disabled> Show cloud</label></header>
+  <p class="vl-cal" id="cloudCal">Checking camera calibration…</p>
+  <canvas id="cloudCanvas" aria-label="3D cloud view. Drag to orbit, shift-drag or Pan mode to pan, scroll or buttons to zoom, click a point to measure." tabindex="0"></canvas>
+  <div class="cloud-tools"><button class="btn" id="resetView">Reset view</button><button class="btn" id="panMode" aria-pressed="false">Pan mode</button><button class="btn" id="zoomIn">Zoom +</button><button class="btn" id="zoomOut">Zoom −</button></div>
+  <p class="vl-meta" id="cloudMeta">No point cloud</p>
+  <p class="vl-meta">Axes: X right (red), Y down (green), Z forward (blue), metres, camera optical frame. At most 6,000 points are drawn.</p>
+ </section>
 
  <details class="hm-drawer vl-drawer">
   <summary><span>Developer diagnostics</span><small>Raw runtime, stream and calibration data</small></summary>
@@ -69,6 +78,7 @@
    <p class="vl-meta" id="sourceNotice">Waiting for status</p>
    <label class="vl-check">Verified hardware modes <select id="mode" disabled><option>Not yet verified</option></select></label>
    <pre id="diagnostics">Waiting</pre>
+   <h3 class="vl-sub">Shadow obstacle prototype (camera frame only)</h3><pre id="obstacles">Not active</pre>
   </div>
  </details>
 </main>

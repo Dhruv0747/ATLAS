@@ -1,0 +1,110 @@
+{
+ "desktop": {
+  "modes": {
+   "depth": {
+    "disabled": false,
+    "note": "Tested"
+   },
+   "concurrent": {
+    "disabled": false,
+    "note": "Not yet tested"
+   },
+   "ir": {
+    "disabled": false,
+    "note": "Not yet tested"
+   },
+   "ir_depth": {
+    "disabled": false,
+    "note": "Not yet tested"
+   },
+   "rgb_ir": {
+    "disabled": false,
+    "note": "Not yet tested"
+   },
+   "depth_cloud": {
+    "disabled": true,
+    "note": "Needs calibration"
+   }
+  },
+  "ir_state": "Live",
+  "ir_w": 320,
+  "ir_h": 240,
+  "ir_min": 0,
+  "ir_max": 255,
+  "ir_scale": "Native 8-bit infrared (mono8), 320 \u00d7 240. Display stretched from raw 9 (black) to 245 (white); the camera's values are not changed.",
+  "cloud_cal": "Calibration not validated: No camera calibration file yet. Factory calibration reads as NaN; a guided checkerboard calibration and physical distance checks are needed.",
+  "cloud_chip": "Blocked",
+  "show_cloud_disabled": true,
+  "hscroll": false,
+  "hit": "irCanvas",
+  "probe_right_top": "Raw infrared intensity 252 (of 255) at pixel 316, 23",
+  "probe_left_top": "Raw infrared intensity 0 (of 255) at pixel 1, 23",
+  "freeze_disabled_without_session": false,
+  "live_frames_change": true,
+  "frozen_frame_kept": true,
+  "freeze_label": "Resume preview",
+  "run_text_frozen": "Streaming \u00b7 infrared only \u00b7 preview paused",
+  "resumed_changes": true
+ },
+ "mobile": {
+  "modes": {
+   "depth": {
+    "disabled": false,
+    "note": "Tested"
+   },
+   "concurrent": {
+    "disabled": false,
+    "note": "Not yet tested"
+   },
+   "ir": {
+    "disabled": false,
+    "note": "Not yet tested"
+   },
+   "ir_depth": {
+    "disabled": false,
+    "note": "Not yet tested"
+   },
+   "rgb_ir": {
+    "disabled": false,
+    "note": "Not yet tested"
+   },
+   "depth_cloud": {
+    "disabled": true,
+    "note": "Needs calibration"
+   }
+  },
+  "ir_state": "Live",
+  "ir_w": 320,
+  "ir_h": 240,
+  "ir_min": 0,
+  "ir_max": 255,
+  "ir_scale": "Native 8-bit infrared (mono8), 320 \u00d7 240. Display stretched from raw 9 (black) to 245 (white); the camera's values are not changed.",
+  "cloud_cal": "Calibration not validated: No camera calibration file yet. Factory calibration reads as NaN; a guided checkerboard calibration and physical distance checks are needed.",
+  "cloud_chip": "Blocked",
+  "show_cloud_disabled": true,
+  "hscroll": false,
+  "hit": "irCanvas",
+  "probe_right_top": "Raw infrared intensity 252 (of 255) at pixel 316, 23",
+  "probe_left_top": "Raw infrared intensity 0 (of 255) at pixel 1, 23",
+  "freeze_disabled_without_session": false,
+  "live_frames_change": true,
+  "frozen_frame_kept": true,
+  "freeze_label": "Resume preview",
+  "run_text_frozen": "Streaming \u00b7 infrared only \u00b7 preview paused",
+  "resumed_changes": true
+ },
+ "ir_display_cost_ms_this_pc": 3.38,
+ "page_errors": []
+}
+{
+ "depth_cloud disabled": true,
+ "ir selectable (untested)": true,
+ "ir drawn native size": true,
+ "stretch spans 0..255": true,
+ "probe raw 252 at u=316": true,
+ "probe raw 0 left": true,
+ "cloud gated": true,
+ "pause preview holds frame": true,
+ "no page errors": true,
+ "mobile no h-scroll": true
+}

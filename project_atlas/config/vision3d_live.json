@@ -1,5 +1,5 @@
 {
-  "identity": "Astra Pro 2bc5:0403 depth + 2bc5:0501 RGB; isolated Stage29 runtime",
+  "identity": "Astra Pro 2bc5:0403 depth/IR + 2bc5:0501 RGB; isolated Stage29 runtime",
   "usb_verified": true,
   "deployment_verified": false,
   "viewer_runtime": true,
@@ -7,12 +7,42 @@
     "depth": "/astra/depth/image_raw",
     "rgb": "/astra/color/image_raw",
     "depth_info": "/astra/depth/camera_info",
-    "rgb_info": "/astra/color/camera_info"
+    "rgb_info": "/astra/color/camera_info",
+    "ir": "/astra/ir/image_raw",
+    "ir_info": "/astra/ir/camera_info",
+    "cloud": "/astra/points"
   },
   "modes": [
     "Depth 160x120 16UC1; uncalibrated axial Z only",
     "Optional concurrent RGB 320x240 rgb8; resource-gated",
-    "CameraInfo fallback is NOT calibrated. XYZ / PointCloud2 / registration DISABLED.",
+    "Infrared requested at 320x240 30 fps as native 8-bit intensity (driver mono8); actual mode decided by the camera and logged",
+    "CameraInfo fallback is NOT calibrated. XYZ PointCloud2 (/astra/points) only with a VALIDATED calibration file; RGB registration DISABLED.",
     "Explicit Start required; max60s, viewer lease4s; CPU75 / RAM80 / temperature70C"
-  ]
+  ],
+  "mode_support": {
+    "depth": {
+      "state": "verified",
+      "note": "60-second Dashboard session verified on 21 Oct 2026 (607 frames)."
+    },
+    "concurrent": {
+      "state": "untested",
+      "note": "Worked in the isolated Stage 29 test; not yet run through the Dashboard."
+    },
+    "ir": {
+      "state": "untested",
+      "note": "Not yet tested on this camera. The camera decides whether its infrared mode is available."
+    },
+    "ir_depth": {
+      "state": "untested",
+      "note": "Infrared and depth use the same sensor; many Astra models cannot stream both. Test only after infrared alone works."
+    },
+    "rgb_ir": {
+      "state": "untested",
+      "note": "Colour and infrared together; not yet tested on this camera."
+    },
+    "depth_cloud": {
+      "state": "needs_calibration",
+      "note": "3D point cloud stays off until the camera calibration is validated (factory calibration reads as NaN)."
+    }
+  }
 }

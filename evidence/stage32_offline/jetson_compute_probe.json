@@ -1,0 +1,8 @@
+{"note": "Jetson Orin Nano, camera OFF, E-STOP latched, nice 19, pure-Python synthetic fixtures, ROS not involved. 2026-10-21 ~15:45 IST. Two runs each.",
+ "before_ray_table": [{"backproject_no_distortion": {"cpu_ms": 10.61, "wall_ms": 14.7}, "backproject_plumb_bob": {"cpu_ms": 52.09, "wall_ms": 69.69}, "pc2_pack_6000": {"cpu_ms": 2.28}, "ir_ingest_plus_raw": {"cpu_ms": 0.02}},
+                      {"backproject_no_distortion": {"cpu_ms": 10.58}, "backproject_plumb_bob": {"cpu_ms": 51.66}, "pc2_pack_6000": {"cpu_ms": 2.3}}],
+ "after_ray_table": [{"backproject_no_distortion": {"cpu_ms": 7.38, "wall_ms": 10.95}, "backproject_plumb_bob_first_frame": {"cpu_ms": 62.07, "wall_ms": 89.1}, "backproject_plumb_bob_steady": {"cpu_ms": 6.95, "wall_ms": 9.13}, "pc2_pack_6000": {"cpu_ms": 2.25, "wall_ms": 3.81}, "ir_ingest_plus_raw": {"cpu_ms": 0.02}, "max_rss_mb": 14.9},
+                     {"backproject_no_distortion": {"cpu_ms": 7.4}, "backproject_plumb_bob_first_frame": {"cpu_ms": 60.49}, "backproject_plumb_bob_steady": {"cpu_ms": 7.07, "wall_ms": 9.19}, "pc2_pack_6000": {"cpu_ms": 2.3}, "max_rss_mb": 13.8}],
+ "points_per_cloud": {"stride": 2, "invalid_samples": 600, "points": 4200, "source_pixels": 19200},
+ "pc_only": {"status_web_cloud_points_parse_6000_ms": 7.43, "browser_ir_stretch_320x240_ms": 2.68},
+ "jetson_python_3_10_check": "py_compile ok; imports ok; calibration_state NOT VALIDATED; cloud node admission CALIBRATION BLOCKED; tests/test_vision3d_stage32_geometry.py 15 passed (OpenCV 4.5.4, NumPy 1.21.5)"}

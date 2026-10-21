@@ -1,5 +1,6 @@
-/* ATLAS 3D Vision Lab (Stage 31 UI). Same-origin requests only: GET /api/vision3d/{status,frame,pixel,cloud}
- * and POST /api/vision3d/viewer {start|stop}. No ROS control, driver parameter change or recording.
+/* ATLAS 3D Vision Lab (Stage 31/32 UI). Same-origin requests only: GET /api/vision3d/{status,frame,pixel,cloud,raw}
+ * and POST /api/vision3d/viewer {start|stop}. Stage 32: infrared is fetched as the camera's native bytes and only
+ * contrast-stretched in this browser for display; raw values are shown on click. No ROS control, driver parameter change or recording.
  * The status poll keeps the existing 4-second viewer lease alive only while this page is visible. */
 (() => {
   'use strict';
@@ -20,8 +21,48 @@
   const isNum = v => typeof v === 'number' && Number.isFinite(v);
   const fmt = (n, d = 3) => isNum(n) ? n.toFixed(d) : 'unknown';
   const mode = () => (document.querySelector('input[name="vlMode"]:checked') || {}).value || 'depth';
+  const MODE_NAMES = { depth: 'depth only', concurrent: 'depth + RGB', ir: 'infrared only', ir_depth: 'infrared + depth', rgb_ir: 'infrared + RGB', depth_cloud: 'depth + 3D cloud' };
+  let frozen = false, ir = null;   // ir: last native IR frame {w,h,bits,values}
 
-  function clearImage(k) { $(k + 'Image').removeAttribute('src'); if (urls[k]) URL.revokeObjectURL(urls[k]); delete urls[k]; const e = $(k + 'Empty'); if (e) e.hidden = false; }
+  // ---------- supported-mode selection ----------
+  function applyModes(support) {
+    for (const label of document.querySelectorAll('#vlModes label[data-mode]')) {
+      const m = label.dataset.mode, info = (support || {})[m], input = label.querySelector('input'), note = label.querySelector('[data-note]');
+      const st = info ? info.state : (m === 'depth' ? 'verified' : 'untested');
+      label.className = st; label.title = info ? info.note : '';
+      note.textContent = st === 'verified' ? 'Tested' : st === 'unsupported' ? (m === 'depth_cloud' ? 'Needs calibration' : 'Not supported') : 'Not yet tested';
+      input.disabled = st === 'unsupported';
+      if (input.disabled && input.checked) document.querySelector('input[name="vlMode"][value="depth"]').checked = true;
+    }
+    const info = (support || {})[mode()];
+    $('vlModeNote').textContent = info ? info.note : '';
+  }
+  document.querySelectorAll('input[name="vlMode"]').forEach(i => i.addEventListener('change', () => applyModes(status && status.mode_support)));
+
+  // ---------- native infrared display ----------
+  function clearIr() { const c = $('irCanvas'); c.classList.add('off'); ir = null; $('irEmpty').hidden = false; $('irProbe').textContent = ''; }
+  function drawIr(buf, h) {
+    const w = +h.get('X-Width'), ht = +h.get('X-Height'), enc = h.get('X-Encoding'), step = +h.get('X-Step'), be = h.get('X-Bigendian') === '1';
+    const bits = enc === 'mono8' ? 8 : 16, dv = new DataView(buf), n = w * ht;
+    if (!(w > 0 && ht > 0) || buf.byteLength < step * ht) throw Error('IR frame size mismatch');
+    const values = bits === 8 ? new Uint8Array(n) : new Uint16Array(n);
+    for (let y = 0; y < ht; y++) for (let x = 0; x < w; x++) values[y * w + x] = bits === 8 ? dv.getUint8(y * step + x) : dv.getUint16(y * step + x * 2, !be);
+    // Display-only contrast stretch between the 2nd and 98th percentiles of THIS frame; raw values are untouched.
+    const sorted = values.slice().sort(), lo = sorted[Math.floor(n * 0.02)], hi = Math.max(lo + 1, sorted[Math.floor(n * 0.98)]);
+    const c = $('irCanvas'), g = c.getContext('2d'); c.width = w; c.height = ht;
+    const img = g.createImageData(w, ht);
+    for (let i = 0; i < n; i++) { const v = Math.max(0, Math.min(255, Math.round((values[i] - lo) * 255 / (hi - lo)))); img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255; }
+    g.putImageData(img, 0, 0); c.classList.remove('off'); $('irEmpty').hidden = true;
+    ir = { w, h: ht, bits, values, stamp: h.get('X-Source-Stamp') };
+    $('irScale').textContent = `Native ${bits}-bit infrared (${enc}), ${w} × ${ht}. Display stretched from raw ${lo} (black) to ${hi} (white); the camera's values are not changed.`;
+  }
+  $('irCanvas').onclick = e => {
+    if (!ir) return;
+    const r = e.target.getBoundingClientRect(), u = Math.min(ir.w - 1, Math.floor((e.clientX - r.left) / r.width * ir.w)), v = Math.min(ir.h - 1, Math.floor((e.clientY - r.top) / r.height * ir.h));
+    $('irProbe').textContent = `Raw infrared intensity ${ir.values[v * ir.w + u]} (of ${ir.bits === 8 ? 255 : 65535}) at pixel ${u}, ${v}`;
+  };
+
+  function clearImage(k) { if (k === 'ir') return clearIr(); $(k + 'Image').removeAttribute('src'); if (urls[k]) URL.revokeObjectURL(urls[k]); delete urls[k]; const e = $(k + 'Empty'); if (e) e.hidden = false; }
   async function get(route) { const r = await fetch(api + route, { cache: 'no-store', signal: controller.signal }); if (!r.ok) { let e = {}; try { e = await r.json(); } catch (x) { /* empty */ } throw Error(e.error || r.status); } return r; }
   async function viewer(payload) {
     const r = await fetch(api + 'viewer', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Atlas-Vision3D': '1' }, body: JSON.stringify(payload), keepalive: true });
@@ -67,15 +108,17 @@
     $('vlRes').title = isNum(failed.cpu) ? 'CPU value is the sample that stopped the camera; RAM and temperature are from the last passing check.' : 'Last safety check sample';
     $('vlDriver').textContent = !rt ? '—' : st === 'ACTIVE' ? 'Running' : rt.driver_pid ? (rt.driver_stopped ? 'Stopped safely' : 'Stopping…') : st === 'CHECKING' ? 'Not started yet' : 'Off';
     const running = st === 'ACTIVE' || st === 'CHECKING';
-    $('runtimeState').textContent = running ? (st === 'ACTIVE' ? `Streaming · ${String(rt.mode || mode()) === 'concurrent' ? 'depth + RGB' : 'depth only'}` : 'Starting…') : 'Camera off · press Start';
+    $('runtimeState').textContent = running ? (st === 'ACTIVE' ? `Streaming · ${MODE_NAMES[String(rt.mode || mode())] || 'depth only'}${frozen ? ' · preview paused' : ''}` : 'Starting…') : 'Camera off · press Start';
     $('startViewer').disabled = running;
+    $('freeze').disabled = st !== 'ACTIVE';
+    if (st !== 'ACTIVE' && frozen) { frozen = false; $('freeze').textContent = 'Pause preview'; $('freeze').setAttribute('aria-pressed', 'false'); }
   }
   function streamView(k, s) {
     const chip = $(k + 'State'), active = s.state === 'ACTIVE';
-    chip.textContent = active ? 'Live' : s.state === 'STALE' ? 'Stale' : s.state === 'SENSOR ERROR' ? 'Sensor error' : k === 'cloud' ? 'Disabled' : 'Off';
+    chip.textContent = active ? 'Live' : s.state === 'STALE' ? 'Stale' : s.state === 'SENSOR ERROR' ? 'Sensor error' : 'Off';
     chip.className = 'vl-chip ' + (active ? 'ok' : s.state === 'STALE' || s.state === 'SENSOR ERROR' ? 'warn' : '');
     const fps = $(k + 'Fps'); if (fps) fps.textContent = active && isNum(s.fps_observed) ? `${s.fps_observed.toFixed(1)} fps · ${isNum(s.source_age_s) ? s.source_age_s.toFixed(2) + ' s old' : ''}` : '';
-    $(k + 'Meta').textContent = s.width ? `${s.width} × ${s.height} ${s.encoding || ''} · ${s.received || 0} frames received · largest gap ${fmt(s.max_gap_s, 2)} s` : (s.state === 'ACTIVE' ? '' : '');
+    if (k !== 'cloud') $(k + 'Meta').textContent = s.width ? `${s.width} × ${s.height} ${s.encoding || ''} · ${s.received || 0} frames received · largest gap ${fmt(s.max_gap_s, 2)} s` : (s.state === 'ACTIVE' ? '' : '');
   }
 
   // ---------- 3D (stays disabled until calibration) ----------
@@ -97,10 +140,23 @@
       explain(status.runtime);
       $('sourceNotice').textContent = (status.simulated ? 'SIMULATED UI TEST — NOT JETSON DATA · ' : '') + status.configuration + (status.error ? ' · ' + status.error : '');
       $('mode').replaceChildren(...(status.modes.length ? status.modes : ['Not yet verified']).map(m => { const o = document.createElement('option'); o.textContent = typeof m === 'string' ? m : JSON.stringify(m); return o; }));
+      applyModes(status.mode_support);
+      const cal = status.calibration_state || { state: 'NOT VALIDATED', reason: 'Calibration status unavailable.' };
+      $('cloudCal').textContent = cal.state === 'VALIDATED' ? 'Calibration validated. Points are metric (X right, Y down, Z forward).' : 'Calibration not validated: ' + cal.reason;
+      $('cloudCal').className = 'vl-cal ' + (cal.state === 'VALIDATED' ? 'ok' : 'blocked');
+      const cs = status.streams.cloud;
+      $('showCloud').disabled = !(cal.state === 'VALIDATED' && cs && cs.state === 'ACTIVE');
+      if ($('showCloud').disabled) $('showCloud').checked = false;
       for (const k of ['rgb', 'depth', 'ir', 'cloud']) {
         const s = status.streams[k]; streamView(k, s);
-        if (k === 'cloud') continue;
+        if (k === 'cloud') { if (cal.state !== 'VALIDATED') { $('cloudState').textContent = 'Blocked'; $('cloudState').className = 'vl-chip warn'; $('cloudFps').textContent = ''; } continue; }
         if (s.state !== 'ACTIVE') { clearImage(k); continue; }
+        if (frozen) continue;                         // Pause preview: keep the last picture, camera keeps running
+        if (k === 'ir') {
+          try { const response = await get('raw?kind=ir'); drawIr(await response.arrayBuffer(), response.headers); }
+          catch (e) { clearIr(); $('irState').textContent = e.message; }
+          continue;
+        }
         try {
           const response = await get('frame?kind=' + k), blob = await response.blob(); clearImage(k);
           imageStamps[k] = response.headers.get('X-Source-Stamp'); urls[k] = URL.createObjectURL(blob); $(k + 'Image').src = urls[k];
@@ -108,7 +164,11 @@
         } catch (e) { clearImage(k); $(k + 'State').textContent = e.message; }
       }
       if ($('showCloud').checked && status.streams.cloud.state === 'ACTIVE') {
-        try { cloud = await (await get('cloud')).json(); $('obstacles').textContent = JSON.stringify(cloud.shadow_obstacles, null, 2); } catch (e) { cloud = null; $('cloudMeta').textContent = e.message; }
+        if (!frozen) {
+          try { cloud = await (await get('cloud')).json(); $('obstacles').textContent = JSON.stringify(cloud.shadow_obstacles, null, 2);
+            $('cloudMeta').textContent = `${cloud.points.length} points drawn of ${cloud.source_points} in the cloud · every ${cloud.sample_stride} point · frame ${cloud.frame}`; }
+          catch (e) { cloud = null; $('cloudMeta').textContent = e.message; }
+        }
       } else cloud = null;
       draw();
       $('diagnostics').textContent = JSON.stringify({ runtime: status.runtime, calibration: status.calibration, camera_info: status.camera_info, usb_inventory: status.usb_verified, usb_note: status.usb_note, depth_validity_sample: status.depth_stats, streams: status.streams, drops: status.dropped_messages, tf: status.tf, detections: status.detections }, null, 2);
@@ -118,7 +178,11 @@
     } finally { busy = false; if (!paused && !document.hidden) timer = setTimeout(refresh, 500); }
   }
   function suspend() { clearTimeout(timer); if (controller) controller.abort(); cloud = null; for (const k of ['rgb', 'depth', 'ir']) clearImage(k); draw(); }
+  $('freeze').onclick = () => {
+    frozen = !frozen; $('freeze').textContent = frozen ? 'Resume preview' : 'Pause preview'; $('freeze').setAttribute('aria-pressed', String(frozen));
+  };
   $('startViewer').onclick = async () => {
+    frozen = false; $('freeze').textContent = 'Pause preview';
     starting = { fromPid: (status && status.runtime && status.runtime.worker_pid) || null, at: Date.now() };
     explain({ state: 'CHECKING', limits: status && status.runtime && status.runtime.limits });
     try { $('startViewer').disabled = true; await viewer({ action: 'start', mode: mode() }); paused = false; clearTimeout(timer); refresh(); }

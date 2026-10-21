@@ -90,13 +90,13 @@ class HomePreservesEverything(unittest.TestCase):
 
 class VisionLabUi(unittest.TestCase):
     def test_every_element_the_script_uses_exists(self):
-        used = set(re.findall(r"\$\('([A-Za-z0-9_]+)'\)", VJS)) | {k + s for k in ('rgb', 'depth', 'ir') for s in ('Image', 'State', 'Meta')}
+        used = set(re.findall(r"\$\('([A-Za-z0-9_]+)'\)", VJS)) | {k + s for k in ('rgb', 'depth') for s in ('Image', 'State', 'Meta')} | {'irCanvas', 'irState', 'irMeta'}
         present = set(ids(VHTML))
         self.assertEqual(sorted(used - present), [])
 
     def test_only_existing_vision_routes(self):
         routes = set(re.findall(r"get\('([a-z]+)", VJS)) | set(re.findall(r"get\(`([a-z]+)", VJS))
-        self.assertTrue(routes <= {'status', 'frame', 'pixel', 'cloud'}, routes)
+        self.assertTrue(routes <= {'status', 'frame', 'pixel', 'cloud', 'raw'}, routes)   # Stage32: raw = native IR bytes
         self.assertEqual(re.findall(r"viewer\(\{\s*action:\s*'([a-z]+)'", VJS), ['start', 'stop', 'stop', 'stop'])
         self.assertNotIn('innerHTML', VJS)
 
@@ -106,7 +106,9 @@ class VisionLabUi(unittest.TestCase):
 
     def test_cloud_and_calibration_stay_disabled(self):
         self.assertIn('id="showCloud" disabled', VHTML)
-        self.assertIn('Disabled until calibration', VHTML)
+        # Stage32: the cloud panel is visible but stays off until a VALIDATED calibration exists
+        self.assertIn('id="cloudCal"', VHTML); self.assertIn('value="depth_cloud" disabled', VHTML)
+        self.assertIn("cal.state === 'VALIDATED' && cs && cs.state === 'ACTIVE'", VJS)
 
     def test_page_has_the_standard_estop_dock(self):
         self.assertIn('id="v2Estop"', VHTML); self.assertIn('/v2/estop.js', VHTML)

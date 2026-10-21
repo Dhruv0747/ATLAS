@@ -11,11 +11,16 @@ from collections import deque
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 import atlas_vision3d_core as core
+import atlas_vision3d_geometry as geometry
 
 API='/api/vision3d/'
-KINDS=('rgb','depth','ir','cloud','depth_info','rgb_info')
+KINDS=('rgb','depth','ir','cloud','depth_info','rgb_info','ir_info')
 TYPES={'rgb':'sensor_msgs/msg/Image','depth':'sensor_msgs/msg/Image','ir':'sensor_msgs/msg/Image',
-       'cloud':'sensor_msgs/msg/PointCloud2','depth_info':'sensor_msgs/msg/CameraInfo','rgb_info':'sensor_msgs/msg/CameraInfo'}
+       'cloud':'sensor_msgs/msg/PointCloud2','depth_info':'sensor_msgs/msg/CameraInfo','rgb_info':'sensor_msgs/msg/CameraInfo',
+       'ir_info':'sensor_msgs/msg/CameraInfo'}
+IR_ENCODINGS=('mono8','mono16','16UC1')   # native IR intensity only; anything else is rejected, never converted
+MODE_IDS=('depth','concurrent','ir','ir_depth','rgb_ir','depth_cloud')
+MODE_STATES=('verified','untested','unsupported','needs_calibration')
 
 
 def read_manifest():
@@ -27,7 +32,12 @@ def read_manifest():
     raw=Path(path).read_bytes()
     if len(raw)>8192: raise ValueError('manifest too large')
     m=json.loads(raw)
-    if set(m)-{'topics','modes','usb_verified','identity','deployment_verified','viewer_runtime'}: raise ValueError('unknown manifest field')
+    if set(m)-{'topics','modes','usb_verified','identity','deployment_verified','viewer_runtime','mode_support'}: raise ValueError('unknown manifest field')
+    support=m.get('mode_support',{})
+    if not isinstance(support,dict) or set(support)-set(MODE_IDS): raise ValueError('unknown viewer mode in mode_support')
+    for k,v in support.items():
+        if not isinstance(v,dict) or v.get('state') not in MODE_STATES or not isinstance(v.get('note',''),str) or len(v.get('note',''))>300:
+            raise ValueError('invalid mode_support entry: '+k)
     topics=m.get('topics',{})
     if set(topics)-set(KINDS): raise ValueError('unknown stream')
     for kind, topic in topics.items():
@@ -118,7 +128,7 @@ class RosTransport:
             graph=dict(self.node.get_topic_names_and_types())
             for kind,topic in topics.items():
                 if kind in subscribed or TYPES[kind] not in graph.get(topic,[]):continue
-                typ=CameraInfo if kind in ('depth_info','rgb_info') else PointCloud2 if kind=='cloud' else Image
+                typ=CameraInfo if kind.endswith('_info') else PointCloud2 if kind=='cloud' else Image
                 self.node.create_subscription(typ,topic,lambda msg,k=kind:callback(k,msg),qos)
                 subscribed.add(kind)
         discover()
@@ -189,6 +199,8 @@ class VisionService:
             s['received']+=1
             if hasattr(msg,'data') and len(msg.data)>core.MAX_BYTES:
                 s['rejected']+=1;self.messages.pop(kind,None);return
+            if kind=='ir' and getattr(msg,'encoding','') not in IR_ENCODINGS:
+                s['rejected']+=1;s['error']='IR encoding %s is not native intensity'%getattr(msg,'encoding','?');self.messages.pop(kind,None);return
             if kind in ('rgb','depth','ir'):
                 try:core.image_layout(msg)
                 except ValueError as e:
@@ -213,7 +225,19 @@ class VisionService:
         if age<-.25 or age>2:raise ValueError('source timestamp stale or clock mismatch')
         return m
 
+    def _calibration(self):
+        return geometry.calibration_state(self.manifest or {})
+
+    def _mode_support(self,cal):
+        out={}
+        for k,v in (self.manifest or {}).get('mode_support',{}).items():
+            v=dict(v)
+            if v.get('state')=='needs_calibration':v['state']='untested' if cal['state']=='VALIDATED' else 'unsupported'
+            out[k]=v
+        return out
+
     def status(self):
+        cal=self._calibration()
         with self.lock:
             streams={}
             for k in ('rgb','depth','ir','cloud'):
@@ -237,7 +261,9 @@ class VisionService:
             return {'read_only':True,'recording':False,'driver_control':bool(runtime),'error':self.error or getattr(self.transport,'error',''),
                     'runtime':runtime,'calibration':'UNVALIDATED — axial Z reading, not verified accuracy; XYZ/cloud/registration DISABLED',
                     'camera_info':{k:{'frame':m.header.frame_id,'width':m.width,'height':m.height,'source_stamp':core.stamp(m),
-                        'note':'Fallback metadata only; NOT admitted to metric geometry'} for k,m in self.messages.items() if k in ('depth_info','rgb_info')},
+                        'note':'Fallback metadata only; NOT admitted to metric geometry'} for k,m in self.messages.items() if k.endswith('_info')},
+                    'mode_support':self._mode_support(cal),
+                    'calibration_state':{'state':cal['state'],'reason':cal['reason']},
                     'configuration':'configured' if (self.manifest or {}).get('topics') else 'NOT CONFIGURED — live topic approval required',
                     'usb_verified':(self.manifest or {}).get('usb_verified',False),
                     'usb_note':'Inventory only; not a live USB/power monitor',
@@ -268,7 +294,7 @@ class VisionService:
                 'blocked_cpu_percent':cpu if isinstance(cpu,(int,float)) and cpu==cpu else None,
                 'cpu_limit_percent':lim.get('cpu_percent'),'ram_limit_percent':lim.get('ram_percent'),
                 'temperature_limit_c':lim.get('temperature_c'),'driver_stopped':bool(runtime.get('driver_stopped')),
-                'mode':runtime.get('mode'),'depth_fps':fps('depth'),'rgb_fps':fps('rgb'),
+                'mode':runtime.get('mode'),'depth_fps':fps('depth'),'rgb_fps':fps('rgb'),'ir_fps':fps('ir'),'cloud_fps':fps('cloud'),
                 'calibration':'UNVALIDATED','read_only':True}
 
     def frame(self,kind):
@@ -281,6 +307,16 @@ class VisionService:
                 self.cache[kind+'_stats']=stats;self.cache_at[kind]=self.clock()
             return self.cache[kind]
 
+    def raw(self,kind):
+        """Stage32: native IR bytes for browser-side display scaling (no server conversion). IR only."""
+        if kind!='ir':raise ValueError('raw transfer is only offered for IR')
+        with self.lock:
+            m=self._fresh('ir')
+            if m.encoding not in IR_ENCODINGS:raise ValueError('IR encoding not native intensity')
+            return bytes(m.data),{'X-Width':str(m.width),'X-Height':str(m.height),'X-Encoding':m.encoding,
+                                  'X-Step':str(m.step),'X-Bigendian':str(int(bool(m.is_bigendian))),
+                                  'X-Source-Stamp':str(core.stamp(m)),'X-Frame':m.header.frame_id}
+
     def pixel(self,u,v,displayed_stamp=None):
         with self.lock:
             m=self._fresh('depth');info=self.messages.get('depth_info')
@@ -292,13 +328,21 @@ class VisionService:
                 age=self.wall()-core.stamp(m)
                 if age<-.25 or age>2:raise ValueError('Displayed depth frame stale')
             result=core.measure(m,info,u,v)
-            result['accuracy']='UNVALIDATED — sensor axial Z, not calibrated physical accuracy'
+            cal=self._calibration()
+            if cal['state']=='VALIDATED' and result['valid'] and (m.width,m.height,m.header.frame_id)==(cal['calibration']['width'],cal['calibration']['height'],cal['calibration']['frame_id']):
+                c=cal['calibration'];x,y=geometry.undistort(u,v,c['k'],c['d']);z=result['depth_z_m']
+                result.update(xyz_m=[x*z,y*z,z],range_m=(x*x*z*z+y*y*z*z+z*z)**.5,accuracy='Calibrated (validated file); see calibration report for measured error')
+            else:
+                result['accuracy']='UNVALIDATED — sensor axial Z, not calibrated physical accuracy'
+                if result['valid']:result['xyz_unavailable_reason']='CALIBRATION BLOCKED: '+cal['reason']
             return result
 
     def cloud(self):
         with self.lock:
-            if (self.manifest or {}).get('viewer_runtime'):raise ValueError('CALIBRATION BLOCKED: metric cloud disabled')
+            cal=self._calibration()
+            if cal['state']!='VALIDATED':raise ValueError('CALIBRATION BLOCKED: '+cal['reason'])
             m=self._fresh('cloud')
+            if m.header.frame_id!=cal['calibration']['frame_id']:raise ValueError('cloud frame does not match the validated calibration')
             if self.cache.get('cloud_key')!=core.stamp(m) and self.clock()-self.cache_at.get('cloud',-1e9)>=.5:
                 c=core.cloud_points(m);c['shadow_obstacles']=core.obstacle_prototype(c['points'])
                 self.cache['cloud']=c;self.cache['cloud_key']=core.stamp(m);self.cache_at['cloud']=self.clock()
@@ -342,7 +386,7 @@ def serve(handler,service=None,post=False):
         try:send(200,svc.summary())
         except Exception as e:send(503,{'error':'SENSOR ERROR: '+str(e)})
         return True
-    if route not in ('status','frame','pixel','cloud'):send(404,{'error':'unknown read-only route'});return True
+    if route not in ('status','frame','pixel','cloud','raw'):send(404,{'error':'unknown read-only route'});return True
     try:
         svc.touch()
         if route=='status':send(200,svc.status())
@@ -351,6 +395,9 @@ def serve(handler,service=None,post=False):
             with svc.lock:
                 body=svc.frame(kind)
                 send(200,body,'image/png',{'X-Source-Stamp':str(svc.cache[kind+'_key'][1])})
+        elif route=='raw':
+            body,headers=svc.raw(q.get('kind',['ir'])[0])
+            send(200,body,'application/octet-stream',headers)
         elif route=='pixel':send(200,svc.pixel(int(q['u'][0]),int(q['v'][0]),float(q['stamp'][0])))
         else:send(200,svc.cloud())
     except (ValueError,KeyError,IndexError) as e:send(409,{'error':str(e)})
