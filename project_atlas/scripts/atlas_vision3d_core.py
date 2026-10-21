@@ -82,6 +82,14 @@ def _png(w, h, rows):
 def preview(m, kind, max_width=240):
     """Convert only on demand, <=43,200 displayed pixels, never interpolate ranges."""
     bpp = image_layout(m)
+    # The immutable frame layout is validated once above, not once per displayed
+    # pixel. Keep depth_at's standalone validation for measurement callers.
+    if kind == 'depth':
+        if m.encoding not in ('16UC1', '32FC1'):
+            raise ValueError('depth requires 16UC1 millimetres or 32FC1 metres')
+        integer_depth = m.encoding == '16UC1'
+        unpack_depth = struct.Struct(('>' if m.is_bigendian else '<') +
+                                     ('H' if integer_depth else 'f')).unpack_from
     step = max(1, math.ceil(m.width/max_width), math.ceil(m.height/180))
     xs, ys = range(0,m.width,step), range(0,m.height,step)
     rows, valid, invalid = [], 0, 0
@@ -89,7 +97,9 @@ def preview(m, kind, max_width=240):
         row = bytearray()
         for x in xs:
             if kind == 'depth':
-                z = depth_at(m,x,y)
+                raw = unpack_depth(m.data, y*m.step+x*bpp)[0]
+                z = (raw/1000.0 if raw not in (0,65535) else None) if integer_depth else raw
+                if z is not None and (not math.isfinite(z) or z <= 0):z = None
                 if z is None:
                     rgb = (0,0,0); invalid += 1
                 else:

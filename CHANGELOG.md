@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 OFFLINE depth-preview candidate: validate frame layout once rather
+than19,201 times; WSL conversion21.25->9.60ms, identical output,94 tests pass.
+No live changes; remaining aggregate contention unresolved. Package/rollback:
+ATLAS_STAGE32_PREVIEW_CPU_OPTIMIZATION.md.
+
 2026-10-21 one approved Depth-only test after08ad26f: driver launched,17 depth
 frames received; CPU76.0757% guard stopped it safely. No retry or production
 changes;3D Preview not verified. See ATLAS_STAGE32_DIRECT_DEPTH_VERIFICATION.md.

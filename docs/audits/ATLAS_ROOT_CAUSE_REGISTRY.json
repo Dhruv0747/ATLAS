@@ -14,6 +14,15 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-DEPTH-PREVIEW-REPEATED-LAYOUT-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Synthetic160x120 cProfile confirms19201 layout validations per conversion. WSL21.2535->9.6043ms (54.81% less); identical PNG output.94 tests pass.",
+      "candidate": "Single core file validates immutable layout once; standalone measurement validation remains. OFFLINE ONLY, not deployed.",
+      "remaining_gap": "Live aggregate CPU spike attribution unavailable; no Jetson savings or3D Preview success proven. Previous direct launch was deployed08ad26f; test06ed75f reached17frames then stopped76.0757%.",
+      "report": "ATLAS_STAGE32_PREVIEW_CPU_OPTIMIZATION.md"
+    },
+    {
       "id": "ATLAS-ASTRA-REDUNDANT-WORKER-ROS-SETUP-20261021",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Offline depth conversion optimization](ATLAS_STAGE32_PREVIEW_CPU_OPTIMIZATION.md):
+54.8% less PC conversion CPU, identical PNG output,94 tests pass. Not deployed;
+this is not a whole-Jetson CPU or live3D Preview success claim.
+
 Latest [single Depth verification](ATLAS_STAGE32_DIRECT_DEPTH_VERIFICATION.md):
 17 real depth frames received, then CPU76.0757% stopped the session. No retry;
 3D preview/interaction NOT verified. Protected services unchanged.

@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+Superseding21 October status: direct launch deployed08ad26f; approved test06ed75f
+received17depth frames then CPU76.0757% stopped it. Preview not verified.
+New OFFLINE core-preview candidate removes19,200 redundant per-pixel validations:
+WSL54.8% conversion CPU reduction,94 tests pass. Whole-Jetson contention remains
+unresolved; no deployment/Start authorized. ATLAS_STAGE32_PREVIEW_CPU_OPTIMIZATION.md.
+Older entries below retained as historical evidence, not current deployment state.
+
 Latest Depth-only attempt072a22c rejected76.0726% before hashing/snapshot/driver.
 Offline direct-Python launch candidate removes redundant shell/ROS setup: PC CPU
 0.162734->0.055208s,79 tests pass. No deployment. Jetson aggregate contention and
