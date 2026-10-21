@@ -25,7 +25,7 @@
   },
   "last_verified_state": "E-STOP latched; manual-only; zero commands; recorder and Astra OFF; Pi Camera healthy; protected identities unchanged except approved web restarts",
   "state_freshness": "Historical postrollback evidence, not a new live admission",
-  "next_action": "Owner approvals: U1 (static), U2 (restart), one IR+Depth session, then RGB+IR and Depth+RGB regression, then A5/A6",
+  "next_action": "Owner: confirm U2 (monitored web restart); approve one IR+Depth session; supply printed-target measurements and target distances for A5",
   "handover": "ATLAS_STAGE32_DEVELOPER_HANDOVER.md",
   "takeover_20261021": {
     "from_commit": "c68ba4891645d9985f3da882a13bce8d3b2e965d",
@@ -127,8 +127,24 @@
       },
       "jetson_location": "~/project-atlas-migration/stage32-ui-continuation/pkg",
       "rehearsal": "Jetson byte copy and local tree: byte-identical rollback",
-      "status": "READY; NOT DEPLOYED"
+      "status": "U1 DEPLOYED 2026-10-21 18:38:16 (no restart; backup ~/project_atlas/.pre_stage32_ui_20261021_183816); U2 READY, awaiting owner confirmation"
     },
-    "repo_vs_production_note": "repository scripts/atlas_vision3d_web.py is the undeployed candidate a7b9f1f9; production runs 889881c0"
+    "repo_vs_production_note": "repository scripts/atlas_vision3d_web.py is the undeployed candidate a7b9f1f9; production runs 889881c0",
+    "u2_restart_monitored": {
+      "archive": "s32_ui_pkg_v3.tgz",
+      "sha256": "8988b26cffbbfaf54050a97abc27e81d75f8d89923616a34c0030abc90af5748",
+      "jetson": "~/project-atlas-migration/stage32-ui-continuation/pkg_v3",
+      "script": "tools/deploy/stage32_ui/u2_restart_monitored.sh",
+      "status": "STAGED; NOT RUN"
+    }
+  },
+  "production_hashes_after_u1": {
+    "web/v2/vision3d.js": "2c06d110c85671ce4fb02b355e7d3d275e8d0fc59aac30134fe0954a6379f435",
+    "web/v2/vision3d_state.js": "641ca00bc4536783e4593d31ce44c859302934114f5ab56e6d09ba275b6162ca",
+    "web/v2/vision3d.html": "cf19258b030e4009df9797f43ec5ded3d73a44bbede8760c3bb98583b59e4ff4",
+    "web/v2/vision3d.css": "e92cf062ca99fdf444e575806b8788cc86c716034c757070ee2703af64ef2800",
+    "scripts/atlas_vision3d_runtime.py": "fc807489b06699d73efdd246913849a3d11315d6bfcba707eedd0e1381c9b5aa",
+    "scripts/atlas_vision3d_web.py": "889881c062717d076430414f57825b14f7f0de36ba4cf8c20b0c74fbff9ec1bf",
+    "config/vision3d_live.json": "e27bc0c0551d22babb7a477c551d49c5ab20937e56b6aa4fe8a8ce6aff9f9c9a"
   }
 }

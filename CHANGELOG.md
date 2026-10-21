@@ -1,5 +1,14 @@
 # Changelog
 
+2026-10-21 18:37–18:45 (owner-approved U1):
+- **UI DEPLOYED (U1):** the Vision Lab now shows real per-stream session states. Four static files changed, with no restart, a verified backup and a byte-identical rollback rehearsal. Live page check passed: no errors and no POSTs. Infrared stays "Not yet tested" until U2.
+- **Prepared, not run:**
+  - U2 with a restart-monitoring script (passive recorder, settle check, health checks, automatic rollback);
+  - an IR+Depth acceptance mode (`MODE=ir_depth`, including depth click-to-measure);
+  - a print-ready A3 9x6 / 35 mm checkerboard PDF, verified at 35.000 mm;
+  - owner positioning instructions;
+  - the shortest route to a live XYZ cloud (Stage 32 report section 27).
+
 2026-10-21 18:12–18:40 (Stage 32 continuation; offline only, nothing deployed, no restart, camera never started):
 - **UI FIX READY:** `vision3d_state.js` derives Starting / Waiting for frames / Live / No frames received / Frames stopped / Resource blocked / Stopped safely / Calibration required from real per-stream frame counts. It never shows "driver running" as live. Package `s32_ui_pkg_v2.tgz` U1 is static with no restart; U2 (Infrared "Tested" label, device serial for the calibration gate) needs one `rover-status-web` restart.
 - **Combined modes:** readiness documented from driver source, a USB 2.0 read-only check, an Orbbec forum note on IR 640x480 and a CPU forecast. **Not tested live.**

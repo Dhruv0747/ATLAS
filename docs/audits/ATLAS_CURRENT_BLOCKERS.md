@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October 18:38 U1 Vision Lab status UI DEPLOYED (static, no restart, backup verified).
+P0 route to a live XYZ cloud: U2 (monitored web restart; manifest serial for the
+gate) -> one IR+Depth session (IR-to-depth offset) -> A5 IR checkerboard + depth
+targets -> offline validation review -> A6 install + one Depth+3D cloud session.
+Waiting on owner: U2 confirmation, IR+Depth approval, printed-target and distance
+measurements. Calibration gate active; no metric cloud.
+
 21 October 18:35 Stage32 continuation (offline): UI status fix READY (no-restart U1;
 label/serial U2 needs a web restart), not deployed. Combined modes NOT tested
 (driver has no IR/depth exclusion; both Astra devices on USB 2.0 behind shared hubs).

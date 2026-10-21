@@ -1604,3 +1604,142 @@ The code is unchanged and preserved: cached rays, `/astra/points` node with its 
 6. **A6:** install the validated calibration file and run one Depth + 3D cloud session.
 
 **Sources:** [Infrared Stream – Astra PRO (Orbbec 3D Club)](https://3dclub.orbbec3d.com/t/infrared-stream-astra-pro/257); [OpenCV: Using Orbbec Astra 3D cameras](https://docs.opencv.org/4.8.0/d4/d65/tutorial_orbbec_astra.html).
+
+## 27. U1 deployed; U2, IR+Depth and calibration prepared; shortest route to a live XYZ cloud — 21 October 2026, 18:37–
+
+The owner's P0 is an accurate live 3D point cloud. The owner approved **U1 only** (static, no restart). U2 restarts `rover-status-web` and is **prepared but not run**; it needs the owner's separate confirmation. IR+Depth is **prepared, not started**.
+
+### Status
+
+| Label | Status |
+|---|---|
+| **UI DEPLOYED (U1)** | **YES**, 18:38:16, no restart |
+| U2 (Infrared "Tested" label + serial for the calibration gate) | **READY**, restart-monitored script staged; **awaiting confirmation** |
+| IR+DEPTH LIVE VERIFIED | **NO:** test prepared, not started |
+| CALIBRATION VALIDATED | **NO:** print-ready target and procedure provided; waiting for the owner's measurements |
+| XYZ CLOUD LIVE VERIFIED | **NO:** the gate stays active (NOT VALIDATED) |
+
+### 27.1 U1 deployment evidence (`evidence/stage32_u1/`)
+
+**Fresh preflight (18:37:56):**
+
+- E-STOP latched; manual-only, stop-latched; `cmd_vel` 0 / 0, motor 0, recording false.
+- LiDAR 0.1 s, odometry 0.1 s, IMU 0.0 s, encoders 0.0 s.
+- CPU 64.6%, RAM 70%, 60 °C; protected units at the handover identities; no camera-side process.
+- Pi Camera 200; Astra USB 0403/0501.
+- Package SHA256SUMS OK. The three live static files equal the verified production hashes (`76f9a202`, `a930af83`, `04f98c8c`), and `vision3d_state.js` was absent.
+
+**One read-only observation:** a stale domain-77 FastDDS shared-memory file (`fastrtps_port26663`, 18:09) exists, left by an earlier receiver participant. `domain_in_use(77)` is **False**, so it does not block admission.
+
+**Apply (`stage32_ui.sh apply-ui`):**
+
+- Backup `~/project_atlas/.pre_stage32_ui_20261021_183816`, with SHA256SUMS verified after install. It holds three files plus an `.absent` marker for the new file.
+- Installed: `vision3d_state.js` `641ca00b…`, `vision3d.js` `2c06d110…`, `vision3d.html` `cf19258b…`, `vision3d.css` `e92cf062…`.
+- **No restart:** `rover-status-web` stayed 189640 / NRestarts 0, and the protected identities are unchanged.
+
+**Served pages (all 200):** `/v2/vision3d`, `/v2/vision3d_state.js` (8,367 B), `/v2/vision3d.js` (18,796 B), `/v2/`, `/v2/testlab`, `/v2/flysky-testlab`.
+
+**Live browser check** (desktop and 390 px; load only, no Start):
+
+- Banner "Stopped safely", with the correct reason for the last session (stopped by the page).
+- Modes: Depth "Tested", Depth + 3D cloud "Calibration required" (disabled). Infrared still shows "Not yet tested", as expected until U2.
+- Cloud chip "Calibration required".
+- No page errors, no non-GET requests, no horizontal scroll; Home links intact (17).
+
+**Post-check (18:38:50):** E-STOP latched, protected units unchanged, CPU 65.2%, RAM 70%, Pi Camera 200, all non-UI production hashes unchanged.
+
+**Rollback (ready, not used):** `OWNER_APPROVED=yes bash ~/project-atlas-migration/stage32-ui-continuation/pkg/project_atlas/tools/deploy/stage32_ui/stage32_ui.sh rollback-ui` restores the three files and removes `vision3d_state.js`. No restart is needed. It was rehearsed byte-identically on a Jetson copy.
+
+### 27.2 U2 restart-monitoring plan (prepared; needs the owner's confirmation)
+
+The package is `s32_ui_pkg_v3.tgz`, SHA256 `8988b26c…5748`, staged at `~/project-atlas-migration/stage32-ui-continuation/pkg_v3` (SHA256SUMS OK; script syntax checked on the Jetson). `tools/deploy/stage32_ui/u2_restart_monitored.sh` does the following:
+
+1. Starts the passive 1-Hz per-process `/proc` recorder 20 s **before** the restart (no ROS participant, no CLI). This also captures the per-process attribution of the restart transient that section 21 was missing.
+2. Runs `stage32_ui.sh apply-config`. It refuses unless E-STOP is latched, the camera is off and the hashes match. It runs a Jetson-Python import check, installs the manifest and geometry, and restarts `rover-status-web` only.
+3. Waits for the transient to settle: 5 consecutive 1-s samples ≤ 75% within 120 s. This is a deployment observation; no camera is started and the camera guard is unchanged.
+4. Verifies E-STOP latched, policy manual-only and stop-latched, LiDAR/odometry/IMU/encoder freshness < 2 s, the six protected identities unchanged, Pi Camera 200, and the Vision Lab reporting Infrared `verified` and the calibration state.
+5. On any failure it runs `rollback-config`, which is one more restart.
+
+**Expected visible effect:** Infrared shows "Tested", and the calibration gate knows serial 17122120830. The gate still reports NOT VALIDATED because no calibration file exists.
+
+### 27.3 IR+Depth live test (prepared; not started)
+
+`tools/vision3d/stage32_ir_acceptance.py` now takes `MODE=ir_depth`. The procedure is the same as the passing IR acceptance:
+
+- a 60-s heartbeat pre-check with the camera off;
+- one Start;
+- no API requests from the script during the session (only the page's own requests);
+- the passive recorder running.
+
+It records, per stream (IR and depth), the dimensions, encoding, FPS, age, gaps and counts, plus the IR raw probe and one **depth click-to-measure**. It stops if either stream has no frames 25 s after Start, and stops automatically on any guard or lease failure.
+
+A dry run against a local simulator passed: both streams were tracked, IR probe and depth measure were read, and there were no page errors.
+
+**Expected configuration:** depth 160x120@30 + IR 640x480@30, no colour (`driver_args('ir_depth')`).
+
+**Outcomes:**
+
+| Result | What it means |
+|---|---|
+| Both live | IR+DEPTH LIVE VERIFIED |
+| Depth live, IR missing (or the reverse) | That stream combination is evidenced as not delivered at this setting. Not a claim about other resolutions. |
+| Resource blocked | Inconclusive, never "unsupported" |
+
+### 27.4 Calibration prerequisites (owner)
+
+**Print-ready target:** `project_atlas/tools/vision3d/calibration_target/atlas_astra_checkerboard_9x6_35mm_A3.pdf`, SHA256 `f39f2e45…0a0e`, generated by `make_checkerboard_pdf.py`. It is vector, A3 landscape (420 x 297 mm): 10 x 7 squares = **9 x 6 inner corners**, **35.0 mm** squares, a 350.0 x 245.0 mm pattern centred with 35 / 26 mm white margins, and two **100.0 mm check bars**.
+
+Rasterised at 10 px/mm, OpenCV found all 54 corners with a mean spacing of exactly **35.000 mm**.
+
+The owner supplies, and nothing is assumed until then:
+
+1. **The measured printed size:**
+   - both 100 mm check bars (reprint if either is off by more than 0.5 mm);
+   - the distance across 9 squares along the long edge, measured with a steel ruler, expected about 315 mm, to 0.5 mm;
+   - the same across 6 squares on the short edge, expected about 210 mm;
+   - the square size used will be measured / 9.
+2. **Mounting:** flat, rigid board; check flatness with a straight edge across both diagonals (gap ≤ 1 mm); matte surface with no lamination.
+3. **IR capture positions:** see 27.5.
+4. **Depth targets:** a flat matte surface of at least 1 x 1 m, roughly square-on, tape-measured from the **Astra front face** (where the lenses are) to the surface at about **1.00, 1.50, 2.00 m** (2.72 m optional), each reported to the millimetre. Report the actual distances; the tool fits the internal datum offset.
+
+### 27.5 Positioning instructions for the IR checkerboard session(s)
+
+- **Setup:** rover stationary, E-STOP latched; nobody needs to touch the rover.
+- **Lighting:** daylight or incandescent/halogen light is best, because both contain IR. LED room light contains almost none. Avoid direct sun on the board.
+- **Holding the board:** hold it so it is **completely inside** the camera view. The page shows the IR image, and the board must not touch the image edge. Hold each pose **still for 2 s**.
+- **Three distances:**
+  - **0.5 m:** the board fills most of the image.
+  - **0.8 m:** about half the width.
+  - **1.2 m:** about a third.
+- **At each distance**, move through:
+  - centre;
+  - top-left, top-right, bottom-left and bottom-right corners;
+  - left and right edges;
+  - **tilts of about 30°**: left side away, right side away, top away, bottom away.
+
+  That is about 20+ poses in total, so the corners of the image are covered.
+- **Session length:** each session is limited to 60 s, so use 2–3 sessions; the tool merges their corner sets. The tool prints "board FOUND" live, and only corner coordinates are kept.
+- **Acceptance:**
+  - training RMS ≤ 0.5 px, held-out ≤ 0.8 px, image coverage ≥ 60%, at least 15 accepted views;
+  - otherwise REJECTED, with the reason stated.
+
+### 27.6 Shortest safe route to a real interactive XYZ point cloud
+
+Every step needs its own approval. The current position is that U1 is done.
+
+| # | Step | Restart? | Why it is on the path |
+|---|---|---|---|
+| 1 | **U2** (monitored) | yes, web only | The calibration gate needs the device serial from the manifest |
+| 2 | **One IR+Depth 60-s session** | no | Needed to measure the IR-to-depth pixel offset; also the owner's P1 |
+| 3 | **A5a: IR checkerboard capture**, 2–3 sessions, corners only | no | IR intrinsics at 640x480 (fx, fy, cx, cy, plumb_bob) |
+| 4 | **A5b: depth targets**, 3–4 Depth-only sessions, one per distance | no | Depth scale, datum offset, plane flatness |
+| 5 | Offline: candidate → 160x120 derivation with the measured offset → `validate()` → report for owner review | — | Nothing installed until reviewed |
+| 6 | **A6:** install `config/astra_calibration/depth_160x120.json`, then **one Depth + 3D cloud session** | no¹ | The first live `/astra/points`, with an orbit/pan/zoom/measure viewer, ≤ 6,000 points, ≤ 5 Hz |
+
+¹ `geometry.calibration_state` reads the file at each call. The cloud node and worker are fresh per session, so installing the file needs no restart.
+
+**Expected compute cost:** the camera-off Jetson profile is about 9.4 ms CPU per cloud, about 0.8% of the machine at 5 Hz.
+
+**Rollback for step 6:** delete the one calibration file, and the gate returns to NOT VALIDATED.
+
+**Not on the path:** RGB+IR, XYZRGB and other AI features stay deferred, as the owner directed.
