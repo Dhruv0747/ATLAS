@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-21: offline all-PID CPU accounting with7 tests; bounded passive evidence
+identifies distributed parked load and measurement limitations. No production
+optimization, camera activation or threshold change. See aggregate CPU report.
+
 2026-10-21 one guarded Depth-only test after97735e9:CPU76.6102% rejected before
 driver launch,zero frames. Per-process evidence captured; protected services and
 safety preserved. No retry. ATLAS_STAGE32_PREVIEW_CORE_LIVE_RESULT.md.

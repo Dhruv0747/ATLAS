@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[All-process CPU audit](ATLAS_STAGE32_AGGREGATE_CPU_ACCOUNTING.md): measured
+parked load71.40%, no Astra test or production changes. Seven accounting tests
+pass; new CPU optimization and80% safety qualification remain unproven.
+
 [Latest approved preview test](ATLAS_STAGE32_PREVIEW_CORE_LIVE_RESULT.md):
 CPU76.61% blocked before driver launch; zero frames/points, no retry.
 Conversion optimization not exercised; full-session3D Preview still unverified.

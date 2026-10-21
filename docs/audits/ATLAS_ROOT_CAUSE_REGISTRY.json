@@ -1481,6 +1481,17 @@
       "safety": "No guard or lease change.",
       "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 24",
       "follow_up": "2026-10-21 17:59 acceptance used a 60-s heartbeat pre-check (max gap 0.69 s, clock spread 0.98 s) and a client sending no extra requests; session heartbeat max gap 1.40 s; no lease failure. The built-in desktop browser was rejected after its page went hidden for 54 s with no status loop."
+    },
+    {
+      "id": "ATLAS-STAGE32-DISTRIBUTED-CPU-HEADROOM-20261021",
+      "confidence": "CONFIRMED background load; historical spike attribution UNRESOLVED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "description": "Astra-OFF all-process trace: mean71.3972%, maximum75.6469%; top10 omit31.1638 percentage points of matched PID CPU. Observer itself about1.0734 points. Cannot reconstruct exact76.61% failed interval from previous top10 trace.",
+      "evidence": "ATLAS_STAGE32_AGGREGATE_CPU_ACCOUNTING.md; capture SHA256 a824d638a4cf5d51417b06b2daec5d6114b059a74217aa770b575e374de459ad",
+      "attempted_fix": "Offline all-PID accounting analyzer;7 tests. No production optimization claimed or deployed.",
+      "remaining_gap": "Profile redundant dashboard operations before proposing a change. Safety deadline measurements absent;80% policy not justified.",
+      "safety": "No camera Start, restart, service disabling, threshold or motor changes. Protected service identities unchanged; E-STOP latched."
     }
   ]
 }

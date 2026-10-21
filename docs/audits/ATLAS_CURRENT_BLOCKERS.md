@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+2026-10-21 superseding CPU investigation: all-process parked trace averages
+71.3972%, peaks75.6469% with Astra OFF; top10 omits31.1638 CPU percentage points
+of other PID work. Observer itself ~1.0734 points. Exact historical76.61% cause
+still unverified; no justified new runtime optimization or80% policy. Seven
+offline accounting tests pass; no production changes/camera attempt. See
+ATLAS_STAGE32_AGGREGATE_CPU_ACCOUNTING.md. Next: targeted offline web profiling.
+
 Current21 October: preview-core deployed97735e9. One approved test rejected
 76.6102% before driver launch;zero frames, optimized conversion not exercised.
 Per-process top10 evidence does not explain full aggregate load. No retry;
