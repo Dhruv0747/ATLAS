@@ -191,3 +191,42 @@ rather than adding a second web host. Stable viewing is not promised; stop and
 preserve evidence on any failed check. If not approved, leave all production
 deployments unchanged and camera OFF. Deeper native ROS startup contention
 remains an engineering blocker, not a reason to loosen the guard.
+
+## Prepared package and final postflight
+
+Code commit: `ac34cd3a042a45ddc414d4e84becd45faa72a863`.
+Package `stage30-observer-cleanup-proposal-v1.tar.gz`, SHA256
+`2d0bee9ff553bd52680c4ab75c1b31d196903797248d8b88628276464ebf867d`.
+No pacing, UI, service unit, driver binary or policy change in the package.
+
+| Candidate file | SHA256 |
+|---|---|
+| scripts/atlas_vision3d_runtime.py | `6a0e9c1cefcf89e1ed3623a786808a5fdd4a67b4ccf6972de71ddab84c19452d` |
+| tools/vision3d/stationary_gate.py | `0c5ec244b238aa741f3dc2d6fe7c7f588fdd3511e2a3e2c7c36f2ab355a5bfe9` |
+| tools/vision3d/stationary_ros_probe.py | `f6321da4961482064a6d278e368efbb25540d5a3178ee14900255972b269a384` |
+
+Unpacked/compiled only in
+`/home/jetson/project-atlas-migration/astra-stage30-overhead-proposal-v1`.
+Hashes and original live-target hashes verified; no production install.
+Private three-file rollback fixture restored byte-identical originals.
+Native early-rejection contract with synthetic76% input made NO HTTP call
+(~0.983ms including mock/assert overhead); not a physical E-STOP latency test.
+Native batched identities equal originals. Native evidence in that directory's
+`native-proposal-validation.json`; raw logs/packages kept outside Git.
+
+Final full preflight CPU65.147/68.741/66.667%, conservative RAM71%, hottest63.125°C.
+E-STOP/manual-only/zero/READY/disarmed/recorder-OFF checks pass. All12 installed
+Vision hashes and six protected identities unchanged; web67677/0 still active.
+No Astra or test-host/graph-probe process remained. Temporary SSH forwards closed.
+Pi camera returned HTTP200/25,274-byte JPEG, consumed in RAM and not saved.
+GPU single final sample6.4% (not an active-camera GPU benchmark).
+
+Final dashboard observation: encoder callbacks and control policy ~10Hz,
+cmd_vel4.67Hz, mission1Hz; ages0–0.5s for retained required fields. Dashboard's
+LiDAR-summary callback showed1.84Hz; this is not a measurement of raw `/scan`
+publisher Hz. IMU composite rate was null: data fresh, cadence not quantified.
+No critical source frequencies were altered. No sustained-camera sensor-timing,
+memory-growth, actual stop-latency or USB-error qualification achieved.
+
+No owner driving, target placement or repeated room loop is requested. The next
+approval above is software-only and explicitly does NOT certify a stable viewer.
