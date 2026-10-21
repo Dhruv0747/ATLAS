@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 preview core e01fc36 DEPLOYED/VERIFIED: single file,web-only restart,
+CPU restart peak100%, five passing samples by38s. E-STOP/zero commands preserved,
+protected PIDs unchanged, sensors fresh, Astra/recorder OFF. Hashes/rollback:
+ATLAS_STAGE32_PREVIEW_CORE_DEPLOYMENT.md. No camera test.
+
 2026-10-21 OFFLINE depth-preview candidate: validate frame layout once rather
 than19,201 times; WSL conversion21.25->9.60ms, identical output,94 tests pass.
 No live changes; remaining aggregate contention unresolved. Package/rollback:

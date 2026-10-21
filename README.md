@@ -1,7 +1,8 @@
 # Project ATLAS - Autonomous Service Rover
 
 [Offline depth conversion optimization](ATLAS_STAGE32_PREVIEW_CPU_OPTIMIZATION.md):
-54.8% less PC conversion CPU, identical PNG output,94 tests pass. Not deployed;
+54.8% less PC conversion CPU, identical PNG output,94 tests pass.
+[Deployed and verified](ATLAS_STAGE32_PREVIEW_CORE_DEPLOYMENT.md), Astra OFF;
 this is not a whole-Jetson CPU or live3D Preview success claim.
 
 Latest [single Depth verification](ATLAS_STAGE32_DIRECT_DEPTH_VERIFICATION.md):
