@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-21 Stage32 thread profiling blocked by verified process-memory access
+denial. Documented stopped RESOURCE BLOCKED camera state and evidence limits.
+No hot-function attribution, optimization deployment or camera test claimed.
+
 2026-10-21 reused existing executor/JSON evidence; prepared one-line exact-live
 compact JSON package,6+60tests pass. Dominant CPU cause unresolved; minor savings
 not represented as an admission fix. No production changes.
