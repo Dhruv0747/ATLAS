@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-21 reused existing executor/JSON evidence; prepared one-line exact-live
+compact JSON package,6+60tests pass. Dominant CPU cause unresolved; minor savings
+not represented as an admission fix. No production changes.
+
 2026-10-21 exact-live snapshot package deployed98f3c269; only web restarted,
 protected services/safety healthy. Matched parked CPU comparison shows no saving.
 Astra OFF. Backup, hashes and measurements in exact-live deployment report.

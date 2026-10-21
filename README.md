@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Remaining CPU assessment](ATLAS_STAGE32_REMAINING_CPU_AND_JSON_CANDIDATE.md):
+dominant executor cost unresolved; minor exact-live JSON candidate tested but
+NOT deployed. No camera or safety-policy changes.
+
 [Exact-live snapshot deployment](ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_DEPLOYMENT.md):
 installed/health-verified, web-only restart; Astra OFF. Whole-Jetson CPU69.27%
 before vs71.21% after: no demonstrated aggregate saving. Headroom still unresolved.

@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-21 remaining CPU: two-thread lifetime pattern persists; existing untagged
+executor samples cannot identify a safe dominant-cost fix. Exact-live compact
+JSON candidate prepared,6+60tests pass; historical expected saving only~0.06
+whole-machine points/client set, NOT sufficient for headroom. No deployment.
+See ATLAS_STAGE32_REMAINING_CPU_AND_JSON_CANDIDATE.md.
+
 2026-10-21 exact-live snapshot DEPLOYED/HEALTH VERIFIED:98f3c269, web-only restart.
 CPU69.270->71.215% mean; no demonstrated whole-Jetson saving. No camera Start.
 Headroom remains unresolved. ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_DEPLOYMENT.md.
