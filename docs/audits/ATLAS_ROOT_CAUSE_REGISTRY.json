@@ -1414,7 +1414,20 @@
       "remaining_gap": "Permanent fix (runtime IR request 640x480@30) needs separate review/approval and one confirming IR-only session on the production (uninstrumented) library. Why firmware advertises an unserved mode is unknown.",
       "safety": "No restart, emitter, firmware, policy or movement change.",
       "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 22",
-      "discriminating_test": "2026-10-21 17:38 D2: same instrumented driver, same launch, IR 640x480@30 GRAY8 -> 1656/1656 frames ready/read/published (29.70 fps hardware), 1569 received, rendered on Dashboard. Only the requested IR resolution differed. Cause: on this unit (fw 5.8.22) the advertised 320x240@30 GRAY8 IR mode is not served; 640x480@30 GRAY8 is."
+      "discriminating_test": "2026-10-21 17:38 D2: same instrumented driver, same launch, IR 640x480@30 GRAY8 -> 1656/1656 frames ready/read/published (29.70 fps hardware), 1569 received, rendered on Dashboard. Only the requested IR resolution differed. Cause: on this unit (fw 5.8.22) the advertised 320x240@30 GRAY8 IR mode is not served; 640x480@30 GRAY8 is.",
+      "production_library_check": "2026-10-21 17:46 permanent-fix confirmation on production lib 6ae87601: 640x480@30 mono8 delivered and rendered (895 frames received, 29.7 fps median) for ~31 s, then the 4-s viewer lease watchdog stopped the camera at ~42 s; page/Jetson clock comparison shows the PC test client lost ~3.2 s (likely VM pause). Runtime restored to 320x240 per approval rule. Acceptance incomplete."
+    },
+    {
+      "id": "ATLAS-VISION3D-TEST-CLIENT-LEASE-GAP-20261021",
+      "confidence": "SUSPECTED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "description": "A Vision Lab session was stopped by the viewer-lease watchdog (no renewal >4 s) while frames, CPU and Jetson were normal.",
+      "evidence": "p640_ir.json: page-clock minus Jetson-elapsed offset +0.6..+1.7 s for 35 s, then -2.6 s at the next poll (Jetson advanced 6.0 s while page advanced 2.8 s). Jetson recorder normal in the same seconds.",
+      "attempted_fix": "None; watchdog is correct fail-safe behaviour.",
+      "remaining_gap": "Run acceptance viewing from a client that cannot be paused (Jetson HMI or owner's browser); add per-request timing to the test client.",
+      "safety": "No guard or lease change.",
+      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 24"
     }
   ]
 }

@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 17:45–17:49 (owner-approved permanent IR 640x480 correction plus one confirming session):
+- One-line runtime change deployed without a restart. On the **production** driver, real IR at 640x480 `mono8` (29.7 fps median, 895 frames) reached the Dashboard and was drawn.
+- The session was stopped at about 42 s by the viewer-lease watchdog. A clock comparison points to a pause of about 3 s in the PC-hosted test client, not the Jetson.
+- The 60-second acceptance was therefore **incomplete**. Following the approval's rule, the original 320x240 setting was **restored** (`454dd25f`). E-STOP latched, commands zero, protected services and Pi Camera healthy.
+
 2026-10-21 17:37–17:40 (owner-approved D2):
 - **Real infrared verified once on the Dashboard** in the diagnostic configuration: 640x480@30 GRAY8, instrumented driver, temporary one-line runtime override, no restart. 1,656 frames read and published (29.70 fps hardware), 1,569 received, canvas rendered, and the full 60-second session completed. Guard 65.0–71.3%, RAM ≤ 69.8%, ≤ 60.9 °C.
 - **Zero-frame cause on this unit:** the advertised 320x240@30 IR mode is never served; 640x480 is.

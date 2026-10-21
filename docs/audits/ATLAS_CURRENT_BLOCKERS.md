@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October 17:45-17:49 permanent IR 640x480 attempt (approved): on the PRODUCTION
+driver, real IR 640x480 mono8 ~29.7 fps was delivered and rendered for ~31 s, then
+the 4-s viewer lease watchdog stopped the camera at ~42 s (guard 64.5-68.0%, not
+resource). Clock comparison indicates the PC test client paused ~3 s. Acceptance
+incomplete, so the runtime was restored to 320x240 (454dd25f). No restart; library
+and manifest untouched. Next: a re-run from a non-pausing viewer needs approval.
+
 21 October 17:37-17:40 D2 (approved): IR-only at 640x480@30 GRAY8 with the
 instrumented driver, no restart. REAL IR FRAMES ON THE DASHBOARD: 1656 frames
 read/published (29.70 fps hardware), 1569 received, canvas rendered, 60 s session

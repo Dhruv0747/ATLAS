@@ -1242,3 +1242,69 @@ The 75% limit was never reached, and the guard is unchanged.
    - It must be confirmed by one IR-only session on the production library, because D2 ran on the instrumented build. The instrumentation only adds counters and logging, but that has not been proven live on the production build.
 2. **The page fix:** add a banner for "IR selected but no frames". This is a static `vision3d.js` change, from the candidate in section 18.
 3. **Combinations:** IR+Depth and RGB+IR stay untested. The 640x480 IR stream adds about 9 MB/s of domain-77 traffic. Combination tests are a separate decision.
+
+## 24. Approved permanent IR mode correction (640x480@30 GRAY8): confirmation test did not complete, original setting restored — 21 October 2026, 17:45–17:49
+
+The owner approved this at 17:45. Evidence is in `evidence/stage32_ir640/`. The IR image in the screenshot is blurred. The driver log stays on the Jetson in `~/project-atlas-migration/stage32-ir-640-permanent/`, SHA256 `2b6f921a…54ed`.
+
+### Result
+
+| Label | Status |
+|---|---|
+| IR frame delivery on the **production** driver library | **Verified for about 31 s.** 640x480 `mono8`, `astra_ir_optical_frame`, 29.5–30.6 fps (median 29.7), 895 frames received, 0 rejected, 0 stamp regressions, frame age ≤ 0.19 s, canvas drawn at 640x480 (0–255, mean 50.1), raw probe working |
+| 60-second acceptance test | **FAILED: incomplete.** The camera was stopped at about 42 s by the viewer-lease watchdog ("viewer lease expired"), not by the CPU/RAM/thermal guard and not by an IR fault |
+| 640x480 correction | **NOT retained.** The runtime was restored to `454dd25f…` (320x240), per the approval's failure rule |
+| Restarts, library, manifest | None. The production library `6ae87601…` and manifest `c1a6d1c0…` were never touched; integrity PASS |
+
+### Steps
+
+1. **Fresh preflight (17:45:46):**
+   - E-STOP latched; manual-only, stop-latched, disarmed;
+   - `cmd_vel` 0 / 0, motor 0, recording off;
+   - LiDAR, odometry and IMU fresh (0.4 / 0.1 / 0.0 s);
+   - CPU 65.1%, RAM 71%, 60 °C;
+   - protected units at the handover identities;
+   - no camera-side process; domain 77 free;
+   - Astra USB 0403/0501 enumerated; Pi Camera 200;
+   - all Stage 32 production hashes at baseline;
+   - runtime library and manifest at baseline, 458-file integrity PASS.
+2. **Deploy:** `stage32_ir_mode_override.py apply` changed one line of `scripts/atlas_vision3d_runtime.py`, `454dd25f…` → `fc807489…`, with a verified backup. A fresh `driver_args('ir')` read back `ir_width:=640 ir_height:=480 ir_fps:=30`. No restart; `rover-status-web` stayed 189640 / 0.
+3. **Session** (Start clicked once, 17:46:07):
+   - The driver logged `set ir video mode 640x480@30Hz` and `ir is started`.
+   - Frames were live on the page 8.5 s after Start.
+   - The driver ran 40.3 s of IR and stopped cleanly ("Stopped stream ir"), with `driver_stopped` true.
+   - No retry, no other mode.
+4. **Restore (17:47:4x):**
+   - the process scan was clean;
+   - the runtime is back to `454dd25f…` (320x240);
+   - post-check at 17:49:31: E-STOP latched, commands 0, sensors fresh, protected units unchanged, CPU 65.2%, RAM 71%, 61 °C, Pi Camera 200, Astra USB enumerated, runtime integrity PASS.
+
+### CPU and resources while live
+
+| Measure | Value |
+|---|---|
+| Passive recorder | 65.0–71.4% (mean 67.2%) vs 66.2% before |
+| Guard samples (page) | 64.5–68.0%, never near 75% |
+| RAM | ≤ 71.3% |
+| Temperature | ≤ 60.3 °C |
+| Driver | 7.8% of one core |
+| `rover-status-web` | 52.9% of one core vs 49.1% before |
+
+### Why the session stopped: evidence points to the test client, not the Jetson
+
+The worker stops the camera if no viewer lease renewal arrives for more than 4 s (`atlas_vision3d_runtime.py`). Renewals come only from the viewing page's API requests. The only page was the headless test browser on the owner's PC VM.
+
+**Clock comparison** (page clock on the PC versus the Jetson worker's elapsed time):
+
+- For the whole of D2, and here up to page t = 37.2 s, the page clock ran +0.6 to +1.7 s ahead of the Jetson.
+- At the next poll, page t = 40.0 s, the Jetson had advanced to 42.6 s, an offset of −2.6 s.
+- So between two polls the Jetson advanced **6.0 s** while the PC page clock advanced only 2.8 s. The test client lost about 3.2 s of its own time, which is consistent with the PC VM being paused or descheduled.
+- During that pause no renewal could be sent, and the 4-s lease expired as designed.
+
+**Jetson side during the same seconds:** normal. Machine CPU 65.9–69.3%, `rover-status-web` 51–56% of one core, no polkit or other spike, guard samples every ~1 s.
+
+**Not proven:** the PC VM pause has no host-side record. A long Jetson HTTP response is also not fully excluded, because there is no per-request timing. D2 used the same mode and the same client and completed 60 s.
+
+### What would complete the acceptance
+
+Under a new approval, re-apply the same verified one-line change and run one 60-s IR-only session from a viewer that does not pause, for example the Jetson HMI or the owner's own browser. My headless client would observe only passively, or would keep renewing from a second, separately hosted client. No code change is needed for IR. The lease watchdog worked correctly and must not be relaxed.

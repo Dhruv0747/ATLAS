@@ -25,7 +25,7 @@
   },
   "last_verified_state": "E-STOP latched; manual-only; zero commands; recorder and Astra OFF; Pi Camera healthy; protected identities unchanged except approved web restarts",
   "state_freshness": "Historical postrollback evidence, not a new live admission",
-  "next_action": "Separate review/approval: permanent IR request 640x480@30 on production library (one-line runtime change, no restart) + one confirming IR-only session; IR-no-frames banner",
+  "next_action": "Owner decision: re-apply the one-line 640x480 change and run one 60-s IR-only acceptance from a non-pausing viewer (Jetson HMI or owner browser)",
   "handover": "ATLAS_STAGE32_DEVELOPER_HANDOVER.md",
   "takeover_20261021": {
     "from_commit": "c68ba4891645d9985f3da882a13bce8d3b2e965d",
@@ -72,5 +72,13 @@
     "restarts": "none",
     "rollback": "17:39:33 complete, integrity PASS, identities unchanged",
     "evidence": "evidence/stage32_d2/"
+  },
+  "ir640_permanent_attempt": {
+    "time": "2026-10-21 17:45-17:49",
+    "change": "scripts/atlas_vision3d_runtime.py 454dd25f->fc807489 (IR 640x480) then restored to 454dd25f",
+    "production_library_untouched": "6ae87601 / manifest c1a6d1c0",
+    "restarts": "none",
+    "result": "IR delivered and rendered ~31 s on production lib; session stopped ~42 s by viewer lease expiry (test-client pause suspected); acceptance FAILED-incomplete; correction NOT retained",
+    "evidence": "evidence/stage32_ir640/"
   }
 }
