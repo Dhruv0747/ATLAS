@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October post-reboot USB follow-up (new owner task supersedes pause): depth
+admission failed at1.2004s before streaming. Expected Astra VID/PIDs/nodes present,
+both lack jetson RW ACL; direct open denied errno13. No evidence of current address
+change. Minimal diagnostic candidate offline; targeted ACL restoration plus one
+Depth-preview test awaiting approval. No calibration/rendering changes required.
+See ATLAS_STAGE32_USB_ACCESS_20261021.md; no live restoration claimed.
+
 21 October 19:25 PAUSED 3 DAYS by owner (see ATLAS_3_DAY_PAUSE_HANDOVER.md).
 U2+P DEPLOYED 19:17 (monitored restart, all post-checks passed). Live Depth-only
 3D preview test NOT started (camera never started); needs owner re-confirmation.

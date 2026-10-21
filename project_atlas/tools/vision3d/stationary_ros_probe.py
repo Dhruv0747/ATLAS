@@ -32,6 +32,30 @@ def safety_snapshot():
     return {'ros':data['ros'],'system':{'ram_percent':100*(mem['MemTotal']-mem['MemAvailable'])/mem['MemTotal']}}
 
 
+def verify_astra_usb_access():
+    """Fail closed; distinguish identity loss from temporary USB ACL loss.
+
+    Keep the approved device selection unchanged. Re-enumeration requires a
+    reviewed identity check, never automatic permission changes or substitution.
+    This check does not initialize OpenNI or open/start a camera stream.
+    """
+    verified=[]
+    for bus,identity in [('014','2bc5:0403'),('011','2bc5:0501')]:
+        device=Path('/dev/bus/usb/001')/bus
+        try:
+            actual=subprocess.check_output(['lsusb','-s','001:'+bus],text=True,timeout=2)
+        except (OSError,subprocess.SubprocessError) as exc:
+            raise RuntimeError('Astra USB identity query failed: '+str(device)) from exc
+        if identity not in actual.split():
+            raise RuntimeError('Astra USB identity missing/mismatch: '+str(device)+
+                               ' expected '+identity+'; check re-enumeration before retry')
+        if not os.access(device,os.R_OK|os.W_OK):
+            raise RuntimeError('Astra USB read/write access denied: '+str(device)+
+                               ' identity '+identity+'; inspect ACL (temporary grants may be lost after reboot/replug)')
+        verified.append({'path':str(device),'vid_pid':identity,'read_write_access':True})
+    return verified
+
+
 def extra_safety(ros=None):
     import urllib.request
     if ros is None:ros=json.load(urllib.request.urlopen('http://127.0.0.1:8088/api/status',timeout=3))['ros']
@@ -45,10 +69,7 @@ def extra_safety(ros=None):
         raise RuntimeError('mission or measured motor state not idle')
     info=ros['camera_info']['value']
     if info.get('publisher_count',1)<1:raise RuntimeError('Pi camera publisher missing')
-    for bus,identity in [('014','2bc5:0403'),('011','2bc5:0501')]:
-        device=Path('/dev/bus/usb/001')/bus
-        actual=subprocess.check_output(['lsusb','-s','001:'+bus],text=True)
-        if identity not in actual or not os.access(device,os.R_OK|os.W_OK):raise RuntimeError('Astra identity/access changed')
+    verify_astra_usb_access()
     return {'required_fresh':True,'wheel_output_commands_zero':True,'mission':'READY','motor_speed':0}
 
 

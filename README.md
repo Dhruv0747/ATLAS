@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+21 October USB access follow-up: Depth admission is blocked by missing temporary
+jetson USB ACLs after reboot, not calibration. Diagnostic-only candidate is offline;
+no permission restoration or camera retry yet. See [evidence and approval/rollback plan](docs/audits/ATLAS_STAGE32_USB_ACCESS_20261021.md).
+This new owner-requested investigation supersedes the pause note below; historical deployment notes remain preserved.
+
 **Deployed 21 October 19:17 (U2+P): an UNCALIBRATED — DIAGNOSTIC ONLY 3D preview** of the Astra's real depth
 (orbit/zoom/pan in the browser; nominal field of view; no metric output, no ROS, no navigation). It has not yet been
 viewed live: the live Depth session awaits owner re-confirmation. **Development is paused for 3 days**; see

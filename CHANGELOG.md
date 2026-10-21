@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 Astra USB admission follow-up (OFFLINE candidate only):
+- Confirmed errno13 on both expected Astra nodes; temporary jetson ACLs absent after a new boot.
+- Split identity/query/access guardian errors; bound identity queries; preserve fail-closed admission and all camera/resource settings.
+- Added six offline USB regressions; deployment/ACL restoration and live preview retest require approval.
+- Evidence and rollback: docs/audits/ATLAS_STAGE32_USB_ACCESS_20261021.md.
+
 2026-10-21 19:16–19:25 (owner-approved U2+P; then owner 3-day pause):
 - **DEPLOYED U2+P:** Infrared "Tested" label, device serial for the calibration gate, and the UNCALIBRATED 3D preview receiver + UI.
   - One monitored `rover-status-web` restart: settled in 30.6 s, transient peak 98.9% with the camera off. All post-checks passed; no rollback.

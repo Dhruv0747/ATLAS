@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-STAGE32-USB-ACL-LOSS-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Depth admission stopped at1.2004s, zero samples. 2bc5:0403 at001/014 and2bc5:0501 at001/011 unchanged; named jetson RW ACL absent; direct open errno13 on both. New boot since prior deployment; exact prior node removal not retained. No attributed Astra power/reset evidence.",
+      "candidate": "Offline diagnostic error split and bounded lsusb; preserve existing node selection, all guards and modes. Targeted ACL restoration requires approval. No camera start or production deployment.",
+      "report": "docs/audits/ATLAS_STAGE32_USB_ACCESS_20261021.md"
+    },
+    {
       "id": "ATLAS-STAGE32-IR-ACCEPTANCE-EVIDENCE-20261021",
       "conditional_install_result": "2026-10-21: owner-approved installation passed preflight/hash/ARM64 dependency load; post-web-restart CPU95.6376% failed75% guard. All three files rolled back with exact hashes, web alone restarted for installation and rollback. NO IR SESSION STARTED, no retry. Final E-STOP/manual-only/zero/sensor checks, Pi JPEG200, protected identities and backups verified. Restart CPU cause unverified; IR root cause unresolved. See section19 and durable stage32-instrumented-approved-20261021 evidence.",
       "driver_instrumentation": "2026-10-21: incremental ARM64 driver instrumentation build PASS; bounded OpenNI readiness/read/callback/conversion/publish/subscriber counters plus API/browser counts. 94 regressions and3 instrumentation tests PASS, one dependency skip; synthetic179/180 received, zero rejects. Three-file package and rollback rehearsed, NOT installed. Ten live hashes unchanged. Root cause remains unresolved; one separately approved instrumented test needed. Stage32 section18.",
