@@ -109,6 +109,7 @@ class BridgeTransport:
 class RosTransport:
     def __init__(self,domain_id=None):
         self.node=self.executor=self.context=self.thread=None;self.domain_id=domain_id
+        self.error='';self.discovery={};self.rmw=None
 
     def start(self,topics,callback):
         import rclpy
@@ -119,6 +120,7 @@ class RosTransport:
         self.context=Context()
         if self.domain_id is None:rclpy.init(context=self.context)
         else:rclpy.init(context=self.context,domain_id=self.domain_id)  # private domain: invisible to production nodes
+        self.rmw=rclpy.get_rmw_implementation_identifier() if hasattr(rclpy,'get_rmw_implementation_identifier') else None
         self.node=rclpy.create_node('atlas_vision3d_readonly',context=self.context)
         self.executor=SingleThreadedExecutor(context=self.context); self.executor.add_node(self.node)
         qos=QoSProfile(depth=1,reliability=ReliabilityPolicy.BEST_EFFORT,durability=DurabilityPolicy.VOLATILE)
@@ -127,13 +129,19 @@ class RosTransport:
         def discover():
             graph=dict(self.node.get_topic_names_and_types())
             for kind,topic in topics.items():
+                self.discovery[kind]={'topic':topic,'types':graph.get(topic,[]),
+                                      'subscribed':kind in subscribed,'domain_id':self.domain_id}
                 if kind in subscribed or TYPES[kind] not in graph.get(topic,[]):continue
                 typ=CameraInfo if kind.endswith('_info') else PointCloud2 if kind=='cloud' else Image
                 self.node.create_subscription(typ,topic,lambda msg,k=kind:callback(k,msg),qos)
                 subscribed.add(kind)
+                self.discovery[kind]['subscribed']=True
         discover()
         self.node.create_timer(2.0,discover)  # bounded discovery only while a viewer is active
-        self.thread=threading.Thread(target=self.executor.spin,name='vision3d-ros',daemon=True);self.thread.start()
+        def spin():
+            try:self.executor.spin()
+            except Exception as e:self.error='receiver executor ended: '+str(e)
+        self.thread=threading.Thread(target=spin,name='vision3d-ros',daemon=True);self.thread.start()
 
     def stop(self):
         if self.executor: self.executor.shutdown(timeout_sec=2)
@@ -155,6 +163,7 @@ class VisionService:
         self.factory,self.clock,self.wall=factory,clock,wall
         self.lock=threading.RLock();self.transport=None;self.messages={};self.received={};self.stats={}
         self.touched=0;self.idle_timer=None;self.error='';self.cache={};self.cache_at={};self.last_accept={};self.retry_after=0
+        self.last_session=None
 
     def touch(self):
         with self.lock:
@@ -186,6 +195,13 @@ class VisionService:
 
     def stop(self):
         with self.lock:
+            if self.transport or self.stats:
+                try:
+                    s=self.status()
+                    self.last_session={'streams':s['streams'],'transport':s['transport'],
+                                       'captured_at':self.wall(),'note':'Final scalar snapshot; no image retained'}
+                except Exception as e:
+                    self.last_session={'capture_error':str(e)}  # diagnostics must never prevent shutdown
             t,self.transport=self.transport,None
             if self.idle_timer:self.idle_timer.cancel()
             self.messages.clear();self.cache.clear();self.received.clear();self.cache_at.clear();self.last_accept.clear();self.stats.clear()
@@ -258,7 +274,23 @@ class VisionService:
             if (self.manifest or {}).get('viewer_runtime'):
                 from atlas_vision3d_runtime import SESSION
                 runtime=SESSION.status()
+            ir=streams['ir']
+            expected=bool(runtime and runtime.get('mode') in ('ir','ir_depth','rgb_ir'))
+            ir_delivery=('IR FRAMES RECEIVED' if ir['state']=='ACTIVE' else
+                         'IR STREAM STALE' if ir['state']=='STALE' else
+                         'IR FRAME REJECTED' if ir['rejected'] else
+                         'IR NO FRAMES RECEIVED' if expected and runtime.get('state')=='ACTIVE' else 'IR OFF')
             return {'read_only':True,'recording':False,'driver_control':bool(runtime),'error':self.error or getattr(self.transport,'error',''),
+                    'ir_delivery':ir_delivery,'last_session':self.last_session,
+                    'transport':{'domain_id':getattr(self.transport,'domain_id',None),
+                                 'rmw':getattr(self.transport,'rmw',None),
+                                 'discovery':getattr(self.transport,'discovery',{}),
+                                 'error':getattr(self.transport,'error','')},
+                    'ir_boundaries':{'driver_started':bool(runtime and runtime.get('driver_pid')),
+                                     'sensor_frame_received':'UNKNOWN: no driver frame counter',
+                                     'ros_frame_published':'inferred from callback' if ir['received'] else 'UNKNOWN',
+                                     'receiver_callbacks':ir['received'],
+                                     'browser_rendered':'browser-local evidence only'},
                     'runtime':runtime,'calibration':'UNVALIDATED — axial Z reading, not verified accuracy; XYZ/cloud/registration DISABLED',
                     'camera_info':{k:{'frame':m.header.frame_id,'width':m.width,'height':m.height,'source_stamp':core.stamp(m),
                         'note':'Fallback metadata only; NOT admitted to metric geometry'} for k,m in self.messages.items() if k.endswith('_info')},

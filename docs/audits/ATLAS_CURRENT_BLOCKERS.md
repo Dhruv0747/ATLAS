@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+21 October Stage32 offline follow-up: pinned vendor source silently discards
+OpenNI wait timeouts; saved logs have no frame-read/publish counters or live graph
+snapshot. Cannot isolate sensor readiness from ROS publication/discovery. PC
+Domain77 real receiver passed 180 synthetic callbacks; this is NOT a hardware
+pass. Diagnostic/banner/count-retention candidate prepared, not deployed; no
+camera retry. Next evidence must include OpenNI wait/read/publish counters plus
+receiver discovery in one separately approved instrumented IR session. Section17.
+
 21 October Stage32 instrumented revalidation: one approved IR-only attempt FAILED
 delivery. Eleven ACTIVE samples captured zero IR callbacks before Stop; monitor
 ended it after >10s without frames. Peak guard CPU69.78%, RAM70.09%,59.47C, so

@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 (Stage32 zero-frame investigation; offline only):
+- Distinguish driver running, receiver delivery, stale IR and browser rendering; retain scalar session evidence after Stop. Zero callbacks show IR NO FRAMES RECEIVED.
+- Add bounded discovery/domain/RMW diagnostics and native byte-layout/browser regression fixtures. PC ROS smoke: 180 synthetic callbacks, zero rejects; 93 regression tests passed, one browser dependency skip; separate Node canvas/banner checks passed.
+- Prepare two-file diagnostic package and byte-identical rollback rehearsal. Nothing deployed or activated. OpenNI frame readiness versus live ROS publication/discovery remains unproven; real IR is NOT fixed. Stage32 report section17.
+
 2026-10-21 (one separately approved Stage32 IR-only revalidation):
 - FAILED frame delivery: eleven persisted ACTIVE samples contain zero IR callbacks; stopped after >10s unavailable via ordinary Stop endpoint. No retry or combination test.
 - Guard CPU peak69.78%, RAM70.09%, thermal59.47C: not a resource rejection. Actual dimensions/encoding/timestamps/FPS unavailable because no frame arrived. Driver startup is not a viewing pass.

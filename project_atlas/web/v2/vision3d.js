@@ -40,11 +40,12 @@
   document.querySelectorAll('input[name="vlMode"]').forEach(i => i.addEventListener('change', () => applyModes(status && status.mode_support)));
 
   // ---------- native infrared display ----------
-  function clearIr() { const c = $('irCanvas'); c.classList.add('off'); ir = null; $('irEmpty').hidden = false; $('irProbe').textContent = ''; }
+  function clearIr() { const c = $('irCanvas'); c.classList.add('off'); delete c.dataset.sourceStamp; c.dataset.rendered = 'false'; ir = null; $('irEmpty').hidden = false; $('irProbe').textContent = ''; }
   function drawIr(buf, h) {
     const w = +h.get('X-Width'), ht = +h.get('X-Height'), enc = h.get('X-Encoding'), step = +h.get('X-Step'), be = h.get('X-Bigendian') === '1';
+    if (!['mono8', 'mono16', '16UC1'].includes(enc)) throw Error('Unsupported native IR encoding');
     const bits = enc === 'mono8' ? 8 : 16, dv = new DataView(buf), n = w * ht;
-    if (!(w > 0 && ht > 0) || buf.byteLength < step * ht) throw Error('IR frame size mismatch');
+    if (!(w > 0 && ht > 0) || step < w * bits / 8 || buf.byteLength !== step * ht) throw Error('IR frame size mismatch');
     const values = bits === 8 ? new Uint8Array(n) : new Uint16Array(n);
     for (let y = 0; y < ht; y++) for (let x = 0; x < w; x++) values[y * w + x] = bits === 8 ? dv.getUint8(y * step + x) : dv.getUint16(y * step + x * 2, !be);
     // Display-only contrast stretch between the 2nd and 98th percentiles of THIS frame; raw values are untouched.
@@ -54,6 +55,7 @@
     for (let i = 0; i < n; i++) { const v = Math.max(0, Math.min(255, Math.round((values[i] - lo) * 255 / (hi - lo)))); img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255; }
     g.putImageData(img, 0, 0); c.classList.remove('off'); $('irEmpty').hidden = true;
     ir = { w, h: ht, bits, values, stamp: h.get('X-Source-Stamp') };
+    c.dataset.sourceStamp = ir.stamp; c.dataset.rendered = 'true';
     $('irScale').textContent = `Native ${bits}-bit infrared (${enc}), ${w} × ${ht}. Display stretched from raw ${lo} (black) to ${hi} (white); the camera's values are not changed.`;
   }
   $('irCanvas').onclick = e => {
@@ -82,7 +84,16 @@
     let tone = 'idle', title = 'Camera off', text = 'Choose a mode and press Start. A session runs for up to 60 seconds.';
     if (!rt) { tone = 'fail'; title = 'Viewer not installed'; text = 'The Vision Lab runtime is not available on this Jetson.'; }
     else if (st === 'CHECKING') { tone = 'busy'; title = 'Checking before start'; text = 'ATLAS is confirming it is stopped and has enough CPU, memory and thermal headroom before turning the camera on.'; }
-    else if (st === 'ACTIVE') { tone = 'ok'; title = 'Camera streaming'; text = `Live view for ${isNum(rt.remaining_s) ? Math.ceil(rt.remaining_s) : '—'} more seconds. Distances are uncalibrated sensor readings.`; }
+    else if (st === 'ACTIVE') {
+      tone = 'ok'; title = 'Camera streaming'; text = `Live view for ${isNum(rt.remaining_s) ? Math.ceil(rt.remaining_s) : '—'} more seconds. Distances are uncalibrated sensor readings.`;
+      if (['ir', 'ir_depth', 'rgb_ir'].includes(rt.mode)) {
+        const s = status && status.streams && status.streams.ir;
+        if (!s || s.state !== 'ACTIVE') {
+          tone = 'warn'; title = s && s.state === 'STALE' ? 'IR STREAM STALE' : 'IR NO FRAMES RECEIVED';
+          text = 'The driver is running, but fresh infrared images have not reached the viewer. This is not a successful IR view.';
+        } else { title = 'IR frames received'; text = 'Receiver has fresh infrared frames. Browser rendering is reported below.'; }
+      }
+    }
     else if (st === 'RESOURCE BLOCKED') {
       tone = 'warn'; title = 'Stopped to protect ATLAS';
       const cpu = isNum(failed.cpu) ? failed.cpu : null;
@@ -98,6 +109,11 @@
         /existing Astra/i.test(reason) ? 'Another Astra camera process is already running, so a second one was not started.' :
         /policy|stationary|nonzero|stale/i.test(reason) ? 'ATLAS was not confirmed stopped and E-STOP latched, so the camera was not started.' : reason;
     }
+    const finalIr = status && status.last_session && status.last_session.streams && status.last_session.streams.ir;
+    if (st === 'OFF' && rt && rt.driver_pid && ['ir', 'ir_depth', 'rgb_ir'].includes(rt.mode) && finalIr && !finalIr.received) {
+      tone = 'warn'; title = 'IR NO FRAMES RECEIVED';
+      text = 'The driver stopped. No infrared frame reached the receiver in the last session; see Developer Diagnostics.';
+    }
     $('vlState').className = 'vl-state ' + tone; $('vlTitle').textContent = title; $('vlText').textContent = text;
     const cpu = isNum(failed.cpu) ? failed.cpu : res.cpu_percent, ram = res.ram_percent;
     const temps = res.thermal_c && typeof res.thermal_c === 'object' ? Object.values(res.thermal_c).filter(isNum) : [];
@@ -108,7 +124,7 @@
     $('vlRes').title = isNum(failed.cpu) ? 'CPU value is the sample that stopped the camera; RAM and temperature are from the last passing check.' : 'Last safety check sample';
     $('vlDriver').textContent = !rt ? '—' : st === 'ACTIVE' ? 'Running' : rt.driver_pid ? (rt.driver_stopped ? 'Stopped safely' : 'Stopping…') : st === 'CHECKING' ? 'Not started yet' : 'Off';
     const running = st === 'ACTIVE' || st === 'CHECKING';
-    $('runtimeState').textContent = running ? (st === 'ACTIVE' ? `Streaming · ${MODE_NAMES[String(rt.mode || mode())] || 'depth only'}${frozen ? ' · preview paused' : ''}` : 'Starting…') : 'Camera off · press Start';
+    $('runtimeState').textContent = running ? (st === 'ACTIVE' ? `Driver running · ${MODE_NAMES[String(rt.mode || mode())] || 'depth only'}${frozen ? ' · preview paused' : ''}` : 'Starting…') : 'Camera off · press Start';
     $('startViewer').disabled = running;
     $('freeze').disabled = st !== 'ACTIVE';
     if (st !== 'ACTIVE' && frozen) { frozen = false; $('freeze').textContent = 'Pause preview'; $('freeze').setAttribute('aria-pressed', 'false'); }
@@ -153,7 +169,7 @@
         if (s.state !== 'ACTIVE') { clearImage(k); continue; }
         if (frozen) continue;                         // Pause preview: keep the last picture, camera keeps running
         if (k === 'ir') {
-          try { const response = await get('raw?kind=ir'); drawIr(await response.arrayBuffer(), response.headers); }
+          try { const response = await get('raw?kind=ir'); drawIr(await response.arrayBuffer(), response.headers); $('irState').textContent = 'Rendered'; }
           catch (e) { clearIr(); $('irState').textContent = e.message; }
           continue;
         }
@@ -171,7 +187,10 @@
         }
       } else cloud = null;
       draw();
-      $('diagnostics').textContent = JSON.stringify({ runtime: status.runtime, calibration: status.calibration, camera_info: status.camera_info, usb_inventory: status.usb_verified, usb_note: status.usb_note, depth_validity_sample: status.depth_stats, streams: status.streams, drops: status.dropped_messages, tf: status.tf, detections: status.detections }, null, 2);
+      $('diagnostics').textContent = JSON.stringify({ runtime: status.runtime, ir_delivery: status.ir_delivery, ir_boundaries: status.ir_boundaries,
+        transport: status.transport, last_session: status.last_session,
+        browser_ir: { rendered: !!ir, source_stamp: ir && ir.stamp, preview_paused: frozen },
+        calibration: status.calibration, camera_info: status.camera_info, usb_inventory: status.usb_verified, usb_note: status.usb_note, depth_validity_sample: status.depth_stats, streams: status.streams, drops: status.dropped_messages, tf: status.tf, detections: status.detections }, null, 2);
     } catch (e) {
       if (e.name !== 'AbortError') { $('vlState').className = 'vl-state fail'; $('vlTitle').textContent = 'No reply from the Vision Lab'; $('vlText').textContent = e.message; }
       cloud = null; for (const k of ['rgb', 'depth', 'ir']) clearImage(k); draw();

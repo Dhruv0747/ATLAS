@@ -15,6 +15,7 @@
   "issues": [
     {
       "id": "ATLAS-STAGE32-IR-ACCEPTANCE-EVIDENCE-20261021",
+      "offline_follow_up": "2026-10-21: pinned driver silently continues on OpenNI wait failure; no saved frame-read/publish counts or live topic graph. PC native Domain77 synthetic test:180 callbacks, zero rejects. Diagnostic-only status/count-retention fix and two-file rollback package prepared, NOT deployed. Real delivery cause unresolved; need discriminating OpenNI wait/read/publish counters plus receiver discovery, not another unchanged camera start. See report section17.",
       "instrumented_follow_up": "Separately approved one IR-only revalidation: zero IR callbacks across11 saved ACTIVE samples, monitor stopped after >10s unavailable. Driver reports320x240@30 started; no actual encoding/dimensions/timestamps/FPS delivered. Peak guardCPU69.78%,RAM70.09%,59.47C. Not a resource rejection. Protected services/hashes unchanged; recorder/Astra OFF, E-STOP latched. Delivery failure now confirmed for this attempt, actual publication/receiver cause unverified. A3 held; no retry. Stage32 report section16.",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

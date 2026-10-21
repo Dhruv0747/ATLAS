@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+**Stage32 offline IR follow-up:** diagnostic/status fix candidate ready, NOT deployed.
+Native PC ROS Domain77 test delivered 180 synthetic frames; real Astra delivery
+remains unresolved. No new camera start. See Stage32 report section17 for the
+missing OpenNI/publisher evidence and approval boundaries.
+
 **Latest Astra checkpoint (21 October):** [Stage32 handover reconciliation](ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md#15-recovered-live-handover-evidence--21-october-2026).
 Stage32 is deployed and hash-verified. The separately approved instrumented IR
 revalidation received zero frames and stopped safely (report section16); A3 combination tests are held.

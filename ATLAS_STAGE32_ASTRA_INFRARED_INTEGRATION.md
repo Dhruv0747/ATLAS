@@ -502,3 +502,127 @@ screenshot was needed to document the zero-delivery result.
 | final-runtime.json | 5124947404b0230597732d97db86a10c70e0faaec111243f494f3ca9953422a3 |
 | pre.json | 9d8d5345a53746990f6fa7fbd9c91bb02b5b8344af2c1adbef8b4a92ea71e6be |
 | post.json | a1853ec3a016f5ddedd3734a132f40bfc4e88b93394c84d36ff7b9858f6f8133 |
+
+## 17. Zero-frame offline investigation — 21 October 2026
+
+Continued from d9e23bf; no camera start, deployment, production restart, recording,
+movement, calibration or safety-policy change. **DIAGNOSTIC FIX CANDIDATE READY;
+real IR frame delivery remains UNRESOLVED.**
+
+### Verified path and remaining boundary
+
+Pinned vendor source f7e71d9ce806e788cb48d8580aac2c778fba4214:
+`astra_camera/src/ob_camera_node.cpp` checks stream creation/start return codes.
+The `ir is started` message follows successful OpenNI start, not a frame callback.
+`pollFrame` silently continues when `waitForAnyStream` fails/times out (2000 ms).
+It then reads a frame, invokes the callback, publishes Image and CameraInfo.
+Neither readiness nor publication has a saved counter. Thus the exact unresolved
+boundary is **OpenNI frame readiness/read → ROS publication → live discovery**.
+No evidence yet proves which of these failed; zero received messages cannot do so.
+
+- Saved A4 capabilities advertise IR320x240@30 GRAY8 and GRAY16. Stream-object
+  creation succeeded; this does not establish hardware frame production.
+- Current IR setup uses GRAY8, CV_8UC1, mono8, step1. Namespace/topic resolves to
+  `/astra/ir/image_raw`, sensor_msgs/Image; CameraInfo is published separately.
+- Default reliable/volatile publisher is compatible with the best-effort/volatile
+  receiver. Driver environment and receiver context select Domain77. Read-only
+  web-owner environment showed ROS_LOCALHOST_ONLY=0, no explicit RMW/domain or
+  vendor DDS-profile override. This is not proof of live discovery or matching
+  runtime RMW identities.
+- Vision Lab consumes ROS directly through rclpy, not via Foxglove; changing
+  Foxglove subscriptions would not repair this path.
+- Vendor callback stamps messages with node current time, not sensor hardware
+  capture time. Preserve those stamps but do not label them hardware timestamps.
+
+### Vendor warnings: evidence versus hypotheses
+
+Registration property5: setup calls registration OFF even when registration is
+disabled. Its error text says 'Enabling' for both states. Failure logs but does
+not abort startup; the later start succeeds. This establishes nonfatal control
+flow, NOT that the property failure has no hardware effect. No setting changed.
+
+USB thread-priority warning: bundled OpenNI implementation source is unavailable
+in the pinned driver checkout. Exact failing call and effect remain unverified;
+neither permissions nor real-time privileges should be changed speculatively.
+
+Parameter undeclare errors: `dynamic_params.cpp` performs undeclaration in its
+destructor. These teardown errors follow stream stop and do not explain the
+preceding zero-frame interval. No vendor patch or binary replacement made.
+
+### Verified software correction and tests
+
+`atlas_vision3d_web.py`: retain scalar last-session counts after Stop (no images),
+expose domain/RMW and existing 2-second discovery results, executor errors and
+explicit unknown sensor/publication boundaries. Metadata capture failure cannot
+prevent Stop. No additional DDS participant, subscription or polling timer.
+
+`web/v2/vision3d.js`: driver-running status no longer implies viewing; zero
+callbacks show IR NO FRAMES RECEIVED, stale is distinct, and Rendered is set only
+after canvas conversion. Preserve final no-frame evidence. Enforce mono8,
+mono16/16UC1 dimensions/stride/byte layout; browser render evidence remains local.
+
+Added `test_vision3d_ir_delivery.py`, `test_vision3d_ir_browser_logic.py`,
+`tools/vision3d/ir_receiver_smoke.py` and package preparation utility.
+
+Native PC ROS Humble synthetic smoke, localhost Domain77, delayed publisher:
+180 callbacks, 0 rejected, 0 stamp regressions, latest-window25.215Hz,
+maximum gap0.04394s, receive age0.08007s, source age0.08776s; CameraInfo received,
+76800-byte320x240mono8 payload identical; rmw_fastrtps_cpp. No hardware, video,
+rosbag or image-file output. This rules out unconditional receiver failure, NOT
+Jetson-specific discovery/driver failures. It does not reproduce the hardware fault.
+
+Final focused regression: **93 passed, 1 skipped** (Playwright unavailable).
+Includes unchanged Depth/Depth+RGB launch arguments, guards, Domain isolation,
+IR and calibration-gated geometry. Run pytest with `-s` because guard fixtures
+use stdin fileno; default pytest capture causes fixture-level fileno errors.
+Separate Windows Node execution of actual production canvas/banner functions
+passed: mono8, big-endian mono16, padded little-endian16UC1, invalid stride and
+encoding rejection, no-frame/stale/resource-blocked/final-stop banners. This is
+not a full browser or live Depth regression. No live Depth test was repeated.
+
+Resource impact: discovery metadata reuses the existing graph poll; retained
+evidence is scalar and bounded, not image history. Actual incremental Jetson CPU,
+RSS and render latency are **unmeasured** because nothing was deployed. Previous
+live IR failure stayed within guards (section16); CPU is not established causal.
+
+### Candidate package, installation boundary and rollback
+
+Offline preparation script:
+`project_atlas/tools/vision3d/prepare_ir_diagnostics_package.py`.
+Local output `artifacts/astra_stationary_20261021/ir-diagnostics-candidate/`:
+manifest plus candidate.tar.gz. Only two application files, no driver/runtime/
+guard/service-unit changes. Script has no live deployment actions. Temporary
+target apply/restore rehearsal verified byte-identical baseline restoration.
+
+| File | Candidate SHA256 | Expected existing SHA256 |
+|---|---|---|
+| scripts/atlas_vision3d_web.py | ab056cf735a876d083822d783a312fd994c1cf7b6a19e38050476c26199e37c5 | 889881c062717d076430414f57825b14f7f0de36ba4cf8c20b0c74fbff9ec1bf |
+| web/v2/vision3d.js | ee64d7d6625e0b135eef1a79b3575e5128a68257a580333e36ceb2c228aa056b | 76f9a20267e7d90a9d4b0a3be7f75a6c0e0ca594ddc1254e337e618215cf3fba |
+
+Tar SHA256: 69fd7dd31d75553d4c68e8998a689f1d61e1eb9555bedbd91e562a107965f58e.
+Package records baseline d9e23bf, not a claim that uncommitted bytes were deployed.
+The Git commit containing this section and these files identifies the candidate.
+
+Proposed installation requires separate approval, fresh safety/resource/hash
+checks, backup of exactly both files, atomic replacement and a separately approved
+Vision Lab web-owner restart. Abort on baseline mismatch; do not overwrite newer
+developer work. Verify candidate hashes, stopped-camera and protected identities.
+Rollback: restore both verified backups and restart only that web owner under
+the same approval. No live backup/install path exists yet; package is PC-only.
+
+### Single next necessary action
+
+Do not repeat an unchanged camera start. Prepare read-only, low-rate vendor
+instrumentation counting OpenNI wait result/timeouts, read success/failure,
+actual first-frame mode/format/size and Image/CameraInfo publish totals. No image
+payload retention. Review/build this separately before requesting deployment.
+Together with receiver discovery/callback counters it can distinguish no sensor
+frames from ROS delivery failure in ONE bounded IR-only session. The current
+two-file package fixes misleading diagnostics, not that missing driver evidence.
+
+Owner approval needed for installation/restart; additional explicit approval is
+needed for an instrumented driver and one guarded IR-only verification after its
+package is tested. Keep Domain77, 75% CPU/80% RAM/70C, persistent low-overhead
+monitoring, maximum60s and early no-frame stop; no retry, combinations, emitter
+changes or recording. IR acceptance requires real frames on Dashboard. No
+hardware-delivery fix or combined-mode test is ready for approval yet.
