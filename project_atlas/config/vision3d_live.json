@@ -1,0 +1,18 @@
+{
+  "identity": "Astra Pro 2bc5:0403 depth + 2bc5:0501 RGB; isolated Stage29 runtime",
+  "usb_verified": true,
+  "deployment_verified": false,
+  "viewer_runtime": true,
+  "topics": {
+    "depth": "/astra/depth/image_raw",
+    "rgb": "/astra/color/image_raw",
+    "depth_info": "/astra/depth/camera_info",
+    "rgb_info": "/astra/color/camera_info"
+  },
+  "modes": [
+    "Depth 160x120 16UC1; uncalibrated axial Z only",
+    "Optional concurrent RGB 320x240 rgb8; resource-gated",
+    "CameraInfo fallback is NOT calibrated. XYZ / PointCloud2 / registration DISABLED.",
+    "Explicit Start required; max60s, viewer lease4s; CPU75 / RAM80 / temperature70C"
+  ]
+}

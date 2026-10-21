@@ -8,6 +8,7 @@
   const fmt=n=>Number.isFinite(n)?n.toFixed(3):'unknown';
   function clearImage(k){$(k+'Image').removeAttribute('src');if(urls[k])URL.revokeObjectURL(urls[k]);delete urls[k];}
   async function get(route){const r=await fetch(api+route,{cache:'no-store',signal:controller.signal});if(!r.ok){let e=await r.json();throw Error(e.error||r.status);}return r;}
+  async function viewer(payload){const r=await fetch(api+'viewer',{method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Vision3D':'1'},body:JSON.stringify(payload),keepalive:true});const data=await r.json();if(!r.ok)throw Error(data.error||r.status);return data;}
   function project(p){const a=p[0]*Math.cos(yaw)+p[2]*Math.sin(yaw),b=-p[0]*Math.sin(yaw)+p[2]*Math.cos(yaw),c=p[1]*Math.cos(pitch)-b*Math.sin(pitch),d=p[1]*Math.sin(pitch)+b*Math.cos(pitch);return [canvas.width/2+a*zoom+pan[0],canvas.height/2+c*zoom+pan[1],d];}
   function draw(){
     canvas.width=Math.max(1,Math.floor(canvas.clientWidth));canvas.height=Math.max(1,Math.floor(canvas.clientHeight));ctx.clearRect(0,0,canvas.width,canvas.height);projected=[];
@@ -21,6 +22,7 @@
     if(busy||paused||document.hidden)return;busy=true;controller=new AbortController();
     try{
       status=await(await get('status')).json();
+      $('runtimeState').textContent=status.runtime?`${status.runtime.state} · ${status.runtime.reason||''}`:'Viewer runtime unavailable';
       $('sourceNotice').textContent=(status.simulated?'SIMULATED UI TEST — NOT JETSON DATA · ':'')+status.configuration+(status.error?' · '+status.error:'');
       $('mode').replaceChildren(...(status.modes.length?status.modes:['MODE UNSUPPORTED / not verified']).map(m=>{const o=document.createElement('option');o.textContent=typeof m==='string'?m:JSON.stringify(m);return o;}));
       for(const k of ['rgb','depth','ir','cloud']){
@@ -33,14 +35,15 @@
       if($('showCloud').checked&&status.streams.cloud.state==='ACTIVE'){
         try{cloud=await(await get('cloud')).json();$('obstacles').textContent=JSON.stringify(cloud.shadow_obstacles,null,2);}catch(e){cloud=null;$('cloudMeta').textContent=e.message;}
       }else cloud=null;
-      draw();$('diagnostics').textContent=JSON.stringify({usb_inventory:status.usb_verified,usb_note:status.usb_note,depth_validity_sample:status.depth_stats,streams:status.streams,drops:status.dropped_messages,tf:status.tf,detections:status.detections},null,2);
+      draw();$('diagnostics').textContent=JSON.stringify({runtime:status.runtime,calibration:status.calibration,camera_info:status.camera_info,usb_inventory:status.usb_verified,usb_note:status.usb_note,depth_validity_sample:status.depth_stats,streams:status.streams,drops:status.dropped_messages,tf:status.tf,detections:status.detections},null,2);
     }catch(e){if(e.name!=='AbortError')$('sourceNotice').textContent='SENSOR ERROR · '+e.message;cloud=null;for(const k of ['rgb','depth','ir'])clearImage(k);draw();}
     finally{busy=false;if(!paused&&!document.hidden)timer=setTimeout(refresh,500);}
   }
   function suspend(){clearTimeout(timer);if(controller)controller.abort();cloud=null;for(const k of ['rgb','depth','ir'])clearImage(k);draw();}
-  $('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'Resume viewer':'Pause viewer';if(paused)suspend();else refresh();};
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend();else refresh();});window.addEventListener('pagehide',suspend);
-  $('depthImage').onclick=async e=>{if(!status||paused)return;const r=e.target.getBoundingClientRect(),s=status.streams.depth,u=Math.floor((e.clientX-r.left)/r.width*s.width),v=Math.floor((e.clientY-r.top)/r.height*s.height);try{const m=await(await get(`pixel?u=${u}&v=${v}&stamp=${encodeURIComponent(imageStamps.depth)}`)).json();$('measurement').textContent=!m.valid?'INVALID DEPTH — no measurement':`Pixel ${u}, ${v} · axial depth ${fmt(m.depth_z_m)} m\n`+(m.xyz_m?xyzText(m.xyz_m):m.xyz_unavailable_reason)+`\nFrame ${m.frame} · source ${m.source_stamp} (selection, not continuous ranging)`;}catch(err){$('measurement').textContent=err.message;}};
+  $('startViewer').onclick=async()=>{try{await viewer({action:'start',mode:$('viewerMode').value});paused=false;clearTimeout(timer);refresh();}catch(e){$('runtimeState').textContent=e.message;}};
+  $('pause').onclick=async()=>{paused=true;suspend();try{await viewer({action:'stop'});$('runtimeState').textContent='OFF · camera paused';}catch(e){$('runtimeState').textContent=e.message;}};
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){suspend();viewer({action:'stop'}).catch(()=>{});}else if(!paused)refresh();});window.addEventListener('pagehide',()=>{suspend();viewer({action:'stop'}).catch(()=>{});});
+  $('depthImage').onclick=async e=>{if(!status||paused)return;const r=e.target.getBoundingClientRect(),s=status.streams.depth,u=Math.floor((e.clientX-r.left)/r.width*s.width),v=Math.floor((e.clientY-r.top)/r.height*s.height);try{const m=await(await get(`pixel?u=${u}&v=${v}&stamp=${encodeURIComponent(imageStamps.depth)}`)).json();$('measurement').textContent=!m.valid?'INVALID DEPTH — no measurement':`Pixel ${u}, ${v} · axial Z ${fmt(m.depth_z_m)} m · UNCALIBRATED\n`+(m.xyz_m?xyzText(m.xyz_m):m.xyz_unavailable_reason)+`\n${m.accuracy||'Accuracy NOT verified'}\nFrame ${m.frame} · source ${m.source_stamp} (selection, not continuous ranging)`;}catch(err){$('measurement').textContent=err.message;}};
   canvas.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,pan:e.shiftKey||panning};canvas.setPointerCapture(e.pointerId);};
   canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(drag.pan){pan[0]+=dx;pan[1]+=dy;}else{yaw+=dx*.008;pitch=Math.max(-1.5,Math.min(1.5,pitch+dy*.008));}drag.x=e.clientX;drag.y=e.clientY;draw();};
   canvas.onpointerup=e=>{if(drag&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<5){const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let best=null,d=12;for(const v of projected){const n=Math.hypot(v.q[0]-x,v.q[1]-y);if(n<d){best=v;d=n;}}if(best)$('measurement').textContent=xyzText(best.p)+`\nFrame ${cloud.frame} · source ${cloud.source_stamp}`;}drag=null;};canvas.onpointercancel=()=>drag=null;

@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 approved read-only Vision Lab deployment candidate:
+- Reused V2 UI with explicit60-second, leased camera viewer; only supported isolated modes, normal resource/safety gates and no autostart.
+- Existing-bridge receive-only adapter; fallback CameraInfo diagnostic-only, live XYZ/cloud disabled.
+- Scoped hash-gated installer preserves unrelated live steering code and rehearses rollback; only web service restart allowed.
+-108 targeted tests pass, including worker resource-failure and lease cleanup fixtures; live status documented separately.
+
 2026-10-21 Astra calibration investigation:
 - Confirmed pinned120-byte SDK layout; identified incomplete vendor parameter validation, not a proven NaN cause.
 - Added offline calibration-document admission and measured-target scalar statistics; six new tests,94 targeted tests pass.

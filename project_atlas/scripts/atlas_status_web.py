@@ -2140,6 +2140,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.client_allowed():
             self.send_error(403)
             return
+        if atlas_vision3d_web.serve(self, post=True):
+            return
         if atlas_location_check_web.serve(self, ROS, post=True):
             return
         if atlas_testlab_web.serve(self, ROS, post=True):

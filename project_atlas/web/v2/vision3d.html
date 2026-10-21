@@ -4,8 +4,9 @@
 <header class="topbar"><a class="brand" href="/v2/">ATLAS / HOME</a><h1>3D Vision Lab</h1><span class="chip">READ ONLY · NO NAVIGATION AUTHORITY</span></header>
 <main id="visionLab"><p class="notice" id="sourceNotice" role="status">Waiting for verified streams. USB presence alone is not a working depth camera.</p>
 <section class="panel controls"><label>Verified hardware mode <select id="mode" disabled><option>MODE UNSUPPORTED / not yet verified</option></select></label>
-<span>Mode changes need an approved driver session. These controls only change the viewer.</span>
-<button class="btn" id="pause">Pause viewer</button><label><input type="checkbox" id="showCloud" checked> Show 3D cloud</label>
+<label>Bounded test <select id="viewerMode"><option value="depth">Depth only (lower load)</option><option value="concurrent">RGB + Depth (resource gated)</option></select></label>
+<button class="btn" id="startViewer">Start 60-second viewer</button><span id="runtimeState">OFF · explicit Start required</span>
+<button class="btn" id="pause">Pause / stop camera</button><label><input type="checkbox" id="showCloud" disabled> 3D cloud disabled until calibrated</label>
 <button class="btn" disabled title="Requires separate recording approval">Recording OFF</button></section>
 <section class="vision-grid" aria-label="Live camera streams">
 <article class="panel"><h2>RGB <span class="state" id="rgbState">UNAVAILABLE</span></h2><div class="image-box"><img id="rgbImage" alt="Live Astra RGB; unavailable until verified"></div><p id="rgbMeta">No sensor data</p></article>
@@ -15,8 +16,8 @@
 <div class="cloud-tools"><button class="btn" id="resetView">Reset view</button><button class="btn" id="panMode" aria-pressed="false">Pan mode</button><button class="btn" id="zoomIn">Zoom +</button><button class="btn" id="zoomOut">Zoom −</button></div>
 <p id="cloudMeta">No PointCloud2 publication</p><small>Drag: orbit · shift-drag / Pan mode: pan · wheel / buttons: zoom · click: select. Optical axes: X right, Y down, Z forward. Maximum 6,000 sampled points.</small></article>
 </section>
-<section class="detail-grid"><article class="panel"><h2>Distance inspection</h2><output id="measurement" aria-live="polite">Click a valid depth pixel or a 3D point.</output><p>Depth Z is distance along the optical axis. Range is √(X² + Y² + Z²). XYZ requires matching undistorted CameraInfo. Accuracy is NOT commissioned.</p></article>
+<section class="detail-grid"><article class="panel"><h2>Distance inspection — UNCALIBRATED</h2><output id="measurement" aria-live="polite">Start a bounded depth session, then click a valid depth pixel.</output><p>Axial Z is the sensor reading in metres, NOT verified physical accuracy. Factory calibration is invalid. XYZ, range, registration and metric PointCloud2 remain disabled. No ±3 mm accuracy claim.</p></article>
 <article class="panel"><h2>Sensor diagnostics</h2><pre id="diagnostics">Waiting</pre></article>
 <article class="panel"><h2>Shadow obstacle awareness</h2><pre id="obstacles">Not active</pre><p>Camera-frame ROI only. No ground removal, LiDAR registration or production costmap output. Pi camera object detections are not automatically Astra detections.</p></article></section>
-<p class="notice">Closing or hiding this page stops requests. Subscriptions expire after 15–30 seconds idle; camera driver lifetime is separate. No snapshots or recordings are created.</p>
+<p class="notice">Pausing, hiding or closing stops the camera lease (within 4 seconds plus safety-check/shutdown time). Maximum session 60 seconds; explicit Start required again. CPU75% / RAM80% / 70°C limits apply. No snapshots or recordings are created.</p>
 </main></body></html>

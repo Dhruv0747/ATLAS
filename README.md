@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Read-only Vision Lab deployment](ATLAS_3D_VISION_LAB_LIVE_DEPLOYMENT.md): existing
+page prepared with explicit bounded Start/Pause, CPU75/RAM80/70C gates,
+uncalibrated axial-Z inspection and hard-disabled live XYZ/cloud. No autostart.
+See the report for actual installation and live-validation status.
+
 [Astra calibration continuation](ATLAS_ASTRA_PRO_CALIBRATION_AND_POINTCLOUD_VALIDATION.md):
 installed hashes reverified, ABI layout checked, offline provenance/depth-statistics
 tools prepared; 94 targeted tests pass. No new camera activation or production

@@ -13,18 +13,21 @@ from urllib.parse import urlsplit, parse_qs
 import atlas_vision3d_core as core
 
 API='/api/vision3d/'
-KINDS=('rgb','depth','ir','cloud','depth_info')
+KINDS=('rgb','depth','ir','cloud','depth_info','rgb_info')
 TYPES={'rgb':'sensor_msgs/msg/Image','depth':'sensor_msgs/msg/Image','ir':'sensor_msgs/msg/Image',
-       'cloud':'sensor_msgs/msg/PointCloud2','depth_info':'sensor_msgs/msg/CameraInfo'}
+       'cloud':'sensor_msgs/msg/PointCloud2','depth_info':'sensor_msgs/msg/CameraInfo','rgb_info':'sensor_msgs/msg/CameraInfo'}
 
 
 def read_manifest():
     path=os.environ.get('ATLAS_VISION3D_MANIFEST')
-    if not path: return {}
+    if not path:
+        default=Path(__file__).resolve().parents[1]/'config/vision3d_live.json'
+        if not default.exists():return {}
+        path=default
     raw=Path(path).read_bytes()
     if len(raw)>8192: raise ValueError('manifest too large')
     m=json.loads(raw)
-    if set(m)-{'topics','modes','usb_verified','identity','deployment_verified'}: raise ValueError('unknown manifest field')
+    if set(m)-{'topics','modes','usb_verified','identity','deployment_verified','viewer_runtime'}: raise ValueError('unknown manifest field')
     topics=m.get('topics',{})
     if set(topics)-set(KINDS): raise ValueError('unknown stream')
     for kind, topic in topics.items():
@@ -33,6 +36,64 @@ def read_manifest():
         if topic.startswith(('/cmd','/camera/','/yahboom/','/im10a/','/atlas/')):
             raise ValueError('production namespace forbidden')
     return m
+
+
+class BridgeTransport:
+    """Local existing bridge; subscribe/unsubscribe only, no new DDS participant."""
+    def __init__(self):
+        self.thread=None;self.ws=None;self.quit=threading.Event();self.error=''
+
+    def start(self,topics,callback):
+        import sys,hashlib,struct
+        stage=Path('/home/jetson/project-atlas-migration/astra-20261021')
+        wheel=stage/'websocket_client-1.9.0-py3-none-any.whl'
+        if hashlib.sha256(wheel.read_bytes()).hexdigest()!='af248a825037ef591efbf6ed20cc5faa03d3b47b9e5a2230a529eeee1c1fc3ef':
+            raise ValueError('verified private bridge dependency missing')
+        if str(wheel) not in sys.path:sys.path.insert(0,str(wheel))
+        import websocket
+        from rclpy.serialization import deserialize_message
+        from rosidl_runtime_py.utilities import get_message
+        classes={k:get_message(TYPES[k]) for k in topics}
+        self.ws=websocket.create_connection('ws://127.0.0.1:8765',
+            subprotocols=['foxglove.sdk.v1','foxglove.websocket.v1'],timeout=2,http_proxy_host=None)
+        self.ws.settimeout(.25)
+        def receive():
+            subscriptions={};seen=set()
+            try:
+                while not self.quit.is_set():
+                    try:frame=self.ws.recv()
+                    except websocket.WebSocketTimeoutException:continue
+                    if isinstance(frame,str):
+                        data=json.loads(frame)
+                        if data.get('op')!='advertise':continue
+                        pending=[]
+                        for channel in data.get('channels',[]):
+                            for kind,topic in topics.items():
+                                if channel.get('topic')!=topic:continue
+                                if kind in seen:raise ValueError('duplicate camera channel')
+                                if channel.get('encoding')!='cdr' or channel.get('schemaName')!=TYPES[kind]:
+                                    raise ValueError('unverified camera channel schema')
+                                sid=len(subscriptions)+1;subscriptions[sid]=kind;seen.add(kind)
+                                pending.append({'id':sid,'channelId':channel['id']})
+                        if pending:self.ws.send(json.dumps({'op':'subscribe','subscriptions':pending}))
+                    elif isinstance(frame,bytes):
+                        if not 13<=len(frame)<=core.MAX_BYTES+13:raise ValueError('camera wire budget exceeded')
+                        opcode,sid,_=struct.unpack_from('<BIQ',frame)
+                        if opcode!=1 or sid not in subscriptions:raise ValueError('unexpected bridge operation')
+                        kind=subscriptions[sid];callback(kind,deserialize_message(frame[13:],classes[kind]))
+                    else:raise ValueError('bridge disconnected')
+            except Exception as e:self.error=str(e)
+            finally:
+                try:
+                    if subscriptions:self.ws.send(json.dumps({'op':'unsubscribe','subscriptionIds':list(subscriptions)}))
+                except Exception:pass
+                self.ws.close()
+        self.thread=threading.Thread(target=receive,name='vision3d-local-bridge',daemon=True);self.thread.start()
+
+    def stop(self):
+        self.quit.set()
+        if self.thread:self.thread.join(timeout=2)
+        if self.ws:self.ws.close()
 
 
 class RosTransport:
@@ -82,9 +143,14 @@ class VisionService:
             if self.manifest is None:
                 try:self.manifest=read_manifest()
                 except Exception as e:self.error=str(e);return
+            if self.manifest.get('viewer_runtime'):
+                from atlas_vision3d_runtime import SESSION
+                SESSION.touch()
+                if SESSION.status()['state']!='ACTIVE':return
             if not self.manifest.get('topics') or self.transport or self.clock()<self.retry_after:return
             try:
-                t=self.factory();t.start(self.manifest['topics'],self.ingest);self.transport=t
+                t=BridgeTransport() if self.manifest.get('viewer_runtime') else self.factory()
+                t.start(self.manifest['topics'],self.ingest);self.transport=t
             except Exception as e:
                 self.error='ROS unavailable: '+str(e)
                 self.retry_after=self.clock()+30
@@ -141,7 +207,7 @@ class VisionService:
     def status(self):
         with self.lock:
             streams={}
-            for k in KINDS[:-1]:
+            for k in ('rgb','depth','ir','cloud'):
                 s=self.stats.get(k,{});m=self.messages.get(k);reason='No validated publication'
                 try:self._fresh(k);state='ACTIVE'
                 except ValueError as e:state='STALE' if m else 'UNAVAILABLE';reason=str(e)
@@ -155,7 +221,14 @@ class VisionService:
                             'width':m.width if m else None,'height':m.height if m else None,
                             'encoding':getattr(m,'encoding','PointCloud2') if m else None,
                             **{a:s.get(a,0) for a in ('received','viewer_throttled','rejected','stamp_regressions','max_gap_s')}}
-            return {'read_only':True,'recording':False,'driver_control':False,'error':self.error,
+            runtime=None
+            if (self.manifest or {}).get('viewer_runtime'):
+                from atlas_vision3d_runtime import SESSION
+                runtime=SESSION.status()
+            return {'read_only':True,'recording':False,'driver_control':bool(runtime),'error':self.error or getattr(self.transport,'error',''),
+                    'runtime':runtime,'calibration':'UNVALIDATED — axial Z reading, not verified accuracy; XYZ/cloud/registration DISABLED',
+                    'camera_info':{k:{'frame':m.header.frame_id,'width':m.width,'height':m.height,'source_stamp':core.stamp(m),
+                        'note':'Fallback metadata only; NOT admitted to metric geometry'} for k,m in self.messages.items() if k in ('depth_info','rgb_info')},
                     'configuration':'configured' if (self.manifest or {}).get('topics') else 'NOT CONFIGURED — live topic approval required',
                     'usb_verified':(self.manifest or {}).get('usb_verified',False),
                     'usb_note':'Inventory only; not a live USB/power monitor',
@@ -178,16 +251,20 @@ class VisionService:
     def pixel(self,u,v,displayed_stamp=None):
         with self.lock:
             m=self._fresh('depth');info=self.messages.get('depth_info')
+            if (self.manifest or {}).get('viewer_runtime'):info=None
             if displayed_stamp is not None:
                 m=self.cache.get('depth_message')
                 if m is None or core.stamp(m)!=displayed_stamp:
                     raise ValueError('Displayed depth frame expired; click refreshed image')
                 age=self.wall()-core.stamp(m)
                 if age<-.25 or age>2:raise ValueError('Displayed depth frame stale')
-            return core.measure(m,info,u,v)
+            result=core.measure(m,info,u,v)
+            result['accuracy']='UNVALIDATED — sensor axial Z, not calibrated physical accuracy'
+            return result
 
     def cloud(self):
         with self.lock:
+            if (self.manifest or {}).get('viewer_runtime'):raise ValueError('CALIBRATION BLOCKED: metric cloud disabled')
             m=self._fresh('cloud')
             if self.cache.get('cloud_key')!=core.stamp(m) and self.clock()-self.cache_at.get('cloud',-1e9)>=.5:
                 c=core.cloud_points(m);c['shadow_obstacles']=core.obstacle_prototype(c['points'])
@@ -198,7 +275,7 @@ class VisionService:
 SERVICE=VisionService()
 
 
-def serve(handler,service=None):
+def serve(handler,service=None,post=False):
     p=urlsplit(handler.path)
     if not p.path.startswith(API):return False
     svc=service or SERVICE
@@ -209,6 +286,25 @@ def serve(handler,service=None):
         for k,v in (extra or {}).items():handler.send_header(k,v)
         handler.end_headers();handler.wfile.write(body)
     route=p.path[len(API):];q=parse_qs(p.query)
+    if post:
+        origin=urlsplit(handler.headers.get('Origin',''))
+        if origin.scheme not in ('http','https') or origin.netloc!=handler.headers.get('Host') or handler.headers.get('X-Atlas-Vision3D')!='1':
+            send(403,{'error':'same-origin viewer request required'});return True
+        if route!='viewer':send(404,{'error':'unknown viewer route'});return True
+        try:
+            length=int(handler.headers.get('Content-Length','0'))
+            if not 0<length<=256 or handler.headers.get_content_type()!='application/json':raise ValueError('invalid viewer request')
+            payload=json.loads(handler.rfile.read(length))
+            if svc.manifest is None:svc.manifest=read_manifest()
+            if not svc.manifest.get('viewer_runtime'):raise ValueError('viewer runtime not installed')
+            from atlas_vision3d_runtime import SESSION
+            if payload=={'action':'stop'}:SESSION.stop();svc.stop()
+            elif set(payload)=={'action','mode'} and payload['action']=='start':
+                svc.stop();SESSION.start(payload['mode'])
+            else:raise ValueError('only bounded viewer start/stop supported')
+            send(202,SESSION.status())
+        except (ValueError,KeyError) as e:send(409,{'error':str(e)})
+        return True
     if route not in ('status','frame','pixel','cloud'):send(404,{'error':'unknown read-only route'});return True
     try:
         svc.touch()
