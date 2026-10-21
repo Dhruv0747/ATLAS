@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+Offline startup-coverage candidate now captures pre-spawn baseline and checks
+resources during bounded hashing;77 tests pass. PC peak allocation down97%, CPU
+time increased; actual combined CPU contention unresolved. NOT deployed. Needs
+single-file plus web-restart approval, then separate one-session approval. See
+ATLAS_STAGE32_STARTUP_COVERAGE_CANDIDATE.md. Calibration preparation is independent.
+
 Latest approved follow-up: cleanup from abc6837 deployed; ONE combined attempt
 stopped at CPU77.104377%. Six depth frames, zero RGB at Dashboard receiver;
 browser rendering not verified. No restart or retry. An earlier observer-only

@@ -43,9 +43,9 @@ class Sim:
             class AdmissionError(RuntimeError):
                 def __init__(s, m, e): super().__init__(m); s.evidence = e
 
-            def ticks(): return clock.now()
+            def ticks(): return (clock.now(),0)
             def cpu_delta(a, b):
-                w = b - a; v = self.cpu(self.i, w); self.samples.append({'i': self.i, 'window': w, 'cpu': v, 't': clock.now()}); return v
+                w = b[0] - a[0]; v = self.cpu(self.i, w); self.samples.append({'i': self.i, 'window': w, 'cpu': v, 't': clock.now()}); return v
             def require_cpu(cpu):
                 if cpu > 75: raise AdmissionError('CPU resource limit failed', {'cpu': cpu})
             def check(cpu, observation=None):
@@ -81,7 +81,7 @@ class Sim:
                  patch('select.select', side_effect=select), patch.object(R.os, 'read', side_effect=read), \
                  patch.object(R, 'process_metrics', return_value=({'pid': 1, 'rss_kib': 1, 'cpu_one_core_percent': 1.0}, (0, 0))), \
                  patch.object(R.os, 'killpg') as kill:
-                R.worker(mode)
+                R.worker(mode, startup=[clock.now(),clock.now(),0])
                 self.state = json.loads((Path(tmp) / 'state.json').read_text()); self.killed = kill.call_args_list
         return self
 

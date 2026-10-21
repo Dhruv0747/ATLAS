@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-ASTRA-STARTUP-GUARD-COVERAGE-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Old worker starts CPU baseline after imports/full manifest hashing; observer saw78.8889% before admission. New offline candidate captures baseline before worker spawn and checks during bounded hashing.77 tests pass; deployment and hardware validation pending.",
+      "candidate": "Single-file candidate; PC allocation down97%, CPU time increased. Not a proven aggregate CPU fix. Calibration preparation remains independent.",
+      "report": "ATLAS_STAGE32_STARTUP_COVERAGE_CANDIDATE.md"
+    },
+    {
       "id": "ATLAS-ASTRA-CONCURRENT-CPU-CANCEL-20261021",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

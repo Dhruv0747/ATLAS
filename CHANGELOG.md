@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 OFFLINE startup coverage candidate: pre-spawn CPU baseline, fail-closed
+seed validation, guard/lease checkpoints during bounded128KiB hashing. 77 tests
+pass; PC allocation reduced97%, total CPU time increased. No CPU reliability
+claim, deployment or camera start. See ATLAS_STAGE32_STARTUP_COVERAGE_CANDIDATE.md.
+
 2026-10-21 approved single-file cleanup DEPLOYED; one Depth+RGB attempt stopped
 at CPU77.104377%, driver reaped cleanly. Dashboard receiver 6 depth/0 RGB frames;
 no combined success claim. Protected PIDs unchanged; no restart/movement/retry.

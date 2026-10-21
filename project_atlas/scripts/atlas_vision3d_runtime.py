@@ -44,6 +44,53 @@ def domain_in_use(domain_id, proc=Path('/proc')):
 MIN_CPU_WINDOW_S = 1.0
 MAX_CPU_WINDOW_S = 2.0
 LEASE_POLL_S = 0.25
+STARTUP_SEED = 'ATLAS_VISION3D_STARTUP_SAMPLE'
+
+
+def startup_sample():
+    # Captured in the existing web process BEFORE shell/Python startup.
+    stamp = time.monotonic()
+    fields = list(map(int, Path('/proc/stat').read_text().splitlines()[0].split()[1:9]))
+    return [stamp, sum(fields), fields[3] + fields[4]]
+
+
+def validate_startup_sample(value, now):
+    import math
+    if (not isinstance(value, list) or len(value) != 3 or
+            any(not isinstance(x, (float, int)) or not math.isfinite(x) for x in value) or
+            not 0 <= now-value[0] <= MAX_CPU_WINDOW_S or
+            not 0 <= value[2] <= value[1]):
+        raise ValueError('RESOURCE BLOCKED: missing, stale or invalid startup CPU sample')
+    return value[0], (value[1], value[2])
+
+
+def verify_runtime(runtime, checkpoint, chunk_size=128*1024):
+    """Hash every byte, bounded memory; cancellation/resource checks between chunks.
+
+    No cache or skipped verification. Cooperative yielding reduces burstiness,
+    not total SHA work; native CPU benefit requires a separately approved test.
+    """
+    checkpoint()
+    manifest=json.loads((runtime/'manifest.json').read_text())
+    if len(manifest['files']) != 458:raise ValueError('runtime manifest count mismatch')
+    seen=set();resolved_root=runtime.resolve()
+    for entry in manifest['files']:
+        checkpoint()
+        p=(runtime/entry['path']).resolve()
+        if not p.is_relative_to(resolved_root) or p in seen:
+            raise ValueError('isolated runtime unsafe/duplicate path')
+        seen.add(p)
+        digest=hashlib.sha256()
+        with p.open('rb') as stream:
+            while True:
+                checkpoint()
+                block=stream.read(chunk_size)
+                if not block:break
+                digest.update(block)
+                if len(block)==chunk_size:time.sleep(0.002)
+        if digest.hexdigest()!=entry['sha256']:
+            raise ValueError('isolated runtime integrity failure')
+    checkpoint()
 
 
 class CpuWindow:
@@ -217,7 +264,8 @@ class ViewerSession:
             command=['/bin/bash','-lc','source /opt/ros/humble/setup.bash; exec /usr/bin/python3 '
                      +str(Path(__file__).resolve())+' --worker '+mode]
             self.child=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,
-                                        stderr=subprocess.DEVNULL,start_new_session=True)
+                                        stderr=subprocess.DEVNULL,start_new_session=True,
+                                        env=dict(os.environ, **{STARTUP_SEED:json.dumps(startup_sample())}))
             self.error=''; self.touch()
 
     def touch(self):
@@ -253,7 +301,7 @@ SESSION=ViewerSession()
 atexit.register(SESSION.stop)
 
 
-def worker(mode):
+def worker(mode, startup=None):
     import select
     sys.path.insert(0,str(ROOT/'tools/vision3d'))
     import stationary_gate as G
@@ -291,22 +339,32 @@ def worker(mode):
         limits(cpu,row['ram_percent'],max(row['thermal_c'].values()))
         P.extra_safety(ros=observation['ros']);rows.append(row)
         state.update(resources=row,remaining_s=max(0,MAX_SECONDS-(time.monotonic()-started)))
+    def checkpoint():
+        nonlocal last_lease
+        if os.getppid()!=parent:raise RuntimeError('dashboard owner ended')
+        if select.select([sys.stdin.buffer],[],[],0)[0]:
+            if not os.read(sys.stdin.fileno(),4096):raise RuntimeError('viewer paused or closed')
+            last_lease=time.monotonic()
+        if time.monotonic()-last_lease>4:raise RuntimeError('viewer lease expired')
+        if time.monotonic()-started>=MAX_SECONDS:raise RuntimeError('startup session deadline exceeded')
+        if window.due(time.monotonic()):sample();write()
     try:
         write()
-        # Integrity check is local and read-only, before opening camera hardware.
-        manifest=json.loads((RUNTIME/'manifest.json').read_text())
-        if len(manifest['files'])!=458:raise ValueError('runtime manifest count mismatch')
-        for f in manifest['files']:
-            p=(RUNTIME/f['path']).resolve()
-            if not p.is_relative_to(RUNTIME) or hashlib.sha256(p.read_bytes()).hexdigest()!=f['sha256']:
-                raise ValueError('isolated runtime integrity failure')
+        seed_time,last_ticks=validate_startup_sample(startup if startup is not None else startup_sample(),time.monotonic())
+        state['startup_guard_baseline_monotonic_s']=seed_time
+        window=CpuWindow(seed_time)
+        # Includes shell/Python startup, imports and all later integrity work.
+        sample();write()
+        units=G.services()
+        verify_runtime(RUNTIME,checkpoint)
         cloud_admission(mode)
-        units=G.services();last_ticks=G.ticks();window=CpuWindow(time.monotonic())
-        for _ in range(3):time.sleep(MIN_CPU_WINDOW_S);sample();write()
+        while len(rows)<3:checkpoint();time.sleep(window.wait(time.monotonic()))
         if subprocess.run(['pgrep','-x','astra_camera_no'],stdout=subprocess.DEVNULL).returncode==0:
             raise ValueError('existing Astra process; refusing second owner')
         if domain_in_use(ISOLATED_DOMAIN_ID):
             raise ValueError('private Vision Lab ROS domain %d already in use; refusing' % ISOLATED_DOMAIN_ID)
+        checkpoint()
+        if G.services()!=units:raise RuntimeError('essential service identity changed during startup')
         state['ros_domain_id']=ISOLATED_DOMAIN_ID
         # Linux prctl in this single-threaded worker: camera dies if guardian dies.
         def parent_death():
@@ -375,4 +433,5 @@ def worker(mode):
 
 if __name__=='__main__':
     if len(sys.argv)!=3 or sys.argv[1]!='--worker':raise SystemExit('explicit viewer worker only')
-    worker(sys.argv[2])
+    # Old web owners cannot silently launch this candidate without coverage.
+    worker(sys.argv[2], startup=json.loads(os.environ.get(STARTUP_SEED,'null')) or [])

@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+21 October offline follow-up: [startup coverage and bounded hashing candidate](ATLAS_STAGE32_STARTUP_COVERAGE_CANDIDATE.md).
+77 tests pass; memory allocation reduced in PC fixture, aggregate CPU improvement
+NOT proven. No deployment/session. Installation requires approval including one
+web restart; calibration preparation need not wait for RGB startup.
+
 21 October combined-camera follow-up: [cleanup deployed and one guarded test](ATLAS_STAGE32_CLEANUP_LIVE_RESULT_20261021.md).
 CPU77.10% stopped the single attempt; Dashboard receiver got 6 depth/0 RGB frames.
 No retry or service restart. Combined viewing remains unverified. Startup resource
