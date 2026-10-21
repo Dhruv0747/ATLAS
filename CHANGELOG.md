@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 Astra stationary validation:
+- Added guarded, opt-in RGB/depth smoke tools with own-child duty pacing; verified real frames without saving images or disturbing the Pi camera.
+- Fixed unsupported RGB FPS selection and strict depth JSON/native-warning parsing; retained failed evidence and SDK warning.
+- Build preflight now rejects unavailable cgroup CPU enforcement. No global cgroup, navigation or production-service changes.
+- See ATLAS_ASTRA_PRO_3D_VISION_LAB.md for measurements, limitations and rollback.
+
 2026-10-17 20:10 (OFFLINE ONLY; nothing installed on the Jetson, nothing restarted, nothing actuated):
 - **Stage 27 FlySky Remote Test Lab built and tested offline.** Read-only page `/v2/flysky-testlab`, one subscription / zero publishers, SIGNAL NOT VERIFIED until real frames arrive, no invented RSSI. No live SBUS frame verified; Jetson cannot see receiver data today. Reversible package in `project_atlas/tools/deploy/stage27_flysky/`. Awaiting owner approval.
 - See [`ATLAS_FLYSKY_SBUS_TEST_LAB.md`](ATLAS_FLYSKY_SBUS_TEST_LAB.md).

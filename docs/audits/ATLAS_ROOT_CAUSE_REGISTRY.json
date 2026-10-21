@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-20",
+  "updated_at": "2026-10-21",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -13,6 +13,15 @@
     "VERIFIED FIXED"
   ],
   "issues": [
+    {
+      "id": "ATLAS-ASTRA-USER-CPU-CONTROLLER-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "evidence": "User cgroup controllers contain memory/pids only; cpu.max absent. Requested CPUQuota is not enforcement. Global CPU controller left unchanged to preserve robot timing.",
+      "scoped_fix": "Build fails closed; isolated test children duty-paced with independent aggregate CPU75/RAM80/thermal70 guards. Not a permanent global CPU fix.",
+      "reference": "ATLAS_ASTRA_PRO_3D_VISION_LAB.md"
+    },
     {
       "id": "ATLAS-UNO-SILENCE-WALLCLOCK-20261020",
       "confidence": "CONFIRMED",

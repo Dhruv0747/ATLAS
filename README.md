@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+21 October: [Astra isolated RGB/depth smoke tests verified](ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
+15 real frames per test; CPU peaks 71.43%/69.19%; depth SDK warning retained.
+No production driver/viewer deployment, movement or recording. Global CPU stability
+and simultaneous-stream endurance remain unverified.
+
 Latest: [Orin Nano CV readings correctly treated as not applicable](ATLAS_ORIN_NANO_CV_THERMAL_POLICY_FIX.md).
 26 offline tests pass; fresh Jetson thermal/safety check confirms stop latched,
 zero commands and Stage20 OFF. Admission still blocks on CPU77.89% and manual_only=false.

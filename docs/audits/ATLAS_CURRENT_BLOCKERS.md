@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October latest: isolated Astra RGB/depth each returned 15 real frames within
+resource limits; depth warning/parser correction verified offline from preserved
+output. No recording or existing-service restart. User cgroup CPU quotas are NOT
+enforceable; global CPU stability remains unresolved. Full ROS driver, simultaneous
+streams, TF/accuracy/endurance and viewer deployment pending. Earlier blocked
+attempts below are historical. See [measurements](../../ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
+
 21 October2026 approved Astra stationary setup follow-up: vendor source and seven
 private dependency packages staged, no global install. Build aborted by unchanged
 CPU75% admission (75.884% measured); no auto retry. Depth/RGB USB permissions remain

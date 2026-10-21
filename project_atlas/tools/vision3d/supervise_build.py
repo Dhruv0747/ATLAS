@@ -27,6 +27,10 @@ def main():
     started=False
     try:
         rows,identities=gate.preflight();result.update(preflight=rows,units_before=identities)
+        cgroup=Path('/proc/self/cgroup').read_text().strip().split('::',1)[1]
+        controllers=(Path('/sys/fs/cgroup'+cgroup)/'cgroup.controllers').read_text().split()
+        if 'cpu' not in controllers:
+            raise RuntimeError('CPU controller unavailable: requested systemd CPUQuota would not be enforced; build refused')
         state=subprocess.check_output(['systemctl','--user','show',UNIT,'-p','LoadState'],text=True)
         if 'LoadState=not-found' not in state:raise RuntimeError('build unit already exists')
         subprocess.run(['systemd-run','--user','--unit='+UNIT,'--property=CPUQuota=35%',

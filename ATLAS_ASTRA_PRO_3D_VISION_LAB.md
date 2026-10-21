@@ -1,6 +1,50 @@
 # ATLAS Astra Pro 3D Vision Lab — 21 October 2026
 
-## Approved stationary setup follow-up — latest checkpoint
+## Verified stationary smoke tests — latest checkpoint
+
+21 October: operator granted temporary ACL access to Astra depth 001/014 and RGB
+001/011. Both isolated tests returned real frames; no images, bags or point clouds
+were saved. The historical failed attempts below remain evidence, not current status.
+
+| Test | Actual frames/mode | Receive rate | Peak total CPU / RAM / thermal |
+| --- | --- | --- | --- |
+| RGB | 15, 320x240 MJPEG; accepted 15 FPS | 6.03 Hz paced consumer | 71.43% / 68% / 60.72 C |
+| Depth | 15, 160x120, 1 mm units, 30 FPS | 27.64 Hz short batch | 69.19% / 67.35% / 60.84 C |
+
+Depth indices 3–17 and SDK timestamps were monotonic. SDK-to-ROS clock alignment
+is UNKNOWN. Sampled valid pixels were 145–154 of 300 per frame, not full-image
+validity. Observed ranges are not an accuracy calibration. The native SDK emitted
+`USB events thread - failed to set priority`; possible loss is NOT ruled out.
+The first supervisor marked BLOCKED because a trailing warning broke JSON parsing.
+The strict parser correction and 10 offline tests passed; existing output was
+revalidated without another capture. Original failure ledger was preserved.
+
+CPU findings: this user cgroup exposes no CPU controller/cpu.max, so requested
+CPUQuota was not enforceable. Build admission now fails closed rather than trusting
+that setting. Do NOT enable the controller globally: existing robot quotas might
+then change timing. A desktop apt-check burst contributed load; a temporary,
+rollback-timed update-notifier freeze was restored automatically. No permanent
+desktop or essential-service change was made. Short test children alone were
+duty-paced; this is not a guaranteed CPU quota or a permanent global CPU fix.
+Requesting unsupported RGB 5 FPS silently retained 30 FPS; corrected test verifies
+the actual supported 15 FPS mode before reading. Earlier CPU aborts remain saved.
+
+Final fresh checks: CPU 64.42–65.30%, RAM <=67.38%, temperature <=60.66 C;
+manual-only, stop latched, zero commands, commissioning disabled, Stage20 OFF.
+Essential camera/base/mux/EKF/AMCL/LiDAR PID and restart counts unchanged.
+No production dashboard, steering, maps, navigation or control settings changed.
+
+Evidence on Jetson: `/home/jetson/project-atlas-migration/astra-20261021/`:
+`rgb_stationary_supported_mode_result.json`, `depth_stationary_result.json`,
+`depth_stationary_verified_result.json`, `notifier_freeze_30s.json`.
+Original depth evidence SHA256:
+`ccf9291c0ed49f98359d2e80fedf6d0acf300772a098c18b0394056d724ebe78`.
+Rollback: no autostart/service installed; test processes exit and release cameras.
+Leave isolated staging unused. Temporary USB ACLs expire on re-enumeration.
+Do not delete diagnostic evidence. Remaining: full ROS driver build, simultaneous
+streams, calibration/TF, accuracy/endurance and approved production viewer deployment.
+
+## Historical approved stationary setup follow-up
 
 The owner subsequently approved isolated driver setup and stationary RGB/depth
 testing, including targeted USB permissions. **Preparation progressed, but the
