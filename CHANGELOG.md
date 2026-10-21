@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-21 OFFLINE dashboard candidate: avoid repeated history-list scans and
+discarded deque allocations. Differential freshness/rate tests and60 Linux
+dashboard tests pass. No live services, limits or camera sessions changed.
+
 2026-10-21: offline all-PID CPU accounting with7 tests; bounded passive evidence
 identifies distributed parked load and measurement limitations. No production
 optimization, camera activation or threshold change. See aggregate CPU report.

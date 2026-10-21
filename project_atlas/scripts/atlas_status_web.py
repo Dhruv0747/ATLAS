@@ -433,7 +433,9 @@ class AtlasRosNode:
     def _set(self, key, value):
         with self.lock:
             self.data[key] = {"value": value, "ts": time.time()}
-            samples = self.update_times.setdefault(key, deque(maxlen=128))
+            samples = self.update_times.get(key)
+            if samples is None:
+                samples = self.update_times[key] = deque(maxlen=128)
             samples.append(time.monotonic())
 
     def _spin_status(self):
@@ -1532,7 +1534,12 @@ class AtlasRosNode:
             now_mono = time.monotonic()
             rates = {}
             for key, times in self.update_times.items():
-                samples = [stamp for stamp in times if now_mono - stamp < 10]
+                # _set appends monotonic stamps under this same lock. Expired
+                # prefixes cannot become fresh again; avoid rescanning and
+                # allocating a full history list on every HTTP request.
+                while times and now_mono - times[0] >= 10:
+                    times.popleft()
+                samples = times
                 rates[key] = round((len(samples) - 1) / (samples[-1] - samples[0]), 2) if len(samples) > 1 and samples[-1] > samples[0] else None
         fallback = sensor_hub_cache_snapshot()
         for key, item in fallback["data"].items():

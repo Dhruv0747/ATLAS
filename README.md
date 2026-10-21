@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Offline dashboard snapshot candidate](ATLAS_STAGE32_DASHBOARD_SNAPSHOT_OPTIMIZATION.md):
+Linux fixture CPU0.475->0.082 ms per snapshot;60 dashboard tests pass. Single-file
+candidate NOT deployed; whole-Jetson savings and camera admission unproven.
+
 [All-process CPU audit](ATLAS_STAGE32_AGGREGATE_CPU_ACCOUNTING.md): measured
 parked load71.40%, no Astra test or production changes. Seven accounting tests
 pass; new CPU optimization and80% safety qualification remain unproven.

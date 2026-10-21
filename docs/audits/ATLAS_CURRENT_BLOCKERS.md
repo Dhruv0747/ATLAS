@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-21 offline snapshot profiling: redundant timestamp scans confirmed;
+single-file candidate reduces Linux synthetic snapshot CPU82.81%,60 dashboard
+tests pass. NOT deployed, no live CPU savings/camera admission claim. Needs
+separate installation/web-only restart approval; no Start. See
+ATLAS_STAGE32_DASHBOARD_SNAPSHOT_OPTIMIZATION.md. Aggregate headroom unresolved.
+
 2026-10-21 superseding CPU investigation: all-process parked trace averages
 71.3972%, peaks75.6469% with Astra OFF; top10 omits31.1638 CPU percentage points
 of other PID work. Observer itself ~1.0734 points. Exact historical76.61% cause
