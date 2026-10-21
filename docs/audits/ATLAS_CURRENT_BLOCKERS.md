@@ -1,6 +1,13 @@
 # ATLAS current blockers
 
-21 October Depth+RGB: CPU78.4615% guard stops startup; signal log precedes
+Latest approved follow-up: cleanup from abc6837 deployed; ONE combined attempt
+stopped at CPU77.104377%. Six depth frames, zero RGB at Dashboard receiver;
+browser rendering not verified. No restart or retry. An earlier observer-only
+78.8889% initialization sample exposed missing worker startup guard coverage.
+Fix that offline before another test. Performance optimization design remains
+separately reviewed/uninstalled. See ATLAS_STAGE32_CLEANUP_LIVE_RESULT_20261021.md.
+
+Historical 21 October Depth+RGB: CPU78.4615% guard stops startup; signal log precedes
 invalid-context error26.874ms. USB opening succeeded. Diagnostic/cleanup candidate
 offline,66 tests pass; actual resource-heavy cause and combined reliability NOT
 resolved. No live session/deployment. See ATLAS_DEPTH_RGB_STARTUP_FAILURE_20261021.md.

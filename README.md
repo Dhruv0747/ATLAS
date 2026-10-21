@@ -1,8 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
-21 October combined-camera startup: [failure ordering and offline cleanup candidate](ATLAS_DEPTH_RGB_STARTUP_FAILURE_20261021.md).
-CPU guard triggered before observed ROS context error;66 focused tests pass.
-No live deployment or new session. Combined startup reliability remains unresolved.
+21 October combined-camera follow-up: [cleanup deployed and one guarded test](ATLAS_STAGE32_CLEANUP_LIVE_RESULT_20261021.md).
+CPU77.10% stopped the single attempt; Dashboard receiver got 6 depth/0 RGB frames.
+No retry or service restart. Combined viewing remains unverified. Startup resource
+coverage gap and separately reviewed optimization plan documented; no performance fix claimed.
 
 21 October permanent USB access audit: [inventory, exact offline Astra rules,
 tests and approval gates](ATLAS_PERMANENT_USB_ACCESS_AND_REBOOT_RECOVERY.md).

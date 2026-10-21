@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 approved single-file cleanup DEPLOYED; one Depth+RGB attempt stopped
+at CPU77.104377%, driver reaped cleanly. Dashboard receiver 6 depth/0 RGB frames;
+no combined success claim. Protected PIDs unchanged; no restart/movement/retry.
+See ATLAS_STAGE32_CLEANUP_LIVE_RESULT_20261021.md for hashes, rollback, exact
+monotonic events and pre-admission CPU coverage gap requiring offline correction.
+
 2026-10-21 Depth+RGB startup investigation (offline only):
 - Retained log shows signal handler26.874ms before invalid-context exception;
   worker rejected aggregateCPU78.4615%. USB depth connection succeeded.

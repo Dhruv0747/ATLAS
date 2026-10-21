@@ -18,7 +18,7 @@
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
       "evidence": "Worker CPU78.4615% rejection; driver signal handler precedes invalid context26.874ms; OpenNI connected serial17122120830. Exact original guardian signal monotonic timestamp absent. Additional CPU cause/RGB contention unverified.",
-      "candidate": "Offline bounded lifecycle timestamps, preserve signal/errors, owned-child cleanup race handling, truthful stopped state;66 tests pass, no parameter/safety change, NOT deployed. Does not claim CPU reduction or vendor startup race fixed.",
+      "candidate": "abc6837 cleanup DEPLOYED with matching hash; ONE test CPU77.104377% stopped, driver reaped0, Dashboard receiver6 depth/0 RGB. No restart/retry. Startup observer78.8889% before worker admission exposes guard coverage gap; optimization design only, no CPU reduction claim. See ATLAS_STAGE32_CLEANUP_LIVE_RESULT_20261021.md.",
       "report": "ATLAS_DEPTH_RGB_STARTUP_FAILURE_20261021.md"
     },
     {

@@ -2,6 +2,18 @@
   "scope": "Stage32 diagnostic candidate only; not an exhaustive deployment registry",
   "date": "2026-10-21",
   "branch": "agent/sync-developer-20261011",
+  "cleanup_abc6837_followup": {
+    "status": "single-file cleanup DEPLOYED; combined viewing NOT VERIFIED",
+    "installed_sha256": "feedd883cbb9335569dcf50d33aaf5f66e3db85352dab54b2b3dba76c9137500",
+    "attempts": 1,
+    "guard_cpu_percent": 77.10437710437711,
+    "depth_received": 6,
+    "rgb_received": 0,
+    "services_restarted": false,
+    "retry": false,
+    "report": "ATLAS_STAGE32_CLEANUP_LIVE_RESULT_20261021.md",
+    "backup": "/home/jetson/project-atlas-migration/astra-20261021/cleanup-20261021T210340/"
+  },
   "candidate_source_commit": "baa1f26e96b8976aed0785f62c0891558c5930f0",
   "result_report_commit": "2376ede16eefa5579bba69ff229da80974ee4811",
   "status": "IR 640x480 DEPLOYED AND LIVE VERIFIED (production driver); instrumentation candidate not deployed",
