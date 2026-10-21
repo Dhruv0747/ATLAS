@@ -1,0 +1,50 @@
+{
+ "timeline": [
+  {
+   "title": "Camera off",
+   "cpu": "68.6%",
+   "ram": "70%",
+   "temp": "60.5 \u00b0C",
+   "driver": "Stopped safely",
+   "depth": "Off",
+   "fps": "",
+   "meta": "",
+   "img_w": 0,
+   "img_src": false,
+   "t": 2.1
+  },
+  {
+   "title": "Camera off",
+   "cpu": "68.6%",
+   "ram": "70%",
+   "temp": "60.5 \u00b0C",
+   "driver": "Stopped safely",
+   "depth": "Off",
+   "fps": "",
+   "meta": "",
+   "img_w": 0,
+   "img_src": false,
+   "t": 4.1
+  },
+  {
+   "title": "Stopped to protect ATLAS",
+   "cpu": "76.0%",
+   "ram": "72%",
+   "temp": "60.7 \u00b0C",
+   "driver": "Stopped safely",
+   "depth": "Off",
+   "fps": "",
+   "meta": "",
+   "img_w": 0,
+   "img_src": false,
+   "t": 6.1
+  }
+ ],
+ "start_clicks": 1,
+ "measures": {},
+ "before": "Camera off\n\nThe camera was stopped because the page was paused, hidden or closed.\n\nCPU\n68.6%\nlimit 75%\nRAM\n70%\nlimit 80%\nTemperature\n60.5 \u00b0C\nlimit 70 \u00b0C\nCamera driver\nStopped safely",
+ "final_before_stop": "Stopped to protect ATLAS\n\nCPU reached 76.0%, above the 75% limit, so the camera was turned off and the driver was stopped. Nothing else on ATLAS was changed. You can try again later when the Jetson is less busy.\n\nCPU\n76.0%\nlimit 75%\nRAM\n72%\nlimit 80%\nTemperature\n60.7 \u00b0C\nlimit 70 \u00b0C\nCamera driver\nStopped safely",
+ "after_stop": "Stopped to protect ATLAS\n\nCPU reached 76.0%, above the 75% limit, so the camera was turned off and the driver was stopped. Nothing else on ATLAS was changed. You can try again later when the Jetson is less busy.\n\nCPU\n76.0%\nlimit 75%\nRAM\n72%\nlimit 80%\nTemperature\n60.7 \u00b0C\nlimit 70 \u00b0C\nCamera driver\nStopped safely",
+ "diagnostics": "",
+ "errors": []
+}

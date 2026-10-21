@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-21 14:44 (owner-approved second Depth-only test; passive persistent recorder; no intrusive diagnostics while streaming):
+- **Result: BLOCKED at start-up, no frames.** Guard sample 76.0% over a ~0.5 s window just after driver launch; driver stopped, no retry. Over 191 s no 1-s sample exceeded 75% (max 73.8%).
+- Cause: three short bursts collided in one half-second: Astra start-up (55.6% of a core), kernel reclaim/compaction (kswapd0/kcompactd0), and the network-fallback curl probe. Domain isolation held. Decision needed on guard window or background load; nothing changed. See [`ATLAS_STAGE31_LIVE_DEPLOYMENT.md`](ATLAS_STAGE31_LIVE_DEPLOYMENT.md) (second test).
+
 2026-10-21 14:24–14:35 (owner-approved Stage 31 steps 1–3; step 4 NOT approved/not done):
 - **UI DEPLOYED** (static, no restart): new Home, Vision Lab page, `/v2/classic.html` fallback. Live-verified in a real browser on desktop and mobile, with no errors or POSTs.
 - **ASTRA FIX DEPLOYED** (`rover-status-web` restart only, PID 67677 -> 117520): driver and receiver in private ROS domain 77, verified live; domain-0 participants unchanged.

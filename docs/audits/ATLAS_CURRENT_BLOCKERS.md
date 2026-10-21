@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+21 October 14:44 second Depth test BLOCKED at start-up: guard sample 76.0% (~0.5 s
+window) = Astra start-up burst + kswapd0/kcompactd0 + network-fallback curl probe;
+no 1-s sample in 191 s exceeded 75%. No frames, no retry. Owner decision needed on
+guard window / background load. See ATLAS_STAGE31_LIVE_DEPLOYMENT.md second test.
+
 21 October 14:35 Stage31 live: UI and Astra domain-77 fix DEPLOYED (web restart only,
 protected identities unchanged). One Depth start delivered real frames for ~11 s
 (guard 63.5-69.4% after launch, vs first-sample failures before), then a 77.8%

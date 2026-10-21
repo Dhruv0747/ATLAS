@@ -150,3 +150,85 @@ One more guarded Depth-only start, **identical** except that the observer stays 
 - isolation checked only after the session.
 
 The goal is a full 60-second session and a working click-to-measure. Thresholds stay unchanged and there is no retry on failure.
+
+---
+
+# Second guarded Depth-only test (owner approval 14:42 IST)
+
+## Result
+
+**BLOCKED at start-up. No frames were delivered, and LIVE DEPTH is still NOT VERIFIED.** The single Start (14:44:09 IST) was stopped by the unchanged guard at **76.0%**, 0.5 s after the driver launched. The driver was stopped safely and there was no retry. Click-to-measure could not be attempted.
+
+## Method (as required)
+
+- **Fresh preflight** (`evidence/stage31_live_b/pre_b.txt`): E-STOP latched, `cmd_vel` zero, recorder (stage20 capture) inactive, mission READY.
+  - Encoders, drive_pid and IMU fresh; LiDAR 0.5 s old; Pi camera JPEG 200.
+  - Protected identities unchanged; no Astra process; no domain-77 user. CPU 65.5%, RAM 71%, 60 °C.
+- **Recorder:** `tools/vision3d/stage31_cpurec.py`, run as a transient `systemd-run --user` unit so it survives disconnects.
+  - It reads only `/proc` and the Vision Lab state file once per second and writes one flushed JSON line per second, for 200 s (191 samples).
+  - It started 30 s before Start and costs about 2% of one core.
+- **No intrusion while streaming:** the browser reached the dashboard directly at `http://192.168.1.15:8088`, so no SSH, tunnel, `ros2`, `ss` or `pgrep` ran during the session window.
+- **Limits** 75% CPU / 80% RAM / 70 °C unchanged.
+
+## CPU trace (`evidence/stage31_live_b/s31b_trace.jsonl`)
+
+**Overall**
+
+| Window | Busy CPU, 1-s samples |
+|---|---|
+| 28 s before Start | mean 65.0%, min 62.6%, max 69.8% |
+| After the session (130 s) | mean 65.4%, min 60.7%, max 69.2% |
+
+**No one-second sample in the whole 191 s exceeded 75%.** The highest was 73.8%.
+
+**Around Start** (t is the recorder clock)
+
+| t | 1-s busy | Guard state (its own sample) | Main additions over the per-process baseline (% of one core) |
+|---|---|---|---|
+| 37.7 | 70.6% | worker starting (hashing the 458 runtime files) | Vision Lab worker +14 |
+| 38.8–40.9 | 63.6–67.1% | CHECKING: 63.3%, 67.2%, 64.5% | — |
+| **41.9** | **73.8%** | driver launched at 3.55 s; **guard sample at 4.06 s = 76.0% → BLOCKED** | **Astra driver start-up +29**, **kswapd0 +12** (kernel memory reclaim), **curl +10** (network fallback HTTPS probe) |
+| 43.0 | 67.3% | stopped | kcompactd0 +13 (kernel memory compaction) |
+
+The worker's own record at the rejected sample (`/run/user/1000/atlas-vision3d-viewer.json`): Astra driver 55.6% of one core and 73 MB RSS; worker 4.5%.
+
+## What caused the spike
+
+The failing sample was a coincidence of three short events in the same half-second. None of them exceeds the limit on its own:
+
+1. **Astra driver start-up burst:** 55.6% of one core during the guard's window, about 9 points of the machine. This is the camera's own initialization. In the first test, the steady streaming cost was only about 4.5% of one core.
+2. **Kernel memory reclaim:** kswapd0 +12% of a core, followed by kcompactd0 +13%. This was triggered as the driver allocated memory at about 70–72% RAM use.
+3. **The network-fallback HTTPS probe:** `curl` launched by `atlas_network_fallback.py`. It ran 7 times in 191 s (at t = 25, 42, 107, 134, 151, 156 and 178), costing 3–10% of a core each time.
+
+It is the guard's **sample length** that turns this into a failure:
+- After launch the worker samples on a loop of up to 1 s `select` plus 0.5 s sleep. The browser's lease touches return the `select` early, so the first post-launch window was **about 0.5 s** (3.55 → 4.06 s).
+- The same second averaged over 1 s was 73.8%.
+- In test 1 the corresponding first sample happened to fall at 63.5% and passed.
+
+So the remaining blocker is not discovery fan-out, which the domain-77 fix removed. It is how a sub-second sample catches the camera's own start-up burst on a 65% baseline.
+
+Test 1's later 77.8% sample has no per-process trace (that recorder failed). The probe pattern above makes the same mechanism plausible there, alongside my own SSH check at the time. This is not proven.
+
+## Other observations
+
+- **Someone else started the viewer before this test.** Between 14:35 and 14:43 the Vision Lab state file shows an additional viewer session that I did not start. Its Astra driver launched at 4.08 s, with the first guard sample passing at 68.6%, and it ended `OFF`, consistent with the page being closed or hidden (lease revoked). This was probably your browser. No Astra process remained afterwards.
+- **UI defect:** for about 4 s after Start, the page showed the previous session's summary ("Camera off … Stopped safely") before the new state appeared. It does not affect safety. I'll fix it before any further start.
+
+## After shutdown (`post_b.txt`)
+
+- E-STOP latched, commands zero, mission READY; no Astra process or worker; no domain-77 user.
+- Protected identities unchanged: atlas-camera 1982/0, base 3534/1, mux 1975/0, EKF 3260/0, localization 5713/1, LiDAR 5523/5, web 117520/0.
+- Pi camera 200, encoders and drive_pid at 10 Hz, IMU and LiDAR fresh. CPU 66%, RAM 68%, 60 °C.
+- MemAvailable 2.48 GB of 7.80 GB, swap unused.
+- XYZ / point cloud stayed disabled; nothing was recorded.
+
+## Decisions needed (not taken)
+
+Every remaining route changes either the guard's measurement or the background load. Each needs your separate approval:
+
+- **(a)** Make each guard sample cover at least 1 full second. The threshold stays 75% on a single sample; only the window length changes. Every 1-s sample in this trace stayed below 75%.
+- **(b)** Exclude the first ~2 s after driver launch from the single-sample rule while still enforcing a hard ceiling (for example 90%).
+- **(c)** Pause the network-fallback probe and/or background AI services during a viewing session.
+- **(d)** Accept that live depth is not available at the current baseline.
+
+Without one of these, repeated starts will pass or fail depending on whether the start-up burst coincides with background bursts.
