@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-21 one guarded Depth-only test after97735e9:CPU76.6102% rejected before
+driver launch,zero frames. Per-process evidence captured; protected services and
+safety preserved. No retry. ATLAS_STAGE32_PREVIEW_CORE_LIVE_RESULT.md.
+
 2026-10-21 preview core e01fc36 DEPLOYED/VERIFIED: single file,web-only restart,
 CPU restart peak100%, five passing samples by38s. E-STOP/zero commands preserved,
 protected PIDs unchanged, sensors fresh, Astra/recorder OFF. Hashes/rollback:

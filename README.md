@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Latest approved preview test](ATLAS_STAGE32_PREVIEW_CORE_LIVE_RESULT.md):
+CPU76.61% blocked before driver launch; zero frames/points, no retry.
+Conversion optimization not exercised; full-session3D Preview still unverified.
+
 [Offline depth conversion optimization](ATLAS_STAGE32_PREVIEW_CPU_OPTIMIZATION.md):
 54.8% less PC conversion CPU, identical PNG output,94 tests pass.
 [Deployed and verified](ATLAS_STAGE32_PREVIEW_CORE_DEPLOYMENT.md), Astra OFF;

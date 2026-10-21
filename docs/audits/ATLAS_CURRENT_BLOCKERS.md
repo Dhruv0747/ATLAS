@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+Current21 October: preview-core deployed97735e9. One approved test rejected
+76.6102% before driver launch;zero frames, optimized conversion not exercised.
+Per-process top10 evidence does not explain full aggregate load. No retry;
+ATLAS_STAGE32_PREVIEW_CORE_LIVE_RESULT.md supersedes earlier candidate status.
+
 Superseding21 October status: direct launch deployed08ad26f; approved test06ed75f
 received17depth frames then CPU76.0757% stopped it. Preview not verified.
 New OFFLINE core-preview candidate removes19,200 redundant per-pixel validations:
