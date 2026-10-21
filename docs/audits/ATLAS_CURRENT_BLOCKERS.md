@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October Stage32 handover: A1 already deployed, ten hashes and rollback verified.
+A2 already attempted, but IR Dashboard delivery acceptance evidence missing:
+stop clears counters, so saved zero counts do not prove absent frames. Driver
+started IR; session stopped `viewer paused or closed`, not a CPU trip. A3 held.
+A4 recovered firmware5.8.22/identity, not validated calibration. No repeat tests,
+movement or restarts during reconciliation. See Stage32 report section15.
+
 21 October 15:13 Stage31B: 1-s guard window and stale-summary fix DEPLOYED (no
 restart). One 60 s Depth-only session ran to completion: 607 real frames on the
 Dashboard, click-to-measure 2.721 m (uncalibrated), guard 63.7-71.1%, limits

@@ -14,6 +14,15 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-STAGE32-IR-ACCEPTANCE-EVIDENCE-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "evidence": "Recovered A1 deployment and A2 attempt. IR driver started320x240@30; stop reason viewer paused or closed after24.47s, active CPU64.25-69.32%. VisionService.stop clears frame statistics; retained zero counts cannot prove no frames. No Dashboard FPS/encoding/timestamp evidence retained.",
+      "remaining_gap": "A2 delivery unverified, not hardware-failure proof. A3 blocked pending prior browser evidence or separately approved instrumented IR revalidation. No test repeated. A4 firmware5.8.22 identity recovered, calibration remains unvalidated; unsigned zero-plane-distance decoding not usable geometry.",
+      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md#15-recovered-live-handover-evidence--21-october-2026"
+    },
+    {
       "id": "ATLAS-ASTRA-DDS-DISCOVERY-FANOUT-20261021",
       "confidence": "CONFIRMED",
       "resolution": "VERIFIED FIXED",

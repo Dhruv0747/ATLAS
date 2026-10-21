@@ -1,5 +1,11 @@
 # Project ATLAS - Autonomous Service Rover
 
+**Latest Astra checkpoint (21 October):** [Stage32 handover reconciliation](ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md#15-recovered-live-handover-evidence--21-october-2026).
+Stage32 is deployed and hash-verified. One IR attempt occurred, but retained
+evidence does not prove Dashboard frame delivery; A3 combination tests are held.
+Metadata recovered; calibration/cloud remain gated. Astra and recording OFF.
+Earlier summaries below are historical, superseded where this checkpoint differs.
+
 [Stage30 resource investigation](ATLAS_STAGE30_ASTRA_RESOURCE_RECOVERY.md):
 camera-free ROS startup also exceeded75%; stable Astra viewing still blocked.
 Three-file observer-overhead/early-rejection cleanup DEPLOYED from `ac34cd3`,

@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 (Stage32 handover reconciliation; read-only live audit):
+- Recovered previously uncommitted A1 installation, A2 IR attempt and A4 metadata evidence. Ten installed hashes match package; rollback checksums pass; no deployment/test repeated.
+- A2 is UNVERIFIED: driver started but Dashboard delivery evidence was not retained; stop clears counters. CPU stayed below75% in the retained active trace. A3 held, calibration/cloud gated.
+- Fresh CPU64.08–66.88%, RAM72.19%, temperature60.06C; E-STOP/manual-only preserved, commands zero, recorder/Astra OFF, protected services unchanged. See Stage32 report section15. No production code changed.
+
 2026-10-21 15:30–16:00 (Stage 32 + addendum; DEVELOPMENT ONLY; nothing installed, no restart, camera never started):
 - **IR IMPLEMENTED (offline), NOT live verified.** Vision Lab modes Infrared, Infrared + Depth and Infrared + RGB (all untested); native IR bytes are shown with a stated display stretch and a raw-value probe; IR is never derived from RGB or depth. Depth and Depth+RGB launch arguments are unchanged (byte-identical test).
 - **CALIBRATION PREPARED, NOT validated.** Factory parameters are still NaN. A guided checkerboard tool (corners only, held-out error, coverage gate) and physical-validation rules are ready, and the metric-geometry gate stays closed.

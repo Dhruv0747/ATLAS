@@ -2,18 +2,18 @@
 
 Branch `agent/sync-developer-20261011`. Baseline `2c4adbf` (Stage 31B live). Stage 32 and its addendum are one assignment, and this is the single report for both.
 
-**Nothing in this stage has been deployed or run against the camera.** The Jetson is still at the Stage 31B state: E-STOP latched, Astra off, live file hashes equal to `2c4adbf`. Everything below was built and tested offline, plus one camera-off compute probe on the Jetson. Every live step is listed under "Approvals needed".
+**21 October handover reconciliation:** A1 deployment, one A2 IR attempt and A4 read-only metadata queries had already occurred on the Jetson, although they were missing from Git. Section 15 records recovered evidence and supersedes the original offline-only status below. No camera session or deployment was repeated during this reconciliation.
 
 ## Status
 
 | Label | Status | Basis |
 |---|---|---|
-| IR CAPABILITY VERIFIED | **NO** | Driver source reviewed only. No IR mode has been tried on this camera. |
+| IR CAPABILITY VERIFIED | PARTIAL | Driver logged IR 320x240@30 started; Dashboard delivery remains unverified. |
 | IR DRIVER IMPLEMENTED | YES (launch arguments only) | The pinned driver already publishes IR. The runtime now requests it per mode. No driver rebuild. |
 | IR IMPLEMENTED | YES (offline) | Receiver, raw route, viewer and mode matrix are in place. |
 | IR OFFLINE TESTED | YES | 14 unit tests and a synthetic browser test. |
-| IR LIVE VERIFIED | **NO** | No real infrared frame has been received. IR must not be called working yet. |
-| IR DASHBOARD DEPLOYED | **NO** | Package is ready. Needs approval A1. |
+| IR LIVE VERIFIED | **UNVERIFIED** | One attempt consumed; retained evidence does not establish frame delivery. |
+| IR DASHBOARD DEPLOYED | **YES** | A1 recovered installation and ten live package hashes verified. |
 | DEPTH REGRESSION PASSED | Offline only | Depth and Depth+RGB launch arguments are byte-identical to `abf375b` (test). No live rerun. |
 | CALIBRATION PREPARED | YES | Guided checkerboard and physical-validation tooling, gate and procedure. |
 | CALIBRATION VALIDATED | **NO** | Factory parameters read as NaN. No calibration file exists. |
@@ -22,7 +22,7 @@ Branch `agent/sync-developer-20261011`. Baseline `2c4adbf` (Stage 31B live). Sta
 | XYZ CLOUD LIVE VERIFIED | **BLOCKED** | Calibration invalid. The node refuses to start, by design. |
 | RGB REGISTRATION VERIFIED | **NO** | Not attempted. XYZRGB stays off. |
 | 3D VIEWER READY | YES (offline, gated) | Orbit, pan, zoom, reset, axes, point count, FPS, measurement, calibration status, Cloud ON/OFF. Disabled until calibration is VALIDATED. |
-| 3D VIEWER DEPLOYED | **NO** | Part of approval A1. Even after deployment it stays disabled until calibration. |
+| 3D VIEWER DEPLOYED | **YES, gated** | Installed by A1; stays disabled until validated calibration. |
 
 ## 1. IR stream compatibility
 
@@ -330,3 +330,85 @@ From the owner, before A5:
 - the square size (ruler over 5 squares);
 - tape-measured distances, Astra front face to target, at about 1.00, 1.50 and 2.00 m (and 2.72 m if wanted);
 - whether the IR laser may be switched off during checkerboard capture (separate yes or no).
+
+## 15. Recovered live handover evidence — 21 October 2026
+
+This section supersedes the original deployment/approval status above. The prior
+developer's live evidence was recovered without repeating A1, A2 or A4. The local
+branch was fast-forwarded seven commits to `92a2bc3`; unrelated untracked work was
+preserved. This continuation changed documentation only, not running software.
+
+### A1 — installed and verified
+
+`apply.txt` records installation at 15:56:09. All ten live SHA256 values match the
+extracted `s32_deploy_pkg_2f91a3c.tgz` package and the Stage32 column in section 12.
+Package SHA256: `d10121c306e8dd21208ab7e18fa7d2501b83925c4610e145b8626804fa11c992`.
+Only the web owner was restarted by A1. Backup
+`/home/jetson/project_atlas/.pre_stage32_20261021_155609` passes its SHA256SUMS
+verification. Use the existing section-12 rollback procedure; it would require
+the documented web restart and was not executed during this audit.
+
+### A2 — attempted, acceptance evidence incomplete
+
+The retained driver log shows IR 320x240@30 starting, then stopping roughly 21 s
+later. Runtime retained 24 successful samples over 24.47 s and the stop reason
+`viewer paused or closed`. Active guard CPU was 64.25–69.32%, RAM last 67.88%,
+temperature last 60.875 C; the 75% CPU guard did not cause this recorded stop.
+Astra CPU peaked at 38.09% of one core and ended at 4.91%; final RSS 81,592 KiB.
+These process percentages are not whole-machine CPU percentages.
+
+Registration-enable error and USB-thread-priority warnings appear in the log.
+They do not establish why the viewer stopped or prove that frames failed.
+Crucially, `VisionService.stop()` clears frame statistics. The subsequently saved
+zero counters therefore cannot establish zero frame delivery. No retained
+Dashboard frame count, FPS, raw encoding or frame timestamps were found for A2.
+Driver start alone is not a Dashboard pass. **IR live verification is UNVERIFIED,
+not passed and not diagnosed as hardware failure.** A3 remains blocked; neither
+combination test was repeated. Stage31B's 607-frame Depth pass remains historical
+evidence, not a post-Stage32 live regression result.
+
+### A4 — metadata read, calibration not recovered
+
+Recovered read-only query: Astra Pro serial `17122120830`, firmware `5.8.22`,
+platform `RD108C-009`, SDK `5.2.0.0`. Supported IR/depth modes were enumerated
+without starting a stream. A calibration-support flag is not a calibration
+payload. The zero-plane-distance field was decoded as an unsigned integer and
+gave `4638777984935788544`; its type/units are unverified and it must not be used
+for geometry. No validated calibration was recovered. No EEPROM, firmware,
+laser/emitter, calibration or production setting was changed in this continuation.
+
+### Fresh read-only health and protected identities
+
+Three CPU samples: 64.08%, 66.88%, 64.80%; RAM 72.18–72.19%; hottest 60.06 C.
+E-STOP latched, manual-only true, commissioning false, commands/wheel outputs
+zero, recorder OFF, mission READY. Required freshness checks passed. No Astra
+driver, worker or cloud process remained. Pi Camera returned HTTP200/JPEG.
+Protected PID/restart-count pairs match the recovered post-A4 snapshot:
+camera 1982/0, base 3534/1, mux 1975/0, EKF 3260/0, localization 5713/1,
+LiDAR 5523/5, web 164593/0. No service was restarted during this reconciliation.
+
+### Evidence preservation and next necessary action
+
+Remote evidence directory:
+`/home/jetson/project-atlas-migration/stage32-deploy-20261021/`.
+A preserved PC copy is under `artifacts/astra_stationary_20261021/` (not committed;
+generated logs/backups remain out of Git). New read-only verification is
+`handover-readonly-verification.json` in both copies. Key evidence SHA256:
+
+| File | SHA256 |
+|---|---|
+| apply.txt | 94e534aefb9f5f368abe0a6f04779ed25453b7cc5eaad58d3dd768950cf39981 |
+| a2_trace.jsonl | 0eb45d41791233a9ce25f8f7123c4dbcc21d727df49b25e8ff1acf4bc3b76430 |
+| a2_viewer_state.json | 197d65aa41b18a7a5bd1f152baa1009830cc727ba1948a71e18758141786a727 |
+| a2_driver_log_filtered.txt | b16e1d3318b0500100da9d7ebc5c8c4fa9b9023d9ec29f649c418c11a35e4c89 |
+| a4_devinfo2.txt | 0482430c65c90e51bb20dcf92316adecd8f66b21ce5277034838236831f9eb9c |
+
+No completed offline suite was repeated: earlier section-11 results remain
+historical, not new test runs. New checks were live/package hash equality,
+backup integrity, resource/safety freshness and protected-service comparison.
+Next: recover the previous A2 browser delivery evidence if available; otherwise
+request approval for one instrumented IR-only revalidation retaining delivery
+statistics before Stop. Do not consume A3 on an assumed A2 pass. A5 physical
+checkerboard acquisition and A6 calibration installation/cloud test remain
+separately unapproved and blocked. No new camera session is authorized by this
+report.
