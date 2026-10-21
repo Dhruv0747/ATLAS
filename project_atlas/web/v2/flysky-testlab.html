@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en" class="v2page v2-testlab v2-flysky"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ATLAS · FlySky Remote Test Lab</title>
+<link rel="icon" href="/v2/assets/atlas-logo-96.png">
+<link rel="preload" href="/v2/assets/michroma-latin-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/pages.css"><link rel="stylesheet" href="/v2/testlab.css"><link rel="stylesheet" href="/v2/flysky.css">
+</head><body>
+<header class="tl-head">
+  <div class="tl-title">
+    <a class="tl-back" href="/v2/">← Command center</a>
+    <h1>FlySky Remote Test Lab</h1>
+    <p>Move the transmitter sticks and watch each channel change. This page only reads the receiver. It cannot drive the rover.</p>
+  </div>
+  <div class="tl-chips" id="chips" role="status" aria-live="polite">
+    <span class="chip" id="chipLink">Receiver …</span>
+    <span class="chip" id="chipRate">Frames …</span>
+    <span class="chip info" id="chipRead">Read only</span>
+    <span class="chip" id="chipRec">Not recording</span>
+  </div>
+</header>
+
+<main class="tl-main">
+  <section class="tl-banner" id="banner" role="status" aria-live="polite"></section>
+
+  <section aria-labelledby="hSticks">
+    <h2 id="hSticks">Sticks <span class="tl-note">Pick which channels are your sticks. Nothing is assumed: move a stick and the channel that moves lights up below.</span></h2>
+    <div class="fs-sticks" id="sticks"></div>
+  </section>
+
+  <section class="tl-card" aria-labelledby="hChan">
+    <div class="tl-row">
+      <h2 id="hChan">Channels <span class="tl-note">Raw is what the receiver sent. Normalised is a nominal scale from −1 to +1.</span></h2>
+      <button type="button" id="resetRange" class="tl-quiet">Reset min / max</button>
+    </div>
+    <div class="fs-head" aria-hidden="true"><span>Channel</span><span>Raw</span><span>Norm.</span><span>Position</span><span>Moves</span><span>Seen</span></div>
+    <div class="fs-chans" id="chans"></div>
+    <div class="tl-row tl-gap" id="digital"></div>
+  </section>
+
+  <section class="tl-two">
+    <div class="tl-card">
+      <div class="tl-row">
+        <h2>Live history <span class="tl-note">last 30 s, normalised</span></h2>
+        <div class="tl-seg" role="group" aria-label="Which channels to graph">
+          <button type="button" data-show="moved" class="on">Moving</button>
+          <button type="button" data-show="all">All</button>
+        </div>
+      </div>
+      <canvas id="graph" height="260" role="img" aria-label="Live normalised receiver channel history, last 30 seconds"></canvas>
+      <div class="tl-legend" id="legend"></div>
+    </div>
+    <div class="tl-card">
+      <h2>Link and frames</h2>
+      <dl class="fs-dl" id="linkInfo"></dl>
+    </div>
+  </section>
+
+  <section class="tl-three">
+    <div class="tl-card" id="recCard">
+      <h2>Session record</h2>
+      <p class="tl-note">Each session is saved as a CSV with raw and normalised values for every channel, the link state and the receiver flags.</p>
+      <div class="tl-row tl-gap">
+        <button type="button" id="recStart" class="tl-primary">Start recording</button>
+        <button type="button" id="recStop" disabled>Stop and save</button>
+      </div>
+      <p class="tl-note" id="recInfo">No session open.</p>
+      <a class="tl-link" id="csvCurrent" href="#" hidden>Download this session (CSV)</a>
+      <h3>Saved on the rover</h3>
+      <ul class="tl-files" id="files"></ul>
+    </div>
+    <div class="tl-card">
+      <h2>What the link states mean</h2>
+      <ul class="fs-legend">
+        <li><b>Connected</b> Valid frames are arriving now.</li>
+        <li><b>Signal not verified</b> No decoded frame. A paired receiver with a lit LED is not enough.</li>
+        <li><b>Stale / lost</b> Frames stopped for more than 0.5 s / 3 s.</li>
+        <li><b>Failsafe / dropped</b> The receiver says so in its flags (SBUS only).</li>
+      </ul>
+    </div>
+    <div class="tl-card" id="dualCard">
+      <h2>Second remote <span class="tl-tag warn">driving disabled</span></h2>
+      <p class="tl-note">Design only. The existing controller stays the only remote that can drive. When FlySky driving is approved later: one active remote at a time, chosen explicitly, E-STOP always wins, signal loss stops the rover, and stale commands are never forwarded.</p>
+      <p class="tl-note">Nothing on this page sends a command.</p>
+    </div>
+  </section>
+
+  <p class="tl-foot">Channel data appears only if a separate read-only receiver input publishes it. This page does not open the motor board's serial port, does not change the existing remote, and cannot release the E-STOP. No signal strength is shown because SBUS carries none.</p>
+</main>
+
+<div class="v2dock" role="region" aria-label="Emergency stop">
+<button class="v2estop" id="v2Estop" type="button"><svg class="v2icon" aria-hidden="true"><use href="/v2/assets/icons.svg#i-stop"/></svg>E-STOP</button>
+<span class="v2dock-msg" id="v2EstopMsg" role="status">Sends one zero-speed command. Keep the physical remote stop available.</span>
+<a class="v2dock-link" href="/v2/">Command center</a></div>
+<script src="/v2/estop.js"></script><script src="/v2/flysky-testlab.js"></script>
+</body></html>

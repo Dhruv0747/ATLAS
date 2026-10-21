@@ -331,6 +331,102 @@ class SeederTests(unittest.TestCase):
         self.assertIn('moved', record['reason'])
 
 
+class PlaceRegionTests(unittest.TestCase):
+    """Operator-confirmed place (--verify-place): the region removes aliases OUTSIDE the
+    confirmed place only; fit and margin thresholds are unchanged."""
+    TWIN = [(x0 - 6, y0, x1 - 6, y1) for (x0, y0, x1, y1) in ROOM_B]   # identical copy at x 0..4
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.policy = core.VerifyPolicy()
+        cls.twins = core.load_map(write_map(cls.tmp.name, cls.TWIN + ROOM_B))
+        cls.normal = core.load_map(write_map(Path(cls.tmp.name) / '..' / Path(cls.tmp.name).name, ROOM_A + ROOM_B))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def pts(self, walls, truth):
+        amin, inc, ranges = ray_scan(walls, truth)
+        return core.endpoints(amin, inc, ranges, (0.0, 0.0, 0.0), self.policy)
+
+    def test_no_region_is_identical_to_before(self):
+        allp, held = self.pts(ROOM_A + ROOM_B, (8.0, 1.6, math.radians(-100)))
+        self.assertEqual(core.global_search(self.normal, allp, held, self.policy),
+                         core.global_search(self.normal, allp, held, self.policy, None, None))
+
+    def test_identical_rooms_are_ambiguous_without_region(self):
+        allp, held = self.pts(self.TWIN + ROOM_B, (8.0, 1.6, math.radians(-100)))
+        v = core.decide(core.global_search(self.twins, allp, held, self.policy), len(allp), None, self.policy)
+        self.assertEqual(v.state, 'UNKNOWN')
+        self.assertIn('ambiguous', v.reason)
+
+    def test_confirmed_place_resolves_only_with_unchanged_thresholds(self):
+        truth = (8.0, 1.6, math.radians(-100))
+        allp, held = self.pts(self.TWIN + ROOM_B, truth)
+        box = {'x_min': 5.5, 'x_max': 10.5, 'y_min': -0.5, 'y_max': 3.0}
+        hyps = core.global_search(self.twins, allp, held, self.policy, None, box)
+        self.assertTrue(all(core.in_region(h['x'], h['y'], box, pad=self.policy.tolerance_m) for h in hyps))
+        v = core.decide(hyps, len(allp), None, self.policy)
+        self.assertEqual(v.state, 'VERIFIED', v.reason)
+        self.assertGreaterEqual(v.best_fit, self.policy.min_fit)
+        self.assertLess(math.hypot(v.pose[0] - truth[0], v.pose[1] - truth[1]), 0.15)
+        self.assertEqual((self.policy.min_fit, self.policy.min_margin), (0.93, 0.06))
+
+    def test_wrong_confirmed_place_is_unknown_not_forced(self):
+        allp, held = self.pts(ROOM_A + ROOM_B, (8.0, 1.6, math.radians(-100)))   # truly in room B
+        box_a = {'x_min': -0.5, 'x_max': 3.5, 'y_min': -0.5, 'y_max': 4.0}         # operator says room A
+        v = core.decide(core.global_search(self.normal, allp, held, self.policy, None, box_a),
+                        len(allp), None, self.policy)
+        self.assertEqual(v.state, 'UNKNOWN')
+        self.assertIsNone(v.pose)
+
+    def test_symmetric_place_stays_ambiguous_inside_region(self):
+        sym = core.load_map(write_map(self.tmp.name, ROOM_A + SYMMETRIC_B))
+        allp, held = self.pts(ROOM_A + SYMMETRIC_B, (7.5, 1.0, 0.3))
+        box = {'x_min': 5.5, 'x_max': 10.5, 'y_min': -0.5, 'y_max': 3.0}
+        v = core.decide(core.global_search(sym, allp, held, self.policy, None, box), len(allp), None, self.policy)
+        self.assertEqual(v.state, 'UNKNOWN')        # a 180-degree twin inside the room is still refused
+
+
+class VerifyPlaceSeederTests(unittest.TestCase):
+    def setUp(self):
+        self.source = Path(__file__).with_name('seed_atlas_localization.py').read_text()
+        self.scope = seeder_functions('load_place_region')
+
+    def test_region_loader_validates_and_normalizes(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / 'r.json'
+            f.write_text(json.dumps({'map_yaml_sha256': 'abc', 'places': {
+                'dhruv room': {'x_min': -0.7, 'x_max': 0.7, 'y_min': -2.8, 'y_max': -0.9},
+                'bad': {'x_min': 1, 'x_max': 0, 'y_min': 0, 'y_max': 1}}}))
+            r = self.scope['load_place_region']('Dhruv_Room', f)
+            self.assertEqual((r['place'], r['map_yaml_sha256'], r['x_min']), ('dhruv room', 'abc', -0.7))
+            with self.assertRaises(RuntimeError):
+                self.scope['load_place_region']('hall', f)
+            with self.assertRaises(RuntimeError):
+                self.scope['load_place_region']('bad', f)
+
+    def test_repository_region_is_bound_to_the_accepted_map(self):
+        data = json.loads((Path(__file__).resolve().parents[1] / 'config' / 'place_regions.json').read_text())
+        self.assertEqual(data['map_yaml_sha256'],
+                         'd957f0fe3b8b48166751ef0226ba5f7abdd5454e6f44fac4c9e7b430f00c45e4')
+
+    def test_verify_place_never_overwrites_saved_seed_and_is_exclusive(self):
+        main = next(n for n in ast.parse(self.source).body if isinstance(n, ast.FunctionDef) and n.name == 'main')
+        text = ast.get_source_segment(self.source, main)
+        self.assertIn('--place and --verify-place are mutually exclusive', text)
+        self.assertIn('or region is not None', text)          # verify-place takes the verify path
+        self.assertIn('pose = None if (verify or args.dry_run) else load_pose(args.place)', text)
+
+    def test_map_mismatch_is_unknown_before_any_search(self):
+        fn = next(n for n in ast.parse(self.source).body
+                  if isinstance(n, ast.FunctionDef) and n.name == 'verify_start_pose')
+        text = ast.get_source_segment(self.source, fn)
+        self.assertLess(text.index('place region was drawn for a different map'), text.index('core.load_map'))
+
+
 class StatusVerdictTests(unittest.TestCase):
     def test_reader_marks_other_boot_and_handles_missing(self):
         source = Path(__file__).with_name('atlas_status_web.py').read_text()

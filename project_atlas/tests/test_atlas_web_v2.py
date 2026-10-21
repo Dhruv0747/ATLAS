@@ -74,7 +74,7 @@ class WebV2Route(unittest.TestCase):
         real = Path(__file__).parents[1] / 'web' / 'v2'
         atlas_web_v2.V2_DIR = real.resolve()
         for name in ('index.html', 'mapping.html', 'commissioning.html', 'wifi.html', 'base.css', 'glass.css', 'pages.css',
-                     'command.js', 'shell.js', 'estop.js', 'assets/icons.svg', 'assets/atlas-logo-96.webp',
+                     'command.js', 'shell.js', 'motion-status.js', 'estop.js', 'assets/icons.svg', 'assets/atlas-logo-96.webp',
                      'assets/michroma-latin-400.woff2'):
             self.assertEqual(self.get('/v2/' + name).status, 200, name)
 

@@ -9,6 +9,41 @@ unchanged and stop/recording safeguards preserved. Original electrical/firmware
 lockup remains UNRESOLVED, not a permanent stability certification. See
 [evidence, deployment and rollback](ATLAS_I2C_USB_RECOVERY_2026-10-20.md).
 
+16 October 2026 09:30 UPDATE: Dashboard Motion Chip correction DEPLOYED and verified (static files, no restart). OPEN and
+now the main blocker: physical check of the M2 (rear-right) and M3 (front-left) encoder channels; evidence shows
+direction-dependent count loss that has moved M4 -> M3 -> M2 since 2 Oct (connector/harness/supply suspected, unproven).
+Jetson was power-cycled overnight; an AMCL/Nav2 launch started outside systemd at ~08:56 by an unknown actor (mux
+manual-only, E-STOP latched, no goal). No drive, Candidate B or fallback deployment until the hand test is done.
+See [report](../../ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md).
+
+15 October 2026 22:30 UPDATE (Stage 25): the slow return failed because encoders M3 (front-left, near-dead) and M2
+(rear-right, froze 21:40:24 then reversed) removed the 3-of-4 consensus; the base failed closed (37% of travel
+discarded). Physical encoder check on M2/M3 is the blocker before any further drive. Final AMCL pose unverified
+(owner says back in Dhruv Room; AMCL/LiDAR say ~4.3 m east). E-STOP was not latched during the loop. Dashboard chip
+fix is offline and undeployed. Candidate B, Foxglove hardening, Stage 17B and physical E-STOP tests unchanged/open.
+See [report](../../ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md).
+
+15 October 2026 21:06 UPDATE: owner confirmed the 19:46/20:19 position changes were deliberate tests. AMCL seeded once
+(20:52:54) at (0.235,-1.435,78); parked 10 minutes stable (max step 0.015 m, 21 checks VERIFIED fit0.981-0.985,
+commands zero). OPEN: moving validation (needs separate approval); odometry response to hand moves unexplained
+(/odom ~0 during ~1.7 m of owner moves); Dashboard rendered page not visually confirmed by agent; global
+ambiguity unproven for other placements; one unexplained MOVING blip at 21:03:43. E-STOP latched, manual-only.
+See [seed validation](../../ATLAS_STAGE24_AMCL_SEED_VALIDATION.md).
+
+15 October 2026 20:40 UPDATE (supersedes the 20:12 stationary reading below): ATLAS was physically moved at
+~19:46 and ~20:19 (scan range images change 0.19 m and 0.34 m median between periods, identical within them;
+monitor MOVING bursts at those times); /odom did not register the moves. Five read-only samples: global and Dhruv
+Room agree on (0.235,-1.435,75), fit1.0, margin0.105-0.125 (4 of4 completed global; 1 global run failed on the
+seeder's 3 s /odom discovery under load). AMCL still NOT seeded; one seed awaits owner approval; tape check
+requested. Boot success depends on placement (4 of8 boots UNKNOWN). See
+[recovery report](../../ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md).
+
+15 October 2026 20:12 Stage 24 deployed; AMCL seed BLOCKED. Live dry runs on a stationary ATLAS
+(/odom static) returned (0.115,-2.155,71.5) at 19:44 and (0.335,-0.935,72.0, fit1.0, margin0.116) at 20:08
+as front LiDAR arcs reappeared (cause unknown). Poses disagree by1.2 m, so no seed; AMCL
+NOT_INITIALIZED, Dashboard unknown. Global ambiguity not proven fixed. E-STOP latched,
+manual-only, commands zero. See [Stage 24 deployment](../../ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md).
+
 15 October2026 CPU continuation: diagnostic search paced without changing its
 math, inputs or30-second deadline. Monitor burst74.27%→23.24% of one core;
 56 focused tests pass, exact geometry results preserved. Final90-second system
@@ -767,3 +802,82 @@ remain pending. See [Stage 17B](../../ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST
 
 Owner-provided live py-spy evidence is now available, superseding the earlier profiler-access gap. Focused audit found measurable dashboard CPU, but no demonstrated avoidable executor defect or duplicate constant-topic subscriptions. Eleven offline checks passed; no runtime patch/deployment or CPU savings claimed. Stage 20 headroom remains blocked. See `ATLAS_STAGE20_DASHBOARD_EXECUTOR_CPU_FIX.md` for sample-attribution limits and the bounded thread measurement. Suppressing QoS, adding sleeps and replacing executors are rejected without further discriminating evidence.
 
+
+## 2026-10-15 update: EKF translation/heading contamination, Candidate B-safe (offline; ATLAS-011, ATLAS-001)
+
+**Confirmed (offline):**
+- The production EKF's X/Y follows the wheel-integrated, commanded-steering trajectory while its
+  yaw follows the gyro. Its travel direction against its own heading has a 90th percentile of 22°;
+  LiDAR gives 9°.
+- Native replay reproduces the recorded EKF's relative motion, so a relative A/B is valid.
+  Stage 19's absolute/AMCL fidelity block still stands.
+- Removing wheel X/Y pose (Candidate B) cuts heading drift per about 1.4 m from 4.8 / 7.4 / 23.6°
+  to 0.5 / 2.3 / 3.4°.
+
+**New hazard, closed in source:** B coasts 2 m during a parked stop when encoder consensus is lost.
+The fresh-zero-count twist anchor in `yahboom_base.py` closes it in source (0.003 m in the
+synthetic test). **Not deployed.**
+
+**Separate open issue:** a constant +5.5° LiDAR travel-direction offset, either a LiDAR mount yaw
+error or a steering crab. B's sideways benefit depends on resolving it.
+
+**Unchanged:**
+- the wheel distance under-read (about 0.65×);
+- the five unexplained parked AMCL jumps.
+
+**Deployment gates:** see the [recovery handoff](../../ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md).
+
+## 2026-10-15 13:30 update: Humble transfer, stop-anchor revision, bridge exposure
+
+**Candidate B on native Humble (robot_localization 3.5.4):** it reproduces the Jazzy A/B. B's
+heading benefit transfers.
+
+**Stop anchor revised:**
+- The `3eff519` one-tick rule was too weak: all four counts stay unchanged for up to 0.79 s while
+  moving.
+- Replaced by a 1.0 s stillness detector.
+- The stage 21 package is prepared and rehearsed against byte-identical live files.
+
+**Foxglove bridge (production):**
+- Any tailnet/LAN client can publish `/goal_pose` (relayed to Nav2), write any node's parameters
+  and call services. Demonstrated in isolation.
+- Read-only config prepared.
+- Bridge 3.x requires subprotocol `foxglove.sdk.v1`.
+
+**Pre-existing test failures, not caused by this work:**
+- `test_status_web_estop_reset` wrong-PIN lockout (409 ≠ 403);
+- `test_atlas_safety_status_camera_heartbeat`.
+
+**Not deployed.** See the [deployment plan](../../ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md).
+
+## 2026-10-15 13:10 update: Stage 21 deployed and parked-verified
+
+**Deployed** (12:53:45, owner-approved): the driver stop anchor. Only `rover-base-telemetry` was
+restarted.
+
+**600 s parked check:**
+- `/odom` drift 0.0 cm;
+- encoders fresh, 4/4 accepted;
+- safety state unchanged;
+- protected services untouched.
+
+**Not yet shown:**
+- **NOT LIVE EXERCISED:** the new fewer-than-3 branch.
+- **MOVING VALIDATION PENDING.**
+
+**Not deployed:** Candidate B and the Foxglove hardening. See the
+[Stage 21 report](../../ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md).
+
+## 2026-10-15 13:30 update: Stage 22 recorder profile deployed (recording OFF)
+
+**Deployed:** the steering-validation recorder profile. Recording is OFF.
+
+**New finding:** the live `atlas_steering_calibrate.py` is the August direct-serial tool, which can
+command the steering servos. The repository version is retired. The repository tests execute it.
+- In the Stage 22 rehearsal it was run against a scratch copy and failed safely, because
+  `/dev/yahboom` is absent.
+- **Replacing it needs owner approval.**
+
+**Still blocking the baseline drive:** AMCL is unseeded on this boot.
+
+See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).

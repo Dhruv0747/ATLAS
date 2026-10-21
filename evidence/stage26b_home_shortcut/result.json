@@ -1,0 +1,68 @@
+{
+ "desktop1440": {
+  "visible": true,
+  "label": "Motor & Encoder Test Lab",
+  "in_view": true,
+  "hscroll": false,
+  "bad_assets": [],
+  "page_errors": [],
+  "url_after_click": "http://192.168.1.15:8088/v2/testlab",
+  "h1": "Motor & Encoder Test Lab",
+  "chips": [
+   "Encoders live \u00b7 10.1 Hz",
+   "Pulse locked",
+   "Recording \u00b7 41950 rows"
+  ],
+  "fwd_disabled": [
+   false,
+   true,
+   true,
+   true,
+   true
+  ]
+ },
+ "desktop1920": {
+  "visible": true,
+  "label": "Motor & Encoder Test Lab",
+  "in_view": true,
+  "hscroll": false,
+  "bad_assets": [],
+  "page_errors": [],
+  "url_after_click": "http://192.168.1.15:8088/v2/testlab",
+  "h1": "Motor & Encoder Test Lab",
+  "chips": [
+   "Encoders live \u00b7 10.1 Hz",
+   "Pulse locked",
+   "Recording \u00b7 42146 rows"
+  ],
+  "fwd_disabled": [
+   false,
+   true,
+   true,
+   true,
+   true
+  ]
+ },
+ "mobile": {
+  "visible": true,
+  "label": "Motor & Encoder Test Lab",
+  "in_view": true,
+  "hscroll": true,
+  "bad_assets": [],
+  "page_errors": [],
+  "url_after_click": "http://192.168.1.15:8088/v2/testlab",
+  "h1": "Motor & Encoder Test Lab",
+  "chips": [
+   "Encoders live \u00b7 9.9 Hz",
+   "Pulse locked",
+   "Recording \u00b7 42366 rows"
+  ],
+  "fwd_disabled": [
+   false,
+   true,
+   true,
+   true,
+   true
+  ]
+ }
+}

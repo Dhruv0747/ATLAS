@@ -1,0 +1,145 @@
+{
+ "label": "B_rolled_back",
+ "window_s": 300,
+ "ncpu": 6,
+ "status_web_pid": 101289,
+ "status_web_age_s": 425,
+ "status_web_cpu_pct_of_core": 41.5,
+ "status_web_subwindows_10s": [
+  42.4,
+  42.4,
+  41.1,
+  40.4,
+  39.9,
+  40.7,
+  41.4,
+  42.7,
+  40.4,
+  40.9,
+  40.5,
+  42.5,
+  42.8,
+  42.2,
+  41.4,
+  40.5,
+  41.2,
+  42.6,
+  42.8,
+  41.4,
+  41.7,
+  40.3,
+  39.8,
+  41.8,
+  42.7,
+  42.9,
+  41.2,
+  41.5,
+  41.0,
+  41.9
+ ],
+ "status_web_rss_mb": 174,
+ "status_web_threads": 23,
+ "total_cpu_busy_pct": 63.0,
+ "avail_mb_min": 2367,
+ "avail_mb_max": 2439,
+ "temp_c_max": 64.625,
+ "load1_mean": 8.4,
+ "threads_top": [
+  [
+   101370,
+   24.4
+  ],
+  [
+   101442,
+   14.1
+  ],
+  [
+   101378,
+   1.9
+  ],
+  [
+   101374,
+   0.4
+  ],
+  [
+   101377,
+   0.3
+  ],
+  [
+   101289,
+   0.1
+  ]
+ ],
+ "procs": [
+  [
+   101289,
+   41.5,
+   "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_status_web.p"
+  ],
+  [
+   2594,
+   38.2,
+   "/usr/bin/python3 /home/jetson/project_atlas_ws/install/atlas_camera_dr"
+  ],
+  [
+   95630,
+   26.0,
+   "python3 /home/jetson/project_atlas/scripts/yahboom_base.py "
+  ],
+  [
+   2011,
+   21.7,
+   "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_voice_compan"
+  ],
+  [
+   1830,
+   16.5,
+   "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_cmd_vel_mux."
+  ],
+  [
+   1863,
+   14.5,
+   "python3 /home/jetson/project_atlas/scripts/atlas_safety_status.py "
+  ],
+  [
+   1878,
+   14.3,
+   "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_sensor_recov"
+  ],
+  [
+   2580,
+   12.1,
+   "/home/jetson/project_atlas_ws/install/rf2o_laser_odometry/lib/rf2o_las"
+  ],
+  [
+   5984,
+   4.6,
+   "/opt/ros/humble/lib/nav2_amcl/amcl --ros-args -r __node:=amcl --params"
+  ],
+  [
+   4069,
+   4.3,
+   "/opt/ros/humble/lib/foxglove_bridge/foxglove_bridge --ros-args --param"
+  ],
+  [
+   5786,
+   3.9,
+   "/opt/ros/humble/lib/rplidar_ros/rplidar_composition --ros-args -r scan"
+  ],
+  [
+   6136,
+   3.7,
+   "/opt/ros/humble/lib/nav2_controller/controller_server --ros-args -r __"
+  ],
+  [
+   1860,
+   3.0,
+   "python3 /home/jetson/project_atlas/scripts/camera_joystick_node.py "
+  ],
+  [
+   5987,
+   3.0,
+   "/opt/ros/humble/lib/nav2_lifecycle_manager/lifecycle_manager --ros-arg"
+  ]
+ ]
+}

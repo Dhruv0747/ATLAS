@@ -34,7 +34,8 @@ from atlas_usb_identity import open_verified
 from atlas_steering_commission import SteeringCommission
 from atlas_encoder_selection import (
     ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator, EncoderLinkMonitor,
-    feedback_state, four_wheel_path_scales, validate_selection,
+    WheelStillnessDetector, feedback_state, four_wheel_path_scales,
+    validate_selection,
 )
 from atlas_encoder_calibration import load_encoder_calibration
 from atlas_closed_loop_control import AtlasClosedLoopController, load_drive_config
@@ -321,6 +322,7 @@ class YahboomBase(Node):
             self._encoder_packet_timeout, ENCODER_LINK_QUALIFY_S
         )
         self._encoder_delta_estimator = EncoderDeltaEstimator()
+        self._wheel_stillness = WheelStillnessDetector(hold_s=1.0)
         if os.environ.get('ATLAS_YAHBOOM_AUTO_USB', '0') == '1':
             # No library initialization/write until receive protocol is proven.
             link = open_verified('yahboom', os.environ.get('ATLAS_YAHBOOM_PORT', ''))
@@ -1902,6 +1904,12 @@ class YahboomBase(Node):
                 self._encoder_positions,
             )
         )
+        wheels_still = self._wheel_stillness.update(
+            self._wheel_distance_m, self._encoder_packet_stamp,
+            self._encoder_packet_fresh,
+            all(float(value) == 0.0 for value in self._applied_motor_outputs),
+            now,
+        )
         distance_delta = self._encoder_delta_estimator.update(
             self._wheel_distance_m, valid_indexes, path_scales
         )
@@ -1967,9 +1975,14 @@ class YahboomBase(Node):
         if len(accepted_indexes) < 4:
             # Conservative provisional uncertainty, not a measured accuracy.
             factor = 4.0 if len(accepted_indexes) == 3 else 1000.0
+            # Zero velocity stays a trusted observation after 1 s of verified
+            # stillness (WheelStillnessDetector); inflating it lets a velocity-
+            # fusing EKF coast while parked. Pose uncertainty stays inflated
+            # and the source label/stop policy are unchanged.
+            twist_factor = 1.0 if (wheels_still and not encoder_motion) else factor
             for index in (0, 7, 35):
                 msg.pose.covariance[index] *= factor
-                msg.twist.covariance[index] *= factor
+                msg.twist.covariance[index] *= twist_factor
         self._pub_odom.publish(msg)
         self._encoder_update_sequence += 1
         if self._pub_encoder_update.get_subscription_count() > 0:

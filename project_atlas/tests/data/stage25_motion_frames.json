@@ -1,0 +1,101 @@
+{
+ "provenance": "Stage 25 recording 2026-10-15 (bags capture_20261015T160704Z_5d3cfaf5 ... fe0d4344); values copied, not synthesised",
+ "frames": [
+  {
+   "label": "rest at start, nothing counted",
+   "source_bag_time_s": 2.95,
+   "expect": "Stopped",
+   "odom": {
+    "age": 0.1,
+    "value": {
+     "vx": -1.3678233753154387e-07,
+     "wz": 1.0602727350636471e-28
+    }
+   },
+   "encoder_health": {
+    "age": 0.2,
+    "value": "{\"state\": \"READY\", \"consensus_state\": \"AVAILABLE\", \"consensus_rejected_encoders\": [], \"packet_fresh\": true, \"last_change_age_s\": [14.46, 15.29, 16.32, 14.32], \"encoder_interval_delta_m\": [0.0, 0.0, 0.0, 0.0]}"
+   }
+  },
+  {
+   "label": "outbound, odometry tracking",
+   "source_bag_time_s": 20.05,
+   "expect": "Moving",
+   "odom": {
+    "age": 0.1,
+    "value": {
+     "vx": 0.14427637152720013,
+     "wz": -0.15301279598411482
+    }
+   },
+   "encoder_health": {
+    "age": 0.2,
+    "value": "{\"state\": \"READY\", \"consensus_state\": \"AVAILABLE\", \"consensus_rejected_encoders\": [3], \"packet_fresh\": true, \"last_change_age_s\": [0.0, 0.0, 1.1, 0.0], \"encoder_interval_delta_m\": [0.007339, 0.01358, 0.0, 0.009237]}"
+   }
+  },
+  {
+   "label": "slow return burst, M2 reversed/M3 dead, consensus UNAVAILABLE, odom ~0",
+   "source_bag_time_s": 253.95,
+   "expect": "Moving \u00b7 odometry not tracking",
+   "odom": {
+    "age": 0.1,
+    "value": {
+     "vx": 0.006069584949163176,
+     "wz": 0.012447348864195615
+    }
+   },
+   "encoder_health": {
+    "age": 0.2,
+    "value": "{\"state\": \"CRITICAL\", \"consensus_state\": \"UNAVAILABLE\", \"consensus_rejected_encoders\": [1, 2, 3, 4], \"packet_fresh\": true, \"last_change_age_s\": [0.0, 0.0, 0.0, 0.0], \"encoder_interval_delta_m\": [0.009649, -0.009219, 0.000714, 0.009683]}"
+   }
+  },
+  {
+   "label": "slow return burst, consensus UNAVAILABLE, odom 0",
+   "source_bag_time_s": 397.37,
+   "expect": "Moving \u00b7 odometry not tracking",
+   "odom": {
+    "age": 0.1,
+    "value": {
+     "vx": 0.004548826429725953,
+     "wz": -0.008440440938175038
+    }
+   },
+   "encoder_health": {
+    "age": 0.2,
+    "value": "{\"state\": \"CRITICAL\", \"consensus_state\": \"UNAVAILABLE\", \"consensus_rejected_encoders\": [1, 2, 3, 4], \"packet_fresh\": true, \"last_change_age_s\": [0.0, 0.0, 0.0, 0.0], \"encoder_interval_delta_m\": [0.012807, -0.01312, 0.002857, 0.012852]}"
+   }
+  },
+  {
+   "label": "slow burst, wheels counting, odom ~0, consensus UNAVAILABLE",
+   "source_bag_time_s": 304.67,
+   "expect": "Moving \u00b7 odometry not tracking",
+   "odom": {
+    "age": 0.1,
+    "value": {
+     "vx": 0.0039225440740581685,
+     "wz": -0.010420953441698712
+    }
+   },
+   "encoder_health": {
+    "age": 0.2,
+    "value": "{\"state\": \"CRITICAL\", \"consensus_state\": \"UNAVAILABLE\", \"consensus_rejected_encoders\": [1, 2, 3, 4], \"packet_fresh\": true, \"last_change_age_s\": [0.0, 0.0, 0.0, 0.0], \"encoder_interval_delta_m\": [0.007368, -0.007092, 0.000893, 0.007218]}"
+   }
+  },
+  {
+   "label": "rest at end, nothing counted",
+   "source_bag_time_s": 444.95,
+   "expect": "Stopped",
+   "odom": {
+    "age": 0.1,
+    "value": {
+     "vx": 1.6988217912720857e-07,
+     "wz": 6.270393733949383e-28
+    }
+   },
+   "encoder_health": {
+    "age": 0.2,
+    "value": "{\"state\": \"READY\", \"consensus_state\": \"AVAILABLE\", \"consensus_rejected_encoders\": [], \"packet_fresh\": true, \"last_change_age_s\": [14.5, 16.2, 14.5, 14.5], \"encoder_interval_delta_m\": [0.0, 0.0, 0.0, 0.0]}"
+   }
+  }
+ ]
+}

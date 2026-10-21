@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace as N
 import unittest
 from unittest.mock import Mock
-from atlas_encoder_selection import EncoderDeltaEstimator, four_wheel_path_scales
+from atlas_encoder_selection import EncoderDeltaEstimator, WheelStillnessDetector, four_wheel_path_scales
 
 
 def odometry():
@@ -27,7 +27,8 @@ class SnapshotTest(unittest.TestCase):
         estimator=EncoderDeltaEstimator()
         estimator.update([0]*4,range(4))
         s=N(_last_odom_t=.9,_excluded_encoders=set(),_encoder_fault_since={},
-            _encoder_packet_fresh=True,_front_applied_angle=90,_rear_applied_angle=90,
+            _encoder_packet_fresh=True,_wheel_stillness=WheelStillnessDetector(1.0),
+            _applied_motor_outputs=(0.,0.,0.,0.),_front_applied_angle=90,_rear_applied_angle=90,
             _wheelbase_m=.367,_drive_pid_config=N(geometry=N(track_width_m=.26)),
             _encoder_positions=['rear_left','rear_right','front_left','front_right'],
             _encoder_delta_estimator=estimator,_wheel_distance_m=[.02]*4,
@@ -69,6 +70,37 @@ class SnapshotTest(unittest.TestCase):
         self.assertEqual(report['accepted_channels'],[])
         self.assertEqual(report['accepted_delta_m'],0)
         self.assertEqual(s._x,0)
+
+    def _cov(self,s):
+        msg=s._pub_odom.publish.call_args.args[0]
+        return msg.pose.covariance[0],msg.twist.covariance[0]
+
+    def test_parked_without_consensus_trusts_zero_velocity_only_after_hold(self):
+        # Two channels faulted -> no 3-of-4 consensus. Pose stays inflated; the zero-velocity
+        # twist keeps normal covariance only after 1 s of identical counts confirmed by newer
+        # packets with motors off. Source label unchanged.
+        s=self.make();s._encoder_fault_since={0:0.,1:0.}
+        for k in range(8):
+            s._encoder_packet_stamp=1.0+0.1*k
+            scope['_publish_yahboom_odom'](s,0,0,0,1.0+0.1*k)
+        self.assertEqual(self._cov(s),(0.05*1000,0.10*1000))
+        for k in range(8,14):
+            s._encoder_packet_stamp=1.0+0.1*k
+            scope['_publish_yahboom_odom'](s,0,0,0,1.0+0.1*k)
+        self.assertEqual(self._cov(s),(0.05*1000,0.10))
+        self.assertEqual(s._pub_odom_source.publish.call_args.args[0].data,'feedback_unavailable')
+        self.assertEqual(s._x,0)
+
+    def test_driven_motors_or_stale_packets_stay_inflated(self):
+        s=self.make();s._encoder_fault_since={0:0.,1:0.};s._applied_motor_outputs=(0.,20.,0.,0.)
+        for k in range(20):
+            s._encoder_packet_stamp=1.0+0.1*k
+            scope['_publish_yahboom_odom'](s,0,0,0,1.0+0.1*k)
+        self.assertEqual(self._cov(s)[1],0.10*1000)
+        s=self.make();s._encoder_fault_since={0:0.,1:0.};s._encoder_packet_fresh=False
+        for k in range(20):
+            scope['_publish_yahboom_odom'](s,0,0,0,1.0+0.1*k)
+        self.assertEqual(self._cov(s)[1],0.10*1000)
 
 
 if __name__=='__main__':unittest.main()

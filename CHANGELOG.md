@@ -1,5 +1,83 @@
 # Changelog
 
+2026-10-17 20:10 (OFFLINE ONLY; nothing installed on the Jetson, nothing restarted, nothing actuated):
+- **Stage 27 FlySky Remote Test Lab built and tested offline.** Read-only page `/v2/flysky-testlab`, one subscription / zero publishers, SIGNAL NOT VERIFIED until real frames arrive, no invented RSSI. No live SBUS frame verified; Jetson cannot see receiver data today. Reversible package in `project_atlas/tools/deploy/stage27_flysky/`. Awaiting owner approval.
+- See [`ATLAS_FLYSKY_SBUS_TEST_LAB.md`](ATLAS_FLYSKY_SBUS_TEST_LAB.md).
+
+2026-10-17 18:45 (static Web UI file only; no restart, nothing actuated):
+- **Home shortcut deployed** (18:37 IST): `index.html` a03baf88... (was 4d4dea56...), backup `.pre_stage26b_shortcut_20261017_183749`. Live-verified one click to `/v2/testlab` at 1440/1920/390 px.
+- See [`ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md`](ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md).
+
+2026-10-17 18:50 (shortcut only; Web UI static file; no restart of any motor service, nothing actuated):
+- **Home V2: "Motor & Encoder Test Lab" shortcut made clearly visible.** The existing Home link to `/v2/testlab` had its label hidden below 1600 px (icon only). It now always shows its label with an accent outline, and sits first in the nav strip on phones. `web/v2/index.html` only; Test Lab page, safety locks and all other features untouched. Revert: restore the previous `index.html` (sha256 prefix 4d4dea5620c80e91).
+
+2026-10-17 18:15 (read-only deployment; no movement, only rover-status-web restarted, nothing actuated):
+- **Stage 26 Test Lab deployed live** (17:29:51 IST): `/v2/testlab` now 200 (404 was because it was never installed). Live encoders verified, CSV tested, motor pulses LOCKED, base driver untouched.
+- See [`ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md`](ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md).
+
+2026-10-17 16:30 (offline only; NOT deployed, no movement, no restart, nothing actuated):
+- **Motor & Encoder Test Lab built** (Dashboard V2 page `/v2/testlab`, Home link): live raw counts, direction/RPM/health, graph, forward/reverse comparison, read-only hand test, CSV sessions, fault detection, and a gated single-wheel pulse path through the EXISTING lifted-drive interface (locked unless every owner gate passes). 61 new tests pass; no serial access, no new actuator API, safety files untouched.
+- Deployment package `tools/deploy/stage26_testlab/` (patches the live status-web in place because the repo copy holds undeployed steering work; rollback rehearsed). Base-driver lifted flags shipped DISABLED. Awaiting owner approval.
+- See [`ATLAS_STAGE26_MOTOR_ENCODER_TEST_LAB.md`](ATLAS_STAGE26_MOTOR_ENCODER_TEST_LAB.md).
+
+2026-10-16 09:30 (display-only deployment; no movement, no restart, nothing actuated):
+- **Dashboard Motion Chip correction deployed** (09:03:38 IST): `web/v2/motion-status.js` (new), `shell.js`, `index.html`; hashes match; status-web not restarted. Verified in a real browser: no console errors, "Stopped" at rest, warning path exercised on live data. Backup `web/v2/.pre_stage25_motion_chip_20261016_090338`.
+- M2/M3 encoder analysis refined (direction-dependent loss, not a sign flip); 41-bag history scan; offline LiDAR+gyro fallback evaluated (not deployed). Read-only `tools/diagnostics/encoder_hand_test.py` for a lifted hand test (not deployed). Hardware check pending.
+- See [`ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md`](ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md).
+
+2026-10-15 22:30 (offline only; no deployment, no movement, no restart):
+- Stage 25 round-trip root cause. Slow return lost because **M3 is near-dead and M2 froze then reversed at 21:40:24**, so 3-of-4 consensus failed closed on 37% of wheel travel. Stage 21 and the estimator behaved as designed; serial link clean.
+- Dashboard Motion chip showed "Stopped" while wheels counted. **Display-only fix** `web/v2/motion-status.js` (undeployed, rehearsed package `tools/deploy/stage25_motion_chip`, 7 recorded-frame tests).
+- Final AMCL pose unverified; recorder gaps match post-roll design; Candidate B fixes heading only and stays undeployed. See [`ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md`](ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md).
+
+2026-10-15 21:06 (no deployment, no movement, no recording):
+- Owner confirmed the 19:46 / 20:19 position changes were deliberate tests; earlier "stationary" reading withdrawn.
+- **AMCL seeded once** (20:52:54) at the LiDAR-verified Dhruv Room pose (0.235, -1.435, 78 deg). Parked 10 min: stable, no jump, all checks VERIFIED, commands zero.
+- Moving validation and Candidate B remain pending. See [`ATLAS_STAGE24_AMCL_SEED_VALIDATION.md`](ATLAS_STAGE24_AMCL_SEED_VALIDATION.md).
+
+2026-10-15 20:40 (read-only; no deployment, no seed, no movement):
+- Post-deployment location recovery: five live samples. Global and Dhruv Room searches agree on (0.235, -1.435, 75 deg), margin 0.105-0.125.
+- The earlier A and B poses were correct for where ATLAS stood: it was physically moved ~19:46 and ~20:19 (beam-by-beam scan comparison, monitor motion log). Odometry did not register the moves.
+- Corrects the 20:12 "stationary" claim. AMCL still unseeded; one seed awaits owner approval.
+- See [`ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md`](ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md).
+
+2026-10-15 20:12:
+- **Stage 24 deployed** (verify-place seeder, core region filter, `place_regions.json`; 3 files MATCH, no restart).
+- AMCL **not seeded**: stationary ATLAS gave two different VERIFIED poses (1.2 m apart) as the LiDAR front arcs changed. BLOCKED pending owner confirmation.
+- See [`ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md`](ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md).
+
+2026-10-15 13:30:
+- **Stage 22 deployed** (recorder `steering-validation` profile, installation only, recording OFF).
+- Found: the live `atlas_steering_calibrate.py` is the old direct-serial servo tool; it is harmless at present only because `/dev/yahboom` is absent.
+- See [`ATLAS_STAGE22_RECORDER_DEPLOYMENT.md`](ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
+
+2026-10-15 13:45 (preparation only; nothing deployed, recorded or moved):
+- Motion-validation readiness: stage 22 optional recorder profile package; stage 23 Candidate B procedure.
+- `ekf_continuity_config.py` prevents the 1.15 m `/odom` jump a plain EKF restart causes.
+- AMCL found unseeded on this boot.
+- See [`ATLAS_STAGE21_MOTION_VALIDATION_READINESS.md`](ATLAS_STAGE21_MOTION_VALIDATION_READINESS.md).
+
+2026-10-15 13:10:
+- **Stage 21 deployed** (driver: zero velocity trusted only after 1 s of verified stillness).
+- Parked-verified: `/odom` drift 0.0 cm over 600 s.
+- Moving validation pending.
+- See [`ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md`](ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md).
+
+2026-10-15 13:30 (offline; nothing deployed):
+- The stop anchor now needs 1 s of verified stillness.
+- Stage 21 driver package prepared.
+- Candidate B confirmed on native Humble; config prepared as `config/atlas_ekf_candidate_b.yaml`.
+- Least-privilege Foxglove bridge config, plus an isolated privilege test.
+- The calibration test is pinned to the post-replacement calibration.
+- See [`ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md`](ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md).
+
+2026-10-15 (offline; nothing deployed):
+- Native EKF A/B replay tools and LiDAR-ICP heading/sideslip analysis.
+- Production EKF translation found inconsistent with its own heading.
+- Candidate B (no wheel X/Y pose) cuts heading drift per 1.4 m by 5–7×.
+- `yahboom_base` keeps zero velocity trustworthy when a fresh packet shows no wheel counted, even without 3-of-4 consensus. This prevents a velocity-fusing EKF from coasting while parked; pose covariance, source label and stop policy are unchanged.
+- See [`ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md`](ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md).
+
 2026-10-15: Correct Orin Nano-specific CV temperature admission policy.
 - NVIDIA confirms absent DLA/PVA CV readings; exempt only CV-temp EAGAIN on verified Nano.
 - Require CPU/GPU/SoC/TJ, preserve all temperature limits and other failures.

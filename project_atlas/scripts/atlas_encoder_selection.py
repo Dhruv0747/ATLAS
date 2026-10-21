@@ -114,6 +114,66 @@ def feedback_state(excluded, faults, packet_fresh, qualifying, traction, fault_a
     return ('HEALTHY' if traction else 'READY'), 1.0, 'all selected feedback available'
 
 
+def all_counts_unchanged(previous, current, packet_fresh):
+    """True only when a fresh packet shows every one of the four raw wheel
+    distances exactly unchanged since the previous odometry update.
+
+    Used to keep a trustworthy zero-velocity observation when three-of-four
+    consensus cannot be formed (stale/faulted channels): if no channel counted,
+    including excluded ones, no wheel turned.  A single dead encoder cannot
+    produce this while the rover moves, because the other channels still count.
+    It never asserts motion and never changes the consensus or stop policy.
+    """
+    if not packet_fresh or previous is None or current is None:
+        return False
+    if len(previous) != 4 or len(current) != 4:
+        return False
+    for before, after in zip(previous, current):
+        before, after = float(before), float(after)
+        if not (math.isfinite(before) and math.isfinite(after)) or before != after:
+            return False
+    return True
+
+
+class WheelStillnessDetector:
+    """Decide when a zero-velocity observation may be trusted without consensus.
+
+    True only after ALL of these have held continuously for ``hold_s``:
+    the packet stream is fresh, every applied motor output is exactly zero,
+    and all four raw wheel distances are identical; and at least one packet
+    newer than the start of that interval has been received (so a re-read of
+    one stale packet cannot qualify).  Any change, stale stream or non-zero
+    motor output resets it.  Recorded 9 Oct drives showed all four counts
+    unchanged for up to 0.79 s while moving, so ``hold_s`` must exceed that.
+
+    Residual limit: a counter that freezes while the rover is pushed by hand
+    with motors off looks identical to rest.  This only affects odometry
+    covariance; it never asserts motion, consensus or stop policy.
+    """
+    def __init__(self, hold_s=1.0):
+        self.hold_s = float(hold_s)
+        self.reset()
+
+    def reset(self):
+        self.reference = None
+        self.since = None
+        self.since_packet_stamp = None
+
+    def update(self, distances, packet_stamp, packet_fresh, outputs_zero, now):
+        current = None if distances is None else tuple(float(d) for d in distances)
+        if (not packet_fresh or not outputs_zero or current is None or len(current) != 4
+                or not all(math.isfinite(d) for d in current)):
+            self.reset()
+            return False
+        if self.reference is None or not all_counts_unchanged(self.reference, current, True):
+            self.reference = current
+            self.since = float(now)
+            self.since_packet_stamp = float(packet_stamp or 0.0)
+            return False
+        return (float(now) - self.since >= self.hold_s
+                and float(packet_stamp or 0.0) > self.since_packet_stamp)
+
+
 class EncoderDeltaEstimator:
     """Dynamic three-of-four consensus over per-wheel increments.
 
