@@ -1,5 +1,9 @@
 # ATLAS current blockers
 
+2026-10-21 exact-live snapshot DEPLOYED/HEALTH VERIFIED:98f3c269, web-only restart.
+CPU69.270->71.215% mean; no demonstrated whole-Jetson saving. No camera Start.
+Headroom remains unresolved. ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_DEPLOYMENT.md.
+
 2026-10-21 superseding snapshot package: exact-live fa62787f baseline reverified;
 candidate98f3c269 changes only2bookkeeping sites.9 package+60 dashboard tests
 pass, byte-perfect rollback rehearsal. NOT deployed. Whole-Jetson CPU/Preview

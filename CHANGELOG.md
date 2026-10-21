@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-21 exact-live snapshot package deployed98f3c269; only web restarted,
+protected services/safety healthy. Matched parked CPU comparison shows no saving.
+Astra OFF. Backup, hashes and measurements in exact-live deployment report.
+
 2026-10-21 prepared exact-live dashboard patch against fa62787f, preserving all
 unrelated live differences.9 package tests and60 dashboard tests pass; isolated
 byte-perfect rollback verified. No deployment. See exact-live package report.

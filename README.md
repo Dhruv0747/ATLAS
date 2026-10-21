@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Exact-live snapshot deployment](ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_DEPLOYMENT.md):
+installed/health-verified, web-only restart; Astra OFF. Whole-Jetson CPU69.27%
+before vs71.21% after: no demonstrated aggregate saving. Headroom still unresolved.
+
 [Exact-live snapshot package](ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_PACKAGE.md):
 two-site patch preserves deployed steering/HTTP behavior;9 package tests and60
 dashboard tests pass. NOT installed; approval required for web-only restart.
