@@ -2,6 +2,16 @@
   "scope": "Stage32 diagnostic candidate only; not an exhaustive deployment registry",
   "date": "2026-10-21",
   "branch": "agent/sync-developer-20261011",
+  "startup_guard_74ff38f": {
+    "status": "DEPLOYED AND INSTALLATION VERIFIED; no live camera test",
+    "runtime_sha256": "8f207dc9c7d06cdccc4ec7c82b3e7c6aae29a86121b39c2271ff4e8922226d63",
+    "restart_only": "rover-status-web",
+    "cpu_peak": 99.83416252072969,
+    "settled_by_s": 26.978,
+    "camera_started": false,
+    "report": "ATLAS_STAGE32_STARTUP_GUARD_DEPLOYMENT.md",
+    "backup": "/home/jetson/project-atlas-migration/astra-20261021/coverage-20261021T211557/"
+  },
   "cleanup_abc6837_followup": {
     "status": "single-file cleanup DEPLOYED; combined viewing NOT VERIFIED",
     "installed_sha256": "feedd883cbb9335569dcf50d33aaf5f66e3db85352dab54b2b3dba76c9137500",

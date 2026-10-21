@@ -15,6 +15,7 @@
   "issues": [
     {
       "id": "ATLAS-ASTRA-STARTUP-GUARD-COVERAGE-20261021",
+      "deployment_followup": "74ff38f single file installed/hash verified; approved web restart, CPU peak99.83 settled under75 by27s. Sensor/protected PIDs unchanged.12 offline coverage tests pass; no live worker/camera activation. See ATLAS_STAGE32_STARTUP_GUARD_DEPLOYMENT.md. Hardware coverage validation remains pending.",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
       "evidence": "Old worker starts CPU baseline after imports/full manifest hashing; observer saw78.8889% before admission. New offline candidate captures baseline before worker spawn and checks during bounded hashing.77 tests pass; deployment and hardware validation pending.",

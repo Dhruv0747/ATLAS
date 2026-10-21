@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 startup guard74ff38f DEPLOYED after fresh admission. Web-only restart;
+runtime read-back hash verified. CPU transient99.83%, five passing samples by27s;
+protected identities/sensor freshness preserved. No camera/recording/movement.
+See ATLAS_STAGE32_STARTUP_GUARD_DEPLOYMENT.md for full scalar trace and rollback.
+
 2026-10-21 OFFLINE startup coverage candidate: pre-spawn CPU baseline, fail-closed
 seed validation, guard/lease checkpoints during bounded128KiB hashing. 77 tests
 pass; PC allocation reduced97%, total CPU time increased. No CPU reliability

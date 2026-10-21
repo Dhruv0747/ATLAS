@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+21 October: [startup guard deployment verified](ATLAS_STAGE32_STARTUP_GUARD_DEPLOYMENT.md).
+One runtime file and approved web-only restart; CPU peaked99.83%, settled below75%
+by27s. Protected sensor services unchanged. Astra/recorder OFF; no camera test.
+
 21 October offline follow-up: [startup coverage and bounded hashing candidate](ATLAS_STAGE32_STARTUP_COVERAGE_CANDIDATE.md).
 77 tests pass; memory allocation reduced in PC fixture, aggregate CPU improvement
 NOT proven. No deployment/session. Installation requires approval including one

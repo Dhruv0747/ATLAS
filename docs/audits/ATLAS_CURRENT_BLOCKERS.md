@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+Latest: startup guard74ff38f installed and hash-verified with approved web-only
+restart; transient99.83% settled under75% by27s. Sensors/protected PIDs unchanged;
+camera/recorder OFF. No live guard or preview test authorized/performed. Calibration
+preparation independent; see ATLAS_STAGE32_STARTUP_GUARD_DEPLOYMENT.md.
+
 Offline startup-coverage candidate now captures pre-spawn baseline and checks
 resources during bounded hashing;77 tests pass. PC peak allocation down97%, CPU
 time increased; actual combined CPU contention unresolved. NOT deployed. Needs
