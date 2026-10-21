@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 approved USB recovery preflight: safety/resources passed three samples;
+sudo requires a password, so stopped before any production installation or ACL
+change. Camera test NOT started. Recorded exact live hashes/service identities and
+prepared a separate, uninstalled device-specific permissions proposal.
+
 2026-10-21 Astra USB admission follow-up (OFFLINE candidate only):
 - Confirmed errno13 on both expected Astra nodes; temporary jetson ACLs absent after a new boot.
 - Split identity/query/access guardian errors; bound identity queries; preserve fail-closed admission and all camera/resource settings.

@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+21 October20:44 approved Astra recovery: three safety/resource samples PASS;
+administrator ACL access unavailable (sudo password required). Stopped before
+installation/ACL mutation, camera test NOT started. Original ACLs unchanged.
+Read ATLAS_STAGE32_USB_ACCESS_20261021.md for measurements and uninstalled
+persistent-permission proposal. Next prerequisite: operator administrator access.
+
 21 October post-reboot USB follow-up (new owner task supersedes pause): depth
 admission failed at1.2004s before streaming. Expected Astra VID/PIDs/nodes present,
 both lack jetson RW ACL; direct open denied errno13. No evidence of current address

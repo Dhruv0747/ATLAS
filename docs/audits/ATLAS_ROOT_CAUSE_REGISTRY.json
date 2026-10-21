@@ -15,6 +15,7 @@
   "issues": [
     {
       "id": "ATLAS-STAGE32-USB-ACL-LOSS-20261021",
+      "approved_recovery_attempt": "2026-10-21 20:44: three fresh safety/resource samples pass; CPU70.4293-73.2026%, RAMmax66.7793%, tempmax59.875C. Protected PIDs unchanged. sudo password required, so no installation/ACL change/camera test. Persistent device-specific permissions proposed only. Original ACL state preserved.",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
       "evidence": "Depth admission stopped at1.2004s, zero samples. 2bc5:0403 at001/014 and2bc5:0501 at001/011 unchanged; named jetson RW ACL absent; direct open errno13 on both. New boot since prior deployment; exact prior node removal not retained. No attributed Astra power/reset evidence.",

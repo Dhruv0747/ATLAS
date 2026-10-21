@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Approved USB recovery currently blocked on administrator access; preflight passed,
+but no installation, ACL change or live preview test has occurred. See the USB
+access audit below. Persistent permissions are a proposal only.
+
 21 October USB access follow-up: Depth admission is blocked by missing temporary
 jetson USB ACLs after reboot, not calibration. Diagnostic-only candidate is offline;
 no permission restoration or camera retry yet. See [evidence and approval/rollback plan](docs/audits/ATLAS_STAGE32_USB_ACCESS_20261021.md).

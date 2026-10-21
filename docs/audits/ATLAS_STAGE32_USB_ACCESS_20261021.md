@@ -87,3 +87,50 @@ override tool correctly refuses UNKNOWN bytes. That test, its override tool and
 runtime are unchanged by this candidate; no hashes were relaxed or rewritten to
 make tests pass. This broader suite is NOT all green. The scoped USB/safety
 candidate passes14 tests, but deployment remains subject to review and approval.
+
+## Approved recovery attempt: administrator prerequisite blocked
+
+Owner approved scoped recovery and one conditional Depth-only test. On21October
+at approximately20:44 IST, fresh read-only checks found:
+
+- Branch synchronized with GitHub at baf4ca52eb48da8ce7bc511bf7add94131435b0c.
+- Live probe SHA256 f6321da4961482064a6d278e368efbb25540d5a3178ee14900255972b269a384.
+- Live runtime SHA256 fc807489b06699d73efdd246913849a3d11315d6bfcba707eedd0e1381c9b5aa.
+- Both expected USB identities/nodes still present; ACLs still root/root0664,
+  no named jetson entry. Camera state OFF; no new session invoked.
+- Three resource samples: CPU73.2026%,71.6981%,70.4293%; RAM66.6887%,66.7793%,
+  66.7498%; maximum required-zone temperature59.875C. Existing limits unchanged.
+- Every sampled policy: stop_latched=true, manual_only=true,
+  commission_armed=false, source=STOPPED, zero commands, recorder inactive.
+- Available disk394397417472 bytes.
+- Protected services active, identical PIDs before/after, all NRestarts=0:
+  camera1824, telemetry3293, mux1814, EKF2868, localization4595, LiDAR1815.
+- sudo -n true failed: `sudo: a password is required`. sudo policy permits
+  passwordless shutdown only; this does not authorize or enable USB ACL writes.
+
+STOPPED before installation or permission mutation. No recovery backup needed or
+created yet because no production file changed. Existing backups remain intact.
+ACL state remains exactly the original no-jetson-grant state. No test consumed,
+no frame/FPS/point/browser-interaction result exists for this attempt. Fresh full
+admission and rollback preparation remain necessary after administrator access is
+arranged; these samples are not reusable authorization to bypass later checks.
+
+## Persistent permissions proposal — NOT installed
+
+Prefer a dedicated least-privilege Astra access group with an explicit udev rule
+matching USB device subsystem/type and only vendor2bc5/product0403 and0501, plus
+the verified parent port topology if binding to this installed pair is desired.
+Grant group read/write only (0660), not world write; add only the service user
+jetson to that dedicated group. Avoid generic video/dialout grants or all-USB rules.
+There is no USB descriptor serial to pin; SDK serial cannot be used as a udev USB
+attribute. VID/PID-only matches any identical model, so topology restriction is
+important if that is not acceptable. Port changes must fail closed and be reviewed.
+
+Before approving a concrete rule, inspect existing udev ownership, rule order and
+device parent attributes; test rule matching without triggering USB or restarting
+services. Group membership may require a future service/session restart to take
+effect, which is NOT authorized here. Retain guardian identity/access checks.
+Rollback would remove only the new rule and dedicated membership, restore saved
+device permissions, and verify original behavior at an authorized future reconnect.
+This proposal is separate from today's temporary ACL restoration; no rule,
+membership, permission, service or reboot change has been made.
