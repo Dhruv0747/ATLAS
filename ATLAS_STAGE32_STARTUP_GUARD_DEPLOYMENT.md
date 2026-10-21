@@ -1,5 +1,28 @@
 # Stage 32 approved startup guard deployment — 21 October 2026
 
+## Subsequently approved ONE Depth-only attempt
+
+Owner separately approved one guarded Depth-only Preview check. Fresh admission
+CPU67.4740/68.5358/70.3704%, RAM64.10–64.13%, maximum60.593 C; safety/freshness
+and deployed hash passed. Browser initially remained OFF after an accessibility
+click selected the Depth radio; API confirmed no worker/session. The single
+actual Start was then activated using the identified Start button.
+
+Worker31100 failed its FIRST startup CPU window:76.072607%, window1.001s.
+Baseline monotonic2863.510478374; worker began2864.360986173; rejection2864.512527339.
+No driver_spawned event, no camera hardware opened, no frames or 3D points.
+The Dashboard displayed RESOURCE BLOCKED. No retry, no movement or recording.
+This verifies that the new pre-launch guard catches startup load before hashing
+or driver launch; it does NOT establish that Depth hardware or preview is faulty.
+
+Postflight E-STOP/manual-only/zero commands/recorder OFF and sensor freshness all
+passed. Protected PIDs remained1824/3293/1814/2868/4595/1815 with restart counts0;
+no Astra process. RAM64.3379%, maximum60.437 C. Failed CPU sample intentionally did
+not collect fresh RAM/thermal values; postflight values are not substituted for it.
+Scalar worker evidence retained at PC
+`artifacts/astra_concurrent_20261021/depth-only-startup-blocked.json`.
+Next work is offline launch-cost investigation; no further Start approved.
+
 Source: `74ff38f9e9b07a9b58b52ff2560fbdffc0bc1de3`.
 Branch: `agent/sync-developer-20261011`.
 
