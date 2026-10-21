@@ -29,7 +29,8 @@
       "date": "2026-10-21",
       "evidence": "User cgroup controllers contain memory/pids only; cpu.max absent. Requested CPUQuota is not enforcement. Global CPU controller left unchanged to preserve robot timing.",
       "scoped_fix": "Stage29 continuation built ARM64 runtime offboard and verified concurrent ROS RGB/depth. Owner explicitly authorized CPU-report-only bounded stationary testing; normal production CPU75 safeguard unchanged. Concurrent CPU mean82.586/peak99.860%, RAM67.974%, thermal64.062C. Test runtime stopped; global CPU stability/headroom remains unresolved.",
-      "reference": "ATLAS_ASTRA_PRO_3D_VISION_LAB.md"
+      "reference": "ATLAS_ASTRA_PRO_3D_VISION_LAB.md",
+      "deployment_follow_up": "Read-only Vision Lab deployed with default75% CPU guard. First explicit depth-only attempt stopped at77.9097%; no frame reached viewer. Page/guard verified, live camera and CPU headroom not passed. Six protected identities unchanged; no retry/override. See ATLAS_3D_VISION_LAB_LIVE_DEPLOYMENT.md."
     },
     {
       "id": "ATLAS-UNO-SILENCE-WALLCLOCK-20261020",

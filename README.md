@@ -1,9 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
-[Read-only Vision Lab deployment](ATLAS_3D_VISION_LAB_LIVE_DEPLOYMENT.md): existing
-page prepared with explicit bounded Start/Pause, CPU75/RAM80/70C gates,
-uncalibrated axial-Z inspection and hard-disabled live XYZ/cloud. No autostart.
-See the report for actual installation and live-validation status.
+[Read-only Vision Lab deployed](ATLAS_3D_VISION_LAB_LIVE_DEPLOYMENT.md) at
+`/v2/vision3d`, Home shortcut verified desktop/mobile. First bounded depth attempt
+stopped safely at CPU77.91% >75%; live frames/pixel measurements NOT verified.
+Explicit Start/Pause, no autostart, uncalibrated axial Z only; live XYZ/cloud OFF.
+Only web service restarted; protected camera/control/localization owners unchanged.
 
 [Astra calibration continuation](ATLAS_ASTRA_PRO_CALIBRATION_AND_POINTCLOUD_VALIDATION.md):
 installed hashes reverified, ABI layout checked, offline provenance/depth-statistics

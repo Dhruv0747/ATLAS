@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October read-only Vision Lab DEPLOYED (`/v2/vision3d`); only web restart,
+12 hashes verified, desktop/mobile/Home links pass. One Depth-only attempt
+RESOURCE BLOCKED CPU77.9097% >75%; camera stopped before frames, no retry/bypass.
+No live pixel/accuracy pass. CPU headroom remains blocker; calibration/XYZ/cloud
+still blocked.108 targeted tests pass; Pi camera/six protected owner identities
+unchanged. See ATLAS_3D_VISION_LAB_LIVE_DEPLOYMENT.md for backup/hashes/evidence.
+
 21 October calibration continuation:120-byte ctypes layout matches pinned SDK;
 vendor validates only part of returned calibration. This does not explain NaNs
 or prove camera damage. Alternative supported read paths still untested.

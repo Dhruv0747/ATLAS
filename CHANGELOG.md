@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 Vision Lab deployment verified:
+- Installed12 allowlisted files with exact hashes, backups and fixture rollback; only rover-status-web restarted.
+- Actual desktop/mobile render and Home navigation verified; existing pages/API/Pi camera healthy.
+- One Depth-only live attempt RESOURCE BLOCKED at77.9097% CPU; isolated driver stopped, no frames or bypass/retry.
+- Final E-STOP/manual-only/zero/recorder-OFF checks passed; six protected service identities unchanged. Live accuracy/cloud still unverified.
+
 2026-10-21 approved read-only Vision Lab deployment candidate:
 - Reused V2 UI with explicit60-second, leased camera viewer; only supported isolated modes, normal resource/safety gates and no autostart.
 - Existing-bridge receive-only adapter; fallback CameraInfo diagnostic-only, live XYZ/cloud disabled.
