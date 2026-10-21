@@ -1,5 +1,11 @@
 # Stage30 — Astra resource-block recovery, 21 October 2026
 
+**Latest deployment follow-up:** the approved three-file cleanup from `ac34cd3`
+is now DEPLOYED and hash-verified, without service restarts. One real Dashboard
+Depth start stopped at CPU80.7786%; zero frames delivered. Live viewing remains
+RESOURCE BLOCKED. See the final section below. Earlier sections retain the
+pre-approval investigation and are historical.
+
 Continues `4f7e6f1fd852356f7ebd5c31429bd1ce5bbdf21d` on
 `agent/sync-developer-20261011`. **Stable viewing is NOT achieved.** No Stage30
 production file, service, DDS setting, threshold, steering or navigation change.
@@ -230,3 +236,89 @@ memory-growth, actual stop-latency or USB-error qualification achieved.
 
 No owner driving, target placement or repeated room loop is requested. The next
 approval above is software-only and explicitly does NOT certify a stable viewer.
+
+## Approved deployment and single Dashboard test
+
+Owner subsequently approved the exact three-file package and ONE guarded Depth
+test. Installed from code commit `ac34cd3a042a45ddc414d4e84becd45faa72a863`;
+archive and all three candidate hashes match the table above. Fresh preflight
+confirmed latched E-STOP, manual-only, disarmed commissioning, STOPPED source,
+zero velocity and wheel commands, measured speed0, mission READY, recorder OFF,
+fresh required sensors and correct Astra USB identities/access. Free disk
+394,587,013,120 bytes. No active viewer. All three originals backed up before
+atomic file replacement. Installed hashes verified again after the test; the
+other nine Stage29 installed files also retain their original installed hashes.
+
+Only the three approved files changed. No service restart, calibration, map,
+driver binary, threshold, network, recording or motor change. Web67677/0 stayed
+running and started the new worker from disk using the unchanged lease protocol.
+The existing119 focused tests were reused; no source change required a rerun.
+
+| Measurement | Actual result |
+|---|---|
+| Pre-install CPU, three samples |64.6667 /66.2992 /65.6693%|
+| Post-install CPU, three samples |64.0893 /64.2512 /65.6012%|
+| Installation RAM / hottest |69% /61.093°C|
+| Dashboard worker / driver PID |94780 /94840|
+| Driver launch / failed check elapsed |3.6102s /4.1635s from worker start|
+| CPU guard rejection |80.7785888%, threshold75% preserved|
+| Astra process at rejected sample |43.5182% of one core,54,440KiB RSS (~53.16MiB)|
+| Guardian process at rejected sample |1.4173% of one core,20,576KiB RSS|
+| Independent observer peak CPU |99.6759% in a different sampling interval|
+| Independent observed RAM / thermal maxima during new session |69.9160% /61.187°C|
+| Depth frames received by Dashboard |0; no dimensions, timestamp or measured FPS|
+| Result |RESOURCE BLOCKED; driver stopped automatically; no retry|
+
+Independent samples span startup and shutdown and must not be substituted for
+the guardian's failed interval. CPU80.7786 was rejected before the HTTP request;
+its contemporaneous RAM/thermal are explicitly unmeasured. The independent
+observer supplies separate nearby measurements. The old successful resource
+sample retained by the UI is not the failed sample. No claim that the small
+before/after parked CPU difference is a sustained optimization benefit.
+
+The real existing page `/v2/vision3d` was used, Depth-only selected, Start clicked
+once. The Dashboard visibly showed the new worker's RESOURCE BLOCKED reason and
+Depth unavailable; server stream counter `received=0` confirms no delivered frame.
+No second isolated web host or startup pacer was used. Screenshot retained locally.
+The approved attempt is consumed. Another camera start requires a new plan.
+
+Twenty lightweight observer samples retained scalar data only. Maximum observed
+ages: LiDAR summary0.4s, IMU0.2s, each encoder0.2s, camera_info0.9s, drive_pid0.2s,
+mission0.9s, measured speed0.5s, control policy0.2s, cmd_vel0.2s. No observer errors.
+These are sampled freshness, not a continuous callback-deadline or raw scan-rate
+qualification. Every observed policy remained stopped/manual-only/latched.
+
+Final postflight passed: CPU66.0163/63.8231/67.6656%, RAM<=69.4055%, hottest61.187°C.
+No worker/driver remains. All six protected owner PIDs/restart counts and web
+PID/restart count unchanged; recorder inactivePID0. Pi camera HTTP200 returned a
+valid23,949-byte JPEG (in-memory check, no image recording). E-STOP stays latched,
+commands zero, commissioning disabled, mission READY. No autonomous work done.
+
+### Evidence and rollback
+
+Jetson evidence/backup directory:
+`/home/jetson/project-atlas-migration/stage30-approved-deploy-20261021-133843/`.
+Contains `backup/` (three original relative paths), `rollback-ledger.json`,
+`result.json`, `dashboard-test-observer.jsonl`, `dashboard-final.json`,
+`postflight.json`, `pi-camera.json`. A matching PC copy is preserved under
+`artifacts/astra_stationary_20261021/`; raw evidence is intentionally outside Git.
+
+Evidence SHA256:
+- installation result: `fd2f0a5597b3ce83d3593aa718d7943d0a6bbb2dc25b9476dec9370c18444177`
+- observer: `0a999bab715ec6f4dde3b1a7cabba3aa25ed79832277c08b1113aeae740043c7`
+- Dashboard result: `647c961603631a5bf1c936b5cc828628506976ca0879b4bc7d24b369e84f2cfe`
+- postflight: `cc072aae37c47ef409cea121985f58d44702442016b9978c586cb68e43b9450a`
+- rollback ledger: `257223fec766be7c52f89bc41a63bdbfe8b1110095135346e772a09e470fc5fc`
+
+Rollback: with camera worker OFF and stationary admission passing, verify current
+three hashes against `installed` and backups against `expected_original` in the
+ledger; restore only those three relative paths from `backup/` atomically to
+`/home/jetson/project_atlas/`, then verify originals and unchanged service identities.
+No service restart needed. Previously exercised private rollback fixture restored
+byte-identical originals. Rollback was not necessary: cleanup functioned as tested,
+but did not solve the pre-existing startup resource failure.
+
+Next engineering step: obtain native-process/graph startup attribution using a
+separately approved bounded diagnostic plan. Prior camera-free reproduction and
+this real-parent failure do not establish the precise hot native/kernel path.
+Do not repeat camera starts, weaken75%, or call viewing fixed from this deployment.

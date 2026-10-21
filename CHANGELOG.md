@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 Stage30 approved three-file deployment and one Dashboard test:
+- Installed exact ac34cd3 observer/guard package with backups and hash checks; no service restart.
+- One Depth start through existing Dashboard stopped automatically at80.7786% CPU; zero delivered frames. No retry or safeguard change.
+- Independent RAM peak69.916%, hottest61.187C; protected identities, Pi camera, E-STOP/manual-only/zero/recorder-OFF verified afterward.
+- Live depth viewing remains RESOURCE BLOCKED. Evidence/rollback in ATLAS_STAGE30_ASTRA_RESOURCE_RECOVERY.md.
+
 2026-10-21 Stage30 resource investigation (isolated only):
 - Profiled parked load and isolated startup; reproduced81.68% CPU failure with a camera-free ROS participant.
 - Batched six identity reads into one, reused one existing lightweight ROS safety snapshot, and reject failed CPU before HTTP; thresholds unchanged.

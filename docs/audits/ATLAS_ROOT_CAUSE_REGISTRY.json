@@ -16,7 +16,8 @@
     {
       "id": "ATLAS-VISION-GUARD-CPU-BEFORE-HTTP-20261021",
       "confidence": "CONFIRMED",
-      "resolution": "UNRESOLVED",
+      "resolution": "VERIFIED FIXED",
+      "deployment_follow_up": "2026-10-21 owner-approved three-file ac34cd3 package installed with exact hashes/backups, no restart. Real Dashboard test rejected CPU80.7786 before HTTP and retained Astra43.5182% one-core CPU/54440KiB. Zero depth frames; broader camera startup resource block remains UNRESOLVED. No retry. Evidence: ATLAS_STAGE30_ASTRA_RESOURCE_RECOVERY.md final section.",
       "evidence": "Code read CPU then waited for dashboard HTTP before rejecting an already-failed sample; isolated runs also exposed HTTP timeouts and missed attribution. Candidate rejects CPU>75/nonfinite before HTTP, batches identical service reads, shares an existing lightweight safety snapshot and preserves process metrics.119 focused tests pass; production unchanged. Wider ROS-startup CPU contention and stable viewing remain unresolved.",
       "reference": "ATLAS_STAGE30_ASTRA_RESOURCE_RECOVERY.md"
     },

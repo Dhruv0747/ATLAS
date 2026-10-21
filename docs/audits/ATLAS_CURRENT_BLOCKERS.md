@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+21 October Stage30 approved deployment follow-up: three-file ac34cd3 cleanup
+installed and hash-verified, no restarts. One real Dashboard Depth attempt
+stopped at80.7786% CPU; zero frames, no retry. Independent RAM69.916%,61.187C.
+Cleanup is deployed; stable viewing remains BLOCKED. Pi camera and all protected
+identities preserved. See final section of ATLAS_STAGE30_ASTRA_RESOURCE_RECOVERY.md.
+
 21 October Stage30: parked CPU65.24% mean/66.78% peak; normal Astra startup
 guard75.94%. Startup-only pacing failed to recover stable viewing and was
 removed from proposal. Camera-free ROS join also tripped81.68%, implicating
