@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-21 one approved Depth-only test after08ad26f: driver launched,17 depth
+frames received; CPU76.0757% guard stopped it safely. No retry or production
+changes;3D Preview not verified. See ATLAS_STAGE32_DIRECT_DEPTH_VERIFICATION.md.
+
 2026-10-21 direct worker candidate ed450f9 DEPLOYED/VERIFIED: one runtime file,
 web-only restart, persistent CPU trace (peak100%, settled below75% by28s).
 Protected services unchanged, sensors fresh, Astra/recorder OFF; no camera test.

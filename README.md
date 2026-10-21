@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Latest [single Depth verification](ATLAS_STAGE32_DIRECT_DEPTH_VERIFICATION.md):
+17 real depth frames received, then CPU76.0757% stopped the session. No retry;
+3D preview/interaction NOT verified. Protected services unchanged.
+
 21 October offline launch optimization: [direct worker candidate](ATLAS_STAGE32_DIRECT_WORKER_LAUNCH.md).
 Repeated login-shell/ROS setup removed; PC launch CPU work down66.1%,79 tests pass.
 [Now deployed and verified](ATLAS_STAGE32_DIRECT_LAUNCH_DEPLOYMENT.md) with web-only
