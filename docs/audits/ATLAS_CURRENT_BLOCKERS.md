@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October 14:35 Stage31 live: UI and Astra domain-77 fix DEPLOYED (web restart only,
+protected identities unchanged). One Depth start delivered real frames for ~11 s
+(guard 63.5-69.4% after launch, vs first-sample failures before), then a 77.8%
+sample stopped it safely; cause unproven (own mid-session SSH observer likely).
+Sustained viewing and click-to-measure still UNVERIFIED. Thresholds unchanged.
+See ATLAS_STAGE31_LIVE_DEPLOYMENT.md.
+
 21 October Stage31 takeover: Astra startup block traced to ROS/DDS discovery fan-out.
 Camera-free, passive /proc sampling: one participant joining production domain 0
 raised whole-machine CPU 65%->92% for ~3 s (34 existing nodes woke); the same

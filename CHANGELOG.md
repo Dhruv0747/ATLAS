@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-21 14:24–14:35 (owner-approved Stage 31 steps 1–3; step 4 NOT approved/not done):
+- **UI DEPLOYED** (static, no restart): new Home, Vision Lab page, `/v2/classic.html` fallback. Live-verified in a real browser on desktop and mobile, with no errors or POSTs.
+- **ASTRA FIX DEPLOYED** (`rover-status-web` restart only, PID 67677 -> 117520): driver and receiver in private ROS domain 77, verified live; domain-0 participants unchanged.
+- **LIVE DEPTH: PARTIAL.** Real 160x120 depth frames shown on the Dashboard (12.6–20 fps, 0.11–0.18 s old) for ~11 s with guard samples 63.5–69.4% after launch (previously every start failed at the first sample); then one 77.8% sample stopped the camera safely. No retry. Cause of that sample unproven (coincided with my mid-session SSH check).
+- See [`ATLAS_STAGE31_LIVE_DEPLOYMENT.md`](ATLAS_STAGE31_LIVE_DEPLOYMENT.md).
+
 2026-10-21 (Stage 31; OFFLINE + camera-free Jetson diagnostics only; nothing deployed, no restart, camera never opened):
 - **Astra resource block root cause:** ROS/DDS discovery fan-out. A participant joining production domain 0 lifts CPU 65% -> 92% for ~3 s (34 nodes wake); private domain 77 has no fan-out. Fix implemented: Astra driver and Vision Lab receiver use private domain 77 (`atlas_vision3d_runtime.py`, `atlas_vision3d_web.py`), plus a lease-free `/api/vision3d/summary`. Receiver verified on the Jetson with a synthetic 30 Hz stream. Thresholds unchanged.
 - **Dashboard V2 Home redesign and 3D Vision Lab UI:** systems cards, safety pill, collapsible drawers, developer diagnostics kept; all ids/controls preserved; old Home kept at `/v2/classic.html`. Vision Lab explains RESOURCE BLOCKED with measured CPU vs limit.
