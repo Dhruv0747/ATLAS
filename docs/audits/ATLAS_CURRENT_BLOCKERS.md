@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+21 October 19:30 UNCALIBRATED 3D preview (diagnostic only) built and tested offline;
+packaged with U2 as U2+P (one monitored rover-status-web restart), rehearsed on a
+copy, NOT deployed, camera not started. A4 / 25 mm target and tools ready; they
+need the owner's measured square size and target distances. Waiting on owner:
+U2+P approval, then a Depth-only session approval. Metric cloud still gated.
+
 21 October 18:38 U1 Vision Lab status UI DEPLOYED (static, no restart, backup verified).
 P0 route to a live XYZ cloud: U2 (monitored web restart; manifest serial for the
 gate) -> one IR+Depth session (IR-to-depth offset) -> A5 IR checkerboard + depth

@@ -102,3 +102,5 @@ select{max-width:100%;padding:6px;background:#102b3c;color:#fff;border:1px solid
 .vl-cloud #cloudCanvas{height:340px}
 .vl-sub{font:600 13px var(--ui);margin:12px 0 6px}
 .vl-chip.busy{color:#9FD8F5;border-color:rgba(34,184,240,.5)}
+.vl-preview-toggle{margin-left:12px}
+.vl-preview-warn{margin:0 0 8px;padding:6px 10px;border-radius:8px;border:1px solid rgba(242,179,61,.6);background:rgba(242,179,61,.12);color:#FFD58A;font-size:13px}

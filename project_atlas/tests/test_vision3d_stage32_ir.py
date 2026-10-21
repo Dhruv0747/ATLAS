@@ -121,10 +121,14 @@ class Ingest(unittest.TestCase):
         s.ingest('ir', ir_msg(t=100.0))
         with self.assertRaisesRegex(ValueError, 'stale'): s.raw('ir')
 
-    def test_raw_route_only_for_ir_and_no_lease_side_effects_beyond_status(self):
-        s = service(); s.ingest('depth', N(width=2, height=1, encoding='16UC1', step=4, is_bigendian=False, data=b'\0\0\0\0',
+    def test_raw_route_ir_and_depth_preview_only(self):
+        # Stage32 uncalibrated preview: native depth bytes are offered (labelled), RGB/cloud never
+        s = service(); s.ingest('depth', N(width=2, height=1, encoding='16UC1', step=4, is_bigendian=False, data=b'\xe8\x03\x00\x00',
                                          header=N(frame_id='d', stamp=N(sec=100, nanosec=0))))
-        with self.assertRaises(ValueError): s.raw('depth')
+        body, h = s.raw('depth')
+        self.assertEqual(body, b'\xe8\x03\x00\x00'); self.assertEqual(h['X-Calibration'], 'UNCALIBRATED-DIAGNOSTIC-ONLY')
+        for kind in ('rgb', 'cloud', 'depth_info'):
+            with self.assertRaises(ValueError): s.raw(kind)
 
     def test_http_raw_route(self):
         s = service(); s.ingest('ir', ir_msg())

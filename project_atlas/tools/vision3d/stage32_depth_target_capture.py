@@ -7,9 +7,11 @@ or stored: each answer is one scalar depth for one pixel of the frame the page i
 Afterwards `validate(candidate, runs)` back-projects the samples with the CANDIDATE intrinsics (offline), fits the plane,
 and calls attach_validation(front_face_reference=True). Nothing is installed; the result is reviewed first.
 
-usage: python3 stage32_depth_target_capture.py OUT_PREFIX --reference-m 1.004 [--grid 9] [--roi 0.3]
+usage: python3 stage32_depth_target_capture.py OUT_PREFIX --reference-m <owner tape, m> --target-mm <W> <H> [--grid 9] [--roi 0.3]
+--reference-m and --target-mm are the OWNER'S MEASURED values; nothing is assumed. The sampled region is shrunk so it stays
+inside 70 % of the target's footprint at that distance (nominal field of view; only used to choose pixels, not as geometry).
 """
-import argparse, asyncio, json, statistics, sys, time
+import argparse, asyncio, json, math, statistics, sys, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -27,6 +29,23 @@ SAMPLE = '''async (pts) => { const img = document.getElementById('depthImage'); 
 # vision3d.js keeps imageStamps in a closure; this init script mirrors the displayed frame's stamp from the response header
 STAMP_TAP = '''(() => { const orig = window.fetch.bind(window); window.fetch = async (u, o) => { const r = await orig(u, o);
   if (String(u).includes('/api/vision3d/frame?kind=depth') && r.ok) window.__atlasDepthStamp = r.headers.get('X-Source-Stamp'); return r; }; })()'''
+
+
+NOMINAL_FOV = (1.0225999355316162, 0.7966156601905823)   # device-reported (read-only OpenNI query); NOT a calibration
+MIN_ROI = 0.08                                            # below ~13 x 10 depth pixels the plane statistics are not meaningful
+
+
+def fit_roi(target_w_mm, target_h_mm, distance_m, roi=0.3, margin=0.7):
+    """Largest central region fraction (<= roi) whose footprint lies inside `margin` of the owner-measured target."""
+    if not (target_w_mm > 0 and target_h_mm > 0 and distance_m > 0):
+        raise ValueError('target size and distance must be the owner-measured positive values')
+    fx, fy = (W / 2) / math.tan(NOMINAL_FOV[0] / 2), (H / 2) / math.tan(NOMINAL_FOV[1] / 2)
+    px_w, px_h = fx * target_w_mm / 1000 / distance_m, fy * target_h_mm / 1000 / distance_m
+    r = min(roi, margin * px_w / W, margin * px_h / H)
+    if r < MIN_ROI:
+        raise ValueError('target %.0f x %.0f mm covers only %.0f x %.0f depth pixels at %.2f m; use a larger flat surface'
+                         % (target_w_mm, target_h_mm, px_w, px_h, distance_m))
+    return r
 
 
 def grid(n=9, roi=0.3):
@@ -65,7 +84,7 @@ def validate(candidate, runs):
 async def run(a):
     from playwright.async_api import async_playwright
     import stage32_ir_acceptance as ACC
-    pts = grid(a.grid, a.roi); samples = []
+    roi = fit_roi(a.target_mm[0], a.target_mm[1], a.reference_m, a.roi); pts = grid(a.grid, roi); samples = []
     async with async_playwright() as p:
         b = await p.chromium.launch(); ctx = await b.new_context(viewport={'width': 1440, 'height': 900})
         await ctx.add_init_script(ACC.OBSERVER); await ctx.add_init_script(STAMP_TAP); pg = await ctx.new_page()
@@ -81,11 +100,13 @@ async def run(a):
             got = await pg.evaluate(SAMPLE, pts)
             if got: samples.extend(got['out'])
         await pg.click('#pause'); await pg.wait_for_timeout(2000); await b.close()
-    out = {'reference_m': a.reference_m, 'grid': a.grid, 'roi': a.roi, 'samples': samples, 'summary': summarize(samples, a.reference_m), 'images_kept': False}
+    out = {'reference_m': a.reference_m, 'target_mm': a.target_mm, 'grid': a.grid, 'roi': roi, 'samples': samples, 'summary': summarize(samples, a.reference_m), 'images_kept': False}
     Path(a.out + '_depth_target.json').write_text(json.dumps(out)); print(json.dumps(out['summary'], indent=1))
 
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(); ap.add_argument('out'); ap.add_argument('--reference-m', type=float, required=True)
+    ap.add_argument('--target-mm', type=float, nargs=2, required=True, metavar=('W', 'H'))
     ap.add_argument('--grid', type=int, default=9); ap.add_argument('--roi', type=float, default=0.3); ap.add_argument('--base', default=BASE)
-    asyncio.run(run(ap.parse_args()))
+    a = ap.parse_args(); fit_roi(a.target_mm[0], a.target_mm[1], a.reference_m, a.roi)   # refuse BEFORE any camera session
+    asyncio.run(run(a))

@@ -64,7 +64,10 @@
 
  <section class="panel vl-cloud cloud-panel" aria-label="3D point cloud">
   <header class="vl-cloud-head"><h2>3D point cloud</h2><span class="vl-chip" id="cloudState">Off</span><span class="vl-fps" id="cloudFps"></span>
-   <label class="vl-check vl-cloud-toggle"><input type="checkbox" id="showCloud" disabled> Show cloud</label></header>
+   <label class="vl-check vl-cloud-toggle"><input type="checkbox" id="showCloud" disabled> Show cloud</label>
+   <label class="vl-check vl-preview-toggle"><input type="checkbox" id="showPreview" disabled> Uncalibrated preview</label></header>
+  <p class="vl-preview-warn" id="previewWarn" hidden>UNCALIBRATED — DIAGNOSTIC ONLY. Real depth frames shown in 3D with the camera's nominal field of view.
+   Shape is approximate; distances across the image are not accurate. Not used for navigation or any ATLAS decision.</p>
   <p class="vl-cal" id="cloudCal">Checking camera calibration…</p>
   <canvas id="cloudCanvas" aria-label="3D cloud view. Drag to orbit, shift-drag or Pan mode to pan, scroll or buttons to zoom, click a point to measure." tabindex="0"></canvas>
   <div class="cloud-tools"><button class="btn" id="resetView">Reset view</button><button class="btn" id="panMode" aria-pressed="false">Pan mode</button><button class="btn" id="zoomIn">Zoom +</button><button class="btn" id="zoomOut">Zoom −</button></div>

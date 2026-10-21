@@ -1743,3 +1743,136 @@ Every step needs its own approval. The current position is that U1 is done.
 **Rollback for step 6:** delete the one calibration file, and the gate returns to NOT VALIDATED.
 
 **Not on the path:** RGB+IR, XYZRGB and other AI features stay deferred, as the owner directed.
+
+## 28. Uncalibrated 3D preview (diagnostic mode) and A4 / 25 mm calibration target — offline, 21 October 2026, 18:57–
+
+Owner request (18:57): see the Astra's real depth as an interactive 3D cloud **before** calibration, labelled **UNCALIBRATED — DIAGNOSTIC ONLY**. Calibrated metric XYZ and navigation stay blocked. Test offline first; separate approval before deployment or camera start. Then prepare the calibration tools for A4 with 25 mm squares, using the owner's measurements.
+
+**Status: built and tested offline; NOT deployed; camera not started; no restart.**
+
+### 28.1 What the preview is, and what it is not
+
+- **Where it runs:** in the browser only. While a Depth (or IR+Depth) session is live, the page fetches the native depth frame through a new read-only receiver route, `/api/vision3d/raw?kind=depth`. The route returns native bytes plus the header `X-Calibration: UNCALIBRATED-DIAGNOSTIC-ONLY`.
+- **How points are made:** `vision3d_state.js` `previewPoints()` back-projects every N-th pixel, capped at **6,000 points**.
+  - X/Y use the camera's own reported field of view (1.0226 × 0.7966 rad) with the image centre as the principal point.
+  - Z is the sensor's axial reading (16UC1 mm or 32FC1 m).
+  - 0 and 65535 readings are invalid, as is anything beyond 8 m.
+- **Not a calibration:** no principal point, lens distortion or depth-scale correction is applied. Z is what the sensor reports; X/Y are approximate.
+- **Labelling:**
+  - The canvas itself always draws an amber **UNCALIBRATED — DIAGNOSTIC ONLY** box, so screenshots carry the label.
+  - A visible warning paragraph appears, and the chip reads "Uncalibrated preview".
+  - A point click reports "UNCALIBRATED preview point: Z … m (sensor axial reading) … X/Y approximate".
+- **Off by default:** the checkbox is disabled unless Depth is live, it is unticked when a session ends, and it cannot be combined with the calibrated cloud toggle.
+- **Unchanged:**
+  - The calibrated `cloud()` route still refuses with CALIBRATION BLOCKED.
+  - `pixel()` returns no `xyz_m`.
+  - No ROS publisher was added (test-asserted), and nothing reaches navigation, recording or `/astra/points`.
+  - The worker, lease (4 s), guards (75 / 80 / 70) and E-STOP were not touched; the runtime is still `fc807489`.
+
+### 28.2 Offline tests
+
+- **Node unit tests** (`tests/test_vision3d_stage32_preview.py` + `vision3d_preview_cases.js`):
+  - a flat 2.000 m wall gives Z exactly 2.000 and X extents matching the nominal FOV;
+  - nominal fx = 142.586;
+  - big-endian 32FC1 is decoded;
+  - invalid handling and the 6,000 cap work;
+  - non-depth encodings and size mismatches are refused;
+  - the label is present.
+  - The receiver test checks the labelled depth bytes, that `cloud()` is still blocked, `pixel()` has no xyz, and there is no `create_publisher`.
+- **Synthetic browser session.** New receiver plus new UI, headless Chromium, a fake 160×120 16UC1 scene (wall 2.5–3.0 m with a 1.2 m box), no ROS or USB. Script: `evidence/stage32_preview/synthetic_preview_test.py`. Results:
+  - preview disabled while the camera is off; enabled when Depth was live; not ticked by default;
+  - after ticking: warning visible, chip "Uncalibrated preview", 4,680 points (stride 2, 120 invalid);
+  - canvas label drawn;
+  - orbit, zoom and shift-pan each changed the view;
+  - a click on the box returned Z 1.200 m at pixel (60, 74), X −0.16 / Y 0.12 m, matching a hand calculation;
+  - after the session ended, the preview was disabled and unticked;
+  - no page errors; 48 raw-depth requests and **0 cloud requests**.
+  - Images: `evidence/stage32_preview/pv_front.png` and `pv_orbit.png` (synthetic, no room imagery).
+- **Suite:** `tests/test_vision3d*.py` + `test_stage31_ui.py` → **236 passed, 8 skipped**, run with `pytest -s` because the guard tests need a real stdin.
+
+### 28.3 Package U2+P (one monitored restart) — prepared, rehearsed, NOT applied
+
+U2 (Infrared "Tested" label and the device serial for the calibration gate) and P (the preview) are combined, so `rover-status-web` restarts **once**, not twice. The package is `s32_u2p_pkg_v4_b.tgz` (md5 `5aa7a963…`), staged on the Jetson at `~/project-atlas-migration/stage32-u2p/pkg_v4` with its checksums verified.
+
+| File | Production now (pre-hash, verified live 21 Oct) | Package |
+|---|---|---|
+| `config/vision3d_live.json` | `e27bc0c0` | `7f9e5ff6` |
+| `scripts/atlas_vision3d_geometry.py` | `75d02012` | `6eb23c25` |
+| `scripts/atlas_vision3d_web.py` | `889881c0` | `10bdc9db` |
+| `web/v2/vision3d.js` | `2c06d110` (U1) | `d23fe88b` |
+| `web/v2/vision3d_state.js` | `641ca00b` (U1) | `bedbeed1` |
+| `web/v2/vision3d.html` | `cf19258b` (U1) | `d6ebc4be` |
+| `web/v2/vision3d.css` | `e92cf062` (U1) | `69af9900` |
+
+**`stage32_ui.sh apply-config`**
+- **Refuses unless:** all seven live hashes match; E-STOP is latched; no camera, worker or cloud process exists; owner approval is set.
+- **Before installing:** checks the imports (manifest serial 17122120830, IR verified, calibration NOT VALIDATED, depth raw encodings) and backs up all seven files with checksums.
+- **Install and restart:** installs the files atomically, then restarts `rover-status-web` once.
+
+**`u2_restart_monitored.sh`**
+- **Around the restart:** starts a passive 1 Hz `/proc` recorder 20 s before, then waits for the transient to settle (5 consecutive samples ≤ 75% within 120 s).
+- **Then it checks:**
+  - E-STOP latched; policy manual-only; sensor freshness;
+  - the six protected service identities unchanged; Pi Camera 200;
+  - IR "verified" **and calibration not VALIDATED**;
+  - **raw depth route answers "stream unavailable"** (new receiver, camera off);
+  - **cloud route still 409**;
+  - the four static files return 200.
+- **On any failure:** it runs `rollback-config` automatically (one more restart).
+
+**Rehearsal on a copy of production** (`stage32-u2p/rehearsal_target`, `NO_RESTART`, no safety probe):
+- apply installed all 7;
+- a second apply was refused (pre-hash);
+- rollback restored all 7, byte-identical to production;
+- the monitored script refused without approval.
+
+Production was untouched: web.py `889881c0`, `rover-status-web` MainPID 189640, NRestarts 0. Node is not on the Jetson, so the JavaScript syntax check ran offline here.
+
+**Expected cost of the preview while Depth is live:** one ~38 KB fetch per refresh (160×120×2 bytes) and ≤ 6,000 points drawn in the browser. There is no Jetson-side conversion: the receiver returns bytes it already holds.
+
+### 28.4 A4 / 25 mm calibration target and tools
+
+- **Target:** `tools/vision3d/calibration_target/atlas_astra_checkerboard_9x6_25mm_A4.pdf` (SHA256 `c53e2e7e…f4c4b`).
+  - A4 landscape: 10 × 7 squares = **9 × 6 inner corners**, **25.0 mm** design squares.
+  - 250.0 × 175.0 mm pattern, centred with 23.5 / 17.5 mm white margins.
+  - Two 100.0 mm check bars.
+  - Rasterised at 10 px/mm, every square measured **25.0 mm** and the bars 100.0 mm (+0.2 mm line width).
+  - `make_checkerboard_pdf.py` now takes `--page A4|A3 --square-mm`. Its defaults still produce the A3 / 35 mm target, and it refuses a pattern that leaves less than 15 mm white border (35 mm squares on A4).
+- **IR checkerboard capture:** `--square-mm` stays **required** and must be the **measured** value (9 squares across ÷ 9). The tool refuses implausible values (outside 5–100 mm, for example the 250 mm pattern width typed by mistake). It warns when the measurement is more than 3% from both printed designs, which suggests a scaled print or the wrong board.
+- **Depth-target capture:** new **required** `--target-mm W H`, the owner-measured flat target. Before any camera session, the tool shrinks its sample region to stay inside 70% of the target's footprint at the owner's `--reference-m`. It refuses when the target covers too few depth pixels. For the A4 board:
+
+  | Owner distance | A4 board in depth image | Sample region |
+  |---|---|---|
+  | 0.6 m | ≈ 59 × 42 px | 0.24 |
+  | 1.0 m | ≈ 36 × 25 px | 0.15 |
+  | 1.5 m | ≈ 24 × 17 px | 0.10 |
+  | 2.0 m | ≈ 18 × 12 px | **refused** |
+
+  The A4 board is therefore suitable for IR intrinsics, but **depth-scale targets still need a larger flat surface** (wall, door or table top ≥ 1 × 1 m) at 1.0 / 1.5 / 2.0 m, as in 27.4.
+
+### 28.5 What the owner supplies (A4 / 25 mm; nothing assumed until then)
+
+1. **Print** at 100% / Actual size, matte, no lamination. Mount flat and rigid (foam board), then check with a straight edge across both diagonals (gap ≤ 1 mm).
+2. **Measure:**
+   - both 100 mm bars (reprint if either is off by more than 0.5 mm);
+   - 9 squares along the long edge, expected about **225 mm**;
+   - 6 squares along the short edge, expected about **150 mm**, to 0.5 mm with a steel ruler.
+   - The tool uses measured ÷ 9.
+3. **IR capture distances** (smaller board than A3, so closer):
+   - about **0.40 m** (board about 55% of image width);
+   - **0.60 m** (about 40%);
+   - **0.85 m** (about 25%).
+   - At each distance use the same pose set as 27.5: centre, four corners, two edges, and four ~30° tilts, held still for 2 s each. Use 2–3 sessions of 60 s, merged.
+   - At 0.85 m a square is about 17 IR pixels; beyond about 1.1 m detection through the despeckle filter becomes unreliable, so do not go farther.
+4. **Depth targets:** a large flat surface, tape-measured from the Astra front face, at about 1.00 / 1.50 / 2.00 m, with the surface's size (`--target-mm`). Report the actual measured values.
+
+### 28.6 Approvals now needed (each separate)
+
+| # | Step | Restart | Camera |
+|---|---|---|---|
+| 1 | **U2+P**: `OWNER_APPROVED=yes bash u2_restart_monitored.sh` (one monitored `rover-status-web` restart; auto-rollback) | yes, web only | no |
+| 2 | **One Depth-only 60-s session** to view the UNCALIBRATED preview (heartbeat-checked viewer; preview ticked by the owner or the test page) | no | yes |
+| 3 | One IR+Depth 60-s session (IR-to-depth offset; prepared in section 27) | no | yes |
+| 4 | A5a IR checkerboard and A5b depth targets — after the owner's measurements | no | yes |
+
+The calibrated XYZ cloud, `/astra/points`, navigation use, recording, motor movement and any safety-policy change remain blocked.

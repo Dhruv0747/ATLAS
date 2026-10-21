@@ -10,7 +10,9 @@ How it respects the existing safety model:
 Afterwards: calibrate() -> CANDIDATE (or REJECTED) document for the 640x480 IR camera; derive_resolution() -> 160x120
 depth candidate. Neither is validated or installed by this tool.
 
-usage: python3 stage32_ir_checkerboard_capture.py OUT_PREFIX --cols 9 --rows 6 --square-mm 35.0 [--every 1.0]
+usage: python3 stage32_ir_checkerboard_capture.py OUT_PREFIX --cols 9 --rows 6 --square-mm <MEASURED> [--every 1.0]
+--square-mm is the owner's MEASURED square size of the physical print (9 squares across / 9), never the design value.
+Printed targets: A4 landscape 25 mm design (250 x 175 mm pattern) or A3 landscape 35 mm design (350 x 245 mm).
 """
 import argparse, asyncio, base64, json, sys, time
 from pathlib import Path
@@ -25,6 +27,18 @@ FETCH_RAW = '''async () => { const r = await fetch('/api/vision3d/raw?kind=ir', 
   const b = new Uint8Array(await r.arrayBuffer()); let s = ''; for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode.apply(null, b.subarray(i, i + 32768));
   return { w: +r.headers.get('X-Width'), h: +r.headers.get('X-Height'), enc: r.headers.get('X-Encoding'), step: +r.headers.get('X-Step'),
            stamp: r.headers.get('X-Source-Stamp'), b64: btoa(s) }; }'''
+
+
+DESIGN_SQUARES_MM = (25.0, 35.0)   # the two generated targets (make_checkerboard_pdf.py); used only for a plausibility check
+
+
+def check_square(square_mm):
+    """Refuse impossible values; warn when the measurement is not near either printed design (wrong target or scaled print)."""
+    if not 5.0 <= square_mm <= 100.0:
+        raise ValueError('square size %.2f mm is not a plausible measured value' % square_mm)
+    near = [d for d in DESIGN_SQUARES_MM if abs(square_mm - d) / d <= 0.03]
+    return None if near else ('measured %.2f mm is more than 3%% from both printed designs (25 / 35 mm): check the print scale '
+                              '(Actual size) and that the measurement spans 9 squares' % square_mm)
 
 
 def frame_to_gray(meta):
@@ -109,4 +123,7 @@ async def run(a):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(); ap.add_argument('out'); ap.add_argument('--cols', type=int, default=9); ap.add_argument('--rows', type=int, default=6)
     ap.add_argument('--square-mm', type=float, required=True); ap.add_argument('--every', type=float, default=1.0); ap.add_argument('--base', default=BASE); ap.add_argument('--merge')
-    asyncio.run(run(ap.parse_args()))
+    a = ap.parse_args(); warn = check_square(a.square_mm)
+    if warn:
+        print('WARNING:', warn)
+    asyncio.run(run(a))

@@ -146,5 +146,48 @@
     "scripts/atlas_vision3d_runtime.py": "fc807489b06699d73efdd246913849a3d11315d6bfcba707eedd0e1381c9b5aa",
     "scripts/atlas_vision3d_web.py": "889881c062717d076430414f57825b14f7f0de36ba4cf8c20b0c74fbff9ec1bf",
     "config/vision3d_live.json": "e27bc0c0551d22babb7a477c551d49c5ab20937e56b6aa4fe8a8ce6aff9f9c9a"
+  },
+  "uncalibrated_preview_20261021": {
+    "status": "PREPARED_OFFLINE_NOT_DEPLOYED",
+    "owner_request": "18:57 uncalibrated 3D preview, diagnostic only; metric XYZ and navigation stay blocked",
+    "package": "s32_u2p_pkg_v4_b.tgz md5 5aa7a9636d4cee93ea4906a0f1fc5f0c; Jetson ~/project-atlas-migration/stage32-u2p/pkg_v4 (SHA256SUMS verified)",
+    "replaces": {
+      "config/vision3d_live.json": [
+        "e27bc0c0",
+        "7f9e5ff6"
+      ],
+      "scripts/atlas_vision3d_geometry.py": [
+        "75d02012",
+        "6eb23c25"
+      ],
+      "scripts/atlas_vision3d_web.py": [
+        "889881c0",
+        "10bdc9db"
+      ],
+      "web/v2/vision3d.js": [
+        "2c06d110",
+        "d23fe88b"
+      ],
+      "web/v2/vision3d_state.js": [
+        "641ca00b",
+        "bedbeed1"
+      ],
+      "web/v2/vision3d.html": [
+        "cf19258b",
+        "d6ebc4be"
+      ],
+      "web/v2/vision3d.css": [
+        "e92cf062",
+        "69af9900"
+      ]
+    },
+    "restart": "rover-status-web once, via u2_restart_monitored.sh (requires OWNER_APPROVED=yes); auto rollback-config on any failed check",
+    "rehearsal": "copy of production, NO_RESTART: apply 7/7, re-apply refused, rollback byte-identical, unapproved run refused; production untouched (MainPID 189640, NRestarts 0)",
+    "offline_tests": "236 passed, 8 skipped (pytest -s); synthetic browser session: label drawn, 4680 points, orbit/zoom/pan, click Z 1.200 m, 0 cloud requests, 0 page errors",
+    "safety_unchanged": "calibration gate, cloud() CALIBRATION BLOCKED, no xyz_m, no ROS publisher, lease 4 s, guards 75/80/70, E-STOP, runtime fc807489",
+    "camera_started": false,
+    "restart_performed": false,
+    "a4_target": "tools/vision3d/calibration_target/atlas_astra_checkerboard_9x6_25mm_A4.pdf sha256 c53e2e7e47b1f7e87e7e4aad8e412759ffe1391efb488fa5ad8befec0b7f4c4b; verified 25.0 mm squares at 10 px/mm",
+    "next_action": "owner approval for U2+P (monitored restart), then separately one Depth-only session to view the preview"
   }
 }

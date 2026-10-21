@@ -92,6 +92,31 @@
     return { state: st, note: st === 'verified' ? 'Tested' : st === 'unsupported' ? 'Not supported (tested)' : 'Not yet tested', disabled: st === 'unsupported' };
   }
 
-  const api = { sessionView, newMemo, modeNote, STREAMS, WAIT_S };
+  // ---------- UNCALIBRATED 3D preview (diagnostic only) ----------
+  // Nominal geometry from the camera's own reported field of view (read-only OpenNI query, 21 Oct 2026:
+  // 1.0226 x 0.7966 rad, identical to ZPD/ZPPS). This is NOT a calibration: no principal-point or lens-distortion
+  // measurement exists, so X/Y are approximate. Z is the sensor's own axial reading. Never published to ROS or navigation.
+  const NOMINAL_FOV = { h: 1.0225999355316162, v: 0.7966156601905823 };
+  const PREVIEW_LABEL = 'UNCALIBRATED \u2014 DIAGNOSTIC ONLY';
+  function nominalK(w, h) { return { fx: (w / 2) / Math.tan(NOMINAL_FOV.h / 2), fy: (h / 2) / Math.tan(NOMINAL_FOV.v / 2), cx: (w - 1) / 2, cy: (h - 1) / 2 }; }
+  function previewPoints(buf, hdr, limit) {
+    const get = k => (hdr.get ? hdr.get(k) : hdr[k]);
+    const w = +get('X-Width'), h = +get('X-Height'), enc = get('X-Encoding'), step = +get('X-Step'), be = get('X-Bigendian') === '1';
+    if (!(enc === '16UC1' || enc === '32FC1')) throw Error('Preview needs native depth (16UC1 or 32FC1)');
+    const bpp = enc === '16UC1' ? 2 : 4;
+    if (!(w > 0 && h > 0) || step < w * bpp || buf.byteLength !== step * h) throw Error('Depth frame size mismatch');
+    limit = Math.max(1, Math.min(6000, limit || 6000));
+    const stride = Math.max(1, Math.ceil(Math.sqrt(w * h / limit))), k = nominalK(w, h), dv = new DataView(buf), points = [];
+    let invalid = 0;
+    for (let v = 0; v < h; v += stride) for (let u = 0; u < w; u += stride) {
+      const raw = bpp === 2 ? dv.getUint16(v * step + u * 2, !be) : dv.getFloat32(v * step + u * 4, !be);
+      const z = bpp === 2 ? (raw === 0 || raw === 65535 ? NaN : raw / 1000) : raw;
+      if (!(z > 0 && z <= 8)) { invalid++; continue; }
+      points.push([(u - k.cx) / k.fx * z, (v - k.cy) / k.fy * z, z, u, v]);
+    }
+    return { points: points.slice(0, limit), stride, invalid, w, h, k, label: PREVIEW_LABEL, calibrated: false };
+  }
+
+  const api = { sessionView, newMemo, modeNote, previewPoints, nominalK, NOMINAL_FOV, PREVIEW_LABEL, STREAMS, WAIT_S };
   if (typeof module === 'object' && module.exports) module.exports = api; else root.AtlasVisionState = api;
 })(typeof window !== 'undefined' ? window : globalThis);

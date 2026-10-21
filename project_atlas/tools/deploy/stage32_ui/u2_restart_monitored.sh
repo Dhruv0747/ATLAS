@@ -1,12 +1,13 @@
 #!/bin/bash
-# Stage 32 U2 with restart monitoring. NOT TO BE RUN WITHOUT THE OWNER'S SEPARATE CONFIRMATION (OWNER_APPROVED=yes).
+# Stage 32 U2+P with restart monitoring. NOT TO BE RUN WITHOUT THE OWNER'S SEPARATE CONFIRMATION (OWNER_APPROVED=yes).
 # 1. passive 1-Hz per-process /proc recorder (stage31_cpurec.py, no ROS participant, no CLI) started 20 s BEFORE the restart
-# 2. stage32_ui.sh apply-config (installs manifest + geometry, restarts rover-status-web only; refuses unless camera off,
+# 2. stage32_ui.sh apply-config (installs manifest + geometry + receiver + 4 Vision Lab static files, restarts rover-status-web only; refuses unless camera off,
 #    E-STOP latched and live hashes are the verified production values)
 # 3. waits for the restart transient to settle: 5 consecutive 1-s whole-machine samples <= 75 % within 120 s.
 #    This is a deployment observation only; the camera guard is unchanged and no camera is started here.
 # 4. verifies: E-STOP latched, policy manual-only, sensor freshness, protected identities unchanged, Pi Camera 200,
-#    Vision Lab reports Infrared "verified" and the device serial. Any failure -> rollback-config (one more restart).
+#    Vision Lab reports Infrared "verified" and the device serial, calibration still NOT validated (gate unchanged), the
+#    depth raw route answers "stream unavailable" (camera off; new receiver) and the cloud route still refuses. Any failure -> rollback-config (one more restart).
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; OUT="${OUT:-$HOME/project-atlas-migration/stage32-u2-$(date +%Y%m%d_%H%M%S)}"; mkdir -p "$OUT"
 REC="${REC:-$HOME/project-atlas-migration/stage32-deploy-20261021/cpurec.py}"
@@ -44,7 +45,12 @@ sys.exit(0 if p['manual_only'] and p['stop_latched'] and all(a is not None and a
 curl -s -m5 http://127.0.0.1:8088/api/vision3d/summary >/dev/null
 curl -s -m5 http://127.0.0.1:8088/api/vision3d/status | python3 -c "
 import sys,json;d=json.load(sys.stdin);print('ir_mode',d['mode_support']['ir']['state'],'calibration',d['calibration_state']['state'])
-sys.exit(0 if d['mode_support']['ir']['state']=='verified' else 1)" >> "$OUT/log.txt" 2>&1 || { echo "FAIL vision3d status" >> "$OUT/log.txt"; ok=no; }
+sys.exit(0 if d['mode_support']['ir']['state']=='verified' and d['calibration_state']['state']!='VALIDATED' else 1)" >> "$OUT/log.txt" 2>&1 || { echo "FAIL vision3d status" >> "$OUT/log.txt"; ok=no; }
+pv="$(curl -s -m5 'http://127.0.0.1:8088/api/vision3d/raw?kind=depth')"; echo "raw_depth_camera_off $pv" >> "$OUT/log.txt"
+case "$pv" in *"stream unavailable"*) ;; *) echo "FAIL preview receiver route" >> "$OUT/log.txt"; ok=no ;; esac
+cl="$(curl -s -o /dev/null -w '%{http_code}' -m5 'http://127.0.0.1:8088/api/vision3d/cloud')"; echo "cloud_route_http $cl" >> "$OUT/log.txt"
+[ "$cl" = 409 ] || { echo "FAIL calibrated cloud not refused" >> "$OUT/log.txt"; ok=no; }
+for f in vision3d.js vision3d_state.js vision3d.html vision3d.css; do [ "$(curl -s -o /dev/null -w '%{http_code}' -m5 http://127.0.0.1:8088/v2/$f)" = 200 ] || { echo "FAIL static $f" >> "$OUT/log.txt"; ok=no; }; done
 [ "$rc" = 0 ] && [ "$settle" != NOT_SETTLED ] || ok=no
 if [ "$ok" != yes ]; then echo "ROLLING BACK" >> "$OUT/log.txt"; OWNER_APPROVED=yes bash "$HERE/stage32_ui.sh" rollback-config >> "$OUT/log.txt" 2>&1; fi
-echo "result=$([ $ok = yes ] && echo U2_DEPLOYED || echo U2_ROLLED_BACK)" >> "$OUT/log.txt"; cat "$OUT/log.txt"
+echo "result=$([ $ok = yes ] && echo U2P_DEPLOYED || echo U2P_ROLLED_BACK)" >> "$OUT/log.txt"; cat "$OUT/log.txt"

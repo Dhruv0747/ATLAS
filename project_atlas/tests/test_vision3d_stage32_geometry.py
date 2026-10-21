@@ -284,3 +284,43 @@ class DepthTargetToolOffline(unittest.TestCase):
         bad = [dict(r, summary=dict(r['summary'], median_m=r['summary']['median_m'] * 1.03)) for r in runs]   # 3 % scale error
         self.assertEqual(DT.validate(cand, bad)['status'], 'CANDIDATE')
         with self.assertRaises(ValueError): DT.summarize([[1, 1, None]], 1.0)
+
+
+class A4TargetOffline(unittest.TestCase):
+    """Stage32: A4 / 25 mm target support. Owner measurements are required inputs; nothing is assumed."""
+
+    def test_generated_a4_pdf_geometry(self):
+        import importlib, shutil, subprocess
+        if importlib.util.find_spec('reportlab') is None:
+            self.skipTest('reportlab not installed')
+        sys.path.insert(0, str(ROOT / 'tools/vision3d/calibration_target'))
+        import make_checkerboard_pdf as M
+        with tempfile.TemporaryDirectory() as d:
+            info = M.build(str(Path(d) / 'a4.pdf'), 'A4', 25.0)
+            self.assertEqual(info['pattern_mm'], (250.0, 175.0)); self.assertEqual(info['margins_mm'], (23.5, 17.5))
+            with self.assertRaisesRegex(ValueError, 'white border'):
+                M.build(str(Path(d) / 'x.pdf'), 'A4', 35.0)                 # 35 mm does not fit A4
+            if shutil.which('pdftoppm'):
+                import numpy as np
+                from PIL import Image
+                subprocess.check_call(['pdftoppm', '-r', '254', '-gray', '-png', str(Path(d) / 'a4.pdf'), str(Path(d) / 'r')])
+                im = np.array(Image.open(next(Path(d).glob('r*.png'))).convert('L')) < 128   # 10 px/mm
+                e = np.flatnonzero(np.diff(im[im.shape[0] // 2].astype(int)))
+                self.assertTrue(np.allclose(np.diff(e) / 10, 25.0, atol=0.15))
+
+    def test_capture_tool_requires_measured_square_and_flags_implausible(self):
+        import stage32_ir_checkerboard_capture as C
+        self.assertIsNone(C.check_square(24.9)); self.assertIsNone(C.check_square(35.2))
+        self.assertIn('3%', C.check_square(30.0))
+        with self.assertRaises(ValueError):
+            C.check_square(250.0)                                               # pattern width typed instead of square
+
+    def test_depth_tool_fits_sample_region_inside_owner_target(self):
+        import stage32_depth_target_capture as D
+        self.assertAlmostEqual(D.fit_roi(1000, 1000, 2.0), 0.3)                 # large wall: default region
+        r = D.fit_roi(250, 175, 1.0)
+        self.assertLess(r * D.W, 0.7 * 142.59 * 0.25 / 1.0 + 0.01)              # inside 70 % of the A4 footprint
+        with self.assertRaisesRegex(ValueError, 'larger flat surface'):
+            D.fit_roi(250, 175, 2.0)
+        with self.assertRaises(ValueError):
+            D.fit_roi(0, 175, 1.0)

@@ -6,7 +6,13 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import atlas_vision3d_web as W
 import atlas_vision3d_runtime as R
 from test_vision3d_stage32_ir import ir_msg
+import pytest
+# Stage32 continuation (21 Oct 2026): the receiver-diagnostic candidate fields (ir_delivery, ir_boundaries, last_session,
+# ir_api) were never deployed; the production receiver is 889881c0 + the uncalibrated-preview raw-depth route. Those
+# candidate tests are kept, skipped, and run against the candidate source in git history (commits 3e91465 / baa1f26).
+CANDIDATE = pytest.mark.skip(reason='receiver-diagnostic candidate (baa1f26) not deployed; see Stage32 report section 28')
 
+@CANDIDATE
 def test_driver_running_does_not_prove_frames():
     s=W.VisionService({'viewer_runtime':True})
     with patch.object(R.SESSION,'status',return_value={'state':'ACTIVE','mode':'ir','driver_pid':123}):
@@ -16,6 +22,7 @@ def test_driver_running_does_not_prove_frames():
     assert st['ir_boundaries']['sensor_frame_received'].startswith('UNKNOWN')
     assert st['ir_boundaries']['ros_frame_published']=='UNKNOWN'
 
+@CANDIDATE
 def test_final_scalar_counts_survive_stop_without_images():
     s=W.VisionService({'topics':{'ir':'/astra/ir/image_raw'}},clock=lambda:100,wall=lambda:100)
     s.ingest('ir',ir_msg());s.stop()
@@ -24,12 +31,14 @@ def test_final_scalar_counts_survive_stop_without_images():
     assert not s.messages and not s.cache and not s.stats
     assert st['streams']['ir']['received']==0
 
+@CANDIDATE
 def test_snapshot_failure_cannot_prevent_stop():
     s=W.VisionService({});t=MagicMock();s.transport=t
     with patch.object(s,'status',side_effect=ValueError('bad metadata')):s.stop()
     t.stop.assert_called_once();assert s.transport is None
     assert s.last_session['capture_error']=='bad metadata'
 
+@CANDIDATE
 def test_stale_distinguished_from_no_frames():
     now=[100.0];s=W.VisionService({'viewer_runtime':True},clock=lambda:now[0],wall=lambda:now[0])
     with patch.object(R.SESSION,'status',return_value={'state':'ACTIVE','mode':'ir','driver_pid':123}):
@@ -43,6 +52,7 @@ def test_browser_no_frames_label_and_strict_native_encoding():
     assert "['mono8', 'mono16', '16UC1'].includes(enc)" in js
     assert 'browserIr.rendered++' in js
 
+@CANDIDATE
 def test_api_prepared_is_not_browser_delivery_and_survives_stop():
     s=W.VisionService({},clock=lambda:100,wall=lambda:100)
     s.ingest('ir',ir_msg());s.raw('ir');s.raw('ir')

@@ -1,5 +1,15 @@
 # Changelog
 
+2026-10-21 18:57– (offline only; nothing deployed, no restart, camera never started):
+- **UNCALIBRATED 3D preview (diagnostic mode) READY:** while Depth is live, the Vision Lab can draw the real depth frame as an interactive 3D cloud (orbit, zoom, pan, click). Geometry is nominal field of view, ≤ 6,000 points, browser-only.
+  - It is labelled **UNCALIBRATED — DIAGNOSTIC ONLY** on the canvas itself, off by default, and never combined with the calibrated cloud.
+  - The receiver gains a read-only labelled raw-depth route. The calibrated cloud, metric XYZ, ROS output and navigation stay blocked.
+- **U2+P package:** U2 and the preview receiver plus static files, one monitored `rover-status-web` restart with automatic rollback. Rehearsed on a copy of production; production untouched.
+- **A4 calibration target:** 9x6 inner corners, 25 mm squares (`atlas_astra_checkerboard_9x6_25mm_A4.pdf`), verified 25.0 mm.
+  - The capture tool still requires the *measured* square size and flags implausible values.
+  - The depth-target tool now requires the measured target size and keeps its samples on the target.
+- **Tests:** 236 passed, 8 skipped. Stage 32 report section 28.
+
 2026-10-21 18:37–18:45 (owner-approved U1):
 - **UI DEPLOYED (U1):** the Vision Lab now shows real per-stream session states. Four static files changed, with no restart, a verified backup and a byte-identical rollback rehearsal. Live page check passed: no errors and no POSTs. Infrared stays "Not yet tested" until U2.
 - **Prepared, not run:**

@@ -115,8 +115,12 @@
   function draw() {
     canvas.width = Math.max(1, Math.floor(canvas.clientWidth)); canvas.height = Math.max(1, Math.floor(canvas.clientHeight)); ctx.clearRect(0, 0, canvas.width, canvas.height); projected = [];
     ctx.fillStyle = '#8DA3B8'; ctx.font = '12px system-ui';
-    if (!cloud) { ctx.fillText('3D view disabled until calibration is valid', 16, 26); return; }
+    if (!cloud) { ctx.fillText($('showPreview').checked ? 'Waiting for depth frames for the uncalibrated preview' : '3D view disabled until calibration is valid. Uncalibrated preview: tick the box above while Depth is live.', 16, 26); return; }
     for (const p of cloud.points) { const q = project(p); if (q[0] < 0 || q[1] < 0 || q[0] > canvas.width || q[1] > canvas.height) continue; ctx.fillStyle = `hsl(${Math.min(240, p[2] * 48)},85%,65%)`; ctx.fillRect(q[0], q[1], 2, 2); projected.push({ q, p }); }
+    if (cloud.preview) {   // never let a preview be mistaken for a calibrated cloud
+      ctx.fillStyle = 'rgba(242,179,61,.18)'; ctx.fillRect(8, 8, 330, 26); ctx.fillStyle = '#FFD58A'; ctx.font = '600 13px system-ui';
+      ctx.fillText(VS.PREVIEW_LABEL, 16, 26); ctx.font = '12px system-ui';
+    }
     const origin = project([0, 0, 0]); for (const [label, p, color] of [['X', [.4, 0, 0], '#ff8f94'], ['Y', [0, .4, 0], '#87f8b3'], ['Z', [0, 0, .4], '#85beff']]) { const q = project(p); ctx.strokeStyle = color; ctx.beginPath(); ctx.moveTo(origin[0], origin[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); ctx.fillStyle = color; ctx.fillText(label, q[0] + 4, q[1]); }
   }
   const xyzText = p => `X ${fmt(p[0])} m · Y ${fmt(p[1])} m · Z ${fmt(p[2])} m · range ${fmt(Math.hypot(...p))} m`;
@@ -152,13 +156,26 @@
           const e = $(k + 'Empty'); if (e) e.hidden = true;
         } catch (e) { clearImage(k); $(k + 'State').textContent = e.message; }
       }
-      if ($('showCloud').checked && status.streams.cloud.state === 'ACTIVE') {
+      const depthLive = status.streams.depth && status.streams.depth.state === 'ACTIVE';
+      $('showPreview').disabled = !depthLive || $('showCloud').checked;
+      if ($('showPreview').disabled) $('showPreview').checked = false;
+      $('previewWarn').hidden = !$('showPreview').checked;
+      if ($('showPreview').checked) {
+        if (!frozen) {
+          try { const r = await get('raw?kind=depth'); const pv = VS.previewPoints(await r.arrayBuffer(), r.headers, 6000);
+            cloud = { points: pv.points, preview: true, stamp: r.headers.get('X-Source-Stamp') };
+            $('cloudState').textContent = 'Uncalibrated preview'; $('cloudState').className = 'vl-chip warn';
+            $('cloudMeta').textContent = `${pv.points.length} points from a ${pv.w} × ${pv.h} depth frame (every ${pv.stride} pixel; ${pv.invalid} without a reading) · nominal field of view, NOT calibrated · Z is the sensor's axial reading, X/Y approximate`; }
+          catch (e) { cloud = null; $('cloudMeta').textContent = /only offered for IR/.test(e.message) ? 'The uncalibrated preview needs the receiver update (U2+P) on the Jetson.' : e.message; }
+        }
+      } else if ($('showCloud').checked && status.streams.cloud.state === 'ACTIVE') {
         if (!frozen) {
           try { cloud = await (await get('cloud')).json(); $('obstacles').textContent = JSON.stringify(cloud.shadow_obstacles, null, 2);
             $('cloudMeta').textContent = `${cloud.points.length} points drawn of ${cloud.source_points} in the cloud · every ${cloud.sample_stride} point · frame ${cloud.frame}`; }
           catch (e) { cloud = null; $('cloudMeta').textContent = e.message; }
         }
       } else cloud = null;
+      if (cloud && !cloud.preview && $('showPreview').checked) cloud = null;
       draw();
       $('diagnostics').textContent = JSON.stringify({ session_view: view && { title: view.title, requested: view.requested, live: view.live, waiting: view.waiting, missing: view.missing, stale: view.stale },
         session_frames: { worker: memo.key, max_received: memo.maxRx, outcome: memo.outcome }, browser_ir: browserIr, runtime: status.runtime, calibration: status.calibration, camera_info: status.camera_info, usb_inventory: status.usb_verified, usb_note: status.usb_note, depth_validity_sample: status.depth_stats, streams: status.streams, drops: status.dropped_messages, tf: status.tf, detections: status.detections }, null, 2);
@@ -196,12 +213,13 @@
   };
   canvas.onpointerdown = e => { drag = { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, pan: e.shiftKey || panning }; canvas.setPointerCapture(e.pointerId); };
   canvas.onpointermove = e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (drag.pan) { pan[0] += dx; pan[1] += dy; } else { yaw += dx * .008; pitch = Math.max(-1.5, Math.min(1.5, pitch + dy * .008)); } drag.x = e.clientX; drag.y = e.clientY; draw(); };
-  canvas.onpointerup = e => { if (drag && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 5 && cloud) { const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; let best = null, d = 12; for (const v of projected) { const n = Math.hypot(v.q[0] - x, v.q[1] - y); if (n < d) { best = v; d = n; } } if (best) $('measurement').textContent = xyzText(best.p); } drag = null; };
+  canvas.onpointerup = e => { if (drag && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 5 && cloud) { const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; let best = null, d = 12; for (const v of projected) { const n = Math.hypot(v.q[0] - x, v.q[1] - y); if (n < d) { best = v; d = n; } } if (best) $('measurement').textContent = cloud.preview ? `UNCALIBRATED preview point: Z ${fmt(best.p[2])} m (sensor axial reading) at depth pixel ${best.p[3]}, ${best.p[4]} · X ${fmt(best.p[0], 2)} m, Y ${fmt(best.p[1], 2)} m approximate (nominal field of view, not calibrated)` : xyzText(best.p); } drag = null; };
   canvas.onpointercancel = () => drag = null;
   function scale(f) { zoom = Math.max(10, Math.min(1000, zoom * f)); draw(); }
   canvas.addEventListener('wheel', e => { e.preventDefault(); scale(e.deltaY < 0 ? 1.1 : .9); }, { passive: false });
   $('zoomIn').onclick = () => scale(1.2); $('zoomOut').onclick = () => scale(1 / 1.2); $('resetView').onclick = () => { yaw = 0; pitch = 0; zoom = 110; pan = [0, 0]; draw(); };
   $('panMode').onclick = () => { panning = !panning; $('panMode').setAttribute('aria-pressed', String(panning)); };
   $('showCloud').onchange = () => { if (!$('showCloud').checked) { cloud = null; draw(); } };
+  $('showPreview').onchange = () => { $('previewWarn').hidden = !$('showPreview').checked; if (!$('showPreview').checked) { cloud = null; $('cloudMeta').textContent = 'No point cloud'; } draw(); };
   new ResizeObserver(draw).observe(canvas); refresh();
 })();
