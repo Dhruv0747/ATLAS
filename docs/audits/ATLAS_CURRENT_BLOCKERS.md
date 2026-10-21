@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October Stage32 instrumented revalidation: one approved IR-only attempt FAILED
+delivery. Eleven ACTIVE samples captured zero IR callbacks before Stop; monitor
+ended it after >10s without frames. Peak guard CPU69.78%, RAM70.09%,59.47C, so
+not resource blocked. No retry/A3. Driver started but publication/receiver cause
+unresolved; offline path review next, not hardware-failure assumption. Postflight
+safe, hashes and protected identities unchanged. Stage32 report section16.
+
 21 October Stage32 handover: A1 already deployed, ten hashes and rollback verified.
 A2 already attempted, but IR Dashboard delivery acceptance evidence missing:
 stop clears counters, so saved zero counts do not prove absent frames. Driver

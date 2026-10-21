@@ -12,7 +12,7 @@ Branch `agent/sync-developer-20261011`. Baseline `2c4adbf` (Stage 31B live). Sta
 | IR DRIVER IMPLEMENTED | YES (launch arguments only) | The pinned driver already publishes IR. The runtime now requests it per mode. No driver rebuild. |
 | IR IMPLEMENTED | YES (offline) | Receiver, raw route, viewer and mode matrix are in place. |
 | IR OFFLINE TESTED | YES | 14 unit tests and a synthetic browser test. |
-| IR LIVE VERIFIED | **UNVERIFIED** | One attempt consumed; retained evidence does not establish frame delivery. |
+| IR LIVE VERIFIED | **FAILED delivery revalidation** | Separately approved instrumented attempt received zero IR frames before Stop; section 16. |
 | IR DASHBOARD DEPLOYED | **YES** | A1 recovered installation and ten live package hashes verified. |
 | DEPTH REGRESSION PASSED | Offline only | Depth and Depth+RGB launch arguments are byte-identical to `abf375b` (test). No live rerun. |
 | CALIBRATION PREPARED | YES | Guided checkerboard and physical-validation tooling, gate and procedure. |
@@ -412,3 +412,93 @@ statistics before Stop. Do not consume A3 on an assumed A2 pass. A5 physical
 checkerboard acquisition and A6 calibration installation/cloud test remain
 separately unapproved and blocked. No new camera session is authorized by this
 report.
+
+## 16. One approved instrumented IR revalidation — 21 October 2026
+
+**Result: real infrared frames did NOT reach the Dashboard receiver.** This is
+now supported by statistics saved while the session was ACTIVE, rather than
+cleared post-stop counters. No retry or IR+Depth session was performed.
+
+### Scope and monitoring
+
+Stage32 was not reinstalled. One Start action selected IR-only in the existing
+Vision Lab, using private domain77 and unchanged CPU75%, RAM80%, temperature70C
+guards. Preflight verified all ten live hashes, Astra/domain77 idle, recorder OFF,
+E-STOP latched, manual-only true, commissioning false, zero velocity and wheel
+commands, mission READY, required sensor freshness and active protected services.
+Available disk was 394,608,717,824 bytes.
+
+A single persistent monitor was established before Start. It sampled scalar
+Vision Lab status and /proc/stat approximately once per second, retaining JSONL
+before stop could clear statistics. It created no ROS participant/subscription,
+stored no image payload, and issued no process listings or service queries while
+streaming. The existing guardian continued its normal safety checks. No new SSH
+session or ROS CLI command was executed while streaming. Monitor also enforced
+the unchanged CPU limit and an explicit no-delivery timeout: stop if IR remained
+unavailable more than10s after first observing ACTIVE. It never starts a camera.
+
+### Delivery and rendering evidence
+
+| Measurement | Result |
+|---|---|
+| Driver negotiated/requested mode | Log reports IR320x240@30Hz; depth and colour disabled |
+| IR delivery | 0 received, 0 rejected, 0 stamp regressions across11 saved ACTIVE samples |
+| Actual delivered dimensions/encoding | Unavailable: no message; cannot claim mono8 based only on requested mode |
+| Actual source timestamps/FPS/freshness | Null/unavailable; no actual frame stamps or measured frame rate |
+| CameraInfo | Empty during saved ACTIVE samples |
+| Dashboard | Runtime briefly said Camera streaming, but IR stayed unavailable; no IR image rendering verified |
+| Stop | Monitor recorded `IR delivery absent/stale after startup`, then stop endpoint HTTP202 |
+
+The driver logged `ir is started` at1792580132.327448 and received SIGINT at
+1792580142.937659: approximately10.61s of nominal IR stream operation. It logged
+`Stopped stream ir` at1792580144.330008. The worker's generic final reason is
+`viewer paused or closed`, because the monitor called the ordinary Stop endpoint;
+**the preserved monitor row identifies the actual no-delivery trigger.**
+Source timestamp provenance cannot be assessed without frames. Transport loss is
+UNKNOWN, not zero; zero callbacks do not identify whether publication, discovery,
+subscription or the sensor stream failed. The visible runtime label proves only
+the child process was running, not that images were delivered.
+
+### Resource and shutdown evidence
+
+| Measurement | Before | During ACTIVE | After |
+|---|---|---|---|
+| Whole-machine CPU | 63.07–66.92% | guardian peak69.78%; monitor peak69.24% | 62.83–66.36% |
+| RAM | 69.18–69.24% | peak70.09% | 69.35–69.40% |
+| Hottest temperature | peak59.47C | peak59.47C | peak59.50C |
+
+Astra peak sampled CPU39.96% of one core; peak RSS85,180KiB. Neither is the
+whole-machine CPU percentage. No resource limit tripped. No calibration/emitter
+setting, navigation, motor, threshold, PointCloud2 or production file changed.
+
+Postflight rechecked identical deployed hashes and protected PID/restart counts
+(including web), fresh required sensors, E-STOP/manual-only, commands zero and
+recorder OFF. Driver_stopped=true, no Astra/worker/cloud processes or domain77
+owner remained. Pi camera JPEG endpoint returned HTTP200. Driver teardown logged
+parameter-undeclare errors, so shutdown was clean in the sense of no remaining
+processes/production impact, **not an error-free vendor log**.
+
+### Findings and next step
+
+Confirmed: this attempt failed IR delivery despite adequate resource headroom.
+Driver reports a registration property5 error and USB-thread-priority warning;
+neither is proved causal. No inference of defective hardware or permanent mode
+incompatibility is justified. Next engineering action is an offline review of
+the exact IR publication/topic/receiver path using these retained logs and pinned
+source. Any further camera activation needs separate approval. A3 is blocked;
+calibration/cloud remain unvalidated. No request to drive or redo completed work.
+
+Scalar evidence and driver text are preserved on Jetson at
+`/home/jetson/project-atlas-migration/stage32-ir-revalidation-20261021/`, with a PC
+copy in `artifacts/astra_stationary_20261021/stage32-ir-revalidation-20261021/`.
+Monitor source is preserved in the parent migration directory and PC artifacts.
+Raw evidence is intentionally not committed. No video, rosbag, frame file or
+screenshot was needed to document the zero-delivery result.
+
+| Evidence | SHA256 |
+|---|---|
+| telemetry.jsonl | 217ba8d461ee87f77e62918e25582ab2ef99021247cb88620d47a542005c2139 |
+| driver.log | 861a8be7ebe7f0c622d5840e181dd135f98403bc0302b8a522398d207370254f |
+| final-runtime.json | 5124947404b0230597732d97db86a10c70e0faaec111243f494f3ca9953422a3 |
+| pre.json | 9d8d5345a53746990f6fa7fbd9c91bb02b5b8344af2c1adbef8b4a92ea71e6be |
+| post.json | a1853ec3a016f5ddedd3734a132f40bfc4e88b93394c84d36ff7b9858f6f8133 |

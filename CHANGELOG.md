@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 (one separately approved Stage32 IR-only revalidation):
+- FAILED frame delivery: eleven persisted ACTIVE samples contain zero IR callbacks; stopped after >10s unavailable via ordinary Stop endpoint. No retry or combination test.
+- Guard CPU peak69.78%, RAM70.09%, thermal59.47C: not a resource rejection. Actual dimensions/encoding/timestamps/FPS unavailable because no frame arrived. Driver startup is not a viewing pass.
+- Pre/post hashes and protected identities unchanged; E-STOP latched, commands zero, recorder/Astra OFF, Pi camera healthy. Scalar evidence retained, no video/rosbag. See Stage32 report section16; root cause still unresolved.
+
 2026-10-21 (Stage32 handover reconciliation; read-only live audit):
 - Recovered previously uncommitted A1 installation, A2 IR attempt and A4 metadata evidence. Ten installed hashes match package; rollback checksums pass; no deployment/test repeated.
 - A2 is UNVERIFIED: driver started but Dashboard delivery evidence was not retained; stop clears counters. CPU stayed below75% in the retained active trace. A3 held, calibration/cloud gated.
