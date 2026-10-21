@@ -1492,7 +1492,8 @@
       "attempted_fix": "Offline all-PID accounting analyzer;7 tests. No production optimization claimed or deployed.",
       "remaining_gap": "Profile redundant dashboard operations before proposing a change. Safety deadline measurements absent;80% policy not justified.",
       "follow_up": "2026-10-21 offline dashboard profile confirms redundant per-request history filtering and discarded per-callback deque allocations. Single-file candidate: Linux synthetic snapshot0.475341->0.081724ms;60 dashboard tests pass. NOT deployed. Does not establish whole-Jetson savings or explain entire44.84% one-core web load. ATLAS_STAGE32_DASHBOARD_SNAPSHOT_OPTIMIZATION.md.",
-      "safety": "No camera Start, restart, service disabling, threshold or motor changes. Protected service identities unchanged; E-STOP latched."
+      "safety": "No camera Start, restart, service disabling, threshold or motor changes. Protected service identities unchanged; E-STOP latched.",
+      "exact_live_candidate": "After deployment abort afee764, prepared exact-live fa62787f->98f3c269 two-site patch.9 package tests+60 dashboard tests PASS; synthetic snapshot0.487593->0.086112ms. All unrelated live steering/HTTP differences preserved. NOT installed. ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_PACKAGE.md."
     }
   ]
 }

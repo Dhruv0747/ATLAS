@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-21 superseding snapshot package: exact-live fa62787f baseline reverified;
+candidate98f3c269 changes only2bookkeeping sites.9 package+60 dashboard tests
+pass, byte-perfect rollback rehearsal. NOT deployed. Whole-Jetson CPU/Preview
+unverified; approval required. ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_PACKAGE.md.
+
 2026-10-21 snapshot deployment ABORTED before modification: live web hash
 fa62787f differs substantively from reviewed baseline73094079. Repository file
 would introduce unrelated steering/HTTP/JSON changes. No restart/Start or CPU

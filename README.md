@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Exact-live snapshot package](ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_PACKAGE.md):
+two-site patch preserves deployed steering/HTTP behavior;9 package tests and60
+dashboard tests pass. NOT installed; approval required for web-only restart.
+
 [Snapshot deployment blocked](ATLAS_STAGE32_SNAPSHOT_DEPLOYMENT_BLOCKED.md):
 live source differs from reviewed baseline; no installation/restart performed.
 

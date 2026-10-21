@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-21 prepared exact-live dashboard patch against fa62787f, preserving all
+unrelated live differences.9 package tests and60 dashboard tests pass; isolated
+byte-perfect rollback verified. No deployment. See exact-live package report.
+
 2026-10-21 approved snapshot installation aborted on substantive live baseline
 hash mismatch. No production changes; corrected live-based package required.
 

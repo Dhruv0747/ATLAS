@@ -1,19 +1,26 @@
 """Synthetic offline profile of actual extracted methods, no ROS/live access."""
 import cProfile
+import argparse
 import io
 import json
 import pstats
 import statistics
 import time
+from pathlib import Path
 from types import SimpleNamespace
 from test_status_web_snapshot_cost import SOURCE, baseline, load, state
 
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--baseline',type=Path)
+    parser.add_argument('--candidate',type=Path,default=SOURCE)
+    args=parser.parse_args()
     clock=SimpleNamespace(monotonic=lambda:100.,time=lambda:200.)
     history={str(i):[100-(127-n)*.02 for n in range(128)] for i in range(100)}
     report={}
-    for label,source in [('baseline',baseline()),('candidate',SOURCE.read_text(encoding='utf-8'))]:
+    before=args.baseline.read_text(encoding='utf-8') if args.baseline else baseline()
+    for label,source in [('baseline',before),('candidate',args.candidate.read_text(encoding='utf-8'))]:
         methods=load(source,clock,{'data':{},'updated_at':0})
         obj=state(history)
         values=[]
