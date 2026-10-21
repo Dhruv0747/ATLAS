@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+**Latest Stage32 deployment outcome:** approved instrumentation install was rolled
+back after post-web-restart CPU95.64% exceeded75%. Original hashes restored;
+IR test NOT started, no retry. Protected services unchanged except approved web
+restarts; E-STOP latched, recorder/Astra OFF. See Stage32 report section19.
+
 **Stage32 instrumented driver candidate:** ARM64 build and offline tests pass;
 three-file package prepared, NOT installed. OpenNI read/conversion/publication
 counters now cover the missing boundary; API/browser counters separate downstream

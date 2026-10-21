@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October Stage32 conditional installation ROLLED BACK: package/hash/safety
+preflight and ARM64 dependency load passed; after web restart CPU95.64% failed75%
+guard. Original three files restored; only web restarted (install+rollback).
+No IR Start, no retry. Final stopped state, Pi Camera and protected identities
+verified, full evidence retained. Next: diagnose restart CPU spike read-only;
+new deployment/test approval required. IR failure boundary still unknown. Section19.
+
 21 October Stage32 driver counters: ARM64 candidate built offline, three-file
 package/rollback rehearsed. Counters discriminate OpenNI readiness/read, callback,
 conversion, ROS publication/subscriber presence, receiver/API/browser. 94+3 tests

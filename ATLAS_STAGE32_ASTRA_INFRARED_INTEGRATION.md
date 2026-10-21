@@ -784,3 +784,85 @@ decision rules, NOT observed conclusions. Respect missing final logs as unknown.
 Stop on any guard/freshness/error failure; no retry. Verify no orphan Astra,
 recorders OFF, protected identities unchanged and Pi Camera healthy afterward.
 Do not proceed to combined modes or claim success until real IR frames render.
+
+## 19. Approved conditional installation — aborted and rolled back, 21 October
+
+Owner approved installing section18's three files, restarting only rover-status-web,
+then ONE IR-only test **only after all deployment checks passed**. GitHub HEAD was
+baa1f26e96b8976aed0785f62c0891558c5930f0; archive hash matched section18 exactly.
+
+**Result: ROLLED BACK. IR TEST NOT STARTED. No automatic retry.**
+
+### Sequence and exact failure
+
+1. All ten deployed Stage32 hashes and three replacement baselines matched.
+   Package members were individually hashed;1GiB free-space gate passed with
+   394,550,407,168 bytes free. Existing backups untouched.
+2. Fresh preflight passed: E-STOP latched, manual-only, commissioning disabled,
+   source STOPPED, zero command/output targets, fresh required sensors, mission
+   READY, motor speed0, recorder OFF, no Astra processes or Domain77 owner.
+3. ARM64 candidate loaded with `ctypes.CDLL(..., RTLD_NOW)` on Jetson successfully.
+   This resolves dependencies without constructing a ROS node or opening camera
+   streams; it is not a stream test or complete driver-functionality qualification.
+4. Exact three backups verified; safety checked again immediately before writes.
+   Only reviewed three payloads replaced, each installed hash checked. Only
+   rover-status-web restarted. Other active user-service identities matched.
+5. Post-restart CPU sample was **95.63758389261746%**, exceeding75%. The unchanged
+   guard raised AdmissionError before other resources were sampled in that window.
+   No runtime Start request was sent. Browser page was opened, but Start was never
+   pressed. No driver counters could be collected from a real camera session.
+6. Restored all three original files atomically from verified backups and restarted
+   only rover-status-web to load originals. Rollback hashes matched exactly.
+
+The failure occurred during post-restart verification, before IR activation.
+Neither the instrumented camera path nor IR acquisition can be blamed from this
+sample. A web-startup/resource spike is a hypothesis; its exact attribution is
+unverified. No resource threshold was changed and no lower later sample was used
+to retry admission.
+
+### Resource and final safety evidence
+
+| Measurement | Initial preflight | Immediately before writes | After rollback (read-only) |
+|---|---|---|---|
+| CPU, 1-second samples |63.34–65.71%|62.03–65.66%|63.27% single sample|
+| RAM |66.50–66.59%|66.70–66.75%|67.51%|
+| Temperature |peak60.75C|within70C gate|peak60.25C|
+
+Failed post-restart sample95.64% is preserved separately, not averaged away.
+Final read-only checks: E-STOP latched, manual-only, commissioning disabled,
+zero commands, fresh required telemetry, mission READY, recorder OFF, runtime OFF,
+Domain77 unoccupied, no Astra/worker/cloud process. Pi Camera JPEG returned HTTP200,
+26,179 bytes; image bytes were not retained. Ten original Stage32 hashes match.
+
+All previously active user-service PID/restart/state tuples remained unchanged
+except rover-status-web: PID164593 before,189500 candidate,189640 restored; automatic
+NRestarts0 throughout. Explicit installation and rollback restarts are not counted
+by systemd NRestarts. No other restart was issued. Protected sensor/motor/EKF/AMCL/
+LiDAR identities matched. No movement, recording, emitter/calibration/firmware,
+network, navigation or safety changes.
+
+### Durable evidence and rollback
+
+Jetson directory:
+`/home/jetson/project-atlas-migration/stage32-instrumented-approved-20261021/`.
+PC copy: `artifacts/astra_stationary_20261021/stage32-instrumented-approved-20261021/`.
+Contains full terminal output, result/traceback, postrollback report, single-use
+attempt marker, installer and read-only checker, package, rollback ledger and
+`backup/` with all three original files. Raw evidence is not committed to Git.
+
+| Evidence | SHA256 |
+|---|---|
+| result.json |0153ed3b6b99ff2455c07aaceb30cc3309ef833f3b4b3702ca85657531c151e0|
+| postrollback.json |fa9d5ef970b1634686d821422c5b2872469cefde2d3f65ccbf15da6a2553e03b|
+| terminal.txt |65d9d8028d1f79275f0abef6f1aaef16c96e4553f360bd2636e619bc5cccc9d9|
+| rollback-ledger.json |bbc179cb0c68ae97678d80f1496b216feddbef9710c7b83181f440ef706a670a|
+
+Restored library6ae87601…, web889881c0…, JS76f9a202… match full section18 baseline
+hashes. Backup hashes independently rechecked after rollback.
+
+Earliest failed boundary this attempt: **deployment resource admission**, NOT a
+measured IR pipeline boundary. Real IR root cause remains unresolved; zero-frame
+driver instrumentation is still offline-only. Next necessary action is a scoped
+read-only diagnosis of the web-restart CPU spike and a reviewed deployment plan,
+not another IR start. Fresh owner approval is required for another installation/
+test attempt. This failed sequence cannot establish IR LIVE VERIFIED.

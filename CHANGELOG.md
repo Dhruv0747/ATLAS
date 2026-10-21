@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 (Stage32 approved conditional install; ROLLED BACK):
+- Source/package/live hashes and fresh preflight passed; ARM64 RTLD_NOW load passed without starting a camera. Backed up and installed only the three approved payloads; restarted only rover-status-web.
+- Post-restart CPU95.6376% failed unchanged75% guard. Restored originals and restarted web for rollback; exact hashes verified. No IR session, retry, movement or recording.
+- Final E-STOP/manual-only/zero/fresh-sensor checks passed; Pi JPEG200, no Astra/Domain77 owner, protected identities unchanged except web. Full evidence/rollback retained on Jetson and PC. Report section19; IR root cause remains unresolved.
+
 2026-10-21 (Stage32 OpenNI-to-ROS instrumentation; offline only):
 - Add pinned-source instrumentation with bounded readiness/read/callback/conversion/publication counters, actual frame metadata and subscriber presence. Incremental ARM64 driver build passed; no stream-setting change.
 - Add API-prepared and browser-received/rendered counters; preserve scalar stop evidence. 94 regressions plus3 instrumentation tests passed; one Playwright skip; Node canvas checks passed. Synthetic ROS run179/180 received, no rejects (not a loss-free claim).
