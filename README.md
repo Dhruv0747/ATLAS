@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+**Stage32 instrumented driver candidate:** ARM64 build and offline tests pass;
+three-file package prepared, NOT installed. OpenNI read/conversion/publication
+counters now cover the missing boundary; API/browser counters separate downstream
+delivery. Real IR root cause still unresolved. See Stage32 report section18.
+
 **Stage32 offline IR follow-up:** diagnostic/status fix candidate ready, NOT deployed.
 Native PC ROS Domain77 test delivered 180 synthetic frames; real Astra delivery
 remains unresolved. No new camera start. See Stage32 report section17 for the

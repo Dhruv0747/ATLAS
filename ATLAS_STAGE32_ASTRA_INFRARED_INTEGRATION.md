@@ -626,3 +626,161 @@ package is tested. Keep Domain77, 75% CPU/80% RAM/70C, persistent low-overhead
 monitoring, maximum60s and early no-frame stop; no retry, combinations, emitter
 changes or recording. IR acceptance requires real frames on Dashboard. No
 hardware-delivery fix or combined-mode test is ready for approval yet.
+
+## 18. Driver instrumentation candidate — 21 October 2026
+
+Continued from 3e914657857143a682f9f82fdc85334d61d92e94. **DRIVER INSTRUMENTED;
+OFFLINE VERIFIED; DEPLOYMENT READY subject to fresh preflight and approval.**
+**LIVE IR DELIVERY NOT VERIFIED; ROOT CAUSE NOT IDENTIFIED; STILL BLOCKED** on
+one instrumented hardware observation. No deployment, camera start, recording,
+service restart, motor command or setting change performed this turn.
+
+### Source and live identity verification
+
+Read-only Jetson inspection matched all ten Stage32 files to section16's preflight
+hashes. Existing shared library SHA256 is
+`6ae876010c824be97d2545996f897e40e07e0c97fa7a45694f96f342cf6e22a6`;
+unchanged executable is
+`2f7a58f9b409ee98aa38dde8966fbd661f0c532c589eead32207a58964635aa9`.
+No Astra driver/worker process was found. This hash/process inspection is not a
+fresh safety/resource admission; repeat the complete gate before any installation.
+Existing backups were not touched.
+
+Pinned source is unchanged f7e71d9ce806e788cb48d8580aac2c778fba4214 plus existing
+ARM64 build patch. `instrument_ir_driver.py` applies exact, count-checked anchors
+and refuses a second application. Adds `ir_counters.hpp` and changes only vendor
+`ob_camera_node.h/.cpp`. No launch, mode, registration, emitter or firmware changes.
+Existing cross-build environment reused; only astra_camera target rebuilt. Its
+dependent translation units recompiled for the private class layout; message and
+unrelated ROS packages were not rebuilt. Candidate is a verified ARM aarch64 ELF,
+with no RPATH/RUNPATH entry. Cross-install baseline library remains untouched.
+
+### What the instrumentation measures
+
+This vendor uses waitForAnyStream/readFrame polling, **not an SDK listener
+registration**. `callback` below means entry to vendor onNewFrameCallback after
+readFrame returns, not an independent SDK interrupt. Distinguish readiness from
+callback entry when interpreting Case A.
+
+| Counter/field | Meaning |
+|---|---|
+| created / create_rc | Successful IR stream creation / actual return code |
+| mode_rc / start_rc / started | Existing setVideoMode/start results, successful starts |
+| ATLAS_IR_START | Requested and negotiated mode plus actual context domain |
+| publisher / ATLAS_IR_PUBLISHER | Publisher creation, resolved topic, type and QoS |
+| wait_ok / wait_failed / wait_rc | Global poll results; in IR-only mode these concern IR; do not attribute all waits to IR in combined modes |
+| ready | IR stream selected by poller |
+| read_ok / read_failed / read_rc | IR readFrame result |
+| callback | IR conversion callback entered |
+| width/height/pixel_format/fps/stride/bytes | Last actual OpenNI frame metadata, zero until a frame exists |
+| hardware_timestamp_us / frame_index | Actual OpenNI timestamp/index; not substituted for ROS header time |
+| converted | cv_bridge conversion returned a message |
+| publish_attempt / publish_returned | ROS publish call entered / returned without exception; not remote receipt |
+| info_returned | CameraInfo publish returned |
+| exceptions | Exception escaped conversion/publication path; counted, logged and rethrown, vendor behavior preserved |
+| subscribers | Publisher matched-subscription count, sampled with summary; not proof of delivery |
+
+`ATLAS_IR_COUNTERS` summaries are at most once per second plus final/exception
+summary, from the existing poller (no extra ROS timer/thread). A wait timeout can
+make the summary interval approximately two seconds. Final summary occurs after
+poller join; no image payload is stored. Saturating uint64 counters do not wrap.
+ROS log timestamps provide summary time. Hard kill/power loss may lose final
+summary; preserve earlier summaries in the existing driver log independently.
+
+Receiver carries forward previous Domain77 discovery/RMW/callback/rejection
+diagnostics. New `ir_api.responses_prepared` and unique stamps count raw responses
+prepared, **not socket delivery**; retained in last_session after Stop. Browser
+Developer Diagnostics separately counts complete response bodies, successful
+canvas renders and failures, preserving scalar counts after Stop for the current
+page lifetime. Browser reload loses those local counts: capture scalar evidence
+before closing, without saving imagery. Counts may include repeats of one source
+frame; use stamps and unique API stamps, not request counts as sensor FPS.
+
+### Offline results and resource cost
+
+- Native C++ simulation: six wait failures with zero callbacks; 180 read/callback/
+  conversion/publication events; explicit attempt without successful return;
+  exception, saturation, summary throttling and final-summary checks PASS.
+  This tests instrumentation logic, not simulated proprietary USB firmware.
+- Incremental ARM64 shared-library build PASS. No Jetson compilation/load.
+- 94 existing/updated focused tests PASS, one Playwright dependency skip;
+  three added instrumentation tests PASS. Separate Windows Node execution of
+  production IR banner/canvas functions PASS.
+- Fresh native PC ROS Domain77 smoke:179 received from180 synthetic publications,
+  0 rejects/regressions, latest FPS24.822, maximum gap45.634ms, receive age71.193ms.
+  CameraInfo arrived,320x240mono8 raw76800 bytes verified. One publication was not
+  observed; exact transport/startup loss not attributed. No loss-free claim.
+- Existing Depth launch/configuration, guard and calibration/geometry tests pass;
+  no new live Depth test. Working Depth settings and Pi Camera remain unchanged.
+- PC scalar counter microbenchmark:1,000,000 increments in0.00710509s; struct176
+  bytes; example summary419 bytes. This excludes ROS logging, subscriber discovery
+  and Jetson scheduling. Actual Jetson overhead UNKNOWN until approved test.
+  Expect bounded metadata and roughly1 summary/s, not a resource-limit exemption.
+
+Warning assessment remains section17: registration error is nonfatal in source
+control flow, its hardware effect unproven; USB priority call's source unavailable;
+undeclare errors occur during teardown. No evidence-based acquisition fix exists
+yet. Instrumentation corrects the missing evidence, not the camera itself.
+
+### Versioned package and rollback
+
+Preparation tool `project_atlas/tools/vision3d/package_ir_instrumentation.py`.
+PC output `artifacts/astra_stationary_20261021/ir-driver-instrumented-candidate/`:
+manifest, exact vendor delta, candidate.tar.gz. Three payloads only; this supersedes
+the previous two-file diagnostic candidate, do not install both sequentially.
+
+| Payload | Candidate SHA256 |
+|---|---|
+| lib/libastra_camera.so | 8609f2641d181fb6fccda60e84f83d4c5d399b673dc65b27b723490a8b24cab9 |
+| project_atlas/scripts/atlas_vision3d_web.py | a7b9f1f92ac4a9acd08954103df981d41dfea7ed613b01146669248ef9cd584c |
+| project_atlas/web/v2/vision3d.js | 91460fcf775cd3517f19d050c86f1c55d9627e710d398b6e79dd456a696d99a5 |
+
+Archive SHA256 `1e6704adb163747328b1a9f37dfd0053e713fb8d16aa09afbb1ae7744e5a3473`.
+Vendor diff SHA256 `973eb10f839856406d03ce0c95d884b86f0f71cf7a9d41159a4613c5f11064f5`.
+The Git commit containing this section pins scripts/header/tests; binaries and
+generated artifacts stay outside Git. All three original payloads restored
+byte-identically in an isolated temporary directory: rollback rehearsal PASS.
+
+Live library target is
+`/home/jetson/project-atlas-migration/astra-20261021/astra-arm64-stage29-v2/lib/libastra_camera.so`.
+App targets are `/home/jetson/project_atlas/scripts/atlas_vision3d_web.py` and
+`/home/jetson/project_atlas/web/v2/vision3d.js`. Before approved install, verify
+manifest baseline hashes, create a new backup directory (never reuse/overwrite
+existing evidence), copy these exact three targets there and verify hashes.
+Replace atomically only with Astra OFF; obtain approval for web-owner restart.
+Do not restart any other production service. No live backup path exists yet.
+
+Rollback procedure (NOT executed; `$backup` must be the validated new directory):
+```sh
+# Camera must be OFF; verify backup hashes against manifest before these copies.
+cp -p "$backup/libastra_camera.so" /home/jetson/project-atlas-migration/astra-20261021/astra-arm64-stage29-v2/lib/libastra_camera.so
+cp -p "$backup/atlas_vision3d_web.py" /home/jetson/project_atlas/scripts/atlas_vision3d_web.py
+cp -p "$backup/vision3d.js" /home/jetson/project_atlas/web/v2/vision3d.js
+# Restart only the freshly verified web-owner unit under explicit restart approval.
+# Verify all restored hashes and protected service identities; no camera auto-start.
+```
+
+### Approval required and single live decision procedure
+
+Request approval to install these three verified files, restart only the verified
+Vision Lab web owner, then perform ONE stationary IR-only session, maximum60s,
+early Stop after10s without frames. Before admission require fresh E-STOP latched,
+manual-only, zero commands, recorder/Astra OFF, no goal, CPU<75%,RAM<80%,temp<70C,
+correct hashes/rollback and healthy protected services. Preserve existing1s CPU
+guard. No changes to navigation/steering/emitter/calibration/PointCloud2.
+
+Reuse persistent Jetson-local monitoring from section16, launched before Start
+and independent of SSH; preserve driver text and scalar samples. Add new API/
+receiver/discovery counters to those samples. Keep Dashboard open for its existing
+viewer lease; browser local counters provide render evidence. Do not introduce an
+SSH heartbeat or intrusive ROS CLI sampling. No video, rosbag or raw image files.
+
+Decision: read_ok=0 isolates before conversion (use wait/ready/read_rc); callback>0
+and publish_returned=0 isolates conversion/publication (compare converted,
+attempts, exceptions); publish_returned>0 but receiver=0 isolates ROS delivery
+(domain/topic/QoS/discovery/subscribers); receiver>0 but API/browser=0 isolates web
+transfer; received browser bodies>0 but rendered=0 isolates decoding. These are
+decision rules, NOT observed conclusions. Respect missing final logs as unknown.
+Stop on any guard/freshness/error failure; no retry. Verify no orphan Astra,
+recorders OFF, protected identities unchanged and Pi Camera healthy afterward.
+Do not proceed to combined modes or claim success until real IR frames render.

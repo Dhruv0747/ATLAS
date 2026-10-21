@@ -164,6 +164,7 @@ class VisionService:
         self.lock=threading.RLock();self.transport=None;self.messages={};self.received={};self.stats={}
         self.touched=0;self.idle_timer=None;self.error='';self.cache={};self.cache_at={};self.last_accept={};self.retry_after=0
         self.last_session=None
+        self.ir_api={'responses_prepared':0,'unique_stamps':0,'last_stamp':None}
 
     def touch(self):
         with self.lock:
@@ -198,13 +199,14 @@ class VisionService:
             if self.transport or self.stats:
                 try:
                     s=self.status()
-                    self.last_session={'streams':s['streams'],'transport':s['transport'],
+                    self.last_session={'streams':s['streams'],'transport':s['transport'],'ir_api':dict(self.ir_api),
                                        'captured_at':self.wall(),'note':'Final scalar snapshot; no image retained'}
                 except Exception as e:
                     self.last_session={'capture_error':str(e)}  # diagnostics must never prevent shutdown
             t,self.transport=self.transport,None
             if self.idle_timer:self.idle_timer.cancel()
             self.messages.clear();self.cache.clear();self.received.clear();self.cache_at.clear();self.last_accept.clear();self.stats.clear()
+            self.ir_api={'responses_prepared':0,'unique_stamps':0,'last_stamp':None}
         if t:t.stop()
 
     def ingest(self,kind,msg):
@@ -281,7 +283,7 @@ class VisionService:
                          'IR FRAME REJECTED' if ir['rejected'] else
                          'IR NO FRAMES RECEIVED' if expected and runtime.get('state')=='ACTIVE' else 'IR OFF')
             return {'read_only':True,'recording':False,'driver_control':bool(runtime),'error':self.error or getattr(self.transport,'error',''),
-                    'ir_delivery':ir_delivery,'last_session':self.last_session,
+                    'ir_delivery':ir_delivery,'last_session':self.last_session,'ir_api':dict(self.ir_api),
                     'transport':{'domain_id':getattr(self.transport,'domain_id',None),
                                  'rmw':getattr(self.transport,'rmw',None),
                                  'discovery':getattr(self.transport,'discovery',{}),
@@ -345,6 +347,10 @@ class VisionService:
         with self.lock:
             m=self._fresh('ir')
             if m.encoding not in IR_ENCODINGS:raise ValueError('IR encoding not native intensity')
+            self.ir_api['responses_prepared']=min(2**63-1,self.ir_api['responses_prepared']+1)
+            if self.ir_api['last_stamp']!=core.stamp(m):
+                self.ir_api['unique_stamps']=min(2**63-1,self.ir_api['unique_stamps']+1)
+            self.ir_api['last_stamp']=core.stamp(m)  # prepared, not proof of socket/browser delivery
             return bytes(m.data),{'X-Width':str(m.width),'X-Height':str(m.height),'X-Encoding':m.encoding,
                                   'X-Step':str(m.step),'X-Bigendian':str(int(bool(m.is_bigendian))),
                                   'X-Source-Stamp':str(core.stamp(m)),'X-Frame':m.header.frame_id}

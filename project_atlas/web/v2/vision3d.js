@@ -9,6 +9,7 @@
   // Stage 31b: after Start, the previous session's state (same worker_pid, or a reply already in flight) must not be
   // shown as if it were the new session. Until the new worker reports, the banner says "Checking before start".
   let starting = null;   // {fromPid, at} while waiting for the new worker's first state
+  const irEvidence = { received: 0, rendered: 0, failures: 0, last_stamp: null, scope: 'this page lifetime; no image history' };
   function currentRuntime(rt) {
     if (!starting) return rt;
     const fresh = rt && rt.worker_pid && rt.worker_pid !== starting.fromPid;
@@ -169,8 +170,8 @@
         if (s.state !== 'ACTIVE') { clearImage(k); continue; }
         if (frozen) continue;                         // Pause preview: keep the last picture, camera keeps running
         if (k === 'ir') {
-          try { const response = await get('raw?kind=ir'); drawIr(await response.arrayBuffer(), response.headers); $('irState').textContent = 'Rendered'; }
-          catch (e) { clearIr(); $('irState').textContent = e.message; }
+          try { const response = await get('raw?kind=ir'); const bytes = await response.arrayBuffer(); irEvidence.received = Math.min(Number.MAX_SAFE_INTEGER, irEvidence.received + 1); drawIr(bytes, response.headers); irEvidence.rendered = Math.min(Number.MAX_SAFE_INTEGER, irEvidence.rendered + 1); irEvidence.last_stamp = ir.stamp; $('irState').textContent = 'Rendered'; }
+          catch (e) { irEvidence.failures = Math.min(Number.MAX_SAFE_INTEGER, irEvidence.failures + 1); clearIr(); $('irState').textContent = e.message; }
           continue;
         }
         try {
@@ -188,7 +189,7 @@
       } else cloud = null;
       draw();
       $('diagnostics').textContent = JSON.stringify({ runtime: status.runtime, ir_delivery: status.ir_delivery, ir_boundaries: status.ir_boundaries,
-        transport: status.transport, last_session: status.last_session,
+        transport: status.transport, last_session: status.last_session, ir_api: status.ir_api, browser_ir_counters: irEvidence,
         browser_ir: { rendered: !!ir, source_stamp: ir && ir.stamp, preview_paused: frozen },
         calibration: status.calibration, camera_info: status.camera_info, usb_inventory: status.usb_verified, usb_note: status.usb_note, depth_validity_sample: status.depth_stats, streams: status.streams, drops: status.dropped_messages, tf: status.tf, detections: status.detections }, null, 2);
     } catch (e) {

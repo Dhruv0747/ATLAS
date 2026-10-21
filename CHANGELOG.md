@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-21 (Stage32 OpenNI-to-ROS instrumentation; offline only):
+- Add pinned-source instrumentation with bounded readiness/read/callback/conversion/publication counters, actual frame metadata and subscriber presence. Incremental ARM64 driver build passed; no stream-setting change.
+- Add API-prepared and browser-received/rendered counters; preserve scalar stop evidence. 94 regressions plus3 instrumentation tests passed; one Playwright skip; Node canvas checks passed. Synthetic ROS run179/180 received, no rejects (not a loss-free claim).
+- Three-file candidate and byte-identical rollback rehearsal prepared; live ten-file hashes verified unchanged. No installation, camera start or service restart. Root cause remains unknown until separately approved instrumented test; section18.
+
 2026-10-21 (Stage32 zero-frame investigation; offline only):
 - Distinguish driver running, receiver delivery, stale IR and browser rendering; retain scalar session evidence after Stop. Zero callbacks show IR NO FRAMES RECEIVED.
 - Add bounded discovery/domain/RMW diagnostics and native byte-layout/browser regression fixtures. PC ROS smoke: 180 synthetic callbacks, zero rejects; 93 regression tests passed, one browser dependency skip; separate Node canvas/banner checks passed.

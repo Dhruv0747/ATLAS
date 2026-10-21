@@ -41,3 +41,12 @@ def test_browser_no_frames_label_and_strict_native_encoding():
     assert 'IR NO FRAMES RECEIVED' in js
     assert "['mono8', 'mono16', '16UC1'].includes(enc)" in js
     assert "$('irState').textContent = 'Rendered'" in js
+
+def test_api_prepared_is_not_browser_delivery_and_survives_stop():
+    s=W.VisionService({},clock=lambda:100,wall=lambda:100)
+    s.ingest('ir',ir_msg());s.raw('ir');s.raw('ir')
+    assert s.status()['ir_api']['responses_prepared']==2
+    assert s.status()['ir_api']['unique_stamps']==1
+    s.stop()
+    assert s.status()['last_session']['ir_api']['responses_prepared']==2
+    assert s.status()['ir_api']['responses_prepared']==0

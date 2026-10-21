@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+21 October Stage32 driver counters: ARM64 candidate built offline, three-file
+package/rollback rehearsed. Counters discriminate OpenNI readiness/read, callback,
+conversion, ROS publication/subscriber presence, receiver/API/browser. 94+3 tests
+passed, one dependency skip; real hardware failure not reproduced offline. Live
+hashes unchanged, no activation/deployment. Need owner approval for installation,
+web-owner restart and ONE guarded IR test. No motion. Report section18.
+
 21 October Stage32 offline follow-up: pinned vendor source silently discards
 OpenNI wait timeouts; saved logs have no frame-read/publish counters or live graph
 snapshot. Cannot isolate sensor readiness from ROS publication/discovery. PC
