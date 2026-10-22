@@ -9,6 +9,7 @@ import math
 import os
 from pathlib import Path
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -33,26 +34,47 @@ def safety_snapshot():
 
 
 def verify_astra_usb_access():
-    """Fail closed; distinguish identity loss from temporary USB ACL loss.
+    """Resolve verified physical ports afresh, never cache BUSNUM/DEVNUM.
 
-    Keep the approved device selection unchanged. Re-enumeration requires a
-    reviewed identity check, never automatic permission changes or substitution.
-    This check does not initialize OpenNI or open/start a camera stream.
+    Sysfs supports already-connected devices before the new udev aliases exist.
+    An existing alias must agree with sysfs. No stream, permission changes or
+    substitution by another same-model device on a different port is allowed.
     """
     verified=[]
-    for bus,identity in [('014','2bc5:0403'),('011','2bc5:0501')]:
-        device=Path('/dev/bus/usb/001')/bus
-        try:
-            actual=subprocess.check_output(['lsusb','-s','001:'+bus],text=True,timeout=2)
-        except (OSError,subprocess.SubprocessError) as exc:
-            raise RuntimeError('Astra USB identity query failed: '+str(device)) from exc
-        if identity not in actual.split():
-            raise RuntimeError('Astra USB identity missing/mismatch: '+str(device)+
-                               ' expected '+identity+'; check re-enumeration before retry')
-        if not os.access(device,os.R_OK|os.W_OK):
-            raise RuntimeError('Astra USB read/write access denied: '+str(device)+
-                               ' identity '+identity+'; inspect ACL (temporary grants may be lost after reboot/replug)')
-        verified.append({'path':str(device),'vid_pid':identity,'read_write_access':True})
+    try:
+        for port,identity,alias in (
+                ('2.3.1.2','2bc5:0403','atlas-astra-depth-usb'),
+                ('2.3.1.1','2bc5:0501','atlas-astra-rgb-usb')):
+            matches=[p for p in Path('/sys/bus/usb/devices').glob('*-'+port)
+                     if '3610000.usb' in p.resolve(strict=True).parts]
+            if len(matches)!=1:
+                raise RuntimeError('Astra USB physical identity missing/ambiguous: '+port)
+            sysdev=matches[0]
+            def attributes():
+                return tuple((sysdev/name).read_text().strip() for name in
+                             ('idVendor','idProduct','devpath','busnum','devnum','dev'))
+            before=attributes()
+            if ':'.join(before[:2])!=identity or before[2]!=port:
+                raise RuntimeError('Astra USB identity missing/mismatch: '+port)
+            bus,num=int(before[3]),int(before[4])
+            if not 1<=bus<=999 or not 1<=num<=127:
+                raise RuntimeError('Astra USB invalid bus/device number')
+            device=Path('/dev/bus/usb')/f'{bus:03d}'/f'{num:03d}'
+            stable=Path('/dev')/alias
+            if os.path.lexists(stable) and stable.resolve(strict=True)!=device:
+                raise RuntimeError('Astra USB stable alias mismatch: '+str(stable))
+            node=device.stat()
+            if (not stat.S_ISCHR(node.st_mode) or
+                    f'{os.major(node.st_rdev)}:{os.minor(node.st_rdev)}'!=before[5]):
+                raise RuntimeError('Astra USB device-node identity mismatch: '+str(device))
+            if not os.access(device,os.R_OK|os.W_OK,effective_ids=True):
+                raise RuntimeError('Astra USB read/write access denied: '+str(device))
+            if attributes()!=before or device.stat()!=node:
+                raise RuntimeError('Astra USB identity/access changed during check')
+            verified.append({'path':str(device),'vid_pid':identity,'physical_port':port,
+                             'stable_alias':str(stable),'read_write_access':True})
+    except (OSError,ValueError) as exc:
+        raise RuntimeError('Astra USB identity/access query failed: '+str(exc)) from exc
     return verified
 
 

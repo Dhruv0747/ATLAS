@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-ASTRA-NUMBERED-GUARD-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Live guardian pinned bus001/dev014 and011. Scoped software correction deployed: resolve verified controller/physical ports and current device nodes; verify VID/PID, character node, effective RW access and repeated identity. Permanent rule installed by owner. 56 focused tests pass and live read-only pre/post checks pass without restart or camera start.",
+      "remaining_validation": "Physical reboot/reconnect not performed. Existing web session has not inherited new atlas-astra group; current access uses temporary ACLs. End-to-end persistence remains unverified.",
+      "reference": "docs/ATLAS_ASTRA_STABLE_GUARD_20261023.md"
+    },
+    {
       "id": "ATLAS-DEPTH-PREVIEW-REPEATED-LAYOUT-20261021",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-23 superseding Astra access checkpoint: owner-installed permanent rule
+and group verified. Stable-port guardian installed,56 tests passed and fresh
+pre/post safety checks passed; no service restart/camera/reboot. Current nodes
+accessible; service group inheritance and reboot/reconnect persistence remain
+unvalidated. See docs/ATLAS_ASTRA_STABLE_GUARD_20261023.md. Earlier entries retained.
+
 2026-10-23 access follow-up: Astra identity/topology/nodes unchanged, named
 jetson RW ACL absent on both; current permission loss confirmed. Admin-only
 recovery/profile helper staged,13 offline tests pass; requires owner sudo.

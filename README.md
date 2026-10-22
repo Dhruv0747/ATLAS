@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Astra stable-port guardian installed](docs/ATLAS_ASTRA_STABLE_GUARD_20261023.md):
+56 focused tests pass; USB numbers resolved from verified topology. No camera
+start/restart/reboot. Permanent rule installed; persistence test still pending.
+
 [Permanent Astra permission installer](docs/ATLAS_ASTRA_PERMANENT_INSTALL_COMMAND_20261023.md):
 one guarded owner command prepared; installation and reboot validation pending.
 

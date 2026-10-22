@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-23 installed the single-file Astra stable-port guardian after fresh checks.
+56 focused tests passed; verified backup/hash and unchanged protected services.
+No camera start, reboot or restart. See docs/ATLAS_ASTRA_STABLE_GUARD_20261023.md.
+
 2026-10-23 staged guarded permanent Astra permissions installer.21 offline tests
 and three live read-only safety samples pass. Owner sudo execution pending;
 no live rule install/restart/trigger/camera. Reboot/guardian validation outstanding.
