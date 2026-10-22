@@ -22,6 +22,7 @@ class AtlasAgentTeam(Node):
         super().__init__("atlas_agent_team")
         self.values = {}
         self.seen = {}
+        self.report_cache = {}
         self.state_pub = self.create_publisher(String, "/atlas/agent_team/state", 10)
         self.status_pub = self.create_publisher(String, "/atlas/agent_team/status", 10)
         topics = {
@@ -80,11 +81,21 @@ class AtlasAgentTeam(Node):
             return self.values.get(role) if 0 <= age <= 6. else None
 
         def report(role):
-            try:
-                value = json.loads(fresh_value(role) or 'null')
-                return value if isinstance(value, dict) else {}
-            except (ValueError, TypeError):
+            # Cache parsing only, never freshness/readiness. Unchanged reports
+            # are common; this board does not mutate their parsed contents.
+            text = fresh_value(role)
+            if text is None:
                 return {}
+            cached = self.report_cache.get(role)
+            if cached is not None and cached[0] == text:
+                return cached[1]
+            try:
+                value = json.loads(text or 'null')
+                value = value if isinstance(value, dict) else {}
+            except (ValueError, TypeError):
+                value = {}
+            self.report_cache[role] = (text, value)
+            return value
 
         policy, enc = report('control_policy'), report('encoder_health')
         blocked = []

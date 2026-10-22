@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[23 October optimization checkpoint](docs/ATLAS_RELIABILITY_OPTIMIZATION_20261023.md):
+bounded reporting-cache candidate tested offline; no deployment or meaningful
+whole-Jetson savings claimed. Dashboard profiling access and Astra access remain blockers.
+
 [Remaining CPU assessment](ATLAS_STAGE32_REMAINING_CPU_AND_JSON_CANDIDATE.md):
 dominant executor cost unresolved; minor exact-live JSON candidate tested but
 NOT deployed. No camera or safety-policy changes.

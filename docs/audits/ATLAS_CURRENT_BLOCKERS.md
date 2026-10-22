@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+2026-10-23 bounded optimization checkpoint: Tailscale reachable after Wi-Fi
+timeout. FreshCPU68.1431%,RAM69.1883%,max57.125C, stop/manual-only/zero/recorder-off
+checks pass; sensor preflight fails Astra identity/access changed (exact cause
+not yet verified). Admin profiler access still unavailable. Role-board parse
+cache candidate42 unit tests+2000 differential cases; savings too small to
+claim Astra headroom. No deployment. See docs/ATLAS_RELIABILITY_OPTIMIZATION_20261023.md.
+
 2026-10-21 remaining CPU: two-thread lifetime pattern persists; existing untagged
 executor samples cannot identify a safe dominant-cost fix. Exact-live compact
 JSON candidate prepared,6+60tests pass; historical expected saving only~0.06

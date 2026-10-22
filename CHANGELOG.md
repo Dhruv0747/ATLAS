@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-23 offline role-board parse cache preserves freshness/readiness;42 WSL
+unit tests and2000 differential cases pass. Synthetic function CPU reduced,
+but expected aggregate saving negligible. No live changes; see reliability checkpoint.
+
 2026-10-21 Stage32 thread profiling blocked by verified process-memory access
 denial. Documented stopped RESOURCE BLOCKED camera state and evidence limits.
 No hot-function attribution, optimization deployment or camera test claimed.

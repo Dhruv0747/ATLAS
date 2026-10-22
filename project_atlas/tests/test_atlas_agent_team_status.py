@@ -18,6 +18,7 @@ class TeamStatusTests(unittest.TestCase):
         exec(compile(ast.Module(body=[cls], type_ignores=[]), str(path), 'exec'), ns)
         self.node = ns['AtlasAgentTeam']()
         self.node.values, self.node.seen = {}, {}
+        self.node.report_cache = {}
         for role in ('mission_director', 'safety_guardian', 'driver', 'mode_manager',
                      'recovery_specialist', 'localization', 'perception'):
             self.node.update(role, 'fresh')
@@ -55,6 +56,36 @@ class TeamStatusTests(unittest.TestCase):
         for bad in ('null', '[]', '{', 'true', 'x' * 17000):
             self.node.update('control_policy', bad)
             self.assertFalse(self.node.snapshot()['autonomy_ready'])
+
+    def test_cache_does_not_extend_freshness(self):
+        self.ready()
+        self.assertTrue(self.node.snapshot()['autonomy_ready'])
+        cached = self.node.report_cache['control_policy']
+        self.now += 6.01
+        self.assertFalse(self.node.snapshot()['autonomy_ready'])
+        self.assertIs(self.node.report_cache['control_policy'], cached)
+        self.now = 101.
+        self.node.update('control_policy', '{"manual_only":true,"stop_latched":true}')
+        self.assertFalse(self.node.snapshot()['autonomy_ready'])
+
+    def test_unchanged_report_reuses_parse_and_renews_receipt_only(self):
+        self.ready()
+        self.node.snapshot()
+        cached = self.node.report_cache['control_policy']
+        self.now += 1
+        self.node.update('control_policy', cached[0])
+        self.assertTrue(self.node.snapshot()['autonomy_ready'])
+        self.assertIs(self.node.report_cache['control_policy'], cached)
+        self.assertEqual(self.node.seen['control_policy'], self.now)
+        self.assertLessEqual(len(self.node.report_cache), 3)
+
+    def test_invalid_report_replaces_cached_valid_report(self):
+        self.ready()
+        self.assertTrue(self.node.snapshot()['autonomy_ready'])
+        for text in ('{', 'null', '[]', 'true', ''):
+            self.node.update('control_policy', text)
+            self.assertFalse(self.node.snapshot()['autonomy_ready'])
+            self.assertEqual(self.node.report_cache['control_policy'][1], {})
 
 
 if __name__ == '__main__':
