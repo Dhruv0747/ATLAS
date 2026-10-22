@@ -1,5 +1,8 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Astra access/admin profiling](docs/ATLAS_ASTRA_ACCESS_AND_ADMIN_PROFILE_20261023.md):
+lost temporary ACLs confirmed; guarded one-command helper staged, not executed.
+
 [23 October optimization checkpoint](docs/ATLAS_RELIABILITY_OPTIMIZATION_20261023.md):
 bounded reporting-cache candidate tested offline; no deployment or meaningful
 whole-Jetson savings claimed. Dashboard profiling access and Astra access remain blockers.

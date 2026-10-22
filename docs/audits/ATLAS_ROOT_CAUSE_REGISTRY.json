@@ -49,6 +49,7 @@
     },
     {
       "id": "ATLAS-STAGE32-USB-ACL-LOSS-20261021",
+      "2026_10_23_followup": "Both Astra VID/PID, topology and numbered nodes unchanged; named jetson ACL missing, root:root0644, RW false. Confirms current permission-loss occurrence. Targeted temporary recovery plus bounded admin profiling helper staged/tests pass, NOT executed: sudo authentication required. No camera Start or permanent rule deployment. See docs/ATLAS_ASTRA_ACCESS_AND_ADMIN_PROFILE_20261023.md.",
       "permanent_access_audit": "Owner-restored jetson RW ACLs verified, direct access passes. CPU75.2902% abort before install/Start, no retry. Offline two-interface topology-bound group0660 proposal; eight static tests pass, native isolated matching and deployment approval pending. Serial dialout access already works; radar topic via UNO; motor/IMU/GPS CH340 by-id collision, stale unused motor alias; LiDAR vendor0666 exposure preserved for separate review. No system changes. See ATLAS_PERMANENT_USB_ACCESS_AND_REBOOT_RECOVERY.md.",
       "approved_recovery_attempt": "2026-10-21 20:44: three fresh safety/resource samples pass; CPU70.4293-73.2026%, RAMmax66.7793%, tempmax59.875C. Protected PIDs unchanged. sudo password required, so no installation/ACL change/camera test. Persistent device-specific permissions proposed only. Original ACL state preserved.",
       "confidence": "CONFIRMED",

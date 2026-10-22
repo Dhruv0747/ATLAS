@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-23 confirmed Astra ACL loss with identities unchanged; prepared guarded
+temporary access recovery plus bounded admin CPU profiler.13 offline tests pass;
+no privileged execution, camera start, service change or permanent USB rule.
+
 2026-10-23 offline role-board parse cache preserves freshness/readiness;42 WSL
 unit tests and2000 differential cases pass. Synthetic function CPU reduced,
 but expected aggregate saving negligible. No live changes; see reliability checkpoint.

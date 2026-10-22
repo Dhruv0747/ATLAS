@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-23 access follow-up: Astra identity/topology/nodes unchanged, named
+jetson RW ACL absent on both; current permission loss confirmed. Admin-only
+recovery/profile helper staged,13 offline tests pass; requires owner sudo.
+Not executed, no camera started, no permanent permissions installed. See
+docs/ATLAS_ASTRA_ACCESS_AND_ADMIN_PROFILE_20261023.md.
+
 2026-10-23 bounded optimization checkpoint: Tailscale reachable after Wi-Fi
 timeout. FreshCPU68.1431%,RAM69.1883%,max57.125C, stop/manual-only/zero/recorder-off
 checks pass; sensor preflight fails Astra identity/access changed (exact cause
