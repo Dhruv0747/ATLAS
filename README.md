@@ -1,5 +1,8 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Permanent Astra permission installer](docs/ATLAS_ASTRA_PERMANENT_INSTALL_COMMAND_20261023.md):
+one guarded owner command prepared; installation and reboot validation pending.
+
 [Astra access/admin profiling](docs/ATLAS_ASTRA_ACCESS_AND_ADMIN_PROFILE_20261023.md):
 lost temporary ACLs confirmed; guarded one-command helper staged, not executed.
 

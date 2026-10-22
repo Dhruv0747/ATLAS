@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-23 staged guarded permanent Astra permissions installer.21 offline tests
+and three live read-only safety samples pass. Owner sudo execution pending;
+no live rule install/restart/trigger/camera. Reboot/guardian validation outstanding.
+
 2026-10-23 confirmed Astra ACL loss with identities unchanged; prepared guarded
 temporary access recovery plus bounded admin CPU profiler.13 offline tests pass;
 no privileged execution, camera start, service change or permanent USB rule.
