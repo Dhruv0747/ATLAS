@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 voice-specific offline candidate passes7 tests/820000 messages; median
+CPU saving3.086% across10 PC pairs,2 worse. Exact-live two-line patch prepared,
+NOT installed. Live voice performance/whole-Jetson headroom remain unverified.
+See docs/ATLAS_VOICE_EXECUTOR_OFFLINE_20261024.md.
+
 2026-10-23 voice capture g7twhac6 retrieved and hash-verified after earlier absent
 directory check. Command succeeded,65 samples/0errors;64 main-thread GIL samples,
 54 with wait_for_ready_callbacks. No retry needed. Voice-specific offline executor

@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Voice-specific offline candidate](docs/ATLAS_VOICE_EXECUTOR_OFFLINE_20261024.md):
+41-subscription workload,820000 messages,7 tests pass; median PC CPU saving3.086%,
+8/10 pairs positive. Two-line exact-live patch prepared only; no deployment or
+whole-Jetson/Astra readiness claim.
+
 [Voice capture verified](docs/ATLAS_VOICE_CPU_CAPTURE_RESULT_20261023.md):
 65 samples/zero errors; main ROS executor dominates sampled GIL stacks.
 Command succeeded; no repeat needed. Voice-specific offline optimization pending.

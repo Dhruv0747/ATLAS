@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-VOICE-EXECUTOR-OFFLINE-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Voice-derived41subscription/23publisher native PC workload:820000 messages delivered,7 tests pass. Existing private executor median paired CPU saving3.086%,8/10 positive; worst latency higher. Exact-live import/spin patch prepared only, entire voice class unchanged.",
+      "remaining_validation": "No deployment approval; active voice behavior, actual Jetson savings and Astra headroom unverified. Future voice-only restart needs separate approval and rollback checks.",
+      "reference": "docs/ATLAS_VOICE_EXECUTOR_OFFLINE_20261024.md"
+    },
+    {
       "id": "ATLAS-VOICE-CPU-CAPTURE-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

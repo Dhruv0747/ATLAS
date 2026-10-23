@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 prepared offline exact-live voice executor integration candidate.
+41 subscriptions/23 publishers/original timers;820000 messages delivered,
+7 focused tests pass. Median paired PC CPU saving3.086%;worst latency higher.
+No installation, restart, UI change, camera start, movement or safety change.
+
 2026-10-23 retrieved and hash-verified successful voice profile g7twhac6:
 65 samples/zero errors, unchanged service identities. Main-thread ROS dispatch
 is the next offline target; no evidence for disabling voice/AI. No command fix,
