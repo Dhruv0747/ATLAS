@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-EXECUTOR-DEPLOYMENT-RETRY-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Subsequent owner-approved installation CPU-report-only retry deployed three private Dashboard executor files with web-only restart. Production guards and protected service identities unchanged. Parked CPU mean71.218 to71.100%; web one-core46.869 to44.652%. Supersedes prior deployment state, not retained rollback evidence.",
+      "remaining_validation": "Substantial whole-Jetson savings and Astra startup headroom not established. No camera start or movement authorized/performed; production75% guard unchanged.",
+      "reference": "docs/ATLAS_EXECUTOR_DEPLOYMENT_RETRY_20261023.md"
+    },
+    {
       "id": "ATLAS-EXECUTOR-DEPLOYMENT-ROLLBACK-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

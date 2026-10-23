@@ -1,5 +1,11 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Executor retry deployed](docs/ATLAS_EXECUTOR_DEPLOYMENT_RETRY_20261023.md):
+owner-authorized installation CPU-report-only retry installed three files;
+only web restarted. White glass/safety/protected services unchanged. Parked CPU
+71.218% to71.100%; no substantial whole-Jetson savings or Astra readiness proven.
+Earlier entries below describe historical attempts, not current deployment state.
+
 [Executor deployment rolled back](docs/ATLAS_EXECUTOR_DEPLOYMENT_ROLLBACK_20261023.md):
 approved attempt exceeded75% CPU during postflight (77.234%). Original web/UI
 restored and protected services unchanged. No Jetson CPU saving demonstrated.

@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-23 separate owner-approved CPU-report-only installation retry succeeded.
+Three private Dashboard executor files deployed; web-only restart, hashes and
+health verified. Production guards unchanged. CPU mean71.218% to71.100%, web
+one-core46.869% to44.652%; short windows do not prove material system savings.
+Astra/recorder OFF, no movement. See ATLAS_EXECUTOR_DEPLOYMENT_RETRY_20261023.md.
+
 2026-10-23 approved three-file Dashboard executor deployment rolled back after
 postflight CPU77.234% exceeded unchanged75% gate. Only web restarted for install
 and rollback; original hash/UI restored, protected services unchanged. Durable

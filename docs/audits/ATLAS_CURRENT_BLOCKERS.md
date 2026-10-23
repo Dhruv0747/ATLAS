@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+2026-10-23 subsequent explicitly approved retry DEPLOYED with installation CPU
+report-only. Production75%/80%/70C guards unchanged. Safety/sensors/hash checks
+passed; only web restarted. Parked CPU71.218% to71.100%, web46.869% to44.652%
+one-core; significant whole-Jetson headroom remains unproven. Astra OFF. Current
+production now uses private executor; historical rollback entries remain below.
+See docs/ATLAS_EXECUTOR_DEPLOYMENT_RETRY_20261023.md.
+
 2026-10-23 approved private executor deployment ROLLED BACK: preflight passed,
 postflight CPU77.234% failed75% guard. Original98f3c Dashboard restored, new private
 source files removed; white glass/protected services unchanged. Baseline CPU70.82%,
