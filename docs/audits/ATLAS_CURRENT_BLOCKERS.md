@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 voice candidate DEPLOYED under owner installation CPU-report-only.
+Health/hash/protected-PID checks passed,voice-only restart. Voice CPU25.16 to24.02%
+one-core,whole-Jetson71.40 to71.47%,peak78.58%: headroom unresolved. Old voice PID
+shutdown context RCLError retained;new PID healthy. MUTED preserved,Astra OFF.
+See docs/ATLAS_VOICE_EXECUTOR_DEPLOYMENT_20261024.md.
+
 2026-10-24 voice-specific offline candidate passes7 tests/820000 messages; median
 CPU saving3.086% across10 PC pairs,2 worse. Exact-live two-line patch prepared,
 NOT installed. Live voice performance/whole-Jetson headroom remain unverified.

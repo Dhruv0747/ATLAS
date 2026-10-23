@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-VOICE-EXECUTOR-DEPLOYED-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Voice-only deployment hash/health verified,privacy MUTED preserved,protected PIDs unchanged. Voice CPU25.161 to24.016% one core;whole-Jetson71.399 to71.469%,peak78.583 under owner installation-only CPU-report exception. Production guards unchanged.",
+      "remaining_validation": "No whole-system savings or Astra readiness established. Active speech not tested. Old PID shutdown produced invalid-context WaitSet error before new healthy process; do not claim shutdown race resolved.",
+      "reference": "docs/ATLAS_VOICE_EXECUTOR_DEPLOYMENT_20261024.md"
+    },
+    {
       "id": "ATLAS-VOICE-EXECUTOR-OFFLINE-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

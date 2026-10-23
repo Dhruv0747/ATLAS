@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-24 deployed approved exact-live voice executor patch; restarted only
+voice, preserved muted privacy/UI/guards/protected PIDs. Observed voice CPU4.55%
+lower,whole-Jetson savings not demonstrated;post peak78.58% under explicit
+installation CPU-report-only approval. Old-process shutdown RCLError retained.
+No camera start or movement. Verified backup/result/trace documented.
+
 2026-10-24 prepared offline exact-live voice executor integration candidate.
 41 subscriptions/23 publishers/original timers;820000 messages delivered,
 7 focused tests pass. Median paired PC CPU saving3.086%;worst latency higher.

@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Voice candidate deployed](docs/ATLAS_VOICE_EXECUTOR_DEPLOYMENT_20261024.md):
+voice-only restart and health/hash checks passed. Voice CPU25.16 to24.02% of one
+core; whole-Jetson71.40 to71.47%,peak78.58%. No whole-system savings proven.
+Owner installation-only CPU reporting exception; production guards unchanged.
+
 [Voice-specific offline candidate](docs/ATLAS_VOICE_EXECUTOR_OFFLINE_20261024.md):
 41-subscription workload,820000 messages,7 tests pass; median PC CPU saving3.086%,
 8/10 pairs positive. Two-line exact-live patch prepared only; no deployment or
