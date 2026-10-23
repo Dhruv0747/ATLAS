@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-EXECUTOR-CANCELLED-READY-TASK-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Captured executor prunes terminal pending tasks but still looks them up from ready queue. Baseline cancelled/done KeyError reproduced; offline terminal-task guard fixes tested cases including future resumption and200 mixed tasks.48 tests pass. Production remains unchanged; resolution field retains live-unresolved status.",
+      "remaining_validation": "Offline correction verified, not deployed. Full-executor CPU results variable; interleaved workload/deadline testing and separately approved Dashboard-only deployment still required. No Jetson savings established.",
+      "reference": "docs/ATLAS_EXECUTOR_CANCELLATION_FIX_20261023.md"
+    },
+    {
       "id": "ATLAS-EXECUTOR-COUNT-CANDIDATE-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

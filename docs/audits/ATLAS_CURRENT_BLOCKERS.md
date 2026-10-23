@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-23 cancellation blocker corrected OFFLINE: terminal ready tasks skipped
+before pruned dictionary lookup;48 tests pass. Combined CPU candidate full-spin
+results vary from1.21% slower to17.26% faster, so headroom remains unproven.
+Nothing deployed. See docs/ATLAS_EXECUTOR_CANCELLATION_FIX_20261023.md.
+
 2026-10-23 offline executor count candidate: PC idle-spin CPU5.45–8.06% lower,
 39 unit tests pass. Native baseline and candidate both raise cancelled-task
 KeyError; no production-ready fix or Jetson savings claimed. No live changes.

@@ -33,6 +33,23 @@ def candidate(source_bytes):
     return result
 
 
+def cancellation_candidate(source_bytes, optimize_counts=False):
+    # Same completed/cancelled-task guard as the PC's installed Humble executor.
+    # Validate original bytes before either independent transformation.
+    optimized = candidate(source_bytes)
+    source = optimized if optimize_counts else source_bytes.decode()
+    old = '                task = self._ready_tasks.popleft()\n                task_data = self._pending_tasks[task]'
+    new = ('                task = self._ready_tasks.popleft()\n'
+           '                if task.cancelled() or task.done():\n'
+           '                    continue\n'
+           '                task_data = self._pending_tasks[task]')
+    if source.count(old) != 1:
+        raise ValueError('ambiguous ready-task lookup')
+    result = source.replace(old, new)
+    compile(result, '<offline-cancellation-candidate>', 'exec')
+    return result
+
+
 def count_class(source):
     """Extract actual NumberOfEntities only, without importing ROS or opening DDS."""
     tree = ast.parse(source)
@@ -79,7 +96,7 @@ def load_executor(source, name):
     return module
 
 
-def native_suite(original, optimized, reverse=False):
+def native_suite(original, optimized, reverse=False, repaired=False):
     if os.environ.get('ROS_LOCALHOST_ONLY') != '1' or os.environ.get('ROS_DOMAIN_ID') != '213':
         raise RuntimeError('PC isolated localhost domain213 required')
     import rclpy
@@ -87,6 +104,9 @@ def native_suite(original, optimized, reverse=False):
     from std_msgs.msg import Int32
     result = {}
     cases = [('original', original), ('candidate', optimized)]
+    if repaired:
+        cases = [('cancellation_only', cancellation_candidate(original.encode())),
+                 ('combined', cancellation_candidate(original.encode(), True))]
     for label, source in (list(reversed(cases)) if reverse else cases):
         module = load_executor(source, 'atlas_offline_' + label)
         ctx = Context()
@@ -140,6 +160,8 @@ def native_suite(original, optimized, reverse=False):
             except KeyError:
                 cancellation_error = 'KeyError in ready-task lookup (baseline defect)'
             assert not cancelled
+            if repaired:
+                assert cancellation_error is None, cancellation_error
             result[label] = dict(idle_spin_cpu_us=statistics.median(timing),
                 subscriptions=107, ordered_messages=10, dynamic_add_remove=True,
                 callback_exception=True, cancelled_callback_not_run=True,
@@ -157,6 +179,7 @@ def main():
     parser.add_argument('waitable', type=Path)
     parser.add_argument('--ros', action='store_true')
     parser.add_argument('--reverse', action='store_true', help='counterbalance native case order')
+    parser.add_argument('--repair-cancellation', action='store_true')
     args = parser.parse_args()
     original = args.executor.read_bytes()
     optimized = candidate(original)
@@ -165,7 +188,10 @@ def main():
               'microbenchmark': microbench(count_class(args.waitable.read_text())),
               'deployment': 'NONE; PC experiment, not Jetson CPU savings'}
     if args.ros:
-        report['native_ros'] = native_suite(original.decode(), optimized, args.reverse)
+        report['native_ros'] = native_suite(original.decode(), optimized, args.reverse, args.repair_cancellation)
+    if args.repair_cancellation:
+        report['cancellation_sha256'] = hashlib.sha256(cancellation_candidate(original).encode()).hexdigest()
+        report['combined_sha256'] = hashlib.sha256(cancellation_candidate(original, True).encode()).hexdigest()
     print(json.dumps(report, indent=2))
 
 

@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Offline cancellation fix](docs/ATLAS_EXECUTOR_CANCELLATION_FIX_20261023.md):
+terminal ready tasks now skipped before lookup;48 tests passed. Full-executor
+CPU retest is variable, not proven Jetson savings. Nothing installed.
+
 [Offline executor candidate](docs/ATLAS_EXECUTOR_COUNT_BENCHMARK_20261023.md):
 direct count-field addition reduces PC idle-spin CPU5.45–8.06%;39 unit tests pass.
 Existing cancelled-task KeyError reproduced in both variants; not deployment-ready.

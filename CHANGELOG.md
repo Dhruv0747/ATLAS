@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-23 fixed captured executor cancelled/completed ready-task lookup offline.
+48 tests pass including baseline reproduction, future resumption and200-task
+mixed workload. CPU retest recorded unfavorable and favorable runs; no claimed
+stable full-executor saving or live deployment. UI/safety/controls unchanged.
+
 2026-10-23 prepared exact-source offline executor count optimization and native
 localhost ROS benchmark.39 unit tests pass; PC idle-spin CPU5.45–8.06% lower.
 Recorded baseline/candidate cancelled-task KeyError; candidate not deployed,
