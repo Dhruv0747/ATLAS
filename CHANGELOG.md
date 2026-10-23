@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 isolated Jetson callback comparison completed under unchanged guards:
+10pairs,41.26% median callback CPU saving,identical outputs. PeakCPU73.23%,RAM72.30%,
+59.72C;9 protected services unchanged. No production deployment or Astra start.
+
 2026-10-24 tested exact-live safety scan transform candidate offline: rotate
 each valid ray once, preserve every clearance result and non-scan method.
 335 equivalence cases/3 tests pass; PC callback0.972 to0.512ms. Not deployed;

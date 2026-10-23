@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 isolated ARM64 scan comparison completed:callback4.57 to2.64ms,
+41.26%median paired saving,10/10 equivalent. All resource/safety checks passed;
+no production install. WholeCPU savings/Astra headroom still unproven.
+See docs/ATLAS_SAFETY_SCAN_JETSON_ISOLATED_20261024.md.
+
 2026-10-24 exact-live safety scan candidate tested OFFLINE only. Repeated ray
 rotation eliminated with335 equivalent cases/3 tests. Synthetic callback CPU
 47.18% lower; actual Jetson share/savings unknown, aggregate contention unresolved.

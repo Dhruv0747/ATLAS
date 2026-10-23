@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-SAFETY-SCAN-JETSON-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Isolated ARM64 comparison:4.571 to2.640ms per synthetic scan,41.263%median paired CPU saving,10/10 equivalent outputs. Guards passed,9service identities unchanged,no deployment.",
+      "remaining_validation": "Whole-system savings not demonstrated; candidate intervals mean CPU higher amid background variation. Actual installed node impact and Astra headroom unverified.",
+      "reference": "docs/ATLAS_SAFETY_SCAN_JETSON_ISOLATED_20261024.md"
+    },
+    {
       "id": "ATLAS-SAFETY-SCAN-CPU-OFFLINE-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

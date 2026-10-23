@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Isolated Jetson scan test](docs/ATLAS_SAFETY_SCAN_JETSON_ISOLATED_20261024.md):
+actual ARM64 callback4.57 to2.64ms,41.26% median paired saving;10/10 equal outputs.
+No install/restart; whole-system savings not demonstrated,guards preserved.
+
 [Offline scan CPU candidate](docs/ATLAS_SAFETY_SCAN_CPU_CANDIDATE_20261024.md):
 335 equivalent cases,3 tests;47.18% synthetic callback CPU saving, not a
 whole-Jetson saving. No installation or service change; Astra headroom unresolved.
