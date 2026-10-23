@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 exact-live safety scan candidate tested OFFLINE only. Repeated ray
+rotation eliminated with335 equivalent cases/3 tests. Synthetic callback CPU
+47.18% lower; actual Jetson share/savings unknown, aggregate contention unresolved.
+See docs/ATLAS_SAFETY_SCAN_CPU_CANDIDATE_20261024.md. No services changed.
+
 2026-10-24 voice candidate DEPLOYED under owner installation CPU-report-only.
 Health/hash/protected-PID checks passed,voice-only restart. Voice CPU25.16 to24.02%
 one-core,whole-Jetson71.40 to71.47%,peak78.58%: headroom unresolved. Old voice PID

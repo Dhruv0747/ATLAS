@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 tested exact-live safety scan transform candidate offline: rotate
+each valid ray once, preserve every clearance result and non-scan method.
+335 equivalence cases/3 tests pass; PC callback0.972 to0.512ms. Not deployed;
+no whole-system CPU improvement or Astra readiness claimed.
+
 2026-10-24 deployed approved exact-live voice executor patch; restarted only
 voice, preserved muted privacy/UI/guards/protected PIDs. Observed voice CPU4.55%
 lower,whole-Jetson savings not demonstrated;post peak78.58% under explicit

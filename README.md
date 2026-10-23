@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Offline scan CPU candidate](docs/ATLAS_SAFETY_SCAN_CPU_CANDIDATE_20261024.md):
+335 equivalent cases,3 tests;47.18% synthetic callback CPU saving, not a
+whole-Jetson saving. No installation or service change; Astra headroom unresolved.
+
 [Voice candidate deployed](docs/ATLAS_VOICE_EXECUTOR_DEPLOYMENT_20261024.md):
 voice-only restart and health/hash checks passed. Voice CPU25.16 to24.02% of one
 core; whole-Jetson71.40 to71.47%,peak78.58%. No whole-system savings proven.

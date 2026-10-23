@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-SAFETY-SCAN-CPU-OFFLINE-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Exact-live scan callback repeats sensor-to-base rotation. Once-per-valid-ray candidate preserves335 cases and passes3 tests; PC synthetic callback CPU47.177% lower. No deployment.",
+      "remaining_validation": "Actual Jetson callback share and whole-system savings unknown. Not evidence that aggregate CPU or Astra resource admission is resolved.",
+      "reference": "docs/ATLAS_SAFETY_SCAN_CPU_CANDIDATE_20261024.md"
+    },
+    {
       "id": "ATLAS-VOICE-EXECUTOR-DEPLOYED-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
