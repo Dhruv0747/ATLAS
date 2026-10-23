@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-23 targeted voice profiler prepared/staged,29 tests pass. Sudo requires
+owner password; capture not run. Owner allowed CPU-report-only for one diagnostic,
+all production limits unchanged. Await owner command output before a voice fix.
+See docs/ATLAS_VOICE_CPU_PROFILE_20261023.md.
+
 2026-10-23 remaining CPU spans Dashboard, Pi Camera, telemetry, voice and ROS
 monitors. Offline next allocation candidate rejected:10paired runs median0.024%
 saving,5worse,despite10tests/2.14M messages passing. No deployment; existing

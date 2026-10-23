@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Voice CPU profiling prepared](docs/ATLAS_VOICE_CPU_PROFILE_20261023.md):
+29 tests pass; bounded owner-run command staged. Explicit diagnostic-only CPU
+reporting authorized; production safeguards unchanged. Awaiting administrator run.
+
 [Remaining CPU investigation](docs/ATLAS_REMAINING_CPU_ACCUMULATOR_20261023.md):
 distributed process load confirmed; next executor allocation candidate rejected
 after median0.024% saving in10 pairs.10 tests and2.14M messages pass; no deployment.

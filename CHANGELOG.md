@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-23 prepared hash-verified voice-only Python profiler using shared guarded
+observer.29 offline tests pass; owner administrator command required. Explicit
+CPU-report-only diagnostic exception does not alter production limits. No live
+profile, service restart, camera start, movement or production code change.
+
 2026-10-23 read-only remaining CPU survey and offline accumulator experiment.
 Ten regression/QoS/shutdown/package tests pass;2.14M messages delivered. Long
 comparison median saving0.024%,five pairs worse: reject deployment, retain evidence.

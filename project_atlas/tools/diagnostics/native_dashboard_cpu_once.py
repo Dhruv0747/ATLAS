@@ -19,6 +19,8 @@ import time
 import urllib.request
 
 LIVE = Path('/home/jetson/project_atlas')
+TARGET_UNIT = 'rover-status-web'
+TARGET_SCRIPT = 'scripts/atlas_status_web.py'
 STAGE = Path('/home/jetson/project-atlas-migration/native-cpu-20261023')
 PERF = STAGE/'extracted/usr/lib/linux-tools-5.15.0-198/perf'
 PERF_SHA = 'd51e7c1b3051d529e9a55c610d3d9e70e3b99ae89eebb477fae23a274e7311ca'
@@ -206,16 +208,20 @@ def main():
             raw = service_output(['systemctl', '--user', 'show', 'rover-status-web',
                 '-p', 'MainPID', '-p', 'NRestarts', '-p', 'ActiveState'], emit)
             result['rover-status-web'] = dict(line.split('=', 1) for line in raw.strip().splitlines())
+            if TARGET_UNIT != 'rover-status-web':
+                raw = service_output(['systemctl', '--user', 'show', TARGET_UNIT,
+                    '-p', 'MainPID', '-p', 'NRestarts', '-p', 'ActiveState'], emit)
+                result[TARGET_UNIT] = dict(line.split('=', 1) for line in raw.strip().splitlines())
             if any(v['ActiveState'] != 'active' or int(v['MainPID']) <= 1 for v in result.values()):
                 raise RuntimeError('Protected service unhealthy')
             return result
         before = identities()
-        pid = int(before['rover-status-web']['MainPID'])
+        pid = int(before[TARGET_UNIT]['MainPID'])
         report.update(pid=pid, services_before=before, hz=os.sysconf('SC_CLK_TCK'))
         if Path('/proc', str(pid)).stat().st_uid != account.pw_uid:
             raise RuntimeError('Wrong process owner')
-        if b'/home/jetson/project_atlas/scripts/atlas_status_web.py' not in Path('/proc', str(pid), 'cmdline').read_bytes().split(b'\0'):
-            raise RuntimeError('Not the reviewed Dashboard command')
+        if str(LIVE/TARGET_SCRIPT).encode() not in Path('/proc', str(pid), 'cmdline').read_bytes().split(b'\0'):
+            raise RuntimeError('Not the reviewed target command')
         birth = thread_snapshot(pid)[str(pid)]['birth']
         baseline_threads = thread_snapshot(pid)
         selected = {}
@@ -254,7 +260,7 @@ def main():
             sample('baseline')
         if identities() != before:
             raise RuntimeError('Service changed before profile')
-        selected = select_hot_threads(baseline_threads, thread_snapshot(pid))
+        selected = select_hot_threads(baseline_threads, thread_snapshot(pid), count=1 if python_gil else 2)
         report['selected_native_threads'] = selected
         require_target_threads(thread_snapshot(pid), selected)
         # Root is used only for bounded sampling of this existing target.
