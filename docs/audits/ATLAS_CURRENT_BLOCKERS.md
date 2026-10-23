@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-23 approved private executor deployment ROLLED BACK: preflight passed,
+postflight CPU77.234% failed75% guard. Original98f3c Dashboard restored, new private
+source files removed; white glass/protected services unchanged. Baseline CPU70.82%,
+interrupted post71.14% not a valid savings comparison. No retry. See
+docs/ATLAS_EXECUTOR_DEPLOYMENT_ROLLBACK_20261023.md.
+
 2026-10-23 QoS/concurrent shutdown gates passed OFFLINE;66 tests total. Three-file
 Dashboard-only package prepared with exact-live98f3c baseline/hash and rollback
 rehearsal. Pending separate deployment/web-restart approval and actual Jetson

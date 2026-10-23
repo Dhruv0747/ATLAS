@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-23 approved three-file Dashboard executor deployment rolled back after
+postflight CPU77.234% exceeded unchanged75% gate. Only web restarted for install
+and rollback; original hash/UI restored, protected services unchanged. Durable
+backup/trace retained. No camera start/movement or demonstrated CPU saving.
+
 2026-10-23 completed offline QoS/deadline/concurrent shutdown/entity-churn checks.
 Prepared hash-verified three-file private Dashboard executor package;66 tests
 pass including exact-byte reversal and copy rollback. No global ROS patch, live

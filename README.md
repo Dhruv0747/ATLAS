@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Executor deployment rolled back](docs/ATLAS_EXECUTOR_DEPLOYMENT_ROLLBACK_20261023.md):
+approved attempt exceeded75% CPU during postflight (77.234%). Original web/UI
+restored and protected services unchanged. No Jetson CPU saving demonstrated.
+
 [Dashboard-only executor package](docs/ATLAS_DASHBOARD_EXECUTOR_DEPLOYMENT_CANDIDATE_20261023.md):
 QoS/concurrent shutdown tests and copy rollback pass;66 tests total. Three-file
 exact-live package prepared, not installed. Separate web-only deployment approval required.
