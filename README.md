@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Shared material-glass UI candidate](docs/ATLAS_MATERIAL_GLASS_UI.md): ten V2 pages,
+light header-only blur, no control changes;60 Python tests and steering UI check
+passed. PC preview only; not deployed to Jetson.
+
 [Astra stable-port guardian installed](docs/ATLAS_ASTRA_STABLE_GUARD_20261023.md):
 56 focused tests pass; USB numbers resolved from verified topology. No camera
 start/restart/reboot. Permanent rule installed; persistence test still pending.

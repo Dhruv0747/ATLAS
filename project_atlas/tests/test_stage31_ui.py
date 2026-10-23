@@ -33,7 +33,10 @@ def attrs(html, name):
 
 class HomePreservesEverything(unittest.TestCase):
     def test_classic_is_the_verbatim_live_home(self):
-        self.assertEqual(hashlib.sha256((V2 / 'classic.html').read_bytes()).hexdigest(), CLASSIC_LIVE_SHA)
+        # Only the reviewed shared visual layer may differ from archived Home.
+        classic = (V2 / 'classic.html').read_bytes().replace(
+            b'<link rel="stylesheet" href="/v2/material.css">', b'')
+        self.assertEqual(hashlib.sha256(classic.replace(b'\r\n', b'\n')).hexdigest(), CLASSIC_LIVE_SHA)
 
     def test_every_previous_element_id_exists_once(self):
         new = ids(NEW)

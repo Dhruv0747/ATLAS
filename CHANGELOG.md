@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-23 prepared unified material-glass V2 theme: translucent panels, raised
+buttons, inset inputs and owner-requested6px header-only blur.60 Python tests plus
+steering UI check pass; no production deployment or measured CPU savings claim.
+
 2026-10-23 installed the single-file Astra stable-port guardian after fresh checks.
 56 focused tests passed; verified backup/hash and unchanged protected services.
 No camera start, reboot or restart. See docs/ATLAS_ASTRA_STABLE_GUARD_20261023.md.
