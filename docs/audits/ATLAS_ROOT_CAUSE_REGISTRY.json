@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-SAFETY-SCAN-DEPLOYED-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Approved CPU-report-only installation retry deployed exact candidate94f52bcc;only safety-status restarted,health/hashes/protected identities verified. Reporter13.5663 to13.1037%onecore,wholeCPU70.7230 to71.3597%;settling100%,postpeak75.5337 preserved.",
+      "remaining_validation": "No stable whole-system savings or Astra headroom demonstrated. Production guards unchanged. Installation CPU exception does not authorize future resource bypasses or camera starts.",
+      "reference": "docs/ATLAS_SAFETY_SCAN_DEPLOYMENT_RETRY_20261024.md"
+    },
+    {
       "id": "ATLAS-SAFETY-SCAN-DEPLOYMENT-ROLLBACK-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

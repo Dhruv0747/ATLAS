@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 safety scan retry DEPLOYED,owner installation-only CPU-report exception.
+Hash/health verified;reporterPID119178,other service identities unchanged. Reporter
+13.57 to13.10%onecore;wholeCPU70.72 to71.36%,settling100%,postpeak75.53%. No system
+saving or Astra readiness proven. Production limits unchanged,Astra OFF.
+See docs/ATLAS_SAFETY_SCAN_DEPLOYMENT_RETRY_20261024.md.
+
 2026-10-24 safety scan deployment ROLLED BACK:restartCPU85.69% failed75% guard.
 Original restored;safety-statusPID117734 active;read-only recoveryCPU69.63%,fresh
 sensors and safety pass. No candidate retained. Initial3s rollback check stale

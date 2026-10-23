@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 approved safety-status retry DEPLOYED with explicit installation-only
+CPU reporting. Six tests,exact hashes,backup and health checks pass;only reporter
+restarted. Reporter CPU13.57 to13.10%onecore,wholeCPU70.72 to71.36%;100%restart/
+settling peak preserved. No demonstrated system headroom. Voice/UI/guards unchanged.
+
 2026-10-24 approved safety-status candidate installation ROLLED BACK on restart
 CPU85.69%>75%. Original hash restored;read-only follow-up verified fresh sensors,
 latched stop,zero commands,Astra/recorder OFF and unchanged protected services.

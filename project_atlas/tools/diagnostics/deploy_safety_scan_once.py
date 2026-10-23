@@ -30,11 +30,29 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def cpu_report_only(args):
+    if not args:
+        return False
+    if args == ['--installation-cpu-report-only']:
+        return True
+    raise ValueError('Unknown installation arguments')
+
+
+def validate_cpu_sample(cpu, report_only, require_cpu):
+    if not math.isfinite(cpu) or not 0 <= cpu <= 100:
+        raise RuntimeError('Invalid CPU measurement')
+    if not report_only:
+        require_cpu(cpu)
+
+
 def main():
+    report_only = cpu_report_only(sys.argv[1:])
     stage = Path(__file__).resolve().parent
     evidence = Path(tempfile.mkdtemp(prefix='evidence-', dir=stage))
     result = dict(status='ABORTED', evidence=str(evidence), restart_units=[], camera_started=False,
-                  movement=False, limits={'cpu': 75, 'ram': 80, 'temperature': 70})
+                  movement=False, limits={'cpu': 75, 'ram': 80, 'temperature': 70},
+                  installation_cpu_policy='OWNER REPORT ONLY' if report_only else 'STRICT 75%',
+                  production_limits_changed=False)
     trace = (evidence / 'trace.jsonl').open('x')
     lock = threading.Lock()
     stop = threading.Event()
@@ -69,7 +87,7 @@ def main():
                 now = time.monotonic()
                 latest.update(cpu=G.cpu_delta(a, b), monotonic=now, interval=now-last)
                 emit(dict(kind='cpu', phase=phase, **latest))
-                G.require_cpu(latest['cpu'])
+                validate_cpu_sample(latest['cpu'], report_only, G.require_cpu)
                 a, last = b, now
             except Exception as exc:
                 failure.append(str(exc))
@@ -82,7 +100,9 @@ def main():
             if 'cpu' not in latest or time.monotonic()-latest['monotonic'] > 2 or latest['interval'] > 1.5:
                 raise RuntimeError('CPU observer missing/stale')
         snap = P.safety_snapshot()
-        checked = G.check(latest['cpu'] if enforce_cpu else None, snap)
+        checked = G.check(latest['cpu'] if enforce_cpu and not report_only else None, snap)
+        checked['cpu_percent'] = latest.get('cpu')
+        checked['installation_cpu_report_only'] = report_only
         P.extra_safety(snap['ros'])
         with urllib.request.urlopen('http://127.0.0.1:8088/api/vision3d/summary', timeout=3) as r:
             camera = json.load(r)

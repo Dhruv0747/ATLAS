@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Safety scan retry deployed](docs/ATLAS_SAFETY_SCAN_DEPLOYMENT_RETRY_20261024.md):
+single-file/safety-status-only restart verified under owner installation CPU
+report-only. Reporter13.57 to13.10%onecore;wholeCPU70.72 to71.36%,no system saving.
+Production guards,voice/UI preserved;Astra remains OFF.
+
 [Safety scan deployment rolled back](docs/ATLAS_SAFETY_SCAN_DEPLOYMENT_ROLLBACK_20261024.md):
 restart CPU85.69% exceeded75%;original restored and recovery verified. Only
 safety-status restarted;no candidate retained or valid live savings comparison.
