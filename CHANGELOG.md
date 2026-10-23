@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-23 analyzed retained administrator thread-tagged CPU capture; corrected
+the earlier pending-profile status. Added offline analyzer and8 regression tests.
+Native attribution remains blocked; no speculative runtime fix, deployment,
+service restart, camera start or safety/UI change. No CPU savings claimed.
+
 2026-10-23 white-glass UI DEPLOYED_VERIFIED_NO_RESTART on ten active pages.
 Owner authorized static-installation-only CPU report-only; runtime guards intact.
 Eleven HTTP/hash checks pass; protected hashes/service identities unchanged.

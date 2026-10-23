@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-DASHBOARD-TAGGED-CPU-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Recovered completed admin capture: Linux TIDs5559/5716 consume26.96/13.98% one-core baseline. Named Python executor samples mostly at wait boundary; no native CPU attribution or Python-address/TID mapping. Not proof of a busy loop or safe scheduling fix.",
+      "remaining_validation": "Bounded native single-PID CPU profile with TID mapping; perf absent on PATH, sudo requires owner password. No runtime change or camera test performed. Eight offline analysis tests passed.",
+      "reference": "docs/ATLAS_TAGGED_CPU_FINDINGS_20261023.md"
+    },
+    {
       "id": "ATLAS-ASTRA-NUMBERED-GUARD-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

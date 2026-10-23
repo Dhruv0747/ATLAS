@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[New CPU evidence](docs/ATLAS_TAGGED_CPU_FINDINGS_20261023.md): recovered completed
+admin capture; two hot threads confirmed, native cause still unresolved. Eight
+offline analyzer tests pass. No runtime changes; white-glass UI preserved.
+
 [White-glass UI deployed](docs/ATLAS_MATERIAL_GLASS_UI.md): all ten active V2 pages,
 ATLAS watermark and header-only blur; controls unchanged. No restart or camera
 start. Parked CPU70.47% before/70.45% after: no demonstrated CPU saving.

@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+2026-10-23 recovered completed admin profile (previously documented as pending).
+Two Linux threads26.96/13.98% one-core baseline; named Python executor samples
+mostly at native wait boundary, but no Python-address/native-TID mapping or native
+CPU attribution. Eight new offline analysis tests pass. Runtime CPU fix remains
+unresolved; perf absent on PATH and sudo requires owner authentication. No runtime
+changes; white-glass preserved. See docs/ATLAS_TAGGED_CPU_FINDINGS_20261023.md.
+
 2026-10-23 superseding Astra access checkpoint: owner-installed permanent rule
 and group verified. Stable-port guardian installed,56 tests passed and fresh
 pre/post safety checks passed; no service restart/camera/reboot. Current nodes
