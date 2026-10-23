@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Safety scan deployment rolled back](docs/ATLAS_SAFETY_SCAN_DEPLOYMENT_ROLLBACK_20261024.md):
+restart CPU85.69% exceeded75%;original restored and recovery verified. Only
+safety-status restarted;no candidate retained or valid live savings comparison.
+
 [Isolated Jetson scan test](docs/ATLAS_SAFETY_SCAN_JETSON_ISOLATED_20261024.md):
 actual ARM64 callback4.57 to2.64ms,41.26% median paired saving;10/10 equal outputs.
 No install/restart; whole-system savings not demonstrated,guards preserved.

@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-24 approved safety-status candidate installation ROLLED BACK on restart
+CPU85.69%>75%. Original hash restored;read-only follow-up verified fresh sensors,
+latched stop,zero commands,Astra/recorder OFF and unchanged protected services.
+Initial rollback check stale mission_status retained in evidence;recovery verified
+after startup finished. No post-candidate savings claim or installation retry.
+
 2026-10-24 isolated Jetson callback comparison completed under unchanged guards:
 10pairs,41.26% median callback CPU saving,identical outputs. PeakCPU73.23%,RAM72.30%,
 59.72C;9 protected services unchanged. No production deployment or Astra start.

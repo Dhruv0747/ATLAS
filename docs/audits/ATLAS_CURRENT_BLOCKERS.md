@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 safety scan deployment ROLLED BACK:restartCPU85.69% failed75% guard.
+Original restored;safety-statusPID117734 active;read-only recoveryCPU69.63%,fresh
+sensors and safety pass. No candidate retained. Initial3s rollback check stale
+mission_status preserved;other services unchanged. Headroom unresolved.
+See docs/ATLAS_SAFETY_SCAN_DEPLOYMENT_ROLLBACK_20261024.md.
+
 2026-10-24 isolated ARM64 scan comparison completed:callback4.57 to2.64ms,
 41.26%median paired saving,10/10 equivalent. All resource/safety checks passed;
 no production install. WholeCPU savings/Astra headroom still unproven.

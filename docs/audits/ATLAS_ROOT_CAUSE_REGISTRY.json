@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-SAFETY-SCAN-DEPLOYMENT-ROLLBACK-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Approved one-file deployment rolled back after restart CPU85.6902 exceeded75%. Baseline mean71.2085%,reporter12.7922%onecore;no post window. Original restored,follow-up safety/sensors pass,protected services unchanged.",
+      "remaining_validation": "Initial rollback check reported stale mission_status before original reporter initialized;later read-only recovery verified. Restart contention attribution and installed savings remain unverified. No retry authorized or attempted.",
+      "reference": "docs/ATLAS_SAFETY_SCAN_DEPLOYMENT_ROLLBACK_20261024.md"
+    },
+    {
       "id": "ATLAS-SAFETY-SCAN-JETSON-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
