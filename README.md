@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Offline executor candidate](docs/ATLAS_EXECUTOR_COUNT_BENCHMARK_20261023.md):
+direct count-field addition reduces PC idle-spin CPU5.45–8.06%;39 unit tests pass.
+Existing cancelled-task KeyError reproduced in both variants; not deployment-ready.
+No live changes or claimed Jetson-wide savings.
+
 [Partial Python CPU evidence](docs/ATLAS_PYTHON_GIL_RESULT_20261023.md):45 usable
 samples despite75.249% guard stop; executor bookkeeping is the focused next
 offline target. No runtime fix or CPU savings claimed; white-glass unchanged.

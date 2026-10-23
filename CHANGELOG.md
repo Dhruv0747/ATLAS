@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-23 prepared exact-source offline executor count optimization and native
+localhost ROS benchmark.39 unit tests pass; PC idle-spin CPU5.45–8.06% lower.
+Recorded baseline/candidate cancelled-task KeyError; candidate not deployed,
+no Jetson CPU saving claimed, no UI/control/safety changes.
+
 2026-10-23 analyzed partial guarded Python capture:45 samples,zero errors.
 Added tested inclusive-path attribution and invalid frame-index rejection.
 11 analyzer tests plus22 guard tests pass. No runtime edit/retry; CPU unresolved.

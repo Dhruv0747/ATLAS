@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-23 offline executor count candidate: PC idle-spin CPU5.45–8.06% lower,
+39 unit tests pass. Native baseline and candidate both raise cancelled-task
+KeyError; no production-ready fix or Jetson savings claimed. No live changes.
+See docs/ATLAS_EXECUTOR_COUNT_BENCHMARK_20261023.md.
+
 2026-10-23 GIL profile aborted75.249% but retained45 usable samples,zero errors.
 34 stacks include executor wait-set path,9 include QoS events,2 Dashboard leaves.
 Narrows offline work to executor bookkeeping; not proof of redundant work or

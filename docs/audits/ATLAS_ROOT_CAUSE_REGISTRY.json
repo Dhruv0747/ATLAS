@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-EXECUTOR-COUNT-CANDIDATE-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Exact-source PC native ROS idle-spin benchmark reduces CPU5.45-8.06% with direct count-field sums; not a Jetson or representative loaded-workload result. Both original/candidate reproduce cancelled-task KeyError.39 unit tests pass; no deployment.",
+      "remaining_validation": "Separate cancellation baseline repair and dynamic/QoS/deadline regression coverage before Dashboard-only overlay consideration. Preserve production; no global rclpy patch or claimed Astra headroom.",
+      "reference": "docs/ATLAS_EXECUTOR_COUNT_BENCHMARK_20261023.md"
+    },
+    {
       "id": "ATLAS-PYTHON-GIL-PARTIAL-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
