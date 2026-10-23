@@ -1,7 +1,8 @@
 # Project ATLAS - Autonomous Service Rover
 
 [One-command native CPU profiling](docs/ATLAS_NATIVE_CPU_ADMIN_COMMAND_20261023.md):
-isolated ARM64 perf staged, nine offline tests pass; owner sudo run pending.
+first owner run blocked by mixed-UID user-bus access. Corrected helper staged,
+13 tests and isolated Linux identity checks pass; new owner sudo run pending.
 No camera or runtime changes; existing safety/resource limits enforced.
 
 [New CPU evidence](docs/ATLAS_TAGGED_CPU_FINDINGS_20261023.md): recovered completed

@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-23 native profiler owner run aborted before sampling: mixed real-root/
+effective-jetson identity made systemctl ignore session-bus environment. Exact
+error reproduced offline; corrected matched UID/GID helper staged,13 unit tests
+and Linux identity/error checks pass. No native profile or runtime CPU fix yet;
+new owner-run attempt needed. See docs/ATLAS_NATIVE_CPU_ADMIN_COMMAND_20261023.md.
+
 2026-10-23 recovered completed admin profile (previously documented as pending).
 Two Linux threads26.96/13.98% one-core baseline; named Python executor samples
 mostly at native wait boundary, but no Python-address/native-TID mapping or native

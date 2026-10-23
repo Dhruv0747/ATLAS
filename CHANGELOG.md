@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-23 corrected native-profiler mixed UID/GID launch bug after owner-run
+user-bus failure. Exact error reproduced offline;13 tests pass; diagnostic helper
+only staged with backup, full service error evidence retained. CPU unresolved;
+no profiler retry, production change, camera start, restart or movement.
+
 2026-10-23 prepared owner-run10s single-PID native CPU profiler with unchanged
 safety gates, isolated verified perf binary and nine offline tests. No profiler
 attachment, system installation, restart, camera or movement during preparation.

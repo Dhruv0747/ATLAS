@@ -36,6 +36,31 @@ def verify(path, expected):
     return actual
 
 
+def as_root():
+    os.setresuid(0, 0, 0)
+
+
+def as_user(account):
+    # systemd user-bus clients inspect real UID, not just effective UID.
+    # Retain saved root only for the owned perf process and evidence cleanup.
+    os.setresgid(account.pw_gid, account.pw_gid, 0)
+    os.setresuid(account.pw_uid, account.pw_uid, 0)
+    if (os.getuid(), os.geteuid(), os.getgid(), os.getegid()) != (
+            account.pw_uid, account.pw_uid, account.pw_gid, account.pw_gid):
+        raise RuntimeError('Incomplete user identity transition')
+
+
+def service_output(args, emit):
+    result = subprocess.run(args, text=True, capture_output=True, timeout=2)
+    if result.returncode:
+        detail = dict(operation='service_identity', argv=args, returncode=result.returncode,
+                      stdout=result.stdout, stderr=result.stderr, monotonic=time.monotonic(),
+                      uid=os.getuid(), euid=os.geteuid())
+        emit(detail)
+        raise RuntimeError('Service identity failed: '+json.dumps(detail))
+    return result.stdout
+
+
 def command(pid, output):
     if not isinstance(pid, int) or pid <= 1:
         raise ValueError('invalid target PID')
@@ -70,7 +95,7 @@ def thread_snapshot(pid):
 def stop_owned(process):
     if process is None or process.poll() is not None:
         return
-    os.seteuid(0)
+    as_root()
     try:
         try:
             os.killpg(process.pid, signal.SIGINT)
@@ -86,7 +111,7 @@ def stop_owned(process):
                 pass
             process.wait(timeout=2)
     finally:
-        os.seteuid(pwd.getpwnam('jetson').pw_uid)
+        as_user(pwd.getpwnam('jetson'))
 
 
 def main():
@@ -95,8 +120,7 @@ def main():
     account = pwd.getpwnam('jetson')
     os.umask(0o077)
     os.initgroups(account.pw_name, account.pw_gid)
-    os.setegid(account.pw_gid)
-    os.seteuid(account.pw_uid)
+    as_user(account)
     os.environ.update(HOME=account.pw_dir, XDG_RUNTIME_DIR=f'/run/user/{account.pw_uid}',
                       DBUS_SESSION_BUS_ADDRESS=f'unix:path=/run/user/{account.pw_uid}/bus')
     directory = Path(tempfile.mkdtemp(prefix='evidence-', dir=STAGE))
@@ -108,6 +132,7 @@ def main():
     def emit(row):
         trace.write(json.dumps(row, allow_nan=False)+'\n')
         trace.flush()
+        os.fsync(trace.fileno())
     try:
         for name, digest in HASHES.items():
             verify(LIVE/name, digest)
@@ -118,9 +143,10 @@ def main():
         import stationary_gate as G
         import stationary_ros_probe as P
         def identities():
-            result = G.services()
-            raw = subprocess.check_output(['systemctl', '--user', 'show', 'rover-status-web',
-                '-p', 'MainPID', '-p', 'NRestarts', '-p', 'ActiveState'], text=True, timeout=2)
+            result = G.parse_services(service_output(['systemctl', '--user', 'show', *G.UNITS,
+                '-p', 'Id', '-p', 'MainPID', '-p', 'NRestarts', '-p', 'ActiveState'], emit))
+            raw = service_output(['systemctl', '--user', 'show', 'rover-status-web',
+                '-p', 'MainPID', '-p', 'NRestarts', '-p', 'ActiveState'], emit)
             result['rover-status-web'] = dict(line.split('=', 1) for line in raw.strip().splitlines())
             if any(v['ActiveState'] != 'active' or int(v['MainPID']) <= 1 for v in result.values()):
                 raise RuntimeError('Protected service unhealthy')
@@ -164,13 +190,13 @@ def main():
             raise RuntimeError('Service changed before profile')
         # Root is needed only for perf_event_open on this existing target.
         log = (directory/'perf.log').open('xb')
-        os.seteuid(0)
+        as_root()
         try:
             process = subprocess.Popen(command(pid, directory/'perf.data'), stdout=log,
                 stderr=subprocess.STDOUT, start_new_session=True, cwd=directory,
                 env={'PATH': '/usr/bin:/bin', 'HOME': '/nonexistent', 'LC_ALL': 'C'})
         finally:
-            os.seteuid(account.pw_uid)
+            as_user(account)
         emit(dict(phase='profile_start', monotonic=time.monotonic(), profiler_pid=process.pid))
         deadline = time.monotonic()+12
         while process.poll() is None:
@@ -197,14 +223,14 @@ def main():
         if log:
             log.close()
         trace.close()
-        os.seteuid(0)
+        as_root()
         try:
             for path in directory.iterdir():
                 if path.is_file() and not path.is_symlink():
                     os.chown(path, account.pw_uid, account.pw_gid)
                     os.chmod(path, 0o600)
         finally:
-            os.seteuid(account.pw_uid)
+            as_user(account)
         data = directory/'perf.data'
         if data.exists():
             report.update(perf_bytes=data.stat().st_size, perf_sha256=hashlib.sha256(data.read_bytes()).hexdigest())

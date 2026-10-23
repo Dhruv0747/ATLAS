@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-NATIVE-PROFILER-USERBUS-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Owner-run helper aborted before sampling. Real UID root/effective UID jetson caused systemctl secure environment handling to ignore bus variables. Exact stderr reproduced in isolated Linux. Matched real/effective UID/GID correction staged; stdout/stderr now preserved.",
+      "remaining_validation": "13 unit tests and isolated Linux identity/error reproductions pass; new owner-run live validation required. No native profile, CPU optimization or production change yet.",
+      "reference": "docs/ATLAS_NATIVE_CPU_ADMIN_COMMAND_20261023.md"
+    },
+    {
       "id": "ATLAS-DASHBOARD-TAGGED-CPU-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

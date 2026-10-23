@@ -1,6 +1,39 @@
 # One owner-run native Dashboard CPU profile
 
-Prepared23 October2026 after7534178. NOT executed; no CPU fix claimed.
+Prepared23 October2026 after7534178. First owner run aborted before profiling;
+corrected helper staged below. No CPU fix claimed.
+
+## Owner run failure and scoped correction
+
+Evidence `evidence-qcvxb6uy/result.json`: ABORTED before baseline, zero-byte
+telemetry.jsonl, no perf.log or perf.data. Owner terminal supplies exact error:
+`Failed to connect to bus: $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined`.
+No camera, service restart or production modification occurred.
+
+Confirmed helper defect: seteuid changed effective UID to jetson while real UID
+remained root. systemctl's secure environment handling ignored the user-session
+variables despite their presence. Reproduced the exact error in isolated WSL
+with mixed IDs and explicitly supplied variables. Matching real/effective IDs
+made systemctl use the supplied test bus address (then correctly reported the
+deliberately nonexistent bus). No real user bus or robot was touched in this test.
+
+Correction uses setresuid/setresgid to set real and effective IDs to jetson,
+retaining saved root only for the owned profiler/evidence operations. Tests
+verify two complete user/root cycles and executed children receiving matching
+real/effective IDs on Linux. Service identity checks retain full stdout/stderr,
+return code and caller IDs in fsynced evidence. Same protected-unit parser,
+resource/sensor gates, durations and process cleanup are preserved.
+
+13 unit tests pass in WSL; two isolated Linux identity/error reproductions pass.
+Jetson staged helper hash verified; actual administrator user-bus access and
+perf sampling still require a new owner-run attempt. No automatic retry.
+Old helper retained as `native_dashboard_cpu_once.pre-uid-fix.py` in staging;
+failed evidence unchanged. White-glass hash unchanged; web PID1973/restarts0.
+
+Corrected helper SHA256:
+`13da9131f257f3743e76a9a49e13e6bede04f08ee9b80c5549601e8a04dbdca9`.
+The command below now invokes the corrected staged helper. It must still abort
+if fresh checks fail. This corrects the profiler launcher, NOT ATLAS CPU usage.
 
 Run once as jetson on the Jetson terminal:
 
@@ -46,7 +79,7 @@ is5.15.148-tegra; these versions are not identical. Actual perf_event sampling
 and unwinding compatibility are **not yet proven**; failure preserves evidence
 and stops without changing kernel settings or installing packages.
 
-Staged helper SHA256:
+Original helper SHA256 (superseded by correction above):
 `ce9665c9704d6c2eb642a95435822f4cf30b2662e658036c7d06e6d8580c5eb8`.
 File: `project_atlas/tools/diagnostics/native_dashboard_cpu_once.py`.
 Nine offline tests passed in existing WSL Ubuntu22.04: target/duration/frequency,
