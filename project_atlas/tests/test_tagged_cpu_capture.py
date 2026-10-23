@@ -57,3 +57,22 @@ class TaggedCaptureTests(unittest.TestCase):
         row['cpu'] = float('nan')
         with self.assertRaises(ValueError):
             M.analyze(self.profile, [event(1, 100), row])
+
+    def test_recursive_paths_count_once_per_sample(self):
+        self.profile['profiles'][0]['samples'] = [[0, 0], [0]]
+        out = M.analyze(self.profile, [])
+        self.assertEqual(out['python_profiles'][0]['path_observations']
+                         ['executor_wait_set_path_samples'], 2)
+
+    def test_negative_and_out_of_range_frames_rejected(self):
+        for index in (-1, 1, True):
+            self.profile['profiles'][0]['samples'] = [[index], [0]]
+            with self.assertRaises(ValueError):
+                M.analyze(self.profile, [])
+
+    def test_qos_path_is_not_dashboard_leaf(self):
+        self.profile['shared']['frames'].append(dict(name='is_ready', file='/opt/rclpy/qos_event.py'))
+        self.profile['profiles'][0]['samples'] = [[0, 1], [0]]
+        paths = M.analyze(self.profile, [])['python_profiles'][0]['path_observations']
+        self.assertEqual(paths['qos_event_path_samples'], 1)
+        self.assertNotIn('dashboard_leaf_samples', paths)

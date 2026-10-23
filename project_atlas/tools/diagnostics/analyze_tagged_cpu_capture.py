@@ -25,6 +25,7 @@ def analyze(profile, events, hz=100, executor_sha=None):
         if len(samples) != len(weights):
             raise ValueError('sample/weight mismatch')
         leaves = collections.Counter()
+        paths = collections.Counter()
         boundary = total = 0.0
         for sample, weight in zip(samples, weights):
             if not math.isfinite(weight) or weight < 0:
@@ -32,13 +33,25 @@ def analyze(profile, events, hz=100, executor_sha=None):
             total += weight
             if not sample:
                 continue
+            if any(type(i) is not int or not 0 <= i < len(frames) for i in sample):
+                raise ValueError('invalid frame index')
+            stack = [frames[i] for i in sample]
+            # Count each path once per observation, not once per recursive frame.
+            if any(f['name'] == '_wait_for_ready_callbacks' and
+                   str(f.get('file', '')).endswith('/rclpy/executors.py') for f in stack):
+                paths['executor_wait_set_path_samples'] += 1
+            if any(str(f.get('file', '')).endswith('/rclpy/qos_event.py') for f in stack):
+                paths['qos_event_path_samples'] += 1
             leaf = frames[sample[-1]]
+            if str(leaf.get('file', '')).endswith('/atlas_status_web.py'):
+                paths['dashboard_leaf_samples'] += 1
             leaves[(leaf['name'], leaf.get('file'), leaf.get('line'))] += weight
             if (executor_sha == EXECUTOR_SHA and leaf['name'] == '_wait_for_ready_callbacks'
                     and str(leaf.get('file', '')).endswith('/rclpy/executors.py')
                     and leaf.get('line') in (677, 678)):
                 boundary += weight
         stacks.append({'python_thread_label': item['name'], 'samples': len(samples),
+                       'path_observations': dict(paths),
                        'observed_weight_s': total,
                        'wait_boundary_observation_percent': 100*boundary/total if total else None,
                        'top_leaves': [dict(name=k[0], file=k[1], line=k[2], weight_s=v)

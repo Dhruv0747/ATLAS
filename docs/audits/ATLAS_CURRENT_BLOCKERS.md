@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-23 GIL profile aborted75.249% but retained45 usable samples,zero errors.
+34 stacks include executor wait-set path,9 include QoS events,2 Dashboard leaves.
+Narrows offline work to executor bookkeeping; not proof of redundant work or
+safe runtime fix. No retry/deployment; protected identities and UI hashes intact.
+See docs/ATLAS_PYTHON_GIL_RESULT_20261023.md. Headroom remains unresolved.
+
 2026-10-23 usable native CPU capture:75 samples/zero reported loss;53 samples in
 CPython,7 rclpy,6 libc,4 FastDDS,5 other. No native wait-dominance or safe runtime
 fix proved. Profile CPUpeak78.52% under owner diagnostic exception only; production

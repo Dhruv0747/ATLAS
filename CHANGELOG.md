@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-23 analyzed partial guarded Python capture:45 samples,zero errors.
+Added tested inclusive-path attribution and invalid frame-index rejection.
+11 analyzer tests plus22 guard tests pass. No runtime edit/retry; CPU unresolved.
+
 2026-10-23 prepared bounded GIL-filtered Python profiling for the existing
 Dashboard PID. 22 offline tests pass; diagnostic helper staged with hash-verified
 bytes and backup. CPU exception is not carried forward. No production change,

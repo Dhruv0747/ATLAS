@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-PYTHON-GIL-PARTIAL-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "6araz0k9 aborted at75.249% CPU with45 usable GIL-filtered samples,zero profiler errors.34 executor wait-set paths,9 overlapping QoS-event paths,2 Dashboard leaves. Short nonblocking observations do not prove redundant work or exact CPU costs.",
+      "remaining_validation": "Offline executor-equivalence and resource benchmark needed before any runtime optimization. No repeat live profile, no production changes, no CPU savings claimed.",
+      "reference": "docs/ATLAS_PYTHON_GIL_RESULT_20261023.md"
+    },
+    {
       "id": "ATLAS-NATIVE-CPU-CAPTURE-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

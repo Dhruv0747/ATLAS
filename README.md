@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Partial Python CPU evidence](docs/ATLAS_PYTHON_GIL_RESULT_20261023.md):45 usable
+samples despite75.249% guard stop; executor bookkeeping is the focused next
+offline target. No runtime fix or CPU savings claimed; white-glass unchanged.
+
 [Targeted Python profiling prepared](docs/ATLAS_NATIVE_CPU_ADMIN_COMMAND_20261023.md):
 10-second GIL-filtered diagnostic, 22 offline tests passed, staged hash verified.
 Default 75/80/70 resource guards retained; no camera, restart or runtime fix yet.
