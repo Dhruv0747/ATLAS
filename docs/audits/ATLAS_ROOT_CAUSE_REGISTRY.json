@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-REMAINING-CPU-ACCUMULATOR-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Read-only survey confirms distributed useful-process load. Next offline local-count allocation candidate passed10 tests and2.14M messages but median CPU saving0.024% across10 pairs with5 regressions; rejected for deployment. No production changes.",
+      "remaining_validation": "Target voice companion thread/function CPU attribution; memory reclaim observation alone does not establish memory pressure. Whole-Jetson headroom and Astra readiness unresolved.",
+      "reference": "docs/ATLAS_REMAINING_CPU_ACCUMULATOR_20261023.md"
+    },
+    {
       "id": "ATLAS-EXECUTOR-DEPLOYMENT-RETRY-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

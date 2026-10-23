@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-23 remaining CPU spans Dashboard, Pi Camera, telemetry, voice and ROS
+monitors. Offline next allocation candidate rejected:10paired runs median0.024%
+saving,5worse,despite10tests/2.14M messages passing. No deployment; existing
+executor retained. Need targeted voice thread/function attribution, not another
+count micro-optimization. See docs/ATLAS_REMAINING_CPU_ACCUMULATOR_20261023.md.
+
 2026-10-23 subsequent explicitly approved retry DEPLOYED with installation CPU
 report-only. Production75%/80%/70C guards unchanged. Safety/sensors/hash checks
 passed; only web restarted. Parked CPU71.218% to71.100%, web46.869% to44.652%

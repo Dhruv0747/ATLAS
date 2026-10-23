@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-23 read-only remaining CPU survey and offline accumulator experiment.
+Ten regression/QoS/shutdown/package tests pass;2.14M messages delivered. Long
+comparison median saving0.024%,five pairs worse: reject deployment, retain evidence.
+No live changes, UI changes, camera start, movement or safety-threshold changes.
+
 2026-10-23 separate owner-approved CPU-report-only installation retry succeeded.
 Three private Dashboard executor files deployed; web-only restart, hashes and
 health verified. Production guards unchanged. CPU mean71.218% to71.100%, web

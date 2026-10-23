@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Remaining CPU investigation](docs/ATLAS_REMAINING_CPU_ACCUMULATOR_20261023.md):
+distributed process load confirmed; next executor allocation candidate rejected
+after median0.024% saving in10 pairs.10 tests and2.14M messages pass; no deployment.
+Next discriminating evidence: voice-process thread/function CPU attribution.
+
 [Executor retry deployed](docs/ATLAS_EXECUTOR_DEPLOYMENT_RETRY_20261023.md):
 owner-authorized installation CPU-report-only retry installed three files;
 only web restarted. White glass/safety/protected services unchanged. Parked CPU

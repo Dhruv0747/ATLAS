@@ -13,6 +13,10 @@ spec.loader.exec_module(B)
 
 
 class QosShutdownTests(unittest.TestCase):
+    def sources(self):
+        return [(str(optimized), B.cancellation_candidate(self.raw, optimized))
+                for optimized in (False, True)]
+
     @classmethod
     def setUpClass(cls):
         if os.environ.get('ROS_LOCALHOST_ONLY') != '1' or os.environ.get('ROS_DOMAIN_ID') != '213':
@@ -29,9 +33,9 @@ class QosShutdownTests(unittest.TestCase):
         from rclpy.qos import QoSProfile, ReliabilityPolicy
         from rclpy.qos_event import SubscriptionEventCallbacks
         from std_msgs.msg import Int32
-        for optimized in (False, True):
-            with self.subTest(combined=optimized):
-                module = B.load_executor(B.cancellation_candidate(self.raw, optimized), 'offline_qos')
+        for label, source in self.sources():
+            with self.subTest(variant=label):
+                module = B.load_executor(source, 'offline_qos')
                 context = Context()
                 rclpy.init(context=context)
                 node = rclpy.create_node('offline_qos_shutdown', context=context)
