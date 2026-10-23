@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Dashboard-only executor package](docs/ATLAS_DASHBOARD_EXECUTOR_DEPLOYMENT_CANDIDATE_20261023.md):
+QoS/concurrent shutdown tests and copy rollback pass;66 tests total. Three-file
+exact-live package prepared, not installed. Separate web-only deployment approval required.
+
 [Loaded executor comparison](docs/ATLAS_EXECUTOR_LOADED_INTERLEAVED_20261023.md):
 2.14million messages delivered; median paired PC process CPU saving6.25%,9/10
 pairs positive. Worst latency slightly worse; no Jetson/deployment claim.54 tests pass.

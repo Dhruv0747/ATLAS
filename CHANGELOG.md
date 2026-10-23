@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-23 completed offline QoS/deadline/concurrent shutdown/entity-churn checks.
+Prepared hash-verified three-file private Dashboard executor package;66 tests
+pass including exact-byte reversal and copy rollback. No global ROS patch, live
+installation, restart, camera start, movement, UI or safety-policy changes.
+
 2026-10-23 completed alternating loaded PC executor comparison:10 pairs,
 2.14million messages,median6.25% paired CPU saving,one negative pair retained.
 Worst observed latency increased; no deadline/Jetson headroom claim.54 tests

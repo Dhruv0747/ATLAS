@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-23 QoS/concurrent shutdown gates passed OFFLINE;66 tests total. Three-file
+Dashboard-only package prepared with exact-live98f3c baseline/hash and rollback
+rehearsal. Pending separate deployment/web-restart approval and actual Jetson
+resource/health validation. No live change. See
+docs/ATLAS_DASHBOARD_EXECUTOR_DEPLOYMENT_CANDIDATE_20261023.md.
+
 2026-10-23 interleaved loaded PC test:9/10 pairs lower CPU,median6.25%,all2.14M
 messages delivered. Worst latency9.19ms vs8.11ms baseline; no production deadline
 pass or Jetson savings established.54 tests pass; nothing deployed.

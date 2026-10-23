@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-PRIVATE-EXECUTOR-PACKAGE-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Offline native QoS/deadline/concurrent shutdown/entity churn checks pass;66 tests including private package loader and copy rollback. Fresh live web baseline98f3c verified read-only. Three-file Dashboard-only package prepared; not installed.",
+      "remaining_validation": "Separate deployment and web-only restart approval, fresh safety/resource gates, exact backup and matched parked Jetson CPU/health verification. No camera authorization or Jetson savings claim.",
+      "reference": "docs/ATLAS_DASHBOARD_EXECUTOR_DEPLOYMENT_CANDIDATE_20261023.md"
+    },
+    {
       "id": "ATLAS-EXECUTOR-LOADED-INTERLEAVED-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
