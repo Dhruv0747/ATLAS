@@ -1,5 +1,8 @@
 # Changelog
 
+2026-10-23 owner-requested white-glass theme with static ATLAS logo watermark.
+Light-theme text and controls adjusted; red E-STOP preserved. Preview only.
+
 2026-10-23 prepared unified material-glass V2 theme: translucent panels, raised
 buttons, inset inputs and owner-requested6px header-only blur.60 Python tests plus
 steering UI check pass; no production deployment or measured CPU savings claim.

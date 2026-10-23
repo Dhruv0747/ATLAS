@@ -27,8 +27,11 @@ class MaterialThemeTests(unittest.TestCase):
 
     def test_theme_is_small_and_has_no_external_requests_or_active_effects(self):
         css=(WEB/'material.css').read_text()
-        self.assertLess(len(css.encode()),6000)
-        self.assertNotRegex(css,r'url\(|@import|@keyframes|will-change|requestAnimationFrame')
+        self.assertLess(len(css.encode()),8500)
+        self.assertNotRegex(css,r'@import|@keyframes|will-change|requestAnimationFrame')
+        self.assertEqual(re.findall(r'url\(([^)]+)\)',css),["'/v2/assets/atlas-logo-512.webp'"])
+        self.assertTrue((WEB/'assets/atlas-logo-512.webp').is_file())
+        self.assertIn('color-scheme:light',css)
         self.assertEqual(set(re.findall(r'blur\(([^)]+)\)',css)),{'6px'})
         self.assertIn('html:not(.lite) body >',css)
         self.assertIn('backdrop-filter:none!important',css)

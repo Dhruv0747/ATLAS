@@ -3,18 +3,23 @@
    Neumorphism: inset fields. Header-only blur; no JS or animated lighting.
    Load LAST. Never change visibility, pointer handling, canvas pixels or layout. */
 html:root {
-  --night:#0b1420; --deep:#111e2d;
-  --glass:rgba(23,39,56,.55); --glass-hi:rgba(34,54,73,.72);
-  --line:rgba(170,202,225,.24); --line-strong:rgba(91,200,238,.66);
-  --ink:#edf5fc; --mute:#b1c2d2; --sky:#65d4f7;
+  --night:#edf3f7; --deep:#f8fbfd;
+  --glass:rgba(255,255,255,.68); --glass-hi:rgba(255,255,255,.88);
+  --line:rgba(45,78,105,.22); --line-strong:rgba(0,105,144,.65);
+  --ink:#172e43; --mute:#496176; --sky:#006c94;
   /* Semantic status colours deliberately unchanged. */
   --terrain:#7CC242; --amber:#F2B33D; --signal:#FF4D5E;
   --r-panel:18px; --r-ctl:12px;
-  --material-raised:0 3px 8px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.13);
-  --material-inset:inset 0 2px 4px rgba(0,0,0,.3),inset 0 -1px 0 rgba(255,255,255,.07);
+  --material-raised:0 3px 8px rgba(30,60,85,.12),inset 0 1px 0 rgba(255,255,255,.95);
+  --material-inset:inset 0 2px 4px rgba(30,60,85,.13),inset 0 -1px 0 #fff;
 }
+html {color-scheme:light}
 html body {color:var(--ink);background:transparent;font-family:var(--ui)}
-html body::before {background:linear-gradient(135deg,#152b3c 0%,#0b1420 55%,#182b30 100%)}
+/* Existing local logo, no new asset/download. White veil makes a faint watermark. */
+html body::before {background:
+  linear-gradient(rgba(240,247,251,.91),rgba(240,247,251,.91)),
+  url('/v2/assets/atlas-logo-512.webp') center / min(64vw,560px) auto no-repeat,
+  linear-gradient(135deg,#e4eef5,#fff 55%,#e4f0ee)}
 /* Disable existing backdrop blurs even on constantly updating panels/menus.
    Aesthetic work stays in the viewing browser, with no new Jetson polling. */
 html body *,html body *::before,html body *::after {
@@ -28,14 +33,14 @@ html body :is(.panel,.companion,.card,.hm-card,.tl-card):not(.solid):not(.mapPan
   background:linear-gradient(150deg,rgba(255,255,255,.09),transparent 60%),var(--glass);
 }
 html body :is(header.topbar,.dock,.v2dock,.vl-top) {
-  background:rgba(15,27,40,.97);
+  background:rgba(250,253,255,.95);
   box-shadow:0 1px 0 rgba(255,255,255,.08);
 }
 /* Owner-requested frosted glass: one header surface only, never live panels.
    No nested blurs or blur animations. Solid fallback remains above. */
 @supports (backdrop-filter:blur(6px)) or (-webkit-backdrop-filter:blur(6px)) {
   html:not(.lite) body > :is(header.topbar,header.vl-top,header.tl-head,header) {
-    background:rgba(15,27,40,.82);
+    background:rgba(250,253,255,.78);
     backdrop-filter:blur(6px)!important;-webkit-backdrop-filter:blur(6px)!important;
   }
 }
@@ -47,7 +52,7 @@ html body :is(button,.btn):not(:disabled):active {
   box-shadow:var(--material-inset);
 }
 html body :is(input,select,textarea):not([type=checkbox]):not([type=radio]):not([type=range]) {
-  background:#0d1a28;color:var(--ink);border-radius:var(--r-ctl);
+  background:#f2f7fa;color:var(--ink);border-radius:var(--r-ctl);
   box-shadow:var(--material-inset);
 }
 /* Outlines and explicit borders keep controls legible without soft shadows. */
@@ -57,6 +62,26 @@ html body :is(.stop,.estop,.v2estop,#v2Estop) {
   background:linear-gradient(#d83a4d,#a6192e);color:#fff;
   border:2px solid #ff9ca8;box-shadow:var(--material-raised);
 }
+/* Replace inherited dark-theme text/surfaces without touching instrument pixels. */
+html body :is(h1,h2,h3,.value,.hm-card h3,.vl-state h2) {color:var(--ink)}
+html body :is(.detail,.healthhint,.sub,.label,.vl-note,.vl-state p,.vl-res dt,
+  .tl-note,.hm-card small,.buildTag,.vl-meta,.dock-note,.v2dock-msg) {color:var(--mute)}
+html body :is(button,.btn,summary.btn):not(.stop):not(.estop):not(.v2estop):not(#v2Estop):not(.power) {
+  background:linear-gradient(#fff,#e8f1f7);color:var(--ink);border-color:var(--line-strong);
+}
+html body :is(.chip,.live,.batteryBadge,.healthitem,.estopReset,.hm-health,.hm-safety,
+  .hm-menu-list,.vl-seg,.vl-measure,.status) {background:rgba(255,255,255,.9);color:var(--ink)}
+html body .hm-menu-list :is(a,button) {color:var(--ink)}
+html body :is(.chip.fail,.healthitem.fail,.hm-safety.latched,.vl-state.fail) {
+  background:#fff0f2;color:#9b1730;
+}
+html body :is(.chip.warn,.hm-safety.armed,.vl-state.warn,.tl-banner) {
+  background:#fff6df;color:#735000;
+}
+html body :is(.hm-pill.ok,.vl-chip.ok,.healthsummary.ok) {color:#28610e}
+html body :is(.hm-pill.warn,.vl-chip.warn,.cameraStatus.warn) {color:#785100}
+html body :is(.hm-pill.fail,.vl-chip.fail,.cameraStatus.fail) {color:#ac1834}
+html body .vl-seg input:checked+span {background:#d7edf7;color:var(--ink)}
 /* Keep the user-selected Lite mode and accessibility preferences meaningful. */
 html.lite body::before {background:var(--night)}
 html.lite body :is(.panel,.companion,.card,.hm-card,.tl-card,section) {
@@ -66,9 +91,9 @@ html.lite body :is(.panel,.companion,.card,.hm-card,.tl-card,section) {
   html body *,html body *::before,html body *::after {animation:none!important;transition:none!important}
 }
 @media (prefers-reduced-transparency:reduce) {
-  html:root {--glass:#172738;--glass-hi:#223649}
+  html:root {--glass:#fff;--glass-hi:#f8fbfd}
   html:not(.lite) body > header {
-    background:#111e2d;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+    background:#f8fbfd;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
   }
 }
 @media (forced-colors:active) {

@@ -10,7 +10,10 @@ pages: Home, classic console, mapping, commissioning, Wi-Fi, camera, LiDAR,
 motor test lab, FlySky lab and 3D Vision Lab. These are the active default dashboard
 routes. Archived V1/disabled dashboard sources are deliberately not changed.
 
-Tinted panels use 55% opacity (45% transparency), subtle edge highlights and small
+Owner's follow-up switches the candidate to white glass with a faint, static ATLAS
+logo watermark using the existing local 512px WebP (22,474 bytes). Text, controls
+and status surfaces are adapted for the light background; E-STOP remains red.
+Tinted panels use 68% opacity (32% transparency), subtle edge highlights and small
 static shadows. Buttons are raised, fields recessed. A single direct-body header
 may use 6px backdrop blur; panels and docks never blur live video/map/3D pixels.
 Lite mode and reduced-transparency preferences remove blur. Red E-STOP, semantic
@@ -24,7 +27,7 @@ that exact link and normalizes CRLF before checking the original archived SHA.
 
 ## Resource claims
 
-The new file is under 6KB, shared across pages, with no external assets or runtime
+The new file is under 8.5KB, shared across pages, with no external assets or runtime
 JavaScript. It removes panel/dock backdrop filters instead of adding nested blur.
 The effects are rendered by the viewing device. A browser running on the Jetson
 would still consume Jetson resources. No measured browser CPU/GPU or whole-Jetson
@@ -38,7 +41,7 @@ UI check passed. Initial Windows runs lacked cv2/POSIX APIs; relevant suites wer
 rerun successfully in existing WSL Ubuntu22.04. A newline-only preservation failure
 was corrected without replacing the archived expected checksum.
 
-Browser visual review: narrow-window Home and Vision Lab previews retain readable
+Browser visual review, including white-glass follow-up: narrow-window Home and Vision Lab previews retain readable
 glass surfaces and prominent E-STOP. This is not an exhaustive desktop/mobile or
 live-data accessibility/performance certification. Production scripts were blocked
 by CSP in the local preview, so no camera requests, API polling or control commands
