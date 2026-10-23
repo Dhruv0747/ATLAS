@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-23 prepared owner-run10s single-PID native CPU profiler with unchanged
+safety gates, isolated verified perf binary and nine offline tests. No profiler
+attachment, system installation, restart, camera or movement during preparation.
+
 2026-10-23 analyzed retained administrator thread-tagged CPU capture; corrected
 the earlier pending-profile status. Added offline analyzer and8 regression tests.
 Native attribution remains blocked; no speculative runtime fix, deployment,

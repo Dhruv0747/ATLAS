@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[One-command native CPU profiling](docs/ATLAS_NATIVE_CPU_ADMIN_COMMAND_20261023.md):
+isolated ARM64 perf staged, nine offline tests pass; owner sudo run pending.
+No camera or runtime changes; existing safety/resource limits enforced.
+
 [New CPU evidence](docs/ATLAS_TAGGED_CPU_FINDINGS_20261023.md): recovered completed
 admin capture; two hot threads confirmed, native cause still unresolved. Eight
 offline analyzer tests pass. No runtime changes; white-glass UI preserved.
