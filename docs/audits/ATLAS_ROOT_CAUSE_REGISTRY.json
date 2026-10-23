@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-NATIVE-CPU-CAPTURE-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Native capture qod4956t contains75 user CPU samples with zero reported losses;53 CPython,7 rclpy,6 libc,4 FastDDS,5 other. Actual Python execution dominates selected threads' observed self CPU; not evidence of a native busy-wait fault.",
+      "remaining_validation": "Python-level on-CPU function attribution unresolved. Native frames do not identify Python source lines. No runtime optimization/deployment or CPU savings claimed; owner diagnostic CPU exception did not change production limits.",
+      "reference": "docs/ATLAS_NATIVE_CPU_RESULT_20261023.md"
+    },
+    {
       "id": "ATLAS-NATIVE-PROFILER-USERBUS-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Native CPU result](docs/ATLAS_NATIVE_CPU_RESULT_20261023.md):75 samples/zero
+reported losses; Python execution dominates selected threads. Exact Python
+function cost unresolved; no safe runtime fix or CPU savings claimed. UI preserved.
+
 [One-command native CPU profiling](docs/ATLAS_NATIVE_CPU_ADMIN_COMMAND_20261023.md):
 user-bus fix passed; second run aborted77.14% with zero CPU stack samples.
 Narrow two-thread profiler prepared,19 tests pass. Owner-authorized diagnostic

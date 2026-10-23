@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-23 usable native CPU capture:75 samples/zero reported loss;53 samples in
+CPython,7 rclpy,6 libc,4 FastDDS,5 other. No native wait-dominance or safe runtime
+fix proved. Profile CPUpeak78.52% under owner diagnostic exception only; production
+guards/UI/services unchanged. Need Python function-level on-CPU attribution,
+not another native-wait diagnosis. docs/ATLAS_NATIVE_CPU_RESULT_20261023.md.
+
 2026-10-23 second native-profile attempt aborted CPU77.14%; perf metadata exists
 but ZERO CPU samples. User-bus fix passed. Two-TID/per-thread diagnostic candidate
 prepared,19 tests pass. Owner approved CPU report-only ONLY for next bounded

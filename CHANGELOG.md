@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-23 analyzed completed owner native CPU capture:75 samples,zero reported
+loss;70.67% sampled self CPU in CPython. Documented resource windows and evidence
+limits. No speculative executor modification, runtime deployment or camera test.
+
 2026-10-23 inspected second native-profile abort: zero samples, no runtime fix
 justified. Prepared narrower two-TID profiler and explicit owner-approved CPU
 report-only for diagnostics only;19 tests pass. Runtime guards/UI unchanged.
