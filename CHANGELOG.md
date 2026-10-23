@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-23 approved white-glass installation ABORTED before any live change:
+fresh CPU76.0943% exceeded unchanged75% guard. All ten live pages unchanged;
+webPID1973/restarts0 intact. Guarded installer and failure evidence documented.
+
 2026-10-23 owner-requested white-glass theme with static ATLAS logo watermark.
 Light-theme text and controls adjusted; red E-STOP preserved. Preview only.
 

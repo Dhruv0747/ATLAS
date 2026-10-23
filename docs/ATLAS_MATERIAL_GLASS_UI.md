@@ -1,5 +1,36 @@
 # Shared lightweight glass UI — candidate, not deployed
 
+## Approved installation attempt — 23 October
+
+Owner approved installing the white-glass UI on all active pages without restart,
+camera start or motion. All ten actual live HTML pages match the pre-theme baseline
+after newline normalization. The installer preserves the exact live bytes and adds
+only one stylesheet link, rather than replacing live pages with repository copies.
+Candidate CSS SHA256:
+`ea6a213b8a7b5aa5f4777af64259a75589799ebd151e39acf4723fc6fb6368d5`.
+Exact baseline manifest SHA256:
+`26a1cb668cf6b6a95d746ccad6276b725f82ac713b4319e36879a1c282f82a4c`.
+
+**ABORTED BEFORE INSTALLATION:** first fresh 1-second CPU sample was
+76.0942760942761%, above the preserved75% limit. Resource check exited before
+RAM/temperature/policy sampling; do not report those as freshly passed. Astra-OFF
+check and protected-service active check passed first. No retry performed.
+No HTML or CSS was installed; all ten live HTML hashes remain equal to the
+manifest, material.css remains absent and web PID1973/restarts0 is unchanged.
+No service restart, reboot, permission/network change, recording or movement.
+
+Evidence directory (result only; preflight stopped before production backup):
+`/home/jetson/project-atlas-migration/white-glass-20261023/white-glass-backup-litstex5/`.
+The staging directory retains installer, CSS and exact manifest. Four offline
+installer tests cover byte-preserving edits, duplicate/ambiguous-head rejection,
+atomic write/restore and CSS hash pin. All ten copied live files also passed
+offline patch/duplicate-rejection rehearsal.
+
+Next: a fresh guarded attempt after resource headroom is available. No threshold
+change is proposed. Before/after CPU comparison was not reached; no CPU saving or
+live-theme quality claim is supported by this aborted attempt. The production UI
+remains its previous theme.
+
 Owner requested a consistent glassmorphism, skeuomorphic and neumorphic style,
 then requested blur and a stronger glass appearance without invisible panels.
 
