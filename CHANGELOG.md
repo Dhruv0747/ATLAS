@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-24 profiled exact-live localization core offline. Fit-allocation candidate
+passes216 score comparisons,10 existing tests and2 focused tests;full hypotheses
+unchanged. Rejected:two6pair batches show2.40% then-0.51% median CPU savings.
+Coarse scoring dominates synthetic search;actual live attribution remains unknown.
+No install/restart/camera/movement or safety/UI/voice changes.
+
 2026-10-24 approved safety-status retry DEPLOYED with explicit installation-only
 CPU reporting. Six tests,exact hashes,backup and health checks pass;only reporter
 restarted. Reporter CPU13.57 to13.10%onecore,wholeCPU70.72 to71.36%;100%restart/

@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 localization fit allocation candidate REJECTED offline:216 score
+equivalence cases/10existing+2focused tests pass;paired CPU2.40% then-0.51% not
+repeatable. Coarse scoring dominates synthetic search;live duty-cycle attribution
+unknown. No production change. See ATLAS_LOCALIZATION_CPU_CANDIDATE_REJECTED_20261024.md.
+
 2026-10-24 safety scan retry DEPLOYED,owner installation-only CPU-report exception.
 Hash/health verified;reporterPID119178,other service identities unchanged. Reporter
 13.57 to13.10%onecore;wholeCPU70.72 to71.36%,settling100%,postpeak75.53%. No system

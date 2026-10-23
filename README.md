@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Next CPU candidate rejected offline](docs/ATLAS_LOCALIZATION_CPU_CANDIDATE_REJECTED_20261024.md):
+localization fit allocation preserved216 score cases/10 existing tests, but
+paired savings2.40% then-0.51% were not repeatable. No production change.
+
 [Safety scan retry deployed](docs/ATLAS_SAFETY_SCAN_DEPLOYMENT_RETRY_20261024.md):
 single-file/safety-status-only restart verified under owner installation CPU
 report-only. Reporter13.57 to13.10%onecore;wholeCPU70.72 to71.36%,no system saving.

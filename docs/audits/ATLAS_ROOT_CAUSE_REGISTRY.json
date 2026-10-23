@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-FIT-CPU-REJECTED-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Exact-live fit allocation candidate preserved216 scores and complete synthetic hypotheses;10existing+2focused tests pass. Two6pair batches median CPU2.403% then-0.509%;rejected,no production changes.",
+      "remaining_validation": "Coarse scoring dominates offline synthetic profile;actual live monitor function/duty-cycle attribution versus ROS dispatch unknown. No Jetson CPU saving or Astra readiness claimed.",
+      "reference": "docs/ATLAS_LOCALIZATION_CPU_CANDIDATE_REJECTED_20261024.md"
+    },
+    {
       "id": "ATLAS-SAFETY-SCAN-DEPLOYED-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
