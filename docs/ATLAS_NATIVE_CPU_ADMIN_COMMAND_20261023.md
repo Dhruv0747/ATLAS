@@ -1,5 +1,36 @@
 # One owner-run native Dashboard CPU profile
 
+## Current next action: targeted Python GIL profile
+
+Native capture is now analyzed in `ATLAS_NATIVE_CPU_RESULT_20261023.md`.
+The next owner-run diagnostic targets Python functions holding the GIL in the
+existing Dashboard PID: 10 seconds, 20 Hz, thread-tagged Speedscope output.
+It uses the existing hash-verified py-spy binary, nonblocking sampling, no locals,
+no idle-thread capture and no child-process capture. It samples all GIL-holding
+threads in that PID; the two native TIDs remain monitored for identity/CPU
+correlation, not a Python sampling filter. Nonblocking stacks can be inconsistent;
+sample counts are not exact function CPU time or proof of a fix.
+
+Run once, leaving ATLAS stopped and E-STOP latched:
+
+```bash
+sudo /usr/bin/timeout --signal=INT --kill-after=3s 45s /usr/bin/python3 -I -B /home/jetson/project-atlas-migration/native-cpu-20261023/native_dashboard_cpu_once.py --python-gil
+```
+
+This command retains CPU 75%, RAM 80%, temperature 70 C and all freshness/safety
+gates. The previous native-run CPU exception is NOT included or carried forward.
+No automatic retry. No production edit, service restart, camera start or motion.
+Private output: a new `evidence-*` directory under the diagnostic staging folder;
+`python-gil.json`, profiler log, resource trace and result hashes stay there.
+
+Prepared helper SHA256 (local and staged bytes verified identical):
+`f1bb43e830ae221d33ae6fc40564e457b117f9e173d47facfbc1d47fbf392a76`.
+Backup: same staging folder, `native_dashboard_cpu_once.pre-python-gil.py`.
+Offline unittest suite: **22 passed**, including unchanged CPU policy in Python
+mode, bounded command, no-local/no-idle options and invalid PID rejection.
+No Python capture or runtime optimization has been executed at this checkpoint.
+CPU savings remain unmeasured; select any production fix only after analysis.
+
 ## Latest checkpoint: zero-sample abort and narrower candidate
 
 Second owner run: `evidence-4a85e42k`, ABORTED at77.142857% CPU, before

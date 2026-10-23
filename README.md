@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Targeted Python profiling prepared](docs/ATLAS_NATIVE_CPU_ADMIN_COMMAND_20261023.md):
+10-second GIL-filtered diagnostic, 22 offline tests passed, staged hash verified.
+Default 75/80/70 resource guards retained; no camera, restart or runtime fix yet.
+
 [Native CPU result](docs/ATLAS_NATIVE_CPU_RESULT_20261023.md):75 samples/zero
 reported losses; Python execution dominates selected threads. Exact Python
 function cost unresolved; no safe runtime fix or CPU savings claimed. UI preserved.

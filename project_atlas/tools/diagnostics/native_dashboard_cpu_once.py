@@ -22,6 +22,8 @@ LIVE = Path('/home/jetson/project_atlas')
 STAGE = Path('/home/jetson/project-atlas-migration/native-cpu-20261023')
 PERF = STAGE/'extracted/usr/lib/linux-tools-5.15.0-198/perf'
 PERF_SHA = 'd51e7c1b3051d529e9a55c610d3d9e70e3b99ae89eebb477fae23a274e7311ca'
+PYSPY = Path('/home/jetson/project-atlas-migration/admin-diag-20261023/py-spy')
+PYSPY_SHA = '972918b5d6af92649ec086ffdd89cefa0d725fd14844434c766f58494a1c4f8e'
 HASHES = {
     'scripts/atlas_status_web.py': '98f3c2692e7c1c52e1285d3d91432ed521c67ff49c64508ad9a3813d1f0e5b79',
     'web/v2/material.css': 'ea6a213b8a7b5aa5f4777af64259a75589799ebd151e39acf4723fc6fb6368d5',
@@ -72,6 +74,23 @@ def cpu_exception(arguments):
     if arguments not in ([], ['--diagnostic-cpu-report-only']):
         raise ValueError('Unknown arguments; CPU exception requires exact owner-approved flag')
     return bool(arguments)
+
+
+def parse_options(arguments):
+    remaining = list(arguments)
+    python_gil = '--python-gil' in remaining
+    if python_gil:
+        remaining.remove('--python-gil')
+    return python_gil, cpu_exception(remaining)
+
+
+def python_command(pid, output):
+    if not isinstance(pid, int) or pid <= 1:
+        raise ValueError('invalid target PID')
+    return ['/usr/bin/timeout', '--signal=INT', '--kill-after=2s', '13s', str(PYSPY),
+            'record', '--pid', str(pid), '--duration', '10', '--rate', '20',
+            '--gil', '--threads', '--nonblocking', '--format', 'speedscope',
+            '--output', str(output)]
 
 
 def select_hot_threads(before, after, count=2):
@@ -151,7 +170,7 @@ def stop_owned(process):
 
 
 def main():
-    report_only = cpu_exception(sys.argv[1:])
+    python_gil, report_only = parse_options(sys.argv[1:])
     if os.geteuid() != 0 or os.environ.get('SUDO_USER') != 'jetson':
         raise SystemExit('Run once with sudo as jetson; do not change global permissions.')
     account = pwd.getpwnam('jetson')
@@ -163,6 +182,7 @@ def main():
     directory = Path(tempfile.mkdtemp(prefix='evidence-', dir=STAGE))
     report = dict(status='ABORTED', evidence=str(directory), camera_started=False,
                   services_restarted=False, production_changed=False,
+                  profile_mode='PYTHON_GIL' if python_gil else 'NATIVE_CPU',
                   cpu_policy='OWNER DIAGNOSTIC REPORT ONLY' if report_only else 'STOP >75%')
     process = None
     log = None
@@ -174,7 +194,7 @@ def main():
     try:
         for name, digest in HASHES.items():
             verify(LIVE/name, digest)
-        verify(PERF, PERF_SHA)
+        verify(PYSPY if python_gil else PERF, PYSPY_SHA if python_gil else PERF_SHA)
         if shutil.disk_usage(directory).free < 256*1024*1024:
             raise RuntimeError('Insufficient disk headroom')
         sys.path.insert(0, str(LIVE/'tools/vision3d'))
@@ -237,11 +257,13 @@ def main():
         selected = select_hot_threads(baseline_threads, thread_snapshot(pid))
         report['selected_native_threads'] = selected
         require_target_threads(thread_snapshot(pid), selected)
-        # Root is needed only for perf_event_open on this existing target.
-        log = (directory/'perf.log').open('xb')
+        # Root is used only for bounded sampling of this existing target.
+        output = directory/('python-gil.json' if python_gil else 'perf.data')
+        args = python_command(pid, output) if python_gil else command(pid, output, [int(t) for t in selected])
+        log = (directory/('python-gil.log' if python_gil else 'perf.log')).open('xb')
         as_root()
         try:
-            process = subprocess.Popen(command(pid, directory/'perf.data', [int(t) for t in selected]), stdout=log,
+            process = subprocess.Popen(args, stdout=log,
                 stderr=subprocess.STDOUT, start_new_session=True, cwd=directory,
                 env={'PATH': '/usr/bin:/bin', 'HOME': '/nonexistent', 'LC_ALL': 'C'})
         finally:
@@ -254,7 +276,7 @@ def main():
             sample('profile')
         report['profiler_returncode'] = process.returncode
         if process.returncode != 0:
-            raise RuntimeError('perf failed; preserve perf.log; no retry')
+            raise RuntimeError('Profiler failed; preserve profiler log; no retry')
         for _ in range(5):
             sample('postflight')
         report['services_after'] = identities()
@@ -283,6 +305,10 @@ def main():
         data = directory/'perf.data'
         if data.exists():
             report.update(perf_bytes=data.stat().st_size, perf_sha256=hashlib.sha256(data.read_bytes()).hexdigest())
+        python_data = directory/'python-gil.json'
+        if python_data.exists():
+            report.update(python_profile_bytes=python_data.stat().st_size,
+                          python_profile_sha256=hashlib.sha256(python_data.read_bytes()).hexdigest())
         with (directory/'result.json').open('x') as output:
             json.dump(report, output, indent=2)
             output.flush()

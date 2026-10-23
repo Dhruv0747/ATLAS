@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-23 prepared bounded GIL-filtered Python profiling for the existing
+Dashboard PID. 22 offline tests pass; diagnostic helper staged with hash-verified
+bytes and backup. CPU exception is not carried forward. No production change,
+camera activation, service restart, movement or claimed CPU saving.
+
 2026-10-23 analyzed completed owner native CPU capture:75 samples,zero reported
 loss;70.67% sampled self CPU in CPython. Documented resource windows and evidence
 limits. No speculative executor modification, runtime deployment or camera test.

@@ -153,3 +153,24 @@ class NativeProfileTests(unittest.TestCase):
         for cpu in (float('nan'), float('inf'), -1, 101, None):
             with self.assertRaises(RuntimeError):
                 M.checked_cpu(cpu, True)
+
+    def test_python_gil_does_not_imply_cpu_exception(self):
+        self.assertEqual(M.parse_options(['--python-gil']), (True, False))
+        self.assertEqual(M.parse_options([]), (False, False))
+        self.assertEqual(M.parse_options(['--python-gil', '--diagnostic-cpu-report-only']), (True, True))
+        with self.assertRaises(ValueError):
+            M.parse_options(['--python-gil', '--python-gil'])
+
+    def test_python_profile_is_bounded_gil_filtered_and_no_locals(self):
+        command = M.python_command(1973, Path('/tmp/private/python-gil.json'))
+        self.assertEqual(command[command.index('--pid')+1], '1973')
+        self.assertEqual(command[command.index('--duration')+1], '10')
+        self.assertEqual(command[command.index('--rate')+1], '20')
+        for flag in ('--gil', '--threads', '--nonblocking', '13s'):
+            self.assertIn(flag, command)
+        for flag in ('--locals', '--idle', '--subprocesses'):
+            self.assertNotIn(flag, command)
+
+    def test_python_invalid_pid_rejected(self):
+        with self.assertRaises(ValueError):
+            M.python_command(0, Path('/tmp/x'))
