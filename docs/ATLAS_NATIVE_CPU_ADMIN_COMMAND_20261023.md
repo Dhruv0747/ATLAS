@@ -1,5 +1,52 @@
 # One owner-run native Dashboard CPU profile
 
+## Latest checkpoint: zero-sample abort and narrower candidate
+
+Second owner run: `evidence-4a85e42k`, ABORTED at77.142857% CPU, before
+RAM/temperature/policy checks for that failing sample. Previous baseline samples
+passed. Five prelaunch CPU samples:69.0476,71.2095,70.6081,71.6949,68.9713%.
+Profile launch monotonic10250.822816; failed sample10251.639502 (0.817s later).
+Dashboard TIDs5549/5729 used27.94/14.97% one-core in that interval, comparable to
+the immediately preceding intervals. Does NOT establish cause of aggregate spike.
+
+perf.data255928bytes, SHA256
+`a84cf2dec8497ca80b93122a5a4cfd511e05aff19606f92f889811098c532675`.
+Offline `perf report --stdio --header --no-children` says **data has no samples**.
+The file has process/mapping/header metadata, not usable CPU call stacks.
+Event header lists138IDs; proc trace has23 Dashboard threads on6 CPUs.
+The file is not proof of successful profiling or a runtime CPU fix.
+
+Prepared diagnostic-only narrowing: select two stable native TIDs with the
+largest measured baseline tick deltas; verify birth IDs before/during attachment.
+Use `-t`, `--per-thread`, `--no-bpf-event`, one synthesis thread. Keep19Hz,
+10s, user-space CPU event, bounded DWARF stacks and existing timeouts. This
+reduces target scope23->2; actual sampling overhead reduction remains unmeasured.
+All options verified in staged perf help. No retry executed by the agent.
+
+Owner subsequently explicitly requested ignoring CPU for this attempt. Added
+`--diagnostic-cpu-report-only`, default OFF, limited to this stationary profiler.
+It keeps measuring/recording valid CPU but passes None to the existing gate's
+optional CPU argument. All RAM80%, temperature70C, freshness, callback/sampling
+deadline, E-STOP/manual-only/zero-command checks remain. Production gate files,
+Astra75% limit and all runtime policies remain unchanged. Invalid CPU samples
+still abort. No camera start/motion/restart or production installation.
+
+Owner's explicit-exception command, run ONCE:
+
+```bash
+sudo /usr/bin/timeout --signal=INT --kill-after=3s 45s /usr/bin/python3 -I -B /home/jetson/project-atlas-migration/native-cpu-20261023/native_dashboard_cpu_once.py --diagnostic-cpu-report-only
+```
+
+Nineteen offline tests pass in WSL. Staged helper SHA256 verified:
+`12c12eb51517e6d26149143f1ad0365feee65d4098cacdcb408e8da5f6578b66`.
+Prior corrected helper retained as `native_dashboard_cpu_once.pre-two-thread.py`.
+Fresh read-only postflight: CPU71%,RAM71.057%,max60.062C, E-STOP latched,
+manual-only,zero commands,recorder off and extra-safety sensor checks pass.
+Protected PIDs/restart counts equal owner-run initial identities. Astra process
+absent; white-glass and Dashboard source hashes unchanged. No CPU saving claimed.
+
+Earlier checkpoints follow for provenance; command/hash/counts above supersede them.
+
 Prepared23 October2026 after7534178. First owner run aborted before profiling;
 corrected helper staged below. No CPU fix claimed.
 

@@ -12,8 +12,11 @@ spec.loader.exec_module(M)
 
 class NativeProfileTests(unittest.TestCase):
     def test_target_and_bounds(self):
-        c = M.command(1973, Path('/tmp/private/perf.data'))
-        self.assertEqual(c[c.index('-p')+1], '1973')
+        c = M.command(1973, Path('/tmp/private/perf.data'), [5549, 5729])
+        self.assertEqual(c[c.index('-t')+1], '5549,5729')
+        self.assertNotIn('-p', c)
+        self.assertIn('--per-thread', c)
+        self.assertIn('--no-bpf-event', c)
         self.assertIn('13s', c)
         self.assertEqual(c[-2:], ['/usr/bin/sleep', '10'])
         self.assertEqual(c[c.index('-F')+1], '19')
@@ -26,7 +29,28 @@ class NativeProfileTests(unittest.TestCase):
     def test_invalid_pid(self):
         for pid in (0, -1, 1, '1973', None):
             with self.assertRaises(ValueError):
-                M.command(pid, Path('/tmp/x'))
+                M.command(pid, Path('/tmp/x'), [2, 3])
+
+    def test_invalid_tids(self):
+        for tids in ([], [2], [2, 2], [0, 3], ['2', 3], [2, 3, 4]):
+            with self.assertRaises(ValueError):
+                M.command(1973, Path('/tmp/x'), tids)
+
+    def test_selection_uses_ticks_and_birth(self):
+        a = {str(i): dict(ticks=100, birth=i) for i in range(2, 6)}
+        b = {str(i): dict(ticks=100+i*10, birth=i) for i in range(2, 6)}
+        b['5']['birth'] = 99
+        self.assertEqual(M.select_hot_threads(a, b), {'4': 4, '3': 3})
+
+    def test_insufficient_stable_threads_fails(self):
+        with self.assertRaises(RuntimeError):
+            M.select_hot_threads({}, {'7': dict(ticks=99, birth=1)})
+
+    def test_selected_thread_identity_change_fails(self):
+        M.require_target_threads({'7': dict(birth=4)}, {'7': 4})
+        for current in ({}, {'7': dict(birth=5)}):
+            with self.assertRaises(RuntimeError):
+                M.require_target_threads(current, {'7': 4})
 
     def test_camera_off(self):
         M.require_off({'state': 'OFF'}, 1)
@@ -110,9 +134,22 @@ class NativeProfileTests(unittest.TestCase):
 
     def test_preserved_gate_and_no_control_operations(self):
         source = FILE.read_text()
-        self.assertIn('G.require_cpu(cpu)', source)
-        self.assertIn('G.check(cpu, snap)', source)
+        self.assertIn('G.require_cpu(admitted_cpu)', source)
+        self.assertIn('G.check(admitted_cpu, snap)', source)
         self.assertIn("P.extra_safety(snap['ros'])", source)
         for forbidden in ('setfacl', 'chmod 777', 'systemctl restart', 'rclpy.init',
-                          'resource_check', 'report_only', 'apt-get install'):
+                          'resource_check', 'apt-get install'):
             self.assertNotIn(forbidden, source)
+
+    def test_cpu_exception_is_explicit_only(self):
+        self.assertFalse(M.cpu_exception([]))
+        self.assertTrue(M.cpu_exception(['--diagnostic-cpu-report-only']))
+        with self.assertRaises(ValueError):
+            M.cpu_exception(['--ignore-everything'])
+        self.assertEqual(M.checked_cpu(77), 77)
+        self.assertIsNone(M.checked_cpu(77, True))
+
+    def test_cpu_exception_does_not_accept_invalid_measurements(self):
+        for cpu in (float('nan'), float('inf'), -1, 101, None):
+            with self.assertRaises(RuntimeError):
+                M.checked_cpu(cpu, True)

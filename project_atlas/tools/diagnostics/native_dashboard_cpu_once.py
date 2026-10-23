@@ -6,6 +6,7 @@ jetson. Safety checks run as jetson. Raw DWARF stack snippets stay private.
 """
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import pwd
@@ -61,11 +62,46 @@ def service_output(args, emit):
     return result.stdout
 
 
-def command(pid, output):
+def checked_cpu(cpu, report_only=False):
+    if not isinstance(cpu, (int, float)) or not math.isfinite(cpu) or not 0 <= cpu <= 100:
+        raise RuntimeError('Invalid CPU measurement')
+    return None if report_only else cpu
+
+
+def cpu_exception(arguments):
+    if arguments not in ([], ['--diagnostic-cpu-report-only']):
+        raise ValueError('Unknown arguments; CPU exception requires exact owner-approved flag')
+    return bool(arguments)
+
+
+def select_hot_threads(before, after, count=2):
+    """Select stable native TIDs by actual tick deltas, never Python addresses."""
+    ranked = []
+    for tid, row in after.items():
+        old = before.get(tid)
+        if old is not None and row['birth'] == old['birth']:
+            delta = row['ticks']-old['ticks']
+            if delta > 0:
+                ranked.append((delta, int(tid), row['birth']))
+    ranked.sort(reverse=True)
+    if len(ranked) < count:
+        raise RuntimeError('Insufficient stable CPU-active target threads')
+    return {str(tid): birth for _, tid, birth in ranked[:count]}
+
+
+def require_target_threads(current, selected):
+    if any(current.get(tid, {}).get('birth') != birth for tid, birth in selected.items()):
+        raise RuntimeError('Selected profiling thread exited or changed identity')
+
+
+def command(pid, output, tids):
     if not isinstance(pid, int) or pid <= 1:
         raise ValueError('invalid target PID')
+    if len(tids) != 2 or len(set(tids)) != 2 or any(not isinstance(t, int) or t <= 1 for t in tids):
+        raise ValueError('exactly two distinct native target TIDs required')
     return ['/usr/bin/timeout', '--signal=INT', '--kill-after=2s', '13s', str(PERF),
-            'record', '-p', str(pid), '--no-inherit', '-e', 'cpu-clock:u',
+            'record', '-t', ','.join(map(str, tids)), '--no-inherit', '--per-thread',
+            '--no-bpf-event', '--num-thread-synthesize', '1', '-e', 'cpu-clock:u',
             '-F', '19', '--strict-freq', '--call-graph', 'dwarf,4096',
             '-m', '64', '--no-buildid', '--no-buildid-cache', '-k', 'CLOCK_MONOTONIC',
             '-o', str(output), '--', '/usr/bin/sleep', '10']
@@ -115,6 +151,7 @@ def stop_owned(process):
 
 
 def main():
+    report_only = cpu_exception(sys.argv[1:])
     if os.geteuid() != 0 or os.environ.get('SUDO_USER') != 'jetson':
         raise SystemExit('Run once with sudo as jetson; do not change global permissions.')
     account = pwd.getpwnam('jetson')
@@ -125,7 +162,8 @@ def main():
                       DBUS_SESSION_BUS_ADDRESS=f'unix:path=/run/user/{account.pw_uid}/bus')
     directory = Path(tempfile.mkdtemp(prefix='evidence-', dir=STAGE))
     report = dict(status='ABORTED', evidence=str(directory), camera_started=False,
-                  services_restarted=False, production_changed=False)
+                  services_restarted=False, production_changed=False,
+                  cpu_policy='OWNER DIAGNOSTIC REPORT ONLY' if report_only else 'STOP >75%')
     process = None
     log = None
     trace = (directory/'telemetry.jsonl').open('x', buffering=1)
@@ -159,6 +197,8 @@ def main():
         if b'/home/jetson/project_atlas/scripts/atlas_status_web.py' not in Path('/proc', str(pid), 'cmdline').read_bytes().split(b'\0'):
             raise RuntimeError('Not the reviewed Dashboard command')
         birth = thread_snapshot(pid)[str(pid)]['birth']
+        baseline_threads = thread_snapshot(pid)
+        selected = {}
         previous, last = G.ticks(), time.monotonic()
         def sample(phase):
             nonlocal previous, last
@@ -167,13 +207,19 @@ def main():
             ticks = G.ticks()
             cpu, dt = G.cpu_delta(previous, ticks), now-last
             previous, last = ticks, now
+            threads = thread_snapshot(pid)
             emit(dict(phase=phase, monotonic=now, cpu=cpu, interval_s=dt,
-                      threads=thread_snapshot(pid), observer_cpu_s=time.process_time()))
-            G.require_cpu(cpu)
+                      threads=threads, observer_cpu_s=time.process_time()))
+            if selected:
+                require_target_threads(threads, selected)
+            admitted_cpu = checked_cpu(cpu, report_only)
+            G.require_cpu(admitted_cpu)
             if dt > 1.5:
                 raise RuntimeError('Sampling deadline missed')
             snap = P.safety_snapshot()
-            health = G.check(cpu, snap)
+            health = G.check(admitted_cpu, snap)
+            health['cpu_percent'] = cpu
+            health['diagnostic_cpu_report_only'] = report_only
             extra = P.extra_safety(snap['ros'])
             with urllib.request.urlopen('http://127.0.0.1:8088/api/vision3d/summary', timeout=2) as response:
                 camera = json.load(response)
@@ -188,11 +234,14 @@ def main():
             sample('baseline')
         if identities() != before:
             raise RuntimeError('Service changed before profile')
+        selected = select_hot_threads(baseline_threads, thread_snapshot(pid))
+        report['selected_native_threads'] = selected
+        require_target_threads(thread_snapshot(pid), selected)
         # Root is needed only for perf_event_open on this existing target.
         log = (directory/'perf.log').open('xb')
         as_root()
         try:
-            process = subprocess.Popen(command(pid, directory/'perf.data'), stdout=log,
+            process = subprocess.Popen(command(pid, directory/'perf.data', [int(t) for t in selected]), stdout=log,
                 stderr=subprocess.STDOUT, start_new_session=True, cwd=directory,
                 env={'PATH': '/usr/bin:/bin', 'HOME': '/nonexistent', 'LC_ALL': 'C'})
         finally:

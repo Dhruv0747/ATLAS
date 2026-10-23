@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-23 inspected second native-profile abort: zero samples, no runtime fix
+justified. Prepared narrower two-TID profiler and explicit owner-approved CPU
+report-only for diagnostics only;19 tests pass. Runtime guards/UI unchanged.
+
 2026-10-23 corrected native-profiler mixed UID/GID launch bug after owner-run
 user-bus failure. Exact error reproduced offline;13 tests pass; diagnostic helper
 only staged with backup, full service error evidence retained. CPU unresolved;

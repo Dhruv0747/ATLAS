@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-23 second native-profile attempt aborted CPU77.14%; perf metadata exists
+but ZERO CPU samples. User-bus fix passed. Two-TID/per-thread diagnostic candidate
+prepared,19 tests pass. Owner approved CPU report-only ONLY for next bounded
+stationary diagnostic; production75% and other guards untouched. No retry yet.
+See docs/ATLAS_NATIVE_CPU_ADMIN_COMMAND_20261023.md. Runtime CPU cause unresolved.
+
 2026-10-23 native profiler owner run aborted before sampling: mixed real-root/
 effective-jetson identity made systemctl ignore session-bus environment. Exact
 error reproduced offline; corrected matched UID/GID helper staged,13 unit tests

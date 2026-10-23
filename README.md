@@ -1,9 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
 [One-command native CPU profiling](docs/ATLAS_NATIVE_CPU_ADMIN_COMMAND_20261023.md):
-first owner run blocked by mixed-UID user-bus access. Corrected helper staged,
-13 tests and isolated Linux identity checks pass; new owner sudo run pending.
-No camera or runtime changes; existing safety/resource limits enforced.
+user-bus fix passed; second run aborted77.14% with zero CPU stack samples.
+Narrow two-thread profiler prepared,19 tests pass. Owner-authorized diagnostic
+CPU report-only option does not change production guards. No camera/runtime change.
 
 [New CPU evidence](docs/ATLAS_TAGGED_CPU_FINDINGS_20261023.md): recovered completed
 admin capture; two hot threads confirmed, native cause still unresolved. Eight
