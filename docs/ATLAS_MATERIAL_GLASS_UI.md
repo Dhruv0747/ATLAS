@@ -1,4 +1,49 @@
-# Shared lightweight glass UI — candidate, not deployed
+# Shared lightweight glass UI — deployed 23 October 2026
+
+## Successful owner-authorized installation
+
+Result: **DEPLOYED_VERIFIED_NO_RESTART**. This supersedes the earlier aborted
+attempt retained below. Owner authorized CPU report-only for this static-file
+installation only. Runtime CPU75%, RAM80%, temperature70C and camera safeguards
+remain unchanged. No safety service or control code was modified.
+
+Installed one shared CSS file and exact-byte-preserving stylesheet links in all
+ten live HTML pages. All eleven HTTP checks returned200; served CSS matched its
+reviewed SHA256. Protected backend, safety probe/gate and non-HTML asset hashes
+were unchanged. Protected services retained their PIDs and restart counts.
+E-STOP remained latched, manual-only enabled, commands zero, commissioning off,
+recording off and Astra off. Required sensor freshness checks passed.
+No camera start, service restart, reboot, networking change or movement occurred.
+
+Ten one-second samples before and ten after installation:
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Whole-Jetson CPU average | 70.47% | 70.45% |
+| Whole-Jetson CPU peak | 72.48% | 71.94% |
+| Dashboard CPU average (one-core scale) | 46.93% | 47.89% |
+| RAM average | 69.36% | 69.49% |
+| Maximum temperature | 59.41C | 59.44C |
+| Dashboard maximum RSS | 184584 KiB | 184664 KiB |
+
+Whole-Jetson load is effectively unchanged: **no demonstrated CPU saving**.
+This short parked installation trace is not a live browser rendering benchmark.
+No new polling or JavaScript was added; client-side glass rendering cost remains
+unmeasured. All actual CPU samples were below75%, despite the authorized exception.
+
+Backup and full hash/measurement evidence:
+`/home/jetson/project-atlas-migration/white-glass-20261023/white-glass-backup-msnvmcz9/`.
+`web/` contains the verified original tree; `result.json` contains all installed
+hashes, samples and before/after service identities. Raw telemetry is retained
+locally rather than committed. Six installer tests pass, including default CPU
+enforcement, explicit report-only scope, invalid CPU rejection and preservation
+of the other gate failures. Production guard files themselves are unchanged.
+
+Rollback: first verify installed files still match `result.json`. Restore only
+the ten original HTML files from `web/`, then archive/remove only this deployment's
+hash-matching `material.css`. Preserve any subsequent edits and stop on a mismatch.
+Refresh the browser; no service restart is required. Do not rerun the installer
+against an already themed tree.
 
 ## Approved installation attempt — 23 October
 
@@ -26,7 +71,7 @@ installer tests cover byte-preserving edits, duplicate/ambiguous-head rejection,
 atomic write/restore and CSS hash pin. All ten copied live files also passed
 offline patch/duplicate-rejection rehearsal.
 
-Next: a fresh guarded attempt after resource headroom is available. No threshold
+Historical next step at that checkpoint: a fresh guarded attempt. No threshold
 change is proposed. Before/after CPU comparison was not reached; no CPU saving or
 live-theme quality claim is supported by this aborted attempt. The production UI
 remains its previous theme.
@@ -81,7 +126,7 @@ it is a local review aid, not a production component.
 
 ## Deployment and rollback
 
-NOT installed on Jetson. Before installation, owner approval and fresh stopped
+The installation described above is complete. For future changes, owner approval and fresh stopped
 safety checks are required. Hash and back up the ten actual live HTML files;
 compare them to the reviewed baseline, preserving developer changes. Install CSS
 first, then only the matching HTML link edits. The existing static asset handler

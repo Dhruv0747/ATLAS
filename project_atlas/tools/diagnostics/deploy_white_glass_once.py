@@ -2,6 +2,8 @@
 
 Stage beside material.css and manifest.json (SHA256 supplied as sole argument).
 Manifest maps the exact baseline HTML names to their SHA256. Fail closed on drift.
+An explicitly owner-authorized --installation-cpu-report-only applies ONLY to
+this static-file installation. Never changes production guard files/thresholds.
 """
 import hashlib
 import json
@@ -26,6 +28,15 @@ NAMES={'camera.html','classic.html','commissioning.html','flysky-testlab.html',
 def sha(data):return hashlib.sha256(data).hexdigest()
 
 
+def resource_check(gate,cpu,observation,report_only=False):
+    import math
+    if not math.isfinite(cpu) or not 0<=cpu<=100:raise RuntimeError('invalid CPU sample')
+    row=gate.check(None if report_only else cpu,observation)
+    row['cpu_percent']=cpu
+    row['installation_cpu_policy']='OWNER REPORT ONLY' if report_only else 'STOP >75%'
+    return row
+
+
 def patched(data):
     if LINK in data or data.count(b'</head>')!=1:raise RuntimeError('unexpected HTML/theme state')
     out=data.replace(b'</head>',LINK+b'</head>',1)
@@ -43,6 +54,7 @@ def atomic(path,data,mode=0o644):
 
 
 def main():
+    report_only=len(sys.argv)==3 and sys.argv[2]=='--installation-cpu-report-only'
     backup=Path(tempfile.mkdtemp(prefix='white-glass-backup-',dir=STAGE))
     report={'result':'ABORTED','backup':str(backup),'camera_started':False,'services_restarted':False}
     changed=[];original={};installed={}
@@ -72,7 +84,7 @@ def main():
         for _ in range(10):
             a=G.ticks();t=time.monotonic();p=pticks();time.sleep(1)
             b=G.ticks();end=time.monotonic();q=pticks()
-            row=G.check(G.cpu_delta(a,b),P.safety_snapshot())
+            row=resource_check(G,G.cpu_delta(a,b),P.safety_snapshot(),report_only)
             P.extra_safety();off()
             row['web_cpu_one_core_percent']=100*(q-p)/os.sysconf('SC_CLK_TCK')/(end-t)
             row['web_rss_kib']=int(next(l.split()[1] for l in Path('/proc',str(pid),'status').read_text().splitlines() if l.startswith('VmRSS:')))
@@ -80,7 +92,8 @@ def main():
         return rows
     try:
         manifest_bytes=(STAGE/'manifest.json').read_bytes()
-        if len(sys.argv)!=2 or sha(manifest_bytes)!=sys.argv[1]:raise RuntimeError('manifest hash mismatch')
+        if not (len(sys.argv)==2 or report_only) or sha(manifest_bytes)!=sys.argv[1]:raise RuntimeError('manifest hash/arguments mismatch')
+        report['installation_cpu_report_only']=report_only
         manifest=json.loads(manifest_bytes)
         if set(manifest)!=NAMES:raise RuntimeError('unexpected file scope')
         css=(STAGE/'material.css').read_bytes()
@@ -94,6 +107,8 @@ def main():
         protected={str(p.relative_to(ROOT)):sha(p.read_bytes()) for p in WEB.rglob('*') if p.is_file() and p.name not in NAMES}
         for name in ('atlas_status_web.py','atlas_web_v2.py'):
             p=ROOT/'scripts'/name;protected[str(p.relative_to(ROOT))]=sha(p.read_bytes())
+        for name in ('stationary_gate.py','stationary_ros_probe.py'):
+            p=ROOT/'tools/vision3d'/name;protected[str(p.relative_to(ROOT))]=sha(p.read_bytes())
         report['services_before']=services();off()
         report['before']=samples(report['services_before']['rover-status-web']['MainPID'])
         shutil.copytree(WEB,backup/'web')

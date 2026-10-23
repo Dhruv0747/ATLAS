@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-23 white-glass UI DEPLOYED_VERIFIED_NO_RESTART on ten active pages.
+Owner authorized static-installation-only CPU report-only; runtime guards intact.
+Eleven HTTP/hash checks pass; protected hashes/service identities unchanged.
+Six installer tests pass. CPU70.47% before/70.45% after (no meaningful saving).
+No camera, recording, movement, reboot or restart. Verified rollback retained.
+
 2026-10-23 approved white-glass installation ABORTED before any live change:
 fresh CPU76.0943% exceeded unchanged75% guard. All ten live pages unchanged;
 webPID1973/restarts0 intact. Guarded installer and failure evidence documented.

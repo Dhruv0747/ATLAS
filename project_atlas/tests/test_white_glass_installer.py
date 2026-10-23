@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('theme_deploy',ROOT/'tools/diagnostics/deploy_white_glass_once.py')
@@ -28,3 +29,18 @@ class InstallerTests(unittest.TestCase):
 
     def test_candidate_hash_pin(self):
         self.assertEqual(D.sha((ROOT/'web/v2/material.css').read_bytes()),D.CSS_SHA)
+
+    def test_cpu_exception_preserves_other_gate_checks_and_reports_measurement(self):
+        gate=Mock();gate.check.return_value={'commands_zero':True}
+        row=D.resource_check(gate,78,{'ros':'fixture'},True)
+        gate.check.assert_called_once_with(None,{'ros':'fixture'})
+        self.assertEqual(row['cpu_percent'],78)
+        gate.check.side_effect=RuntimeError('E-STOP not latched')
+        with self.assertRaisesRegex(RuntimeError,'E-STOP'):D.resource_check(gate,78,{},True)
+
+    def test_default_keeps_cpu_guard_and_invalid_samples_rejected(self):
+        gate=Mock();gate.check.return_value={}
+        D.resource_check(gate,74,{})
+        gate.check.assert_called_once_with(74,{})
+        for cpu in (float('nan'),float('inf'),-1,101):
+            with self.assertRaises(RuntimeError):D.resource_check(gate,cpu,{},True)
