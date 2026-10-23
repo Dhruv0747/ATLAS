@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-VOICE-CPU-CAPTURE-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Successful voice capture verified:65 samples/zero errors,64 MainThread,54 wait_for_ready_callbacks. Native main-thread CPU about22-23% one core. Earlier absent directory is not evidence of command failure; no repeat required.",
+      "remaining_validation": "Voice-specific offline private-executor comparison preserving audio, announcements, QoS and safety. No runtime fix or live savings yet.",
+      "reference": "docs/ATLAS_VOICE_CPU_CAPTURE_RESULT_20261023.md"
+    },
+    {
       "id": "ATLAS-REMAINING-CPU-ACCUMULATOR-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-23 voice capture g7twhac6 retrieved and hash-verified after earlier absent
+directory check. Command succeeded,65 samples/0errors;64 main-thread GIL samples,
+54 with wait_for_ready_callbacks. No retry needed. Voice-specific offline executor
+comparison remains; no runtime fix claimed. See ATLAS_VOICE_CPU_CAPTURE_RESULT_20261023.md.
+
 2026-10-23 targeted voice profiler prepared/staged,29 tests pass. Sudo requires
 owner password; capture not run. Owner allowed CPU-report-only for one diagnostic,
 all production limits unchanged. Await owner command output before a voice fix.

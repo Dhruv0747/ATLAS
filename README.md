@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Voice capture verified](docs/ATLAS_VOICE_CPU_CAPTURE_RESULT_20261023.md):
+65 samples/zero errors; main ROS executor dominates sampled GIL stacks.
+Command succeeded; no repeat needed. Voice-specific offline optimization pending.
+
 [Voice CPU profiling prepared](docs/ATLAS_VOICE_CPU_PROFILE_20261023.md):
 29 tests pass; bounded owner-run command staged. Explicit diagnostic-only CPU
 reporting authorized; production safeguards unchanged. Awaiting administrator run.

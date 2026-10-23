@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-23 retrieved and hash-verified successful voice profile g7twhac6:
+65 samples/zero errors, unchanged service identities. Main-thread ROS dispatch
+is the next offline target; no evidence for disabling voice/AI. No command fix,
+repeat capture, production change, camera start or movement needed/performed.
+
 2026-10-23 prepared hash-verified voice-only Python profiler using shared guarded
 observer.29 offline tests pass; owner administrator command required. Explicit
 CPU-report-only diagnostic exception does not alter production limits. No live
