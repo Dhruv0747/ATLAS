@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-23 completed alternating loaded PC executor comparison:10 pairs,
+2.14million messages,median6.25% paired CPU saving,one negative pair retained.
+Worst observed latency increased; no deadline/Jetson headroom claim.54 tests
+pass; no installation, UI change, camera start, movement or safety-limit change.
+
 2026-10-23 fixed captured executor cancelled/completed ready-task lookup offline.
 48 tests pass including baseline reproduction, future resumption and200-task
 mixed workload. CPU retest recorded unfavorable and favorable runs; no claimed

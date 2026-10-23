@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Loaded executor comparison](docs/ATLAS_EXECUTOR_LOADED_INTERLEAVED_20261023.md):
+2.14million messages delivered; median paired PC process CPU saving6.25%,9/10
+pairs positive. Worst latency slightly worse; no Jetson/deployment claim.54 tests pass.
+
 [Offline cancellation fix](docs/ATLAS_EXECUTOR_CANCELLATION_FIX_20261023.md):
 terminal ready tasks now skipped before lookup;48 tests passed. Full-executor
 CPU retest is variable, not proven Jetson savings. Nothing installed.

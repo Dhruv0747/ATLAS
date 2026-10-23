@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-23 interleaved loaded PC test:9/10 pairs lower CPU,median6.25%,all2.14M
+messages delivered. Worst latency9.19ms vs8.11ms baseline; no production deadline
+pass or Jetson savings established.54 tests pass; nothing deployed.
+See docs/ATLAS_EXECUTOR_LOADED_INTERLEAVED_20261023.md.
+
 2026-10-23 cancellation blocker corrected OFFLINE: terminal ready tasks skipped
 before pruned dictionary lookup;48 tests pass. Combined CPU candidate full-spin
 results vary from1.21% slower to17.26% faster, so headroom remains unproven.

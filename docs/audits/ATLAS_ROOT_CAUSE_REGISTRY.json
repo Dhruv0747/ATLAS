@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-EXECUTOR-LOADED-INTERLEAVED-20261023",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "PC loaded fixed-message comparison:2.14M delivered,9/10 positive CPU pairs,median6.2527% saving. Worst callback latency9.193337ms versus8.110136ms.54 tests pass. Synthetic workload only, not Jetson-wide savings or production safety pass.",
+      "remaining_validation": "QoS/concurrent entity and shutdown-race coverage, scoped overlay packaging, separate deployment approval and matched Jetson validation. No live installation or camera start.",
+      "reference": "docs/ATLAS_EXECUTOR_LOADED_INTERLEAVED_20261023.md"
+    },
+    {
       "id": "ATLAS-EXECUTOR-CANCELLED-READY-TASK-20261023",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
