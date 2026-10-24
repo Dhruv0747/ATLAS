@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-STARTUP-PACKAGE-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Inert v2 startup bundle prepared;24 tests pass and5 package tests pass Linux;10 hashes verified. Strict75/80/70 guards,one isolated constructor,receipt and stage logging,owned cleanup. Not copied or run.",
+      "remaining_validation": "Owner approval for one guarded isolated Jetson execution. No inherited CPU exception. Startup/stale-status cause remains unresolved;no production deployment authorized.",
+      "reference": "docs/ATLAS_LOCALIZATION_JETSON_STARTUP_APPROVAL_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-PC-ROS-STARTUP-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

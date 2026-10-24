@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 prepared inert guarded Jetson startup v2 bundle:24 offline tests pass,
+5 package tests also pass Linux;10 file hashes verified. Strict75/80/70 guards,
+single private-domain constructor,owned cleanup,receipt/stage evidence. Not copied
+or executed;owner approval pending. See ATLAS_LOCALIZATION_JETSON_STARTUP_APPROVAL_20261024.md.
+
 2026-10-24 native PC ROS construction test completed in localhost domain214:
 constructor62/31ms,10/10 synthetic heartbeats delivered,max gap1.0011s,19 tests
 pass. Failure NOT reproduced;identical constructors,not CPU-savings evidence.

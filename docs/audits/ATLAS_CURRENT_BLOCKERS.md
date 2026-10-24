@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 guarded isolated Jetson startup v2 package prepared locally only;
+24tests pass plus5Linux package tests,10hashes verified. No CPU bypass, no live
+changes. Await explicit one-test approval under unchanged75/80/70 limits.
+See docs/ATLAS_LOCALIZATION_JETSON_STARTUP_APPROVAL_20261024.md;stale cause unresolved.
+
 2026-10-24 PC ROS construction pair passed,19 tests,10/10 heartbeat messages,
 no>2s gaps. Jetson stale mission failure NOT reproduced;production load/quota/
 discovery absent,application never spun. Need reviewed guarded Jetson startup
