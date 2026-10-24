@@ -1,0 +1,15 @@
+# On-demand AI features (scripts/atlas_feature_on_demand.py). Units are fixed in code; this file only tunes them.
+# Set `always_on: true` for any feature that must never be stopped.
+timing:
+  boot_grace_s: 300        # nothing is stopped during the first 5 minutes after the manager starts
+  min_on_s: 60             # a started feature stays on at least this long
+  state_check_s: 15
+features:
+  atlas-ai-annotator:        {idle_s: 300}
+  atlas-vision-lidar-fusion: {idle_s: 300}
+  atlas-person-sensor-fusion: {idle_s: 300}
+  atlas-experience-store:    {idle_s: 300}
+  atlas-agent-team:          {idle_s: 300}
+  atlas-follow-person:       {idle_s: 120}
+  atlas-camera-tracker:      {idle_s: 120}
+  atlas-active-vision:       {idle_s: 120}
