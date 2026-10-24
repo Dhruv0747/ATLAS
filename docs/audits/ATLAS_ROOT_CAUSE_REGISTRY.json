@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-STARTUP-REPORT-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "One authorized diagnostic CPU-report startup completed:constructor94.883ms,6/6 heartbeats,mission age<=0.1s. CPUpeak82.70%,RAM70.84%,temp59.343C. Protected services/hashes unchanged;no production changes.",
+      "remaining_validation": "Original stale failure not reproduced. Production cgroup/discovery effects unresolved;no CPU savings or fix claim. One-test exception exhausted;next investigation offline.",
+      "reference": "docs/ATLAS_LOCALIZATION_STARTUP_REPORT_TEST_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-STARTUP-ATTEMPT-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

@@ -19,6 +19,11 @@ class PackageTests(unittest.TestCase):
         for x in (75.001, float('nan'), -1, None, 101):
             with self.assertRaises(RuntimeError): S.check_cpu(x)
 
+    def test_explicit_reporting_still_rejects_invalid_cpu(self):
+        self.assertIsNone(S.check_cpu(99, True))
+        for x in (float('nan'), -1, 101, None, True):
+            with self.assertRaises(RuntimeError): S.check_cpu(x, True)
+
     def test_path_escape_and_integrity(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(RuntimeError): S.verify(Path(d), {'../bad':'x'})
@@ -43,11 +48,11 @@ class PackageTests(unittest.TestCase):
 
     def test_supervisor_scope(self):
         source = (DIR/'localization_startup_jetson.py').read_text()
-        for text in ('No CPU override', "ROS_DOMAIN_ID='214'", 'start_new_session=True',
+        for text in ('Only separately approved', "ROS_DOMAIN_ID='214'", 'start_new_session=True',
                      'launched>20', "range(10)", "sample('cleanup_postflight')",
                      "'mission_sample_time'", "'atlas-mission-control.service'", "P.extra_safety(ros)"):
             self.assertIn(text, source)
-        for text in ("'restart'", "'reboot'", 'chmod', '--diagnostic-cpu-report-only'):
+        for text in ("'restart'", "'reboot'", 'chmod'):
             self.assertNotIn(text, source)
 
 

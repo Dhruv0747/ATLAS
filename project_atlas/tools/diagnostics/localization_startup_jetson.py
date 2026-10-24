@@ -23,12 +23,12 @@ def verify(root, entries):
         if hashlib.sha256(path.read_bytes()).hexdigest()!=expected:raise RuntimeError('Hash mismatch: '+name)
 
 
-def check_cpu(value):
+def check_cpu(value, report_only=False):
     if isinstance(value,bool) or not isinstance(value,(float,int)) or not math.isfinite(value) or not 0<=value<=100:
         raise RuntimeError('Invalid CPU measurement: '+str(value))
-    if value>75:
+    if value>75 and not report_only:
         raise RuntimeError('CPU guard failed: '+str(value))
-    return value
+    return None if report_only else value
 
 
 def stop_owned(proc):
@@ -43,8 +43,9 @@ def stop_owned(proc):
 
 
 def main():
-    if sys.argv[1:]:raise ValueError('No CPU override or retry flags permitted')
-    report_only=False
+    if sys.argv[1:] not in ([], ['--diagnostic-cpu-report-only']):
+        raise ValueError('Only separately approved diagnostic CPU reporting accepted')
+    report_only=bool(sys.argv[1:])
     root=Path(__file__).resolve().parent
     result={'status':'ABORTED','production_changed':False,'camera_started':False,'services_restarted':False}
     result['cpu_policy']='OWNER ONE-TEST REPORT ONLY' if report_only else 'STOP >75%'
@@ -70,7 +71,7 @@ def main():
             now=time.monotonic();ticks=G.ticks();cpu=G.cpu_delta(previous,ticks);dt=now-last
             previous=ticks;last=now
             emit({'phase':phase,'cpu':cpu,'interval_s':dt,'monotonic':now})
-            admitted_cpu=check_cpu(cpu)
+            admitted_cpu=check_cpu(cpu,report_only)
             if dt>1.5:raise RuntimeError('Resource sampling deadline failed')
             snap=P.safety_snapshot()
             ros=snap['ros'];mission=ros.get('mission_status',{})

@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 one authorized CPU-report isolated startup completed94.883ms,6/6
+heartbeats,production mission age<=0.1s. CPUpeak82.70%,other guards passed,
+protected identities/hashes unchanged. Failure NOT reproduced;production quota/
+discovery absent. See docs/ATLAS_LOCALIZATION_STARTUP_REPORT_TEST_20261024.md.
+No repeat test or deployment follows automatically;CPU exception exhausted.
+
 2026-10-24 one approved isolated startup attempt ABORTED before worker launch:
 fourth baselineCPU76.2376%>75%. CleanupCPU71.04%,mission age0.2s,sensors fresh,
 protected hashes/11services unchanged. No retry;startup cause still unresolved.

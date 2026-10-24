@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 authorized one-test CPU-report isolated startup COMPLETE:constructor
+94.883ms,6/6 heartbeats,live mission age<=0.1s,CPUpeak82.70%,RAM70.84%,temp59.343C.
+25 tests pass;all protected identities/hashes unchanged. Stale failure NOT
+reproduced;no install/restart/camera/motion or CPU savings claim.
+
 2026-10-24 approved isolated Jetson startup attempt stopped at fourth baseline
 CPU76.2376%>75%,before worker launch. Cleanup safety/sensors/hash checks passed,
 11 protected services unchanged. No retry/install/restart/camera/movement.
