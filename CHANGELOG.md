@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 PC pure localization-startup benchmark added:3 fresh-process runs,
+14 tests pass. Imports123–204ms,map load6–18ms,index<1ms;not Jetson attribution.
+Prepared staged private-domain construction/delivery test design;full ROS harness
+still pending. No live changes or unsupported CPU-fix claim.
+
 2026-10-24 stale-mission forensics: candidate was still constructing ROS services
 when rollback stopped it, before optimized spin. Exact delay boundary unresolved.
 Offline installer now preserves bounded receipt/failure evidence and protects

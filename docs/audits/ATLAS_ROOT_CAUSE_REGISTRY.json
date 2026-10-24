@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-STARTUP-PC-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Three PC fresh-process pure startup runs completed;imports123–204ms,map6–18ms,index<1ms.14 tests pass. Previous executor test skipped startup;no Jetson causality or CPU savings established.",
+      "remaining_validation": "Implement isolated PC ROS construction/delivery harness per staged plan before separately approved Jetson test. Production publisher/receiver delay remains ambiguous;no live changes.",
+      "reference": "docs/ATLAS_LOCALIZATION_STARTUP_TEST_PLAN_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-MISSION-FORENSICS-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

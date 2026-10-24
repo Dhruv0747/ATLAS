@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 offline startup stages measured onPC,not Jetson:scientific imports
+123–204ms,map6–18ms,index<1ms.14tests pass. Prior executor test excluded startup;
+DDS/entity construction and scheduling still unmeasured. Next is isolated PC
+ROS construction harness per docs/ATLAS_LOCALIZATION_STARTUP_TEST_PLAN_20261024.md.
+No live changes or relaxed guards;no physical test needed.
+
 2026-10-24 new journal evidence: failed deployment never reached optimized spin;
 candidate still constructing ManualLocationCheck when rollback stopped it.
 Exact stale-mission origin unresolved; failed age was not retained. Offline
