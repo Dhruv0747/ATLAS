@@ -1,4 +1,6 @@
 import unittest
+import tempfile
+from unittest.mock import patch
 from pathlib import Path
 import ranked_cpu_once as R
 
@@ -10,6 +12,18 @@ def row(ticks, birth=1, **changes):
 
 
 class Tests(unittest.TestCase):
+    def test_unrelated_process_keeps_total_without_exe_resolution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)/'10';root.mkdir()
+            fields=['0']*20;fields[11]='10';fields[12]='5';fields[19]='2'
+            (root/'stat').write_text('10 (test) '+' '.join(fields))
+            (root/'cgroup').write_text('0::/unrelated')
+            (root/'comm').write_text('test')
+            with patch.object(Path,'resolve',side_effect=AssertionError('must not resolve unrelated exe')):
+                result=R.snapshot(lambda pid: {},Path(directory))
+            self.assertEqual(result['process:10']['ticks'],15)
+            self.assertFalse(result['process:10']['profile_eligible'])
+
     def test_rank_current_deltas(self):
         a={str(i):row(10000) for i in range(10,18)}
         b={str(i):row(10000+i) for i in range(10,18)}

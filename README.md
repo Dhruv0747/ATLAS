@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Ranked CPU result](docs/ATLAS_RANKED_CPU_RESULT_20261024.md): Dashboard41.75% of
+one core; observer itself42.15%. Native stacks mostly Python; diagnostic scanner
+optimized offline, no permanent ATLAS CPU fix or deployment claimed.
+
 [Ranked native CPU capture](docs/ATLAS_RANKED_CPU_PROFILE_APPROVAL_20261024.md):
 prepared/staged diagnostic ranks current load, samples up to6 verified ATLAS
 threads.7Linux tests pass; not executed, no production changes.

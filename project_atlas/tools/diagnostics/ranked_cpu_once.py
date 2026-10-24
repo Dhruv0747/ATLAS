@@ -43,6 +43,10 @@ def snapshot(original, proc=Path('/proc')):
                        name=(root/'comm').read_text().strip(), cgroup=cgroup,
                        kind='process_total', profile_eligible=False)
             rows['process:'+root.name] = row
+            # Non-target processes still contribute CPU totals, but resolving
+            # their executable cannot make them eligible. Avoid that procfs work.
+            if cgroup not in GROUPS or root.stat().st_uid != os.getuid():
+                continue
             executable = str((root/'exe').resolve(strict=True))
             if not allowed(executable, cgroup, root.stat().st_uid, os.getuid()):
                 continue

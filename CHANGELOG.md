@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 analyzed owner ranked capture (hash verified): substantial Python and
+observer load;14tests pass. Scanner skips unnecessary non-target exe resolution,
+PC scanner cost~47.6%lower; no live installation/restart/new profile. See
+ATLAS_RANKED_CPU_RESULT_20261024.md; permanent CPU problem still unresolved.
+
 2026-10-24 prepared bounded ranked native profiler: all readable PID totals,
 allowlisted ATLAS thread deltas, up to6targets/20s/49Hz; CPU-report-only exception,
 other guards unchanged.7Linux tests pass. Staged only; no live profiling yet.
