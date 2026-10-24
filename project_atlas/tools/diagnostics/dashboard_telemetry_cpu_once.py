@@ -20,7 +20,7 @@ UNITS = ('atlas-camera.service', 'rover-base-telemetry.service',
          'atlas-cmd-vel-mux.service', 'atlas-ekf.service', 'atlas-localization.service',
          'atlas-lidar.service', 'atlas-voice-companion.service',
          'atlas-safety-status.service', 'atlas-localization-monitor.service',
-         'atlas-mission-control.service', 'rover-status-web')
+         'atlas-mission-control.service', 'rover-status-web.service')
 
 
 def parse(arguments):

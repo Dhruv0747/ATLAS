@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 Dashboard/telemetry Python capture aborted before samples: wrapper
+expected short systemd name instead of canonical Id. Offline one-line correction
+passes six tests; NOT staged or rerun. No Python hot-function evidence or CPU
+fix established. See ATLAS_DASHBOARD_TELEMETRY_PYTHON_PROFILE_20261024.md.
+
 2026-10-24 one-pass lookup candidate preserves standard executor and passes native
 entity/bond tests plus7edge cases. Operation CPU lower, but6integrated pairs mixed;
 no live headroom proven. Saved15samples insufficient for high-impact attribution.

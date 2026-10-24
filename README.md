@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Dashboard/telemetry Python attempt aborted before samples: canonical systemd ID
+mismatch fixed offline; six tests pass. Corrected diagnostic NOT staged/run;
+no new CPU optimization evidence. See the profiling report below.
+
 [Dashboard/telemetry Python profiling](docs/ATLAS_DASHBOARD_TELEMETRY_PYTHON_PROFILE_20261024.md):
 two sequential bounded owner-run captures prepared; CPU diagnostic report-only,
 other protections unchanged. Three offline tests pass; no production changes.

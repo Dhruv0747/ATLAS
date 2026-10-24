@@ -1,5 +1,34 @@
 # Bounded Dashboard and telemetry Python profiling
 
+## Follow-up: owner attempt aborted; offline correction
+
+The owner executed the original staged package. Evidence `evidence-yucgejc9`
+contains only result.json (364 bytes) and empty telemetry.jsonl; no Python profile.
+The first invocation aborted before sampling; shell `&&` prevented telemetry.
+Confirmed cause: the wrapper added short name `rover-status-web` to G.UNITS,
+but systemd returns canonical `Id=rover-status-web.service`. Read-only systemctl
+confirmed this with PID 94624, NRestarts 0, active state. The strict parser
+correctly rejected an unrecognized identity. This is a diagnostic wrapper bug,
+not evidence of a production service or CPU fault.
+
+Offline correction changes ONLY that protected-unit name to its canonical form.
+The helper's separate Dashboard target lookup intentionally still uses its
+existing short-name key; no helper or production parser changes. Six Linux
+tests pass, including reproduction of the exact original failure, acceptance
+of all eleven canonical IDs and rejection of missing, duplicate or unknown IDs.
+The original three tests checked configuration but missed parser integration.
+The corrected wrapper hash is in the updated manifest. It has NOT been copied
+to Jetson or executed under this offline-only request. The staged original is
+still faulty: do not rerun it. Next action requires staging this diagnostic-only
+correction and a new owner-run capture. No CPU savings can be inferred from this
+aborted run; previous native profiles do not establish Python hot functions.
+
+All production features, services and limits remain unchanged. No install,
+restart, camera activation, movement or retry occurred. Failed evidence remains
+on Jetson; rollback is simply retaining the previous diagnostic package, never
+changing production files. The preparation record below describes the original
+package; its command must not be rerun until the corrected package is staged.
+
 Prepared, not executed. No production installation or service restart.
 
 The ranked native capture identified substantial Python execution but could not

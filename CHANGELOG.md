@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 owner Python capture aborted before sampling due to wrapper short-name
+vs canonical systemd Id mismatch. One-line offline diagnostic fix, six tests
+including actual parser regression; no staging/retry or production changes.
+
 2026-10-24 prepared fixed-target Dashboard/telemetry Python profiling: sequential
 10-second GIL captures, fresh checks per target, stop on first failure, unchanged
 RAM/temperature/production protections. Three Linux tests pass; not run live.

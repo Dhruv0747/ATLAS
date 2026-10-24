@@ -1,10 +1,45 @@
 import tempfile
 import unittest
+import importlib.util
 from pathlib import Path
 import dashboard_telemetry_cpu_once as W
 
 
 class FixedProfileTests(unittest.TestCase):
+    def gate(self):
+        path = Path(__file__).parents[1]/'vision3d'/'stationary_gate.py'
+        spec = importlib.util.spec_from_file_location('isolated_gate', path)
+        gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gate)
+        gate.UNITS = tuple(dict.fromkeys(gate.UNITS + W.UNITS))
+        return gate
+
+    def service_rows(self):
+        return '\n\n'.join('Id='+unit+'\nMainPID=94624\nNRestarts=0\nActiveState=active'
+                           for unit in W.UNITS)
+
+    def test_actual_parser_accepts_canonical_systemd_ids(self):
+        gate = self.gate()
+        self.assertTrue(all(unit.endswith('.service') for unit in gate.UNITS))
+        rows = gate.parse_services(self.service_rows())
+        self.assertEqual(len(rows), 11)
+        self.assertIn('rover-status-web.service', rows)
+
+    def test_original_short_name_failure_reproduced(self):
+        gate = self.gate()
+        gate.UNITS = tuple(u.removesuffix('.service') if u == 'rover-status-web.service' else u
+                           for u in gate.UNITS)
+        with self.assertRaisesRegex(RuntimeError, 'incomplete/duplicate'):
+            gate.parse_services(self.service_rows())
+
+    def test_missing_duplicate_and_unknown_still_rejected(self):
+        gate = self.gate()
+        raw = self.service_rows()
+        blocks = raw.split('\n\n')
+        for invalid in ('\n\n'.join(blocks[:-1]), raw+'\n\n'+blocks[0],
+                        raw.replace('rover-status-web.service', 'unapproved.service')):
+            with self.assertRaises(RuntimeError): gate.parse_services(invalid)
+
     def test_strict_arguments(self):
         for target in W.TARGETS:
             self.assertEqual(W.parse([target, '--diagnostic-cpu-report-only']), target)
