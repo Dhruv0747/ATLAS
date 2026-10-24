@@ -116,3 +116,17 @@ remedy is the existing `atlas-localization` service restart, which needs its own
    selects Depth, presses Start **once**, ticks Uncalibrated preview, then lets it end.
 4. The tool resumes navigation and verifies all five servers active; read-only post-checks (E-STOP, policy,
    commands zero, recording off, camera off, mission READY, protected service identities unchanged).
+
+## On-robot run 1 — 24 Oct 2026 13:37–13:43 IST (owner approval 13:25)
+
+- Staged `~/project-atlas-migration/parked-profile/` (tool `8aef5337…`, includes the get_state retry added after
+  the first live `check` showed one slow first discovery; offline suite re-run 19/19 before use).
+- `check`: parked, E-STOP latched, mission READY, commands zero, navigation + localization active.
+- `session` (persistent user unit): **pause OK** — 5 navigation servers `inactive`, map_server + AMCL `active`,
+  systemd resume timer armed (600 s). CPU settled immediately: 64.9, 69.4, 64.8, 68.4, 67.0% (before the pause:
+  71.6, 73.9, 67.7, 72.9, 70.7, 70.5, 77.8, 68.5%).
+- **No camera session was started** within the 300-s window (Vision Lab state unchanged since 08:35).
+- **Resume OK** at the window end: all 5 navigation servers `active`, localization active, timer disarmed,
+  pause record cleared. No service restarted; E-STOP latched throughout.
+- Result: the pause/resume mechanism is live-verified; the 3D preview itself remains untested. A new window needs
+  the owner at the browser.

@@ -210,3 +210,20 @@ Reproduction (workstation only): see `tools/diagnostics/dashboard_executor_bookk
 (variants from the live overlay), `run_iso.sh <env> bench_cycle.py '<json>'`, `make_tree.sh` +
 `run_iso.sh <env> bench_dashboard_app.py driver …`, `sum_op.py`, `sum_app.py`. Raw result JSON is kept privately,
 not committed.
+
+## 11. DEPLOYED — 24 Oct 2026 13:44 IST (owner approval 13:42)
+
+- Pre-check found the live `/v2` route answers 301 (redirect to `/v2/`); the package's health check expected 200
+  and would have rolled back a healthy install. Fixed to `/v2/`, package rebuilt (SHA256SUMS `7ea0db97…`, script
+  `ac22b3de…`), 8/8 package tests re-passed, commit `dfa912d`. Install files unchanged (`4f5c1cc9…`, `6c82a00d…`).
+- `check` passed on the Jetson; camera off, E-STOP latched, no parked-profile pause active.
+- `apply` (persistent user unit): backup `~/project_atlas/.pre_dashboard_exitstack_20261024_134444` (checksums OK);
+  2 files installed; `rover-status-web` restarted once (MainPID 94624 → 527477, NRestarts 0); settled in 32.4 s
+  (restart peak 100% at +14 s, the known transient); all post checks passed: installed hashes, E-STOP latched,
+  manual-only + stop latched, LiDAR/odom/IMU/encoder/cmd_vel fresh, 90 fresh status keys, no `web_error`,
+  9 protected service identities unchanged, Pi Camera / `/v2/` / `/v2/vision3d` / `/api/vision3d/summary` 200,
+  static white-glass assets hash unchanged, `atlas_status_web.py` still `acb9fe18`. **No rollback.**
+- Recorder trace (same 1 Hz recorder, short windows): Dashboard process **41.4% → 40.3%** of one core
+  (19 s before, 20 s from +60 s after); whole-Jetson 73.2% → 72.5%. Both differences are within the noise of
+  ~20-s windows; consistent with the small expected saving, not proof of it.
+- Rollback (if ever needed): `OWNER_APPROVED=yes bash ~/project-atlas-migration/dashboard-exitstack/dashboard_exitstack_pkg/dashboard_exitstack.sh rollback`.

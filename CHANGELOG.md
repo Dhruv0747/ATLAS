@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 13:44 DEPLOYED Dashboard executor ExitStack-removal (overlay 4f5c1cc9, adapter 6c82a00d) with one
+monitored rover-status-web restart; all checks passed. Package health check fixed to /v2/ first. 13:37-13:43
+parked camera profile pause/resume verified live (no camera session started in the window).
+
 2026-10-24 parked camera profile (offline): tools/vision3d/atlas_parked_camera_profile.py pauses Nav2
 navigation (not localization) for one stationary Vision Lab session and resumes it; 19/19 real-Nav2 offline
 scenarios and 8 unit tests pass. Not run on ATLAS. docs/ATLAS_PARKED_CAMERA_PROFILE_20261024.md.

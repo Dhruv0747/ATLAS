@@ -1,5 +1,9 @@
 # ATLAS current blockers
 
+2026-10-24 13:44 Dashboard executor ExitStack fix DEPLOYED (monitored restart, all checks passed,
+no rollback). 13:37-13:43 parked camera profile live: Nav2 navigation paused (CPU 64.8-69.4%) and
+resumed cleanly, but no camera session was started in the window - 3D preview still untested.
+
 2026-10-24 parked camera profile built and validated OFFLINE against real Nav2 1.1.20 with live
 params (19/19 scenarios, 8 unit tests): pauses only Nav2 navigation around one stationary camera
 session, watchdog-guaranteed resume, no service restarts. Not run on ATLAS; awaits owner approval.
