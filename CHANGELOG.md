@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 offline comparison of saved 21 Oct vs 24 Oct per-process CPU: the ~6-point higher parked
+baseline is fully-active Nav2 navigation (inactive in the 21 Oct boot whose camera test passed), not a
+code regression. Report docs/ATLAS_CPU_BASELINE_SHIFT_NAV2_20261024.md. No production change.
+
 2026-10-24 Dashboard executor ExitStack-removal candidate (offline only; no install,
 restart, camera, recording or motion). From the saved profiles and exact live source:
 executor wait-set bookkeeping dominates; contextlib.ExitStack is avoidable overhead.

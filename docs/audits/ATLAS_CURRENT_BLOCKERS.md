@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 baseline shift explained (offline, existing evidence): 21 Oct 65.5% was a boot where
+Nav2 navigation never activated (planner stuck "Checking transform"); since 21 Oct 20:18 navigation
+is active and planner/behavior/bt/waypoint cost 4-6% of a core each. Nav2 15.3 -> 46.1% of one core
+(~+5 pts whole-Jetson). Not a code regression. Owner decision needed (parked diagnostic profile vs
+investigate idle Nav2 cost). See docs/ATLAS_CPU_BASELINE_SHIFT_NAV2_20261024.md.
+
 2026-10-24 Dashboard executor ExitStack-removal candidate (offline, NOT deployed):
 per-cycle contextlib.ExitStack replaced by inline handle enter + one LIFO exit block.
 Exact live Dashboard module under replayed live-rate traffic: executor threads -5.6%
