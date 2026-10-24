@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+2026-10-24 Dashboard executor ExitStack-removal candidate (offline, NOT deployed):
+per-cycle contextlib.ExitStack replaced by inline handle enter + one LIFO exit block.
+Exact live Dashboard module under replayed live-rate traffic: executor threads -5.6%
+(py3.10) / -6.4% (py3.12), 24/24 pairs better; delivery, latency medians, timers, QoS,
+lifecycle, shutdown and HTTP identical. Jetson saving not measured (~0.4 pt whole-Jetson by
+extrapolation); does not by itself give Astra headroom. Needs separate deployment approval.
+See docs/ATLAS_DASHBOARD_EXECUTOR_EXITSTACK_CANDIDATE_20261024.md.
+
 2026-10-24 final handover supersedes pending Python capture: both successful,
 107 Dashboard/52 telemetry samples. Wait-set/QoS/dispatch work prominent, but no
 safe measured runtime fix established. Do not recapture the same profiles.

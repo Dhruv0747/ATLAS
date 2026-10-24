@@ -17,6 +17,7 @@ for path in ('/api/status', '/api/estop/state', '/v2', '/', '/api/diagnostics'):
         entry = {'code': r.status, 'bytes': len(body)}
         if path.startswith('/api/'):
             d = json.loads(body); entry['keys'] = sorted(d)[:60]
+            if path == '/api/diagnostics': entry['body'] = {k: (str(v)[:160]) for k, v in d.items()}
             if path == '/api/status':
                 ros = d.get('ros', {}); entry['ros_keys'] = len(ros)
                 entry['fresh_lt_2s'] = sum(1 for v in ros.values() if isinstance(v, dict) and isinstance(v.get('age'), (int, float)) and v['age'] < 2)

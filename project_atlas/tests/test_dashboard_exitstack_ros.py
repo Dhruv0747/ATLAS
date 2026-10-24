@@ -55,7 +55,7 @@ class CountingWaitable(Waitable):
         self.gc.handle.__exit__(*a)
         with self.lock:
             self.exits += 1; self.depth -= 1
-    def get_num_entities(self): return NumberOfEntities(num_guard_conditions=1)
+    def get_num_entities(self): return NumberOfEntities(0, 1)   # (subscriptions, guard conditions, ...)
     def add_to_wait_set(self, ws): self._idx = ws.add_guard_condition(self.gc.handle)
     def is_ready(self, ws):
         if self._idx is not None and ws.is_ready('guard_condition', self._idx): self._ready = True

@@ -1,5 +1,13 @@
 # ATLAS CPU investigation — final developer handover
 
+## CONTINUATION 2026-10-24 (next developer): offline candidate built from the saved evidence
+
+No profiling was repeated. The saved profiles and exact live sources were re-verified by hash and analysed against
+the deployed executor: the avoidable operation is the per-cycle `contextlib.ExitStack` around every entity handle.
+Candidate, measurements (operation and application level), correctness suites, package (SHA256SUMS
+`934a236e5fd856980033ff7ee8b9cc60f7d9f943091cc748076cd68aec26039d`) and rollback: `ATLAS_DASHBOARD_EXECUTOR_EXITSTACK_CANDIDATE_20261024.md`.
+Not deployed; separate owner approval required. Telemetry has the same pattern but is not addressed.
+
 ## FINAL UPDATE: both Python captures completed and analyzed
 
 This section supersedes all pending-capture wording below. Do NOT ask the owner

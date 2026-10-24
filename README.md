@@ -4,6 +4,10 @@ Final handover updated: both Python captures analyzed (107/52 samples, hashes
 verified). ROS wait-set/QoS processing is prominent; no safe runtime CPU fix or
 whole-Jetson savings proven. Eight offline tests pass. See final handover below.
 
+**Dashboard executor CPU candidate (24 Oct, offline, not deployed):** removing per-cycle `ExitStack` bookkeeping cut
+the real Dashboard ROS layer's executor CPU by ~6% offline (24/24 pairs). See
+[candidate report](docs/ATLAS_DASHBOARD_EXECUTOR_EXITSTACK_CANDIDATE_20261024.md). Deployment awaits owner approval.
+
 [Final CPU developer handover](docs/ATLAS_CPU_FINAL_DEVELOPER_HANDOVER_20261024.md):
 corrected diagnostic staged and checksummed, six tests pass; owner capture pending.
 Evidence, rejected approaches, limits and exact next action preserved. No CPU fix claimed.

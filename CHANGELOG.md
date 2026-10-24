@@ -1,5 +1,13 @@
 # Changelog
 
+2026-10-24 Dashboard executor ExitStack-removal candidate (offline only; no install,
+restart, camera, recording or motion). From the saved profiles and exact live source:
+executor wait-set bookkeeping dominates; contextlib.ExitStack is avoidable overhead.
+Candidate overlay `4f5c1cc9` (+ adapter `6c82a00d`, only OVERLAY_SHA changed). Operation
+-6.6..-10.3% per cycle; application (live atlas_status_web.py, 252 msg/s) executor threads
+-5.6%/-6.4%, 24/24 pairs. 14 ROS + 5 native + 8 package tests pass; HTTP identical.
+Hash-verified package with monitored install/auto-rollback in tools/deploy/dashboard_exitstack_pkg.
+
 2026-10-24 analyzed successful Dashboard/telemetry Python captures, verified
 hashes and source identities; documented thread/function attribution and resource
 measurements. Added offline sample analyzer (two tests; eight combined pass).

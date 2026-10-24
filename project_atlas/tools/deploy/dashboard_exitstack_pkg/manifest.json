@@ -1,0 +1,17 @@
+{
+  "change": "Dashboard executor overlay: per-cycle contextlib.ExitStack replaced by inline handle __enter__ + one LIFO exit block",
+  "target_dir": "/home/jetson/project_atlas/scripts",
+  "pre_sha256": {
+    "atlas_dashboard_executor_impl.py": "543e41125a6095ba5a69f114deaa2dc4cf54c4df2029f78fdb80c99ecf81b5c1",
+    "atlas_dashboard_executor.py": "2b6ceeae09ec63cafd8a93084ba086c0e5145661f56a245966de4eed389f11ab"
+  },
+  "install_sha256": {
+    "atlas_dashboard_executor_impl.py": "4f5c1cc92c3ed156d68e0663639396be0c01f3d8b71c15f4fb4a98ea6521d9a8",
+    "atlas_dashboard_executor.py": "6c82a00d3453334348a542da32115525d79ef77bc2cd8cec516d7edc45289a1c"
+  },
+  "unchanged_required": {
+    "atlas_status_web.py": "acb9fe18d384a7e2c06c24e1ab3abd5c3ebc1b46b5d26902ec39e1a3155d7439"
+  },
+  "restart": "rover-status-web only, separately approved; none performed by this builder",
+  "installed": false
+}
