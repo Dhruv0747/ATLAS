@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 prepared bounded localization monitor thread profiler with exact live
+hashes,nonblocking20Hz/10s capture and strict resource guards.27tests pass;owner
+sudo required. No new profile,production change or speculative fix claimed.
+
 2026-10-24 profiled exact-live localization core offline. Fit-allocation candidate
 passes216 score comparisons,10 existing tests and2 focused tests;full hypotheses
 unchanged. Rejected:two6pair batches show2.40% then-0.51% median CPU savings.

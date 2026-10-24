@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 localization-thread profiler staged,27tests pass. Sudo password
+required;no capture yet. Await owner command,then correlate native thread ticks
+and all-Python-thread stacks. Strict guards retained;no production changes.
+See docs/ATLAS_LOCALIZATION_THREAD_PROFILE_PREP_20261024.md.
+
 2026-10-24 localization fit allocation candidate REJECTED offline:216 score
 equivalence cases/10existing+2focused tests pass;paired CPU2.40% then-0.51% not
 repeatable. Coarse scoring dominates synthetic search;live duty-cycle attribution

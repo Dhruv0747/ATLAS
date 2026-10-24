@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-THREAD-PROFILE-PREP-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Fixed-target10s20Hz all-Python-thread profiler prepared/staged with exact source hashes;27tests pass. Ptrace_scope1 and sudo password required;no live attachment yet.",
+      "remaining_validation": "Owner must run bounded admin command;analyze actual thread CPU/call paths before selecting next offline fix. Window may miss periodic search;no conclusions from missing worker samples alone.",
+      "reference": "docs/ATLAS_LOCALIZATION_THREAD_PROFILE_PREP_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-FIT-CPU-REJECTED-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
