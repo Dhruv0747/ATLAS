@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 native Nav2 diagnostic prepared/staged,not run:strict guards,two hot
+child threads,ten-second perf capture.28 offline tests pass;read-only Jetson
+identity check10 processes/109 threads. Owner sudo execution required. No
+production install/restart or CPU savings claim. See ATLAS_NAV2_NATIVE_PROFILE_PREP_20261024.md.
+
 2026-10-24 saved all-PID CPU accounting now also ranks exact cgroups and preserves
 PID/cgroup history.10 tests passed. Nav2/AMCL service totals51.345% of one core
 in historical capture,not the profiled localization monitor. No runtime tuning,
