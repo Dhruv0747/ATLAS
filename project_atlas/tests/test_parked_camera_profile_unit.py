@@ -90,6 +90,17 @@ class Watchdog(unittest.TestCase):
         self.assertEqual(order[:3], ['status', 'arm', 'pause'])
 
 
+class WatchdogSelfResume(unittest.TestCase):
+    def test_watchdog_resume_never_disarms_itself_and_clears_marker(self):
+        mk = Path('/tmp/ppc_marker_self.json'); mk.write_text(json.dumps({'watchdog': {'kind': 'test-sleeper', 'pid': 999999}}))
+        killed = []
+        with mock.patch.dict(os.environ, {'OWNER_APPROVED': 'yes', 'ATLAS_PARKED_FROM_WATCHDOG': '1'}), mock.patch.object(M, 'MARKER', mk), \
+             mock.patch.object(M.os, 'killpg', side_effect=lambda *a: killed.append(a)), \
+             mock.patch.object(M, 'ros', return_value={'nav_active': True, 'loc_active': True, 'nav_states': {n: 'active' for n in M.NAV_NODES}}):
+            self.assertTrue(M.cmd_resume('watchdog'))
+        self.assertEqual(killed, []); self.assertFalse(mk.exists())
+
+
 class NoServiceRestarts(unittest.TestCase):
     def test_tool_never_restarts_stops_or_starts_services(self):
         src = (ROOT / 'tools/vision3d/atlas_parked_camera_profile.py').read_text()

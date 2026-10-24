@@ -191,14 +191,15 @@ def arm_watchdog(seconds):
 
 
 def disarm_watchdog(info):
-    if not info:
+    # When this IS the watchdog's resume, never stop/kill the watchdog itself (it would kill this process).
+    if not info or os.environ.get('ATLAS_PARKED_FROM_WATCHDOG') == '1':
         return
     if info.get('kind') == 'test-sleeper':
         try:
             os.killpg(info['pid'], 15)
         except OSError:
             pass
-    elif info.get('kind') == 'systemd-timer' and os.environ.get('ATLAS_PARKED_FROM_WATCHDOG') != '1':
+    elif info.get('kind') == 'systemd-timer':
         subprocess.run(['systemctl', '--user', 'stop', WATCHDOG_UNIT + '.timer'], capture_output=True)
 
 
@@ -246,11 +247,11 @@ def cmd_resume(reason='manual', timeout_s=120.0):
         if not ok:
             log('RESUME_INCOMPLETE', note='navigation left paused (no autonomy possible); no service restart performed; owner decision required')
             return False
-    disarm_watchdog(info.get('watchdog'))
     try:
-        MARKER.unlink()
+        MARKER.unlink()                                  # clear the record first, then disarm the watchdog
     except FileNotFoundError:
         pass
+    disarm_watchdog(info.get('watchdog'))
     return True
 
 
