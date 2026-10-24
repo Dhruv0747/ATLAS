@@ -1,4 +1,4 @@
-"""One owner-run, strict-guard localization Python-thread profile.
+"""One owner-run localization Python-thread profile; strict guards by default.
 
 Private adaptation of a hash-pinned diagnostic helper, never production code.
 No GIL filter: NumPy can release the GIL. Native thread ticks accompany stacks.
@@ -55,10 +55,11 @@ def configure(module):
 
 
 def main():
-    if sys.argv[1:]:
-        raise SystemExit('No arguments accepted: all CPU/RAM/temperature guards remain strict')
+    arguments = sys.argv[1:]
+    if arguments not in ([], ['--diagnostic-cpu-report-only']):
+        raise SystemExit('Only --diagnostic-cpu-report-only is accepted with owner approval')
     module = configure(load_helper(Path(__file__).with_name('native_dashboard_cpu_once.py')))
-    sys.argv = [sys.argv[0], '--python-gil'] # selects Python backend; wrapper removes GIL filter
+    sys.argv = [sys.argv[0], '--python-gil', *arguments] # Python backend; no GIL filter
     return module.main()
 
 

@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 owner-approved localization diagnostic CPU-report-only option added
+and staged with verified hash/backup.29 tests pass;strict default and all other
+checks retained. No production change or profiling run;await owner capture.
+
 2026-10-24 localization capture authenticated but aborted before profiling at
 75.2094% CPU. Result/telemetry hashes verified; no call-stack payload, retry or
 production change. Next CPU fix remains blocked on actual attribution.

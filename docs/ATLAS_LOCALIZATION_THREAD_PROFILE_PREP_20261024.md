@@ -113,3 +113,34 @@ Next necessary action: a separately authorized bounded capture with passing
 admission, then function attribution before selecting another offline fix.
 Prior 27 passing preparation tests remain historical evidence; no code changed
 or tests repeated for this documentation-only update. CPU savings are unknown.
+
+## Owner-approved diagnostic CPU reporting exception
+
+Owner subsequently approved ignoring CPU admission only for diagnostic profiling.
+The staged wrapper now accepts exactly `--diagnostic-cpu-report-only`, forwarding
+the already-reviewed helper option. Without it, the strict default remains.
+This supersedes the earlier no-arguments interface, not production CPU policy.
+CPU is still sampled, validated and reported. RAM, temperature, E-STOP, manual
+mode, zero commands, freshness, timing deadlines, hashes and service identities
+remain checked. No production files, services, camera or motors were changed.
+
+29 offline tests passed (7 wrapper, 22 shared): explicit/default option mapping,
+duplicate/unknown option rejection, invalid CPU sample rejection, retained safety
+calls/deadlines, target/hash binding, bounded profiler and cleanup behavior.
+No new profile or measured CPU savings yet; the CPU fix requires its evidence.
+
+Staged wrapper SHA256:
+`939afd28daf5a4a5e65d3586341c9674726cd6e9d6e94c02e7ef10a0b7a3c3c5`.
+Remote hash verified. Shared helper remains unchanged at the hash above.
+Backup in the same staging directory: `localization_cpu_once.strict-original.py`,
+verified SHA256 `3b92f431d7837eecdf544c0339ea5ffc38459eafe3e5ac267b5a1d37d8123318`.
+Rollback is restoring this diagnostic wrapper only; no service restart needed.
+
+Run once on Jetson while parked:
+
+```sh
+sudo /usr/bin/timeout --signal=INT --kill-after=3s 45s /usr/bin/python3 -I -B /home/jetson/project-atlas-migration/localization-cpu-20261024/localization_cpu_once.py --diagnostic-cpu-report-only
+```
+
+No automatic retry. Review the resulting evidence before selecting an offline
+optimization. This option does not authorize installation of a CPU fix.

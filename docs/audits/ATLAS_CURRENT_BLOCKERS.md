@@ -1,5 +1,9 @@
 # ATLAS current blockers
 
+2026-10-24 owner approved CPU-report-only diagnostic capture. Explicit option
+staged and hash verified,29 tests pass. Production limits unchanged;other guards
+still enforced. Await actual profile before selecting next offline CPU fix.
+
 2026-10-24 06:35IST localization capture authenticated but admission aborted at
 75.2094% CPU. Evidence-71fnxz1g contains verified result/telemetry only, no Python
 profile. Earlier missing-evidence status is superseded. No retry or production

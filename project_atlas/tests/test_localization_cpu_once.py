@@ -31,13 +31,36 @@ class LocalizationProfileTests(unittest.TestCase):
         self.assertEqual(command[command.index('--duration')+1], '10')
 
     def test_strict_entry(self):
-        for args in [['--diagnostic-cpu-report-only'], ['--pid', '1']]:
+        for args in [['--pid', '1'], ['--python-gil'], ['--diagnostic-cpu-report-only'] * 2]:
             with patch.object(L.sys, 'argv', ['loc', *args]), self.assertRaises(SystemExit):
                 L.main()
         m = self.helper()
         with patch.object(L.sys, 'argv', ['loc']), patch.object(L, 'load_helper', return_value=m), patch.object(m, 'main', return_value=0):
             self.assertEqual(L.main(), 0)
             self.assertEqual(m.parse_options(L.sys.argv[1:]), (True, False))
+
+    def test_owner_cpu_exception_is_explicit_and_local(self):
+        m = self.helper()
+        with patch.object(L.sys, 'argv', ['loc', '--diagnostic-cpu-report-only']), \
+                patch.object(L, 'load_helper', return_value=m), patch.object(m, 'main', return_value=0):
+            self.assertEqual(L.main(), 0)
+            self.assertEqual(m.parse_options(L.sys.argv[1:]), (True, True))
+        self.assertEqual(m.checked_cpu(76.5), 76.5)
+        self.assertIsNone(m.checked_cpu(76.5, True))
+        for invalid in (float('nan'), float('inf'), -1, 101, None):
+            with self.assertRaises(RuntimeError):
+                m.checked_cpu(invalid, True)
+
+    def test_exception_does_not_remove_other_checks(self):
+        m = self.helper()
+        samples = [c for c in m.main.__code__.co_consts
+                   if hasattr(c, 'co_name') and c.co_name == 'sample']
+        self.assertEqual(len(samples), 1)
+        for name in ('require_cpu', 'safety_snapshot', 'check', 'extra_safety',
+                     'require_off', 'require_target_threads'):
+            self.assertIn(name, samples[0].co_names)
+        self.assertIn('Sampling deadline missed', samples[0].co_consts)
+        self.assertIn('Safety check deadline missed', samples[0].co_consts)
 
     def test_tampered_helper_not_executed(self):
         with tempfile.TemporaryDirectory() as tmp:
