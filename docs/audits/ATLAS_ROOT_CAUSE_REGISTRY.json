@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-COLLECTOR-OWNERSHIP-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Source explains prior prototype stale ownership and wrong callback map. Destructor-owned correction passes recreated delivery but fails heartbeat detection. Static-cache approach closed, no deployable CPU fix.",
+      "remaining_validation": "Live CPU unresolved. Do not repeat static wrapper swaps; require measured operation and preserved standard-executor semantics. Internal timer churn causality not proven.",
+      "reference": "docs/ATLAS_COLLECTOR_OWNERSHIP_RESULT_20261024.md"
+    },
+    {
       "id": "ATLAS-LIFECYCLE-CACHE-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

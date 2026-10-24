@@ -14,6 +14,10 @@ using Clock=std::chrono::steady_clock;
 // Caller must serialize mutation with spinning and invalidate BEFORE destruction.
 bool lifecycle_mode=false;
 bool detach_groups=false;
+bool collector_owned=false;
+const char* mode_name(bool cached) {
+    return !cached?"standard":collector_owned?"collector_owned":lifecycle_mode?"explicit_lifecycle":"static";
+}
 void invalidate(std::unique_ptr<rclcpp::Executor>& ex,
                 const std::vector<rclcpp::Node::SharedPtr>& nodes) {
     if(!lifecycle_mode)return;
@@ -25,8 +29,16 @@ void invalidate(std::unique_ptr<rclcpp::Executor>& ex,
             if(auto group=weak.lock())ex->remove_callback_group(group);
         }
     }
-    for(const auto &node:nodes)ex->remove_node(node);
+    // Humble16.0.21 remove_node erases automatic groups without clearing their
+    // association flag. Let the collector destructor release its own map instead.
+    if(!collector_owned)for(const auto &node:nodes)ex->remove_node(node);
     ex.reset(); // release cached shared ownership before user destroys an entity
+    if(collector_owned)for(const auto &node:nodes) {
+        node->get_node_base_interface()->for_each_callback_group([](auto group) {
+            if(group->get_associated_with_executor_atomic().load())
+                throw std::runtime_error("collector did not release group ownership");
+        });
+    }
     ex=std::make_unique<rclcpp::executors::StaticSingleThreadedExecutor>();
     for(const auto &node:nodes)ex->add_node(node);
 }
@@ -81,13 +93,17 @@ void exercise(bool cached) {
     if(cached)invalidate(ex,{tx,rx});
     check(pump(*ex,[&]{return formed_a&&formed_b;},3),"bond formation");
     pump(*ex,[]{return false;},.2);check(!broken,"false bond failure");
-    ex->remove_node(tx); // Silence peer timers, rather than explicitly announcing death.
+    // Node removal must use the SAME ownership-aware transaction as entity
+    // mutation. A raw static remove_node can leave cached peer timers runnable.
+    if(cached && collector_owned)invalidate(ex,{rx});
+    else ex->remove_node(tx);
+    // Silence peer timers, rather than explicitly announcing death.
     auto stopped=Clock::now();check(pump(*ex,[&]{return broken;},1.5),"missed heartbeat failure");
     double detection=std::chrono::duration<double>(Clock::now()-stopped).count();
     check(detection>=.2 && detection<1.5,"heartbeat failure timing");
     if(cached)invalidate(ex,{rx});
     b.reset();a.reset();ex->remove_node(rx);ex->cancel();
-    std::cout<<"{\"mode\":\""<<(cached?(lifecycle_mode?"explicit_lifecycle":"static"):"standard")<<"\",\"checks\":\"PASS\",\"messages\":"<<received
+    std::cout<<"{\"mode\":\""<<mode_name(cached)<<"\",\"checks\":\"PASS\",\"messages\":"<<received
              <<",\"heartbeat_failure_s\":"<<detection<<"}\n";
 }
 void measure(bool cached,int pair) {
@@ -99,12 +115,22 @@ void measure(bool cached,int pair) {
     auto pub=node->create_publisher<std_msgs::msg::Int64>("offline_load",100);
     auto sub=node->create_subscription<std_msgs::msg::Int64>("offline_load",100,[&](const std_msgs::msg::Int64&){++received;});
     check(pump(*ex,[&]{return pub->get_subscription_count()==1;},3),"benchmark discovery");
-    auto timer=node->create_wall_timer(10ms,[&]{std_msgs::msg::Int64 m;m.data=++sent;pub->publish(m);});
-    double begin=cpu();pump(*ex,[]{return false;},1.0);double used=cpu()-begin;
+    auto timer=node->create_wall_timer(10ms,[&]{if(sent>=100)return;std_msgs::msg::Int64 m;m.data=++sent;pub->publish(m);});
+    double begin=cpu();auto wall_begin=Clock::now();
+    check(pump(*ex,[&]{return received==100;},2.0),"fixed workload delivery");
+    double used=cpu()-begin;
+    double wall=std::chrono::duration<double>(Clock::now()-wall_begin).count();
     timer->cancel();check(pump(*ex,[&]{return sent==received;},1),"benchmark drain");
-    check(sent>=80,"benchmark stalled");
+    check(sent==100 && received==100,"benchmark workload mismatch");
+    // Include a separately reported mutation cost, never label steady-state
+    // savings as total lifecycle or whole-robot savings.
+    double mutation_begin=cpu();
+    if(cached)invalidate(ex,{node});
+    timer.reset();sub.reset();
+    check(pump(*ex,[&]{return pub->get_subscription_count()==0;},1),"benchmark removal");
+    double mutation_cpu=cpu()-mutation_begin;
     ex->remove_node(node);ex->cancel();
-    std::cout<<"{\"mode\":\""<<(cached?(lifecycle_mode?"explicit_lifecycle":"static"):"standard")<<"\",\"pair\":"<<pair<<",\"cpu_s\":"<<used
+    std::cout<<"{\"mode\":\""<<mode_name(cached)<<"\",\"pair\":"<<pair<<",\"cpu_s\":"<<used<<",\"wall_s\":"<<wall<<",\"mutation_cpu_s\":"<<mutation_cpu
              <<",\"sent\":"<<sent<<",\"received\":"<<received<<"}\n";
 }
 int main(int argc,char**argv){
@@ -113,12 +139,13 @@ int main(int argc,char**argv){
         check(std::getenv("ROS_LOCALHOST_ONLY")&&std::string(std::getenv("ROS_LOCALHOST_ONLY"))=="1","localhost required");
         rclcpp::init(argc,argv);
         detach_groups=argc==2 && std::string(argv[1])=="--explicit-groups";
-        lifecycle_mode=detach_groups || (argc==2 && std::string(argv[1])=="--explicit-lifecycle");
+        collector_owned=argc==2 && std::string(argv[1])=="--collector-owned";
+        lifecycle_mode=collector_owned || detach_groups || (argc==2 && std::string(argv[1])=="--explicit-lifecycle");
         if(argc==2 && std::string(argv[1])=="--static-only") {
             exercise(true);rclcpp::shutdown();return 0;
         }
         exercise(false);exercise(true);
-        for(int i=0;i<4;++i){measure(i%2,i);measure(!(i%2),i);}
+        for(int i=0;i<6;++i){measure(i%2,i);measure(!(i%2),i);}
         rclcpp::shutdown();return 0;
     }catch(const std::exception &e){std::cerr<<"FAILED: "<<e.what()<<'\n';if(rclcpp::ok())rclcpp::shutdown();return 1;}
 }

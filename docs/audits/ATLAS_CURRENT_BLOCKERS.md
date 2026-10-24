@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 source-level follow-up supersedes the ownership uncertainty below:
+remove_node erases automatic group entries before destructor clears their flags;
+public remove_callback_group targets manual map. Destructor-owned teardown fixes
+recreated delivery but fails heartbeat validation. Static-cache approach CLOSED,
+not safe to deploy. Live CPU unresolved. See ATLAS_COLLECTOR_OWNERSHIP_RESULT_20261024.md.
+
 2026-10-24 lifecycle caching offline: explicit static-executor rebuild passes
 subscription removal but fails recreated delivery; group-detach variant throws
 association error. No safe CPU patch or CPU savings established. Standard control

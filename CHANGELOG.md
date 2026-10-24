@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 traced static collector association ownership and manual/automatic group
+maps. Destructor-owned prototype fixes recreated delivery but fails heartbeat
+validation; rejected and approach closed. Fixed-count benchmark gated off.
+See ATLAS_COLLECTOR_OWNERSHIP_RESULT_20261024.md; no production changes.
+
 2026-10-24 offline lifecycle cache test: pre/post executor invalidation fails
 recreated delivery; explicit group-detach variant fails association validation.
 Standard controls pass; CPU stage blocked by correctness. No production changes.

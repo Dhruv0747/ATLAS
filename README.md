@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Collector ownership result](docs/ATLAS_COLLECTOR_OWNERSHIP_RESULT_20261024.md):
+ownership failure explained and corrected in fixture, but heartbeat validation
+fails. Static-cache approach closed; no live CPU fix or deployment claimed.
+
 [Lifecycle cache follow-up](docs/ATLAS_LIFECYCLE_CACHE_TEST_20261024.md): explicit
 cache rebuild fixes removal but fails recreated delivery; group-detach variant
 fails ownership validation. Both rejected, no deployable CPU change or live work.
