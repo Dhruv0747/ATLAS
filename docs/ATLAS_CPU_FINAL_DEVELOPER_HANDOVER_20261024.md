@@ -1,5 +1,84 @@
 # ATLAS CPU investigation — final developer handover
 
+## FINAL UPDATE: both Python captures completed and analyzed
+
+This section supersedes all pending-capture wording below. Do NOT ask the owner
+to repeat the captures. No production patch is validated or installed.
+
+Saved Jetson evidence under `dashboard-telemetry-python-20261024/`:
+
+| Target | Directory | Samples | py-spy errors | SHA256 |
+|---|---|---:|---:|---|
+| Dashboard PID94624 | evidence-qd0qjjcr |107|0|bec0cdfb1c97eb00cc5f54085ef1f8069da62bb4316a5e18570a3ef34916d7ab|
+| Telemetry PID3351 | evidence-r8sg2x3q |52|0|0b42ad7289addc183e2d3e25922fa67347302e7ffb0291a97d19bdcf92d7075c|
+
+Both downloaded profiles match the result hashes. Private local copies are in
+`artifacts/final_python_profiles/`. Logs report 107/52 samples and zero sampling
+errors. This is not proof every execution interval was observed: GIL-only,
+nonblocking sampling omits GIL-released native work. No new profiling was run.
+
+### Actual function attribution
+
+- Dashboard: control `_spin` thread61samples, `atlas-web-status-spin`38samples,
+  HTTP request threads8samples. Thus99/107samples are on ROS worker threads;
+  this does NOT mean92.5% of whole-Jetson CPU. No evidence here implicates the
+  white-glass stylesheet as the server CPU cause.
+- Dashboard `wait_for_ready_callbacks` line790 in deployed executor appears
+  inclusively in73/107samples. Leaf operations include contextlib `__exit__`8,
+  executor `_wait_for_ready_callbacks` line7307, contextlib `enter_context`5,
+  `_take_subscription`5, QoS `add_to_wait_set` lines114/115 combined7.
+- Telemetry MainThread51samples, serial receive thread1. Standard rclpy
+  `wait_for_ready_callbacks` line780 inclusively33/52; publisher.publish lines
+  68/70 combined8leafsamples; QoS add_to_wait_set lines114/115 combined7.
+- Inclusive counts overlap: never sum them as disjoint CPU work. Different
+  source lines of the same function need aggregation before function-level
+  comparisons. Native prior profiles remain necessary context.
+
+Read-only retrieved deployed source hashes: Dashboard and yahboom_base match
+the pinned hashes below; executor implementation matches
+`543e41125a6095ba5a69f114deaa2dc4cf54c4df2029f78fdb80c99ecf81b5c1`.
+Source inspection shows per-cycle handle entry/exit, wait-set population,
+QoS readiness checks and subscription dispatch. These are observed expensive
+paths, NOT a verified software defect. The two Dashboard executors serve control
+and status nodes; calling them redundant without dependency analysis is unsafe.
+
+### Measurements (whole Jetson, observer present)
+
+| Capture | Baseline avg/peak CPU | During avg/peak CPU | Post avg/peak CPU | Max RAM | Max temperature |
+|---|---|---|---|---|---|
+| Dashboard |72.87/75.75%|72.79/74.96%|72.83/77.46%|73.78%|65.875 C|
+| Telemetry |74.70/80.94%|73.02/75.25%|72.35/76.78%|73.97%|65.937 C|
+
+Dashboard20healthsamples, telemetry22; before/after protected service identities
+unchanged in both result files. Health reports stop latched/manual-only, zero
+commands, recorder off and fresh required feeds. CPU exception was diagnostic
+only; RAM/temp remained within80%/70 C. These are sequential captures, NOT a
+matched before/after optimization trial. No savings can be inferred from their
+differences. Production75% guard remains unchanged.
+
+### Tested offline deliverable and honest limitation
+
+Added `summarize_python_profile.py`, a pure offline leaf/inclusive sample
+analyzer; recursion counted once per sample for inclusive attribution. Two new
+unit tests plus six profiler tests pass (eight total). It changes no robot code.
+No runtime CPU fix is ready: disabling QoS events, merging executors, reducing
+telemetry/heartbeat rates or recycling live wait-set handles could lose required
+behavior. None is justified as a safe fix by these samples alone.
+
+The next developer should use these saved profiles and exact source copies to
+test whether per-cycle executor bookkeeping can be reduced WITHOUT cross-cycle
+handle caching, loss of QoS events, changed callback rates or changed standard
+executor semantics. Validate entity add/remove/destroy, concurrent shutdown,
+QoS failures, sensor freshness, heartbeat/stop deadlines and matched loaded
+workloads. Do not repeat rejected static-cache experiments. If no measurable
+safe gain exists, report that instead of issuing more generic profiling loops.
+
+Owner requested final handover now: no further owner drive or camera test is
+needed for this handover. All production deployment still requires approval.
+No CPU-saving candidate package or rollback installation is implied. Existing
+diagnostic backups/evidence remain intact. Raw profiles are private, not pushed;
+source, tests, evidence hashes, results and this handover are pushed to GitHub.
+
 ## Objective and authorization boundary
 
 P0: reliable real Astra Depth-only Uncalibrated 3D Preview, without sacrificing

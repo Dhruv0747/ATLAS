@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Final handover updated: both Python captures analyzed (107/52 samples, hashes
+verified). ROS wait-set/QoS processing is prominent; no safe runtime CPU fix or
+whole-Jetson savings proven. Eight offline tests pass. See final handover below.
+
 [Final CPU developer handover](docs/ATLAS_CPU_FINAL_DEVELOPER_HANDOVER_20261024.md):
 corrected diagnostic staged and checksummed, six tests pass; owner capture pending.
 Evidence, rejected approaches, limits and exact next action preserved. No CPU fix claimed.

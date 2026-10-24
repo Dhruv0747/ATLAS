@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 final handover supersedes pending Python capture: both successful,
+107 Dashboard/52 telemetry samples. Wait-set/QoS/dispatch work prominent, but no
+safe measured runtime fix established. Do not recapture the same profiles.
+See ATLAS_CPU_FINAL_DEVELOPER_HANDOVER_20261024.md final update for exact evidence.
+
 2026-10-24 Dashboard/telemetry Python capture aborted before samples: wrapper
 expected short systemd name instead of canonical Id. Offline one-line correction
 passes six tests; NOT staged or rerun. No Python hot-function evidence or CPU

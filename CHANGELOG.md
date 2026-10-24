@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 analyzed successful Dashboard/telemetry Python captures, verified
+hashes and source identities; documented thread/function attribution and resource
+measurements. Added offline sample analyzer (two tests; eight combined pass).
+Final handover complete; no production patch, restart, camera start or motion.
+
 2026-10-24 staged owner-approved canonical-ID profiler correction; remote package
 hashes verified, original diagnostic/evidence retained. Six tests re-pass. Added
 final developer handover; no profiling run or production change.
