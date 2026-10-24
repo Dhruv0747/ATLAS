@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 PC ROS construction pair passed,19 tests,10/10 heartbeat messages,
+no>2s gaps. Jetson stale mission failure NOT reproduced;production load/quota/
+discovery absent,application never spun. Need reviewed guarded Jetson startup
+attribution test with separate approval,not executor deployment or movement.
+See docs/ATLAS_LOCALIZATION_PC_ROS_STARTUP_RESULT_20261024.md.
+
 2026-10-24 offline startup stages measured onPC,not Jetson:scientific imports
 123–204ms,map6–18ms,index<1ms.14tests pass. Prior executor test excluded startup;
 DDS/entity construction and scheduling still unmeasured. Next is isolated PC

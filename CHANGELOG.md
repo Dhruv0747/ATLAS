@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 native PC ROS construction test completed in localhost domain214:
+constructor62/31ms,10/10 synthetic heartbeats delivered,max gap1.0011s,19 tests
+pass. Failure NOT reproduced;identical constructors,not CPU-savings evidence.
+No live changes. See docs/ATLAS_LOCALIZATION_PC_ROS_STARTUP_RESULT_20261024.md.
+
 2026-10-24 PC pure localization-startup benchmark added:3 fresh-process runs,
 14 tests pass. Imports123–204ms,map load6–18ms,index<1ms;not Jetson attribution.
 Prepared staged private-domain construction/delivery test design;full ROS harness

@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-PC-ROS-STARTUP-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "PC private-domain construction pair completed62/31ms,10/10 synthetic heartbeats,max gap1.0011s,19 tests pass. Same constructor both labels;no executor or savings comparison. Original stale failure not reproduced.",
+      "remaining_validation": "Jetson load/quota/discovery and publisher delay unmeasured. Prepare separately reviewed guarded isolated startup attribution package;no live execution or deployment authorized.",
+      "reference": "docs/ATLAS_LOCALIZATION_PC_ROS_STARTUP_RESULT_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-STARTUP-PC-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
