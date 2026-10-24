@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 isolated ARM64 CPU comparison ABORTED at admission79.66%>75%,before
+benchmark child launched.11 preparation tests pass;package hashes verified.
+Protected services unchanged;follow-up safety healthy,CPU71.89%. No retry or
+Jetson savings claimed. See docs/ATLAS_LOCALIZATION_ARM64_ADMISSION_20261024.md.
+
 2026-10-24 paced saved sensor/TF benchmark completed:64tests,6896 checked callbacks
 pass;median PC process CPU savings3.84% and10.03%,8/8 positive pairs. Candidate is
 promising offline,NOT installed or Jetson-qualified. Next separate approval:

@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 guarded isolated ARM64 comparison prepared with11 focused tests and
+verified package hashes. Attempt aborted before child launch on79.66%CPU>75%.
+No install/restart/camera/movement;protected identities unchanged. Read-only
+follow-up71.89%CPU and safety healthy. Actual Jetson savings still unmeasured.
+
 2026-10-24 paced saved sensor/TF executor comparison added with actual captured
 sensor callbacks,shared odometry topic and blocking wait.64 tests and6896 checked
 deliveries pass. Two PC windows median CPU3.84%/10.03% lower,8/8 pairs improved.

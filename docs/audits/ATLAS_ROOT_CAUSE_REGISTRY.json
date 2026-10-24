@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-ARM64-ADMISSION-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Approved isolated comparison aborted before child launch on first CPU sample79.6639%>75%. Package hashes and11 focused preparation tests passed;protected PIDs/restarts unchanged. Follow-up read-only safety healthy,CPU71.8855%. No production changes or retry.",
+      "remaining_validation": "Actual ARM64 candidate savings unmeasured. CPU spike source not established;candidate never ran. Further attempt needs owner direction with unchanged production safeguards.",
+      "reference": "docs/ATLAS_LOCALIZATION_ARM64_ADMISSION_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-PACED-CPU-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
