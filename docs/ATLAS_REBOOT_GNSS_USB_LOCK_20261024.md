@@ -61,3 +61,31 @@ antenna/sky issue.
    a few percent of the time. The motor board can then always connect after a reboot or restart. Offline-testable
    with fake ports.
 3. Investigate the `atlas-ptz-home` boot failure and the ros2 CLI crash report (`/var/crash`, 18:22).
+
+## Fix deployed — GNSS lowest priority (owner approval 20:59; deployed 21:09)
+
+Change (commit 9febaba, code `cc638c69…`): with `auto_usb`, GNSS waits 90 s after start before its first USB probe;
+after a failed discovery it retries only after **600 s**, or 60 s after a new USB serial adapter appears. Drop-in
+`low-priority.conf`: `Nice=19`, `IOSchedulingClass=idle`. The fixed-port mode and NMEA parsing are unchanged.
+Offline: 19/19 tests (the old driver fails 7 of the 8 new ones).
+
+Fresh pre-checks (21:08): stop_latched true, commission_armed false, manual_only true, `/cmd_vel` zero, mission
+READY, encoder health READY, Astra off. Backup: `~/project-atlas-migration/gnss_lowprio_20261024_2112/backup/`
+(gnss_node.py `e7a44c55…` + original drop-in dir). Install: src file (colcon symlink install) + drop-in,
+`systemctl --user daemon-reload`, `systemctl --user restart atlas-gnss` (rc 0). No other unit was restarted.
+
+| Check | Before fix | After fix |
+|---|---|---|
+| USB discovery lock held (1-s samples) | 10/10 | **1/125** (the single probe 91 s after start) |
+| `ttyUSB1` held by GNSS | yes | no |
+| GNSS process priority | nice 10 | nice 19, idle I/O |
+| Protected services (base, localization, LiDAR, IMU, mux, safety, voice, dashboard, sensor hub, mission, remote, on-demand, EKF, scan filter) | — | PIDs and restart counts unchanged |
+| `/scan`, IMU, `/yahboom/odom`, ultrasonic | 7.0 / 10.7 / 10.8 / 3.3 Hz | 8.1 / 9.4 / 7.6 / 3.3 Hz (10-s CLI samples on a loaded Jetson) |
+| Encoders / motor commands / E-STOP | READY / zero / latched | READY 4/4 / zero / latched |
+| Navigation | active | active |
+| GPS | PORT_OFFLINE (silent device) | PORT_OFFLINE; `/gps/diagnostics` `usb_discovery` = lowest priority, next attempt in 469 s |
+| Whole-Jetson CPU | 68.2% (30 s) | **66.3% mean, 64.4–70.1%, 0 of 60 samples over 75%** (60 × 1 s) |
+
+GPS still has no data: the module on `ttyUSB1` sends no NMEA (hardware check pending). Indoor operation and USB
+communication no longer depend on it. Rollback: copy `backup/gnss_node.py` back, remove `low-priority.conf`,
+daemon-reload, restart atlas-gnss.
