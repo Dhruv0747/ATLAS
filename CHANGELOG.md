@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 parked camera profile (offline): tools/vision3d/atlas_parked_camera_profile.py pauses Nav2
+navigation (not localization) for one stationary Vision Lab session and resumes it; 19/19 real-Nav2 offline
+scenarios and 8 unit tests pass. Not run on ATLAS. docs/ATLAS_PARKED_CAMERA_PROFILE_20261024.md.
+
 2026-10-24 offline comparison of saved 21 Oct vs 24 Oct per-process CPU: the ~6-point higher parked
 baseline is fully-active Nav2 navigation (inactive in the 21 Oct boot whose camera test passed), not a
 code regression. Report docs/ATLAS_CPU_BASELINE_SHIFT_NAV2_20261024.md. No production change.

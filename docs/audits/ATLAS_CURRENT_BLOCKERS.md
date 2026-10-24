@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 parked camera profile built and validated OFFLINE against real Nav2 1.1.20 with live
+params (19/19 scenarios, 8 unit tests): pauses only Nav2 navigation around one stationary camera
+session, watchdog-guaranteed resume, no service restarts. Not run on ATLAS; awaits owner approval.
+See docs/ATLAS_PARKED_CAMERA_PROFILE_20261024.md.
+
 2026-10-24 baseline shift explained (offline, existing evidence): 21 Oct 65.5% was a boot where
 Nav2 navigation never activated (planner stuck "Checking transform"); since 21 Oct 20:18 navigation
 is active and planner/behavior/bt/waypoint cost 4-6% of a core each. Nav2 15.3 -> 46.1% of one core

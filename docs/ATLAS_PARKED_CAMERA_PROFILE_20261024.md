@@ -57,4 +57,62 @@ them and recreates the bond timer; `is_active` reports the result.
 | `atlas_sensor_recovery` | explicitly never restarts Nav2 |
 | `atlas_tight_space_recovery` | uses the exploration resume topic, not Nav2 lifecycle; idle while parked |
 
-RESULTS_PLACEHOLDER
+## Offline validation — real Nav2 1.1.20, Jetson's live parameters (19/19 pass)
+
+Environment: RoboStack Humble, **Nav2 1.1.20 and rclpy 3.3.21 (the Jetson's exact versions)**, Python 3.12, x86;
+loopback-only network namespace (cannot reach ATLAS). The five real navigation servers plus map_server, AMCL and
+both lifecycle managers run with the **live `nav2_params.yaml` (`2411371c…`) and live behaviour trees**
+(`atlas_ackermann_fail_stop.xml` `36d3a49a…`), `bond_timeout` 4.0, respawn enabled, `cmd_vel→cmd_vel_nav` remaps —
+as in the live launch file. Synthetic 20 × 20 m map, fake odometry/TF/scan, fake Dashboard API. Harness:
+`project_atlas/tools/vision3d/parked_profile_offline/run_offline_validation.py`.
+
+| Scenario | Result |
+|---|---|
+| Real Nav2 bring-up: 5 navigation + 2 localization nodes active | PASS (18 s) |
+| Planner works while active (ComputePathToPose) | PASS — 85-pose path |
+| Refuse: no owner approval / E-STOP not latched / policy not stopped / mission not READY / motor command nonzero / AMCL stale | 6 × PASS — nothing changed in each case |
+| Pause: 5 navigation servers `inactive`, map_server + AMCL `active` | PASS |
+| Paused state stable 40 s (10× the 4 s bond timeout), no bond-break reset | PASS |
+| Planner refuses goals while paused (no autonomy possible) | PASS — `REJECTED` |
+| Navigation CPU (5 servers), % of one core | PASS — **16.9 → 3.2** |
+| Second pause refused while a pause is recorded | PASS |
+| Resume: all 5 `active`, record cleared | PASS |
+| Planner works after resume | PASS — 85-pose path |
+| Resume is idempotent | PASS |
+| Watchdog: pause with a 15 s window and walk away → automatic resume, record cleared | PASS |
+| Resume while map→odom is genuinely absent (boot −3 condition, recreated by pausing localization for 15 s): reports `RESUME_INCOMPLETE`, restarts nothing; activation completes once localization returns | PASS |
+| Full `session`: pause → settle → READY → simulated Vision Lab session start/end → resume | PASS |
+
+Unit tests (`project_atlas/tests/test_parked_camera_profile_unit.py`, no ROS): 8 pass — every unsafe condition
+refuses, approval required, systemd watchdog command bounded to `resume`, watchdog armed before PAUSE, arming
+failure refuses before pausing, a watchdog-run resume never kills itself and clears the record, no service
+start/stop/restart code.
+
+Defects found and fixed during validation (before any ATLAS use): a harness argument-order bug (two servers
+crashed at start); a watchdog self-termination bug in the test watchdog path that left a stale pause record —
+fixed in the tool for both paths (record cleared first; a watchdog-run resume never disarms itself), with a unit
+test; a TF-loss injection that did not reproduce the real failure (tf2 cached the old transform) — replaced by
+pausing localization so map→odom is truly absent.
+
+## Expected effect on ATLAS (estimate, not a measurement)
+
+On 21 Oct (navigation inactive) the parked Jetson measured 65.5%; with navigation active it measures ~71%
+(72.9% in the light-observer capture). The 24 Oct capture puts the five navigation servers plus the navigation
+lifecycle manager at roughly 25–30% of one core; pausing should recover most of that, ≈ **4–5 points of
+whole-Jetson CPU**. The 08:35 Depth attempt failed by 0.21 points. This is the first change whose expected size
+exceeds the measured margin, but only a live session will show whether the 1-s guard passes.
+
+## Rollback
+
+Nothing is installed. `resume` (or the armed watchdog, at most 600 s after pause) restores navigation. If resume
+ever reports `RESUME_INCOMPLETE`, navigation stays paused (safe: no autonomy) and the owner decides; the known
+remedy is the existing `atlas-localization` service restart, which needs its own approval.
+
+## On-robot procedure (needs separate owner approval; nothing below has been run)
+
+1. Copy the tool to `~/project-atlas-migration/parked-profile/` on the Jetson, verify SHA256; no production file changes.
+2. `check` (read-only; the robot must already be parked, E-STOP latched, camera off).
+3. Run `session` as a persistent user unit; when it reports `READY_FOR_CAMERA`, the owner opens the Vision Lab,
+   selects Depth, presses Start **once**, ticks Uncalibrated preview, then lets it end.
+4. The tool resumes navigation and verifies all five servers active; read-only post-checks (E-STOP, policy,
+   commands zero, recording off, camera off, mission READY, protected service identities unchanged).
