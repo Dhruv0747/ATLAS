@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 staged owner-approved canonical-ID profiler correction; remote package
+hashes verified, original diagnostic/evidence retained. Six tests re-pass. Added
+final developer handover; no profiling run or production change.
+
 2026-10-24 owner Python capture aborted before sampling due to wrapper short-name
 vs canonical systemd Id mismatch. One-line offline diagnostic fix, six tests
 including actual parser regression; no staging/retry or production changes.

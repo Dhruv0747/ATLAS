@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Final CPU developer handover](docs/ATLAS_CPU_FINAL_DEVELOPER_HANDOVER_20261024.md):
+corrected diagnostic staged and checksummed, six tests pass; owner capture pending.
+Evidence, rejected approaches, limits and exact next action preserved. No CPU fix claimed.
+
 Dashboard/telemetry Python attempt aborted before samples: canonical systemd ID
 mismatch fixed offline; six tests pass. Corrected diagnostic NOT staged/run;
 no new CPU optimization evidence. See the profiling report below.
