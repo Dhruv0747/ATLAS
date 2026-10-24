@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 one authorized isolated ARM64 CPU-report-only comparison COMPLETE.
+12 preparation tests pass;1716 callbacks/TF verified,paired CPU savings6.64%/.46%
+(median3.55%). WholeCPUpeak87.04%,post77.14%;not normal admission or Astra readiness.
+RAM/temp/safety pass;protected hashes/PIDs unchanged. No production install/restart.
+
 2026-10-24 guarded isolated ARM64 comparison prepared with11 focused tests and
 verified package hashes. Attempt aborted before child launch on79.66%CPU>75%.
 No install/restart/camera/movement;protected identities unchanged. Read-only

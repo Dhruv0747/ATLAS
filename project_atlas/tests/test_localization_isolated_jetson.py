@@ -28,6 +28,16 @@ class GuardTests(unittest.TestCase):
         self.assertIn("ROS_DOMAIN_ID='213'",source)
         self.assertIn("ROS_LOCALHOST_ONLY='1'",source)
         self.assertNotIn("'restart'",source)
-        self.assertNotIn('--diagnostic-cpu-report-only',source)
+        self.assertIn("G.check(admitted_cpu,snap)",source)
+        self.assertIn("P.extra_safety(snap['ros'])",source)
+    def test_explicit_exception_only(self):
+        self.assertFalse(M.options([]))
+        self.assertTrue(M.options(['--diagnostic-cpu-report-only']))
+        for args in (['--ignore-all'],['--diagnostic-cpu-report-only']*2):
+            with self.assertRaises(ValueError):M.options(args)
+        self.assertIsNone(M.check_cpu(99,True))
+        self.assertEqual(M.check_cpu(74),74)
+        for value in (float('nan'),float('inf'),None,-1,101):
+            with self.assertRaises(RuntimeError):M.check_cpu(value,True)
 
 if __name__=='__main__':unittest.main()

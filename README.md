@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Isolated ARM64 comparison completed](docs/ATLAS_LOCALIZATION_ARM64_CPU_REPORT_TEST_20261024.md):
+owner one-test CPU reporting exception;1716 callbacks and TF passed. Median
+benchmark CPU saving3.55% (two pairs),not whole-Jetson headroom. Peak CPU87.04%;
+RAM/temp/safety passed,services unchanged. Candidate not installed.
+
 [Isolated Jetson comparison blocked](docs/ATLAS_LOCALIZATION_ARM64_ADMISSION_20261024.md):
 CPU79.66% failed75% admission before benchmark launch. Hashes passed;protected
 services unchanged,follow-up safety healthy. No ARM64 savings measured or retry.

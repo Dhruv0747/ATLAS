@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 owner one-test CPU-report exception completed isolated ARM64 comparison.
+1716 callbacks/TF pass,median benchmark CPU saving3.55%,two pairs6.64%/.46%.
+WholeCPUpeak87.04%,post77.14%:no normal admission/headroom claim. RAM/temp/safety
+passed,services/hashes unchanged. Not installed;further deployment needs approval.
+See docs/ATLAS_LOCALIZATION_ARM64_CPU_REPORT_TEST_20261024.md.
+
 2026-10-24 isolated ARM64 CPU comparison ABORTED at admission79.66%>75%,before
 benchmark child launched.11 preparation tests pass;package hashes verified.
 Protected services unchanged;follow-up safety healthy,CPU71.89%. No retry or

@@ -23,9 +23,18 @@ def verify(root, entries):
         if hashlib.sha256(path.read_bytes()).hexdigest()!=expected:raise RuntimeError('Hash mismatch: '+name)
 
 
-def check_cpu(value):
-    if not isinstance(value,(float,int)) or not math.isfinite(value) or not 0<=value<=75:
+def check_cpu(value, report_only=False):
+    if not isinstance(value,(float,int)) or not math.isfinite(value) or not 0<=value<=100:
+        raise RuntimeError('Invalid CPU measurement: '+str(value))
+    if not report_only and value>75:
         raise RuntimeError('CPU guard failed: '+str(value))
+    return None if report_only else value
+
+
+def options(args):
+    if args not in ([],['--diagnostic-cpu-report-only']):
+        raise ValueError('Only explicit owner-approved diagnostic CPU reporting option accepted')
+    return bool(args)
 
 
 def stop_owned(proc):
@@ -40,8 +49,10 @@ def stop_owned(proc):
 
 
 def main():
+    report_only=options(sys.argv[1:])
     root=Path(__file__).resolve().parent
     result={'status':'ABORTED','production_changed':False,'camera_started':False,'services_restarted':False}
+    result['cpu_policy']='OWNER ONE-TEST REPORT ONLY' if report_only else 'STOP >75%'
     proc=None;before=None;log=None;G=None
     # Exclusive creation prevents accidental reuse/retry of this directory.
     trace=(root/'guard-trace.jsonl').open('x',buffering=1)
@@ -64,9 +75,10 @@ def main():
             now=time.monotonic();ticks=G.ticks();cpu=G.cpu_delta(previous,ticks);dt=now-last
             previous=ticks;last=now
             emit({'phase':phase,'cpu':cpu,'interval_s':dt,'monotonic':now})
-            check_cpu(cpu)
+            admitted_cpu=check_cpu(cpu,report_only)
             if dt>1.5:raise RuntimeError('Resource sampling deadline failed')
-            snap=P.safety_snapshot();health=G.check(cpu,snap);extra=P.extra_safety(snap['ros'])
+            snap=P.safety_snapshot();health=G.check(admitted_cpu,snap);extra=P.extra_safety(snap['ros'])
+            health['cpu_percent']=cpu;health['diagnostic_cpu_report_only']=report_only
             with urllib.request.urlopen('http://127.0.0.1:8088/api/vision3d/summary',timeout=2) as r:camera=json.load(r)
             if not (camera.get('state')=='OFF' or camera.get('state')=='RESOURCE BLOCKED' and camera.get('driver_stopped') is True):raise RuntimeError('Astra not OFF')
             if subprocess.run(['pgrep','-x','astra_camera_no'],stdout=subprocess.DEVNULL,timeout=2).returncode!=1:raise RuntimeError('Astra process present/query failed')

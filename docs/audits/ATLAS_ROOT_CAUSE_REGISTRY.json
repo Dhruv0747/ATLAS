@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-ARM64-REPORT-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "One owner-authorized CPU-report-only isolated ARM64 comparison completed:1716 callbacks/TF passed,two pairs6.64%/.46% benchmark CPU savings,median3.55%. WholeCPUpeak87.04%,post77.14%;RAM/temp/safety passed. No production change;protected identities/hashes unchanged.",
+      "remaining_validation": "Candidate not installed;whole-system savings and full live callback behavior unverified. CPU exception exhausted;normal production75% admission unchanged. Deployment requires separate approval/backup/rollback.",
+      "reference": "docs/ATLAS_LOCALIZATION_ARM64_CPU_REPORT_TEST_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-ARM64-ADMISSION-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
