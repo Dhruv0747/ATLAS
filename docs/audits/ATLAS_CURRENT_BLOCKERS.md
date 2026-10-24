@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 approved localization-monitor deployment blocked at fresh CPU75.2922%
+against unchanged75% limit. RAM/temp/non-CPU safety passed; live original hash
+and monitor PID1948/restarts0 verified. No install/restart or automatic retry.
+Isolated benchmark CPU exception did not carry into deployment. See
+docs/ATLAS_LOCALIZATION_INSTALL_ADMISSION_20261024.md.
+
 2026-10-24 owner one-test CPU-report exception completed isolated ARM64 comparison.
 1716 callbacks/TF pass,median benchmark CPU saving3.55%,two pairs6.64%/.46%.
 WholeCPUpeak87.04%,post77.14%:no normal admission/headroom claim. RAM/temp/safety

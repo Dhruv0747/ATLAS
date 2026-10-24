@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-INSTALL-ADMISSION-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Approved monitor deployment blocked before mutation at CPU75.29215358931553% above unchanged75%. RAM67.1204%,temperature60.031C and non-CPU safety passed. Original monitor hash verified;PID1948/restarts0 active. No installation,restart or retry.",
+      "remaining_validation": "Production candidate and whole-system CPU benefit remain unvalidated. Earlier isolated CPU exception exhausted;fresh deployment admission and rollback readiness required.",
+      "reference": "docs/ATLAS_LOCALIZATION_INSTALL_ADMISSION_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-ARM64-REPORT-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

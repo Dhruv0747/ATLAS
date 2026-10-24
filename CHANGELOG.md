@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-24 localization monitor installation blocked before mutation: fresh CPU
+75.2922% exceeded unchanged 75% admission. RAM67.12%, temperature60.031C and
+non-CPU safety passed. Original monitor hash verified, PID1948/restarts0 active.
+No installation, restart, retry or camera/motion; no deployed CPU gain claimed.
+See docs/ATLAS_LOCALIZATION_INSTALL_ADMISSION_20261024.md.
+
 2026-10-24 one authorized isolated ARM64 CPU-report-only comparison COMPLETE.
 12 preparation tests pass;1716 callbacks/TF verified,paired CPU savings6.64%/.46%
 (median3.55%). WholeCPUpeak87.04%,post77.14%;not normal admission or Astra readiness.
