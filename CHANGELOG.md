@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 offline lifecycle cache test: pre/post executor invalidation fails
+recreated delivery; explicit group-detach variant fails association validation.
+Standard controls pass; CPU stage blocked by correctness. No production changes.
+See ATLAS_LIFECYCLE_CACHE_TEST_20261024.md.
+
 2026-10-24 isolated real ROS/bondcpp fixture:standard executor passed21 deliveries,
 dynamic timer/removal/recreation and heartbeat loss0.387002s. Stock static executor
 failed removal(count1 after2s),confirmed focused run;no CPU benchmark/deployment.

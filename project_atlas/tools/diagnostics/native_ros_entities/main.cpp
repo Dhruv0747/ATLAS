@@ -1,4 +1,4 @@
-// Isolated PC test only. Tests stock executors, NOT a patched RMW wait set.
+// Isolated PC test only. Stock/explicit-lifecycle executors, NOT patched RMW.
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/executors/static_single_threaded_executor.hpp>
 #include <std_msgs/msg/int64.hpp>
@@ -10,6 +10,26 @@
 #include <thread>
 using namespace std::chrono_literals;
 using Clock=std::chrono::steady_clock;
+// Offline explicit-lifecycle prototype, NOT an automatic RMW implementation.
+// Caller must serialize mutation with spinning and invalidate BEFORE destruction.
+bool lifecycle_mode=false;
+bool detach_groups=false;
+void invalidate(std::unique_ptr<rclcpp::Executor>& ex,
+                const std::vector<rclcpp::Node::SharedPtr>& nodes) {
+    if(!lifecycle_mode)return;
+    ex->cancel();
+    // Explicitly detach groups before nodes: do not leave association ownership
+    // to deferred collector refresh while rebuilding a stopped executor.
+    if(detach_groups) {
+        for(const auto &weak:ex->get_all_callback_groups()) {
+            if(auto group=weak.lock())ex->remove_callback_group(group);
+        }
+    }
+    for(const auto &node:nodes)ex->remove_node(node);
+    ex.reset(); // release cached shared ownership before user destroys an entity
+    ex=std::make_unique<rclcpp::executors::StaticSingleThreadedExecutor>();
+    for(const auto &node:nodes)ex->add_node(node);
+}
 void check(bool ok,const char* message) {if(!ok) throw std::runtime_error(message);}
 double cpu(){timespec t{};clock_gettime(CLOCK_PROCESS_CPUTIME_ID,&t);return t.tv_sec+t.tv_nsec*1e-9;}
 bool pump(rclcpp::Executor &e,std::function<bool()> done,double seconds) {
@@ -31,33 +51,43 @@ void exercise(bool cached) {
     check(pump(*ex,[&]{return pub->get_subscription_count()==1;},3),"discovery");
     for(int i=0;i<20;++i){std_msgs::msg::Int64 m;m.data=i;pub->publish(m);
         check(pump(*ex,[&]{return received==i+1;},1),"delivery");}
+    if(cached)invalidate(ex,{tx,rx});
     sub.reset();
     bool removed=pump(*ex,[&]{return pub->get_subscription_count()==0;},2);
     if(!removed) std::cerr<<"subscription_count_after_reset="<<pub->get_subscription_count()<<'\n';
     check(removed,"remove discovery");
     // Create after executor has already spun, not only before its cached collection.
+    if(cached)invalidate(ex,{tx,rx});
     sub=rx->create_subscription<std_msgs::msg::Int64>("offline_data",10,
         [&](const std_msgs::msg::Int64 &m){check(m.data>last,"recreated ordering");last=m.data;++received;});
+    if(cached)invalidate(ex,{tx,rx}); // rebuild after committing the new generation
     check(pump(*ex,[&]{return pub->get_subscription_count()==1;},2),"recreate discovery");
     std_msgs::msg::Int64 m;m.data=20;pub->publish(m);
     check(pump(*ex,[&]{return received==21;},1),"recreated delivery");
+    if(cached)invalidate(ex,{tx,rx});
     int ticks=0;auto timer=rx->create_wall_timer(10ms,[&]{++ticks;});
+    if(cached)invalidate(ex,{tx,rx});
     check(pump(*ex,[&]{return ticks>=3;},1),"dynamic timer");
     timer->cancel();int frozen=ticks;pump(*ex,[]{return false;},.06);
-    check(ticks==frozen,"cancelled timer callback");timer.reset();
+    check(ticks==frozen,"cancelled timer callback");
+    if(cached)invalidate(ex,{tx,rx});
+    timer.reset();
     // Real bondcpp messages and timers. No production heartbeat values changed.
+    if(cached)invalidate(ex,{tx,rx});
     bool formed_a=false,formed_b=false,broken=false;
     auto a=std::make_unique<bond::Bond>("offline_bond","pair",rx,[&]{broken=true;},[&]{formed_a=true;});
     auto b=std::make_unique<bond::Bond>("offline_bond","pair",tx,[]{},[&]{formed_b=true;});
     for(auto *p:{a.get(),b.get()}){p->setHeartbeatPeriod(.05);p->setHeartbeatTimeout(.4);p->setConnectTimeout(2);p->start();}
+    if(cached)invalidate(ex,{tx,rx});
     check(pump(*ex,[&]{return formed_a&&formed_b;},3),"bond formation");
     pump(*ex,[]{return false;},.2);check(!broken,"false bond failure");
     ex->remove_node(tx); // Silence peer timers, rather than explicitly announcing death.
     auto stopped=Clock::now();check(pump(*ex,[&]{return broken;},1.5),"missed heartbeat failure");
     double detection=std::chrono::duration<double>(Clock::now()-stopped).count();
     check(detection>=.2 && detection<1.5,"heartbeat failure timing");
+    if(cached)invalidate(ex,{rx});
     b.reset();a.reset();ex->remove_node(rx);ex->cancel();
-    std::cout<<"{\"mode\":\""<<(cached?"static":"standard")<<"\",\"checks\":\"PASS\",\"messages\":"<<received
+    std::cout<<"{\"mode\":\""<<(cached?(lifecycle_mode?"explicit_lifecycle":"static"):"standard")<<"\",\"checks\":\"PASS\",\"messages\":"<<received
              <<",\"heartbeat_failure_s\":"<<detection<<"}\n";
 }
 void measure(bool cached,int pair) {
@@ -74,7 +104,7 @@ void measure(bool cached,int pair) {
     timer->cancel();check(pump(*ex,[&]{return sent==received;},1),"benchmark drain");
     check(sent>=80,"benchmark stalled");
     ex->remove_node(node);ex->cancel();
-    std::cout<<"{\"mode\":\""<<(cached?"static":"standard")<<"\",\"pair\":"<<pair<<",\"cpu_s\":"<<used
+    std::cout<<"{\"mode\":\""<<(cached?(lifecycle_mode?"explicit_lifecycle":"static"):"standard")<<"\",\"pair\":"<<pair<<",\"cpu_s\":"<<used
              <<",\"sent\":"<<sent<<",\"received\":"<<received<<"}\n";
 }
 int main(int argc,char**argv){
@@ -82,6 +112,8 @@ int main(int argc,char**argv){
         check(std::getenv("ROS_DOMAIN_ID")&&std::string(std::getenv("ROS_DOMAIN_ID"))=="216","private domain required");
         check(std::getenv("ROS_LOCALHOST_ONLY")&&std::string(std::getenv("ROS_LOCALHOST_ONLY"))=="1","localhost required");
         rclcpp::init(argc,argv);
+        detach_groups=argc==2 && std::string(argv[1])=="--explicit-groups";
+        lifecycle_mode=detach_groups || (argc==2 && std::string(argv[1])=="--explicit-lifecycle");
         if(argc==2 && std::string(argv[1])=="--static-only") {
             exercise(true);rclcpp::shutdown();return 0;
         }

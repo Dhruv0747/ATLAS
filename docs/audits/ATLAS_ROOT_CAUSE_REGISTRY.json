@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LIFECYCLE-CACHE-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "PC explicit static-executor rebuild passes subscription removal but fails recreated delivery; explicit callback-group detach variant throws association error. Candidates rejected; no CPU savings established.",
+      "remaining_validation": "Exact collector ownership cause unverified. Need source-level lifetime/invalidation correction, correctness and performance gates before deployment.",
+      "reference": "docs/ATLAS_LIFECYCLE_CACHE_TEST_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-SCHEDULING-DDS-PC-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

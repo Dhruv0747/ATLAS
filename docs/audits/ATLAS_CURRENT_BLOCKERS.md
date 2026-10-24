@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 lifecycle caching offline: explicit static-executor rebuild passes
+subscription removal but fails recreated delivery; group-detach variant throws
+association error. No safe CPU patch or CPU savings established. Standard control
+passes; investigate collector ownership before any deployment. See
+docs/ATLAS_LIFECYCLE_CACHE_TEST_20261024.md. All live systems unchanged.
+
 2026-10-24 PC four-case scheduling/DDS test:20/20 messages,no stale gaps,combined
 quota case3throttles/70ms.27tests pass. Production network graph/load not modeled;
 no safe production fix proven. Leave quotas/DDS/safety unchanged. See

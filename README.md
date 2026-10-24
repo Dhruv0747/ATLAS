@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Lifecycle cache follow-up](docs/ATLAS_LIFECYCLE_CACHE_TEST_20261024.md): explicit
+cache rebuild fixes removal but fails recreated delivery; group-detach variant
+fails ownership validation. Both rejected, no deployable CPU change or live work.
+
 [Real ROS entity/bond validation](docs/ATLAS_NATIVE_ROS_ENTITY_BOND_TEST_20261024.md):
 standard executor passed dynamic entities and0.387s heartbeat-loss detection.
 Static candidate retained a removed subscription and is rejected;no deployment.
