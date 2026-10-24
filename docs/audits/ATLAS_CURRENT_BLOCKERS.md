@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 PC four-case scheduling/DDS test:20/20 messages,no stale gaps,combined
+quota case3throttles/70ms.27tests pass. Production network graph/load not modeled;
+no safe production fix proven. Leave quotas/DDS/safety unchanged. See
+docs/ATLAS_LOCALIZATION_SCHEDULING_DDS_PC_20261024.md. No live changes.
+
 2026-10-24 one authorized CPU-report isolated startup completed94.883ms,6/6
 heartbeats,production mission age<=0.1s. CPUpeak82.70%,other guards passed,
 protected identities/hashes unchanged. Failure NOT reproduced;production quota/

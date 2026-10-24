@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-SCHEDULING-DDS-PC-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Four isolated PC cases completed20/20 heartbeats without staleness;60%quota/Nice10 confirmed,combined UDPv4-env case3throttles/70ms.27tests pass. No live changes or safe production fix proven.",
+      "remaining_validation": "Production graph,concurrent load and publisher/receiver scheduling not reproduced. Do not remove quota or change DDS based on no-failure result.",
+      "reference": "docs/ATLAS_LOCALIZATION_SCHEDULING_DDS_PC_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-STARTUP-REPORT-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

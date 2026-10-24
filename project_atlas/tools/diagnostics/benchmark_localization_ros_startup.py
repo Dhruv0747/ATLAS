@@ -128,11 +128,24 @@ def child(arm):
     gaps = [b['received']-a['received'] for a,b in zip(received,received[1:])]
     latencies = [r['received']-r['sent'] for r in received]
     import resource
+    cgroup = Path('/proc/self/cgroup').read_text().strip()
+    cpu_stat = 'UNKNOWN'
+    cpu_max = 'UNKNOWN'
+    if cgroup.startswith('0::/'):
+        cg = Path('/sys/fs/cgroup') / cgroup[4:]
+        try:
+            cpu_stat = (cg/'cpu.stat').read_text().strip()
+            cpu_max = (cg/'cpu.max').read_text().strip()
+        except OSError:
+            pass
     result = dict(arm=arm, stages=rows, sent=sent, received=received,
                   maximum_receive_gap_s=max(gaps), maximum_delivery_s=max(latencies),
                   stale_gaps_over_2s=sum(x>2 for x in gaps), rss_kib=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
                   app_spun=False, service_calls_allowed=False, source_sha256=SOURCE_SHA,
-                  scheduler_wait='not attributed', jetson_cgroup_quota_reproduced=False)
+                  scheduler_wait='not attributed', jetson_cgroup_quota_reproduced=False,
+                  cgroup=cgroup, cpu_stat=cpu_stat, cpu_max=cpu_max,
+                  nice=os.getpriority(os.PRIO_PROCESS, 0),
+                  transport_env=os.environ.get('FASTDDS_BUILTIN_TRANSPORTS', 'unset'))
     print(json.dumps(result))
 
 

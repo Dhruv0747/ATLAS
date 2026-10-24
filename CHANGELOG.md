@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 PC private-network scheduling/DDS four-case comparison completed:
+20/20 heartbeat deliveries,no>2s gaps;combined60%quota/Nice10/UDPv4 environment
+recorded3 throttles/70ms.27tests pass. Failure not reproduced,no production fix
+or CPU savings claimed. See ATLAS_LOCALIZATION_SCHEDULING_DDS_PC_20261024.md.
+
 2026-10-24 authorized one-test CPU-report isolated startup COMPLETE:constructor
 94.883ms,6/6 heartbeats,live mission age<=0.1s,CPUpeak82.70%,RAM70.84%,temp59.343C.
 25 tests pass;all protected identities/hashes unchanged. Stale failure NOT
