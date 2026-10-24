@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Paced localization CPU comparison](docs/ATLAS_LOCALIZATION_PACED_TRAFFIC_20261024.md):
+saved sensor/TF timing and captured callbacks passed6896 deliveries/64 tests.
+Candidate median PC CPU savings3.84% and10.03%,8/8 pairs positive. Not installed;
+Jetson savings,full localization replay and Astra headroom remain unverified.
+
 [Localization CPU capture analyzed](docs/ATLAS_LOCALIZATION_PROFILE_AND_EXECUTOR_TRIAL_20261024.md):
 199 samples; main thread11.56% of one core. Wait-boundary samples are not CPU
 attribution. Offline executor trial delivered378000 messages;60 tests pass,

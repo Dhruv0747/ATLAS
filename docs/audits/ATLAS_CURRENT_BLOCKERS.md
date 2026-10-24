@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 paced saved sensor/TF benchmark completed:64tests,6896 checked callbacks
+pass;median PC process CPU savings3.84% and10.03%,8/8 positive pairs. Candidate is
+promising offline,NOT installed or Jetson-qualified. Next separate approval:
+bounded isolated ARM64 comparison,not camera or drive test. Full search/status
+workload not covered. See docs/ATLAS_LOCALIZATION_PACED_TRAFFIC_20261024.md.
+
 2026-10-24 localization profile now retrieved:199 samples,main thread11.56%onecore.
 151 samples at native wait boundary are not proof of hot Python code. Executor
 candidate tested offline:378000 messages/60tests pass,small workload-dependent

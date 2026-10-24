@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-24 paced saved sensor/TF executor comparison added with actual captured
+sensor callbacks,shared odometry topic and blocking wait.64 tests and6896 checked
+deliveries pass. Two PC windows median CPU3.84%/10.03% lower,8/8 pairs improved.
+No production change;ARM64 validation still required. Initial harness failures
+and excluded polling trial documented;no camera/motion or policy changes.
+
 2026-10-24 localization profile retrieved/hash verified.199 main-thread samples,
 151 at native wait boundary;no search-worker attribution. Offline scoped executor
 trial:378000 messages delivered,60 tests pass;paired median savings -0.79%,3.71%,

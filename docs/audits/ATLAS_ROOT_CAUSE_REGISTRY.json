@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-PACED-CPU-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Two paced replay-derived traffic windows with exact captured sensor callbacks and real TF listener passed6896 checked callbacks and64 tests. Candidate median PC process CPU saving3.84%/10.03%,8/8 paired comparisons positive. Polling harness results excluded and documented;no production change.",
+      "remaining_validation": "Isolated ARM64 validation requires approval;whole Jetson savings and Astra readiness unverified. No full map-search/status-write workload or AMCL reliability qualification. Production safeguards unchanged.",
+      "reference": "docs/ATLAS_LOCALIZATION_PACED_TRAFFIC_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-PROFILE-ANALYZED-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
