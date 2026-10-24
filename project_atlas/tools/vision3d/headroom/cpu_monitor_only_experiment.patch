@@ -1,0 +1,67 @@
+--- atlas_vision3d_runtime.orig.py	2026-10-24 15:56:21.703611713 +0000
++++ atlas_vision3d_runtime.py	2026-10-24 15:56:29.065810003 +0000
+@@ -24,6 +24,26 @@
+ # production domain wakes ~34 existing nodes for ~3 s (65% -> 92% CPU); the same join in a private domain cost only the
+ # joiner itself.  Only the Vision Lab receiver joins this domain, so no production node sees the camera graph.
+ ISOLATED_DOMAIN_ID = 77
++# TEMPORARY owner experiment (24 Oct 2026 21:03): ONE Depth session may report CPU above 75% instead of blocking.
++# Enabled only by a single-use, time-limited flag on tmpfs; absent/invalid/expired flag = normal 75% enforcement.
++# RAM 80%, temperature 70 C, policy/E-STOP/zero-command/sensor freshness, lease and stalled-guard checks unchanged.
++CPU_MONITOR_FLAG = STATE.with_name('atlas-vision3d-cpu-monitor-only.json')
++CPU_MONITOR_MAX_S = 1800
++
++
++def cpu_monitor_flag_valid(now_unix=None):
++    try:
++        j=json.loads(CPU_MONITOR_FLAG.read_text())
++        left=float(j['expires_unix'])-(time.time() if now_unix is None else now_unix)
++        return 0<left<=CPU_MONITOR_MAX_S and j.get('sessions_allowed')==1 and j.get('mode')=='depth'
++    except (OSError,ValueError,KeyError,TypeError):return False
++
++
++def consume_cpu_monitor_flag(mode):
++    """Single use: the first Depth worker that sees a valid flag renames it, so no later session can reuse it."""
++    if mode!='depth' or not cpu_monitor_flag_valid():return False
++    try:os.replace(CPU_MONITOR_FLAG,CPU_MONITOR_FLAG.with_suffix('.consumed'));return True
++    except OSError:return False
+ 
+ 
+ def domain_in_use(domain_id, proc=Path('/proc')):
+@@ -312,6 +332,10 @@
+     parent=os.getppid(); state={'state':'CHECKING','worker_pid':os.getpid(),'mode':mode,
+                               'limits':{'cpu_percent':75,'ram_percent':80,'temperature_c':70},
+                               'recording':False,'calibration':'UNVALIDATED; axial Z only'}
++    monitor_only=consume_cpu_monitor_flag(mode)
++    state['cpu_policy']=('MONITOR_ONLY (owner experiment 24 Oct 21:03): CPU above 75% is logged, not blocking; '
++                         'CPU spikes may occur. RAM/temperature/safety guards enforced.') if monitor_only else 'ENFORCED'
++    if monitor_only:state.update(cpu_trace=[],cpu_over_limit_samples=0,cpu_max_percent=None)
+     lifecycle_event(state,'worker_started')
+     def write():
+         temporary=STATE.with_suffix('.tmp')
+@@ -331,14 +355,23 @@
+         if child:state['astra_process'],process_last=process_metrics(child.pid,process_last)
+         state['elapsed_s']=time.monotonic()-started
+         try:
+-            G.require_cpu(cpu)
++            if monitor_only:
++                import math
++                if not math.isfinite(cpu):raise ValueError('RESOURCE BLOCKED: unknown CPU measurement')
++                state['cpu_trace']=(state['cpu_trace']+[[round(time.monotonic()-started,2),round(cpu,1)]])[-240:]
++                state['cpu_max_percent']=max(cpu,state['cpu_max_percent'] or 0.0)
++                if cpu>75:
++                    state['cpu_over_limit_samples']+=1
++                    if state['cpu_over_limit_samples']==1:lifecycle_event(state,'cpu_over_75_monitored',cpu=round(cpu,1))
++            cpu_guard=None if monitor_only else cpu
++            G.require_cpu(cpu_guard)
+             observation=P.safety_snapshot()
+-            row=G.check(cpu,observation=observation)
++            row=G.check(cpu_guard,observation=observation);row['cpu_percent']=cpu
+         except G.AdmissionError as e:
+             state['failed_resources']=e.evidence
+             lifecycle_event(state,'resource_guard_failed',evidence=e.evidence)
+             raise ValueError('RESOURCE BLOCKED: '+str(e)) from e
+-        limits(cpu,row['ram_percent'],max(row['thermal_c'].values()))
++        limits(min(cpu,75.0) if monitor_only else cpu,row['ram_percent'],max(row['thermal_c'].values()))
+         P.extra_safety(ros=observation['ros']);rows.append(row)
+         state.update(resources=row,remaining_s=max(0,MAX_SECONDS-(time.monotonic()-started)))
+     def checkpoint():
