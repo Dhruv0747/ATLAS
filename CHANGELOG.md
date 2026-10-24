@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-24 localization profile retrieved/hash verified.199 main-thread samples,
+151 at native wait boundary;no search-worker attribution. Offline scoped executor
+trial:378000 messages delivered,60 tests pass;paired median savings -0.79%,3.71%,
+2.42% across differing burst workloads. Candidate held,not installed;no Jetson
+savings or Astra readiness claimed. Voice/UI/production safeguards unchanged.
+
 2026-10-24 owner-approved localization diagnostic CPU-report-only option added
 and staged with verified hash/backup.29 tests pass;strict default and all other
 checks retained. No production change or profiling run;await owner capture.

@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Localization CPU capture analyzed](docs/ATLAS_LOCALIZATION_PROFILE_AND_EXECUTOR_TRIAL_20261024.md):
+199 samples; main thread11.56% of one core. Wait-boundary samples are not CPU
+attribution. Offline executor trial delivered378000 messages;60 tests pass,
+but small workload-dependent savings do not justify deployment. Production unchanged.
+
 [Localization thread profiler prepared](docs/ATLAS_LOCALIZATION_THREAD_PROFILE_PREP_20261024.md):
 27tests pass,10second nonblocking all-Python-thread capture staged;owner sudo
 required. Latest attempt aborted before profiling at75.21% CPU; evidence hashes

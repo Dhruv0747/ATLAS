@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+2026-10-24 localization profile now retrieved:199 samples,main thread11.56%onecore.
+151 samples at native wait boundary are not proof of hot Python code. Executor
+candidate tested offline:378000 messages/60tests pass,small workload-dependent
+savings (-0.79%,3.71%,2.42%). HOLD,not deployment-ready;no real Jetson gain shown.
+Next:rate-matched offline callback/TF workload,not another identical live profile.
+See docs/ATLAS_LOCALIZATION_PROFILE_AND_EXECUTOR_TRIAL_20261024.md.
+
 2026-10-24 owner approved CPU-report-only diagnostic capture. Explicit option
 staged and hash verified,29 tests pass. Production limits unchanged;other guards
 still enforced. Await actual profile before selecting next offline CPU fix.
