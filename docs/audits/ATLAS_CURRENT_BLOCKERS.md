@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+2026-10-24 new journal evidence: failed deployment never reached optimized spin;
+candidate still constructing ManualLocationCheck when rollback stopped it.
+Exact stale-mission origin unresolved; failed age was not retained. Offline
+diagnostic correction preserves receipt ages/times and original failure, adds
+mission identity protection;11tests pass. New post-rollback profile verified,
+not startup evidence. See ATLAS_LOCALIZATION_STALE_MISSION_FORENSICS_20261024.md.
+
 2026-10-24 explicit installation CPU exception used for one monitor deployment.
 Rolled back on stale mission_status during settling; peakCPU100%, no completed
 candidate CPU window. Original hash restored, monitor active275216/0; protected

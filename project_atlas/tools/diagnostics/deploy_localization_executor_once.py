@@ -48,6 +48,39 @@ def validate_cpu_sample(cpu, report_only, require_cpu):
         require_cpu(cpu)
 
 
+def audit_sensor_check(ros, check, emit, phase, snapshot_started, clock=time.monotonic):
+    """Persist bounded receipt evidence before the unchanged fail-closed check.
+
+    Dashboard age is receipt age, not proof of source publication timing.
+    Never refetch a failed snapshot or turn an exception into a passing result.
+    """
+    keys = ('lidar', 'imu_full', 'enc_m1', 'enc_m2', 'enc_m3', 'enc_m4',
+            'camera_info', 'drive_pid', 'mission_status', 'motor_speed')
+    def age(key):
+        value = ros.get(key, {})
+        raw = value.get('age') if isinstance(value, dict) else None
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool) and math.isfinite(raw):
+            return raw
+        return None
+    mission = ros.get('mission_status', {})
+    def mission_number(key):
+        raw = mission.get(key) if isinstance(mission, dict) else None
+        return raw if isinstance(raw, (int, float)) and not isinstance(raw, bool) and math.isfinite(raw) else None
+    row = dict(kind='sensor_check', phase=phase, monotonic=clock(),
+               snapshot_started=snapshot_started, receipt_ages={k: age(k) for k in keys},
+               mission_sample_time=mission_number('sample_time'),
+               mission_observed_hz=mission_number('observed_hz'),
+               mission_ready=isinstance(mission, dict) and mission.get('value') == 'READY')
+    emit(dict(row, outcome='PENDING'))
+    try:
+        result = check(ros)
+    except Exception as exc:
+        emit(dict(row, outcome='FAILED', error=str(exc), completed_monotonic=clock()))
+        raise
+    emit(dict(row, outcome='PASSED', completed_monotonic=clock()))
+    return result
+
+
 def main():
     report_only = cpu_report_only(sys.argv[1:])
     stage = Path(__file__).resolve().parent
@@ -68,7 +101,7 @@ def main():
 
     def emit(row):
         with lock:
-            trace.write(json.dumps(row) + '\n')
+            trace.write(json.dumps({'monotonic': time.monotonic(), **row}) + '\n')
             trace.flush()
 
     def identity(unit):
@@ -102,11 +135,12 @@ def main():
                 raise RuntimeError(failure[0])
             if 'cpu' not in latest or time.monotonic()-latest['monotonic'] > 2 or latest['interval'] > 1.5:
                 raise RuntimeError('CPU observer missing/stale')
+        snapshot_started = time.monotonic()
         snap = P.safety_snapshot()
         checked = G.check(latest['cpu'] if enforce_cpu and not report_only else None, snap)
         checked['cpu_percent'] = latest.get('cpu')
         checked['installation_cpu_report_only'] = report_only
-        P.extra_safety(snap['ros'])
+        audit_sensor_check(snap['ros'], P.extra_safety, emit, phase, snapshot_started)
         with urllib.request.urlopen('http://127.0.0.1:8088/api/vision3d/summary', timeout=3) as r:
             camera = json.load(r)
         require_off(camera, subprocess.run(['pgrep', '-x', 'astra_camera_no'], stdout=subprocess.DEVNULL).returncode)
@@ -163,7 +197,7 @@ def main():
         sys.path.insert(0, '/home/jetson/project-atlas-migration/native-cpu-20261023')
         from native_dashboard_cpu_once import require_off
         def protected():
-            return dict(G.services(), dashboard=identity('rover-status-web'), voice=identity('atlas-voice-companion.service'), safety=identity('atlas-safety-status.service'))
+            return dict(G.services(), dashboard=identity('rover-status-web'), voice=identity('atlas-voice-companion.service'), safety=identity('atlas-safety-status.service'), mission=identity('atlas-mission-control.service'))
         before = protected()
         result['services_before'] = before
         if any(v['ActiveState'] != 'active' or int(v['MainPID']) <= 1 for v in before.values()):

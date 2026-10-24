@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-MISSION-FORENSICS-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Retained journal places candidate in ROS service construction at rollback, before optimized spin. Failed mission age/publisher timing absent. Offline tooling fixes bounded failure-evidence retention and mission-service identity protection;11 tests pass. New profile is restored original,not startup.",
+      "remaining_validation": "Runtime freshness-loss boundary unresolved. Do not infer executor fault or CPU fix. No live changes;future deployment needs separate approval and startup-specific evidence.",
+      "reference": "docs/ATLAS_LOCALIZATION_STALE_MISSION_FORENSICS_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-INSTALL-ROLLBACK-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

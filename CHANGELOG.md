@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-24 stale-mission forensics: candidate was still constructing ROS services
+when rollback stopped it, before optimized spin. Exact delay boundary unresolved.
+Offline installer now preserves bounded receipt/failure evidence and protects
+mission-control identity;11 tests pass. No live changes or CPU savings claimed.
+See docs/ATLAS_LOCALIZATION_STALE_MISSION_FORENSICS_20261024.md.
+
 2026-10-24 owner CPU-report-only localization installation attempted and rolled
 back on stale mission_status during settling. Only monitor restarted (install,
 rollback); original hash restored, all protected services unchanged. Six tests
