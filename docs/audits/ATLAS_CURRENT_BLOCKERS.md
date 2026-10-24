@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 explicit installation CPU exception used for one monitor deployment.
+Rolled back on stale mission_status during settling; peakCPU100%, no completed
+candidate CPU window. Original hash restored, monitor active275216/0; protected
+services unchanged. Recovery sensors fresh butCPU76.96% still above normal75%.
+See docs/ATLAS_LOCALIZATION_INSTALL_ROLLBACK_20261024.md. No automatic retry.
+
 2026-10-24 approved localization-monitor deployment blocked at fresh CPU75.2922%
 against unchanged75% limit. RAM/temp/non-CPU safety passed; live original hash
 and monitor PID1948/restarts0 verified. No install/restart or automatic retry.

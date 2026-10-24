@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-INSTALL-ROLLBACK-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "One explicitly CPU-report-only installation rolled back on stale mission_status during restart settling. CPU peak100%;original hash restored,monitor active275216/0,protected services unchanged. Recovery sensors fresh,CPU76.96%. No post-window or savings claim.",
+      "remaining_validation": "Causality of freshness failure unresolved;inspect retained evidence before another separately approved deployment. No camera or motion authorized.",
+      "reference": "docs/ATLAS_LOCALIZATION_INSTALL_ROLLBACK_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-INSTALL-ADMISSION-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

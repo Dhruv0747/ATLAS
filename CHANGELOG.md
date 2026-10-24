@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 owner CPU-report-only localization installation attempted and rolled
+back on stale mission_status during settling. Only monitor restarted (install,
+rollback); original hash restored, all protected services unchanged. Six tests
+pass; no valid post CPU comparison. Evidence: ATLAS_LOCALIZATION_INSTALL_ROLLBACK_20261024.md.
+
 2026-10-24 localization monitor installation blocked before mutation: fresh CPU
 75.2922% exceeded unchanged 75% admission. RAM67.12%, temperature60.031C and
 non-CPU safety passed. Original monitor hash verified, PID1948/restarts0 active.
