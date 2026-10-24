@@ -13,7 +13,8 @@ Demand comes only from existing low-rate topics (no LiDAR/image subscriptions):
 
 Rules:
   * Only units in MANAGED (hard-coded) can be started or stopped; the YAML file can only tune timings/triggers of
-    those units. Nothing is ever restarted, enabled, disabled or edited.
+    those units. Nothing is ever restarted, enabled, disabled or edited. A unit that ends 'failed' after a requested
+    stop (some features exit 1 on SIGTERM) gets `reset-failed`, which only clears the status label.
   * Boot grace (default 300 s): nothing is stopped until ATLAS has settled.
   * A feature is stopped only after its demand has been false for its idle_s AND it has been on for min_on_s.
   * While a mapping session is active (atlas-slam-fast.service), units that mission control pauses for mapping
@@ -182,6 +183,9 @@ def run(config):
         for action, u in plan.decide(active, state, mapping):
             r = systemctl(action, u + '.service')
             state[u] = unit_state(u)
+            if action == 'stop' and state[u] == 'failed':
+                # some features exit with status 1 on SIGTERM; clear the label so diagnostics do not show a false fault
+                systemctl('reset-failed', u + '.service', timeout=10); state[u] = unit_state(u)
             log(action, unit=u, rc=r.returncode, state=state[u], demand={k: v for k, v in active.items() if v})
             if action == 'start' and state[u] == 'active':
                 plan.note_started(u)

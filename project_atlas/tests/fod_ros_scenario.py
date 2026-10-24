@@ -12,7 +12,7 @@ for u in F.MANAGED: (units / (u + '.service')).write_text('active')
 (units / 'atlas-slam-fast.service').write_text('inactive')
 fake = work / 'systemctl'
 fake.write_text('#!/bin/bash\necho "$2 $3" >> "%s/calls"\nf="%s/$3"\ncase "$2" in is-active) cat "$f" 2>/dev/null || echo inactive;; '
-                'stop) echo inactive > "$f";; start) echo active > "$f";; esac\n' % (units, units)); fake.chmod(0o755)
+                'stop) if [ "$3" = atlas-follow-person.service ]; then echo failed > "$f"; else echo inactive > "$f"; fi;; reset-failed) echo inactive > "$f";; start) echo active > "$f";; esac\n' % (units, units)); fake.chmod(0o755)
 cfg = work / 'c.yaml'
 cfg.write_text('timing: {boot_grace_s: 3, min_on_s: 1, state_check_s: 1, replay_delay_s: 1.5}\nfeatures:\n' +
                ''.join('  %s: {idle_s: 30}\n' % u for u in F.MANAGED))
@@ -35,7 +35,7 @@ def wait(cond, t):
     while time.monotonic() < end and not cond(): time.sleep(0.5)
     return cond()
 try:
-    res['parked_all_stopped'] = wait(lambda: all(v == 'inactive' for v in st().values()), 60)
+    res['parked_all_stopped'] = wait(lambda: all(v == 'inactive' for v in st().values()), 60)   # incl. follow-person failed->reset
     t0 = time.monotonic(); fol.publish(Bool(data=True))
     need = ('atlas-follow-person', 'atlas-person-sensor-fusion', 'atlas-ai-annotator')
     res['follow_starts_its_features'] = wait(lambda: all(st()[u] == 'active' for u in need), 20)
