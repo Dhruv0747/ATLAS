@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 one approved isolated startup attempt ABORTED before worker launch:
+fourth baselineCPU76.2376%>75%. CleanupCPU71.04%,mission age0.2s,sensors fresh,
+protected hashes/11services unchanged. No retry;startup cause still unresolved.
+See docs/ATLAS_LOCALIZATION_STARTUP_ATTEMPT_20261024.md.
+
 2026-10-24 guarded isolated Jetson startup v2 package prepared locally only;
 24tests pass plus5Linux package tests,10hashes verified. No CPU bypass, no live
 changes. Await explicit one-test approval under unchanged75/80/70 limits.

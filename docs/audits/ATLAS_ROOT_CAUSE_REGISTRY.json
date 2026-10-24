@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-STARTUP-ATTEMPT-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Approved v2 isolated startup attempt aborted at fourth baselineCPU76.2376%>75%,before worker launch. Cleanup safety/sensors/hash checks pass;11services unchanged. No retry or production changes.",
+      "remaining_validation": "No startup timing captured;stale mission cause unresolved. Stop after failed admission;further execution needs owner direction.",
+      "reference": "docs/ATLAS_LOCALIZATION_STARTUP_ATTEMPT_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-STARTUP-PACKAGE-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",

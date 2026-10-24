@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 approved isolated Jetson startup attempt stopped at fourth baseline
+CPU76.2376%>75%,before worker launch. Cleanup safety/sensors/hash checks passed,
+11 protected services unchanged. No retry/install/restart/camera/movement.
+Evidence: docs/ATLAS_LOCALIZATION_STARTUP_ATTEMPT_20261024.md.
+
 2026-10-24 prepared inert guarded Jetson startup v2 bundle:24 offline tests pass,
 5 package tests also pass Linux;10 file hashes verified. Strict75/80/70 guards,
 single private-domain constructor,owned cleanup,receipt/stage evidence. Not copied
