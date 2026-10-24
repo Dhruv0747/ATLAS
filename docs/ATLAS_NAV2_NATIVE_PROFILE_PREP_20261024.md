@@ -70,3 +70,19 @@ thread CPU and observer CPU versus baseline/postflight. Only then choose a
 minimal offline optimization. Do not infer busy waiting from sleeping stacks,
 or extrapolate two-thread savings to whole-Jetson CPU. If admission fails, stop;
 this approval does not waive CPU limits or authorize a repeat.
+
+## Owner-run follow-up: 2026-10-24 09:04 IST
+
+Owner reported executing the command. Read-only inspection of the exact staged
+directory found only the two reviewed scripts and an import cache, with no
+evidence directory, result.json, telemetry or perf.data. Both script hashes
+still match the table above. No matching nav2_cpu_once or perf-record process
+was running at inspection time. The import cache was already possible from the
+earlier read-only validation and is not proof that the sudo capture ran.
+
+Capture status is **NO SAVED EVIDENCE FOUND**, not CAPTURE COMPLETE and not a
+confirmed CPU guard abort. Existing checks cannot distinguish a terminal/command
+or sudo failure from an exception before evidence-directory creation. Exact
+terminal stdout/stderr is required; do not guess the cause or automatically rerun.
+No new performance measurement, candidate fix or CPU savings claim is possible
+from this result. No production changes or new profiling were performed.
