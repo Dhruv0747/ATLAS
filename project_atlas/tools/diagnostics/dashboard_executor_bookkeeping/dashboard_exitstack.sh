@@ -32,7 +32,7 @@ for d in os.listdir('/proc'):
         if b'astra_camera_node' in c or b'atlas_vision3d_runtime.py\x00--worker' in c:sys.exit(1)
 PY
 }
-restart_web(){ systemctl --user restart rover-status-web; for i in $(seq 1 40); do c=$(curl -s -o /dev/null -w '%{http_code}' -m5 http://127.0.0.1:8088/v2 || true); [ "$c" = 200 ] && break; sleep 1; done; log "rover-status-web $(systemctl --user is-active rover-status-web) /v2=$c"; }
+restart_web(){ systemctl --user restart rover-status-web; for i in $(seq 1 40); do c=$(curl -s -o /dev/null -w '%{http_code}' -m5 http://127.0.0.1:8088/v2/ || true); [ "$c" = 200 ] && break; sleep 1; done; log "rover-status-web $(systemctl --user is-active rover-status-web) /v2/=$c"; }
 health(){  # prints failures; returns 0 only when every check passes
   local bad=0
   inst_ok || { log "FAIL installed hashes"; bad=1; }
@@ -44,7 +44,7 @@ fresh=sum(1 for v in r.values() if isinstance(v,dict) and isinstance(v.get('age'
 err=(r.get('web_error') or {}).get('value'); print('policy',p['manual_only'],p['stop_latched'],'ages',ages,'fresh_keys',fresh,'web_error',err)
 sys.exit(0 if p['manual_only'] and p['stop_latched'] and all(a is not None and a<2 for a in ages.values()) and not err and fresh>=int(sys.argv[1]) else 1)" "${MIN_FRESH:-40}" >> "$OUT/log.txt" 2>&1 || { log "FAIL policy/freshness/executor"; bad=1; }
   [ "$(ident)" = "$IDENT_BEFORE" ] || { log "FAIL protected service identity changed"; bad=1; }
-  for u in /camera.jpg /v2 /v2/vision3d /api/vision3d/summary; do [ "$(curl -s -o /dev/null -w '%{http_code}' -m8 http://127.0.0.1:8088$u)" = 200 ] || { log "FAIL route $u"; bad=1; }; done
+  for u in /camera.jpg /v2/ /v2/vision3d /api/vision3d/summary; do [ "$(curl -s -o /dev/null -w '%{http_code}' -m8 http://127.0.0.1:8088$u)" = 200 ] || { log "FAIL route $u"; bad=1; }; done
   [ "$(webhash)" = "$WEB_BEFORE" ] || { log "FAIL white-glass/static assets changed"; bad=1; }
   [ "$(h "$T/atlas_status_web.py")" = "$WEB_SHA" ] || { log "FAIL atlas_status_web.py changed"; bad=1; }
   return $bad; }
