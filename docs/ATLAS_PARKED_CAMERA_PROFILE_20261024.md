@@ -130,3 +130,16 @@ remedy is the existing `atlas-localization` service restart, which needs its own
   pause record cleared. No service restarted; E-STOP latched throughout.
 - Result: the pause/resume mechanism is live-verified; the 3D preview itself remains untested. A new window needs
   the owner at the browser.
+
+## Camera mode extension: optional AI-feature pause (owner approval 14:56) — offline 20/20
+
+`--with-ai-pause` additionally stops a fixed list of non-essential AI feature services after navigation is
+confirmed paused (only those that were running), records them in the pause record, and on resume restarts them
+staggered (3 s) and verified BEFORE resuming navigation (so `/camera/semantic_obstacles` exists again); the
+watchdog path does the same. A failed restart is reported once (`AI_RESUME_INCOMPLETE`), never retried in a loop,
+and navigation still resumes. Voice, local LLM, agent supervisor and all safety/motion/sensor/localization/camera
+services are excluded. Unit tests 12/12 (fake systemctl); real-Nav2 offline suite 20/20 including
+`session_with_ai_pause` (all listed services inactive during the session, all active afterwards, AI restarted
+before navigation resume). Expected extra saving ≈ 6–7 points of whole-Jetson CPU on top of the navigation pause.
+If the on-demand manager (ATLAS_FEATURE_ON_DEMAND_20261024.md) is installed, those features are already off while
+parked and the plain navigation pause is enough.
