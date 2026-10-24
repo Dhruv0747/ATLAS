@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 completed Nav2 native capture analyzed:15 user CPU samples,zero lost;
+wait-set bookkeeping and bond publication observed. Six new offline analyzer
+tests pass. No runtime defect/savings proven,no production patch/deployment.
+See ATLAS_NAV2_NATIVE_PROFILE_RESULT_20261024.md.
+
 2026-10-24 native Nav2 diagnostic prepared/staged,not run:strict guards,two hot
 child threads,ten-second perf capture.28 offline tests pass;read-only Jetson
 identity check10 processes/109 threads. Owner sudo execution required. No

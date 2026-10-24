@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Nav2 native capture analyzed](docs/ATLAS_NAV2_NATIVE_PROFILE_RESULT_20261024.md):
+15 on-CPU samples identify wait-set/bond work,not a proven runtime defect.
+Six offline analysis tests pass;no new CPU-saving patch or deployment claimed.
+
 [Saved CPU service ranking](docs/ATLAS_SAVED_CPU_SERVICE_RANKING_20261024.md):
 historical Nav2/AMCL group51.345% of one core exceeds Dashboard44.842%; distinct
 from localization monitor.10 accounting tests pass. No new runtime fix or CPU
