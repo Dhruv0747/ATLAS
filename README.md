@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Ranked native CPU capture](docs/ATLAS_RANKED_CPU_PROFILE_APPROVAL_20261024.md):
+prepared/staged diagnostic ranks current load, samples up to6 verified ATLAS
+threads.7Linux tests pass; not executed, no production changes.
+
 [One-pass subscription lookup](docs/ATLAS_ONEPASS_SUBSCRIPTION_LOOKUP_20261024.md):
 standard executor retained; native correctness passes and operation cost falls.
 Integrated CPU results mixed; no Jetson headroom or deployment claim.

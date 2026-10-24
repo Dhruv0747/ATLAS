@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 prepared bounded ranked native profiler: all readable PID totals,
+allowlisted ATLAS thread deltas, up to6targets/20s/49Hz; CPU-report-only exception,
+other guards unchanged.7Linux tests pass. Staged only; no live profiling yet.
+
 2026-10-24 standard-executor one-pass subscription/group lookup candidate: real
 ROS lifecycle/bond tests and7direct cases pass,480k identity-checked lookups.
 Operation CPU35–51%lower onPC;6integrated pairs mixed, no system savings proven.
