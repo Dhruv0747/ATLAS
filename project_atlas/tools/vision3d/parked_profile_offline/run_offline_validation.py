@@ -49,7 +49,7 @@ def main(params_live, work, out):
     start('lifecycle_manager_localization', mgr('lifecycle_manager_localization', ['map_server', 'amcl']))
     for n in NAV:
         cmd = [exe(PKG[n], n), '--ros-args', '-r', '__node:=' + n, '--params-file', params, '-p', 'use_sim_time:=false']
-        if n in ('controller_server', 'behavior_server'): cmd[3:3] = ['-r', 'cmd_vel:=cmd_vel_nav']
+        if n in ('controller_server', 'behavior_server'): cmd += ['-r', 'cmd_vel:=cmd_vel_nav']
         start(n, cmd)
     time.sleep(3); start('lifecycle_manager_navigation', mgr('lifecycle_manager_navigation', list(NAV)))
     try:
@@ -104,17 +104,20 @@ def main(params_live, work, out):
         # --- watchdog: pause with a short window and walk away
         rc, rows, _ = tool('pause', '--max-pause-s', '15', env_extra=dict(env_tool, OWNER_APPROVED='yes'))
         time.sleep(45); rc_s, rows_s, _ = tool('status', env_extra=env_tool)
-        say('watchdog_resumes_automatically', rc == 0 and rows_s[-1]['ros']['nav_active'] is True and not (work / 'marker.json').exists(), ros=rows_s[-1]['ros'])
-        # --- resume while map->base TF is missing: must report, not restart anything; completes once TF returns
-        rc, rows, _ = tool('pause', env_extra=dict(env_tool, OWNER_APPROVED='yes'))
-        stop_tf.write_text('1'); time.sleep(3)
+        say('watchdog_resumes_automatically', rc == 0 and rows_s[-1]['ros']['nav_active'] is True and not (work / 'marker.json').exists(),
+            pause_rc=rc, pause_events=[r.get('event') for r in rows], pause_reason=[r.get('reason') for r in rows if r.get('event') == 'REFUSE'], ros=rows_s[-1]['ros'])
+        # --- resume while map->odom is absent (boot -3 condition): must report, not restart anything; completes once TF returns
+        rc0, rows0, _ = tool('pause', env_extra=dict(env_tool, OWNER_APPROVED='yes'))
+        lp = subprocess.run([sys.executable, str(HERE / 'loc_manager.py'), 'pause'], capture_output=True, text=True, timeout=90).stdout.strip()
+        time.sleep(15)                                   # beyond tf2's 10 s cache: map->odom genuinely unavailable
         rc, rows, err = tool('resume', '--timeout', '25', env_extra=dict(env_tool, OWNER_APPROVED='yes'))
         incomplete = rc == 3 and any(r['event'] == 'RESUME_INCOMPLETE' for r in rows)
-        stop_tf.unlink(); time.sleep(10)
+        lr = subprocess.run([sys.executable, str(HERE / 'loc_manager.py'), 'resume'], capture_output=True, text=True, timeout=90).stdout.strip()
+        time.sleep(20)
         rc2, rows2, _ = tool('resume', env_extra=dict(env_tool, OWNER_APPROVED='yes'))
         rc_s, rows_s, _ = tool('status', env_extra=env_tool)
         say('resume_without_tf_reports_incomplete_then_recovers', incomplete and rows_s[-1]['ros']['nav_active'] is True,
-            first_rc=rc, events=[r['event'] for r in rows], second_rc=rc2, final=rows_s[-1]['ros'])
+            pause_rc=rc0, loc_pause=lp, loc_resume=lr, first_rc=rc, events=[r['event'] for r in rows], second_rc=rc2, final=rows_s[-1]['ros'])
         # --- full session flow with a simulated Vision Lab state file
         vs = work / 'vision_state.json'; vs.write_text(json.dumps({'state': 'RESOURCE BLOCKED', 'worker_pid': 1}))
         env_s = dict(env_tool, OWNER_APPROVED='yes')
