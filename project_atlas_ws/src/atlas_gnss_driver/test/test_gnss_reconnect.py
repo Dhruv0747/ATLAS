@@ -175,6 +175,109 @@ class ReceiverTests(unittest.TestCase):
         self.node.destroy_node()
         self.node.fix_pub.publish.assert_not_called()
 
+    def test_fixed_port_mode_keeps_two_second_retry(self):
+        self.node.fd = None
+        with patch('atlas_gnss_driver.gnss_node.open_raw_serial', side_effect=OSError('absent')) as opened:
+            self.node._poll()
+            self.clock.return_value = 101.0
+            self.node._poll()
+            self.clock.return_value = 102.5
+            self.node._poll()
+        self.assertEqual(opened.call_count, 2)
+
+
+class LowPriorityDiscoveryTests(unittest.TestCase):
+    """auto_usb: GNSS probes at most once per retry period and never during the startup delay."""
+    def setUp(self):
+        self.clock_patch = patch('atlas_gnss_driver.gnss_node.time.monotonic', return_value=1000.0)
+        self.clock = self.clock_patch.start()
+        self.devices = {'/dev/ttyUSB0', '/dev/ttyUSB1'}
+        self.ident = ModuleType('atlas_usb_identity')
+        self.ident.open_verified = MagicMock(side_effect=OSError('gps: expected one unclaimed verified device, found 0'))
+        self.ident.candidates = lambda: sorted(self.devices)
+        self.mod_patch = patch.dict(sys.modules, {'atlas_usb_identity': self.ident})
+        self.mod_patch.start()
+        orig = FakeNode.declare_parameter
+
+        def declare(node, name, value):
+            orig(node, name, True if name == 'auto_usb' else value)
+        self.decl_patch = patch.object(FakeNode, 'declare_parameter', declare)
+        self.decl_patch.start()
+        self.node = GnssNode()
+        for name in ('fix_pub', 'sat_pub', 'hdop_pub', 'const_pub', 'nmea_pub', 'status_pub', 'diagnostics_pub'):
+            setattr(self.node, name, MagicMock())
+
+    def tearDown(self):
+        self.node.fd = None
+        self.decl_patch.stop()
+        self.mod_patch.stop()
+        self.clock_patch.stop()
+
+    def run_until(self, t_end, step=0.5):
+        t = self.clock.return_value
+        while t <= t_end:
+            self.clock.return_value = t
+            self.node._poll()
+            t += step
+
+    def probes(self):
+        return self.ident.open_verified.call_count
+
+    def test_no_probe_during_startup_delay(self):
+        self.run_until(1089.5)
+        self.assertEqual(self.probes(), 0)
+        self.run_until(1091.0)
+        self.assertEqual(self.probes(), 1)
+
+    def test_failed_discovery_waits_ten_minutes(self):
+        self.run_until(1091.0)
+        self.assertEqual(self.probes(), 1)
+        self.run_until(1090.0 + 599.0)
+        self.assertEqual(self.probes(), 1)
+        self.run_until(1090.0 + 601.0)
+        self.assertEqual(self.probes(), 2)
+        self.assertEqual(self.node.discovery_failures, 2)
+
+    def test_lock_probe_rate_over_one_hour(self):
+        self.run_until(1000.0 + 3600.0, step=1.0)
+        self.assertLessEqual(self.probes(), 6)   # boot at 90 s, then every 600 s
+
+    def test_new_usb_device_retries_after_hotplug_delay(self):
+        self.run_until(1091.0)
+        self.devices.add('/dev/ttyUSB7')
+        self.run_until(1091.0 + 15.0)       # detected within one 10 s check
+        self.assertEqual(self.probes(), 1)  # but not probed immediately
+        self.run_until(1091.0 + 80.0)
+        self.assertEqual(self.probes(), 2)
+
+    def test_removed_device_does_not_trigger_retry(self):
+        self.run_until(1091.0)
+        self.devices.discard('/dev/ttyUSB1')
+        self.run_until(1091.0 + 300.0)
+        self.assertEqual(self.probes(), 1)
+
+    def test_success_then_loss_retries_once_then_backs_off(self):
+        link = MagicMock(port='/dev/ttyUSB1')
+        link.fileno.return_value = 77
+        self.ident.open_verified.side_effect = [link, OSError('found 0')]
+        self.run_until(1091.0)
+        self.assertEqual(self.node.fd, 77)
+        self.assertEqual(self.node.discovery_failures, 0)
+        self.node._close_port()                       # e.g. no NMEA for 8 s
+        self.run_until(1091.0 + 3.0)
+        self.assertEqual(self.probes(), 2)            # one immediate re-discovery
+        self.run_until(1091.0 + 500.0)
+        self.assertEqual(self.probes(), 2)            # then the 10-minute hold-off
+
+    def test_diagnostics_report_next_attempt(self):
+        self.run_until(1091.0)
+        self.clock.return_value = 1100.0
+        self.node._publish_status()
+        d = json.loads(self.node.diagnostics_pub.publish.call_args.args[0].data)
+        self.assertEqual(d['state'], 'PORT_OFFLINE')
+        self.assertEqual(d['usb_discovery']['priority'], 'lowest')
+        self.assertAlmostEqual(d['usb_discovery']['next_attempt_in_s'], 590.0, delta=1.0)
+
 
 if __name__ == '__main__':
     unittest.main()

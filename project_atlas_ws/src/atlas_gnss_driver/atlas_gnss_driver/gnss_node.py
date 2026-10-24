@@ -59,6 +59,11 @@ class GnssNode(Node):
         self.declare_parameter('poll_hz', 20.0)
         self.declare_parameter('source_name', 'SIM8230G USB GNSS')
         self.declare_parameter('auto_usb', False)
+        # Lowest-priority shared-USB discovery (owner decision 24 Oct 2026): GNSS must never keep the
+        # Yahboom base or IMU from the shared CH340 discovery lock. Only used with auto_usb.
+        self.declare_parameter('discovery_startup_delay_s', 90.0)   # let base/IMU discover first after boot
+        self.declare_parameter('discovery_retry_s', 600.0)          # after a failed discovery: retry in 10 min
+        self.declare_parameter('discovery_hotplug_delay_s', 60.0)   # new CH340 plugged in: retry after this
         self.source_name = str(self.get_parameter('source_name').value)
 
         self.port = str(self.get_parameter('port').value)
@@ -101,6 +106,14 @@ class GnssNode(Node):
             'GPS': 0, 'GLONASS': 0, 'BEIDOU': 0,
             'GALILEO': 0, 'QZSS': 0, 'NAVIC': 0,
         }
+        self.auto_usb = bool(self.get_parameter('auto_usb').value)
+        self.discovery_retry_s = max(30.0, float(self.get_parameter('discovery_retry_s').value))
+        self.discovery_hotplug_delay_s = max(10.0, float(self.get_parameter('discovery_hotplug_delay_s').value))
+        self.next_discovery = (time.monotonic() + max(0.0, float(self.get_parameter('discovery_startup_delay_s').value))
+                               if self.auto_usb else 0.0)
+        self.discovery_failures = 0
+        self.ch340_snapshot = None
+        self.last_hotplug_check = 0.0
 
         self._open_port()
         self.create_timer(1.0 / max(1.0, poll_hz), self._poll)
@@ -112,23 +125,58 @@ class GnssNode(Node):
         now = time.monotonic()
         if now - self.last_open_attempt < 2.0:
             return
+        if self.auto_usb and now < self.next_discovery:
+            self._check_hotplug(now)
+            return
         self.last_open_attempt = now
         self._close_port()
         try:
-            if self.get_parameter('auto_usb').value:
+            if self.auto_usb:
                 from atlas_usb_identity import open_verified
                 self.usb_link = open_verified('gps', self.preferred_port)
                 self.port = self.usb_link.port
                 self.fd = self.usb_link.fileno()
+                self.discovery_failures = 0
             else:
                 self.fd = open_raw_serial(self.port, self.baud)
             self.opened_at = now
             self.open_count += 1
             self.last_error = ''
         except (OSError, ValueError) as exc:
-            self.get_logger().warning(f'GNSS UART open failed: {exc}')
             self.last_error = str(exc)
             self.fd = None
+            if self.auto_usb:
+                # Hold off: one probe per retry period keeps the shared lock free for the base and IMU.
+                self.discovery_failures += 1
+                self.next_discovery = now + self.discovery_retry_s
+                self.ch340_snapshot = self._ch340_devices()
+                self.get_logger().warning(
+                    f'GNSS UART open failed: {exc}; next GNSS USB discovery in '
+                    f'{self.discovery_retry_s:.0f} s (or {self.discovery_hotplug_delay_s:.0f} s after a new USB serial device)')
+            else:
+                self.get_logger().warning(f'GNSS UART open failed: {exc}')
+
+    @staticmethod
+    def _ch340_devices():
+        try:
+            from atlas_usb_identity import candidates
+            return frozenset(candidates())
+        except Exception:
+            return None
+
+    def _check_hotplug(self, now):
+        """A newly plugged USB serial adapter may be the GPS: retry sooner, but not immediately (base/IMU first)."""
+        if now - self.last_hotplug_check < 10.0:
+            return
+        self.last_hotplug_check = now
+        current = self._ch340_devices()
+        if current is None or self.ch340_snapshot is None:
+            self.ch340_snapshot = current if self.ch340_snapshot is None else self.ch340_snapshot
+            return
+        if current - self.ch340_snapshot:
+            self.next_discovery = min(self.next_discovery, now + self.discovery_hotplug_delay_s)
+            self.get_logger().info(f'new USB serial device seen; GNSS discovery in {self.discovery_hotplug_delay_s:.0f} s')
+        self.ch340_snapshot = current
 
     def _close_port(self, publish_invalid=True):
         if self.fd is not None:
@@ -354,6 +402,11 @@ class GnssNode(Node):
             } for name, count in self.constellation_counts.items()},
             'note': 'GSV counts are receiver-reported in-view counts, not antenna proof or fix counts. Talker labels alone do not prove satellite reception.',
         }
+        if self.auto_usb:
+            diagnostics['usb_discovery'] = {
+                'priority': 'lowest', 'failures': self.discovery_failures,
+                'next_attempt_in_s': round(max(0.0, self.next_discovery - now), 1) if self.fd is None else None,
+                'retry_s': self.discovery_retry_s}
         self.diagnostics_pub.publish(String(data=json.dumps(diagnostics, allow_nan=False)))
         self._publish_constellations()
 
