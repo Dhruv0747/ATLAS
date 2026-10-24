@@ -87,3 +87,29 @@ call paths and sensor timing,then test a focused candidate offline if warranted.
 No production rollback needed;production was not changed. Diagnostic artifacts
 are inert and should be retained until analysis completes. Voice,UI and limits
 remain unchanged;no Astra start or movement authorized by this command.
+
+## 2026-10-24 06:35 IST: admission abort confirmed
+
+Authentication succeeded on the owner's latest attempt. The saved result is
+ABORTED during the first baseline sample: CPU 75.20938023450586%, exceeding
+the unchanged 75% limit. The profiler did not launch; no Python call stacks
+exist. This supersedes the earlier missing-evidence status, not its history.
+
+Evidence retained on Jetson:
+`/home/jetson/project-atlas-migration/localization-cpu-20261024/evidence-71fnxz1g/`.
+
+- `result.json`: 1778 bytes, SHA256
+  `117bf066aee7278730a3258cef281e250496a675fe3952355b48e7741dd894f4`.
+- `telemetry.jsonl`: 1667 bytes, SHA256
+  `d45ea34944647870e99e9633132436e538287c779360e5966e307c75a99a13e4`.
+- Read-only retrieval confirmed these hashes and absence of a profile payload.
+- One baseline sample is not a thread CPU interval or hot-function profile.
+  RAM/temperature were not sampled after CPU failed; full safety/postflight
+  validation is not claimed.
+- No production change, service restart or camera start was performed by the
+  launcher. No automatic retry, safeguard exception or speculative fix applied.
+
+Next necessary action: a separately authorized bounded capture with passing
+admission, then function attribution before selecting another offline fix.
+Prior 27 passing preparation tests remain historical evidence; no code changed
+or tests repeated for this documentation-only update. CPU savings are unknown.

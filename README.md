@@ -2,7 +2,8 @@
 
 [Localization thread profiler prepared](docs/ATLAS_LOCALIZATION_THREAD_PROFILE_PREP_20261024.md):
 27tests pass,10second nonblocking all-Python-thread capture staged;owner sudo
-required. No live profile yet;strict guards and production unchanged.
+required. Latest attempt aborted before profiling at75.21% CPU; evidence hashes
+verified, no call stacks captured. Strict guards and production unchanged.
 
 [Next CPU candidate rejected offline](docs/ATLAS_LOCALIZATION_CPU_CANDIDATE_REJECTED_20261024.md):
 localization fit allocation preserved216 score cases/10 existing tests, but

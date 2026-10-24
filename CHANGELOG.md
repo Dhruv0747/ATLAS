@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 localization capture authenticated but aborted before profiling at
+75.2094% CPU. Result/telemetry hashes verified; no call-stack payload, retry or
+production change. Next CPU fix remains blocked on actual attribution.
+
 2026-10-24 localization capture retrieval found no saved evidence at06:32IST.
 Staged hashes and launcher loading verified read-only;owner terminal output
 needed. No capture retry,unsupported CPU diagnosis or production change.

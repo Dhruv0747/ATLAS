@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 06:35IST localization capture authenticated but admission aborted at
+75.2094% CPU. Evidence-71fnxz1g contains verified result/telemetry only, no Python
+profile. Earlier missing-evidence status is superseded. No retry or production
+change; actual hot-function attribution still required before a new CPU fix.
+See docs/ATLAS_LOCALIZATION_THREAD_PROFILE_PREP_20261024.md.
+
 2026-10-24 06:32IST owner reported localization capture run,but retrieval found
 only staged scripts,no evidence directories/result/profile. Hashes match;
 non-root launcher reaches expected sudo refusal. Actual command outcome unknown;

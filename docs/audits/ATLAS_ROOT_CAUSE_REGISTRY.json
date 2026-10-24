@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-LOCALIZATION-PROFILE-ADMISSION-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "06:35 IST owner capture authenticated but stopped before profiler launch at CPU 75.20938023450586% >75%. Evidence-71fnxz1g result and telemetry hashes verified; no call-stack payload. No production change or automatic retry.",
+      "remaining_validation": "Actual thread/function attribution requires a separately authorized capture with passing admission. Single baseline snapshot cannot identify expensive functions; no CPU savings or full postflight pass claimed.",
+      "reference": "docs/ATLAS_LOCALIZATION_THREAD_PROFILE_PREP_20261024.md"
+    },
+    {
       "id": "ATLAS-LOCALIZATION-THREAD-PROFILE-PREP-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
