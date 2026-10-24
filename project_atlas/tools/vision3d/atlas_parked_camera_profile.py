@@ -84,10 +84,15 @@ def ros_main(action, timeout_s):
         return None if r is None else bool(r.success)
 
     def states(names):
-        out = {}
-        for n in names:
-            r = call(GetState, '/%s/get_state' % n, GetState.Request(), 5.0)
-            out[n] = None if r is None else r.current_state.label
+        # A fresh participant on the busy Jetson can need several seconds to discover each service (24 Oct: one
+        # get_state unanswered within 5 s, all answered on the next run). Retry unanswered nodes; never guess.
+        out = {n: None for n in names}
+        for _ in range(3):
+            for n in [k for k, v in out.items() if v is None]:
+                r = call(GetState, '/%s/get_state' % n, GetState.Request(), 10.0)
+                out[n] = None if r is None else r.current_state.label
+            if all(v is not None for v in out.values()):
+                break
         return out
 
     out = {'action': action}
