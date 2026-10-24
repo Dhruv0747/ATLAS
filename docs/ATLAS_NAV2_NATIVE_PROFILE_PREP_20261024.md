@@ -86,3 +86,34 @@ or sudo failure from an exception before evidence-directory creation. Exact
 terminal stdout/stderr is required; do not guess the cause or automatically rerun.
 No new performance measurement, candidate fix or CPU savings claim is possible
 from this result. No production changes or new profiling were performed.
+
+## 09:06 capture admission abort and explicit diagnostic exception
+
+Recovered evidence-sac7uvt5: first baseline CPU75.3355704698% exceeded75%.
+Only one109-thread snapshot exists; no delta ranking,perf.data or profile launch.
+RAM/temperature/policy were not sampled because CPU failed first. Do not describe
+this as a completed safety check or a successful profile. Later read-only service
+inspection confirms all11 protected MainPID/NRestarts/active states unchanged;
+no profiler remains. No candidate CPU fix can be tested from this single snapshot.
+
+Evidence hashes (private artifacts/nav2_profile_20261024):
+- result.json:9a47359fba59afdd88af071a47ed29a844b9af816db0eb56c7b73d8100d93c08
+- telemetry.jsonl:b6e3f4ca64828b8e5687030406f0d9f7cd84788e124275075a9f017dabdd2335
+- remote launch-output.log:077816d6a53fdb2f10b66f62e354ec2df9291edd374356919a3e057955fb542a
+
+Owner subsequently approved ignoring CPU for diagnostic profiling. Interpreted
+narrowly as ONE additional run, not a production policy change. Wrapper now
+accepts exactly --diagnostic-cpu-report-only, forwarding to the existing reviewed
+helper. Default remains strict. CPU is still measured and invalid values rejected;
+only CPU utilization admission/abort is bypassed. RAM80%,temperature70C,all safety,
+freshness and deadline checks remain. No profiler run performed by this update.
+29 offline tests PASS; diagnostic staging only, no production install/restart.
+New wrapper SHA256 (verified locally and remotely):
+a7b6a835f9e84da32863cb36b592f50a5a15019ed7ac532c1b7c0172bd9a599e.
+Earlier no-exception wording/hash describes the original strict attempt.
+
+Run once; preserve errors, do not repeat on failure:
+
+```bash
+set -o pipefail; sudo /usr/bin/timeout --signal=INT --kill-after=3s 45s /usr/bin/python3 -I -B /home/jetson/project-atlas-migration/nav2-cpu-20261024/nav2_cpu_once.py --diagnostic-cpu-report-only 2>&1 | tee -a /home/jetson/project-atlas-migration/nav2-cpu-20261024/launch-output.log
+```

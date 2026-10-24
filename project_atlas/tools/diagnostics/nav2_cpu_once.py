@@ -1,4 +1,4 @@
-"""Owner-run native Nav2 profile; no production mutation or CPU exception."""
+"""Owner-run native Nav2 profile; strict default, explicit diagnostic exception."""
 import hashlib
 import os
 from pathlib import Path
@@ -92,8 +92,8 @@ def load_helper(path):
 
 
 def main():
-    if sys.argv[1:]:
-        raise SystemExit('No options accepted; CPU/RAM/temperature limits remain strict')
+    if sys.argv[1:] not in ([], ['--diagnostic-cpu-report-only']):
+        raise SystemExit('Only the separately owner-approved diagnostic CPU reporting flag is accepted')
     module = load_helper(Path(__file__).with_name('native_dashboard_cpu_once.py'))
     return module.main()
 

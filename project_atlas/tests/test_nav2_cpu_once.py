@@ -29,10 +29,20 @@ class Nav2ProfilerTests(unittest.TestCase):
             p=Path(d)/'helper'; p.write_text('pass')
             with self.assertRaises(RuntimeError): N.load_helper(p)
 
-    def test_no_cpu_override_or_python_option(self):
-        for args in (['--diagnostic-cpu-report-only'], ['--python-gil']):
+    def test_no_python_or_unknown_option(self):
+        for args in (['--ignore-all'], ['--python-gil'],
+                     ['--diagnostic-cpu-report-only', '--diagnostic-cpu-report-only']):
             with patch('sys.argv', ['nav2', *args]):
                 with self.assertRaises(SystemExit): N.main()
+
+    def test_cpu_report_exception_is_explicit_and_forwarded(self):
+        from unittest.mock import Mock
+        for args in ([], ['--diagnostic-cpu-report-only']):
+            helper=Mock(); helper.main.return_value=0
+            with patch('sys.argv', ['nav2', *args]), patch.object(N,'load_helper',return_value=helper):
+                self.assertEqual(N.main(),0)
+                helper.main.assert_called_once_with()
+                self.assertEqual(__import__('sys').argv[1:],args)
 
     def test_exact_launch_rejects_other_ros_command(self):
         with patch.object(Path, 'read_bytes', return_value=b'python3\0ros2\0topic\0list\0'):
