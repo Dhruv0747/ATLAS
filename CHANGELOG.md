@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 isolated real ROS/bondcpp fixture:standard executor passed21 deliveries,
+dynamic timer/removal/recreation and heartbeat loss0.387002s. Stock static executor
+failed removal(count1 after2s),confirmed focused run;no CPU benchmark/deployment.
+See ATLAS_NATIVE_ROS_ENTITY_BOND_TEST_20261024.md.
+
 2026-10-24 isolated native FastDDS wait-set experiment:18million verified waits,
 18 AB/BA pairs;retained conditions cheaper in fixture,sanitized correctness pass.
 No runtime patch,ROS participant or production change. Full RMW lifecycle/bond

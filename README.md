@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Real ROS entity/bond validation](docs/ATLAS_NATIVE_ROS_ENTITY_BOND_TEST_20261024.md):
+standard executor passed dynamic entities and0.387s heartbeat-loss detection.
+Static candidate retained a removed subscription and is rejected;no deployment.
+
 [Native wait-set experiment](docs/ATLAS_NATIVE_WAITSET_BENCHMARK_20261024.md):
 18million fixture waits pass;condition retention reduces microbenchmark CPU.
 Not an RMW/Jetson fix:dynamic ROS lifetime and bond regression gates remain.
