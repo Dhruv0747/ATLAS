@@ -132,6 +132,32 @@ def main(params_live, work, out):
         rc_s, rows_s, _ = tool('status', env_extra=env_tool)
         say('session_pause_wait_resume', proc.returncode == 0 and ev[:1] == ['pause'] and 'camera_session_started' in ev and 'camera_session_ended' in ev
             and ev[-1] == 'resume' and rows_s[-1]['ros']['nav_active'] is True, events=ev)
+        # --- session with the optional AI-feature pause (fake systemctl; real Nav2)
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('ppc', TOOL); ppc = importlib.util.module_from_spec(spec); spec.loader.exec_module(ppc)
+        units = work / 'units'; units.mkdir(exist_ok=True)
+        for u in ppc.AI_SERVICES: (units / (u + '.service')).write_text('active')
+        fake = work / 'systemctl'
+        fake.write_text('#!/bin/bash\necho "$2 $3" >> "%s/calls"\nf="%s/$3"\ncase "$2" in is-active) cat "$f" 2>/dev/null || echo inactive;; stop) echo inactive > "$f";; start) echo active > "$f";; esac\n' % (units, units))
+        fake.chmod(0o755)
+        vs.write_text(json.dumps({'state': 'OFF', 'worker_pid': 4242}))
+        env_ai = dict(env_s, ATLAS_SYSTEMCTL=str(fake))
+        proc = subprocess.Popen([sys.executable, str(TOOL), 'session', '--with-ai-pause', '--wait-start-s', '120'], env=dict(os.environ, **env_ai),
+                                stdout=subprocess.PIPE, text=True)
+        lines = []; mid_states = None
+        for line in proc.stdout:
+            lines.append(line)
+            if 'READY_FOR_CAMERA' in line:
+                mid_states = {u: (units / (u + '.service')).read_text().strip() for u in ppc.AI_SERVICES}
+                time.sleep(2); vs.write_text(json.dumps({'state': 'ACTIVE', 'worker_pid': 5151}))
+                time.sleep(6); vs.write_text(json.dumps({'state': 'OFF', 'worker_pid': 5151, 'reason': '60-second session complete'}))
+        proc.wait(400); ev = [json.loads(l)['event'] for l in lines if l.startswith('{')]
+        calls = (units / 'calls').read_text().split('\n'); first_start = next((i for i, c in enumerate(calls) if c.startswith('start')), None)
+        final_units = {u: (units / (u + '.service')).read_text().strip() for u in ppc.AI_SERVICES}
+        rc_s, rows_s, _ = tool('status', env_extra=env_tool)
+        say('session_with_ai_pause', proc.returncode == 0 and ev[:2] == ['pause', 'ai_pause'] and 'camera_session_ended' in ev
+            and ev.index('ai_resume') < ev.index('resume') and all(v == 'inactive' for v in mid_states.values())
+            and all(v == 'active' for v in final_units.values()) and rows_s[-1]['ros']['nav_active'] is True, events=ev, during=mid_states)
     finally:
         for p in procs.values():
             try: os.killpg(p.pid, signal.SIGINT)

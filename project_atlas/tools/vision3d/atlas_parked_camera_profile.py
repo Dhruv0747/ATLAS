@@ -46,6 +46,17 @@ VISION_STATE = Path(os.environ.get('ATLAS_VISION3D_STATE_PATH') or RUN / 'atlas-
 WATCHDOG_UNIT = 'atlas-parked-camera-resume'
 SELF = Path(__file__).resolve()
 TERMINAL = ('OFF', 'RESOURCE BLOCKED', 'FAILED', 'SENSOR ERROR', 'STOPPED')
+# Optional (--with-ai-pause, owner-approved 24 Oct 14:56): non-essential perception/assistant features that may be
+# stopped for the parked camera session and are restarted (staggered, verified) BEFORE navigation resumes.
+# Checked against the live sources: no Requires/BindsTo/PartOf from any other unit; not watched by sensor recovery;
+# their topics feed only the Dashboard display, voice chatter and an INFO 'ai_camera' field in safety status, plus
+# /camera/semantic_obstacles into Nav2 costmaps (no expected_update_rate; navigation is paused meanwhile).
+# Deliberately NOT included: voice companion, local LLM (offline fallback), agent supervisor, every safety, motion,
+# sensor, localization and camera service. The list is fixed here and cannot be extended from the command line.
+AI_SERVICES = ('atlas-ai-annotator', 'atlas-agent-team', 'atlas-person-sensor-fusion', 'atlas-follow-person',
+               'atlas-camera-tracker', 'atlas-experience-store', 'atlas-active-vision', 'atlas-vision-lidar-fusion',
+               'atlas-visual-cloud-agent', 'atlas-visual-cloud-server')
+SYSTEMCTL = os.environ.get('ATLAS_SYSTEMCTL', 'systemctl')      # offline tests substitute a fake
 
 
 class Refuse(RuntimeError):
@@ -208,13 +219,44 @@ def disarm_watchdog(info):
         subprocess.run(['systemctl', '--user', 'stop', WATCHDOG_UNIT + '.timer'], capture_output=True)
 
 
+# ---------------------------------------------------------------- optional AI-feature pause
+def unit_state(u):
+    r = subprocess.run([SYSTEMCTL, '--user', 'is-active', u + '.service'], capture_output=True, text=True)
+    return r.stdout.strip() or 'unknown'
+
+
+def stop_ai_services():
+    stopped, skipped = [], {}
+    for u in AI_SERVICES:
+        st = unit_state(u)
+        if st != 'active':
+            skipped[u] = st; continue                    # only stop what is running; never start what was off
+        subprocess.run([SYSTEMCTL, '--user', 'stop', u + '.service'], capture_output=True, text=True, timeout=30)
+        stopped.append(u)
+    after = {u: unit_state(u) for u in stopped}
+    return stopped, skipped, after
+
+
+def start_ai_services(units, stagger_s=3.0, verify_s=30.0):
+    for u in units:                                      # staggered: each start joins the ROS graph (CPU spike)
+        subprocess.run([SYSTEMCTL, '--user', 'start', u + '.service'], capture_output=True, text=True, timeout=60)
+        time.sleep(stagger_s)
+    end = time.monotonic() + verify_s; st = {}
+    while time.monotonic() < end:
+        st = {u: unit_state(u) for u in units}
+        if all(v == 'active' for v in st.values()):
+            break
+        time.sleep(2.0)
+    return st
+
+
 # ---------------------------------------------------------------- commands
 def require_approval():
     if os.environ.get('OWNER_APPROVED') != 'yes':
         raise Refuse('owner approval required (OWNER_APPROVED=yes)')
 
 
-def cmd_pause(max_pause_s):
+def cmd_pause(max_pause_s, with_ai=False):
     require_approval()
     if MARKER.exists():
         raise Refuse('a parked profile is already recorded (%s); run resume first' % MARKER)
@@ -231,6 +273,16 @@ def cmd_pause(max_pause_s):
     if not ok:
         log('pause_incomplete_resuming'); cmd_resume('pause verification failed')
         raise Refuse('pause did not reach the expected state; resume attempted')
+    if with_ai:
+        info = json.loads(MARKER.read_text()); info['ai_services_stopped'] = []
+        MARKER.write_text(json.dumps(info))             # record intent before stopping anything
+        stopped, skipped, after = stop_ai_services()
+        info['ai_services_stopped'] = stopped; MARKER.write_text(json.dumps(info))
+        ok_ai = all(v != 'active' for v in after.values())
+        log('ai_pause', ok=ok_ai, stopped=stopped, not_running_before=skipped, state_after=after)
+        if not ok_ai:
+            log('ai_pause_incomplete_resuming'); cmd_resume('AI pause verification failed')
+            raise Refuse('AI services did not stop as expected; everything was resumed')
     time.sleep(3.0)
     parked_checks()                                     # mission still READY, commands zero, AMCL alive
     return r
@@ -239,6 +291,16 @@ def cmd_pause(max_pause_s):
 def cmd_resume(reason='manual', timeout_s=120.0):
     require_approval()
     info = json.loads(MARKER.read_text()) if MARKER.exists() else {}
+    units = info.get('ai_services_stopped') or []
+    if units:                                            # features back first, so semantic obstacles exist on resume
+        st = start_ai_services(units)
+        ok_ai = all(v == 'active' for v in st.values())
+        log('ai_resume', ok=ok_ai, state=st)
+        if not ok_ai:
+            log('AI_RESUME_INCOMPLETE', note='some AI feature services did not come back; navigation resume continues; no repeated restarts', state=st)
+        info['ai_services_stopped'] = [u for u, v in st.items() if v != 'active']
+        if MARKER.exists():
+            MARKER.write_text(json.dumps(info))
     s = ros('status')
     if s['nav_active'] is True and all(v == 'active' for v in s['nav_states'].values()):
         log('resume', ok=True, already_active=True, reason=reason, ros=s)
@@ -267,10 +329,10 @@ def vision_state():
         return {}
 
 
-def cmd_session(max_pause_s, wait_start_s):
+def cmd_session(max_pause_s, wait_start_s, with_ai=False):
     require_approval()
     before = vision_state().get('worker_pid')
-    cmd_pause(max_pause_s)
+    cmd_pause(max_pause_s, with_ai)
     try:
         settled, samples = wait_settled()
         log('settle', settled=settled, cpu_samples=samples)
@@ -304,6 +366,7 @@ def main():
     ap.add_argument('--max-pause-s', type=int, default=600)
     ap.add_argument('--wait-start-s', type=int, default=300)
     ap.add_argument('--reason', default='manual')
+    ap.add_argument('--with-ai-pause', action='store_true', help='also stop the fixed AI_SERVICES list (restarted on resume)')
     a = ap.parse_args()
     if a.reason == 'watchdog':
         os.environ['ATLAS_PARKED_FROM_WATCHDOG'] = '1'
@@ -314,13 +377,14 @@ def main():
             log('status', ros=ros('status'), marker=MARKER.exists())
         elif a.cmd == 'check':
             ev = parked_checks(); s = ros('status')
-            log('check', ok=s['nav_active'] is True and s['loc_active'] is True, evidence=ev, ros=s, marker=MARKER.exists())
+            log('check', ok=s['nav_active'] is True and s['loc_active'] is True, evidence=ev, ros=s, marker=MARKER.exists(),
+                ai_services={u: unit_state(u) for u in AI_SERVICES})
         elif a.cmd == 'pause':
-            cmd_pause(a.max_pause_s)
+            cmd_pause(a.max_pause_s, a.with_ai_pause)
         elif a.cmd == 'resume':
             sys.exit(0 if cmd_resume(a.reason) else 3)
         elif a.cmd == 'session':
-            sys.exit(0 if cmd_session(a.max_pause_s, a.wait_start_s) else 3)
+            sys.exit(0 if cmd_session(a.max_pause_s, a.wait_start_s, a.with_ai_pause) else 3)
     except Refuse as e:
         log('REFUSE', reason=str(e)); sys.exit(2)
 
