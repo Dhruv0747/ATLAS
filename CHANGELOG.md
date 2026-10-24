@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 isolated native FastDDS wait-set experiment:18million verified waits,
+18 AB/BA pairs;retained conditions cheaper in fixture,sanitized correctness pass.
+No runtime patch,ROS participant or production change. Full RMW lifecycle/bond
+validation required;see ATLAS_NATIVE_WAITSET_BENCHMARK_20261024.md.
+
 2026-10-24 completed Nav2 native capture analyzed:15 user CPU samples,zero lost;
 wait-set bookkeeping and bond publication observed. Six new offline analyzer
 tests pass. No runtime defect/savings proven,no production patch/deployment.

@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Native wait-set experiment](docs/ATLAS_NATIVE_WAITSET_BENCHMARK_20261024.md):
+18million fixture waits pass;condition retention reduces microbenchmark CPU.
+Not an RMW/Jetson fix:dynamic ROS lifetime and bond regression gates remain.
+
 [Nav2 native capture analyzed](docs/ATLAS_NAV2_NATIVE_PROFILE_RESULT_20261024.md):
 15 on-CPU samples identify wait-set/bond work,not a proven runtime defect.
 Six offline analysis tests pass;no new CPU-saving patch or deployment claimed.
