@@ -51,5 +51,31 @@ class AccountingTests(unittest.TestCase):
         j['samples'].append(dict(monotonic=4,cpu=[100,0,20,460,10,5,5,0],processes={}))
         self.assertAlmostEqual(analyze(j)['cpu_percent'],130/600*100)
 
+    def test_service_children_can_exceed_largest_process(self):
+        j=fixture()
+        for i,s in enumerate(j['samples']):
+            s['processes']={str(k):dict(name='python3', birth=k, user=i*t,
+                system=0, cgroup=g, kernel=False) for k,t,g in
+                [(1,40,'navigation'),(2,40,'navigation'),(3,60,'dashboard')]}
+        r=analyze(j)
+        self.assertEqual(r['processes'][0]['cgroup'],'dashboard')
+        self.assertEqual(r['cgroups'][0]['cgroup'],'navigation')
+        self.assertEqual(r['cgroups'][0]['one_core_percent'],80)
+        self.assertEqual(sum(g['ticks'] for g in r['cgroups']),
+                         sum(p['ticks'] for p in r['processes']))
+
+    def test_cgroup_migration_does_not_reassign_history(self):
+        j=fixture()
+        q=dict(j['samples'][1]['processes']['1'],user=150,cgroup='other')
+        j['samples'].append(dict(monotonic=3,cpu=[200,0,40,120,20,10,10,0],
+                                processes={'1':q}))
+        r=analyze(j)
+        self.assertEqual({g['cgroup']:g['ticks'] for g in r['cgroups']},
+                         {'test':100,'other':50})
+
+    def test_reused_pid_not_charged_to_service(self):
+        j=fixture(); j['samples'][1]['processes']['1']['birth']=99
+        self.assertEqual(analyze(j)['cgroups'],[])
+
 
 if __name__ == '__main__': unittest.main()

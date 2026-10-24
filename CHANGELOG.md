@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 saved all-PID CPU accounting now also ranks exact cgroups and preserves
+PID/cgroup history.10 tests passed. Nav2/AMCL service totals51.345% of one core
+in historical capture,not the profiled localization monitor. No runtime tuning,
+live profiling or deployment; see ATLAS_SAVED_CPU_SERVICE_RANKING_20261024.md.
+
 2026-10-24 PC private-network scheduling/DDS four-case comparison completed:
 20/20 heartbeat deliveries,no>2s gaps;combined60%quota/Nice10/UDPv4 environment
 recorded3 throttles/70ms.27tests pass. Failure not reproduced,no production fix

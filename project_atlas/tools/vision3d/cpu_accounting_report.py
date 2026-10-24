@@ -27,7 +27,8 @@ def analyze(capture):
             ticks = q['user'] + q['system'] - p['user'] - p['system']
             if ticks < 0:
                 raise ValueError('Regressing process counter')
-            key = (pid, q['birth'])
+            # Do not assign earlier CPU to a process's final cgroup after a move.
+            key = (pid, q['birth'], q['cgroup'])
             row = processes.setdefault(key, dict(pid=pid, birth=q['birth'],
                 name=q['name'], cgroup=q['cgroup'], kernel=q['kernel'], ticks=0))
             row['ticks'] += ticks
@@ -39,6 +40,16 @@ def analyze(capture):
         row['aggregate_tick_percent'] = 100*row['ticks']/total
     accounted = sum(r['ticks'] for r in rows)
     busy = total-sums[3]-sums[4]
+    groups = {}
+    for row in rows:
+        group = groups.setdefault(row['cgroup'], dict(cgroup=row['cgroup'],
+            ticks=0, members=[]))
+        group['ticks'] += row['ticks']
+        group['members'].append(dict(pid=row['pid'], birth=row['birth'],
+                                    name=row['name'], ticks=row['ticks']))
+    for group in groups.values():
+        group['one_core_percent'] = 100*group['ticks']/hz/elapsed
+        group['aggregate_tick_percent'] = 100*group['ticks']/total
     return dict(elapsed_s=elapsed, cpu_count=cpus,
         cpu_percent=100*busy/total, interval_cpu_range=[min(intervals), max(intervals)],
         user_percent=100*(sums[0]+sums[1])/total,
@@ -51,7 +62,10 @@ def analyze(capture):
         new_or_reused_pid_intervals=unmatched,
         observer_capacity_percent=100*capture.get('observer_cpu_s', 0)/elapsed/cpus,
         processes=rows,
+        cgroups=sorted(groups.values(), key=lambda r: r['ticks'], reverse=True),
         limitations=['Intervals are not atomic; exited processes can be missed.',
+                    'Cgroup changes are attributed to the interval end group.',
+                    'Cgroups combine child processes, not identical executable names.',
                     'IRQ work and PID work must not be added blindly.',
                     'CPU utilization and message age do not measure safety deadlines.'])
 

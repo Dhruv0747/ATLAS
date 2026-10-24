@@ -1337,6 +1337,16 @@ Physical wheel-angle evidence and expanded-profile Jetson resource validation
 remain pending. See [Stage 17B](../../ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md).
 # 2026-10-14 executor-profile clarification
 
+## 2026-10-24 saved CPU service attribution update
+
+Offline all-PID reanalysis groups child processes: historical Nav2/AMCL service
+51.345% of one core, Dashboard44.842%. The recent Python localization-monitor
+profile is a different service and cannot identify native Nav2 hot functions.
+Ten accounting tests pass; no new runtime CPU fix or current headroom claim.
+Next evidence is current group ranking plus native child-process attribution,
+requiring separately approved live profiling. No camera/movement needed.
+See `docs/ATLAS_SAVED_CPU_SERVICE_RANKING_20261024.md`.
+
 Owner-provided live py-spy evidence is now available, superseding the earlier profiler-access gap. Focused audit found measurable dashboard CPU, but no demonstrated avoidable executor defect or duplicate constant-topic subscriptions. Eleven offline checks passed; no runtime patch/deployment or CPU savings claimed. Stage 20 headroom remains blocked. See `ATLAS_STAGE20_DASHBOARD_EXECUTOR_CPU_FIX.md` for sample-attribution limits and the bounded thread measurement. Suppressing QoS, adding sleeps and replacing executors are rejected without further discriminating evidence.
 
 

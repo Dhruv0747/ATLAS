@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Saved CPU service ranking](docs/ATLAS_SAVED_CPU_SERVICE_RANKING_20261024.md):
+historical Nav2/AMCL group51.345% of one core exceeds Dashboard44.842%; distinct
+from localization monitor.10 accounting tests pass. No new runtime fix or CPU
+savings claimed; native child-process attribution is missing. Nothing deployed.
+
 [Isolated ARM64 comparison completed](docs/ATLAS_LOCALIZATION_ARM64_CPU_REPORT_TEST_20261024.md):
 owner one-test CPU reporting exception;1716 callbacks and TF passed. Median
 benchmark CPU saving3.55% (two pairs),not whole-Jetson headroom. Peak CPU87.04%;

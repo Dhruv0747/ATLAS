@@ -1765,6 +1765,7 @@
     },
     {
       "id": "ATLAS-STAGE32-DISTRIBUTED-CPU-HEADROOM-20261021",
+      "service_ranking_20261024": "Saved all-PID cgroup aggregation: Nav2/AMCL service 51.345% one-core CPU, Dashboard 44.842%. Historical capture, not current utilization. Nav2 service differs from profiled Python localization monitor. Native child-process hot functions missing; no new runtime fix or CPU savings. Ten offline accounting tests passed. See ATLAS_SAVED_CPU_SERVICE_RANKING_20261024.md.",
       "confidence": "CONFIRMED background load; historical spike attribution UNRESOLVED",
       "resolution": "UNRESOLVED",
       "date": "2026-10-21",
