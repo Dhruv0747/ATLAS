@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Dashboard/telemetry Python profiling](docs/ATLAS_DASHBOARD_TELEMETRY_PYTHON_PROFILE_20261024.md):
+two sequential bounded owner-run captures prepared; CPU diagnostic report-only,
+other protections unchanged. Three offline tests pass; no production changes.
+
 [Ranked CPU result](docs/ATLAS_RANKED_CPU_RESULT_20261024.md): Dashboard41.75% of
 one core; observer itself42.15%. Native stacks mostly Python; diagnostic scanner
 optimized offline, no permanent ATLAS CPU fix or deployment claimed.

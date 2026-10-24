@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 prepared fixed-target Dashboard/telemetry Python profiling: sequential
+10-second GIL captures, fresh checks per target, stop on first failure, unchanged
+RAM/temperature/production protections. Three Linux tests pass; not run live.
+
 2026-10-24 analyzed owner ranked capture (hash verified): substantial Python and
 observer load;14tests pass. Scanner skips unnecessary non-target exe resolution,
 PC scanner cost~47.6%lower; no live installation/restart/new profile. See
