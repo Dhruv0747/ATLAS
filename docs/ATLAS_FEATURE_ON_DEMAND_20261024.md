@@ -68,3 +68,24 @@ Dashboard service.
 Copy the 3 files, `systemctl --user daemon-reload`, `enable --now atlas-feature-on-demand`; boot grace means nothing
 stops for 5 minutes; verify; rollback = `systemctl --user disable --now atlas-feature-on-demand` (ExecStopPost
 restores all features).
+
+## Update 24 Oct 2026 17:08 IST — reset-failed fix installed; candidate survey (owner approval 17:04)
+
+- Installed manager `8797d992…` (previous `2059e2da…` backed up in
+  `~/project-atlas-migration/feature-on-demand/backup_20261024_1708/`). The service restart ran restore-all (all 8
+  features started, rc 0); after the 300-s boot grace all 8 stopped and every one ended `inactive` (previously
+  person-fusion, experience-store and follow-person ended `failed`). `systemctl --user --failed` is empty.
+- After the change: whole-Jetson CPU 67.2% (30 s), policy `manual_only` + stop latched. Mux, voice and
+  safety-status kept their PIDs; the dashboard kept PID 527477 (since 13:45), and `/v2/` returns 200.
+- Candidate survey (read-only), with nothing added:
+  - `atlas-tight-recovery` (7.8% of one core) — **rejected**. The mux deliberately lets RECOVERY through in
+    manual-only (a sensor-guarded recovery the agent can request), so turning it off while parked would remove a
+    working function. It also needs a few seconds of fresh sensor data after starting.
+  - `atlas-ekf-lidar-candidate` (2.1%) — **rejected**. `/odom/lidar_fused_candidate` is recorded during manual test
+    drives (motion recorder, manual-run analysis, stationary check); starting it on demand would lose the start of
+    those runs, for about 0.35 points of whole-Jetson CPU.
+  - foxglove + nav-goal bridge (~4%) — needs an explicit Dashboard switch (no connection-triggered start). Deferred.
+  - camera-joystick, mode-manager, voice, local LLM, agent supervisor — must stay running.
+  - visual-cloud agent/server (1.3%) — saving about 0.2 points; not worth it.
+- The remaining large consumers are not AI: dashboard 42.7, camera 32.5, base-telemetry 28.6,
+  localization-monitor 21.2, Nav2 localization group 49.3 (% of one core).
