@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-24 06:32IST owner reported localization capture run,but retrieval found
+only staged scripts,no evidence directories/result/profile. Hashes match;
+non-root launcher reaches expected sudo refusal. Actual command outcome unknown;
+request terminal output,do not assume CPU abort or repeat capture automatically.
+See docs/ATLAS_LOCALIZATION_THREAD_PROFILE_PREP_20261024.md.
+
 2026-10-24 localization-thread profiler staged,27tests pass. Sudo password
 required;no capture yet. Await owner command,then correlate native thread ticks
 and all-Python-thread stacks. Strict guards retained;no production changes.

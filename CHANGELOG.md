@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-24 localization capture retrieval found no saved evidence at06:32IST.
+Staged hashes and launcher loading verified read-only;owner terminal output
+needed. No capture retry,unsupported CPU diagnosis or production change.
+
 2026-10-24 prepared bounded localization monitor thread profiler with exact live
 hashes,nonblocking20Hz/10s capture and strict resource guards.27tests pass;owner
 sudo required. No new profile,production change or speculative fix claimed.

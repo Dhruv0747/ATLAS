@@ -1,5 +1,21 @@
 # Localization monitor thread profiling — prepared, awaiting owner sudo
 
+## Follow-up retrieval: 2026-10-24 06:32:38 +05:30
+
+Owner reported running the command. Read-only checks on `jetsan-desktop` found
+only the two staged scripts, no evidence subdirectory, result.json or saved
+python-threads.json in the migration search. Both staged hashes still match
+those below;directory owner jetson:jetson,mode775. A non-root launcher validation
+reached the expected "Run once with sudo as jetson" refusal, without attempting
+attachment or creating evidence. Thus helper loading works; the owner's actual
+terminal outcome remains unknown. This does NOT prove a failed profile command,
+successful capture or a CPU/resource failure. No automatic capture retry made.
+
+Next necessary input is the exact terminal output from the owner's command.
+No new runtime fix or optimization benchmark is justified without the missing
+live attribution evidence. Previous tests remain valid;they were not rerun.
+No production file,service,voice,UI,safety setting,camera or motor changed.
+
 Continued from e49ffe3's rejected offline allocation candidate. No further
 optimization chosen without live attribution. Read-only verification identified
 `atlas-localization-monitor.service`,PID1948,active,executing the expected
