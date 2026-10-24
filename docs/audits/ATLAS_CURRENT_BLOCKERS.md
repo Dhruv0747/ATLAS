@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-10-24 one-pass lookup candidate preserves standard executor and passes native
+entity/bond tests plus7edge cases. Operation CPU lower, but6integrated pairs mixed;
+no live headroom proven. Saved15samples insufficient for high-impact attribution.
+No deployment/repeated static caching. See ATLAS_ONEPASS_SUBSCRIPTION_LOOKUP_20261024.md.
+
 2026-10-24 source-level follow-up supersedes the ownership uncertainty below:
 remove_node erases automatic group entries before destructor clears their flags;
 public remove_callback_group targets manual map. Destructor-owned teardown fixes

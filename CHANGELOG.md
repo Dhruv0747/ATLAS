@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-24 standard-executor one-pass subscription/group lookup candidate: real
+ROS lifecycle/bond tests and7direct cases pass,480k identity-checked lookups.
+Operation CPU35–51%lower onPC;6integrated pairs mixed, no system savings proven.
+Offline only; see ATLAS_ONEPASS_SUBSCRIPTION_LOOKUP_20261024.md.
+
 2026-10-24 traced static collector association ownership and manual/automatic group
 maps. Destructor-owned prototype fixes recreated delivery but fails heartbeat
 validation; rejected and approach closed. Fixed-count benchmark gated off.

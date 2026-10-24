@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[One-pass subscription lookup](docs/ATLAS_ONEPASS_SUBSCRIPTION_LOOKUP_20261024.md):
+standard executor retained; native correctness passes and operation cost falls.
+Integrated CPU results mixed; no Jetson headroom or deployment claim.
+
 [Collector ownership result](docs/ATLAS_COLLECTOR_OWNERSHIP_RESULT_20261024.md):
 ownership failure explained and corrected in fixture, but heartbeat validation
 fails. Static-cache approach closed; no live CPU fix or deployment claimed.

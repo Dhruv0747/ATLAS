@@ -14,6 +14,14 @@
   ],
   "issues": [
     {
+      "id": "ATLAS-ONEPASS-LOOKUP-20261024",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "Saved native stack shows subscription lookup; paired lookup avoids second traversal while retaining standard executor. Native correctness passes; operation cost falls35–51%, integrated6pairs mixed.",
+      "remaining_validation": "No whole-Jetson saving or deployment safety established. ARM64, concurrent lifetime and representative attribution remain. Do not extrapolate operation savings to robot CPU.",
+      "reference": "docs/ATLAS_ONEPASS_SUBSCRIPTION_LOOKUP_20261024.md"
+    },
+    {
       "id": "ATLAS-COLLECTOR-OWNERSHIP-20261024",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
