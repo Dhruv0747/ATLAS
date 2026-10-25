@@ -43,3 +43,32 @@ messages, Apply/Reset, disabled Apply with reason when not parked, sensor-mode-d
 - Deployment: install files, restart `rover-status-web` (routes), `daemon-reload` + restart `atlas-camera` (launcher drop-in).
 - Two-stream load benchmark (would restart cameras with different settings).
 - Astra re-detection from the page (opening the device via OpenNI) is not offered; the 21 Oct enumeration is used.
+
+## Deployment — 25 Oct 2026 12:13–12:21 IST (owner approval 12:11)
+
+Pre-checks: E-STOP latched, manual-only, commissioning disarmed, mission READY, `/cmd_vel` zero, motor speed 0,
+Vision Lab OFF, no Astra process, recorder inactive; live files unchanged since the build (no drift); no route conflicts.
+Backups: `~/project-atlas-migration/camset_20261025/backup/` (status web, web_v2, vision3d runtime, index/camera pages,
+camera_node.py, atlas-camera.service); one-step `rollback.sh` alongside.
+
+| Step | Result |
+|---|---|
+| Install files | 14 files + capability JSON; hashes recorded |
+| Restart `rover-status-web` | up in 6 s; `/v2/`, `/v2/cameras`, `/api/cameras/*`, Vision Lab, camera page, `/camera.jpg` all 200 |
+| Drop-in + `daemon-reload` + restart `atlas-camera` | launcher passed the exact previous parameters; capture pipeline **byte-identical** to before; frames live |
+| API checks | missing header / foreign origin 403; invalid Astra/Pi modes, HDR request 400 with reasons; Astra Apply saved for next Start (no camera start), Restore -> defaults |
+| Pi Apply (JPEG 75->76) / Restore Defaults | first attempt falsely reported failure and reverted: the verifier counted the **stopping** process's normal ExternalShutdownException traceback. Fixed (judge only lines after the new launcher line; 4 regression tests, 25/25), redeployed the web module, retested: both 200 "restarted", parameters as requested, pipeline identical, frames live |
+| Resources before -> after (60 x 1 s) | CPU 62.3 -> 61.9% mean (max 65.1 -> 66.1), GPU 0 -> 0%, RAM 60.5 -> 59.4%, temperature 63.7 -> 64.2 C |
+| Safety after | E-STOP latched, manual-only, commissioning disarmed, mission READY, commands zero, LiDAR/IMU/encoders fresh |
+| Protected services | only rover-status-web and atlas-camera changed PID; none failed |
+
+Also confirmed: after the Jetson's ~10:30 reboot the Astra came back CONNECTED on USB 2.3.4 with access links
+(port-independent rule survives a reboot).
+
+### Still open (issue #11 stays open)
+- Two-stream load benchmark on the Jetson (needs separate approval; would restart cameras with other settings).
+- Astra settings take effect at the next Vision Lab Start; not exercised live (no Astra streaming allowed during deployment).
+- Astra modes come from the 21 Oct read-only OpenNI enumeration; a runtime re-detection from the page is not offered.
+- Replug at an alternate port: verified offline and across a reboot, not by a physical replug.
+- Dialog Cancel/close and visual layout verified in Chromium against the real plug-in offline; the deployed page
+  serves the same JS/CSS (hash-verified) but was not driven in a browser on the Jetson.

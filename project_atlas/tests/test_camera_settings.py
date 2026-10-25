@@ -225,5 +225,20 @@ class Web(unittest.TestCase):
             self.assertEqual(self.req('/api/cameras/picam', {'action': 'apply', 'settings': {'framerate': 12}}, post=True).status, 403)
 
 
+class StartDetection(unittest.TestCase):
+    """Regression for the 25 Oct deployment: the stopping camera's shutdown traceback must not count as a failed start."""
+    OLD_STOP = "GST_ARGUS: Cleaning up\nTraceback (most recent call last):\nrclpy.executors.ExternalShutdownException\n"
+    def test_old_shutdown_traceback_is_ignored(self):
+        self.assertIsNone(WEB.camera_start_result(self.OLD_STOP))
+        self.assertIsNone(WEB.camera_start_result(self.OLD_STOP + "atlas_camera_launch: -p width:=1280\nGST_ARGUS: Creating output stream\n"))
+    def test_new_start_detected(self):
+        self.assertTrue(WEB.camera_start_result(self.OLD_STOP + "atlas_camera_launch: -p width:=1280\n[INFO] Camera node started, pipeline: x\n"))
+    def test_new_process_failure_detected(self):
+        self.assertFalse(WEB.camera_start_result(self.OLD_STOP + "atlas_camera_launch: -p width:=1280\nTraceback (most recent call last):\nRuntimeError: Failed to open camera\n"))
+    def test_latest_launch_wins(self):
+        txt = "atlas_camera_launch: a\nCamera node started\n" + self.OLD_STOP + "atlas_camera_launch: b\n"
+        self.assertIsNone(WEB.camera_start_result(txt))
+
+
 if __name__ == '__main__':
     unittest.main()

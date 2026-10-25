@@ -121,8 +121,25 @@ def summary(ros):
     return {'astra': astra, 'picam': picam, 'unix': round(time.time(), 1)}
 
 
+def camera_start_result(journal_text):
+    """Judge only what the NEW camera process logged. The stopping process always prints a harmless
+    ExternalShutdownException traceback, so everything before the newest launcher line is ignored.
+    Returns True (started), False (failed) or None (still starting)."""
+    marker = 'atlas_camera_launch:'
+    if marker not in journal_text:
+        return None
+    after = journal_text.rsplit(marker, 1)[1]
+    if 'Camera node started' in after:
+        return True
+    low = after.lower()
+    if 'traceback' in low or 'failed to open' in low or 'could not open' in low:
+        return False
+    return None
+
+
 def _wait_camera_started(since_unix, timeout_s=25):
     deadline = time.time() + timeout_s
+    out = ''
     while time.time() < deadline:
         time.sleep(1.0)
         try:
@@ -130,12 +147,12 @@ def _wait_camera_started(since_unix, timeout_s=25):
                                   '-o', 'cat', '--no-pager'], capture_output=True, text=True, timeout=5).stdout
         except Exception:
             out = ''
-        if 'Camera node started' in out and 'Failed' not in out.split('Camera node started')[-1][:200]:
-            if _systemctl('is-active', 'atlas-camera.service', timeout=5).stdout.strip() == 'active':
-                return True, out[-600:]
-        if 'Traceback' in out or 'failed to open' in out.lower():
+        result = camera_start_result(out)
+        if result is True and _systemctl('is-active', 'atlas-camera.service', timeout=5).stdout.strip() == 'active':
+            return True, out[-600:]
+        if result is False:
             return False, out[-600:]
-    return False, 'no "Camera node started" within %d s' % timeout_s
+    return False, 'no "Camera node started" from the new camera process within %d s' % timeout_s
 
 
 def apply_picam(settings, ros, action):
