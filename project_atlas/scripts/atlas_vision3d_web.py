@@ -267,12 +267,22 @@ class VisionService:
                     'calibration_state':{'state':cal['state'],'reason':cal['reason']},
                     'configuration':'configured' if (self.manifest or {}).get('topics') else 'NOT CONFIGURED — live topic approval required',
                     'usb_verified':(self.manifest or {}).get('usb_verified',False),
-                    'usb_note':'Inventory only; not a live USB/power monitor',
+                    'usb_note':'Inventory only; not a live USB/power monitor','usb_live':self.usb_live(),
                     'modes':(self.manifest or {}).get('modes',[]),'mode_control':False,
                     'streams':streams,'depth_stats':self.cache.get('depth_stats'),
                     'dropped_messages':'Transport loss UNKNOWN; ROS2 Image has no sequence counter. Received gaps/throttling shown separately.',
                     'detections':'Existing Pi-camera detections are not registered to Astra; overlay unavailable',
                     'tf':'Camera-frame only. base_link extrinsics unverified; no navigation output.'}
+
+    def usb_live(self):
+        """25 Oct 2026: live Astra USB presence for the dashboard (read-only sysfs, cached 2 s, never opens the camera)."""
+        now=time.monotonic(); cached=getattr(self,'_usb_live',None)
+        if cached and now-cached[0]<2.0:return cached[1]
+        try:
+            import atlas_astra_usb
+            value=atlas_astra_usb.presence()
+        except Exception as e:value={'state':'UNKNOWN','detail':'USB status unavailable: '+str(e)[:120]}
+        self._usb_live=(now,value);return value
 
     def summary(self):
         """Stage31 Home card: viewer state WITHOUT touching the viewer lease or starting a transport."""
@@ -296,7 +306,7 @@ class VisionService:
                 'cpu_limit_percent':lim.get('cpu_percent'),'ram_limit_percent':lim.get('ram_percent'),
                 'temperature_limit_c':lim.get('temperature_c'),'driver_stopped':bool(runtime.get('driver_stopped')),
                 'mode':runtime.get('mode'),'depth_fps':fps('depth'),'rgb_fps':fps('rgb'),'ir_fps':fps('ir'),'cloud_fps':fps('cloud'),
-                'calibration':'UNVALIDATED','read_only':True}
+                'calibration':'UNVALIDATED','read_only':True,'usb':self.usb_live()}
 
     def frame(self,kind):
         if kind not in ('rgb','depth','ir'):raise ValueError('unknown image kind')

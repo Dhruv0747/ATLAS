@@ -1,0 +1,7 @@
+# Project ATLAS Astra Pro access — PORT-INDEPENDENT version (25 Oct 2026, replaces the fixed-port 2.3.1 rule).
+# The Astra Pro has its own Genesys USB hub (05e3:0608): RGB camera 2bc5:0501 on hub port 1, depth 2bc5:0403 on
+# hub port 2. Only devices matching that exact structure get group atlas-astra access, on any Jetson USB port.
+# The Vision Lab still refuses two cameras, a lone half or a non-sibling pair (scripts/atlas_astra_usb.py).
+# Never match BUSNUM/DEVNUM or give unrelated USB devices additional access.
+ACTION=="add|change", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", KERNEL=="*.2", ATTR{idVendor}=="2bc5", ATTR{idProduct}=="0403", ATTRS{idVendor}=="05e3", ATTRS{idProduct}=="0608", OWNER:="root", GROUP:="atlas-astra", MODE:="0660", SYMLINK+="atlas-astra-depth-usb"
+ACTION=="add|change", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", KERNEL=="*.1", ATTR{idVendor}=="2bc5", ATTR{idProduct}=="0501", ATTRS{idVendor}=="05e3", ATTRS{idProduct}=="0608", OWNER:="root", GROUP:="atlas-astra", MODE:="0660", SYMLINK+="atlas-astra-rgb-usb"

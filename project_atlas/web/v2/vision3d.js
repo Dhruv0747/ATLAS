@@ -131,7 +131,8 @@
       status = await (await get('status')).json();
       status.runtime = currentRuntime(status.runtime);
       explain(status.runtime);
-      $('sourceNotice').textContent = (status.simulated ? 'SIMULATED UI TEST — NOT JETSON DATA · ' : '') + status.configuration + (status.error ? ' · ' + status.error : '');
+      const usbL = status.usb_live, usbText = !usbL ? '' : usbL.state === 'CONNECTED' ? ` · USB: Astra connected on ${usbL.port}` : ` · USB: ${usbL.detail || usbL.state}`;   // 25 Oct 2026 live USB presence
+      $('sourceNotice').textContent = (status.simulated ? 'SIMULATED UI TEST — NOT JETSON DATA · ' : '') + status.configuration + (status.error ? ' · ' + status.error : '') + usbText;
       $('mode').replaceChildren(...(status.modes.length ? status.modes : ['Not yet verified']).map(m => { const o = document.createElement('option'); o.textContent = typeof m === 'string' ? m : JSON.stringify(m); return o; }));
       applyModes(status.mode_support);
       const cal = status.calibration_state || { state: 'NOT VALIDATED', reason: 'Calibration status unavailable.' };
