@@ -1,0 +1,62 @@
+<!doctype html><html lang="en" class="v2-cameras"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATLAS Camera settings</title><link rel="icon" href="/v2/assets/atlas-logo-96.png">
+<link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/glass.css"><link rel="stylesheet" href="/v2/cameras.css">
+<script src="/v2/cameras.js" defer></script><link rel="stylesheet" href="/v2/material.css"></head><body>
+<header class="topbar cs-top">
+ <a class="brand" href="/v2/" aria-label="Back to ATLAS Home"><picture><source srcset="/v2/assets/atlas-logo-96.webp" type="image/webp"><img src="/v2/assets/atlas-logo-96.png" width="40" height="40" alt=""></picture>
+  <span><h1>Camera settings</h1><span class="sub">Astra Pro · Pi Camera Module 3</span></span></a>
+ <a class="btn ghost cs-home" href="/v2/"><svg class="icon"><use href="/v2/assets/icons.svg#i-home"/></svg>Home</a>
+</header>
+<main class="cs-main">
+ <p class="cs-intro">Each camera keeps its own settings. Modes listed here are the ones the camera reported on this Jetson, not the manufacturer's catalogue.</p>
+ <div class="cs-grid">
+  <section class="panel cs-card" id="camAstra" aria-labelledby="astraTitle">
+   <header class="cs-head"><svg class="icon"><use href="/v2/assets/icons.svg#i-eye"/></svg>
+    <div><h2 id="astraTitle">Orbbec Astra Pro</h2><p class="cs-dev" data-dev>Checking</p></div>
+    <div class="chips"><span class="chip" data-conn>Checking</span><span class="chip" data-stream>—</span></div></header>
+   <dl class="cs-rows">
+    <div><dt>Current</dt><dd data-current>—</dd></div>
+    <div><dt>Live FPS</dt><dd data-fps>—</dd></div>
+    <div class="cs-rec"><dt>Recommended</dt><dd><span data-rec>—</span><small data-recwhy></small></dd></div>
+   </dl>
+   <div class="cs-actions"><button class="btn" type="button" data-open="astra"><svg class="icon"><use href="/v2/assets/icons.svg#i-wrench"/></svg>Settings</button>
+    <a class="btn ghost" href="/v2/vision3d">Open 3D Vision Lab</a></div>
+   <details class="cs-caps"><summary>Detected capabilities</summary><div data-caps>Loading</div></details>
+  </section>
+
+  <section class="panel cs-card" id="camPicam" aria-labelledby="picamTitle">
+   <header class="cs-head"><svg class="icon"><use href="/v2/assets/icons.svg#i-camera"/></svg>
+    <div><h2 id="picamTitle">Pi Camera Module 3</h2><p class="cs-dev" data-dev>Checking</p></div>
+    <div class="chips"><span class="chip" data-conn>Checking</span><span class="chip" data-stream>—</span></div></header>
+   <dl class="cs-rows">
+    <div><dt>Current</dt><dd data-current>—</dd></div>
+    <div><dt>Live FPS</dt><dd data-fps>—</dd></div>
+    <div class="cs-rec"><dt>Recommended</dt><dd><span data-rec>—</span><small data-recwhy></small></dd></div>
+   </dl>
+   <div class="cs-actions"><button class="btn" type="button" data-open="picam"><svg class="icon"><use href="/v2/assets/icons.svg#i-wrench"/></svg>Settings</button>
+    <a class="btn ghost" href="/v2/camera">Open camera</a></div>
+   <details class="cs-caps"><summary>Detected capabilities</summary><div data-caps>Loading</div></details>
+  </section>
+ </div>
+</main>
+
+<dialog class="cs-dialog" id="csDialog" aria-labelledby="csDlgTitle">
+ <form method="dialog" id="csForm">
+  <header class="cs-dlg-head"><h2 id="csDlgTitle">Settings</h2><button class="btn ghost cs-x" value="cancel" aria-label="Close">✕</button></header>
+  <div class="cs-dlg-body" id="csBody"></div>
+  <p class="cs-msg" id="csMsg" role="status"></p>
+  <footer class="cs-dlg-foot">
+   <button class="btn ghost" type="button" id="csReset">Reset to defaults</button>
+   <span class="cs-spacer"></span>
+   <button class="btn ghost" value="cancel">Cancel</button>
+   <button class="btn on" type="button" id="csApply">Apply</button>
+  </footer>
+ </form>
+</dialog>
+
+<div class="dock" role="region" aria-label="Emergency stop">
+ <button class="estop" id="v2Estop" type="button" title="Sends the same immediate zero-speed command as the Home E-STOP"><svg class="icon"><use href="/v2/assets/icons.svg#i-stop"/></svg> E-STOP</button>
+ <span class="dock-note" id="v2EstopMsg">E-STOP sends one zero-speed command to the drive.</span>
+</div>
+<script src="/v2/estop.js" defer></script>
+</body></html>

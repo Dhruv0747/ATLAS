@@ -232,10 +232,19 @@ def driver_args(mode):
               'publish_tf':'false','depth_registration':'false','enable_publish_extrinsic':'false',
               'depth_width':'160','depth_height':'120','depth_fps':'30','depth_scale':'1',
               'color_width':'320','color_height':'240','color_fps':'15',
+              'ir_width':'640','ir_height':'480','ir_fps':'30',
               'uvc_vendor_id':'0x2bc5','uvc_product_id':'0x0501','uvc_camera_format':'mjpeg',
               'uvc_retry_count':'0','oni_log_to_file':'false','oni_log_to_console':'false'}
+    # Issue #11 (25 Oct 2026): modes chosen on the dashboard Camera settings page, validated against the modes this
+    # camera reports. Missing or invalid settings -> the values above (unchanged launch).
+    try:
+        import atlas_camera_settings
+        values.update(atlas_camera_settings.astra_driver_values())
+    except Exception:
+        pass
+    ir_values = {k: values.pop(k) for k in ('ir_width', 'ir_height', 'ir_fps')}
     if m['ir']:   # IR parameters only when IR is requested, so depth / RGB+depth launches stay byte-identical
-        values.update(ir_width='640',ir_height='480',ir_fps='30')
+        values.update(ir_values)
     args=[str(RUNTIME/'lib/astra_camera/astra_camera_node'),'--ros-args','-r','__ns:=/astra']
     for k,v in values.items():args+=['-p', k+':='+v]
     return args

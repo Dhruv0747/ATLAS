@@ -20,9 +20,21 @@ from cv_bridge import CvBridge
 
 
 def build_pipeline(sensor_id, width, height, framerate, ee_strength,
-                   tnr_strength, exposure_compensation, saturation, wbmode):
+                   tnr_strength, exposure_compensation, saturation, wbmode,
+                   sensor_mode=-1, ae_lock=False, awb_lock=False, ae_antibanding=1):
+    # Issue #11 (25 Oct 2026): optional Argus controls. Each is added only when it differs from
+    # the Argus default, so the default pipeline string is byte-identical to the earlier one.
+    extra = ''
+    if int(sensor_mode) >= 0:
+        extra += f'sensor-mode={int(sensor_mode)} '
+    if ae_lock:
+        extra += 'aelock=true '
+    if awb_lock:
+        extra += 'awblock=true '
+    if int(ae_antibanding) != 1:
+        extra += f'aeantibanding={int(ae_antibanding)} '
     return (
-        f'nvarguscamerasrc sensor-id={sensor_id} '
+        f'nvarguscamerasrc sensor-id={sensor_id} {extra}'
         f'ee-mode=2 ee-strength={ee_strength} '
         f'tnr-mode=2 tnr-strength={tnr_strength} '
         f'exposurecompensation={exposure_compensation} '
@@ -55,6 +67,11 @@ class CameraNode(Node):
         # It remains available for stationary inspection through a ROS parameter.
         self.declare_parameter('adaptive_contrast', False)
         self.declare_parameter('contrast_clip_limit', 1.6)
+        # Issue #11: dashboard camera settings (defaults keep the previous pipeline unchanged).
+        self.declare_parameter('sensor_mode', -1)
+        self.declare_parameter('ae_lock', False)
+        self.declare_parameter('awb_lock', False)
+        self.declare_parameter('ae_antibanding', 1)
 
         self.frame_id = self.get_parameter('frame_id').value
         self.jpeg_quality = self.get_parameter('jpeg_quality').value
@@ -74,6 +91,10 @@ class CameraNode(Node):
             self.get_parameter('exposure_compensation').value,
             self.get_parameter('saturation').value,
             self.get_parameter('white_balance_mode').value,
+            self.get_parameter('sensor_mode').value,
+            self.get_parameter('ae_lock').value,
+            self.get_parameter('awb_lock').value,
+            self.get_parameter('ae_antibanding').value,
         )
 
         self.bridge = CvBridge()
