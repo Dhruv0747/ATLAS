@@ -33,19 +33,33 @@ def safety_snapshot():
     return {'ros':data['ros'],'system':{'ram_percent':100*(mem['MemTotal']-mem['MemAvailable'])/mem['MemTotal']}}
 
 
-def _astra_ports():
+def _astra_ports(sysfs_root=None):
     """25 Oct 2026: port-independent identity (scripts/atlas_astra_usb.py). Exactly one Astra Pro on the Jetson
     controller: depth on .2 and RGB on .1 of the camera's own Genesys hub, on any port. Two cameras, a lone half or
     a non-sibling pair are refused exactly like the earlier fixed-port check."""
     scripts=str(Path(__file__).resolve().parents[2]/'scripts')
     if scripts not in sys.path:sys.path.insert(0,scripts)
     import atlas_astra_usb as A
-    try:return A.find_astra()
+    try:return A.find_astra() if sysfs_root is None else A.find_astra(sysfs_root)
     except A.AstraUsbError as e:
         raise RuntimeError('Astra USB physical identity missing/ambiguous: '+str(e)) from e
 
 
-def verify_astra_usb_access():
+# 26 Oct 2026 (Issue #12 M1): the device-node comparison used the whole os.stat() result, which includes
+# st_atime/st_mtime/st_ctime. The kernel updates atime/mtime on ordinary usbfs I/O by the camera driver, so at
+# 320x240@30 a timestamp could tick between the two stat calls and stop the session with "identity/access changed"
+# although nothing about the device changed (field evidence: no kernel/udev USB event, same devnum, same owner/mode/ACL).
+# Only the fields that identify the node and its permissions are compared now; access is still checked with
+# os.access before AND after, and every other identity check below is unchanged.
+NODE_IDENTITY_FIELDS = ('st_dev', 'st_ino', 'st_mode', 'st_rdev', 'st_uid', 'st_gid', 'st_nlink')
+
+
+def node_identity(st):
+    """Stable identity + permission fields of a device-node stat; timestamps deliberately excluded."""
+    return tuple(getattr(st, f) for f in NODE_IDENTITY_FIELDS)
+
+
+def verify_astra_usb_access(sysfs_root=None, dev_root=None):
     """Resolve verified physical ports afresh, never cache BUSNUM/DEVNUM.
 
     Sysfs supports already-connected devices before the new udev aliases exist.
@@ -54,11 +68,12 @@ def verify_astra_usb_access():
     """
     verified=[]
     try:
-        found=_astra_ports()
+        sysfs=Path(sysfs_root or '/sys/bus/usb/devices'); dev=Path(dev_root or '/dev')
+        found=_astra_ports(sysfs_root)
         for port,identity,alias in (
                 (found['depth_port'],'2bc5:0403','atlas-astra-depth-usb'),
                 (found['rgb_port'],'2bc5:0501','atlas-astra-rgb-usb')):
-            matches=[p for p in Path('/sys/bus/usb/devices').glob('*-'+port)
+            matches=[p for p in sysfs.glob('*-'+port)
                      if '3610000.usb' in p.resolve(strict=True).parts]
             if len(matches)!=1:
                 raise RuntimeError('Astra USB physical identity missing/ambiguous: '+port)
@@ -72,8 +87,8 @@ def verify_astra_usb_access():
             bus,num=int(before[3]),int(before[4])
             if not 1<=bus<=999 or not 1<=num<=127:
                 raise RuntimeError('Astra USB invalid bus/device number')
-            device=Path('/dev/bus/usb')/f'{bus:03d}'/f'{num:03d}'
-            stable=Path('/dev')/alias
+            device=dev/'bus/usb'/f'{bus:03d}'/f'{num:03d}'
+            stable=dev/alias
             if os.path.lexists(stable) and stable.resolve(strict=True)!=device:
                 raise RuntimeError('Astra USB stable alias mismatch: '+str(stable))
             node=device.stat()
@@ -82,8 +97,10 @@ def verify_astra_usb_access():
                 raise RuntimeError('Astra USB device-node identity mismatch: '+str(device))
             if not os.access(device,os.R_OK|os.W_OK,effective_ids=True):
                 raise RuntimeError('Astra USB read/write access denied: '+str(device))
-            if attributes()!=before or device.stat()!=node:
+            if attributes()!=before or node_identity(device.stat())!=node_identity(node):
                 raise RuntimeError('Astra USB identity/access changed during check')
+            if not os.access(device,os.R_OK|os.W_OK,effective_ids=True):
+                raise RuntimeError('Astra USB read/write access denied: '+str(device))
             verified.append({'path':str(device),'vid_pid':identity,'physical_port':port,
                              'stable_alias':str(stable),'read_write_access':True})
     except (OSError,ValueError) as exc:
