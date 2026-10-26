@@ -116,3 +116,58 @@ Leaving this issue **open**:
 - the double-restart fix needs approval and deployment;
 - the full 60-s two-stream run, from a client on the same LAN, needs one more owner-approved run (or owner acceptance of the 42-s result);
 - the enumeration-failure message is proposed.
+
+
+---
+
+## Final verification: 26 Oct 2026, 18:38–18:50 IST (owner-approved)
+
+Pre-checks: E-STOP latched, source STOPPED, manual-only, commissioning disarmed, mission READY, zero commands, drive controller DISABLED, Vision Lab OFF. ATLAS stayed parked throughout. The 7 protected services (mux, base, remote, camera, safety, EKF, LiDAR) kept the same PIDs with no restarts.
+
+### Deployed (fix3)
+| File | sha (old → new) | Commit |
+|---|---|---|
+| scripts/atlas_sensor_recovery.py | ea8b4da4 → c6b5ac79 | `240340b` |
+| scripts/atlas_camera_settings.py | d1229c81 → dbfc69d5 | `240340b` |
+| scripts/atlas_camera_settings_web.py | f11a6daf → 71627d3e | `240340b` + `b36c0bd` |
+| scripts/atlas_astra_usb.py | b7b49e55 → b7c8cd4e | `b36c0bd` |
+| web/v2/home-cards.js, cameras.js | 7c8f1daf → 3adbcd0b, c2087598 → 2993bd00 | `b36c0bd` |
+
+- Restarted only `atlas-sensor-recovery` and `rover-status-web` (dashboard back in 20 s).
+- Backups and rollback: `~/project-atlas-migration/fix3_20261026/rollback.sh` (auto-rollback was armed for import, service, safety and protected-PID checks; it was not needed).
+- Tests: full suite `pytest -s` gives 1118 passed, 84 failed, 20 skipped. All 84 failures also fail on the pre-change HEAD; 0 new. New tests: 9 (recovery hold) and 7 (USB start failure).
+
+### 1. Pi Camera double restart: FIXED, verified live
+- Pi Apply (JPEG 80) took 11.1 s, Restore Defaults 10.6 s; Pi camera at 10.0 fps after each.
+- `atlas-camera` started **exactly twice** (18:44:58 Apply, 18:45:33 Restore). Before the fix each action also triggered a recovery restart.
+- Sensor recovery logged `RECOVERY HELD: camera stale: no data for 9.7s; atlas-camera.service is being restarted on purpose (bounded hold…)` and no `RECOVERING: camera`.
+- The hold file expired by itself 10 s after Restore.
+- The hold only applies to `atlas-camera.service`, is capped at 45 s, and any read error means normal recovery runs.
+
+### 2. Dual-camera benchmark: PASS (full 60 s, LAN client)
+Client: headless Chromium on the owner's PC over the Wi-Fi LAN (`http://192.168.1.16:8088`), not Tailscale. Pi camera page streaming plus Vision Lab "Depth + RGB", default modes (depth 160×120@30, RGB 320×240@15). Limits unchanged (75% CPU / 80% RAM / 70 °C).
+
+| Result | Value |
+|---|---|
+| Session | `60-second session complete`, 60 guard samples, no guard triggered, driver stopped cleanly |
+| Guard CPU | avg 63.0%, min 60.5%, max 66.7% |
+| RAM / temp (last guard sample) | 61.6% / 65.2 °C |
+| Astra received fps | depth 13.6 avg (742 frames), RGB 14.7 avg (818 frames) |
+| Pi camera fps (measured) | 9.7 avg, 10.0 max |
+| Astra driver | ~8% of one core, 85 MiB RSS |
+| Slow or failed dashboard requests | none |
+
+The two earlier runs (27 s and 42 s) ended only because the Tailscale client link changed routes.
+
+### 3. USB start-failure message: deployed
+- When the Astra is `NOT_DETECTED`, the dashboard reads the kernel log (read-only, last 15 min) for a port that gave up starting and still has nothing attached.
+- It then explains the failure: Home card pill "USB failed", Camera settings chip "USB start failed", and the message *"A USB device plugged into port 2.3.1 failed to start at HH:MM (power or contact problem)… If that was the Astra: unplug it, then use a different port or a powered USB hub."*
+- No reset, power-cycle, unbind or retry was added; USB identity, states and recovery are unchanged.
+- **Verified with the deployed code** on the Jetson: the kernel lines captured at the 17:03 failure, a simulated USB tree with the camera absent, and the deployed Camera settings page, which showed chip `USB start failed` plus the message. The real 17:03 kernel log wasn't saved by that boot, so a live recurrence can't be replayed safely; the full set of failure and no-failure cases is covered offline.
+
+### Acceptance summary
+Every criterion from the 18:33 report is PASS. The open items there are now closed: the benchmark ran the full 60 s (PASS), the double restart is fixed and verified (PASS), and the enumeration message is deployed and verified (PASS).
+
+Unrelated note: sensor recovery reported `RECOVERY INCOMPLETE: radar; hardware inspection may be required` (radar stale 90 s, attempt 2/3 this boot). That predates this work and is not part of #11.
+
+Closing as complete.
