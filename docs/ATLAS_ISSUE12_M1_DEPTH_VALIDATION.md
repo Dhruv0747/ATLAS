@@ -17,7 +17,7 @@ Running record of M1. Raw captures stay on the owner's PC / Jetson (not committe
 ## Remaining M1 acceptance items
 - [x] Centre depth accuracy at 0.8 m (A1, old mount; sensor property)
 - [ ] Depth accuracy at further distances (target 0.6–3.0 m), new mount
-- [ ] Frame rate ≥ 25 fps at the chosen resolution (160×120 measured 19.2 fps; 320×240 A/B pending)
+- [x] Frame rate ≥ 25 fps: PASSED at 320×240@30 (29.69 fps, full 60-s session, 26 Oct 23:18); 160×120 ≈ 10 distinct fps
 - [ ] LiDAR vs depth wall agreement; LiDAR position (front + rear stations) and yaw (robust fit)
 - [ ] Height test (LiDAR 0.40 m vs 0.18 m) and scan-filter exclusion test
 - [ ] Body vs wheel-to-wheel width
@@ -168,3 +168,55 @@ For the 320×240 session stopped at 22:58:44 with `Astra USB identity/access cha
 1. Make the client fault-tolerant: every measurement request is wrapped, so a timed-out request is logged and skipped, never ends the session. Only the keep-alive thread touches the lease.
 2. Run the measurement client **on the Jetson itself (localhost)** instead of over Wi-Fi. That removes the network from the lease path. It costs a little Jetson CPU (≈ 1 raw-depth read per second, 0.5-s keep-alive), which the guards will show.
 3. Add a measurement of the dashboard's own response time for `/api/vision3d/raw` and `/api/lidar-view` during the run, to tell Wi-Fi stalls from dashboard stalls.
+
+
+## M1: full 60-s session at 320×240@30, PASSED (26 Oct 2026, 23:17:52–23:18:56 IST)
+
+**Pre-checks:** E-STOP latched, source STOPPED, manual-only, commissioning disarmed, zero commands, drive DISABLED, mission READY; mapping and standalone Nav2 inactive (the localization service idle, unlocalized). Vision Lab OFF; no Astra or test process.
+
+**Client:** a new fault-tolerant **local** client on the Jetson (`tools/diagnostics/issue12_m1/m1_local.py`, sha b121e7ba). 9 offline tests pass in the cloud and on the Jetson.
+- Lease renewal on its own thread every 0.5 s with a 2-s timeout. The 4-s lease and 60-s limit are unchanged.
+- Every request is wrapped; it **never sends stop**.
+- The frame counter is a passive raw subscriber in private domain 77, created after ACTIVE, reading header stamps only. No driver launch, no ROS camera owner.
+
+| Measurement | Result |
+|---|---|
+| Session end | **`60-second session complete; explicit Start required`** (own limit). Driver stopped cleanly. No guard triggered |
+| Camera frame rate (source stamps) | **29.69 fps** over 54.9 s of stream |
+| Distinct frames | **1,632 / 1,632** (no duplicate stamps) |
+| Gaps (in 1/30-s periods) | 1,354 × 1, **257 × 2 (≈ 13.6 % single frames missed)**, 20 near-zero; **max 0.064 s**, p95 0.052 s |
+| Frame latency (driver stamp to local subscriber) | p50 **0.9 ms**, p95 3.0 ms, max 10.5 ms |
+| Depth at centre (57 reads, 320×240) | **0.788 m** vs 0.79 m tape (−0.2 cm) |
+| Dashboard response times (local) | lease/status: 119 requests, **0 failed**, p50 14 ms, p95 65 ms, max 368 ms. Raw depth: 57 requests, **0 failed**, p50 9 ms, p95 28 ms, max 48 ms |
+| CPU (guard samples) | mean 63.9 %, **max 67.8 %** (limit 75) |
+| RAM / temp / GPU | max 64.6 % / 65.2 °C / 0 % |
+
+**After the test:** saved Astra setting restored and **verified identical** to the backup (depth 160×120@30, colour 320×240@15, IR 640×480@30). No Astra process, no test process, Vision Lab OFF, ATLAS parked.
+
+### Root cause of the two earlier early stops: confirmed
+- Served **locally**, the dashboard answered every request within 368 ms (raw depth within 48 ms), with no failures.
+- The > 6-s stalls at 23:07 and 23:11 therefore happened on the **PC to Jetson Wi-Fi path**, not in the dashboard or on the Jetson. Combined with the old client's single-thread lease (23:07) and an unhandled exception (23:11), they stopped those sessions.
+- Lesson for M3: a continuous depth service must run on the Jetson and must not depend on a remote viewer's lease.
+
+### Comparison with the 160×120 baseline (same 0.79 m station, new mount)
+
+| | 160×120@30 | 320×240@30 |
+|---|---|---|
+| Distinct frames/s | ≈ 10 (19.5 fps published in pairs) | **29.7** |
+| Missed frames | ≈ 2 of every 3 frame slots | ≈ 13.6 % single frames |
+| Max gap | 0.107 s | 0.064 s |
+| Depth error at 0.79 m | −0.2 cm | −0.2 cm |
+| Peak CPU | 70.6 % (with the remote client) | 67.8 % (local client) |
+
+### FPS acceptance criterion: **PASSED at 320×240@30**
+- 29.69 fps sustained for a complete 60-s guarded session, above the ≥ 25 fps target.
+- At 160×120 the camera structurally delivers only ≈ 10 distinct frames/s, so the criterion is met **only in the 320×240 mode**.
+- **The saved default stays 160×120@30.** Changing the default needs separate owner approval.
+
+M1 stays **open**. Remaining:
+- depth accuracy at 0.6 / 1.0 / 1.5 / 2.0 / 3.0 m;
+- floor visibility and lens height/pitch from the floor plane (station ≥ 1.2 m);
+- the rear station (LiDAR absolute x);
+- the LiDAR height test (0.40 vs 0.18 m);
+- the scan-filter exclusion test;
+- body vs wheel-to-wheel width.
