@@ -6,6 +6,8 @@ controller, so it can be plugged into ANY port. Two Astras, a lone half, or a de
 on one Genesys hub are refused (ambiguous), as the fixed-port check did.
 """
 import os
+import re
+import subprocess
 import time
 from pathlib import Path
 
@@ -70,6 +72,57 @@ def _node(path):
     return Path('/dev/bus/usb') / ('%03d' % bus) / ('%03d' % num)
 
 
+# 26 Oct 2026: explain a USB device that was plugged in but never started (seen on the Jetson at 17:03: hub 1-2.3
+# port 1 "device descriptor read/64, error -71" ... "unable to enumerate USB device"). Read-only kernel-log query, only
+# when the Astra is NOT_DETECTED; it never resets, power-cycles or retries a port and changes no recovery behaviour.
+ENUM_WINDOW_S = 900
+_ENUM_DEV = re.compile(r'usb (\d+)-([\d.]+): (device descriptor read/\d+, error -?\d+|device not accepting address \d+, '
+                       r'error -?\d+|Device not responding to setup address|unable to enumerate USB device)')
+_ENUM_PORT = re.compile(r'usb (\d+)-([\d.]+)-port(\d+): (unable to enumerate USB device|attempt power cycle)')
+
+
+def parse_enumeration_failures(text):
+    """Kernel lines (journalctl -o short-unix) -> {port: {'last_unix', 'errors', 'gave_up'}} for USB start-up failures."""
+    out = {}
+    for line in text.splitlines():
+        stamp = line.split(' ', 1)[0]
+        try:t = float(stamp)
+        except ValueError:continue
+        m = _ENUM_PORT.search(line)
+        if m:
+            port, what = '%s.%s' % (m.group(2), m.group(3)), m.group(4)
+        else:
+            m = _ENUM_DEV.search(line)
+            if not m:continue
+            port, what = m.group(2), m.group(3)
+        row = out.setdefault(port, {'last_unix': t, 'errors': 0, 'gave_up': False})
+        row['last_unix'] = max(row['last_unix'], t); row['errors'] += 1
+        row['gave_up'] = row['gave_up'] or what == 'unable to enumerate USB device'
+    return out
+
+
+def recent_enumeration_failure(sysfs=SYSFS, now=None, runner=subprocess.run, window_s=ENUM_WINDOW_S):
+    """Newest port whose device gave up starting within window_s and still has nothing attached; else None."""
+    now = time.time() if now is None else now
+    try:
+        text = runner(['journalctl', '-k', '-o', 'short-unix', '--no-pager', '-q', '--since', '-%ds' % int(window_s)],
+                      capture_output=True, text=True, timeout=3).stdout
+    except Exception:
+        return None
+    best = None
+    for port, row in parse_enumeration_failures(text).items():
+        if not row['gave_up'] or not 0 <= now - row['last_unix'] <= window_s:continue
+        try:
+            if (sysfs / ('1-%s' % port) / 'idVendor').exists() or any(
+                    (p / 'idVendor').exists() and _read(p, 'devpath') == port for p in sysfs.iterdir() if ':' not in p.name):
+                continue                      # something started on that port since then
+        except OSError:
+            pass
+        if best is None or row['last_unix'] > best['last_unix']:
+            best = dict(row, port=port)
+    return best
+
+
 def presence(sysfs=SYSFS, dev_check=True):
     """Dashboard status; never raises. state: CONNECTED | NO_ACCESS | NOT_DETECTED | PARTIAL | AMBIGUOUS | MISMATCH | UNKNOWN."""
     out = {'checked_unix': round(time.time(), 1), 'known_port': KNOWN_PORT}
@@ -77,6 +130,13 @@ def presence(sysfs=SYSFS, dev_check=True):
         found = find_astra(sysfs)
     except AstraUsbError as exc:
         out.update(state=exc.state, detail=str(exc))
+        if exc.state == 'NOT_DETECTED':
+            failed = recent_enumeration_failure(sysfs)
+            if failed:
+                out['enumeration_failure'] = failed
+                out['detail'] = ('A USB device plugged into port %s failed to start at %s (power or contact problem) and '
+                                 'is not visible on USB. If that was the Astra: unplug it, then use a different port or a '
+                                 'powered USB hub.' % (failed['port'], time.strftime('%H:%M', time.localtime(failed['last_unix']))))
         return out
     except OSError as exc:
         out.update(state='UNKNOWN', detail='USB query failed: %s' % exc)

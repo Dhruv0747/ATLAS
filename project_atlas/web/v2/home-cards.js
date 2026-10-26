@@ -137,7 +137,8 @@
     if (s === 'CHECKING') return setCard('cardDepth', { state: 'unverified', pill: 'Starting', main: 'Checking', unit: '', sub: 'Safety and resource admission running', age: '' });
     // 25 Oct 2026: live USB presence (read-only sysfs on the Jetson), shown like the other devices.
     const u = depth.usb || null, us = u ? String(u.state || 'UNKNOWN') : null, port = u && u.port ? ` (USB ${u.port})` : '';
-    if (us === 'NOT_DETECTED') return setCard('cardDepth', { state: 'off', pill: 'Disconnected', main: 'No camera', unit: '', sub: 'Astra not detected on USB. Check its USB cable.', age: '' });
+    if (us === 'NOT_DETECTED') return setCard('cardDepth', { state: 'off', pill: u.enumeration_failure ? 'USB failed' : 'Disconnected', main: 'No camera', unit: '',
+      sub: u.enumeration_failure ? String(u.detail) : 'Astra not detected on USB. Check its USB cable.', age: '' });   // 26 Oct: failed USB start explained
     if (us === 'NO_ACCESS') return setCard('cardDepth', { state: 'warn', pill: 'No access', main: 'Connected', unit: '', sub: `Astra connected${port}, but the access rule does not cover this port.`, age: '' });
     if (us === 'PARTIAL' || us === 'AMBIGUOUS' || us === 'MISMATCH') return setCard('cardDepth', { state: 'warn', pill: 'Check USB', main: 'Check', unit: '', sub: String(u.detail || 'Astra USB layout not recognised') + '. Reseat the camera cable.', age: '' });
     if (us === 'CONNECTED') return setCard('cardDepth', { state: 'ok', pill: 'Connected', main: 'Off', unit: '', sub: `Camera connected${port}. Off — start it in the 3D Vision Lab.`, age: '' });

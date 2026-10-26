@@ -102,6 +102,7 @@ def summary(ros):
     usb = vision.get('usb') or {}
     astra = {'name': 'Orbbec Astra Pro', 'device': usb.get('port') and 'USB %s' % usb['port'],
              'connection': usb.get('state', 'UNKNOWN'), 'connection_detail': usb.get('detail'),
+             'usb_start_failed': bool(usb.get('enumeration_failure')),
              'streaming': vision.get('state') == 'ACTIVE', 'session_state': vision.get('state'),
              'session_mode': vision.get('mode'), 'saved': a_saved, 'customised': a_has,
              'measured_fps': {k: vision.get(k + '_fps') for k in ('depth', 'rgb', 'ir')},

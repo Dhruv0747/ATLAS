@@ -30,7 +30,7 @@
   const ASTRA_CONN = { CONNECTED: ['ok', 'Connected'], NOT_DETECTED: ['fail', 'Disconnected'], NO_ACCESS: ['warn', 'No access'],
     PARTIAL: ['warn', 'Check USB'], AMBIGUOUS: ['warn', 'Check USB'], MISMATCH: ['warn', 'Check USB'] };
   function renderAstra(a) {
-    const c = ASTRA_CONN[a.connection] || ['', 'Unknown'];
+    const c = a.usb_start_failed ? ['fail', 'USB start failed'] : (ASTRA_CONN[a.connection] || ['', 'Unknown']);
     chip(q('astra', '[data-conn]'), c[0], c[1]);
     const st = a.session_state;
     chip(q('astra', '[data-stream]'), st === 'ACTIVE' ? 'ok' : st === 'CHECKING' ? 'warn' : '', st === 'ACTIVE' ? 'Streaming' : st === 'CHECKING' ? 'Starting' : 'Idle');
