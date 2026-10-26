@@ -113,3 +113,33 @@ Measure with ATLAS on a level floor, at rest, with normal load. Measure position
 5. **No URDF / undocumented base reference point:** resolved by section 6A. Without it the camera TF can't be trusted.
 6. **Line-ending drift** (CRLF on the Jetson, LF on GitHub) in config and launch files makes sha comparisons noisy. Cosmetic, but worth normalising later with owner approval.
 7. **Localization reliability is 47 % verified** in recorded history. M6 needs a fixed test protocol (same start places, same number of checks) so before/after numbers are comparable.
+
+
+---
+
+## M0: Astra mount measurements (owner, 26 Oct 2026 21:32 IST)
+
+Reference point: the rover centre, i.e. the midpoint between the front and rear axles (x forward, y left, z up, floor = 0).
+
+| Item | Owner value | Status |
+|---|---|---|
+| Mount | fixed (not on servos), facing straight forward | recorded |
+| x (lens centre) | **+0.100 m** forward of the axle midpoint | recorded |
+| y | **≈ 0** (on the centreline) | recorded; see open item 1 |
+| z (IR lens centre) | **0.275 m** above the floor | recorded |
+| pitch / roll / yaw | **≈ 0° / 0° / 0°** (no tilt) | recorded as approximate; to be verified from the floor plane in M1/M2 |
+| Lens centre to front body edge | 0.134 m, so the front edge is at x ≈ +0.234 m | consistent with the Nav2 footprint front edge at +0.25 m |
+
+Draft camera transform for M2, not deployed: `base_footprint → astra_link`: xyz = (0.100, 0.000, 0.275), rpy = (0, 0, 0). The optical frame gets the standard camera rotation (z forward, x right, y down). It will be validated and refined in M2: floor-plane fit for height, pitch and roll; depth/LiDAR wall agreement for yaw and x.
+
+### Open items
+1. **Which lens was measured?** The Astra Pro has three front openings (IR projector, colour camera, IR camera), a few centimetres apart. Depth comes from the **IR camera** lens. If the centre opening was measured, the IR lens is off the centreline by a few cm, and y won't be 0. Please confirm which one, with a front photo.
+2. **LiDAR cross-check:** the message was cut off at "LiDAR reference". The configured LiDAR transform is 0.05 m **behind** the axle midpoint, on the centreline, scan plane 0.18 m above the floor. Please confirm or give the measured values.
+3. **"No tilt" is by eye.** M1/M2 will measure pitch and roll from the floor plane in the depth data, and height from the floor distance. That checks the 0.275 m and 0° values without any extra hardware.
+
+### Geometry consequence (calculated, for planning)
+- With the lens at 0.275 m and 0° pitch, the bottom edge of the depth view (vertical FOV 45.5°) first meets the floor **0.66 m** ahead of the lens. That is 0.76 m from the rover centre, or ~0.52 m ahead of the front edge.
+- The camera also can't measure anything closer than ~0.6 m.
+- Pitching the camera down wouldn't help much. At 15° down the floor would enter the view at 0.36 m, but that point is only ~0.45 m from the lens, still inside the 0.6 m minimum range.
+- **So the 0° mount is reasonable. But there is a near-field blind zone: low obstacles (under the 0.18 m LiDAR plane) within roughly 0.5 m ahead of the front edge are invisible to both LiDAR and depth.** The front ultrasonic sensor (and the radar) remain the only coverage there. M3/M4 acceptance must state this limit, and depth must never be described as covering it.
+- Horizontal coverage: ±0.56 m wide at 1 m ahead (58.4° FOV), wider than the 0.36 m body, from about 0.66 m onward.
