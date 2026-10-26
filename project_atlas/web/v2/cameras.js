@@ -6,7 +6,7 @@
   'use strict';
   const $ = id => document.getElementById(id), api = '/api/cameras/';
   const CARD = { astra: $('camAstra'), picam: $('camPicam') };
-  let summary = null, caps = {}, dlgCam = null, validateTimer = null, busy = false;
+  let summary = null, caps = {}, dlgCam = null, validateTimer = null, busy = false, measuring = false, lastMeasure = null;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const mode = m => esc(String(m).replace('x', ' × ').replace('@', ' @ '));
   const num = v => typeof v === 'number' && Number.isFinite(v);
@@ -37,8 +37,9 @@
     q('astra', '[data-dev]').textContent = [a.device || 'USB port unknown', a.connection_detail && a.connection !== 'CONNECTED' ? a.connection_detail : ''].filter(Boolean).join(' · ');
     const s = a.saved;
     q('astra', '[data-current]').innerHTML = `Depth ${mode(s.depth)} · RGB ${mode(s.color)} · IR ${mode(s.ir)} <small>${a.customised ? 'Your saved settings' : 'Defaults'}, used at the next Vision Lab Start.</small>`;
-    const f = a.measured_fps || {}, live = ['depth', 'rgb', 'ir'].filter(k => num(f[k])).map(k => `${k.toUpperCase()} ${f[k].toFixed(1)}`);
-    q('astra', '[data-fps]').innerHTML = live.length ? esc(live.join(' · ')) : '<small>Shown while a Vision Lab session is running.</small>';
+    const f = a.measured_fps || {}, cf = a.configured_fps || {};
+    const live = ['depth', 'rgb', 'ir'].filter(k => num(f[k])).map(k => `${k.toUpperCase()} ${f[k].toFixed(1)} received (set ${cf[k]})`);
+    q('astra', '[data-fps]').innerHTML = live.length ? esc(live.join(' · ')) + `<small>${esc(a.measured_note)}</small>` : '<small>Shown while a Vision Lab session is running.</small>';
     const r = a.recommended.settings;
     q('astra', '[data-rec]').textContent = `Depth ${r.depth.replace('x', ' × ').replace('@', ' @ ')} · RGB ${r.color.replace('x', ' × ').replace('@', ' @ ')} · IR ${r.ir.replace('x', ' × ').replace('@', ' @ ')}`;
     q('astra', '[data-recwhy]').textContent = a.recommended.reason;
@@ -52,7 +53,17 @@
     const now = num(run.width) ? `${run.width} × ${run.height} @ ${run.framerate} fps${sensor}` : 'Running settings not reported yet';
     const differs = num(run.width) && (run.width !== s.width || run.height !== s.height || run.framerate !== s.framerate);
     q('picam', '[data-current]').innerHTML = esc(now) + `<small>${differs ? 'Saved settings differ from the running camera.' : (p.customised ? 'Your saved settings.' : 'Defaults.')}</small>`;
-    q('picam', '[data-fps]').innerHTML = num(p.measured_fps) ? `${p.measured_fps.toFixed(1)} fps <small>Configured ${run.framerate || s.framerate} fps; measured can be lower.</small>` : `<small>${esc(p.measured_note)}</small>`;
+    const cfg = p.configured_fps || run.framerate || s.framerate;
+    if (measuring) return renderPicamTail(p);
+    q('picam', '[data-fps]').innerHTML = num(p.measured_fps)
+      ? `${p.measured_fps.toFixed(1)} fps <small>Measured from camera frame timestamps; configured ${cfg} fps.</small>`
+      : (lastMeasure ? measureText(lastMeasure, cfg) : `<button class="btn ghost cs-measure" type="button" data-measure>Measure (3 s)</button><small>Configured ${cfg} fps. ${esc(p.measured_note)}</small>`);
+    renderPicamTail(p);
+  }
+  function measureText(m, cfg) {
+    return `${m.source_fps.toFixed(1)} fps <small>Measured ${new Date(m.at).toLocaleTimeString()} over ${m.window_s} s (${m.frames} frames, camera timestamps); configured ${cfg} fps. <button class="btn ghost cs-measure" type="button" data-measure>Measure again</button></small>`;
+  }
+  function renderPicamTail(p) {
     const r = p.recommended.settings;
     q('picam', '[data-rec]').textContent = `${r.width} × ${r.height} @ ${r.framerate} fps`;
     q('picam', '[data-recwhy]').textContent = p.recommended.reason;
@@ -80,13 +91,16 @@
         <tr><th>Hardware controls</th><td>${Object.entries({ 'IR gain': ctl.ir_gain, 'IR exposure': ctl.ir_exposure, 'Laser on/off': ctl.laser_on_off, 'RGB-depth registration': ctl.depth_registration })
           .map(([k, v]) => `<span class="cs-badge${v ? ' ok' : ' off'}">${esc(k)}</span>`).join('')}</td></tr>
         <tr><th>Manufacturer maximum</th><td>Depth ${esc(c.manufacturer.depth_max)}; RGB ${esc(c.manufacturer.rgb)}<br><small>${esc(c.manufacturer.note)}</small></td></tr>
-        <tr><th>Source</th><td><small>${esc(d.source.depth_ir)}. RGB: ${esc(d.source.color)}.${d.serial ? ' Serial ' + esc(d.serial) + '.' : ''}</small></td></tr></table>
+        <tr><th>Pixel formats</th><td><small>Depth: ${esc(c.formats.depth)}<br>IR: ${esc(c.formats.ir)}<br>RGB: ${esc(c.formats.color)}</small></td></tr>
+        <tr><th>Source</th><td><small>${esc(d.source.depth_ir)}. Detected ${esc(d.detected_at)}. RGB: ${esc(d.source.color)}.${d.serial ? ' Serial ' + esc(d.serial) + '.' : ''}</small>
+          <br><button class="btn ghost cs-measure" type="button" data-detect>Re-detect modes (read-only)</button> <small data-detectmsg></small></td></tr></table>
         <p class="cs-note">Green = measured on this ATLAS. Struck through = advertised but not delivered. Registration is disabled until the calibration is validated.</p>`;
     } else {
       const d = c.detected;
       box.innerHTML = `<table>
         <tr><th>Sensor modes (detected)</th><td>${d.modes.map(m => `<span class="cs-badge">${m.index}: ${m.width} × ${m.height} up to ${Math.round(m.max_fps)} fps</span>`).join('') || 'none reported yet'}</td></tr>
         <tr><th>Gain / exposure</th><td>${d.modes[0] ? `Analogue gain ${d.modes[0].gain[0]}–${d.modes[0].gain[1]}× · exposure ${(d.modes[0].exposure_ns[0] / 1e6).toFixed(1)}–${(d.modes[0].exposure_ns[1] / 1e6).toFixed(0)} ms` : '—'}</td></tr>
+        <tr><th>Pixel format</th><td><small>${esc(c.formats)}</small></td></tr>
         <tr><th>Not available here</th><td>${Object.entries(c.unsupported).map(([k, v]) => `<span class="cs-badge off" title="${esc(v)}">${esc(k)}</span>`).join('')}</td></tr>
         <tr><th>Manufacturer modes</th><td>${c.manufacturer.modes.map(esc).join(' · ')}<br><small>${esc(c.manufacturer.note)}</small></td></tr>
         <tr><th>Source</th><td><small>${esc(d.source)}</small></td></tr></table>`;
@@ -103,18 +117,21 @@
     return `<div class="cs-field${disabled ? ' disabled' : ''}"><label>${esc(label)}</label>${control}<span class="cs-hint">${hint}</span></div>`;
   }
   function select(name, options, value, disabled = false) {
-    return `<select name="${name}"${disabled ? ' disabled' : ''}>${options.map(([v, t]) => `<option value="${esc(v)}"${String(v) === String(value) ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+    return `<select name="${name}"${disabled ? ' disabled' : ''}>${options.map(([v, t, off]) => `<option value="${esc(v)}"${String(v) === String(value) ? ' selected' : ''}${off ? ' disabled' : ''}>${esc(t)}</option>`).join('')}</select>`;
   }
   function range(name, spec, value) {
     return `<input type="range" name="${name}" min="${spec.min}" max="${spec.max}" step="${spec.step}" value="${value}"><output>${value}</output>`;
   }
   function astraForm(c, s) {
-    const opt = (list, ver) => list.map(m => [m, m.replace('x', ' × ').replace('@', ' @ ') + ' fps' + (ver && ver[m] ? '  ✓ measured' : '')]);
+    const mb = c.mbps || {}, budget = c.usb_budget_mbps || 32;
+    const opt = (list, ver, kind) => list.map(m => { const need = (mb[kind] || {})[m], over = num(need) && need > budget;
+      return [m, m.replace('x', ' × ').replace('@', ' @ ') + ' fps' + (num(need) ? `  · ${need} MB/s` : '') + (over ? '  · too much for USB 2.0' : '') + (ver && ver[m] ? '  ✓ measured' : ''), over]; });
     const d = c.detected;
     return `<div class="cs-group"><h3>STREAM MODES</h3>
-      ${field('Depth', select('depth', opt(d.depth.length ? d.depth : [s.depth], c.verified.depth), s.depth))}
-      ${field('RGB (MJPEG)', select('color', opt(d.color.length ? d.color : [s.color], c.verified.color), s.color))}
-      ${field('Infrared', select('ir', opt(d.ir.length ? d.ir : [s.ir], c.verified.ir), s.ir))}
+      ${field('Depth', select('depth', opt(d.depth.length ? d.depth : [s.depth], c.verified.depth, 'depth'), s.depth))}
+      ${field('RGB (MJPEG)', select('color', opt(d.color.length ? d.color : [s.color], c.verified.color, 'color'), s.color))}
+      ${field('Infrared', select('ir', opt(d.ir.length ? d.ir : [s.ir], c.verified.ir, 'ir'), s.ir))}
+      <p class="cs-note" data-bw>USB 2.0 budget ${budget} MB/s for the streams a session uses together.</p>
       <p class="cs-note">Used at the next Vision Lab Start. The camera is never restarted by Apply. Higher modes cost more CPU and USB bandwidth; the existing 75% CPU, 80% RAM and 70 °C guards still stop a session safely.</p></div>
       <div class="cs-group"><h3>NOT SUPPORTED BY THIS UNIT</h3>
       ${field('IR gain', '<select disabled><option>Not supported</option></select>', '', true)}
@@ -166,7 +183,12 @@
     if (blocked && !busy) msg('Apply is available while ATLAS is parked: ' + summary.picam.apply_blocked.join('; ') + '.', 'warn');
   }
   async function validate() {
-    try { await post(dlgCam, { action: 'validate', settings: collect() }); msg('Valid for this camera.', 'ok'); setApply(); return true; }
+    try {
+      const r = await post(dlgCam, { action: 'validate', settings: collect() }); msg('Valid for this camera.', 'ok'); setApply();
+      const bw = r.bandwidth, el = document.querySelector('#csBody [data-bw]');
+      if (bw && el) el.textContent = `Estimated USB use: depth ${bw.per_stream_mbps.depth}, RGB ${bw.per_stream_mbps.color}, IR ${bw.per_stream_mbps.ir} MB/s (budget ${bw.budget_mbps} MB/s for the streams a session uses together; a combination above it starts with the defaults).`;
+      return true;
+    }
     catch (e) { msg(e.message, 'err'); $('csApply').disabled = true; return false; }
   }
   function render(cam, s) {
@@ -200,6 +222,20 @@
     try { const r = await post(dlgCam, { action: 'reset' }); msg(r.message, 'ok'); await refresh(); render(dlgCam, summary[dlgCam].saved); }
     catch (e) { msg(e.message, 'err'); }
     finally { busy = false; setApply(); }
+  });
+  document.addEventListener('click', async e => {
+    if (e.target.closest('[data-measure]') && !measuring) {
+      measuring = true; q('picam', '[data-fps]').innerHTML = '<small>Measuring for 3 seconds…</small>';
+      try { lastMeasure = Object.assign(await get('picam/measure'), { at: Date.now() }); }
+      catch (err) { lastMeasure = null; q('picam', '[data-fps]').innerHTML = `<small>${esc(err.message)}</small>`; measuring = false; return; }
+      measuring = false; q('picam', '[data-fps]').innerHTML = measureText(lastMeasure, lastMeasure.configured_fps || '?');
+    }
+    const det = e.target.closest('[data-detect]');
+    if (det) {
+      det.disabled = true; const m = q('astra', '[data-detectmsg]'); m.textContent = 'Detecting (about 2 s)…';
+      try { const r = await post('astra', { action: 'detect' }); await loadCaps('astra'); q('astra', '[data-detectmsg]').textContent = `${r.message} Serial ${r.serial}.`; }
+      catch (err) { m.textContent = err.message; det.disabled = false; }
+    }
   });
   document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => open(b.dataset.open)));
   document.querySelectorAll('.cs-caps').forEach((d, i) => d.addEventListener('toggle', () => { const cam = i ? 'picam' : 'astra'; if (d.open && !caps[cam]) loadCaps(cam); }));

@@ -386,6 +386,9 @@ class AtlasRosNode:
         # request renews demand.
         self.camera_subscription = None
         self.ai_camera_subscription = None
+        # Issue #11: (arrival monotonic, camera header stamp) of every Pi camera frame the dashboard receives,
+        # so the measured camera rate is reported instead of the 1 Hz camera_info health heartbeat.
+        self.camera_rx = deque(maxlen=200)
         self.last_camera_bytes = 0
         self.last_camera_health = 0.0
         self.last_raw_camera_encode = 0.0
@@ -959,6 +962,10 @@ class AtlasRosNode:
     def _camera_cb(self, msg):
         now = time.time()
         now_mono = time.monotonic()
+        try:
+            self.camera_rx.append((now_mono, msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9))
+        except Exception:
+            pass
         if now - self.last_compressed_camera < 0.05:
             return
         self.last_compressed_camera = now
@@ -1023,6 +1030,22 @@ class AtlasRosNode:
             }
             self.data["ai_status"] = {"value": ai_status, "ts": time.time()}
             self.camera_frame_condition.notify_all()
+
+    def camera_rate(self, window=4.0):
+        """Measured Pi camera rate from frames the dashboard actually received (issue #11).
+
+        source_fps uses the camera's own frame timestamps (true capture/publish rate); delivered_fps uses arrival
+        times. None when no frame arrived in the last 1.5 s (no viewer lease, so the dashboard is not subscribed)."""
+        now = time.monotonic()
+        rows = [r for r in list(self.camera_rx) if now - r[0] <= window]
+        if len(rows) < 3 or now - rows[-1][0] > 1.5:
+            return None
+        span_rx = rows[-1][0] - rows[0][0]
+        span_src = rows[-1][1] - rows[0][1]
+        return {'frames': len(rows), 'window_s': round(span_rx, 2),
+                'delivered_fps': round((len(rows) - 1) / span_rx, 2) if span_rx > 0 else None,
+                'source_fps': round((len(rows) - 1) / span_src, 2) if span_src > 0 else None,
+                'last_age_s': round(now - rows[-1][0], 2)}
 
     def _ai_camera_cb(self, msg):
         if self.ai_mode != "object" or not self.camera_clients.active():

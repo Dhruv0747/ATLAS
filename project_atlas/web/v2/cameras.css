@@ -52,3 +52,4 @@
   .cs-dlg-foot{flex-wrap:wrap}
   .cs-dlg-foot #csReset{order:3;width:100%}
 }
+.cs-measure{min-height:32px;padding:4px 10px;font-size:12.5px;margin:4px 6px 0 0}

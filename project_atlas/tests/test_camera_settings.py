@@ -173,7 +173,7 @@ class Web(unittest.TestCase):
     def test_summary(self):
         j = self.req('/api/cameras/summary').json()
         self.assertEqual(j['astra']['connection'], 'CONNECTED'); self.assertEqual(j['picam']['running']['framerate'], 10)
-        self.assertEqual(j['picam']['measured_fps'], 9.8); self.assertEqual(j['picam']['apply_blocked'], [])
+        self.assertIsNone(j['picam']['measured_fps']); self.assertEqual(j['picam']['apply_blocked'], [])   # camera_info hz is a heartbeat, not FPS (issue #11 fix)
         self.assertFalse(any(c[0] == 'restart' for c in self.calls))   # page load never restarts anything
 
     def test_capabilities_and_unknown(self):
@@ -238,6 +238,104 @@ class StartDetection(unittest.TestCase):
     def test_latest_launch_wins(self):
         txt = "atlas_camera_launch: a\nCamera node started\n" + self.OLD_STOP + "atlas_camera_launch: b\n"
         self.assertIsNone(WEB.camera_start_result(txt))
+
+
+class Issue11Completion(unittest.TestCase):
+    """25 Oct 2026 completion: measured Pi FPS (not the 1 Hz heartbeat), Astra received/configured FPS, disconnected
+    states, USB 2.0 bandwidth limits, runtime Astra re-detection, formats."""
+    def setUp(self):
+        Path(os.environ['ATLAS_CAMERA_SETTINGS']).unlink(missing_ok=True); WEB._cache.clear()
+        self.p1 = mock.patch.object(S, 'picam_detected', return_value=DET); self.p1.start()
+        self.p2 = mock.patch.object(S, 'astra_detected', return_value=dict(ADET, detected_at='x')); self.p2.start()
+        self.p3 = mock.patch.object(WEB, '_systemctl', side_effect=lambda *a, timeout=10: types.SimpleNamespace(stdout='active\n', returncode=0)); self.p3.start()
+    def tearDown(self):
+        mock.patch.stopall(); Path(os.environ['ATLAS_CAMERA_SETTINGS']).unlink(missing_ok=True)
+
+    def ros(self, rate=None, hz=0.9):
+        r = FakeRos(); r.v['camera_info']['observed_hz'] = hz
+        r.camera_rate = lambda window=4.0: rate
+        r.touches = 0
+        r.camera_clients = types.SimpleNamespace(touch=lambda: setattr(r, 'touches', r.touches + 1))
+        return r
+
+    def test_heartbeat_rate_is_never_reported_as_fps(self):
+        j = WEB.summary(self.ros(rate=None, hz=0.9))
+        self.assertIsNone(j['picam']['measured_fps'])                     # the old bug showed 0.9 here
+        j = WEB.summary(self.ros(rate={'source_fps': 9.95, 'delivered_fps': 9.9, 'frames': 30, 'window_s': 2.9, 'last_age_s': 0.1}, hz=0.9))
+        self.assertEqual(j['picam']['measured_fps'], 9.95); self.assertEqual(j['picam']['configured_fps'], 10)
+
+    def test_measure_endpoint_uses_viewer_lease(self):
+        r = self.ros(rate={'source_fps': 10.0, 'delivered_fps': 9.8, 'frames': 31, 'window_s': 3.0, 'last_age_s': 0.05})
+        with mock.patch.object(WEB.time, 'sleep'), mock.patch.object(WEB.time, 'monotonic', side_effect=[0, 0, 1, 2, 3, 4, 5]):
+            out = WEB.measure_picam(r, seconds=3.5)
+        self.assertEqual(out['source_fps'], 10.0); self.assertGreater(r.touches, 0); self.assertEqual(out['configured_fps'], 10)
+
+    def test_measure_without_frames_is_an_error_not_zero(self):
+        with mock.patch.object(WEB.time, 'sleep'), mock.patch.object(WEB.time, 'monotonic', side_effect=[0, 0, 5]):
+            with self.assertRaises(RuntimeError): WEB.measure_picam(self.ros(rate=None), seconds=3.5)
+
+    def test_camera_rate_logic_from_dashboard_source(self):
+        import ast, collections, time as _t
+        src = (NEW / 'atlas_status_web.py').read_text()
+        fn = next(n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == 'camera_rate')
+        ns = {'time': _t}; exec(compile(ast.Module(body=[fn], type_ignores=[]), 'camera_rate', 'exec'), ns)
+        now = _t.monotonic(); obj = types.SimpleNamespace(camera_rx=collections.deque((now - 2.0 + i * 0.1, 1000.0 + i * 0.1) for i in range(20)))
+        r = ns['camera_rate'](obj, window=4.0)
+        self.assertAlmostEqual(r['source_fps'], 10.0, places=1); self.assertEqual(r['frames'], 20)
+        obj.camera_rx = collections.deque([(now - 10, 1.0), (now - 9.9, 1.1), (now - 9.8, 1.2)])
+        self.assertIsNone(ns['camera_rate'](obj))                          # no recent frames -> unknown, never a number
+
+    def test_astra_received_and_configured_fps(self):
+        with mock.patch.object(WEB, '_vision', return_value={'state': 'ACTIVE', 'depth_fps': 13.7, 'usb': {'state': 'CONNECTED', 'port': '2.3.4'}}):
+            a = WEB.summary(self.ros())['astra']
+        self.assertEqual(a['measured_fps']['depth'], 13.7); self.assertEqual(a['configured_fps']['depth'], 30); self.assertIn('received', a['measured_note'])
+
+    def test_disconnected_states(self):
+        with mock.patch.object(WEB, '_vision', return_value={'state': 'OFF', 'usb': {'state': 'NOT_DETECTED', 'detail': 'Astra not detected on USB'}}):
+            self.assertEqual(WEB.summary(self.ros())['astra']['connection'], 'NOT_DETECTED')
+        WEB._cache.clear(); self.p3.stop()
+        with mock.patch.object(WEB, '_systemctl', return_value=types.SimpleNamespace(stdout='inactive\n', returncode=3)):
+            p = WEB.summary(self.ros())['picam']
+        self.assertEqual(p['connection'], 'SERVICE_INACTIVE')
+
+    def test_usb_bandwidth_limits(self):
+        det = dict(ADET, ir=['640x480@30', '1280x1024@30', '1280x720@30'])
+        with self.assertRaises(S.SettingsError): S.validate_astra({'depth': '160x120@30', 'color': '320x240@15', 'ir': '1280x1024@30'}, det)
+        self.assertEqual(S.validate_astra({'depth': '160x120@30', 'color': '320x240@15', 'ir': '1280x720@30'}, det)['ir'], '1280x720@30')
+        S.save_camera('astra', {'depth': '640x480@30', 'color': '320x240@15', 'ir': '1280x720@30'})
+        self.p2.stop()
+        with mock.patch.object(S, 'astra_detected', return_value=det):
+            self.assertEqual(S.astra_driver_values(streams={'depth': True, 'rgb': False, 'ir': False})['depth_width'], '640')   # 18 MB/s alone: ok
+            v = S.astra_driver_values(streams={'depth': True, 'rgb': False, 'ir': True})                                    # 18 + 28 MB/s: too much
+        self.assertEqual((v['depth_width'], v['ir_width']), ('160', '640'))
+        self.assertIn('USB 2.0 budget', Path(os.environ['ATLAS_CAMERA_SETTINGS_LOG']).read_text())
+
+    def test_runtime_detection_saves_dated_state(self):
+        self.p2.stop()
+        out = (NEW.parent / 'config/astra_detected_capabilities.json').read_text()
+        good = types.SimpleNamespace(stdout='USB warning\nATLAS_DEVICE_INFO ' + json.dumps(dict(json.loads(out), streams_started=False)) + '\n')
+        state = TMP / 'astra_state.json'
+        with mock.patch.object(S, 'ASTRA_DETECTED_STATE', state):
+            r = S.run_astra_detect(runner=lambda: good)
+            self.assertEqual(r['serial'], '17122120830'); self.assertTrue(state.exists())
+            self.assertIn('runtime', S.astra_detected(usb_find=lambda: (_ for _ in ()).throw(RuntimeError('x')))['source']['depth_ir'])
+            before = state.read_text()
+            for bad in ('no tool output', 'ATLAS_DEVICE_INFO {"streams_started": true, "sensors": {"depth": {"video_modes": ["x"]}}}'):
+                with self.assertRaises(S.SettingsError): S.run_astra_detect(runner=lambda b=bad: types.SimpleNamespace(stdout=b))
+            self.assertEqual(state.read_text(), before)                     # a failed detection never replaces good data
+
+    def test_detect_refused_while_vision_lab_runs(self):
+        with mock.patch.object(WEB, '_vision', return_value={'state': 'ACTIVE'}):
+            with self.assertRaises(PermissionError): WEB.detect_astra()
+
+    def test_formats_and_bandwidth_in_capabilities(self):
+        c = S.capabilities('astra'); self.assertIn('DEPTH_1_MM', c['formats']['depth']); self.assertEqual(c['mbps']['depth']['640x480@30'], 18.4)
+        self.assertIn('NV12', S.capabilities('picam')['formats'])
+
+
+def tearDownModule():
+    # Saved test settings must not leak into later test modules (the Vision Lab driver reads the same settings path).
+    Path(os.environ['ATLAS_CAMERA_SETTINGS']).unlink(missing_ok=True)
 
 
 if __name__ == '__main__':

@@ -267,7 +267,7 @@ def driver_args(mode):
     # camera reports. Missing or invalid settings -> the values above (unchanged launch).
     try:
         import atlas_camera_settings
-        values.update(atlas_camera_settings.astra_driver_values())
+        values.update(atlas_camera_settings.astra_driver_values(streams=m))   # m = this viewer mode's enabled streams
     except Exception:
         pass
     ir_values = {k: values.pop(k) for k in ('ir_width', 'ir_height', 'ir_fps')}
