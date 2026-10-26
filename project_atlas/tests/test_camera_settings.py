@@ -1,5 +1,5 @@
 """Offline tests for issue #11 camera settings (no hardware, no ROS, no systemd)."""
-import io, json, os, sys, tempfile, types, unittest, importlib.util
+import io, json, os, sys, tempfile, time, types, unittest, importlib.util
 from pathlib import Path
 from unittest import mock
 NEW = Path(__file__).resolve().parents[1] / 'scripts'
@@ -7,6 +7,7 @@ sys.path.insert(0, str(NEW))
 TMP = Path(tempfile.mkdtemp())
 os.environ['ATLAS_CAMERA_SETTINGS'] = str(TMP / 'camera_settings.json')
 os.environ['ATLAS_CAMERA_SETTINGS_LOG'] = str(TMP / 'log.jsonl')
+os.environ['ATLAS_SERVICE_MAINTENANCE_FILE'] = str(TMP / 'service_maintenance.json')
 import atlas_camera_settings as S
 import uvc_descriptors as U
 
@@ -331,6 +332,49 @@ class Issue11Completion(unittest.TestCase):
     def test_formats_and_bandwidth_in_capabilities(self):
         c = S.capabilities('astra'); self.assertIn('DEPTH_1_MM', c['formats']['depth']); self.assertEqual(c['mbps']['depth']['640x480@30'], 18.4)
         self.assertIn('NV12', S.capabilities('picam')['formats'])
+
+
+class RecoveryHold(unittest.TestCase):
+    """26 Oct 2026 field bug: every Pi Apply/Restore was followed ~9 s later by a second, competing camera restart from
+    atlas_sensor_recovery (camera stale > 8 s). Apply now writes a bounded hold that only recovery honours."""
+    def setUp(self):
+        Path(os.environ['ATLAS_CAMERA_SETTINGS']).unlink(missing_ok=True); WEB._cache.clear(); WEB._last_apply['t'] = 0.0
+        S.MAINTENANCE_PATH.unlink(missing_ok=True)
+        mock.patch.object(S, 'picam_detected', return_value=DET).start()
+        self.seen = []
+        def fake_systemctl(*a, timeout=10):
+            if a[0] == 'restart':
+                self.seen.append(json.loads(S.MAINTENANCE_PATH.read_text())['atlas-camera.service']['until_unix'] - time.time())
+            return types.SimpleNamespace(stdout='active\n', returncode=0)
+        mock.patch.object(WEB, '_systemctl', side_effect=fake_systemctl).start()
+    def tearDown(self):
+        mock.patch.stopall(); S.MAINTENANCE_PATH.unlink(missing_ok=True); Path(os.environ['ATLAS_CAMERA_SETTINGS']).unlink(missing_ok=True)
+
+    def remaining(self):
+        return json.loads(S.MAINTENANCE_PATH.read_text())['atlas-camera.service']['until_unix'] - time.time()
+
+    def test_hold_written_before_restart_and_short_tail_after(self):
+        with mock.patch.object(WEB, '_wait_camera_started', return_value=(True, 'Camera node started')):
+            WEB.apply_picam({'framerate': 15}, FakeRos(), 'apply')
+        self.assertEqual(len(self.seen), 1); self.assertGreater(self.seen[0], 35); self.assertLessEqual(self.seen[0], 40.01)
+        self.assertGreater(self.remaining(), 5); self.assertLessEqual(self.remaining(), WEB.MAINTENANCE_TAIL_S + 0.01)
+
+    def test_revert_restart_renews_hold_and_failure_still_ends_with_tail(self):
+        with mock.patch.object(WEB, '_wait_camera_started', side_effect=[(False, 'Traceback'), (True, 'ok')]):
+            with self.assertRaises(RuntimeError): WEB.apply_picam({'framerate': 15}, FakeRos(), 'apply')
+        self.assertEqual(len(self.seen), 2); self.assertTrue(all(35 < x <= 40.01 for x in self.seen))
+        self.assertLessEqual(self.remaining(), WEB.MAINTENANCE_TAIL_S + 0.01)
+
+    def test_refused_apply_writes_no_hold(self):
+        ros = FakeRos(latched=False)
+        with self.assertRaises(PermissionError): WEB.apply_picam({'framerate': 15}, ros, 'apply')
+        self.assertFalse(S.MAINTENANCE_PATH.exists()); self.assertEqual(self.seen, [])
+
+    def test_hold_is_bounded_and_preserves_other_entries(self):
+        S.MAINTENANCE_PATH.write_text(json.dumps({'other.service': {'until_unix': 1}}))
+        S.set_maintenance('atlas-camera.service', 999)
+        d = json.loads(S.MAINTENANCE_PATH.read_text())
+        self.assertIn('other.service', d); self.assertLessEqual(d['atlas-camera.service']['until_unix'] - time.time(), S.MAINTENANCE_HOLD_S + 0.01)
 
 
 def tearDownModule():

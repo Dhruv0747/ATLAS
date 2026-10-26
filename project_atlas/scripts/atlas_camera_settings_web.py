@@ -23,6 +23,7 @@ MAX_BODY = 4096
 APPLY_LOCK = threading.Lock()
 _last_apply = {'t': 0.0}
 MIN_APPLY_INTERVAL_S = 20.0
+MAINTENANCE_TAIL_S = 10.0   # recovery hold kept after the restart is verified (sensor recovery stale limit is 8 s)
 MEASURE_LOCK = threading.Lock()
 DETECT_LOCK = threading.Lock()
 _last_detect = {'t': 0.0}
@@ -180,20 +181,31 @@ def apply_picam(settings, ros, action):
         _last_apply['t'] = time.monotonic()
         t0 = time.time() - 1
         S.log('picam_apply', action=action, settings=new)
-        _systemctl('restart', 'atlas-camera.service', timeout=30)
-        ok, evidence = _wait_camera_started(t0)
-        _cache.clear()
-        if ok:
-            S.log('picam_apply_ok', settings=new)
-            return {'ok': True, 'saved': new, 'message': 'Pi Camera restarted with the new settings.'}
-        S.log('picam_apply_failed', settings=new, evidence=evidence)
-        S.save_camera('picam', previous if had else dict(S.PICAM_DEFAULTS))
-        t1 = time.time() - 1
-        _systemctl('restart', 'atlas-camera.service', timeout=30)
-        back, _ = _wait_camera_started(t1)
-        S.log('picam_revert', restored=previous, ok=back)
-        raise RuntimeError('the camera did not start with those settings; previous settings restored%s'
-                           % ('' if back else ' (camera restart still failing - check the camera service)'))
+        S.set_maintenance('atlas-camera.service')   # intentional restart: sensor recovery must not restart it again
+        try:
+            return _restart_and_verify(previous, had, new, t0)
+        finally:
+            # Frames follow 'Camera node started' within about a second; keep a short bounded tail, then it expires.
+            S.set_maintenance('atlas-camera.service', MAINTENANCE_TAIL_S)
+
+
+def _restart_and_verify(previous, had, new, t0):
+    """Restart the Pi camera once and verify the NEW process started; revert to the previous settings on failure."""
+    _systemctl('restart', 'atlas-camera.service', timeout=30)
+    ok, evidence = _wait_camera_started(t0)
+    _cache.clear()
+    if ok:
+        S.log('picam_apply_ok', settings=new)
+        return {'ok': True, 'saved': new, 'message': 'Pi Camera restarted with the new settings.'}
+    S.log('picam_apply_failed', settings=new, evidence=evidence)
+    S.save_camera('picam', previous if had else dict(S.PICAM_DEFAULTS))
+    t1 = time.time() - 1
+    S.set_maintenance('atlas-camera.service')   # renew the bounded hold for the revert restart
+    _systemctl('restart', 'atlas-camera.service', timeout=30)
+    back, _ = _wait_camera_started(t1)
+    S.log('picam_revert', restored=previous, ok=back)
+    raise RuntimeError('the camera did not start with those settings; previous settings restored%s'
+                       % ('' if back else ' (camera restart still failing - check the camera service)'))
 
 
 def measure_picam(ros, seconds=3.5):

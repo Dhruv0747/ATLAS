@@ -239,6 +239,66 @@ class RecoveryTests(unittest.TestCase):
         self.assertFalse(self.node.recovering)
 
 
+    # 26 Oct 2026: bounded hold for an intentional dashboard-owned camera restart.
+    def hold_file(self, entries):
+        import os, tempfile
+        d = tempfile.mkdtemp(); path = os.path.join(d, 'm.json')
+        with open(path, 'w') as f: json.dump(entries, f)
+        os.environ['ATLAS_SERVICE_MAINTENANCE_FILE'] = path
+        self.addCleanup(os.environ.pop, 'ATLAS_SERVICE_MAINTENANCE_FILE', None)
+
+    def camera(self):
+        self.node.last_notice['camera'] = 0; self.node.attempts['camera'] = []
+        return SimpleNamespace(name='camera', service='atlas-camera.service', stale_after=8., stopped_only=False)
+
+    def test_camera_hold_blocks_restart_without_spending_an_attempt(self):
+        import time as wall
+        self.hold_file({'atlas-camera.service': {'until_unix': wall.time() + 30}})
+        item = self.camera()
+        self.assertTrue(self.node.maintenance_hold(item))
+        self.node.schedule_recovery(item, 'stale: no data for 8.9s')
+        self.ns['threading'].Thread.assert_not_called(); self.process.run.assert_not_called()
+        self.assertEqual(self.node.attempts['camera'], [])
+        self.assertIn('RECOVERY HELD', self.node.publish_status.call_args[0][0])
+
+    def test_hold_is_bounded_expiring_and_camera_only(self):
+        import time as wall
+        item = self.camera()
+        for until in (wall.time() - 1, wall.time() + 46, 'x', None):
+            self.hold_file({'atlas-camera.service': {'until_unix': until}})
+            self.assertFalse(self.node.maintenance_hold(item), until)
+        self.hold_file({'atlas-lidar.service': {'until_unix': wall.time() + 30},
+                        'rover-base-telemetry.service': {'until_unix': wall.time() + 30}})
+        for svc in ('atlas-lidar.service', 'rover-base-telemetry.service'):
+            self.assertFalse(self.node.maintenance_hold(SimpleNamespace(name='x', service=svc)))
+        import os
+        os.environ['ATLAS_SERVICE_MAINTENANCE_FILE'] = '/nonexistent/m.json'
+        self.assertFalse(self.node.maintenance_hold(item))
+        with open(self.hold_path_corrupt(), 'w') as f: f.write('{broken')
+        self.assertFalse(self.node.maintenance_hold(item))
+
+    def hold_path_corrupt(self):
+        import os, tempfile
+        path = os.path.join(tempfile.mkdtemp(), 'bad.json'); os.environ['ATLAS_SERVICE_MAINTENANCE_FILE'] = path
+        self.addCleanup(os.environ.pop, 'ATLAS_SERVICE_MAINTENANCE_FILE', None)
+        return path
+
+    def test_worker_cancels_if_hold_appears_before_restart(self):
+        import time as wall
+        item = self.camera(); self.node.recovering = {'camera'}
+        self.node.classify = Mock(return_value=('STALE', 9.0, 'no data'))
+        self.hold_file({'atlas-camera.service': {'until_unix': wall.time() + 30}})
+        self.node.recover(item, 'stale', 3)
+        self.process.run.assert_not_called()
+        self.assertIn('intentional restart', self.node.publish_status.call_args[0][0])
+
+    def test_no_hold_keeps_existing_camera_recovery(self):
+        item = self.camera(); self.node.recovering = {'camera'}
+        self.node.classify = Mock(side_effect=[('STALE', 9.0, 'no data'), ('HEALTHY', 0.1, '')])
+        self.hold_file({})
+        self.node.recover(item, 'stale', 3)
+        self.process.run.assert_called_once_with(['systemctl', '--user', 'restart', 'atlas-camera.service'], timeout=15, check=True)
+
     def test_defers_when_systemd_is_already_restarting(self):
         # 2026-10-10: a recovery restart killed a fresh systemd auto-restart.
         self.settled()

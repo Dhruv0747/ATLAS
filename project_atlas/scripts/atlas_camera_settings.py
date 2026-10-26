@@ -101,6 +101,25 @@ class SettingsError(ValueError):
     pass
 
 
+MAINTENANCE_PATH = Path(os.environ.get('ATLAS_SERVICE_MAINTENANCE_FILE') or
+                        Path.home() / '.local/state/project_atlas/service_maintenance.json')
+MAINTENANCE_HOLD_S = 40.0   # atlas_sensor_recovery honours at most 45 s, and only for atlas-camera.service
+
+
+def set_maintenance(service, seconds=MAINTENANCE_HOLD_S, owner='camera_settings'):
+    """Tell atlas_sensor_recovery that this restart is intentional (26 Oct 2026). Bounded; best-effort."""
+    try:
+        MAINTENANCE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        try:data = json.loads(MAINTENANCE_PATH.read_text())
+        except (OSError, ValueError):data = {}
+        data = data if isinstance(data, dict) else {}
+        data[service] = {'until_unix': round(time.time() + min(float(seconds), MAINTENANCE_HOLD_S), 2), 'owner': owner}
+        tmp = MAINTENANCE_PATH.with_suffix('.tmp'); tmp.write_text(json.dumps(data)); os.replace(tmp, MAINTENANCE_PATH)
+        return True
+    except OSError:
+        return False
+
+
 def log(event, **kw):
     try:
         LOG_PATH.parent.mkdir(parents=True, exist_ok=True)

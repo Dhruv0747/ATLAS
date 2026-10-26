@@ -103,6 +103,12 @@ MAX_STATUS_CHARS = 16384
 DISPLAY_STATUS_CHARS = 240
 STOP_COMMAND_MAX_AGE = 1.0
 STOP_COMMAND_SETTLE = 2.0
+# 26 Oct 2026: an intentional, dashboard-owned restart (Camera settings Apply/Restore) is not a fault. The owner writes
+# ~/.local/state/project_atlas/service_maintenance.json {"<service>": {"until_unix": t, "owner": ...}} right before its
+# restart. Only these services may be held, never for more than MAINTENANCE_MAX_S, and any read/parse error means "no
+# hold" (the existing recovery policy runs unchanged). Locomotion, LiDAR and every other monitor are unaffected.
+MAINTENANCE_SERVICES = frozenset({"atlas-camera.service"})
+MAINTENANCE_MAX_S = 45.0
 
 # These monitors only use message arrival time; none of their payload fields
 # participate in fault classification or a recovery decision.  Ask rclpy for
@@ -312,8 +318,31 @@ class AtlasRecovery(Node):
         except (ValueError, TypeError, AttributeError):
             return False
 
+    def maintenance_hold(self, item):
+        """True while an intentional, bounded restart of this service is owned by another ATLAS component."""
+        if item.service not in MAINTENANCE_SERVICES:
+            return False
+        try:
+            import os as _os
+            import time as _wall
+            path = _os.environ.get("ATLAS_SERVICE_MAINTENANCE_FILE") or _os.path.join(
+                _os.path.expanduser("~"), ".local/state/project_atlas/service_maintenance.json")
+            with open(path, encoding="utf-8") as stream:
+                entry = (json.load(stream) or {}).get(item.service) or {}
+            remaining = float(entry.get("until_unix", 0)) - _wall.time()
+            return 0 < remaining <= MAINTENANCE_MAX_S
+        except Exception:
+            return False
+
     def schedule_recovery(self, item, reason):
         now = time.monotonic()
+        if self.maintenance_hold(item):
+            if now - self.last_notice[item.name] >= COOLDOWN:
+                self.last_notice[item.name] = now
+                self.publish_status(
+                    f"RECOVERY HELD: {item.name} {reason}; {item.service} is being restarted on purpose "
+                    "(bounded hold, no competing restart)")
+            return
         if self.bms_retry_owned(item, now):
             if now - self.last_notice[item.name] >= COOLDOWN:
                 self.last_notice[item.name] = now
@@ -365,6 +394,9 @@ class AtlasRecovery(Node):
             # slow call as well, directly before the restart operation.
             if not self.restart_allowed(item):
                 self.publish_status(f"RECOVERY CANCELED: {item.name}; stop guard changed")
+                return
+            if self.maintenance_hold(item):
+                self.publish_status(f"RECOVERY CANCELED: {item.name}; intentional restart of {item.service} in progress")
                 return
             if self.restart_pending(item.service):
                 # Counts as an attempt (keeps the 60 s cooldown and 3/600 s bound).
