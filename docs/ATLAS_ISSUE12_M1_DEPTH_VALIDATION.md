@@ -140,3 +140,31 @@ For the 320×240 session stopped at 22:58:44 with `Astra USB identity/access cha
 - **One full 60-s session at 320×240 is still outstanding.** Rerunning it is a retry, so it **awaits owner approval** (fixed harness; one run; same limits; setting restored afterwards).
 - Default resolution unchanged (160×120). No LiDAR, TF, Nav2, localization, motor or threshold change.
 - M1 stays open.
+
+
+## M1: approved final 60-s session at 320×240@30 (26 Oct 2026, 23:11:47 IST): STOPPED EARLY, test-client fault
+
+**Pre-checks:** E-STOP latched, source STOPPED, manual-only, commissioning disarmed, zero commands, drive DISABLED, mission READY, Vision Lab OFF, saved depth 160×120@30. The USB identity check (fixed version), the 75/80/70 guards, the 60-s limit and the 4-s lease were all unchanged. The client's keep-alive ran on its own thread.
+
+| Measurement | Result |
+|---|---|
+| Camera frames (domain-77 probe, source stamps) | **1,040 frames at 29.68 fps** (≈ 35 s of streaming) |
+| Gaps | 856 × 1 period, 166 × 2 periods (≈ 14 % single frames missed), 17 near-duplicates; max 0.078 s, p95 0.053 s |
+| Depth at centre | 0.788 m vs 0.79 m tape (−0.2 cm) |
+| Guard CPU / RAM / temp (last sample) | 64.3 % / 62.3 % / 65.1 °C; GPU 0 % |
+| Safety/resource/USB guards | **none triggered** |
+| **Session end** | **42.3 s: `viewer paused or closed`** |
+
+- **Exact reason:** the LAN measurement client (on the owner's PC, over Wi-Fi) crashed when a `/api/lidar-view` request timed out (> 6 s, `URLError: timed out`). That call wasn't wrapped in error handling. The client's clean-up then sent the normal viewer **stop**, which the worker logged as "paused or closed". The worker and camera were healthy (42 samples in 42.3 s; driver stopped cleanly; no Astra process left).
+- This is the **second** > 6-s request stall from the PC over Wi-Fi during a 320×240 session (the previous one was at 23:07). None occurred during the 160×120 sessions. Not yet determined: the Wi-Fi link, or the dashboard being slow to answer while serving 320×240 raw frames (≈ 150 KB each). No log on the Jetson shows a dashboard error.
+- **Setting restored and verified:** the saved Astra setting matches the backup exactly (depth 160×120@30, colour 320×240@15, IR 640×480@30).
+- **Not retried** (no automatic retries). No safety check was weakened.
+
+### FPS criterion: NOT marked passed
+- The camera's rate at 320×240 is consistent across three runs: 29.7 fps over ≈ 34 s (22:58), 45 s (23:07) and 35 s (23:11).
+- But a **complete 60-s session has not been achieved**, so per the owner's condition the criterion stays **open**.
+
+### Proposed next attempt (needs owner approval)
+1. Make the client fault-tolerant: every measurement request is wrapped, so a timed-out request is logged and skipped, never ends the session. Only the keep-alive thread touches the lease.
+2. Run the measurement client **on the Jetson itself (localhost)** instead of over Wi-Fi. That removes the network from the lease path. It costs a little Jetson CPU (≈ 1 raw-depth read per second, 0.5-s keep-alive), which the guards will show.
+3. Add a measurement of the dashboard's own response time for `/api/vision3d/raw` and `/api/lidar-view` during the run, to tell Wi-Fi stalls from dashboard stalls.
