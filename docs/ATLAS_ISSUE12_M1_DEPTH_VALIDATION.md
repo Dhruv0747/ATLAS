@@ -88,3 +88,55 @@ Sessions:
 - [ ] LiDAR absolute x: rear station pending. Height test (0.40 vs 0.18 m), scan-filter exclusion test, body vs wheel-to-wheel width: pending.
 
 No TF, LiDAR, Nav2, navigation or safety setting was changed. **Waiting for the owner before the next station and before any guard fix.**
+
+
+## M1: Astra USB guard false positive, fixed and deployed; 320×240 long session (26 Oct 2026, 23:0x IST)
+
+### 1. Root cause confirmed from logs (read-only)
+For the 320×240 session stopped at 22:58:44 with `Astra USB identity/access changed during check`:
+- **No USB event:** no kernel USB messages and no udev events, 22:55–23:00.
+- **Same devices:** depth devnum 14 and colour devnum 11, unchanged since boot (`1-2.3.1.2` / `1-2.3.1.1`).
+- **Same permissions:** owner root:atlas-astra (gid 994), mode 660, ACL group rw. The node `ctime` (owner/permission change time) is still the boot time.
+- **Only the timestamps moved:** the depth node `/dev/bus/usb/001/014` atime/mtime = **22:58:45**, i.e. updated by the driver's usbfs I/O during the session.
+- The guard compared the **entire** `os.stat()` before and after, timestamps included. **False positive; the camera was never disconnected, replaced or re-permissioned.**
+- Note: the Astra's USB descriptors carry no serial (`serial` absent in sysfs). The camera serial (17122120830) is verified by OpenNI re-detection, not by this once-a-second guard. The guard detects replacement or replug through port, VID/PID, devpath, bus/devnum, the `dev` attribute, stable aliases and node identity.
+
+### 2. Fix: commit `d88fc8d`, `tools/vision3d/stationary_ros_probe.py` 31b8b6ad → d1a00db4
+- The before/after node comparison now uses only `st_dev, st_ino, st_mode, st_rdev, st_uid, st_gid, st_nlink` (`NODE_IDENTITY_FIELDS`). Timestamps are excluded.
+- Read/write access is now checked **again after** the identity re-read (it was previously checked only before).
+- Unchanged:
+  - the port/VID/PID/devpath/bus/devnum/`dev` attribute re-read;
+  - the stable-alias check and the character-device check;
+  - E-STOP/parked admission, the 75/80/70 guards, the 60-s session and the 4-s lease.
+- Live defaults unchanged. Optional `sysfs_root`/`dev_root` arguments were added only for hermetic tests.
+- **Tests:** 12 new hermetic regression tests (`tests/test_vision3d_usb_guard_identity.py`).
+  - A timestamp change **passes**.
+  - Node replacement, disconnect, renumbering, chmod, access denied, access lost after the first check, absent camera and wrong alias each **fail closed**.
+- **Full suite:** 1130 passed, 84 failed, 20 skipped; all 84 failures are pre-existing, none new. The 6 old `test_vision3d_usb_access.py` tests target an earlier `lsusb`-based implementation and were already failing; left untouched.
+- **Deployment (no disruption):** the file is loaded only by the per-session Vision Lab worker, so no service was restarted. Vision Lab OFF; backup + `~/project-atlas-migration/usbguard_20261026/rollback.sh`. **Live check on the real camera: PASS** (2bc5:0403 @ 2.3.1.2 and 2bc5:0501 @ 2.3.1.1, read/write).
+
+### 3. The 60-s session at 320×240@30 (ATLAS parked; same 0.79 m station; setting restored afterwards)
+
+| | 160×120@30 (baseline, 22:5x) | 320×240@30 (23:07, guard fixed) |
+|---|---|---|
+| Camera fps (domain-77 probe, source stamps) | 19.5 fps, published **in pairs** (189 gaps ≈ 0 ms / 200 ≈ 100 ms), so ≈ **10 distinct frames/s** | **29.7 fps** over 45 s, 844 frames |
+| Distinct frames / dropped | ≈ 10/s; ≈ 2 of every 3 slots missing | 690 regular gaps, 139 single-frame gaps (≈ 14 % missed), 14 near-duplicates |
+| Max / p95 gap | 0.107 / 0.102 s | 0.060 / 0.052 s |
+| Received by the dashboard | 12.9 fps | **29.7 fps** |
+| Depth at centre vs 0.79 m tape | 0.788 m (−0.2 cm) | 0.788 m (−0.2 cm) |
+| Guard CPU max / RAM max / temp max / GPU | 70.6 % / 64.5 % / 65.2 °C / 0 % | **72.4 %** / 64.7 % / 65.2 °C / 0 % |
+| USB guard | no trip | **no trip** (the fix holds) |
+| Session end | client stop at 40 s | **38.4 s: `viewer lease expired`** (test-harness fault, below) |
+
+- **Why the session stopped early: a fault in my measurement client, not in ATLAS.**
+  - At t = 34.4 s one 320×240 raw-depth request from the LAN client timed out (6 s). The client renewed the viewer lease in the same loop, so the 4-s lease lapsed and the worker stopped the camera, as designed.
+  - The worker itself sampled normally (38 samples in 38.4 s). No resource or safety guard tripped.
+- **Harness fixed offline:** lease renewal now runs on its own thread (every 0.5 s, 2-s timeout) and logs any renewal gap.
+- **Watch-out for the dashboard:** a browser on a slow Wi-Fi link could see the same thing. The Vision Lab page renews the lease from its own polling, so a > 4-s network stall stops the camera. That fails safe, but continuous M3 operation must not depend on a browser lease.
+- **The saved Astra setting was restored and verified** to match the backup exactly (depth 160×120@30, colour 320×240@15, IR 640×480@30).
+
+### Status
+- USB guard false positive: **fixed, deployed, verified live.**
+- **One full 60-s session at 320×240 is still outstanding.** Rerunning it is a retry, so it **awaits owner approval** (fixed harness; one run; same limits; setting restored afterwards).
+- Default resolution unchanged (160×120). No LiDAR, TF, Nav2, localization, motor or threshold change.
+- M1 stays open.
