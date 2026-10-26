@@ -143,3 +143,80 @@ Draft camera transform for M2, not deployed: `base_footprint → astra_link`: xy
 - Pitching the camera down wouldn't help much. At 15° down the floor would enter the view at 0.36 m, but that point is only ~0.45 m from the lens, still inside the 0.6 m minimum range.
 - **So the 0° mount is reasonable. But there is a near-field blind zone: low obstacles (under the 0.18 m LiDAR plane) within roughly 0.5 m ahead of the front edge are invisible to both LiDAR and depth.** The front ultrasonic sensor (and the radar) remain the only coverage there. M3/M4 acceptance must state this limit, and depth must never be described as covering it.
 - Horizontal coverage: ±0.56 m wide at 1 m ahead (58.4° FOV), wider than the 0.36 m body, from about 0.66 m onward.
+
+
+---
+
+## M0: physical measurements vs configured geometry (owner measurements, 26 Oct 2026, 21:45 IST)
+
+Recorded as stated. **Nothing was modified or deployed**: TF, self-filter, localization, Nav2 and safety configuration are all unchanged.
+
+### Owner measurements
+Reference: midpoint between the front and rear axles = physical centre of the rover body (owner-confirmed). x forward, y left, z up from the floor.
+
+| Sensor | x | y | z | Other |
+|---|---|---|---|---|
+| RPLIDAR A1 (scan centre) | **0.00 m** | **0.00 m** | **0.40 m** | 0.25 m from the front and the rear body edge; 0.13 m from the left and the right body edge |
+| Astra Pro IR lens | **+0.10 m** | ≈ 0.00 m | **0.275 m** | fixed, facing forward, tilt ≈ 0°; camera centre is 0.134 m from the front body edge |
+
+### Reconciliation with what is configured / previously "verified"
+
+| Item | Live configuration | Where it lives | 6 Aug commissioning doc | Owner, 26 Oct | Difference |
+|---|---|---|---|---|---|
+| LiDAR x | −0.05 m | `atlas-laser-tf.service` (file dated 6 Aug); `atlas_scan_self_filter.py` `LASER_X_M`; inactive `atlas_vision_lidar_core.py` default | −0.05 m ("centre 0.30 m from the front edge of a 0.50 m chassis") | **0.00 m** (0.25 m from each end) | **5 cm** |
+| LiDAR z | 0.18 m | `atlas-laser-tf.service` | 0.18 m | **0.40 m** | **22 cm** |
+| LiDAR yaw | π (180°) | TF; self-filter `LASER_YAW_RAD`; mux `lidar_guard_yaw_deg 180` | π | **not measured** | open |
+| Body width | 0.36 m (footprint ±0.18; self-filter ±0.23) | nav2_params, self-filter, mux `auto_side_stop_m` comment | 0.36 m | **0.26 m** (0.13 m each side of the LiDAR) | 10 cm, **needs clarification** |
+| Body length | 0.50 m (footprint ±0.25) | nav2_params | 0.50 m | 0.50 m | consistent |
+| Camera x | none | — | — | IR lens +0.10; camera centre 0.25 − 0.134 = **+0.116** | the lens is on the front face, so it should be *ahead* of the camera centre. 1.6–4 cm inconsistent; one value is off. M2 settles it. |
+
+The saved map (`maps/atlas_latest`, 2 Oct) and every recorded localization result were produced with the current LiDAR TF.
+
+### Impact of the LiDAR discrepancy (analysis only)
+
+**z: 0.18 → 0.40 m**
+- *SLAM, AMCL, rf2o:* no effect. All are 2-D and ignore the sensor height.
+- *Nav2 costmaps:* no effect on marking or clearing. The `scan` source accepts points between 0 and `max_obstacle_height` 2.0 m, so 0.18 and 0.40 are treated the same.
+- **Real effect (safety model):** the LiDAR sees nothing below **40 cm**, not 18 cm. Every LiDAR-based protection is blind to objects lower than 40 cm: Nav2 costmaps, the mux LiDAR guard and AMCL. That includes low boxes, stools, bed frames, steps, pets and toys. Docs, commissioning notes and the Issue #12 plan assumed 18 cm.
+  - Ahead of the robot, such objects are covered only by the front ultrasonic sensor (and the radar, for moving targets).
+  - The planned depth camera (lens at 0.275 m) would see them from about 0.66 m ahead.
+  - This **raises the priority of M3/M4** and widens the near-field blind zone that depth can't cover (closer than ~0.5 m ahead of the front edge).
+
+**x: −0.05 → 0.00 m**
+- *Scan self-filter* (`/scan_raw` → `/scan`; feeds Nav2, AMCL, SLAM and the mux guard). The removal box is ±0.30 × ±0.23 m around where the filter thinks the LiDAR is. With the LiDAR really at the centre, the box covers **x −0.25 … +0.35 m**, not −0.30 … +0.30.
+  - **Front:** returns up to **10 cm beyond the front body edge** are deleted, instead of the intended 5 cm. Real obstacles in that band are removed from `/scan` before any consumer sees them.
+  - **Rear:** the margin behind the body is 0, so rear chassis/wheel returns can leak into `/scan` as false obstacles.
+  - Sides: with a 0.26 m body (if correct), ±0.23 deletes up to 10 cm beyond each side, instead of the intended 5 cm.
+  - At 0.40 m the LiDAR may sit above the body and see little or no chassis, which would make most of this filter unnecessary. To be verified.
+- *Costmaps:* points are placed 5 cm rearward of reality. Obstacles ahead appear 5 cm **closer** (conservative). Obstacles behind appear 5 cm **farther** (5 cm less safety margin when reversing).
+- *AMCL / SLAM:* every pose is internally consistent with the map, which was built with the same TF, but `base_link` is estimated **5 cm ahead of the true centre**. During any turn the assumed laser position swings on a 5 cm lever arm that odometry doesn't predict. That adds scan-matching and AMCL motion-model error in turns, and may contribute to the open localization problems (47 % verified; "ambiguous" refusals). This is unproven and needs measurement.
+- *Saved places and home pose* are `base_link` poses. Correcting the TF moves `base_link` 5 cm relative to the laser, so each saved place shifts up to 5 cm and should be re-checked.
+- *rf2o laser odometry candidate:* uses the same TF, so it has a 5 cm lever-arm error in turns. It doesn't feed Nav2.
+- *Mux LiDAR guard:* uses only the frame and yaw (180°), not x or z. No direct effect.
+
+**Yaw (unmeasured).** The handoff (§10) recorded an unexplained ~5.5° heading offset and named "LiDAR mounting yaw" as a candidate. The owner measurement doesn't cover yaw yet.
+
+### Proposed correction path (for owner approval; nothing done)
+1. **Read-only physical check first.** The 6 Aug "verified" values contradict today's measurement, so confirm which one is right before changing anything. Park ATLAS square to a flat wall (front edge at a tape-measured distance D, e.g. 1.00 m), read the LiDAR range straight ahead from the dashboard, then repeat with the rear to the wall.
+   - LiDAR at the centre → both readings ≈ D + 0.25 m.
+   - Old config → D + 0.30 m forward and D + 0.20 m rearward.
+   - A side wall gives the same check for yaw. No configuration change is involved.
+2. Then, as **one separately approved change with automatic rollback**:
+   - the static TF (x 0.00, z 0.40, yaw as confirmed);
+   - the self-filter (`LASER_X_M` and the body envelope from the confirmed width);
+   - documentation.
+   - Afterwards: parked AMCL verification on the existing map, re-check of saved places, then supervised turn tests. A re-map only if the evidence shows it's needed.
+3. **Clarify the 0.36 vs 0.26 m width** (is 0.36 the outer wheel width?) before touching the footprint, the side stop or the self-filter.
+
+### Questions for the owner
+1. Was the LiDAR **moved or raised** after 6 Aug? The commissioning doc measured 0.30 m from the front edge at 0.18 m height.
+2. What is the outermost width **including the wheels**? Is 0.26 m the body deck only?
+3. LiDAR orientation: which way does the RPLIDAR's cable/motor side face (front or rear)? The config assumes the scanner is rotated 180°.
+4. The camera: please re-check the IR lens x (+0.10) against "camera centre 13.4 cm from the front edge" (implies +0.116). The lens should be the more forward of the two.
+
+### M0 status and M1 readiness
+- M0 deliverables are done: baseline, deployed-vs-GitHub Nav2 diff, mount measurements recorded and reconciled with impact analysis. **M0 is complete as documentation.** The LiDAR geometry discrepancy is carried forward as an open, approval-gated item, not fixed in M0.
+- **M1 (stationary depth validation in private domain 77) is ready to start once approved.** It doesn't depend on the LiDAR TF. M1 uses tape-measured targets as ground truth, and compares depth with **raw LiDAR range in the laser frame**, not TF-transformed points, so the discrepancy can't contaminate it.
+  - The step-1 wall test above fits naturally into the M1 session.
+  - It needs Vision Lab-style depth sessions (camera streaming, guarded, ATLAS parked) and someone to place targets.
+- **Not ready:** M2 (TF and calibration) needs the LiDAR geometry confirmed or corrected first, because the camera extrinsics are validated against the LiDAR.
