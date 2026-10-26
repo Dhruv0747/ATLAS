@@ -130,7 +130,7 @@ Reference point: the rover centre, i.e. the midpoint between the front and rear 
 | pitch / roll / yaw | **≈ 0° / 0° / 0°** (no tilt) | recorded as approximate; to be verified from the floor plane in M1/M2 |
 | Lens centre to front body edge | 0.134 m, so the front edge is at x ≈ +0.234 m | consistent with the Nav2 footprint front edge at +0.25 m |
 
-Draft camera transform for M2, not deployed: `base_footprint → astra_link`: xyz = (0.100, 0.000, 0.275), rpy = (0, 0, 0). The optical frame gets the standard camera rotation (z forward, x right, y down). It will be validated and refined in M2: floor-plane fit for height, pitch and roll; depth/LiDAR wall agreement for yaw and x.
+**SUPERSEDED 26 Oct 22:48 (camera remounted):** draft camera transform for M2, not deployed: `base_footprint → astra_link`: xyz = (0.100, 0.000, 0.275), rpy = (0, 0, 0). The optical frame gets the standard camera rotation (z forward, x right, y down). It will be validated and refined in M2: floor-plane fit for height, pitch and roll; depth/LiDAR wall agreement for yaw and x.
 
 ### Open items
 1. **Which lens was measured?** The Astra Pro has three front openings (IR projector, colour camera, IR camera), a few centimetres apart. Depth comes from the **IR camera** lens. If the centre opening was measured, the IR lens is off the centreline by a few cm, and y won't be 0. Please confirm which one, with a front photo.
