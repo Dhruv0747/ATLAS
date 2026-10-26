@@ -176,6 +176,34 @@ NEGOTIATION = ('video mode', 'Supported video modes', 'is started', 'not support
                'Error', 'Infrared', 'PixelFormat', 'fps', 'resolution', 'signal_handler(')
 
 
+# 26 Oct 2026: operator text for stationary-gate refusals. The gate decision itself is unchanged
+# (tools/vision3d/stationary_gate.py); this only explains a refusal that already happened. The raw gate reason is
+# kept in lifecycle['session_stopping'] and in state['diagnostic_reason'].
+MSG_ESTOP_RELEASED=('ATLAS is not parked. Press B on the remote to engage E-STOP, wait 2 seconds, '
+                    'then start 3D Vision Lab.')
+MSG_ZERO_SPEED_UNCONFIRMED=('ATLAS cannot confirm zero speed. Check the drive safety status before '
+                            'starting 3D Vision Lab.')
+STALE_PREFIX='stale or missing '   # gate wording for a stale/missing policy or motor-command stream
+GATE_REASONS=(STALE_PREFIX,'stationary policy admission failed')
+POLICY_FRESH_S=2.0   # same freshness bound the gate applies
+
+
+def operator_message(raw_reason, ros):
+    """Clear text for a stationary-gate refusal, or None to keep the raw reason. Pure; never decides anything."""
+    raw=str(raw_reason or '')
+    if not raw.startswith(GATE_REASONS):return None
+    item=(ros or {}).get('control_policy') or {}
+    policy,age=item.get('value'),item.get('age')
+    if isinstance(policy,str):
+        try:policy=json.loads(policy)
+        except ValueError:policy=None
+    if not isinstance(policy,dict) or isinstance(age,bool) or not isinstance(age,(int,float)) or not 0<=age<=POLICY_FRESH_S:
+        return None                     # policy itself unknown: keep the gate's own wording
+    if policy.get('stop_latched') is not True:return MSG_ESTOP_RELEASED
+    if raw.startswith(STALE_PREFIX) and raw!=STALE_PREFIX+'control_policy':return MSG_ZERO_SPEED_UNCONFIRMED   # command stream stale
+    return None
+
+
 def lifecycle_event(state, event, **details):
     """Bounded scalar evidence; no frames, subscriptions or ROS discovery."""
     state.setdefault('lifecycle',[]).append(dict(event=event,monotonic_s=time.monotonic(),
@@ -317,6 +345,7 @@ def worker(mode, startup=None):
     sys.path.insert(0,str(ROOT/'tools/vision3d'))
     import stationary_gate as G
     import stationary_ros_probe as P
+    last_obs={}
     child=None; cloud_child=None; rows=[]; started=time.monotonic(); last_lease=started; process_last=None;worker_last=None
     parent=os.getppid(); state={'state':'CHECKING','worker_pid':os.getpid(),'mode':mode,
                               'limits':{'cpu_percent':75,'ram_percent':80,'temperature_c':70},
@@ -342,6 +371,7 @@ def worker(mode, startup=None):
         try:
             G.require_cpu(cpu)
             observation=P.safety_snapshot()
+            last_obs['ros']=observation.get('ros')   # explanation only; the gate below decides
             row=G.check(cpu,observation=observation)
         except G.AdmissionError as e:
             state['failed_resources']=e.evidence
@@ -421,8 +451,10 @@ def worker(mode, startup=None):
         state.update(state='OFF',reason='60-second session complete; explicit Start required')
     except Exception as e:
         reason=str(e)
-        lifecycle_event(state,'session_stopping',reason=reason)
-        state.update(state='RESOURCE BLOCKED' if 'CPU' in reason or 'RAM' in reason or 'thermal' in reason or 'RESOURCE' in reason else 'OFF',reason=reason)
+        message=operator_message(reason,last_obs.get('ros'))
+        lifecycle_event(state,'session_stopping',reason=reason)   # raw gate reason stays in diagnostics
+        state.update(state='RESOURCE BLOCKED' if 'CPU' in reason or 'RAM' in reason or 'thermal' in reason or 'RESOURCE' in reason else 'OFF',reason=message or reason)
+        if message:state.update(operator_message=message,diagnostic_reason=reason)
     finally:
         # Cleanup of one child must not prevent cleanup of the other.
         stopped={}

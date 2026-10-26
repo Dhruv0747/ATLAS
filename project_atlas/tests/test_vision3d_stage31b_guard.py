@@ -14,6 +14,8 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import atlas_vision3d_runtime as R   # noqa: E402
 
 SRC = (ROOT / 'scripts/atlas_vision3d_runtime.py').read_text()
+sys.path.insert(0, str(ROOT / 'tools/vision3d'))
+import stationary_gate as REAL_GATE   # noqa: E402  (deployed gate, sha-pinned below; only used when Sim(ros=...))
 
 
 class Clock:
@@ -25,11 +27,12 @@ class Clock:
 class Sim:
     """Drives R.worker('depth'). cpu(i, window) -> CPU % for guard sample i; ram/thermal likewise; lease every 0.2 s."""
     def __init__(self, cpu=lambda i, w: 65.0, ram=lambda i: 69.0, temp=lambda i: 60.0, snapshot_delay=lambda i: 0.0,
-                 lease_eof_at=None, extra_safety=None, services_change_at=None):
+                 lease_eof_at=None, extra_safety=None, services_change_at=None, ros=None):
         self.clock = Clock(); self.samples = []; self.i = 0
         self.cpu, self.ram, self.temp, self.delay = cpu, ram, temp, snapshot_delay
         self.lease_eof_at, self.extra, self.services_change_at = lease_eof_at, extra_safety, services_change_at
         self.next_lease = 0.0; self.launched_at = None
+        self.ros = ros   # optional ros snapshot (callable i -> dict): then the REAL stationary policy check runs first
 
     def run(self,mode='depth'):
         clock = self.clock
@@ -49,12 +52,13 @@ class Sim:
             def require_cpu(cpu):
                 if cpu > 75: raise AdmissionError('CPU resource limit failed', {'cpu': cpu})
             def check(cpu, observation=None):
+                if self.ros is not None: REAL_GATE.validate_policy(observation['ros'])
                 require_cpu(cpu); row = {'ram_percent': self.ram(self.i), 'thermal_c': {'tj': self.temp(self.i)}, 'cpu_percent': cpu}; self.i += 1; return row
             def services():
                 return {'changed': True} if self.services_change_at is not None and self.i >= self.services_change_at else {}
             gate = SimpleNamespace(ticks=ticks, cpu_delta=cpu_delta, require_cpu=require_cpu, check=check, services=services, AdmissionError=AdmissionError)
             def snapshot():
-                clock.sleep(self.delay(self.i)); return {'ros': {}}
+                clock.sleep(self.delay(self.i)); return {'ros': self.ros(self.i) if self.ros else {}}
             def extra(ros=None):
                 if self.extra: self.extra(self.i)
             probe = SimpleNamespace(safety_snapshot=snapshot, extra_safety=extra)

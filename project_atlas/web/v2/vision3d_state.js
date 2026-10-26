@@ -69,6 +69,13 @@
       return Object.assign(out, { tone: 'warn', title: 'Resource blocked', run: 'Camera off · resource blocked',
         text: `${what}, so the camera was turned off${rt.driver_stopped ? ' and the driver was stopped safely' : ''}. This says nothing about whether the camera mode works. Nothing else on ATLAS was changed.${frames}` });
     }
+    // 26 Oct 2026: the worker's clear refusal text (E-STOP released / zero speed unconfirmed). The camera never
+    // started; nothing is engaged or retried from here. Raw gate reason: rt.diagnostic_reason / lifecycle.
+    if (rt.operator_message) {
+      const began = !!rt.driver_pid;   // refused at admission, or a running session stopped by the same gate
+      return Object.assign(out, { tone: 'warn', title: began ? 'Stopped safely' : 'Not started',
+        text: String(rt.operator_message) + (began ? frames : ''), run: began ? 'Camera off · press Start' : 'Camera off · not started' });
+    }
     if (reason) {
       const why = /session complete/i.test(reason) ? 'The 60-second session ended.' :
         /lease/i.test(reason) ? 'The viewing page stopped checking in for more than 4 seconds, so the camera was turned off.' :
