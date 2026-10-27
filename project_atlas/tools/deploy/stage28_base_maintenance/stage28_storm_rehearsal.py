@@ -72,8 +72,9 @@ class RehearsalEnv(D.Env):
         out = []
         for p in Path('/proc').iterdir():
             if p.name.isdigit() and int(p.name) != os.getpid():
-                try:
-                    if b'atlas_dds_storm_probe' in (p / 'cmdline').read_bytes():
+                try:                                   # an argv element naming the probe file (not any mention)
+                    argv = (p / 'cmdline').read_bytes().split(b'\0')
+                    if any(a.endswith(b'/atlas_dds_storm_probe.py') or a == b'atlas_dds_storm_probe.py' for a in argv):
                         out.append(int(p.name))
                 except OSError:
                     pass
