@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-28 Stage28 FlySky RC bridge DEPLOYED (owner-approved Stage A transient 10 s PASS, Stage B transient 15 s PASS; base PID 1921->151784). /atlas/rc/frames live at 10 Hz, CH1-CH4 full range, CH5-CH10 constant 1024 (not demonstrated), signal loss -> FRAME_LOST then FAILSAFE in 0.43 s and back to LIVE, SBUS drive-disabled bit verified on every report, E-STOP latched throughout, no motion. docs/ATLAS_STAGE28_FLYSKY_LIVE_RESULT_20261028.md
+
 2026-10-27 Stage28 DDS storm rehearsal PREPARED (proposal, not run): probe with recovery's 32-endpoint shape on private topics (SIGALRM/PDEATHSIG/heartbeat fail-safes, UDPv4 only), supervisor with independent observer, pre-window strict check (also added to the deployer), representativeness gate (INCONCLUSIVE, never PASS, for a mild storm), cleanup verification. docs/ATLAS_STAGE28_DDS_STORM_REHEARSAL_PROPOSAL_20261027.md
 
 2026-10-27 Stage28 independent safety observer (offline/read-only, NOT deployed): /api/status timed out in the Stage A spike (synchronous subprocess cache refresh under lock); new stdlib observer reads policy/cmd/motor/encoder via the existing foxglove_bridge WebSocket plus base odom runtime file and /proc; 1.0 s freshness, 0.25 s cadence, 1.0 s gap limit (was 3.5 s). Verified read-only against the real bridge. Not validated in a real discovery storm: Stage A NO-GO. docs/ATLAS_STAGE28_INDEPENDENT_SAFETY_OBSERVER_20261027.md

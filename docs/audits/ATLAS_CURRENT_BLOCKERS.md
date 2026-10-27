@@ -1223,3 +1223,6 @@ See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
 2026-10-27 fa01f45 profiler gaps corrected offline:1s safety cadence,250ms API timeout,750ms cycle watchdog,>=70C reject;76 tests pass. Jetson overhead unverified, spike cause unknown. Ready for separate passive validation approval, not deployment.
 
 2026-10-27 original MCU backup now VERIFIED via Windows COM26,256KB,matching two reads SHA86a43670...ae41a1f. Supersedes backup-pending status only. No B2: exact modified artifact/provenance and return-to-Jetson verification pending. See project_atlas/docs/ATLAS_STAGE28_WINDOWS_BACKUP_VERIFIED_20261027.md.
+
+## 2026-10-28 Stage 28 FlySky
+- DEPLOYED and live: link, failsafe and CH1-CH4 PASS. OPEN: CH5-CH10 constant 1024 (likely transmitter AUX assignment, unproven); stick-to-channel mapping unconfirmed; Xbox drive path untested. docs/ATLAS_STAGE28_FLYSKY_LIVE_RESULT_20261028.md
