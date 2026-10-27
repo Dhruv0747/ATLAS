@@ -3463,3 +3463,5 @@ Reuse established Nano-aware thermal probe; preserve75/80/70 safeguards and null
 2026-10-27 Stage28 read-only restart CPU investigation: lifetime recovery3.040 CPU-seconds; current baseline60.175%; historical per-process attribution/duration unavailable. Added offline timeline analyzer,4 tests pass; no runtime fix/deployment, retry NO-GO.
 
 2026-10-27 Stage28 prepared bounded passive process/cgroup CPU sampler,24 offline tests pass. PC collection overhead3.14ms; Jetson overhead unverified. No deployment/restart; original spike cause unknown.
+
+2026-10-27 Stage28 profiler guard fix OFFLINE: ongoing bounded policy/telemetry checks,750ms watchdog and >=70C rejection;76 tests PASS. No live profiling or deployment.

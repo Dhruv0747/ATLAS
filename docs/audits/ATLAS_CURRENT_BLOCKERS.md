@@ -1203,3 +1203,5 @@ See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
 2026-10-27 bounded process/cgroup profiler prepared offline;24 tests pass, PC collection3.14ms. Jetson overhead/coverage unvalidated, original98.84% attribution unknown. Next proposed gate is one separately approved passive15s validation, no restart/deployment. See project_atlas/docs/ATLAS_STAGE28_BOUNDED_CPU_PROFILER_20261027.md.
 
 2026-10-27 approved passive profiler blocked BEFORE START: b582cca lacks ongoing safety/telemetry monitoring and stops >70 rather than owner-required >=70C. Fresh preflight61.30% CPU/61.96%RAM/60.562C and policy passed. No profiler run/restart. See project_atlas/docs/ATLAS_STAGE28_PASSIVE_VALIDATION_BLOCKED_20261027.md.
+
+2026-10-27 fa01f45 profiler gaps corrected offline:1s safety cadence,250ms API timeout,750ms cycle watchdog,>=70C reject;76 tests pass. Jetson overhead unverified, spike cause unknown. Ready for separate passive validation approval, not deployment.

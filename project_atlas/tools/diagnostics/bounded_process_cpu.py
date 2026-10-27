@@ -9,6 +9,60 @@ import os
 from pathlib import Path
 import signal
 import time
+import urllib.request
+from contextlib import contextmanager
+
+POLL_INTERVAL = 1.0
+CYCLE_TIMEOUT = 0.75
+API_TIMEOUT = 0.25
+
+@contextmanager
+def bounded_cycle():
+    """Linux main-thread watchdog covering HTTP, collection and evidence writes."""
+    def expired(*_):
+        raise TimeoutError('safety cycle deadline')
+    old = signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, CYCLE_TIMEOUT)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, old)
+
+def fetch_safety():
+    # Fixed loopback endpoint, proxies disabled, no ROS discovery or control calls.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open('http://127.0.0.1:8088/api/status', timeout=API_TIMEOUT) as response:
+        body = response.read(1024 * 1024 + 1)
+    if len(body) > 1024 * 1024:
+        raise ValueError('safety response size limit')
+    return json.loads(body)
+
+def safety_check(data, elapsed):
+    from stm32_readback.safety_evidence import evaluate
+    report = evaluate(data)
+    ros = data.get('ros', {}) if isinstance(data, dict) else {}
+    ros = ros if isinstance(ros, dict) else {}
+    failed = report['failed_predicates']
+    for name in ('control_policy', 'cmd_vel', 'encoder_health'):
+        item = ros.get(name)
+        item = item if isinstance(item, dict) else {}
+        age = item.get('age')
+        if type(age) not in (int, float) or not math.isfinite(age) or age < 0 or age + elapsed > 1:
+            failed.append(name + '.effective_freshness')
+    item = ros.get('encoder_health', {})
+    value = item.get('value') if isinstance(item, dict) else None
+    try:
+        value = json.loads(value) if isinstance(value, str) else value
+        packet_age = value['packet_age_s']
+        if value['link_state'] != 'LIVE': failed.append('telemetry.LIVE')
+        if (type(packet_age) not in (int, float) or not math.isfinite(packet_age)
+                or packet_age < 0 or packet_age + elapsed > 1):
+            failed.append('telemetry.packet_freshness')
+    except (ValueError, KeyError, TypeError):
+        failed.append('telemetry.missing_or_malformed')
+    report['request_elapsed_s'] = elapsed
+    return report
 
 MAX_PIDS = 4096
 MAX_GROUPS = 256
@@ -119,6 +173,8 @@ def differences(before,after,hz):
     return result
 
 def resource_check(cpu,mem,thermal):
+    if type(cpu) not in (int,float) or not math.isfinite(cpu) or not 0<=cpu<=100:
+        raise ValueError('invalid CPU measurement')
     values=list(thermal.get('thermal_zones_c',{}).values())
     if thermal.get('platform_model_error') or thermal.get('thermal_read_errors') or not values:
         raise ValueError('untrustworthy temperature')
@@ -126,9 +182,9 @@ def resource_check(cpu,mem,thermal):
     if not 0<mem['MemTotal'] or not 0<=mem['MemAvailable']<=mem['MemTotal']:raise ValueError('invalid RAM')
     ram=100*(1-mem['MemAvailable']/mem['MemTotal']);temp=max(values)
     return {'cpu_pct':cpu,'ram_pct':ram,'temperature_c':temp,
-            'failed':[k for k,v,limit in [('cpu',cpu,75),('ram',ram,80),('temperature',temp,70)] if v>limit]}
+            'failed':(['cpu'] if cpu>75 else []) + (['ram'] if ram>80 else []) + (['temperature'] if temp>=70 else [])}
 
-def run(output,duration,collect=snapshot,thermal_reader=None):
+def run(output,duration,collect=snapshot,thermal_reader=None,safety_reader=fetch_safety):
     if not 2<=duration<=60:raise ValueError('duration must be 2..60 seconds')
     if thermal_reader is None:
         from offboard_bridge_preflight import read_thermal
@@ -141,24 +197,48 @@ def run(output,duration,collect=snapshot,thermal_reader=None):
             data=json.dumps(row,allow_nan=False)+'\n';written+=len(data.encode())
             if written>MAX_BYTES:raise ValueError('output byte limit')
             f.write(data);f.flush()
+        def guard():
+            began=time.monotonic()
+            try:
+                data=safety_reader()
+                report=safety_check(data,time.monotonic()-began)
+            except Exception as exc:
+                emit({'kind':'safety_error','error_type':type(exc).__name__,
+                      'monotonic':time.monotonic()})
+                raise ValueError('safety request or evaluation failed') from None
+            emit({'kind':'safety','observation':report})
+            if report['failed_predicates']:raise ValueError('safety predicates rejected')
+        def resources(cpu):
+            mem={line.split(':')[0]:int(line.split()[1]) for line in read(Path('/proc/meminfo')).splitlines()}
+            thermal=thermal_reader()
+            emit({'kind':'resource_inputs','mem':{k:mem[k] for k in ('MemTotal','MemAvailable')},'thermal':thermal})
+            measured=resource_check(cpu,mem,thermal)
+            emit({'kind':'resources','observation':measured})
+            if measured['failed']:raise ValueError('resource limit exceeded')
         try:
             emit({'kind':'metadata','pid':os.getpid(),'hz':hz,'logical_cpus':os.cpu_count(),
-                  'limits':{'cpu':75,'ram':80,'temperature':70},'start_wall':time.time()})
-            previous=collect();emit({'kind':'baseline','snapshot':previous})
-            if previous['errors']:raise ValueError('incomplete baseline process/cgroup evidence')
-            while time.monotonic()-start<duration-1:
-                time.sleep(1)
-                current=collect();delta=differences(previous,current,hz)
-                emit({'kind':'sample','snapshot':current,'delta':delta,
-                      'profiler_cpu_seconds':time.process_time()-own,'elapsed_s':time.monotonic()-start})
-                mem={line.split(':')[0]:int(line.split()[1]) for line in read(Path('/proc/meminfo')).splitlines()}
-                thermal=thermal_reader()
-                emit({'kind':'resource_inputs','mem':{k:mem[k] for k in ('MemTotal','MemAvailable')},'thermal':thermal})
-                resources=resource_check(delta['cpu_pct'],mem,thermal)
-                emit({'kind':'resources','observation':resources})
-                if resources['failed']:raise ValueError('resource limit exceeded')
-                if current['errors']:raise ValueError('incomplete process/cgroup evidence')
-                previous=current
+                  'limits':{'cpu':75,'ram':80,'temperature':70},
+                  'reject_operators':{'cpu':'>','ram':'>','temperature':'>='},
+                  'poll_interval_s':POLL_INTERVAL,'cycle_timeout_s':CYCLE_TIMEOUT,
+                  'api_timeout_s':API_TIMEOUT,'start_wall':time.time()})
+            with bounded_cycle():
+                guard()
+                previous=collect();emit({'kind':'baseline','snapshot':previous})
+                if previous['errors']:raise ValueError('incomplete baseline process/cgroup evidence')
+                guard()
+            for index in range(1,int(duration)+1):
+                due=start+index*POLL_INTERVAL
+                time.sleep(max(0,due-time.monotonic()))
+                if time.monotonic()-due>CYCLE_TIMEOUT:raise TimeoutError('missed safety polling deadline')
+                with bounded_cycle():
+                    guard()
+                    current=collect();delta=differences(previous,current,hz)
+                    emit({'kind':'sample','snapshot':current,'delta':delta,
+                          'profiler_cpu_seconds':time.process_time()-own,'elapsed_s':time.monotonic()-start})
+                    resources(delta['cpu_pct'])
+                    if current['errors']:raise ValueError('incomplete process/cgroup evidence')
+                    guard()
+                    previous=current
             emit({'kind':'complete','elapsed_s':time.monotonic()-start,'profiler_cpu_seconds':time.process_time()-own})
         except BaseException as exc:
             emit({'kind':'aborted','error_type':type(exc).__name__,
@@ -172,5 +252,4 @@ if __name__=='__main__':
     def stop(*_):raise InterruptedError('bounded stop')
     for s in (signal.SIGTERM,signal.SIGINT):signal.signal(s,stop)
     signal.signal(signal.SIGALRM,stop)
-    signal.alarm(min(a.duration+5,65))
     print(run(a.output,a.duration))

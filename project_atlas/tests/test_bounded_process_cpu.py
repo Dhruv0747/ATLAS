@@ -34,7 +34,7 @@ def test_stat_name_spaces_and_parentheses():
  fields=['0']*30;fields[11]='10';fields[12]='2';fields[19]='999'
  d=p.process_stat('42 (a ) b) '+' '.join(fields));assert d['start_ticks']==999 and d['name']=='a ) b'
 
-@pytest.mark.parametrize('cpu,ram,temp,failed',[(75,80,70,[]),(75.1,80,70,['cpu']),(50,81,60,['ram']),(50,20,71,['temperature'])])
+@pytest.mark.parametrize('cpu,ram,temp,failed',[(75,80,69.99,[]),(75,80,70,['temperature']),(75.1,80,69.99,['cpu']),(50,81,60,['ram']),(50,20,71,['temperature'])])
 def test_unchanged_limits(cpu,ram,temp,failed):
  r=p.resource_check(cpu,{'MemTotal':100,'MemAvailable':100-ram},{'thermal_zones_c':{'cpu':temp}})
  assert r['failed']==failed
@@ -61,7 +61,7 @@ def test_abort_preserves_sample(tmp_path,monkeypatch):
  seq=iter([a,b]);f=tmp_path/'out'
  monkeypatch.setattr(p.time,'sleep',lambda _:None)
  monkeypatch.setattr(p,'read',lambda _: 'MemTotal: 100 kB\nMemAvailable: 90 kB\n')
- with pytest.raises(ValueError,match='resource limit'):p.run(f,2,collect=lambda:next(seq),thermal_reader=lambda:{'thermal_zones_c':{'x':50}})
+ with pytest.raises(ValueError,match='resource limit'):p.run(f,2,collect=lambda:next(seq),safety_reader=safe,thermal_reader=lambda:{'thermal_zones_c':{'x':50}})
  text=f.read_text();assert '"cpu_pct": 99.0' in text and '"kind": "aborted"' in text
 
 def test_snapshot_fixture(tmp_path):
@@ -78,5 +78,9 @@ def test_snapshot_fixture(tmp_path):
 
 def test_unreadable_baseline_stops(tmp_path):
  with pytest.raises(ValueError,match='incomplete baseline'):
-  p.run(tmp_path/'out',2,collect=lambda:{'errors':[{'error_type':'PermissionError'}]},thermal_reader=lambda:{})
+  p.run(tmp_path/'out',2,collect=lambda:{'errors':[{'error_type':'PermissionError'}]},safety_reader=safe,thermal_reader=lambda:{})
  assert 'PermissionError' in (tmp_path/'out').read_text()
+
+
+def safe():
+ return {'ros':{'control_policy':{'age':0.01,'value':{'stop_latched':True,'manual_only':True,'commission_armed':False,'source':'STOPPED'}},'cmd_vel':{'age':0.01,'value':{'lin':0.,'ang':0.}},'encoder_health':{'age':0.01,'value':{'link_state':'LIVE','packet_age_s':0.01}}}}
