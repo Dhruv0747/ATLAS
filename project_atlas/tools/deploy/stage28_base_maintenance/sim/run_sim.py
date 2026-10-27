@@ -7,10 +7,12 @@ serial ports, the Jetson or production paths. Units are fakes; atlas_sensor_reco
 
 usage: run_sim.py <workdir> [scenario ...]
 """
+import atexit
 import http.server
 import importlib.util
 import json
 import os
+import signal
 from pathlib import Path
 import shutil
 import subprocess
@@ -164,6 +166,11 @@ D = load_deployer()
 sys.path.insert(0, str(PKG))
 
 
+# Simulation only: the deployer's approval gate is satisfied explicitly for the sim process (never inherited from
+# whichever scenario happened to run first).
+os.environ['OWNER_APPROVED'] = 'yes'
+
+
 class SimEnv(D.Env):
     """Real systemctl against the sim user manager; scripted CPU; sim journal."""
 
@@ -225,6 +232,82 @@ def put(src, dst):
     os.chmod(dst, 0o755 if dst.name == 'yahboom_base.py' else 0o644)
 
 
+# ------------------------------------------------------------------ process hygiene
+# Every helper process runs in its own process group with stdin/stdout/stderr detached from the caller (a log file),
+# so no child can hold the caller's output pipe open. cleanup() is idempotent and runs on normal exit, exceptions,
+# SIGTERM/SIGINT/SIGHUP (e.g. from `timeout`) and atexit.
+CHILDREN = []
+SERVER = None
+UNITS_STARTED = False
+_CLEANUP = {'done': False}
+
+
+def spawn(args, log_name='children.log'):
+    logdir = (W / 'logs') if W else Path('/tmp')
+    logdir.mkdir(parents=True, exist_ok=True)
+    with open(logdir / log_name, 'ab') as log:
+        p = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                             start_new_session=True, close_fds=True)
+    CHILDREN.append(p)
+    return p
+
+
+def _kill_group(p, sig):
+    try:
+        os.killpg(p.pid, sig)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def cleanup(reason='exit'):
+    if _CLEANUP['done']:
+        return
+    _CLEANUP['done'] = True
+    report = {'reason': reason, 'children': [], 'units_stopped': []}
+    for p in CHILDREN:
+        if p.poll() is None:
+            _kill_group(p, signal.SIGTERM)
+    deadline = time.monotonic() + 3.0
+    for p in CHILDREN:
+        try:
+            p.wait(timeout=max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            _kill_group(p, signal.SIGKILL)
+            p.wait(timeout=3)
+        _kill_group(p, signal.SIGKILL)               # reap any grandchildren left in the group
+        report['children'].append({'pid': p.pid, 'args': p.args[:2], 'returncode': p.returncode})
+    if SERVER is not None:
+        try:
+            SERVER.shutdown()
+            SERVER.server_close()
+        except Exception:
+            pass
+    if UNITS_STARTED:
+        for u in [BASE, REC] + SENSORS + PROTECTED:
+            try:
+                sh('stop', u, check=False, timeout=20)
+                report['units_stopped'].append(u)
+            except Exception as exc:
+                report['units_stopped'].append(f'{u}: {exc!r}')
+        try:
+            reset_runtime()
+        except Exception:
+            pass
+    if W is not None and W.exists():
+        (W / 'cleanup.json').write_text(json.dumps(report, indent=1))
+
+
+def _on_signal(signum, frame):
+    cleanup(f'signal {signal.Signals(signum).name}')
+    os._exit(128 + signum)
+
+
+def install_cleanup_handlers():
+    atexit.register(cleanup, 'atexit')
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, _on_signal)
+
+
 def setup(workdir):
     global W, STATE, SCRIPTS
     W = Path(workdir)
@@ -250,9 +333,11 @@ def setup(workdir):
     world(estop=True, stop_latched=True, cmd_lin=0.0, cmd_ang=0.0, encoder_state='READY', recovery_encoder_state=None)
     global FOX_PORT
     FOX_PORT = free_port()
-    subprocess.Popen([sys.executable, str(HERE / 'fake_foxglove.py'), str(FOX_PORT), str(STATE / 'fox_ctl.json')])
+    spawn([sys.executable, str(HERE / 'fake_foxglove.py'), str(FOX_PORT), str(STATE / 'fox_ctl.json')], 'fake_foxglove.log')
     reset_runtime()
     sh('daemon-reload')
+    global UNITS_STARTED
+    UNITS_STARTED = True
     for s in SENSORS + PROTECTED + [BASE, REC]:
         sh('restart', s, timeout=60)
     time.sleep(6)            # recovery startup grace (sim: 4 s)
@@ -598,7 +683,7 @@ def s07_stop_guard_broken_before_restart(port):
 
 
 def arm_with_owner(seconds=60):
-    owner = subprocess.Popen(['sleep', '600'])
+    owner = spawn(['sleep', '600'], 'owners.log')
     sys.path.insert(0, str(SCRIPTS))
     import atlas_base_maintenance as bm
     m = bm.Maintenance()
@@ -768,22 +853,58 @@ ALL = [s00_original_recovery_races_manual_restart, s00b_original_recovery_defers
        s13_no_lease_recovery_unchanged, s14_estop_released_inside_stage_a_window]
 
 
-def main():
-    workdir = sys.argv[1]
-    want = set(sys.argv[2:])
+def cleanup_selftest(mode, workdir):
+    """Offline check of process hygiene without running any scenario or systemd unit."""
+    global W
+    W = Path(workdir)
+    (W / 'logs').mkdir(parents=True, exist_ok=True)
+    fox = spawn([sys.executable, str(HERE / 'fake_foxglove.py'), str(free_port()), str(W / 'ctl.json')], 'fake_foxglove.log')
+    sleeper = spawn(['sleep', '600'], 'owners.log')
+    group = spawn(['bash', '-c', f'sleep 600 & echo $! > {W}/grandchild.pid; wait'], 'group.log')
+    for _ in range(50):
+        if (W / 'grandchild.pid').exists() and (W / 'grandchild.pid').read_text().strip():
+            break
+        time.sleep(0.1)
+    (W / 'pids.json').write_text(json.dumps({'children': [fox.pid, sleeper.pid, group.pid],
+                                             'grandchild': int((W / 'grandchild.pid').read_text())}))
+    print('READY', flush=True)
+    if mode == 'exception':
+        raise RuntimeError('simulated scenario crash')
+    if mode in ('sigterm', 'sigint', 'timeout'):
+        time.sleep(60)                                   # killed from outside
+    return 0
+
+
+def run(argv):
+    global SERVER
+    if argv[:1] == ['--cleanup-selftest']:
+        return cleanup_selftest(argv[1], argv[2])
+    workdir = argv[0]
+    want = set(argv[1:])
     setup(workdir)
     shutil.copytree(SCRIPTS, W / 'baselines')
-    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Web)
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    port = srv.server_address[1]
+    SERVER = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Web)
+    threading.Thread(target=SERVER.serve_forever, daemon=True).start()
+    port = SERVER.server_address[1]
     for s in ALL:
         if not want or s.__name__ in want or s.__name__.split('_')[0] in want:
             s(port)
     (W / 'results.json').write_text(json.dumps(RESULTS, indent=1))
-    print('\nSUMMARY ' + ' '.join(f'{r["scenario"].split("_")[0]}={"PASS" if r["pass"] else "FAIL"}' for r in RESULTS))
-    for s in [BASE, REC] + SENSORS + PROTECTED:
-        sh('stop', s, check=False)
+    print('\nSUMMARY ' + ' '.join(f'{r["scenario"].split("_")[0]}={"PASS" if r["pass"] else "FAIL"}' for r in RESULTS),
+          flush=True)
     return 0 if all(r['pass'] for r in RESULTS) else 1
+
+
+def main():
+    install_cleanup_handlers()
+    reason = 'normal exit'
+    try:
+        return run(sys.argv[1:])
+    except BaseException as exc:
+        reason = f'exception {type(exc).__name__}: {exc}'
+        raise
+    finally:
+        cleanup(reason)
 
 
 if __name__ == '__main__':

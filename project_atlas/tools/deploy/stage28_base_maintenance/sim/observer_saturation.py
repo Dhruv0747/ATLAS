@@ -97,13 +97,26 @@ def level(seconds, per_cpu, web_threads=40):
     odom = d / 'odom.json'
     stop = threading.Event()
     threading.Thread(target=odom_writer, args=(odom, stop), daemon=True).start()
+    load = []
+    try:
+        return _measure(seconds, per_cpu, fport, wport, base, odom, stop, load)
+    finally:                                   # never leave load/bridge/web processes behind (also on errors)
+        stop.set()
+        for p in load + procs + [base]:
+            if p.poll() is None:
+                p.kill()
+            p.wait()
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def _measure(seconds, per_cpu, fport, wport, base, odom, stop, load):
     time.sleep(1.0)
     obs = so.SafetyObserver(port=fport, base_pid=base.pid, odom_path=odom).start()
     end = time.monotonic() + 3
     while time.monotonic() < end and not obs.evaluate()['ok']:
         time.sleep(0.1)
     ncpu = os.cpu_count()
-    load = [subprocess.Popen([sys.executable, '-c', BUSY]) for _ in range(per_cpu * ncpu)]
+    load.extend(subprocess.Popen([sys.executable, '-c', BUSY]) for _ in range(per_cpu * ncpu))
     lat = {'/status': [], '/estop': []}
     for path in lat:
         threading.Thread(target=poll_web, args=(wport, path, stop, lat[path]), daemon=True).start()
@@ -114,12 +127,7 @@ def level(seconds, per_cpu, web_threads=40):
         rows.append((v['mono'], v['ok'], {k: s['age_s'] for k, s in v['signals'].items()},
                      [k for k, s in v['signals'].items() if not s['ok']]))
         time.sleep(0.25)
-    stop.set()
     obs.stop()
-    for p in load + procs + [base]:
-        p.kill()
-        p.wait()
-    shutil.rmtree(d, ignore_errors=True)
     gaps = [b[0] - a[0] for a, b in zip(rows, rows[1:])]
     maxage = {}
     for _, _, ages, _ in rows:
