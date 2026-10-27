@@ -1,5 +1,7 @@
 # B4 NO SBUS — saved-evidence investigation only
 
+CORRECTION after enlarged schematic inspection: the PA2 discrepancy described below was an analyst reading error. RXD2 connects to MCU pin17, clearly labelled PA3/U2_RX/ADC3; PA2/U2_TX is adjacent pin16. Schematic and firmware agree. Preserve the original claim below as superseded history, not an active blocker. See ATLAS_STAGE28_SBUS_BINDING_FOLLOWUP_20261027.md.
+
 Owner confirmed transmitter OFF. No serial connection, hardware operation, settings change, service restart or retry performed.
 
 ## Verified
