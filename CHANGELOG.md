@@ -3457,3 +3457,5 @@ Reuse established Nano-aware thermal probe; preserve75/80/70 safeguards and null
 2026-10-27 Stage28 approved maintenance retry rolled back after postflight safety rejection. Thermal preflight passed; production baseline restored and base telemetry unchanged. Published evidence and explicit failed-snapshot gap; no B1.
 
 2026-10-27 Stage28 offline wrapper now persists atomic, redacted, hash-verified per-predicate safety evidence before rollback; 131 tests pass. Original failed postflight cause remains unknown. No deployment.
+
+2026-10-27 documented one d1d13a3 maintenance retry: CPU98.84% rejection, verified rollback, preserved hash-verified safety evidence. No runtime changes retained or B1 performed.
