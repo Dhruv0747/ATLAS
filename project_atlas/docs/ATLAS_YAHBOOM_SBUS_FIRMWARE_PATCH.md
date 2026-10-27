@@ -146,8 +146,8 @@ Stage 28: 24 new tests, all passing.
 
 | Gate | What | Hardware state |
 |---|---|---|
-| **G-0** (owner, now) | SBUS signal wire unplugged and insulated, transmitter off | No power change |
-| **B1 Backup** | Stop `rover-base-telemetry` once. Record the PID, steering default angle and car type through the existing getters. Read the full flash (`stm32flash -r` over the board's micro-USB with BOOT0+RESET, or ST-Link SWD) and record the RDP state. Compare the readback with the 3.6.5 hex. | Motor rail at 0 V, motors and steering servo unplugged |
+| **G-0** | Default: SBUS signal isolated, transmitter OFF. B1-only connected-receiver exception requires ALL physical isolation and power gates in B1 preflight section 9; not permission to drive or reconnect actuators. | Main switch ON throughout B1 |
+| **B1 Backup** | Stop `rover-base-telemetry` once. Record the PID, steering default angle and car type through the existing getters. Read the full flash (`stm32flash -r` over the board's micro-USB with BOOT0+RESET, or ST-Link SWD) and record the RDP state. Compare the readback with the 3.6.5 hex. | Main switch ON, battery connected; all actuators disconnected through restoration; current B1 preflight sections 8–9 govern |
 | **G-J** | Install the Jetson patch (dormant), one base restart | E-STOP latched |
 | **G-U** | Install the udev proposal and resolver hardening | E-STOP latched |
 | **B2 Flash** | Flash the patched image. The restore image is either the B1 readback or the vendor 3.6.5 hex if the readback is impossible. | Same as B1 |
@@ -156,7 +156,7 @@ Stage 28: 24 new tests, all passing.
 | **B5 Live channel test** | CH1–CH10 walk, transmitter-off loss, receiver unplug; Xbox and E-STOP coexistence | FlySky read-only |
 
 **Rollback:**
-- Firmware: BOOT0+RESET, then flash the B1 image or the 3.6.5 hex. The STM32 ROM bootloader cannot be erased, so the board is always recoverable.
+- Firmware: BOOT0+RESET, then flash the B1 image or the 3.6.5 hex. The STM32 ROM bootloader cannot be erased, but electrical integrity, power, access and protection state still constrain recovery.
 - Jetson: `rollback.sh <backup>`.
 - udev: restore the saved rule.
 

@@ -306,7 +306,7 @@ def main(argv=None) -> int:            # pragma: no cover - needs the board in b
     ap.add_argument('--out', required=True)
     ap.add_argument('--vendor-hex', action='append', default=[])
     ap.add_argument('--i-confirm-bootloader-entered', action='store_true',
-                    help='operator confirms: base service stopped, board main switch OFF, BOOT0+RESET done')
+                    help='operator confirms: base service stopped, board main switch ON, battery connected, all actuators physically disconnected, BOOT0+RESET done')
     a = ap.parse_args(argv)
     if not a.i_confirm_bootloader_entered:
         print('REFUSED: pass --i-confirm-bootloader-entered after the B1 physical steps', file=sys.stderr)

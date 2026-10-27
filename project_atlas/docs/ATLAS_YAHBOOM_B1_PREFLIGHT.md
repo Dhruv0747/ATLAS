@@ -1,18 +1,18 @@
 # ATLAS Stage 28, B1 pre-flight: Yahboom board firmware backup and recovery (no hardware action taken)
 
-Date: 2026-10-27. All of this was analysis, offline builds and read-only Jetson queries: sysfs, udev, journal and `/api/estop/state`. Nothing was opened on the board's serial port, no service was stopped, nothing was flashed, and the wiring is unchanged. The E-STOP is latched and the SBUS lead stays isolated.
+Date: 2026-10-27. All of this was analysis, offline builds and read-only Jetson queries: sysfs, udev, journal and `/api/estop/state`. Nothing was opened on the board's serial port, no service was stopped, nothing was flashed, and the wiring is unchanged. Historical audit only. Current owner update: STM32F103RCT6, M1-M4 and S1/S2 disconnected, receiver connected, transmitter OFF. See section 9 for the superseding safety decision; no B1 execution is authorized.
 
 ## Verdict
 
 | Gate | Decision | Why |
 |---|---|---|
-| **B1 (read-only backup)** | **GO, conditional** on the owner preconditions below | Read-only tool built and tested against a simulated bootloader; the procedure is physical-entry only; the only system change is one stop and start of `rover-base-telemetry` |
+| **B1 (read-only backup)** | **NO-GO for execution** until section 9 physical gates and explicit B1 approval are complete | Read-only tool built and tested against a simulated bootloader; the procedure is physical-entry only; the only system change is one stop and start of `rover-base-telemetry` |
 | **B2 (flash)** | **NO-GO** until B1 results are in | Need the read-protection (RDP) state, chip identity and readback-vs-3.6.5 comparison, plus a toolchain decision |
 | GCC image for B2 | **Conditional** | Static audit now passes, but only after two fixes found today (section 5) |
 
 ### Owner preconditions for B1
 
-1. **How is the Jetson powered?** If it is fed from the Yahboom board's DC 5V output, the board's main switch must stay ON during B1. Isolation is then done by unplugging connectors only.
+1. Keep board main switch ON and battery connected throughout B1 and restoration. Physically trace the separately reported LTC3780 supply and inventory all attached loads; software cannot verify this wiring. Isolation is by disconnecting actuators, never by relying on switch OFF.
 2. Unplug drive motor connectors M1–M4 and **both steering servos** (PWM S1 = rear, S2 = front). See section 8: B1 is now done with the main switch ON, and isolation is by unplugging actuators.
 3. Photograph the MCU marking (STM32F103RCT6 or APM32E103RET6, see section 1). The tool also reads the chip ID, so this is a cross-check.
 4. Approve one stop and start of `rover-base-telemetry` (about 3–5 minutes). The dashboard will show the base offline; the E-STOP stays latched.
@@ -29,7 +29,7 @@ Date: 2026-10-27. All of this was analysis, offline builds and read-only Jetson 
 | Entry | **Physical only**: hold BOOT0 (S4), press RESET (S2), release BOOT0. The CH340N **RTS pin is not connected** and it has no DTR, so no software can reset the MCU or enter the bootloader by accident. The FlyMcu "DTR/RTS" option does nothing on this board. | Schematic, USB communication block |
 | SWD | J16: +3.3 V, SWCLK, GND, SWDIO, GND. **No NRST**, so connect-under-reset is impossible | Schematic |
 | USB identity | `/dev/ttyUSB0`, location `1-2.2.3`, 1a86:7523 (GPS 1-2.4.2, IMU 1-2.4.3) | pyserial `list_ports`, read-only |
-| Power in B1 | Micro-USB VCC → SS34 → 5 V rail → 3.3 V LDO. **The MCU and CH340 run from the Jetson's USB with the main switch OFF**, while VM (motors, 6.8 V servo rail) is cut by PMOS Q2. Motor drivers are AM2861/AM2857-class with 30 kΩ input pull-downs (floating inputs mean Stop). The datasheet warns floating inputs can mis-trigger when hot, hence motor rail off or motors unplugged. | Schematic power block, AM2857 datasheet |
+| Power in B1 | Main switch ON, battery connected, all actuators physically disconnected throughout. USB can power the MCU with switch OFF, but this is NOT an approved isolation method; possible rail backfeed remains unmeasured. | Section 8 power analysis |
 | Low-battery latch | Firmware latches `System_Enable = 0` after about 2 s below 9.6 V, so it must be **restarted with the main switch ON** | `app_bat.c` |
 
 ## 2. Is vendor 3.6.5 compatible with ATLAS (hardware V3.0, car type 5)?
@@ -117,7 +117,7 @@ So for the commands ATLAS uses, 3.6.5 behaves exactly like 3.5.1 and like the "3
     - auto-report: default 1, and the Jetson enables it anyway;
     - motor PID: not used by ATLAS's raw-PWM path.
 - **If the chip is APM32E103 rather than STM32:** the same protocol and page size apply. Its chip ID and flash size are recorded in B1 and must be reviewed before B2.
-- **Failure that recovery cannot fix:** electrical damage. That is mitigated by the isolation preconditions (motors and servos unplugged, motor rail off).
+- **Failure that recovery cannot fix:** electrical damage. Physical actuator disconnection mitigates motion risk; correct wiring and stable power remain necessary to avoid electrical damage. Keep main switch ON, not motor rail off.
 - **Jetson side:** `tools/deploy/stage28_yahboom_rc/rollback.sh` gives a byte-identical restore (rehearsed).
 
 ## 7. Offline tests (this stage)
@@ -151,15 +151,15 @@ The owner reports the Jetson is powered by a separate LTC3780 buck-boost, not by
 USB topology, read-only: the board's CH340 is on self-powered hub 1-2.2 (bmAttributes 0xE0), together with the RPLIDAR CP2102 (1-2.2.1) and the ESP32 (1-2.2.4). The board's VM sense reads 12.3 V now, so the battery is connected and the main switch is ON.
 
 **Decision: B1 is done with the board main switch ON and the battery connected.** The switch-OFF variant is withdrawn because of the backfeed above. With the switch ON:
-- VM is a known 12 V;
-- there is no USB backfeed load;
-- there is no low-battery latch;
+- VM should track the battery; verify actual voltage and supply stability;
+- this avoids intentionally powering the board and its loads from USB alone; actual current sharing has not been measured;
+- adequate battery voltage is still required; main switch ON alone does not rule out a low-battery latch;
 - isolation is achieved by physically unplugging every actuator.
 
 ### Isolation checklist (owner, before requesting B1 approval)
 
 1. Wheels lifted clear of the floor. E-STOP latched (Xbox B). FlySky transmitter OFF.
-2. SBUS lead: signal wire unplugged and insulated. Recommended: unplug the whole 3-pin lead (its V pin is board 5 V).
+2. Receiver may remain connected only under section 9 conditions: original SBUS header, board-only power, no other receiver connections, transmitter OFF, all actuators disconnected through restoration. Otherwise isolate the receiver before a separately approved B1 attempt.
 3. Drive motors M1–M4: all four PH-6P motor/encoder connectors unplugged at the board.
 4. PWM servos S1 (rear steering) and S2 (front steering), plus any S3/S4: unplugged at J7.
 5. Serial-servo port J10, RGB strip J15, CAN J11: unplugged, or confirmed empty.
@@ -167,7 +167,7 @@ USB topology, read-only: the board's CH340 is on self-powered hub 1-2.2 (bmAttri
 7. Multimeter checks, switch ON, nothing else changed:
    - VM at J12/J14 pin 1 ≈ battery voltage (≈ 12.3 V now);
    - LTC3780 input ≈ battery voltage;
-   - with motor connectors unplugged, nothing measurable at the motor-side plugs.
+   - visually trace each disconnected actuator cable and rule out any separate supply/control connection. A floating-pin voltage reading is not proof of isolation; do not bridge pins with meter probes.
 8. BOOT0 (S4) and RESET (S2) buttons physically reachable without disturbing the micro-USB cable.
 9. MCU marking photographed (STM32F103RCT6 or APM32E103RET6).
 
@@ -183,3 +183,30 @@ USB topology, read-only: the board's CH340 is on self-powered hub 1-2.2 (bmAttri
 | R6 | Jetson-side calibration backed up with hashes (steering, drive PID, encoder, IMU). This is done as step 1 of `b1_run.sh` | Ready |
 | R7 | Known-good return-to-service reference: "board ready firmware=3.6, car_type=5", 4.0 packets per encoder packet, 0 checksum errors, board battery reading ≈ BMS | Recorded in B3 template |
 | R8 | B2 approval is separate; this document does not request it | — |
+
+
+## 9. Final safety resolution — 2026-10-27 (supersedes older instructions)
+
+**Final recommendation: NO-GO for B1 execution at present.** Windows recovery setup is owner-verified. M1-M4 and S1/S2 disconnection is owner-reported, not remotely observed. S3/S4, J10/J11, alternate actuator supplies, receiver power and LTC3780 input routing remain unconfirmed. No firmware backup has been obtained.
+
+### Connected receiver assessment
+
+The reviewed Yahboom schematic/source routes SBUS to USART2; CH340 connects USART1 PA9/PA10. ST AN2606 identifies USART1 as the STM32F103 bootloader interface. Therefore the documented SBUS wiring is not a competing ROM bootloader transport. This is a source-based conclusion, not a hardware bootloader test.
+
+Reference: https://www.st.com/resource/en/application_note/an2606-introduction-to-system-memory-boot-mode-on-stm32-mcus-stmicroelectronics.pdf
+
+A powered receiver can emit failsafe/stale frames even with the transmitter OFF; its actual output here has not been measured. Stock firmware may command motors/servos before ROM entry or after normal reset, independently of host E-STOP. Keeping the receiver connected is acceptable for a future read-only backup ONLY with all actuator outputs physically isolated for the entire operation, including restoration. Do not rely on transmitter OFF, software stop or a zero PWM command as that isolation.
+
+Receiver must use only the existing SBUS header and its board supply, with no external battery/BEC, USB power, other receiver outputs or alternate path to an actuator. Otherwise backfeed or independent actuation cannot be excluded. Do not hot-rewire or change power arrangements under this review. Actual voltage compatibility and power integrity depend on the existing verified wiring; unexpected resets/USB loss stop the attempt, with no retry/unlock.
+
+### Future B1 sequence (NOT authorized now)
+
+1. Owner physically verifies the complete section 8 isolation and power checklist. Keep main switch ON, battery connected, receiver board-powered, transmitter OFF. Do not reconnect actuators after backup.
+2. Obtain explicit B1-only approval for one telemetry stop/start and physical ROM bootloader entry. Fresh E-STOP and exact package checks must pass first.
+3. Back up host calibration; stop telemetry once; verify port free; owner performs boot entry. Use the existing read-only command whitelist and two matching flash passes. Abort on NACK, timeout or mismatch; never erase/unlock to get a backup.
+4. Release BOOT0 and reset normally, leaving all actuators disconnected. Restore telemetry once and verify fresh board-ready and current active state. Preserve backup hashes and copy verified evidence to the PC. B1 is not complete until restoration and backup verification pass.
+5. Reconnecting actuators while stock SBUS control is present requires a separate reviewed plan. B2 and A2 remain NOT APPROVED.
+
+### Script review scope
+
+Corrected CLI OFF help, strengthened physical/power prompts, and removed the unsafe casual actuator-reconnection instruction. Serial read protocol and firmware are unchanged. Prompts require human inspection; they cannot sense unplugged connectors. Existing Jetson-staged scripts remain untouched and must not be mistaken for this revised candidate.

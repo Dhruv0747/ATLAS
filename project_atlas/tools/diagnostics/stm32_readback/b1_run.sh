@@ -46,8 +46,9 @@ journalctl --user -u rover-base-telemetry --no-pager | grep -E "Yahboom board re
 echo "Jetson backup:"; cat "$OUT/jetson_config/SHA256SUMS"
 
 # 2. Physical isolation (owner)
-ask "Wheels lifted; drive motor connectors M1-M4 unplugged; BOTH steering servos (PWM S1, S2) unplugged; FlySky SBUS wire unplugged and insulated; transmitter OFF."
-ask "Board main switch ON, battery connected (switch-OFF variant withdrawn: probable 5 V -> VM backfeed through the MP2225, see B1 pre-flight doc section 8). Serial servo, RGB and CAN ports empty."
+ask "Wheels lifted; all four M1-M4 motor/encoder connectors unplugged at board; S1-S4 and serial-servo J10 empty/disconnected; CAN J11 and RGB J15 empty/disconnected; no actuator has another power/control path. Keep these disconnected through normal-firmware restoration."
+ask "Transmitter OFF. If receiver remains connected: verified original SBUS header only, powered only by board, no external receiver supply or other output connections. Stock SBUS control bypasses host E-STOP; transmitter OFF is NOT actuator isolation."
+ask "Board main switch ON and battery connected throughout. Power wiring and peripheral inventory physically checked against B1 section 8; LTC3780 input traced to battery/BMS side; stable supply confirmed. No switch-OFF or USB-only operation."
 
 # 3. Release the port (the only service change)
 systemctl --user stop rover-base-telemetry.service
@@ -87,7 +88,7 @@ else
   echo "WARNING: no 'board ready firmware=3.6, car_type=5' within 60 s. Is BOOT0 released and RESET pressed? Do not reconnect actuators."
   [[ "$rc" == 0 ]] && rc=6   # backup fine but base not confirmed back: non-zero so it cannot be missed
 fi
-echo "Reconnect steering servos and motors only when you are ready; E-STOP stays latched."
+echo "Leave ALL actuators disconnected and transmitter OFF; E-STOP stays latched. Reconnection requires a separate reviewed plan: stock SBUS can bypass host E-STOP. B1 does not authorize reconnection."
 trap - ERR
 ( cd "$OUT" && find . -type f ! -name SHA256SUMS.all -exec sha256sum {} + > SHA256SUMS.all )
 echo "backup folder: $OUT"
