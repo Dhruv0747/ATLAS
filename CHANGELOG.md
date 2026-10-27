@@ -3447,3 +3447,6 @@ Durable base-recovery interlock, start-condition candidate, strict MCU/protectio
 
 ## 2026-10-27 - B1 native review
 Fixed lease revival, read-token reuse and reader/restoration race; added explicit restoration checks, protocol guards and sequential prompt validation. 94 tests plus native PC systemd 249 fake-unit lifecycle pass. No production deployment.
+
+## 2026-10-27 - Maintenance deployment attempt
+Approved interlock installation aborted before production writes on a deployment-wrapper thermal probe error. No service restarts or B1 operations. Verified baseline archive and post-abort health retained.
