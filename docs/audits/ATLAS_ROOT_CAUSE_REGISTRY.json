@@ -1495,6 +1495,15 @@
       "safety": "No camera Start, restart, service disabling, threshold or motor changes. Protected service identities unchanged; E-STOP latched.",
       "exact_live_candidate": "After deployment abort afee764, prepared exact-live fa62787f->98f3c269 two-site patch.9 package tests+60 dashboard tests PASS; synthetic snapshot0.487593->0.086112ms. All unrelated live steering/HTTP differences preserved. NOT installed. ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_PACKAGE.md.",
       "deployment_follow_up": "2026-10-21 approved exact-live98f3c269 installed; web-only restart; protected identities/safety/health passed. Restart peak100%,settled25.085s. Parked CPU69.270->71.215% mean and web44.845->45.383% one core: NO demonstrated aggregate saving. Astra OFF. Prior candidate status superseded; headroom unresolved. ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_DEPLOYMENT.md."
+    },
+    {
+      "id": "ATLAS-B1-RECOVERY-PORT-CONFLICT-20261027",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "7e3c4dc: sensor recovery reclaimed Yahboom port during intended base stop.",
+      "candidate": "Durable dispatch interlock, base ExecCondition, strict readback gates; 78 offline tests pass. Not deployed.",
+      "remaining_gap": "Independent native fake-unit validation, reviewed deployment and separately approved one B1 hardware operation.",
+      "report": "project_atlas/docs/ATLAS_STAGE28_B1_INTERLOCK_AND_STRICT_READBACK.md"
     }
   ]
 }

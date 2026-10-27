@@ -1,5 +1,6 @@
 """Offline regression tests: actual method bodies, no ROS or hardware I/O."""
 import ast
+from contextlib import nullcontext
 import json
 import math
 from pathlib import Path
@@ -29,7 +30,8 @@ class RecoveryTests(unittest.TestCase):
         self.process = Mock()
         ns = {'json': json, 'math': math, 'String': String, 'NavSatFix': type('NavSatFix', (), {}),
               'time': SimpleNamespace(monotonic=lambda: self.now, sleep=Mock()),
-              'subprocess': self.process, 'threading': Mock()}
+              'subprocess': self.process, 'threading': Mock(), 'nullcontext': nullcontext,
+              'Interlock': lambda: SimpleNamespace(recovery_dispatch=nullcontext)}
         exec(compile(ast.Module(body=assignments + [cls], type_ignores=[]), str(source), 'exec'), ns)
         self.ns = ns
         self.node = ns['AtlasRecovery']()
@@ -50,6 +52,21 @@ class RecoveryTests(unittest.TestCase):
         self.node.stop_latch_seen = self.now
         self.item = SimpleNamespace(name='encoder_health', service='rover-base-telemetry.service',
                                     stale_after=2., stopped_only=True)
+
+    def test_base_dispatch_interlock_denial_preserves_fault_reporting(self):
+        from contextlib import contextmanager
+        @contextmanager
+        def denied():
+            raise RuntimeError('B1 maintenance held')
+            yield
+        self.ns['Interlock'] = lambda: SimpleNamespace(recovery_dispatch=denied)
+        self.node.restart_allowed = Mock(return_value=True)
+        self.node.classify = Mock(return_value=('FAULT', 4, 'test'))
+        self.node.maintenance_hold = Mock(return_value=False)
+        self.node.bms_retry_owned = Mock(return_value=False)
+        self.node.recover(self.item, 'test', 1)
+        self.process.run.assert_not_called()
+        self.assertIn('B1 maintenance held', self.node.publish_status.call_args[0][0])
 
     def update(self, data):
         self.node.on_message('encoder_health', String(data))

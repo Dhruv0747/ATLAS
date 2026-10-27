@@ -3441,3 +3441,6 @@ Historical first attempt; the later successful installation is recorded above.
   corrected launch attempt stopped by CPU75.884%>75%. No streams or retry after
   resource rejection; sudo/USB permission execution remains blocked. Prepare
   exact-ID0660/video udev rule as undeployed candidate only.
+
+## 2026-10-27 - B1 offline safety candidate
+Durable base-recovery interlock, start-condition candidate, strict MCU/protection/capacity read gates and per-pass evidence; retired legacy runner. 78 simulated tests pass. No production changes or hardware operation.

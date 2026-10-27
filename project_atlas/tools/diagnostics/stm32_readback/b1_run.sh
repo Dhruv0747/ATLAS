@@ -6,6 +6,8 @@
 # What it never does: flash, erase, unprotect, write option bytes, touch udev, motors, TF, Nav2 or E-STOP.
 # No automatic retries: any failure stops the script and tells you how to restore normal operation.
 set -Eeuo pipefail
+echo "REFUSED: legacy runner retired. Use the reviewed interlock procedure; no hardware operation is authorized by this script."
+exit 2
 [[ "${OWNER_APPROVED:-}" == "yes" ]] || { echo "refused: set OWNER_APPROVED=yes after B1 approval"; exit 2; }
 HERE=$(cd "$(dirname "$0")" && pwd)
 STAMP=$(date +%Y%m%d_%H%M%S)

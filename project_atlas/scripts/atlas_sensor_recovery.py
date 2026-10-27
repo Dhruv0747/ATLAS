@@ -8,6 +8,8 @@ serialized and rate-limited so faults cannot create rapid restart loops.
 """
 
 import json
+from contextlib import nullcontext
+from atlas_b1_interlock import Interlock
 import math
 import os
 import subprocess
@@ -411,11 +413,15 @@ class AtlasRecovery(Node):
                 f"RECOVERING: {item.name} ({reason}); restarting "
                 f"{item.service}, attempt {attempt}/{attempt_limit}"
             )
-            subprocess.run(
-                ["systemctl", "--user", "restart", item.service],
-                timeout=15,
-                check=True,
-            )
+            dispatch = Interlock().recovery_dispatch() if item.service == 'rover-base-telemetry.service' else nullcontext()
+            with dispatch:
+                if not self.restart_allowed(item):
+                    raise RuntimeError('stop guard changed before dispatch')
+                subprocess.run(
+                    ["systemctl", "--user", "restart", item.service],
+                    timeout=15,
+                    check=True,
+                )
             self.service_cache.pop(item.service, None)
             deadline = time.monotonic() + RECOVERY_CONFIRM_TIMEOUT
             baseline = time.monotonic()

@@ -102,8 +102,6 @@ class BootloaderClient:
         b = self._read_exact(1)[0]
         if b == ACK:
             return 'ack'
-        if b == NACK:            # already synchronised by an earlier 0x7F
-            return 'already-synced'
         raise ProtocolError('no bootloader answer to 0x7F (got 0x%02X)' % b)
 
     def get(self) -> Dict:
@@ -219,8 +217,9 @@ def write_ihex(path: Path, image: bytes, base: int = FLASH_BASE) -> None:
 
 
 # ------------------------------------------------------------------------------------------- run
-def backup(client: BootloaderClient, out: Path, vendor_hexes: List[str], log=print) -> int:
-    out.mkdir(parents=True, exist_ok=True)
+def backup(client: BootloaderClient, out: Path, vendor_hexes: List[str], log=print,
+           guard=lambda: None) -> int:
+    out.mkdir(parents=True, exist_ok=False)
     meta: Dict = {'tool': 'atlas_stm32_readback', 'started': time.strftime('%Y-%m-%dT%H:%M:%S%z')}
 
     def finish(code: int) -> int:
@@ -231,36 +230,57 @@ def backup(client: BootloaderClient, out: Path, vendor_hexes: List[str], log=pri
         return code
 
     try:
+        guard()
         meta['sync'] = client.sync()
         meta['get'] = client.get()
         meta['get_version'] = client.get_version()
         pid = client.get_id()
         meta['product_id'] = '0x%04X' % pid
         meta['product_id_meaning'] = KNOWN_PIDS.get(pid, 'UNKNOWN: stop and identify the chip before B2')
+        if pid != 0x0414:
+            raise Refused('unsupported MCU ID; expected 0x0414 plus owner-confirmed STM32F103RCT6 marking')
         try:
             opt = client.read(OPTION_BYTES, 16)
         except ReadProtected as exc:
-            meta['read_protection'] = 'ACTIVE (%s). Nothing was unlocked or erased.' % exc
+            meta['read_protection'] = 'DENIED/UNKNOWN (%s). Nothing was unlocked or erased.' % exc
             return finish(3)
         (out / 'option_bytes.bin').write_bytes(opt)
         meta['option_bytes'] = opt.hex()
+        if len(opt) != 16:
+            raise Refused('missing option-byte evidence')
         meta['rdp_byte'] = '0x%02X' % opt[0]
         meta['read_protection'] = 'inactive (RDP byte 0xA5)' if opt[0] == 0xA5 else \
             'UNEXPECTED RDP byte 0x%02X although reads work' % opt[0]
-        fsize = int.from_bytes(client.read(F_SIZE, 2), 'little')
+        if len(opt) != 16 or opt[:2] != b'\xa5\x5a':
+            raise Refused('protected or ambiguous RDP/complement; no flash read permitted')
+        raw_size = client.read(F_SIZE, 2)
+        if len(raw_size) != 2:
+            raise Refused('missing flash-size evidence')
+        fsize = int.from_bytes(raw_size, 'little')
         meta['flash_size_kb_register'] = fsize
-        if fsize in (0, 0xFFFF) or fsize > 1024:
-            meta['flash_size_note'] = 'F_SIZE unreadable/implausible; reading 256 KB'
-            fsize = 256
-        meta['uid'] = client.read(UID, 12).hex()
+        if fsize != 256:
+            raise Refused('unexpected flash capacity: require exactly 256 KB for owner-confirmed RC')
+        uid = client.read(UID, 12)
+        if len(uid) != 12:
+            raise Refused('missing UID evidence')
+        meta['uid'] = uid.hex()
         size = fsize * 1024
         passes = []
         for p in range(2):
             img = bytearray()
             t0 = time.monotonic()
             for off in range(0, size, CHUNK):
-                img += client.read(FLASH_BASE + off, min(CHUNK, size - off))
+                guard()
+                data = client.read(FLASH_BASE + off, min(CHUNK, size - off))
+                if len(data) != min(CHUNK, size - off):
+                    raise Refused('incomplete flash chunk')
+                img += data
+                if p == 0 and off == 0:
+                    log('BACKUP STARTED — DO NOT PRESS BUTTONS.')
+            guard()
             passes.append(bytes(img))
+            (out / ('flash_pass%d.bin' % (p + 1))).write_bytes(passes[-1])
+            meta['pass%d_sha256' % (p + 1)] = hashlib.sha256(passes[-1]).hexdigest()
             meta['pass%d_seconds' % (p + 1)] = round(time.monotonic() - t0, 1)
         if passes[0] != passes[1]:
             meta['verify'] = 'MISMATCH between the two read passes'
@@ -279,9 +299,12 @@ def backup(client: BootloaderClient, out: Path, vendor_hexes: List[str], log=pri
         meta['last_programmed_byte'] = '0x%08X' % (FLASH_BASE + used - 1)
         meta['vendor_compare'] = [compare_with_hex(image, h) for h in vendor_hexes]
         with open(out / 'SHA256SUMS', 'w') as f:
-            for name in ('flash_full.bin', 'flash_full.hex', 'option_bytes.bin', 'settings_sector120.bin'):
+            for name in ('flash_pass1.bin', 'flash_pass2.bin', 'flash_full.bin', 'flash_full.hex', 'option_bytes.bin', 'settings_sector120.bin'):
                 f.write('%s  %s\n' % (hashlib.sha256((out / name).read_bytes()).hexdigest(), name))
         return finish(0)
+    except (Refused, KeyboardInterrupt, OSError) as exc:
+        meta['error'] = '%s: %s; stopped with no automatic retry' % (type(exc).__name__, exc)
+        return finish(2 if isinstance(exc, Refused) else 4)
     except ProtocolError as exc:
         meta['error'] = str(exc) + ' (stopped; no automatic retry)'
         return finish(4)
@@ -300,6 +323,7 @@ def _usb_location(dev: str) -> Optional[str]:
 
 def main(argv=None) -> int:            # pragma: no cover - needs the board in bootloader mode
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    ap.add_argument('--maintenance-session', required=False)
     ap.add_argument('--port', required=True)
     ap.add_argument('--expect-location', default='1-2.2.3|1a86:7523',
                     help='pyserial location|vid:pid that must match (Yahboom board, measured 2026-10-27)')
@@ -325,6 +349,18 @@ def main(argv=None) -> int:            # pragma: no cover - needs the board in b
         print('REFUSED: the port is held by another process (stop rover-base-telemetry first, B1 step)',
               file=sys.stderr)
         return 2
+    from atlas_b1_interlock import Interlock
+    interlock = Interlock()
+    def read_guard():
+        try:
+            interlock.check_read(a.maintenance_session)
+        except Exception as exc:
+            raise Refused('maintenance read gate: ' + str(exc)) from exc
+    try:
+        read_guard()
+    except Refused as exc:
+        print('REFUSED:', exc, file=sys.stderr)
+        return 2
     import serial
     link = serial.Serial(port=None, baudrate=115200, parity=serial.PARITY_EVEN, stopbits=1, bytesize=8,
                          timeout=0.2, write_timeout=1.0, exclusive=True)
@@ -338,9 +374,9 @@ def main(argv=None) -> int:            # pragma: no cover - needs the board in b
         stray = link.read(64)
         if b'\xff\xfb' in stray:
             print('REFUSED: the board is sending its normal firmware packets; it is NOT in the bootloader. '
-                  'Hold BOOT0, press RESET, release BOOT0, then rerun.', file=sys.stderr)
+                  'Attempt aborted; do not retry without review.', file=sys.stderr)
             return 2
-        return backup(BootloaderClient(link), Path(a.out), a.vendor_hex)
+        return backup(BootloaderClient(link), Path(a.out), a.vendor_hex, guard=read_guard)
     finally:
         link.close()
         print('Done. Leave BOOT0 released and press RESET (with the board main switch ON) to restart the '

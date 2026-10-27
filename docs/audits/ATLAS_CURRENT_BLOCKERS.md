@@ -1183,3 +1183,5 @@ command the steering servos. The repository version is retired. The repository t
 **Still blocking the baseline drive:** AMCL is unseeded on this boot.
 
 See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
+
+2026-10-27 B1: recovery port-conflict candidate implemented offline; 78 tests pass. Durable interlock/start condition and strict readback gates NOT deployed. Independent native fake-unit validation and maintenance deployment approval precede separately approved B1. See project_atlas/docs/ATLAS_STAGE28_B1_INTERLOCK_AND_STRICT_READBACK.md.

@@ -1699,3 +1699,5 @@ Approved stationary setup follow-up: pinned vendor source/private dependencies
 are staged only. Build stopped at CPU75.88% (unchanged75% guard); camera USB
 permissions still require administrator execution. No live Astra stream,
 production page installation, recording or existing-camera restart occurred.
+
+Stage 28 B1 offline maintenance/readback candidate: see project_atlas/docs/ATLAS_STAGE28_B1_INTERLOCK_AND_STRICT_READBACK.md. Not deployed; independent review and separate B1 approval required.

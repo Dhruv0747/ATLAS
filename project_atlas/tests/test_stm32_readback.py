@@ -30,6 +30,7 @@ class FakeBootloader:
         self.rdp, self.pid, self.flaky_at, self.silent = rdp, pid, flaky_at, silent
         self.inbuf, self.out = bytearray(), bytearray()
         self.commands, self.reads, self.state = [], 0, 'idle'
+        self.read_addresses = []
 
     def write(self, b):
         self.inbuf += b
@@ -95,6 +96,7 @@ class FakeBootloader:
                 if n ^ x != 0xFF:
                     self.out += NACK
                     continue
+                self.read_addresses.append(self.addr)
                 self.reads += 1
                 if self.flaky_at is not None and self.reads == self.flaky_at:
                     self.out += NACK
@@ -138,17 +140,17 @@ def test_full_backup_reads_twice_and_decodes_settings(tmp_path):
     assert bytes(hx[0x08000000 + i] for i in range(16)) == img[:16] and len(hx) == len(img)
 
 
-def test_512k_part_uses_flash_size_register(tmp_path):
+def test_512k_part_is_rejected(tmp_path):
     bl = FakeBootloader(flash_kb=512)          # e.g. the APM32E103RET6 footprint option
-    assert rb.backup(rb.BootloaderClient(bl, 0.2), tmp_path / 'o', [], log=lambda *_: None) == 0
-    assert len((tmp_path / 'o' / 'flash_full.bin').read_bytes()) == 512 * 1024
+    assert rb.backup(rb.BootloaderClient(bl, 0.2), tmp_path / 'o', [], log=lambda *_: None) == 2
+    assert not any(a >= rb.FLASH_BASE and a < 0x08080000 for a in bl.read_addresses)
 
 
 def test_read_protection_is_reported_and_never_unlocked(tmp_path):
     bl = FakeBootloader(rdp=True)
     code = rb.backup(rb.BootloaderClient(bl, 0.2), tmp_path / 'o', [], log=lambda *_: None)
     meta = json.loads((tmp_path / 'o' / 'meta.json').read_text())
-    assert code == 3 and meta['read_protection'].startswith('ACTIVE')
+    assert code == 3 and meta['read_protection'].startswith('DENIED/UNKNOWN')
     assert 0x92 not in bl.commands and set(bl.commands) <= rb.ALLOWED_COMMANDS
     assert not (tmp_path / 'o' / 'flash_full.bin').exists()
 
@@ -203,3 +205,55 @@ def test_cli_refuses_without_confirmation_or_on_wrong_port(tmp_path, capsys):
     assert 'REFUSED' in capsys.readouterr().err
     assert rb.main(['--port', '/dev/does-not-exist', '--out', str(tmp_path), '--i-confirm-bootloader-entered']) == 2
     assert 'expected' in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('size', [0, 128, 512, 1024, 65535])
+def test_invalid_size_never_reads_flash(tmp_path, size):
+    bl = FakeBootloader(fsize=size)
+    assert rb.backup(rb.BootloaderClient(bl, .02), tmp_path/'out', [], log=lambda *_: None) == 2
+    assert not any(0x08000000 <= a < 0x08080000 for a in bl.read_addresses)
+
+@pytest.mark.parametrize('options', [b'\xa5\xff'+b'\xff'*14, b'\x00\xff'+b'\xff'*14])
+def test_ambiguous_protection_never_reads_flash(tmp_path, options):
+    bl = FakeBootloader(); bl.mem[0x1FFFF800] = options
+    assert rb.backup(rb.BootloaderClient(bl, .02), tmp_path/'out', [], log=lambda *_: None) == 2
+    assert not any(0x08000000 <= a < 0x08080000 for a in bl.read_addresses)
+
+def test_unknown_identity_no_memory_read(tmp_path):
+    bl = FakeBootloader(pid=0x430)
+    assert rb.backup(rb.BootloaderClient(bl, .02), tmp_path/'out', []) == 2
+    assert not bl.read_addresses
+
+def test_start_notice_requires_actual_flash_data(tmp_path):
+    bl = FakeBootloader(flaky_at=4); messages=[]
+    assert rb.backup(rb.BootloaderClient(bl,.02), tmp_path/'out',[],log=messages.append) != 0
+    assert not any('BACKUP STARTED' in m for m in messages)
+
+def test_guard_failure_stops_before_sync(tmp_path):
+    bl=FakeBootloader()
+    def guard(): raise rb.Refused('supervisor gone')
+    assert rb.backup(rb.BootloaderClient(bl,.02),tmp_path/'out',[],guard=guard)==2
+    assert bl.commands==[]
+
+def test_interrupt_preserves_failure_evidence(tmp_path):
+    bl=FakeBootloader(); calls=[0]
+    def guard():
+        calls[0]+=1
+        if calls[0]==6: raise KeyboardInterrupt()
+    assert rb.backup(rb.BootloaderClient(bl,.02),tmp_path/'out',[],guard=guard)==4
+    assert 'KeyboardInterrupt' in (tmp_path/'out'/'meta.json').read_text()
+
+
+@pytest.mark.parametrize('address,data', [(rb.F_SIZE,b''),(rb.F_SIZE,b'\x00'),(rb.OPTION_BYTES,b''),(rb.UID,b'')])
+def test_short_metadata_stops_before_flash(tmp_path,address,data):
+    class Client:
+        sent_commands = []
+        def sync(self): return 'ACK'
+        def get(self): return {}
+        def get_version(self): return {}
+        def get_id(self): return 0x414
+        def read(self,a,n):
+            assert a < rb.FLASH_BASE or a >= 0x08080000
+            if a==address: return data
+            return {rb.OPTION_BYTES:b'\xa5\x5a'+b'\xff'*14,rb.F_SIZE:b'\x00\x01',rb.UID:bytes(12)}[a]
+    assert rb.backup(Client(),tmp_path/'out',[])==2
