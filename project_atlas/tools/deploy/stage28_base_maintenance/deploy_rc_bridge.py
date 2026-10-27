@@ -34,6 +34,7 @@ import stat
 import subprocess
 import sys
 import tarfile
+import threading
 import time
 import urllib.request
 
@@ -278,15 +279,57 @@ def resources_strict(env, ev, label, seconds):
     return rec
 
 
-def resources_after_restart(env, ev, label, rule):
-    """strict: every sample <=75 from the restart on. settle: <=settle_max_s until settle_run consecutive
-    samples <=75, then a strict steady window. Limits never change."""
+class CpuRecorder:
+    """Continuous 1-s whole-machine CPU samples in a background thread, started BEFORE a restart so the restart
+    second itself is measured. Nothing is averaged away: every sample is kept and saved."""
+
+    def __init__(self, env):
+        self.env, self.samples, self._stop = env, [], threading.Event()
+        self._t = threading.Thread(target=self._run, daemon=True)
+
+    def __enter__(self):
+        self._t.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._stop.set()
+        self._t.join(timeout=5)
+
+    def _run(self):
+        while not self._stop.is_set():
+            t0 = time.time()
+            x = self.env.cpu_samples(1)[0]
+            if time.time() - t0 < 0.5:          # scripted samplers return instantly: keep a 1-s cadence
+                self._stop.wait(1.0)
+            self.samples.append((time.time(), x))
+
+    def since(self, t):
+        return [x for (ts, x) in list(self.samples) if ts > t]
+
+
+def resources_after_restart(env, ev, label, rule, rec, t_restart):
+    """Judged on the continuous recorder from the restart moment on (the first post-restart seconds are included).
+    strict: every sample <=75 for steady_s seconds after the restart. settle: <=settle_max_s until settle_run
+    consecutive samples <=75, then a strict steady window. Limits never change."""
     if rule == 'strict':
-        return resources_strict(env, ev, label + '-strict', env.steady_s)
-    seen = []
-    run = 0
+        while len(rec.since(t_restart)) < env.steady_s:
+            env.sleep(0.5)
+        seen = rec.since(t_restart)
+        ram, temps = env.ram_temp()
+        r = {'label': label + '-strict', 'cpu_1s_since_restart': seen, 'cpu_max': max(seen),
+             'ram_pct': ram, 'temps_c': temps, 'temp_max_c': max(temps.values()) if temps else None}
+        ev.save(f'resources-{label}-strict', r)
+        over = [x for x in seen if x > CPU_LIMIT]
+        if over or not temps or ram > RAM_LIMIT or r['temp_max_c'] >= TEMP_LIMIT:
+            raise Fail(f'{label}: STRICT limit exceeded after restart: cpu samples >75 {over} (of {len(seen)}), '
+                       f'ram {ram}, temp {r["temp_max_c"]}')
+        ev.log(f'{label}: STRICT OK {len(seen)} samples since restart, max {max(seen)}, ram {ram}, temp {r["temp_max_c"]}')
+        return r
+    seen, run = [], 0
     while len(seen) < env.settle_max_s:
-        x = env.cpu_samples(1)[0]
+        while len(rec.since(t_restart)) <= len(seen):
+            env.sleep(0.2)
+        x = rec.since(t_restart)[len(seen)]
         seen.append(x)
         run = run + 1 if x <= CPU_LIMIT else 0
         if run >= env.settle_run:
@@ -546,14 +589,19 @@ def install_recovery(env, args, ev=None):
         install_atomic(mine['atlas_base_maintenance.py'], env.scripts / 'atlas_base_maintenance.py', 0o644)
         install_atomic(mine['atlas_sensor_recovery.py'], env.scripts / 'atlas_sensor_recovery.py',
                        meta['atlas_sensor_recovery.py']['mode'])
-        t0 = time.time()
-        ev.log('restarting atlas-sensor-recovery ONLY')
-        env.systemctl('restart', env.recovery, timeout=30)
-        rec1, log = wait_recovery_ready(env, rec0)
-        if 'ATLAS base maintenance coordination: loaded' not in log:
-            raise Fail('patched recovery did not report coordination loaded')
-        rec1 = require_running(env, env.recovery)
-        resources_after_restart(env, ev, 'A-post', args.cpu_rule)
+        with CpuRecorder(env) as cpu:
+            env.sleep(2.5)                                  # recorder running before the restart
+            t0 = time.time()
+            ev.log('restarting atlas-sensor-recovery ONLY')
+            env.systemctl('restart', env.recovery, timeout=30)
+            rec1, log = wait_recovery_ready(env, rec0)
+            if 'ATLAS base maintenance coordination: loaded' not in log:
+                raise Fail('patched recovery did not report coordination loaded')
+            rec1 = require_running(env, env.recovery)
+            try:
+                resources_after_restart(env, ev, 'A-post', args.cpu_rule, cpu, t0)
+            finally:
+                ev.save('cpu-recorder-A', {'t_restart': t0, 'samples': cpu.samples})
         # functional proof with the base untouched: short HOLD lease -> ack -> release
         bm, m = maint(env)
         session = arm_or_fail(bm, m, 'stage A functional check (no base restart)', 30.0, env.in_flight_wait_s)
@@ -631,14 +679,19 @@ def deploy(env, args, ev=None):
         require_safe(env, ev, 'B-pre-restart', count=2)
         resources_strict(env, ev, 'B-pre-restart', env.pre_restart_s)
         m.authorize_start(session)
-        t0 = time.time()
-        ev.log('restarting rover-base-telemetry ONLY (1 authorised start)')
-        state['restarted'] = True
-        r = env.systemctl('restart', env.base, timeout=90, check=False)
-        ev.save('restart', {'rc': r.returncode, 'stdout': r.stdout, 'stderr': r.stderr})
-        verify_base_back(env, ev, m, session, t0, base0, expect_used=1)
-        rc = verify_rc(env, ev)
-        resources_after_restart(env, ev, 'B-post', args.cpu_rule)
+        with CpuRecorder(env) as cpu:
+            env.sleep(2.5)
+            t0 = time.time()
+            ev.log('restarting rover-base-telemetry ONLY (1 authorised start)')
+            state['restarted'] = True
+            r = env.systemctl('restart', env.base, timeout=90, check=False)
+            ev.save('restart', {'rc': r.returncode, 'stdout': r.stdout, 'stderr': r.stderr})
+            try:
+                verify_base_back(env, ev, m, session, t0, base0, expect_used=1)
+                rc = verify_rc(env, ev)
+                resources_after_restart(env, ev, 'B-post', args.cpu_rule, cpu, t0)
+            finally:
+                ev.save('cpu-recorder-B', {'t_restart': t0, 'samples': cpu.samples})
         require_safe(env, ev, 'B-post')
         if identities(env, env.protected) != prot0:
             raise Fail('a protected service identity changed')

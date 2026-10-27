@@ -494,20 +494,35 @@ class DeployerGateTests(unittest.TestCase):
             D.resources_strict(FakeEnv([status()], cpu=[60, 60, 75.01, 60]), Ev(), 'x', 4)
         D.resources_strict(FakeEnv([status()], cpu=[75.0] * 4), Ev(), 'x', 4)   # limit itself is allowed
 
-    def test_settle_rule(self):
-        env = FakeEnv([status()], cpu=[98.8, 90, 80, 70, 70, 70, 70, 70, 70], settle_run=3, steady_s=3, settle_max_s=10)
-        D.resources_after_restart(env, Ev(), 'x', 'settle')
-        env = FakeEnv([status()], cpu=[98.8] * 50, settle_run=3, steady_s=3, settle_max_s=10)
-        with self.assertRaises(D.Fail):
-            D.resources_after_restart(env, Ev(), 'x', 'settle')
-        env = FakeEnv([status()], cpu=[70, 70, 70, 80] + [70] * 9, settle_run=3, steady_s=3, settle_max_s=10)
-        with self.assertRaises(D.Fail):            # settled, but the steady window must also hold
-            D.resources_after_restart(env, Ev(), 'x', 'settle')
+    @staticmethod
+    def rec(samples, t0=100.0):
+        return types.SimpleNamespace(since=lambda t, s=samples: [x for i, x in enumerate(s) if t0 + i + 1 > t])
 
-    def test_strict_rule_fails_on_restart_transient(self):
-        env = FakeEnv([status()], cpu=[98.8] + [66.0] * 40, steady_s=30)
+    def test_settle_rule(self):
+        env = FakeEnv([status()], cpu=[70] * 20, settle_run=3, steady_s=3, settle_max_s=10)
+        D.resources_after_restart(env, Ev(), 'x', 'settle', self.rec([98.8, 90, 80, 70, 70, 70]), 100.0)
+        env = FakeEnv([status()], settle_run=3, steady_s=3, settle_max_s=10)
         with self.assertRaises(D.Fail):
-            D.resources_after_restart(env, Ev(), 'x', 'strict')
+            D.resources_after_restart(env, Ev(), 'x', 'settle', self.rec([98.8] * 50), 100.0)
+        env = FakeEnv([status()], cpu=[70, 80, 70], settle_run=3, steady_s=3, settle_max_s=10)
+        with self.assertRaises(D.Fail):            # settled, but the steady window must also hold
+            D.resources_after_restart(env, Ev(), 'x', 'settle', self.rec([70, 70, 70]), 100.0)
+
+    def test_strict_rule_judges_every_sample_from_the_restart(self):
+        env = FakeEnv([status()], steady_s=30)
+        with self.assertRaises(D.Fail):            # a single first-second spike is not averaged away
+            D.resources_after_restart(env, Ev(), 'x', 'strict', self.rec([98.8] + [66.0] * 40), 100.0)
+        D.resources_after_restart(env, Ev(), 'x', 'strict', self.rec([75.0] + [66.0] * 40), 100.0)
+        before_restart_spike = self.rec([99.0] + [66.0] * 40, t0=95.0)   # spike sample ended before the restart
+        D.resources_after_restart(env, Ev(), 'x', 'strict', before_restart_spike, 100.0)
+
+    def test_recorder_runs_in_background(self):
+        env = FakeEnv([status()], cpu=[10, 20, 30])
+        env.sleep = time.sleep
+        with D.CpuRecorder(env) as r:
+            time.sleep(2.3)
+        self.assertGreaterEqual(len(r.samples), 2)
+        self.assertEqual([x for _, x in r.samples][:2], [10, 20])
 
     def test_mutations_need_owner_approval_and_flags(self):
         with mock.patch.dict(os.environ, {}, clear=False):
