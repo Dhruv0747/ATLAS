@@ -1,5 +1,7 @@
 # ATLAS current blockers
 
+2026-10-27 Restart CPU spike root cause: peer discovery (89-99 %); strict 1-s rule cannot pass any ROS node restart at ~65 % baseline (model: fixed ~5.5 core-s per new participant). Owner decision: transient bound 10 s for Stage A (evidence: last over-limit +8.5 s). Side issue: user@1000 lacks cpu controller; base CPUWeight not in effect. ATLAS_STAGE28_RESTART_CPU_ROOT_CAUSE_20261027.md
+
 2026-10-27 Stage28 Stage A FAIL (strict CPU): recovery start-up transient 7 samples >75 % (peak 99.8 %); rolled back, verified. Stage B blocked. Owner decision needed: transient rule vs start-up cap vs baseline reduction. ATLAS_STAGE28_STAGE_A_STRICT_CPU_ROLLBACK_20261027.md
 
 2026-10-27 Stage28 base-restart coordination: offline package READY, NOT deployed. Recovery race narrowed:

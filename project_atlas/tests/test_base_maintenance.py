@@ -10,6 +10,7 @@ import tempfile
 import threading
 import time
 import types
+import contextlib
 import unittest
 from unittest import mock
 
@@ -495,26 +496,70 @@ class DeployerGateTests(unittest.TestCase):
         D.resources_strict(FakeEnv([status()], cpu=[75.0] * 4), Ev(), 'x', 4)   # limit itself is allowed
 
     @staticmethod
-    def rec(samples, t0=100.0):
-        return types.SimpleNamespace(since=lambda t, s=samples: [x for i, x in enumerate(s) if t0 + i + 1 > t])
+    def rec(samples, t0=100.0, rt=None):
+        timed = [(round(i + 1 + (t0 - 100.0), 2), x) for i, x in enumerate(samples)]
+        rts = rt if rt is not None else [(100.0 + i + 1, 60.0, 64.0) for i in range(len(samples))]
+        return types.SimpleNamespace(
+            since=lambda t: [x for d, x in timed if 100.0 + d > t],
+            timed_since=lambda t: [(round(100.0 + d - t, 2), x) for d, x in timed if 100.0 + d > t],
+            rt=rts)
 
-    def test_settle_rule(self):
-        env = FakeEnv([status()], cpu=[70] * 20, settle_run=3, steady_s=3, settle_max_s=10)
-        D.resources_after_restart(env, Ev(), 'x', 'settle', self.rec([98.8, 90, 80, 70, 70, 70]), 100.0)
-        env = FakeEnv([status()], settle_run=3, steady_s=3, settle_max_s=10)
+    def gate(self, samples, rule='transient', bound=10, rt=None, safety=None, t0=100.0):
+        env = FakeEnv([status()], steady_s=30)
+        ev = Ev()
+        r = D.resources_after_restart(env, ev, 'x', rule, self.rec(samples, t0, rt), 100.0, bound, safety)
+        return r, ev
+
+    STAGE_A = [71.14, 71.57, 95.34, 99.83, 99.5, 95.98, 90.8, 90.37, 80.68, 66.5] + [66.0] * 30   # measured 20:57
+
+    def test_measured_stage_a_passes_10s_bound_and_is_reported(self):
+        r, ev = self.gate(self.STAGE_A, bound=10)
+        self.assertEqual(len(r['over_limit_inside_bound']), 7)
+        self.assertEqual(r['last_over_limit_s'], 9.0)
+        self.assertEqual([x for _, x in r['cpu_samples_since_restart']][:10], self.STAGE_A[:10])
+
+    def test_measured_stage_a_fails_shorter_bound_and_strict(self):
         with self.assertRaises(D.Fail):
-            D.resources_after_restart(env, Ev(), 'x', 'settle', self.rec([98.8] * 50), 100.0)
-        env = FakeEnv([status()], cpu=[70, 80, 70], settle_run=3, steady_s=3, settle_max_s=10)
-        with self.assertRaises(D.Fail):            # settled, but the steady window must also hold
-            D.resources_after_restart(env, Ev(), 'x', 'settle', self.rec([70, 70, 70]), 100.0)
+            self.gate(self.STAGE_A, bound=8)        # last over-limit sample at +9 s lies outside an 8 s bound
+        with self.assertRaises(D.Fail):
+            self.gate(self.STAGE_A, rule='strict', bound=None)
+
+    def test_any_late_sample_fails(self):
+        with self.assertRaises(D.Fail):
+            self.gate([90] * 5 + [66] * 20 + [75.5] + [66] * 20, bound=10)
+
+    def test_ram_and_temperature_strict_inside_window(self):
+        rt = [(101.0, 60.0, 64.0), (102.0, 80.5, 64.0)] + [(103.0 + i, 60.0, 64.0) for i in range(40)]
+        with self.assertRaises(D.Fail):
+            self.gate([90, 90] + [66] * 40, bound=10, rt=rt)
+        rt = [(101.0, 60.0, 70.0)] + [(102.0 + i, 60.0, 64.0) for i in range(41)]
+        with self.assertRaises(D.Fail):
+            self.gate([90, 90] + [66] * 40, bound=10, rt=rt)
+        rt = [(101.0, None, 'error x')] + [(102.0 + i, 60.0, 64.0) for i in range(41)]
+        with self.assertRaises(D.Fail):            # an unreadable sample never counts as a pass
+            self.gate([66] * 42, bound=10, rt=rt)
+
+    def test_safety_failure_inside_window_fails(self):
+        safety = types.SimpleNamespace(snaps=[1], failures=lambda a, b: [{'t': 3.0, 'failed': ['cmd_zero']}])
+        with self.assertRaises(D.Fail):
+            self.gate([90] * 3 + [66] * 40, bound=10, safety=safety)
+
+    def test_bound_is_mandatory_and_capped(self):
+        for b in (None, 0, 31):
+            with self.assertRaises(D.Fail):
+                self.gate([66] * 45, bound=b)
+        with mock.patch.dict(os.environ, {'OWNER_APPROVED': 'yes'}):
+            base = ['install-recovery', '--owner-confirms-transmitter-off', '--owner-confirms-actuators-disconnected']
+            for extra in (['--cpu-rule', 'transient'], ['--cpu-rule', 'transient', '--transient-bound-s', '45'],
+                          ['--cpu-rule', 'strict', '--transient-bound-s', '10'], ['--cpu-rule', 'settle']):
+                with self.assertRaises((SystemExit,)) if 'settle' in extra else contextlib.nullcontext():
+                    self.assertEqual(D.main(base + extra, env=FakeEnv([status()])), 2)
 
     def test_strict_rule_judges_every_sample_from_the_restart(self):
-        env = FakeEnv([status()], steady_s=30)
         with self.assertRaises(D.Fail):            # a single first-second spike is not averaged away
-            D.resources_after_restart(env, Ev(), 'x', 'strict', self.rec([98.8] + [66.0] * 40), 100.0)
-        D.resources_after_restart(env, Ev(), 'x', 'strict', self.rec([75.0] + [66.0] * 40), 100.0)
-        before_restart_spike = self.rec([99.0] + [66.0] * 40, t0=95.0)   # spike sample ended before the restart
-        D.resources_after_restart(env, Ev(), 'x', 'strict', before_restart_spike, 100.0)
+            self.gate([98.8] + [66.0] * 40, rule='strict', bound=None)
+        self.gate([75.0] + [66.0] * 40, rule='strict', bound=None)
+        self.gate([99.0] + [66.0] * 40, rule='strict', bound=None, t0=95.0)   # spike ended before the restart
 
     def test_recorder_runs_in_background(self):
         env = FakeEnv([status()], cpu=[10, 20, 30])
@@ -527,11 +572,11 @@ class DeployerGateTests(unittest.TestCase):
     def test_mutations_need_owner_approval_and_flags(self):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop('OWNER_APPROVED', None)
-            self.assertEqual(D.main(['deploy', '--cpu-rule', 'settle', '--owner-confirms-transmitter-off',
+            self.assertEqual(D.main(['deploy', '--cpu-rule', 'strict', '--owner-confirms-transmitter-off',
                                      '--owner-confirms-actuators-disconnected'], env=FakeEnv([status()])), 2)
         with mock.patch.dict(os.environ, {'OWNER_APPROVED': 'yes'}):
             self.assertEqual(D.main(['deploy'], env=FakeEnv([status()])), 2)
-            self.assertEqual(D.main(['deploy', '--cpu-rule', 'settle'], env=FakeEnv([status()])), 2)
+            self.assertEqual(D.main(['deploy', '--cpu-rule', 'strict'], env=FakeEnv([status()])), 2)
 
     def test_candidates_rebuild_from_baselines(self):
         with tempfile.TemporaryDirectory() as d:

@@ -155,7 +155,7 @@ class SimEnv(D.Env):
     def __init__(self, port, cpu=None, **kw):
         super().__init__(scripts=SCRIPTS, api=f'http://127.0.0.1:{port}', evidence_root=W / 'evidence',
                          protected=PROTECTED, python=sys.executable, preflight_s=5, pre_restart_s=3, steady_s=5,
-                         settle_max_s=20, settle_run=3, ack_timeout_s=8, in_flight_wait_s=30, ready_timeout_s=30,
+                         ack_timeout_s=8, in_flight_wait_s=30, ready_timeout_s=30,
                          rc_publisher_timeout_s=10, recovery_ready_timeout_s=30, lease_s=240, **kw)
         self.cpu = cpu or {}
         self.transient_left = 0
@@ -338,7 +338,7 @@ def s01_stage_a_install_recovery(port):
     env = SimEnv(port, cpu={'transient_n': 2, 'transient_val': 98.8, 'steady': 66.0})
     base_pid = show(BASE, 'MainPID')['MainPID']
     os.environ['OWNER_APPROVED'] = 'yes'
-    rc = D.main(['install-recovery', '--cpu-rule', 'settle', '--owner-confirms-transmitter-off',
+    rc = D.main(['install-recovery', '--cpu-rule', 'transient', '--transient-bound-s', '10', '--owner-confirms-transmitter-off',
                  '--owner-confirms-actuators-disconnected'], env=env)
     assert rc == 0, f'stage A rc={rc}'
     assert D.sha(SCRIPTS / 'atlas_sensor_recovery.py') == D.MANIFEST['modified']['atlas_sensor_recovery.py']['candidate_sha256']
@@ -369,7 +369,7 @@ def ensure_stage_a(port):
     if D.sha(SCRIPTS / 'atlas_sensor_recovery.py') != D.MANIFEST['modified']['atlas_sensor_recovery.py']['candidate_sha256']:
         install_original_recovery()
         env = SimEnv(port, cpu={'transient_n': 1})
-        assert D.main(['install-recovery', '--cpu-rule', 'settle', '--owner-confirms-transmitter-off',
+        assert D.main(['install-recovery', '--cpu-rule', 'transient', '--transient-bound-s', '10', '--owner-confirms-transmitter-off',
                        '--owner-confirms-actuators-disconnected'], env=env) == 0
 
 
@@ -398,7 +398,7 @@ def restore_stage_b_baseline():
 
 def deploy(port, **cpu):
     env = SimEnv(port, cpu={'transient_n': 3, 'transient_val': 98.8, 'steady': 66.0, **cpu})
-    rc = D.main(['deploy', '--cpu-rule', 'settle', '--owner-confirms-transmitter-off',
+    rc = D.main(['deploy', '--cpu-rule', 'transient', '--transient-bound-s', '10', '--owner-confirms-transmitter-off',
                  '--owner-confirms-actuators-disconnected'], env=env)
     return rc, env
 
@@ -562,7 +562,7 @@ def s07_stop_guard_broken_before_restart(port):
         return orig(env_, ev, label, **kw)
     D.require_safe = trip
     try:
-        rc = D.main(['deploy', '--cpu-rule', 'settle', '--owner-confirms-transmitter-off',
+        rc = D.main(['deploy', '--cpu-rule', 'transient', '--transient-bound-s', '10', '--owner-confirms-transmitter-off',
                      '--owner-confirms-actuators-disconnected'], env=env)
     finally:
         D.require_safe = orig

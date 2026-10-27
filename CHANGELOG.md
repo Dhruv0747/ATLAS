@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-27 Stage28 restart-CPU root cause (offline): 89-99 % of restart spikes is DDS/graph discovery in the 44 peer participants, not the restarted node. Quota/weight ineffective (and not enforced: user manager lacks cpu delegation; base CPUWeight=1000 never applied). Replaced the 120 s 'settle' option with a narrow 'transient' rule (explicit evidence-based bound, every sample reported, RAM/temp strict, safety sampled in window); rollback restarts now recorded. docs/ATLAS_STAGE28_RESTART_CPU_ROOT_CAUSE_20261027.md
+
 2026-10-27 Stage28 Stage A (strict CPU): FAIL, rollback verified. Recovery start-up exceeded 75 % for ~7 s (peak 99.8 %); original recovery restored, base PID 1921 untouched. docs/ATLAS_STAGE28_STAGE_A_STRICT_CPU_ROLLBACK_20261027.md
 
 2026-10-27 Stage28: base-maintenance coordination + RC-bridge deployment package (OFFLINE, NOT deployed).

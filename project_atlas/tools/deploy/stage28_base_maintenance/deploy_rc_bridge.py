@@ -16,11 +16,13 @@ Two separately approvable stages, each with its own backup, verification and rol
 
 Never: flashing, serial access, motor/servo commands, E-STOP/arbitration/Nav2/TF/localization changes,
 threshold changes, disabling recovery, automatic retries. The 75 % CPU / 80 % RAM / 70 C limits are unchanged;
---cpu-rule only selects how a restart transient is judged (owner decision, no default).
+--cpu-rule only selects how a restart transient is judged (owner decision, no default):
+strict = every sample <= 75 from the restart; transient = >75 tolerated only within an explicit, evidence-based bound,
+every sample reported, RAM/temp strict throughout, safety sampled during the window.
 
 Run detached from SSH so a dropped session cannot orphan the lease, e.g.
   systemd-run --user --unit=atlas-stage28-deploy --collect --wait --pipe \
-     -E OWNER_APPROVED=yes python3 deploy_rc_bridge.py deploy --cpu-rule settle ...
+     -E OWNER_APPROVED=yes python3 deploy_rc_bridge.py deploy --cpu-rule strict ...
 """
 import argparse
 import contextlib
@@ -43,6 +45,7 @@ REPO_SCRIPTS = HERE.parents[2] / 'scripts'
 RC_TOOLS = HERE.parent / 'stage28_yahboom_rc'
 MANIFEST = json.loads((HERE / 'MANIFEST.json').read_text())
 CPU_LIMIT, RAM_LIMIT, TEMP_LIMIT = 75.0, 80.0, 70.0          # unchanged ATLAS limits
+MAX_TRANSIENT_BOUND_S = 30.0   # hard ceiling for --transient-bound-s (evidence: longest measured node restart 26 s)
 GOOD_ENCODER_STATES = {'READY', 'HEALTHY', 'DEGRADED'}
 
 
@@ -71,8 +74,6 @@ class Env:
         self.lease_s = 480.0
         self.preflight_s = 30
         self.pre_restart_s = 10
-        self.settle_max_s = 120
-        self.settle_run = 5
         self.steady_s = 30
         self.ack_timeout_s = 8.0
         self.in_flight_wait_s = 40.0
@@ -280,11 +281,11 @@ def resources_strict(env, ev, label, seconds):
 
 
 class CpuRecorder:
-    """Continuous 1-s whole-machine CPU samples in a background thread, started BEFORE a restart so the restart
-    second itself is measured. Nothing is averaged away: every sample is kept and saved."""
+    """Continuous 1-s whole-machine CPU + RAM + temperature samples in a background thread, started BEFORE a restart
+    so the restart second itself is measured. Nothing is averaged away: every sample is kept, saved and reported."""
 
     def __init__(self, env):
-        self.env, self.samples, self._stop = env, [], threading.Event()
+        self.env, self.samples, self.rt, self._stop = env, [], [], threading.Event()
         self._t = threading.Thread(target=self._run, daemon=True)
 
     def __enter__(self):
@@ -301,44 +302,97 @@ class CpuRecorder:
             x = self.env.cpu_samples(1)[0]
             if time.time() - t0 < 0.5:          # scripted samplers return instantly: keep a 1-s cadence
                 self._stop.wait(1.0)
-            self.samples.append((time.time(), x))
+            now = time.time()
+            self.samples.append((now, x))
+            try:
+                ram, temps = self.env.ram_temp()
+                self.rt.append((now, ram, max(temps.values()) if temps else None))
+            except Exception as exc:              # an unreadable sample is evidence, never a pass
+                self.rt.append((now, None, f'error {exc!r}'))
 
     def since(self, t):
         return [x for (ts, x) in list(self.samples) if ts > t]
 
+    def timed_since(self, t):
+        return [(round(ts - t, 2), x) for (ts, x) in list(self.samples) if ts > t]
 
-def resources_after_restart(env, ev, label, rule, rec, t_restart):
-    """Judged on the continuous recorder from the restart moment on (the first post-restart seconds are included).
-    strict: every sample <=75 for steady_s seconds after the restart. settle: <=settle_max_s until settle_run
-    consecutive samples <=75, then a strict steady window. Limits never change."""
+
+# Predicates that do not depend on the restarted base itself (used while the base is down by design in stage B).
+NON_BASE_PREDICATES = ('estop_latched', 'policy_fresh', 'stop_latched', 'manual_only', 'commission_off',
+                       'source_stopped', 'cmd_fresh', 'cmd_zero', 'web_drive_stop', 'drive_pid_inactive')
+
+
+class SafetyRecorder:
+    """Safety snapshots every ~1.5 s through the whole transient window; every snapshot is saved."""
+
+    def __init__(self, env, required=None, period=1.5):
+        self.env, self.required, self.period = env, required, period
+        self.snaps, self._stop = [], threading.Event()
+        self._t = threading.Thread(target=self._run, daemon=True)
+
+    def __enter__(self):
+        self._t.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._stop.set()
+        self._t.join(timeout=10)
+
+    def _run(self):
+        while not self._stop.is_set():
+            try:
+                s = safety_snapshot(self.env)
+            except Exception as exc:
+                s = {'ok': False, 'predicates': {'snapshot': False}, 'error': repr(exc), 'wall': time.time()}
+            keys = self.required or list(s['predicates'])
+            s['window_ok'] = all(s['predicates'].get(k) is True for k in keys)
+            self.snaps.append(s)
+            self._stop.wait(self.period)
+
+    def failures(self, t0, t1):
+        return [{'t': round(s['wall'] - t0, 2), 'failed': [k for k, v in s['predicates'].items() if not v]}
+                for s in list(self.snaps) if t0 <= s['wall'] <= t1 and not s['window_ok']]
+
+
+def resources_after_restart(env, ev, label, rule, rec, t_restart, bound_s=None, safety=None):
+    """Judged on the continuous recorder from the restart moment on (first post-restart seconds included).
+
+    strict    : every CPU sample <= 75 for steady_s seconds after the restart.
+    transient : CPU samples > 75 are tolerated ONLY in (t_restart, t_restart + bound_s]; every such sample is
+                labelled and reported. Afterwards a strict window of steady_s seconds. Any sample > 75 after the
+                bound fails. RAM <= 80 and temperature < 70 are strict on EVERY sample, inside the window too.
+                Safety snapshots must hold throughout the window (when a SafetyRecorder is given).
+    Limits never change."""
     if rule == 'strict':
-        while len(rec.since(t_restart)) < env.steady_s:
-            env.sleep(0.5)
-        seen = rec.since(t_restart)
-        ram, temps = env.ram_temp()
-        r = {'label': label + '-strict', 'cpu_1s_since_restart': seen, 'cpu_max': max(seen),
-             'ram_pct': ram, 'temps_c': temps, 'temp_max_c': max(temps.values()) if temps else None}
-        ev.save(f'resources-{label}-strict', r)
-        over = [x for x in seen if x > CPU_LIMIT]
-        if over or not temps or ram > RAM_LIMIT or r['temp_max_c'] >= TEMP_LIMIT:
-            raise Fail(f'{label}: STRICT limit exceeded after restart: cpu samples >75 {over} (of {len(seen)}), '
-                       f'ram {ram}, temp {r["temp_max_c"]}')
-        ev.log(f'{label}: STRICT OK {len(seen)} samples since restart, max {max(seen)}, ram {ram}, temp {r["temp_max_c"]}')
-        return r
-    seen, run = [], 0
-    while len(seen) < env.settle_max_s:
-        while len(rec.since(t_restart)) <= len(seen):
-            env.sleep(0.2)
-        x = rec.since(t_restart)[len(seen)]
-        seen.append(x)
-        run = run + 1 if x <= CPU_LIMIT else 0
-        if run >= env.settle_run:
-            break
-    ev.save(f'resources-{label}-transient', {'cpu_1s': seen, 'settled_after_s': len(seen) if run >= env.settle_run else None})
-    if run < env.settle_run:
-        raise Fail(f'{label}: CPU did not settle (<= {CPU_LIMIT} for {env.settle_run} s) within {env.settle_max_s} s')
-    ev.log(f'{label}: transient settled after {len(seen)} s (peak {max(seen)})')
-    return resources_strict(env, ev, label + '-steady', env.steady_s)
+        bound_s = 0.0
+    elif rule != 'transient' or bound_s is None or not 0 < bound_s <= MAX_TRANSIENT_BOUND_S:
+        raise Fail(f'{label}: transient rule requires an explicit bound 0 < bound <= {MAX_TRANSIENT_BOUND_S} s')
+    while len([d for d, _ in rec.timed_since(t_restart) if d > bound_s]) < env.steady_s:
+        env.sleep(0.5)
+    timed = rec.timed_since(t_restart)
+    inside = [(d, x) for d, x in timed if d <= bound_s]
+    after = [(d, x) for d, x in timed if d > bound_s]
+    rt = [(round(ts - t_restart, 2), ram, temp) for ts, ram, temp in list(rec.rt) if ts > t_restart]
+    bad_rt = [r for r in rt if not (type(r[1]) in (int, float) and r[1] <= RAM_LIMIT and
+                                     type(r[2]) in (int, float) and r[2] < TEMP_LIMIT)]
+    over_inside = [(d, x) for d, x in inside if x > CPU_LIMIT]
+    over_after = [(d, x) for d, x in after if x > CPU_LIMIT]
+    safety_fail = safety.failures(t_restart, t_restart + bound_s + env.steady_s) if safety else []
+    report = {'label': label, 'rule': rule, 'bound_s': bound_s, 'limits': [CPU_LIMIT, RAM_LIMIT, TEMP_LIMIT],
+              'cpu_samples_since_restart': timed,
+              'over_limit_inside_bound': over_inside, 'over_limit_after_bound': over_after,
+              'last_over_limit_s': max([d for d, x in timed if x > CPU_LIMIT], default=None),
+              'ram_temp_samples': rt, 'ram_temp_violations': bad_rt,
+              'safety_snapshots_in_window': len(safety.snaps) if safety else 0, 'safety_failures': safety_fail}
+    ev.save(f'resources-{label}-{rule}', report)
+    if over_inside:
+        ev.log(f'{label}: TRANSIENT over-limit CPU samples inside the {bound_s} s bound (reported, not hidden): {over_inside}')
+    if over_after or bad_rt or safety_fail or (rule == 'strict' and over_inside):
+        raise Fail(f'{label}: {rule.upper()} gate failed: cpu>75 after bound {over_after or over_inside}, '
+                   f'ram/temp violations {bad_rt[:3]}, safety failures {safety_fail[:3]}')
+    ev.log(f'{label}: {rule.upper()} OK: {len(over_inside)} over-limit samples within {bound_s} s (last '
+           f'{report["last_over_limit_s"]} s); {len(after)} samples after bound all <= {CPU_LIMIT}; RAM/temp OK every sample')
+    return report
 
 
 # ------------------------------------------------------------------ systemd helpers
@@ -589,19 +643,20 @@ def install_recovery(env, args, ev=None):
         install_atomic(mine['atlas_base_maintenance.py'], env.scripts / 'atlas_base_maintenance.py', 0o644)
         install_atomic(mine['atlas_sensor_recovery.py'], env.scripts / 'atlas_sensor_recovery.py',
                        meta['atlas_sensor_recovery.py']['mode'])
-        with CpuRecorder(env) as cpu:
-            env.sleep(2.5)                                  # recorder running before the restart
+        with CpuRecorder(env) as cpu, SafetyRecorder(env) as safe:
+            env.sleep(2.5)                                  # recorders running before the restart
             t0 = time.time()
             ev.log('restarting atlas-sensor-recovery ONLY')
             env.systemctl('restart', env.recovery, timeout=30)
-            rec1, log = wait_recovery_ready(env, rec0)
-            if 'ATLAS base maintenance coordination: loaded' not in log:
-                raise Fail('patched recovery did not report coordination loaded')
-            rec1 = require_running(env, env.recovery)
             try:
-                resources_after_restart(env, ev, 'A-post', args.cpu_rule, cpu, t0)
+                rec1, log = wait_recovery_ready(env, rec0)
+                if 'ATLAS base maintenance coordination: loaded' not in log:
+                    raise Fail('patched recovery did not report coordination loaded')
+                rec1 = require_running(env, env.recovery)
+                resources_after_restart(env, ev, 'A-post', args.cpu_rule, cpu, t0, args.transient_bound_s, safe)
             finally:
-                ev.save('cpu-recorder-A', {'t_restart': t0, 'samples': cpu.samples})
+                ev.save('cpu-recorder-A', {'t_restart': t0, 'samples': cpu.samples, 'ram_temp': cpu.rt})
+                ev.save('safety-recorder-A', {'t_restart': t0, 'snapshots': safe.snaps})
         # functional proof with the base untouched: short HOLD lease -> ack -> release
         bm, m = maint(env)
         session = arm_or_fail(bm, m, 'stage A functional check (no base restart)', 30.0, env.in_flight_wait_s)
@@ -631,12 +686,28 @@ def install_recovery(env, args, ev=None):
     return 0
 
 
+def record_rollback_cpu(env, ev, label, cpu, t):
+    """Rollback restarts are not aborted on CPU (restoring the original is the safe direction), but every sample is
+    recorded and the over-limit ones are reported."""
+    deadline = time.monotonic() + env.steady_s + 15
+    while len(cpu.since(t)) < env.steady_s and time.monotonic() < deadline:
+        env.sleep(0.5)
+    timed = cpu.timed_since(t)
+    over = [(d, x) for d, x in timed if x > CPU_LIMIT]
+    ev.save(f'cpu-rollback-{label}', {'t_restart': t, 'samples': timed, 'over_limit': over, 'ram_temp': cpu.rt})
+    ev.log(f'rollback {label}: {len(over)} CPU samples > {CPU_LIMIT} % (reported): {over}')
+
+
 def _rollback_recovery_files(env, ev, meta, rec_before):
     try:
         restore(env, ev, meta)
-        env.systemctl('restart', env.recovery, timeout=30)
-        wait_recovery_ready(env, rec_before)
-        ev.log('recovery rollback verified: original restored, READY')
+        with CpuRecorder(env) as cpu:
+            env.sleep(1.5)
+            t = time.time()
+            env.systemctl('restart', env.recovery, timeout=30)
+            wait_recovery_ready(env, rec_before)
+            ev.log('recovery rollback verified: original restored, READY')
+            record_rollback_cpu(env, ev, 'A', cpu, t)
     except Exception as exc:
         ev.log(f'RECOVERY ROLLBACK NOT CONFIRMED ({exc!r}): owner inspection required (no further restart attempted)')
 
@@ -679,7 +750,7 @@ def deploy(env, args, ev=None):
         require_safe(env, ev, 'B-pre-restart', count=2)
         resources_strict(env, ev, 'B-pre-restart', env.pre_restart_s)
         m.authorize_start(session)
-        with CpuRecorder(env) as cpu:
+        with CpuRecorder(env) as cpu, SafetyRecorder(env, required=NON_BASE_PREDICATES) as safe:
             env.sleep(2.5)
             t0 = time.time()
             ev.log('restarting rover-base-telemetry ONLY (1 authorised start)')
@@ -689,9 +760,10 @@ def deploy(env, args, ev=None):
             try:
                 verify_base_back(env, ev, m, session, t0, base0, expect_used=1)
                 rc = verify_rc(env, ev)
-                resources_after_restart(env, ev, 'B-post', args.cpu_rule, cpu, t0)
+                resources_after_restart(env, ev, 'B-post', args.cpu_rule, cpu, t0, args.transient_bound_s, safe)
             finally:
-                ev.save('cpu-recorder-B', {'t_restart': t0, 'samples': cpu.samples})
+                ev.save('cpu-recorder-B', {'t_restart': t0, 'samples': cpu.samples, 'ram_temp': cpu.rt})
+                ev.save('safety-recorder-B', {'t_restart': t0, 'snapshots': safe.snaps})
         require_safe(env, ev, 'B-post')
         if identities(env, env.protected) != prot0:
             raise Fail('a protected service identity changed')
@@ -785,11 +857,14 @@ def rollback_bridge(env, ev, m, session, meta, state, base0):
             m.revoke_unused(session)
             before_rb = wait_quiescent(env, env.base)
             m.authorize_start(session)
-            t = time.time()
-            ev.log('rollback: ONE authorised base restart with the original files')
-            env.systemctl('restart', env.base, timeout=90, check=False)
-            lease = m.evaluate().lease or {}
-            verify_base_back(env, ev, m, session, t, before_rb, expect_used=lease.get('tokens'))
+            with CpuRecorder(env) as cpu:
+                env.sleep(1.5)
+                t = time.time()
+                ev.log('rollback: ONE authorised base restart with the original files')
+                env.systemctl('restart', env.base, timeout=90, check=False)
+                lease = m.evaluate().lease or {}
+                verify_base_back(env, ev, m, session, t, before_rb, expect_used=lease.get('tokens'))
+                record_rollback_cpu(env, ev, 'B', cpu, t)
         release(env, ev, m, session)
         ev.log('ROLLED_BACK: originals restored and verified; maintenance released')
         return 'ROLLED_BACK'
@@ -840,7 +915,10 @@ def preflight(env, args):
 def main(argv=None, env=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('action', choices=['preflight', 'install-recovery', 'deploy', 'abandon'])
-    p.add_argument('--cpu-rule', choices=['strict', 'settle'])
+    p.add_argument('--cpu-rule', choices=['strict', 'transient'])
+    p.add_argument('--transient-bound-s', type=float,
+                   help='transient rule only: seconds after the restart in which >75 %% CPU samples are tolerated '
+                        '(reported, never hidden); no default; max %d' % MAX_TRANSIENT_BOUND_S)
     p.add_argument('--owner-confirms-transmitter-off', action='store_true')
     p.add_argument('--owner-confirms-actuators-disconnected', action='store_true')
     p.add_argument('--evidence-root', help='evidence directory root (default ~/project-atlas-migration)')
@@ -855,6 +933,11 @@ def main(argv=None, env=None):
         if a.action in ('install-recovery', 'deploy') and not (a.cpu_rule and a.owner_confirms_actuators_disconnected
                                                               and a.owner_confirms_transmitter_off):
             print('refused: --cpu-rule and both owner confirmations are required')
+            return 2
+        if (a.cpu_rule == 'transient') != (a.transient_bound_s is not None) or (
+                a.transient_bound_s is not None and not 0 < a.transient_bound_s <= MAX_TRANSIENT_BOUND_S):
+            print(f'refused: --cpu-rule transient needs --transient-bound-s in (0, {MAX_TRANSIENT_BOUND_S:.0f}]; '
+                  'strict takes no bound')
             return 2
     ev = None
     try:
