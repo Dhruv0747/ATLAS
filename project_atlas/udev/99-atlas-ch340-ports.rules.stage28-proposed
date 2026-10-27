@@ -1,0 +1,16 @@
+# ATLAS Stage 28 PROPOSAL (not installed). Replaces /etc/udev/rules.d/99-atlas-ch340-ports.rules.
+#
+# ATLAS has three CH340 adapters (1a86:7523) with NO serial number: Yahboom board, GPS, IM10A IMU.
+# USB identity alone cannot tell them apart, so this rule never matches on VID/PID/ID_SERIAL alone
+# (the older repo rule matched ID_SERIAL=1a86_USB_Serial, i.e. ALL THREE adapters, last one wins).
+#
+# The Yahboom board is pinned to the physical hub port it was measured on (2026-10-27):
+#   /dev/ttyUSB0 ID_PATH=platform-3610000.usb-usb-0:2.2.3:1.0   (GPS 2.4.2, IMU 2.4.3)
+# The installed rule still names the pre-hub path 0:2.2:1.0, so /dev/atlas-yahboom does not exist today.
+#
+# The symlink is a HINT only. The base driver still proves the board by its packet protocol
+# (ATLAS_YAHBOOM_AUTO_USB=1 -> atlas_usb_identity.open_verified('yahboom', preferred)). If the board is
+# moved to another port the link simply disappears (fails closed); it can never point at the GPS/IMU.
+# Only the atlas-yahboom name is created; the legacy /dev/yahboom name is NOT recreated, because older
+# helper scripts open /dev/yahboom without protocol verification.
+SUBSYSTEM=="tty", ENV{ID_PATH}=="platform-3610000.usb-usb-0:2.2.3:1.0", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="atlas-yahboom", GROUP="dialout", MODE="0660"

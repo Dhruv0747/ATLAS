@@ -1,0 +1,30 @@
+# Offline GCC build of the Yahboom ROS-Driver-Board firmware (feasibility/compile check only;
+# the vendor release build uses Keil ARMCC 5.06u7). Driven by build_gcc.sh.
+SRC ?= vendor
+STAGE := build/stage/$(notdir $(SRC))
+OUT ?= build/$(notdir $(SRC))
+CC = arm-none-eabi-gcc
+SRCS := $(addprefix $(STAGE)/,$(filter-out CMSIS/core_cm3.c,$(shell cat srcs.txt))) gcc/port.c $(STAGE)/core_cm3_gccfix.c gcc/syscalls.c
+INC := $(STAGE)/CMSIS $(STAGE)/FWlib/inc $(STAGE)/Source/BSP $(STAGE)/Source/APP $(STAGE)/Source/DEBUG $(STAGE)/FreeRTOS/inc $(STAGE)/Source/MEMS $(STAGE)/Source/TOOL
+DEFS := -DSTM32F10X_HD -DUSE_STDPERIPH_DRIVER -DMEMS_20648 -DMEMS_WEARABLE_DEVICE -DMEMS_SECONDARY_DEVICE -DMEMS_AUGMENTED_SENSORS
+CFLAGS := -mcpu=cortex-m3 -mthumb -Os -g -ffunction-sections -fdata-sections -std=gnu99 -w -fcommon $(DEFS) $(addprefix -I,$(INC))
+OBJS := $(patsubst %.c,$(OUT)/%.o,$(SRCS)) $(OUT)/gcc/startup.o
+all:
+	$(MAKE) -f $(firstword $(MAKEFILE_LIST)) stage SRC=$(SRC)
+	$(MAKE) -f $(firstword $(MAKEFILE_LIST)) elf SRC=$(SRC)
+stage: $(STAGE)/.staged
+elf: $(OUT)/fw.elf
+.PHONY: all stage elf
+$(OUT)/%.o: %.c
+	@mkdir -p $(dir $@); $(CC) $(CFLAGS) -c $< -o $@
+$(STAGE)/.staged: $(shell find $(SRC)/Source $(SRC)/CMSIS $(SRC)/FWlib $(SRC)/FreeRTOS -type f)
+	rm -rf $(STAGE); mkdir -p $(STAGE); cp -r $(SRC)/Source $(SRC)/CMSIS $(SRC)/FWlib $(SRC)/FreeRTOS $(STAGE)/
+	cp gcc/portmacro.h $(STAGE)/FreeRTOS/inc/portmacro.h
+	sed -E 's/"=r" ?\(result\) ?: ?"r" ?\(addr\), ?"r" ?\(value\)/"=\&r" (result) : "r" (addr), "r" (value)/' $(STAGE)/CMSIS/core_cm3.c > $(STAGE)/core_cm3_gccfix.c
+	touch $@
+$(OUT)/gcc/startup.o: gcc/startup.s
+	@mkdir -p $(dir $@); $(CC) -mcpu=cortex-m3 -mthumb -c $< -o $@
+$(OUT)/fw.elf: $(OBJS)
+	$(CC) -mcpu=cortex-m3 -mthumb -specs=nano.specs -specs=nosys.specs -Tgcc/stm32f103rc.ld -Wl,--gc-sections -Wl,-Map=$(OUT)/fw.map $^ -lm -o $@
+	arm-none-eabi-size $@
+	arm-none-eabi-objcopy -O ihex $@ $(OUT)/fw.hex

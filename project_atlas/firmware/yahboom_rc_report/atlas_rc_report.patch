@@ -1,0 +1,182 @@
+diff --git a/Source/APP/app.c b/Source/APP/app.c
+index b9ba2a0..479b78c 100644
+--- a/Source/APP/app.c
++++ b/Source/APP/app.c
+@@ -261,6 +261,12 @@ void vTask_Auto_Report(void *pvParameters)
+ 			{
+ 				Encoder_Send_Count_Now();
+ 			}
++			#if ENABLE_SBUS_REPORT
++			else if (report_count == 36)
++			{
++				SBUS_Send_Report();   /* ATLAS patch */
++			}
++			#endif
+ 		}
+ 		report_count++;
+ 		if (report_count > AUTO_SEND_TIMEOUT) report_count = 0;
+diff --git a/Source/APP/app_sbus.c b/Source/APP/app_sbus.c
+index ebdb470..2c34ca4 100644
+--- a/Source/APP/app_sbus.c
++++ b/Source/APP/app_sbus.c
+@@ -9,6 +9,8 @@
+ 
+ #include "string.h"
+ #include "bsp_usart.h"
++#include "FreeRTOS.h"
++#include "task.h"
+ 
+ 
+ #define SBUS_RECV_MAX    25
+@@ -34,6 +36,11 @@ int16_t g_sbus_speed_X = 0;
+ int16_t g_sbus_speed_Y = 0;
+ int16_t g_sbus_speed_Z = 0;
+ 
++/* ATLAS patch: written in the USART2 ISR on each complete frame, read by the report task. */
++static volatile uint8_t  s_rc_seq = 0;
++static volatile uint8_t  s_rc_ever = 0;
++static volatile uint32_t s_rc_tick = 0;
++
+ 
+ // 解析SBUS的数据，转化成数值。
+ void SBUS_Parse_Data(void)
+@@ -103,6 +110,9 @@ void SBUS_Reveive(uint8_t data)
+         {
+             memcpy(sbus_data, inBuffer, SBUS_RECV_MAX);
+             sbus_new_cmd = 1;
++            s_rc_seq++;
++            s_rc_ever = 1;
++            s_rc_tick = xTaskGetTickCountFromISR();
+             // DEBUG("XX-%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X-XX\r\n",
+             //     sbus_data[0],  sbus_data[1],  sbus_data[2],  sbus_data[3],  sbus_data[4],
+             //     sbus_data[5],  sbus_data[6],  sbus_data[7],  sbus_data[8],  sbus_data[9],
+@@ -136,7 +146,7 @@ void SBUS_Handle(void)
+                g_sbus_channels[0], g_sbus_channels[1], g_sbus_channels[2], g_sbus_channels[3], g_sbus_channels[4],
+                g_sbus_channels[5], g_sbus_channels[6], g_sbus_channels[7]);
+         #endif
+-        #else
++        #elif ENABLE_SBUS_DRIVE
+         
+         // 控制小车运动
+         int16_t value_x = -(g_sbus_channels[2] - SBUS_MIDDLE_VALUE);
+@@ -240,3 +250,48 @@ void SBUS_Handle(void)
+         #endif
+     }
+ }
++
++/* ATLAS patch: build one FUNC_REPORT_RC_SBUS packet in the existing FF FB framing.
++ * Payload: format, seq, status, age_10ms (saturating), then SBUS frame bytes 1..23
++ * (22 bytes of 16x11-bit channels + flag byte) exactly as received. Pure function so it can
++ * be unit tested on the host. Returns the packet length. */
++uint8_t SBUS_Build_Report(uint8_t *out, const uint8_t *frame, uint8_t seq, uint8_t ever, uint32_t age_ms)
++{
++    uint8_t i, checknum = 0, status = SBUS_ST_DRIVE_DISABLED;
++    uint32_t age10 = age_ms / 10;
++    if (ever)
++    {
++        status |= SBUS_ST_EVER;
++        if (age_ms < SBUS_FRESH_MS) status |= SBUS_ST_FRESH;
++        if (frame[23] & (1 << 2)) status |= SBUS_ST_FRAME_LOST;
++        if (frame[23] & (1 << 3)) status |= SBUS_ST_FAILSAFE;
++    }
++    out[0] = PTO_HEAD;
++    out[1] = PTO_DEVICE_ID - 1;
++    out[2] = SBUS_REPORT_LEN - 2;
++    out[3] = FUNC_REPORT_RC_SBUS;
++    out[4] = SBUS_REPORT_FORMAT;
++    out[5] = seq;
++    out[6] = status;
++    out[7] = (uint8_t)(ever ? (age10 > 255 ? 255 : age10) : 255);
++    for (i = 0; i < 23; i++) out[8 + i] = ever ? frame[1 + i] : 0;
++    for (i = 2; i < SBUS_REPORT_LEN - 1; i++) checknum += out[i];
++    out[SBUS_REPORT_LEN - 1] = checknum;
++    return SBUS_REPORT_LEN;
++}
++
++void SBUS_Send_Report(void)
++{
++    uint8_t frame[SBUS_RECV_MAX];
++    uint8_t pkt[SBUS_REPORT_LEN];
++    uint8_t seq, ever;
++    uint32_t tick;
++    taskENTER_CRITICAL();   /* the USART2 ISR may be copying a new frame */
++    memcpy(frame, sbus_data, SBUS_RECV_MAX);
++    seq = s_rc_seq;
++    ever = s_rc_ever;
++    tick = s_rc_tick;
++    taskEXIT_CRITICAL();
++    SBUS_Build_Report(pkt, frame, seq, ever, (uint32_t)(xTaskGetTickCount() - tick) * portTICK_RATE_MS);
++    USART1_Send_ArrayU8(pkt, SBUS_REPORT_LEN);
++}
+diff --git a/Source/APP/app_sbus.h b/Source/APP/app_sbus.h
+index 3d6fc71..bb3cba1 100644
+--- a/Source/APP/app_sbus.h
++++ b/Source/APP/app_sbus.h
+@@ -7,6 +7,16 @@
+ #define SBUS_SIGNAL_LOST        0x01
+ #define SBUS_SIGNAL_FAILSAFE    0x03
+ #define ALL_CHANNELS_
++#define ALL_CHANNELS                    /* ATLAS patch: parse CH9-CH16 too */
++
++#define SBUS_REPORT_FORMAT      (0xA1)  /* ATLAS report layout version */
++#define SBUS_REPORT_LEN         (32)    /* whole packet, header to checksum */
++#define SBUS_FRESH_MS           (100)
++#define SBUS_ST_EVER            (1 << 0)
++#define SBUS_ST_FRESH           (1 << 1)
++#define SBUS_ST_FRAME_LOST      (1 << 2)
++#define SBUS_ST_FAILSAFE        (1 << 3)
++#define SBUS_ST_DRIVE_DISABLED  (1 << 4)
+ 
+ 
+ #define SBUS_MIDDLE_VALUE       (1000)
+@@ -14,5 +24,7 @@
+ 
+ void SBUS_Reveive(uint8_t data);
+ void SBUS_Handle(void);
++uint8_t SBUS_Build_Report(uint8_t *out, const uint8_t *frame, uint8_t seq, uint8_t ever, uint32_t age_ms);
++void SBUS_Send_Report(void);
+ 
+ #endif
+diff --git a/Source/APP/config.h b/Source/APP/config.h
+index 5777353..0de3cbc 100644
+--- a/Source/APP/config.h
++++ b/Source/APP/config.h
+@@ -4,6 +4,13 @@
+ // 发布项目，发布前必须确认为1
+ #define APP_RELEASE                  1
+ 
++/* ATLAS RC report patch (see ATLAS docs/ATLAS_YAHBOOM_SBUS_FIRMWARE_PATCH.md).
++ * ENABLE_SBUS_DRIVE  0: SBUS never commands motors, steering or braking.
++ * ENABLE_SBUS_REPORT 1: raw SBUS frame + freshness/failsafe status sent to the host
++ *                       as FUNC_REPORT_RC_SBUS in the existing auto-report cycle. */
++#define ENABLE_SBUS_DRIVE            0
++#define ENABLE_SBUS_REPORT           1
++
+ #if APP_RELEASE
+ 
+ // 自动发送数据的间隔时间，单位为1毫秒，最小值为10
+diff --git a/Source/APP/protocol.h b/Source/APP/protocol.h
+index 3875b70..dd893bd 100644
+--- a/Source/APP/protocol.h
++++ b/Source/APP/protocol.h
+@@ -22,6 +22,7 @@
+ #define FUNC_REPORT_IMU_ATT       (0x0C)
+ #define FUNC_REPORT_ENCODER       (0x0D)
+ #define FUNC_REPORT_ICM_RAW       (0x0E)
++#define FUNC_REPORT_RC_SBUS       (0xE1)  // ATLAS patch: raw SBUS frame report, MCU->host only
+ #define FUNC_RESET_STATE          (0x0F)
+ 
+ 
+diff --git a/Source/BSP/bsp.h b/Source/BSP/bsp.h
+index 6fa5a58..322b602 100644
+--- a/Source/BSP/bsp.h
++++ b/Source/BSP/bsp.h
+@@ -28,7 +28,7 @@
+ 
+ #define VERSION_MAJOR          0x03
+ #define VERSION_MINOR          0x06
+-#define VERSION_PATCH          0x05
++#define VERSION_PATCH          0xA1  /* ATLAS RC report patch (vendor 3.6.5) */
+ 
+ 
+ //JTAGģʽ���ö���
