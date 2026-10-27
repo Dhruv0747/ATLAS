@@ -4,7 +4,7 @@
 <link rel="icon" href="/v2/assets/atlas-logo-96.png">
 <link rel="preload" href="/v2/assets/michroma-latin-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/pages.css"><link rel="stylesheet" href="/v2/testlab.css"><link rel="stylesheet" href="/v2/flysky.css">
-</head><body>
+<link rel="stylesheet" href="/v2/material.css"></head><body>
 <header class="tl-head">
   <div class="tl-title">
     <a class="tl-back" href="/v2/">← Command center</a>
@@ -27,9 +27,29 @@
     <div class="fs-sticks" id="sticks"></div>
   </section>
 
+  <section class="tl-card" id="mapCard" aria-labelledby="hMap">
+    <div class="tl-row">
+      <h2 id="hMap">Channel mapping <span class="tl-note">Which transmitter control drives each channel. A label for this page only: it is not connected to driving.</span></h2>
+      <span class="fm-state" id="mapState" role="status">Not saved yet</span>
+    </div>
+    <p class="fm-summary" id="mapSummary" role="status" aria-live="polite">Waiting for receiver data…</p>
+    <div class="fm-head" aria-hidden="true"><span>Channel</span><span>Control</span><span>Raw</span><span>Seen since check</span><span>Status</span></div>
+    <div class="fm-rows" id="mapRows"></div>
+    <div class="tl-row tl-gap fm-actions">
+      <button type="button" id="mapApply" class="tl-primary" disabled>Apply</button>
+      <button type="button" id="mapCancel" disabled>Cancel</button>
+      <button type="button" id="mapDefaults" class="tl-quiet">Defaults</button>
+      <button type="button" id="mapCheck" class="tl-quiet">Restart check</button>
+      <button type="button" id="mapExport" class="tl-quiet">Export file</button>
+      <label class="tl-quiet fm-import">Import file<input type="file" id="mapImport" accept="application/json,.json"></label>
+    </div>
+    <p class="tl-note" id="mapNote">Saved in this browser. Use Export file to keep a copy or move it to another device.</p>
+  </section>
+
   <section class="tl-card" aria-labelledby="hChan">
     <div class="tl-row">
       <h2 id="hChan">Channels <span class="tl-note">Raw is what the receiver sent. Normalised is a nominal scale from −1 to +1.</span></h2>
+      <label class="fm-raw-toggle"><input type="checkbox" id="rawToggle"> Raw SBUS CH11–CH16</label>
       <button type="button" id="resetRange" class="tl-quiet">Reset min / max</button>
     </div>
     <div class="fs-head" aria-hidden="true"><span>Channel</span><span>Raw</span><span>Norm.</span><span>Position</span><span>Moves</span><span>Seen</span></div>
@@ -91,5 +111,5 @@
 <button class="v2estop" id="v2Estop" type="button"><svg class="v2icon" aria-hidden="true"><use href="/v2/assets/icons.svg#i-stop"/></svg>E-STOP</button>
 <span class="v2dock-msg" id="v2EstopMsg" role="status">Sends one zero-speed command. Keep the physical remote stop available.</span>
 <a class="v2dock-link" href="/v2/">Command center</a></div>
-<script src="/v2/estop.js"></script><script src="/v2/flysky-testlab.js"></script>
+<script src="/v2/estop.js"></script><script src="/v2/flysky-mapping.js"></script><script src="/v2/flysky-testlab.js"></script>
 </body></html>

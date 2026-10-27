@@ -116,7 +116,8 @@
     const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
     x.font = '11px system-ui'; x.fillStyle = '#8DA3B8'; x.strokeStyle = 'rgba(128,190,236,.14)';
     const g = st.graph, L = 38, R = 8, T = 8, B = 20;
-    const want = (g && g.ch || []).map((_, i) => i + 1).filter(n => show === 'all' || (chan(n) && chan(n).moved));
+    const maxN = window.AtlasFlyskyMap ? window.AtlasFlyskyMap.maxVisible() : MAXCH;          // CH11-16 only with the raw SBUS toggle
+    const want = (g && g.ch || []).map((_, i) => i + 1).filter(n => n <= maxN && (show === 'all' || (chan(n) && chan(n).moved)));
     if (!g || !g.t.length) { x.fillText(st.link.verified ? 'Waiting for frames…' : 'No receiver frames to graph.', L + 10, h / 2); renderLegend([]); return; }
     if (!want.length) { x.fillText('Move a stick or flip a switch to graph its channel.', L + 10, h / 2); renderLegend([]); return; }
     const X = t => L + (t + 30) / 30 * (w - L - R), Y = v => T + (1 - (v + 1.1) / 2.2) * (h - T - B);
@@ -192,6 +193,7 @@
       const r = await fetch('/api/flysky/state', { cache: 'no-store' });
       if (!r.ok) throw new Error(String(r.status));
       st = await r.json(); render();
+      document.dispatchEvent(new CustomEvent('atlas-flysky-state', { detail: st }));   // read by flysky-mapping.js (no extra request)
     } catch (e) {
       const b = $('banner'); b.hidden = false; b.className = 'tl-banner fail'; b.textContent = 'Cannot reach the FlySky Test Lab service on the rover.';
       chip('chipLink', 'fail', 'Service unreachable');
