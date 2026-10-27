@@ -3444,3 +3444,6 @@ Historical first attempt; the later successful installation is recorded above.
 
 ## 2026-10-27 - B1 offline safety candidate
 Durable base-recovery interlock, start-condition candidate, strict MCU/protection/capacity read gates and per-pass evidence; retired legacy runner. 78 simulated tests pass. No production changes or hardware operation.
+
+## 2026-10-27 - B1 native review
+Fixed lease revival, read-token reuse and reader/restoration race; added explicit restoration checks, protocol guards and sequential prompt validation. 94 tests plus native PC systemd 249 fake-unit lifecycle pass. No production deployment.

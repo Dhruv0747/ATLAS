@@ -56,3 +56,6 @@ Never delete/reset the latch or remove ExecCondition while attachment is uncerta
 6. After verified normal operation, rollback may restore hash-verified original recovery/readback files and original drop-in set, approved user daemon-reload and recovery-only restart. If bootloader state is uncertain, retain interlock and independent monitor rather than removing protection. Expired watch must be replaced by supervised reconciliation; do not leave a pending board unattended.
 
 No live restoration wrapper is auto-executed. The review must bind restored/port-free callbacks to actual deployment evidence before execution. Stale policy blocks restoration; resolve that explicitly without bypassing safety. Exact live compatibility and independent review remain approval gates.
+
+## Superseding native review
+See ATLAS_STAGE28_B1_NATIVE_REVIEW_20261027.md: 94 offline tests and native PC systemd fake-unit tests pass after expiry, single-use-reader and restoration corrections. Deployment remains approval-gated; no hardware operation performed.

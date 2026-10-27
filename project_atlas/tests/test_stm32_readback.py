@@ -35,6 +35,7 @@ class FakeBootloader:
     def write(self, b):
         self.inbuf += b
         self._run()
+        return len(b)
 
     def read(self, n=1):
         b, self.out = bytes(self.out[:n]), self.out[n:]
@@ -257,3 +258,57 @@ def test_short_metadata_stops_before_flash(tmp_path,address,data):
             if a==address: return data
             return {rb.OPTION_BYTES:b'\xa5\x5a'+b'\xff'*14,rb.F_SIZE:b'\x00\x01',rb.UID:bytes(12)}[a]
     assert rb.backup(Client(),tmp_path/'out',[])==2
+
+
+def test_mismatched_passes_rejected_and_preserved(tmp_path):
+    class Changing(FakeBootloader):
+        def _mem(self,a,n):
+            b=super()._mem(a,n)
+            if a==rb.FLASH_BASE and self.reads>1024:
+                b=bytes([b[0]^1])+b[1:]
+            return b
+    bl=Changing()
+    assert rb.backup(rb.BootloaderClient(bl,.02),tmp_path/'out',[],log=lambda *_:None)==5
+    assert (tmp_path/'out/flash_pass1.bin').read_bytes() != (tmp_path/'out/flash_pass2.bin').read_bytes()
+    assert not (tmp_path/'out/flash_full.bin').exists()
+
+
+def test_protection_denial_after_metadata_is_retained(tmp_path):
+    class Client:
+        sent_commands=[]
+        def sync(self):return 'ack'
+        def get(self):return {}
+        def get_version(self):return {}
+        def get_id(self):return 0x414
+        def read(self,a,n):
+            if a==rb.OPTION_BYTES:return b'\xa5\x5a'+b'\xff'*14
+            raise rb.ReadProtected('denied after options')
+    assert rb.backup(Client(),tmp_path/'out',[],log=lambda *_:None)==3
+    assert 'DENIED/UNKNOWN' in (tmp_path/'out/meta.json').read_text()
+
+
+def test_short_serial_write_aborts_without_retry():
+    class Link:
+        def write(self,b):return 0
+    with pytest.raises(rb.ProtocolError,match='short serial write'): rb.BootloaderClient(Link()).sync()
+
+
+def test_guard_before_every_protocol_write():
+    bl=FakeBootloader()
+    def guard():raise rb.Refused('lease expired')
+    with pytest.raises(rb.Refused):rb.BootloaderClient(bl,guard=guard).sync()
+    assert not bl.inbuf and not bl.commands
+
+
+def test_real_first_chunk_precedes_start_message(tmp_path):
+    bl=FakeBootloader();events=[]
+    def log(message):
+        if 'BACKUP STARTED' in message:
+            assert rb.FLASH_BASE in bl.read_addresses
+            assert bl.reads==4
+            events.append(message)
+    assert rb.backup(rb.BootloaderClient(bl,.02),tmp_path/'out',[],log=log)==0
+    assert len(events)==1
+    for line in (tmp_path/'out/SHA256SUMS').read_text().splitlines():
+        digest,name=line.split()
+        assert hashlib.sha256((tmp_path/'out'/name).read_bytes()).hexdigest()==digest

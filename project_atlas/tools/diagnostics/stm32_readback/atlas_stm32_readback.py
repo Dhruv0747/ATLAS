@@ -21,7 +21,7 @@ Board facts (YB-ERF01 V3.0 schematic, Yahboom 2025-05-09):
 Read protection check: with RDP level 1 set, the bootloader NACKs READ_MEMORY. That is reported and the
 run stops; nothing is done to remove the protection.
 
-Exit codes: 0 full backup written, 2 refused before talking to the chip, 3 read protection active,
+Exit codes: 0 full backup written, 2 refused (possibly after metadata reads), 3 memory read denied/unknown protection,
             4 protocol error/timeout (stopped, no retry), 5 the two read passes differ.
 """
 from __future__ import annotations
@@ -65,7 +65,8 @@ class ReadProtected(Exception):
 class BootloaderClient:
     """Minimal AN3155 client. `link` needs read(n) -> bytes (may return fewer on timeout) and write(b)."""
 
-    def __init__(self, link, timeout_s: float = 1.0):
+    def __init__(self, link, timeout_s: float = 1.0, guard=lambda: None):
+        self.guard = guard
         self.link = link
         self.timeout_s = timeout_s
         self.sent_commands: List[int] = []
@@ -75,12 +76,20 @@ class BootloaderClient:
         out = b''
         deadline = time.monotonic() + self.timeout_s
         while len(out) < n:
+            self.guard()
+            if time.monotonic() > deadline:
+                raise ProtocolError('read deadline exceeded')
             chunk = self.link.read(n - len(out))
             if chunk:
                 out += chunk
             elif time.monotonic() > deadline:
                 raise ProtocolError('timeout waiting for %d byte(s), got %d' % (n, len(out)))
         return out
+
+    def _write(self, payload):
+        self.guard()
+        if self.link.write(payload) != len(payload):
+            raise ProtocolError('short serial write; no retry')
 
     def _ack(self, what: str) -> None:
         b = self._read_exact(1)[0]
@@ -93,12 +102,12 @@ class BootloaderClient:
         if cmd not in ALLOWED_COMMANDS:
             raise Refused('command 0x%02X is not allowed by this read-only tool' % cmd)
         self.sent_commands.append(cmd)
-        self.link.write(bytes([cmd, cmd ^ 0xFF]))
+        self._write(bytes([cmd, cmd ^ 0xFF]))
         self._ack('command 0x%02X' % cmd)
 
     # -- protocol
     def sync(self) -> str:
-        self.link.write(bytes([SYNC]))
+        self._write(bytes([SYNC]))
         b = self._read_exact(1)[0]
         if b == ACK:
             return 'ack'
@@ -124,6 +133,8 @@ class BootloaderClient:
         n = self._read_exact(1)[0]
         data = self._read_exact(n + 1)
         self._ack('GET_ID data')
+        if len(data) != 2:
+            raise Refused('invalid product ID length')
         return int.from_bytes(data, 'big')
 
     def read(self, address: int, length: int) -> bytes:
@@ -133,10 +144,10 @@ class BootloaderClient:
             self._command(CMD_READ)
         except ProtocolError as exc:
             if 'NACK' in str(exc):
-                raise ReadProtected('READ_MEMORY command refused (read-out protection active)') from None
+                raise ReadProtected('READ_MEMORY command denied; protection state unknown') from None
             raise
         addr = struct.pack('>I', address)
-        self.link.write(addr + bytes([addr[0] ^ addr[1] ^ addr[2] ^ addr[3]]))
+        self._write(addr + bytes([addr[0] ^ addr[1] ^ addr[2] ^ addr[3]]))
         try:
             self._ack('address 0x%08X' % address)
         except ProtocolError as exc:
@@ -145,7 +156,7 @@ class BootloaderClient:
                                     % address) from None
             raise
         n = length - 1
-        self.link.write(bytes([n, n ^ 0xFF]))
+        self._write(bytes([n, n ^ 0xFF]))
         self._ack('length %d' % length)
         return self._read_exact(length)
 
@@ -249,10 +260,10 @@ def backup(client: BootloaderClient, out: Path, vendor_hexes: List[str], log=pri
         if len(opt) != 16:
             raise Refused('missing option-byte evidence')
         meta['rdp_byte'] = '0x%02X' % opt[0]
-        meta['read_protection'] = 'inactive (RDP byte 0xA5)' if opt[0] == 0xA5 else \
-            'UNEXPECTED RDP byte 0x%02X although reads work' % opt[0]
+        meta['read_protection'] = 'UNKNOWN until RDP/complement validation'
         if len(opt) != 16 or opt[:2] != b'\xa5\x5a':
             raise Refused('protected or ambiguous RDP/complement; no flash read permitted')
+        meta['read_protection'] = 'inactive (validated RDP/complement A5/5A)'
         raw_size = client.read(F_SIZE, 2)
         if len(raw_size) != 2:
             raise Refused('missing flash-size evidence')
@@ -305,6 +316,10 @@ def backup(client: BootloaderClient, out: Path, vendor_hexes: List[str], log=pri
     except (Refused, KeyboardInterrupt, OSError) as exc:
         meta['error'] = '%s: %s; stopped with no automatic retry' % (type(exc).__name__, exc)
         return finish(2 if isinstance(exc, Refused) else 4)
+    except ReadProtected as exc:
+        meta['error'] = str(exc) + ' (stopped; no retry)'
+        meta['read_protection'] = 'DENIED/UNKNOWN'
+        return finish(3)
     except ProtocolError as exc:
         meta['error'] = str(exc) + ' (stopped; no automatic retry)'
         return finish(4)
@@ -324,6 +339,7 @@ def _usb_location(dev: str) -> Optional[str]:
 def main(argv=None) -> int:            # pragma: no cover - needs the board in bootloader mode
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--maintenance-session', required=False)
+    ap.add_argument('--i-confirm-stm32f103rct6-marking', action='store_true')
     ap.add_argument('--port', required=True)
     ap.add_argument('--expect-location', default='1-2.2.3|1a86:7523',
                     help='pyserial location|vid:pid that must match (Yahboom board, measured 2026-10-27)')
@@ -340,16 +356,17 @@ def main(argv=None) -> int:            # pragma: no cover - needs the board in b
         print('REFUSED: %s is at %r, expected %r (not the Yahboom board?)' % (a.port, loc, a.expect_location),
               file=sys.stderr)
         return 2
+    if not a.i_confirm_stm32f103rct6_marking:
+        print('REFUSED: physical STM32F103RCT6 marking confirmation required', file=sys.stderr)
+        return 2
     scripts = os.environ.get('ATLAS_SCRIPTS_DIR', '/home/jetson/project_atlas/scripts')
     if not Path(scripts, 'atlas_usb_identity.py').exists():          # running from the repo checkout
         scripts = str(Path(__file__).resolve().parents[3] / 'scripts')
     sys.path.insert(0, scripts)
-    from atlas_usb_identity import in_use
-    if in_use(os.path.realpath(a.port)):
-        print('REFUSED: the port is held by another process (stop rover-base-telemetry first, B1 step)',
-              file=sys.stderr)
+    from atlas_b1_interlock import Interlock, verified_port_free
+    if not verified_port_free(a.port):
+        print('REFUSED: verified serial port is occupied', file=sys.stderr)
         return 2
-    from atlas_b1_interlock import Interlock
     interlock = Interlock()
     def read_guard():
         try:
@@ -361,26 +378,27 @@ def main(argv=None) -> int:            # pragma: no cover - needs the board in b
     except Refused as exc:
         print('REFUSED:', exc, file=sys.stderr)
         return 2
-    import serial
-    link = serial.Serial(port=None, baudrate=115200, parity=serial.PARITY_EVEN, stopbits=1, bytesize=8,
-                         timeout=0.2, write_timeout=1.0, exclusive=True)
-    link.dtr = False
-    link.rts = False
-    link.port = a.port
-    link.open()
-    try:
-        link.reset_input_buffer()
-        time.sleep(0.3)
-        stray = link.read(64)
-        if b'\xff\xfb' in stray:
-            print('REFUSED: the board is sending its normal firmware packets; it is NOT in the bootloader. '
-                  'Attempt aborted; do not retry without review.', file=sys.stderr)
-            return 2
-        return backup(BootloaderClient(link), Path(a.out), a.vendor_hex, guard=read_guard)
-    finally:
-        link.close()
-        print('Done. Leave BOOT0 released and press RESET (with the board main switch ON) to restart the '
-              'firmware; the bootloader GO command is deliberately not used.')
+    with interlock.reader(a.maintenance_session):
+        import serial
+        link = serial.Serial(port=None, baudrate=115200, parity=serial.PARITY_EVEN, stopbits=1, bytesize=8,
+                             timeout=0.2, write_timeout=1.0, exclusive=True)
+        link.dtr = False
+        link.rts = False
+        link.port = a.port
+        link.open()
+        try:
+            link.reset_input_buffer()
+            time.sleep(0.3)
+            stray = link.read(64)
+            if b'\xff\xfb' in stray:
+                print('REFUSED: the board is sending its normal firmware packets; it is NOT in the bootloader. '
+                      'Attempt aborted; do not retry without review.', file=sys.stderr)
+                return 2
+            return backup(BootloaderClient(link, guard=read_guard), Path(a.out), a.vendor_hex, guard=read_guard, log=lambda message: print(message, flush=True))
+        finally:
+            link.close()
+            print('Serial descriptor closed. Await supervised normal-reset/restoration instructions; '
+                  'do not press buttons yet.', flush=True)
 
 
 if __name__ == '__main__':

@@ -38,13 +38,13 @@ def test_restart_on_failure_and_queued_recovery_denied(g):
     for _ in range(5): assert not g.start_gate()
     with pytest.raises(Denied):
         with g.recovery_dispatch(): pytest.fail('restart dispatched')
-    g.begin_read(s)
+    g.heartbeat(s, safe()); g.begin_read(s)
     assert not g.start_gate()
-    with pytest.raises(Denied): g.begin_read(s)
+    with pytest.raises(Denied): g.heartbeat(s, safe()); g.begin_read(s)
 
 
 def test_crashed_monitor_timeout_never_releases(g):
-    s = g.arm(safe(), lambda: True); g.begin_read(s)
+    s = g.arm(safe(), lambda: True); g.heartbeat(s, safe()); g.begin_read(s)
     g.now[0] += 3
     with pytest.raises(Denied): g.check_read(s)
     assert not g.start_gate()
@@ -54,7 +54,7 @@ def test_crashed_monitor_timeout_never_releases(g):
 
 
 def test_explicit_recovery_and_one_start_only(g):
-    s = g.arm(safe(), lambda: True); g.begin_read(s); g.abort(s)
+    s = g.arm(safe(), lambda: True); g.heartbeat(s, safe()); g.begin_read(s); g.abort(s)
     with pytest.raises(Denied): g.resume(s, safe(), True, lambda: False)
     with pytest.raises(Denied): g.resume(s, safe(), False, lambda: True)
     g.resume(s, safe(), True, lambda: True)
@@ -69,7 +69,7 @@ def test_expired_session_requires_explicit_reconciliation(g):
     s = g.arm(safe(), lambda: True); g.now[0] += 1000
     with pytest.raises(Denied): g.resume(s, safe(), True, lambda: True)
     g.reconcile(s, safe(), True, lambda: True)
-    with pytest.raises(Denied): g.begin_read(s)
+    with pytest.raises(Denied): g.heartbeat(s, safe()); g.begin_read(s)
     g.resume(s, safe(), True, lambda: True)
     assert g.start_gate()
 
@@ -113,3 +113,86 @@ def test_rollback_bytes_preserved(tmp_path):
     assert hashlib.sha256(backup.read_bytes()).hexdigest()==expected
     live.write_bytes(backup.read_bytes())
     assert live.read_bytes()==original
+
+
+def test_reader_token_is_single_use(g):
+    s=g.arm(safe(),lambda:True);g.heartbeat(s,safe());g.begin_read(s)
+    with g.reader(s):
+        g.check_read(s)
+        with pytest.raises(BlockingIOError): g.resume(s,safe(),True,lambda:True)
+    with pytest.raises(Denied):
+        with g.reader(s): pytest.fail('second reader admitted')
+
+
+def test_expired_heartbeat_cannot_be_revived(g):
+    s=g.arm(safe(),lambda:True);g.heartbeat(s,safe());g.begin_read(s)
+    g.now[0]+=3
+    with pytest.raises(Denied):g.heartbeat(s,safe())
+    assert g.load()['phase']=='ABORTED'
+    with pytest.raises(Denied):g.check_read(s)
+
+
+def test_monitor_must_have_started_before_read(g):
+    s=g.arm(safe(),lambda:True)
+    with pytest.raises(Denied):g.begin_read(s)
+
+
+def test_read_budget_expiry_is_durable(g):
+    s=g.arm(safe(),lambda:True);g.heartbeat(s,safe());g.begin_read(s)
+    d=g.load();d['read_deadline']=g.now[0];g.save(d)
+    with pytest.raises(Denied):g.check_read(s)
+    g.heartbeat(s,safe())
+    with pytest.raises(Denied):g.check_read(s)
+    assert g.load()['phase']=='ABORTED'
+
+
+def test_restoration_requires_fresh_increasing_packets():
+    from atlas_b1_interlock import verify_restored
+    count=[10]
+    def status():
+        count[0]+=1
+        s=safe();s['ros']['encoder_health']={'age':0,'value':{'packet_age_s':0,'packet_fresh':True,'serial_encoder_packets':count[0]}}
+        return s
+    state=lambda:{'ActiveState':'active','MainPID':'42','NRestarts':'0'}
+    assert verify_restored(status,state,lambda _:None)
+    cached=status()
+    with pytest.raises(Denied):verify_restored(lambda:cached,state,lambda _:None)
+    cached['ros']['encoder_health']['age']=2
+    with pytest.raises(Denied):verify_restored(lambda:cached,state,lambda _:None)
+
+
+def test_restoration_rejects_pid_change():
+    from atlas_b1_interlock import verify_restored
+    count=[0]
+    def status():
+        count[0]+=1
+        s=safe();s['ros']['encoder_health']={'age':0,'value':{'packet_age_s':0,'packet_fresh':True,'serial_encoder_packets':count[0]}}
+        return s
+    states=iter([{'ActiveState':'active','MainPID':'1','NRestarts':'0'}, {'ActiveState':'active','MainPID':'2','NRestarts':'1'}])
+    with pytest.raises(Denied):verify_restored(status,lambda:next(states),lambda _:None)
+
+
+def test_port_query_timeout_never_retries(monkeypatch):
+    import atlas_b1_interlock as module
+    from types import SimpleNamespace
+    import subprocess
+    monkeypatch.setitem(sys.modules,'serial',SimpleNamespace())
+    monkeypatch.setitem(sys.modules,'serial.tools',SimpleNamespace(list_ports=SimpleNamespace(comports=lambda:[SimpleNamespace(device='/dev/fake',vid=0x1a86,pid=0x7523,location='1-2.2.3')])))
+    calls=[]
+    def run(*a,**kw):
+        calls.append(a);raise subprocess.TimeoutExpired('fuser',2)
+    monkeypatch.setattr(module.subprocess,'run',run)
+    with pytest.raises(subprocess.TimeoutExpired): module.verified_port_free('/dev/fake')
+    assert len(calls)==1
+
+
+def test_ambiguous_idle_cannot_bypass_latch(g):
+    s=g.arm(safe(),lambda:True)
+    d=g.load();d['phase']='IDLE';g.save(d)
+    with pytest.raises(Denied):g.start_gate()
+
+
+def test_nonfinite_lease_denied(g):
+    g.arm(safe(),lambda:True)
+    d=g.load();d['deadline']=float('nan');g.save(d)
+    with pytest.raises(Denied):g.start_gate()

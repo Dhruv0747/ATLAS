@@ -68,6 +68,18 @@ class RecoveryTests(unittest.TestCase):
         self.process.run.assert_not_called()
         self.assertIn('B1 maintenance held', self.node.publish_status.call_args[0][0])
 
+    def test_unrelated_restart_does_not_enter_b1_gate(self):
+        self.ns['Interlock'] = Mock(side_effect=AssertionError('unrelated service gated'))
+        self.item.service = 'fake-unrelated.service'
+        self.node.restart_allowed = Mock(return_value=True)
+        self.node.classify = Mock(return_value=('FAULT', 4, 'test'))
+        self.node.maintenance_hold = Mock(return_value=False)
+        self.node.bms_retry_owned = Mock(return_value=False)
+        self.node.bad_status = Mock(return_value=False)
+        self.node.recover(self.item, 'test', 1)
+        self.ns['Interlock'].assert_not_called()
+        self.process.run.assert_called_once()
+
     def update(self, data):
         self.node.on_message('encoder_health', String(data))
 
