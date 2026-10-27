@@ -306,8 +306,10 @@ def s00_original_recovery_races_manual_restart(port):
     lines = recovery_lines(t0)
     comp = base_restart_by_recovery(lines)
     flag('stop_s', on=False)
-    assert comp, 'expected the original recovery to restart the base during the manual restart window'
-    return {'manual_starts': len(starts()) - n0, 'recovery_restart_lines': comp[:2]}
+    # Observation, not a gate: whether the 2-s check lands inside the stop phase is timing-dependent
+    # (reproduced in 2 of 3 full runs on 2026-10-27). The coordinated path is gated by s03.
+    return {'competing_restart_reproduced': bool(comp), 'manual_starts': len(starts()) - n0,
+            'recovery_lines': (comp or [m for m in lines if 'DEFERRED' in m])[:2]}
 
 
 @scenario

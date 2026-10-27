@@ -82,11 +82,11 @@ Codex folder.
   - candidate rebuild, the CRLF identification, and the refusal of a changed shared file;
   - unreadable thermal zones.
 - **94 existing** FlySky / Stage 28 tests still pass.
-- **16 end-to-end scenarios on a real systemd 255 user manager** (`sim/run_sim.py`), all under Python 3.10. The units are fakes; `atlas_sensor_recovery.py` is the real original or candidate file under a stub rclpy; the deployer is the real tool:
+- **16 end-to-end scenarios on a real systemd 255 user manager** (15 gating, all PASS in the final run; s00 is an observation) (`sim/run_sim.py`), all under Python 3.10. The units are fakes; `atlas_sensor_recovery.py` is the real original or candidate file under a stub rclpy; the deployer is the real tool:
 
 | Scenario | Result |
 |---|---|
-| s00 original recovery, slow stop (3 s) | competing `RECOVERING … restarting rover-base-telemetry` reproduced |
+| s00 original recovery, slow stop (3 s) | observation: competing `RECOVERING … restarting rover-base-telemetry` reproduced in 2 of 3 full runs; deferred in the third (timing-dependent) |
 | s00b original recovery, 10 s init | deferred, no competition (F4) |
 | s01 stage A install | PASS: only recovery restarted, base PID unchanged, coordination loaded, lease→ack→release proven |
 | s02 stage A, strict CPU rule, 98.8 % transient | fails and restores the original recovery (F6) |
