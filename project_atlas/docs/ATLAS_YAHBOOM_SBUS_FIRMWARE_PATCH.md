@@ -61,8 +61,8 @@ The patch changes 6 files: +83 lines, and only 2 vendor lines modified.
 | `config.h`: `ENABLE_SBUS_DRIVE 0`, `ENABLE_SBUS_REPORT 1` | Feature switches |
 | `app_sbus.c`: the drive block is now `#elif ENABLE_SBUS_DRIVE` | **SBUS→motion is compiled out.** The patched `SBUS_Handle` calls only `SBUS_Parse_Data`, verified by disassembly. |
 | `app_sbus.h`: `#define ALL_CHANNELS` | Parses CH9–CH16 (vendor default parsed 8) |
-| ISR: `seq`, `ever`, tick of the last complete frame | Freshness |
-| `SBUS_Build_Report` / `SBUS_Send_Report` | Copies the frame inside `taskENTER_CRITICAL` and sends one packet |
+| ISR: `seq`, `ever` only (no FreeRTOS call: USART2 runs above the syscall ceiling); tick stamped in task context every 1 ms | Freshness (patch v2, 2026-10-27, see `ATLAS_YAHBOOM_B1_PREFLIGHT.md` §5) |
+| `SBUS_Build_Report` / `SBUS_Send_Report` | Copies the frame under PRIMASK (< 2 µs; `taskENTER_CRITICAL` cannot mask USART2) and sends one packet |
 | `app.c`: slot 36 of the 40 ms auto-report cycle | 25 Hz, 5 ms after the encoder packet. USART1 DMA waits for the previous transfer. |
 | `protocol.h`: `FUNC_REPORT_RC_SBUS 0xE1` | Unused, private range, MCU→host only |
 | `bsp.h`: `VERSION_PATCH 0xA1` | Shown as V3.6.161 on OLED and boot banner. The host identifies the firmware by the report format byte, since the version packet carries only 3.6. |
@@ -91,6 +91,8 @@ Status bits:
 - `build_gcc.sh` builds both pristine and patched 3.6.5 with arm-none-eabi-gcc 13.2, using the FreeRTOS 10.4.3-LTS GCC port and the ST CMSIS startup.
   - Patched image: text 102 468 B / 256 KB flash, RAM 26 KB / 48 KB.
 - A GCC image is **not** bit-identical to Yahboom's. Flashing one is a new-toolchain change and needs the full gate B3 regression. Building the patch with Keil MDK on your PC is the alternative.
+
+GCC builds also need `atlas_gcc_compat.patch` (task stacks and FreeRTOS heap; see the B1 pre-flight doc).
 
 ## 4. Jetson side (gate G-J, dormant until the firmware is flashed)
 
