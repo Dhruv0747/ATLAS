@@ -1197,3 +1197,5 @@ See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
 2026-10-27 postflight diagnostics corrected OFFLINE: atomic sanitized snapshots, individual failed predicates and integrity-verified persistence; 131 tests pass including fake-service rollback. Original rejection cause unresolved; GO for separately approved maintenance retry preflight only. See project_atlas/docs/ATLAS_STAGE28_POSTFLIGHT_SAFETY_DIAGNOSTICS_20261027.md.
 
 2026-10-27 d1d13a3 maintenance retry rolled back: all 3 safety snapshots PASS; post-restart CPU98.8391% exceeded75%. RAM60.9149%,temp60.343C passed. Original files restored; base3333 unchanged/LIVE, stop latched/commands zero. No retry/B1; see project_atlas/docs/ATLAS_STAGE28_D1D13A3_RESOURCE_ROLLBACK_20261027.md.
+
+2026-10-27 CPU investigation: journal confirms recovery lifetime3.040 CPU-seconds,30s recovery grace; one high aggregate sample cannot establish cause/duration. Passive baseline58.43..61.30%, no duplicate recovery. No speculative optimization or retry. See project_atlas/docs/ATLAS_STAGE28_RESTART_CPU_INVESTIGATION_20261027.md.
