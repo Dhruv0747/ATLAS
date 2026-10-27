@@ -22,7 +22,11 @@ restore_hint() {
   echo "  2. systemctl --user start rover-base-telemetry.service"
   echo "  3. journalctl --user -u rover-base-telemetry -n 5 | grep 'Yahboom board ready'"
 }
-trap 'echo "B1 stopped at line $LINENO"; restore_hint' ERR
+SERVICE_STOPPED=0
+trap 'echo "B1 stopped at line $LINENO"' ERR
+# After the base service is stopped, ANY exit (error, operator "no", Ctrl-C) prints the restore steps.
+# The service is deliberately NOT auto-started: the board may still be in the bootloader.
+trap '[[ $SERVICE_STOPPED == 1 ]] && restore_hint' EXIT
 
 # 0. Preconditions the software can check
 curl -s -m5 http://127.0.0.1:8088/api/estop/state | python3 -c "import sys,json;sys.exit(0 if json.load(sys.stdin)['latched'] else 1)" \
@@ -47,6 +51,7 @@ ask "Board main switch ON, battery connected (switch-OFF variant withdrawn: prob
 
 # 3. Release the port (the only service change)
 systemctl --user stop rover-base-telemetry.service
+SERVICE_STOPPED=1
 sleep 2
 if fuser "$PORT" >/dev/null 2>&1; then echo "port still held; stopping"; exit 4; fi
 
@@ -66,7 +71,14 @@ ask "BOOT0 released. Board main switch ON. Press RESET once now."
 systemctl --user start rover-base-telemetry.service
 sleep 10
 systemctl --user is-active rover-base-telemetry.service
-journalctl --user -u rover-base-telemetry -n 30 --no-pager | grep -E "Yahboom board ready" | tail -1 | tee "$OUT/after_board_ready.txt"
+if journalctl --user -u rover-base-telemetry --since "-20 s" --no-pager | grep -E "Yahboom board ready.*firmware=3\.6, car_type=5" | tail -1 | tee "$OUT/after_board_ready.txt" | grep -q .; then
+  SERVICE_STOPPED=0
+  echo "base driver is back: board ready, firmware 3.6, car type 5"
+else
+  echo "WARNING: no fresh 'board ready firmware=3.6, car_type=5' line. Is BOOT0 released and RESET pressed? Do not reconnect actuators."
+fi
 echo "Reconnect steering servos and motors only when you are ready; E-STOP stays latched."
 trap - ERR
+( cd "$OUT" && find . -type f ! -name SHA256SUMS.all -exec sha256sum {} + > SHA256SUMS.all )
+echo "backup folder: $OUT"
 exit "$rc"
