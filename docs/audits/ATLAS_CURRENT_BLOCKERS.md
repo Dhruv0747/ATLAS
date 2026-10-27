@@ -1201,3 +1201,5 @@ See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
 2026-10-27 CPU investigation: journal confirms recovery lifetime3.040 CPU-seconds,30s recovery grace; one high aggregate sample cannot establish cause/duration. Passive baseline58.43..61.30%, no duplicate recovery. No speculative optimization or retry. See project_atlas/docs/ATLAS_STAGE28_RESTART_CPU_INVESTIGATION_20261027.md.
 
 2026-10-27 bounded process/cgroup profiler prepared offline;24 tests pass, PC collection3.14ms. Jetson overhead/coverage unvalidated, original98.84% attribution unknown. Next proposed gate is one separately approved passive15s validation, no restart/deployment. See project_atlas/docs/ATLAS_STAGE28_BOUNDED_CPU_PROFILER_20261027.md.
+
+2026-10-27 approved passive profiler blocked BEFORE START: b582cca lacks ongoing safety/telemetry monitoring and stops >70 rather than owner-required >=70C. Fresh preflight61.30% CPU/61.96%RAM/60.562C and policy passed. No profiler run/restart. See project_atlas/docs/ATLAS_STAGE28_PASSIVE_VALIDATION_BLOCKED_20261027.md.
