@@ -18,7 +18,7 @@ VENDOR_HEX=${ATLAS_VENDOR_HEX:-$HERE/rosmaster_V3.6.5.hex}
 ask() { read -r -p "$1 Type YES to continue: " a; [[ "$a" == "YES" ]] || { echo "stopped by operator"; exit 2; }; }
 restore_hint() {
   echo; echo "== To return to normal operation =="
-  echo "  1. Make sure BOOT0 is released. Board main switch ON. Press RESET once."
+  echo "  1. Make sure BOOT0 is released. Board main switch ON (it should never have been off). Press RESET once."
   echo "  2. systemctl --user start rover-base-telemetry.service"
   echo "  3. journalctl --user -u rover-base-telemetry -n 5 | grep 'Yahboom board ready'"
 }
@@ -43,7 +43,7 @@ echo "Jetson backup:"; cat "$OUT/jetson_config/SHA256SUMS"
 
 # 2. Physical isolation (owner)
 ask "Wheels lifted; drive motor connectors M1-M4 unplugged; BOTH steering servos (PWM S1, S2) unplugged; FlySky SBUS wire unplugged and insulated; transmitter OFF."
-ask "Board main switch: OFF if the Jetson is NOT powered from the Yahboom board (USB keeps the MCU alive); otherwise leave it ON with everything above unplugged."
+ask "Board main switch ON, battery connected (switch-OFF variant withdrawn: probable 5 V -> VM backfeed through the MP2225, see B1 pre-flight doc section 8). Serial servo, RGB and CAN ports empty."
 
 # 3. Release the port (the only service change)
 systemctl --user stop rover-base-telemetry.service

@@ -13,7 +13,7 @@ Date: 2026-10-27. All of this was analysis, offline builds and read-only Jetson 
 ### Owner preconditions for B1
 
 1. **How is the Jetson powered?** If it is fed from the Yahboom board's DC 5V output, the board's main switch must stay ON during B1. Isolation is then done by unplugging connectors only.
-2. Unplug drive motor connectors M1–M4 and **both steering servos** (PWM S1 = rear, S2 = front). Reason: with the main switch off, USB 5 V feeds the board's 5 V rail. With the servo jumper on 5 V, the servos would load the Jetson's USB port, and their PWM lines float in the bootloader.
+2. Unplug drive motor connectors M1–M4 and **both steering servos** (PWM S1 = rear, S2 = front). See section 8: B1 is now done with the main switch ON, and isolation is by unplugging actuators.
 3. Photograph the MCU marking (STM32F103RCT6 or APM32E103RET6, see section 1). The tool also reads the chip ID, so this is a cross-check.
 4. Approve one stop and start of `rover-base-telemetry` (about 3–5 minutes). The dashboard will show the base offline; the E-STOP stays latched.
 
@@ -133,3 +133,53 @@ So for the commands ATLAS uses, 3.6.5 behaves exactly like 3.5.1 and like the "3
   - CLI refuses without confirmation or on a wrong port.
 - The Stage 28 tests are re-run against patch v2.
 - `build_gcc.sh` applies both patches and runs `audit_gcc_image.py`: every check OK, exit 0. Without the compat patch the audit FAILs the three task stacks, as intended.
+
+## 8. Power arrangement and backfeed analysis (2026-10-27 10:30 update, read-only)
+
+The owner reports the Jetson is powered by a separate LTC3780 buck-boost, not by the Yahboom 5 V output. That still needs confirming at the hardware: **where does the LTC3780 input come from?**
+
+| Path | Finding (V3.0 schematic) | Consequence |
+|---|---|---|
+| Jetson USB VBUS → board | Micro-USB VCC → D5 (SS34) → board 5 V rail → AMS1117 3.3 V (MCU, CH340N) | The MCU runs from USB when the board is unpowered |
+| Board 5 V → Jetson USB | Blocked by D5 | No backfeed into the Jetson's USB port |
+| Board 5 V rail → VM (motor rail) | U6 MP2225 is a synchronous buck; its high-side FET body diode conducts SW→IN. When the 5 V rail is USB-fed and VM is unpowered, **VM is very likely back-fed to about 4 V**. | **Main switch OFF does NOT guarantee motor rail = 0 V.** Not measured. |
+| VM → servo 6.8 V rail | U7 MP2225 (EN tied to VM) | A back-fed VM can reach the servo rail |
+| VM → J12/J14 "DC 12V output" (XH 2P), motor drivers AM2861, BAT sense | All on VM, after the PMOS main switch Q2 | Anything on J12/J14 would be powered from the **Jetson's USB** with the switch off. If the LTC3780 input were taken from J12/J14, switching the board off would drop the Jetson. |
+| VM → IN12V | Q2 PMOS body diode, only if the battery is disconnected | The battery connector pins could sit at about 4 V when unplugged |
+| 5 V rail outputs | CON3 (5 V out), Type-C (IP2723T/Q7), RGB strip, serial-servo buffer, PWM servos on the 5 V jumper position, **SBUS header V pin (5 V)** | All become USB loads with the switch off |
+
+USB topology, read-only: the board's CH340 is on self-powered hub 1-2.2 (bmAttributes 0xE0), together with the RPLIDAR CP2102 (1-2.2.1) and the ESP32 (1-2.2.4). The board's VM sense reads 12.3 V now, so the battery is connected and the main switch is ON.
+
+**Decision: B1 is done with the board main switch ON and the battery connected.** The switch-OFF variant is withdrawn because of the backfeed above. With the switch ON:
+- VM is a known 12 V;
+- there is no USB backfeed load;
+- there is no low-battery latch;
+- isolation is achieved by physically unplugging every actuator.
+
+### Isolation checklist (owner, before requesting B1 approval)
+
+1. Wheels lifted clear of the floor. E-STOP latched (Xbox B). FlySky transmitter OFF.
+2. SBUS lead: signal wire unplugged and insulated. Recommended: unplug the whole 3-pin lead (its V pin is board 5 V).
+3. Drive motors M1–M4: all four PH-6P motor/encoder connectors unplugged at the board.
+4. PWM servos S1 (rear steering) and S2 (front steering), plus any S3/S4: unplugged at J7.
+5. Serial-servo port J10, RGB strip J15, CAN J11: unplugged, or confirmed empty.
+6. Inventory of J12/J14 (DC 12V out), CON3 (5 V out) and the Type-C port: record what is plugged in. **Trace the LTC3780 input + wire** and confirm it goes to the battery/BMS side, **not** to J12/J14 or anything after the board switch.
+7. Multimeter checks, switch ON, nothing else changed:
+   - VM at J12/J14 pin 1 ≈ battery voltage (≈ 12.3 V now);
+   - LTC3780 input ≈ battery voltage;
+   - with motor connectors unplugged, nothing measurable at the motor-side plugs.
+8. BOOT0 (S4) and RESET (S2) buttons physically reachable without disturbing the micro-USB cable.
+9. MCU marking photographed (STM32F103RCT6 or APM32E103RET6).
+
+### Backup and recovery requirements (all must be true before B2 is even discussed)
+
+| # | Requirement | Status |
+|---|---|---|
+| R1 | Chip identity known (marking photo and B1 GET_ID / F_SIZE) | Pending (owner, then B1) |
+| R2 | B1 readback with two identical passes, SHA256SUMS, settings decoded | Pending (B1) |
+| R3 | RDP state known; **no unlock without separate approval** | Pending (B1) |
+| R4 | Restore images stored on the Jetson **and** the PC: B1 readback and vendor 3.6.5 hex (sha256 `088af519…2b55b`) | Pending |
+| R5 | A flashing path that does not need the Jetson (PC + micro-USB + FlyMcu or STM32CubeProgrammer), and optionally ST-Link for SWD (header has no NRST) | Owner to confirm |
+| R6 | Jetson-side calibration backed up with hashes (steering, drive PID, encoder, IMU). This is done as step 1 of `b1_run.sh` | Ready |
+| R7 | Known-good return-to-service reference: "board ready firmware=3.6, car_type=5", 4.0 packets per encoder packet, 0 checksum errors, board battery reading ≈ BMS | Recorded in B3 template |
+| R8 | B2 approval is separate; this document does not request it | — |
