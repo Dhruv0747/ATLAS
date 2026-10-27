@@ -16,6 +16,15 @@ PORT=/dev/ttyUSB0
 VENDOR_HEX=${ATLAS_VENDOR_HEX:-$HERE/rosmaster_V3.6.5.hex}
 
 ask() { read -r -p "$1 Type YES to continue: " a; [[ "$a" == "YES" ]] || { echo "stopped by operator"; exit 2; }; }
+require_recovery_isolated() {
+  local state
+  state=$(systemctl --user show atlas-sensor-recovery.service -p ActiveState --value) || return 2
+  if [[ "$state" != "inactive" ]]; then
+    echo "REFUSED: sensor recovery is not confirmed inactive ($state). It can reclaim the base serial port."
+    echo "A separately approved maintenance-isolation plan is required; this script will not stop recovery."
+    return 2
+  fi
+}
 restore_hint() {
   echo; echo "== To return to normal operation =="
   echo "  1. Make sure BOOT0 is released. Board main switch ON (it should never have been off). Press RESET once."
@@ -29,6 +38,7 @@ trap 'echo "B1 stopped at line $LINENO"' ERR
 trap '[[ $SERVICE_STOPPED == 1 ]] && restore_hint' EXIT
 
 # 0. Preconditions the software can check
+require_recovery_isolated || exit 2
 curl -s -m5 http://127.0.0.1:8088/api/estop/state | python3 -c "import sys,json;sys.exit(0 if json.load(sys.stdin)['latched'] else 1)" \
   || { echo "refused: E-STOP not latched (latch with Xbox B)"; exit 2; }
 loc=$(python3 -c "from serial.tools import list_ports;print(next((p.location for p in list_ports.comports() if p.device=='$PORT'),'none'))")
@@ -51,6 +61,7 @@ ask "Transmitter OFF. If receiver remains connected: verified original SBUS head
 ask "Board main switch ON and battery connected throughout. Power wiring and peripheral inventory physically checked against B1 section 8; LTC3780 input traced to battery/BMS side; stable supply confirmed. No switch-OFF or USB-only operation."
 
 # 3. Release the port (the only service change)
+require_recovery_isolated || exit 2
 systemctl --user stop rover-base-telemetry.service
 SERVICE_STOPPED=1
 sleep 2
