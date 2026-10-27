@@ -107,3 +107,43 @@ The approval needs:
 systemd-run --user --unit=atlas-stage28-storm --collect --wait --pipe -E OWNER_APPROVED=yes \
   -p WorkingDirectory=<pkg> /usr/bin/python3 stage28_storm_rehearsal.py --cpu-rule transient --transient-bound-s 10
 ```
+
+## 8. Final safety gate (2026-10-27 23:41–23:50 IST, commit 8495b34, read-only on the Jetson)
+
+| # | Gate item | Status | Evidence |
+|---|---|---|---|
+| 1 | Motors and steering servos physically disconnected | **UNVERIFIED: owner must reconfirm** | Software cannot see connectors. Encoders moved between checks with E-STOP latched (21:53 `[-11,28,-40,9]` → 23:46 `[-37,72,-219,31]`) and the base odom x moved −0.00347 → −0.01286 m (≈ 9 mm). Constant within each check. Consistent with wheels/rover moved by hand; cause not established |
+| 2 | FlySky transmitter OFF | **UNVERIFIED: owner must confirm** | Not observable on the Jetson until the RC bridge exists |
+| 3 | E-STOP latched, zero commands, LIVE telemetry | VERIFIED 23:46 | 14/14 web predicates ×3; packets 448486 → 448586; CPU mean 66.19 / max 68.98; RAM 62.43; 64.75 °C |
+| 4 | All 11 observations fresh | VERIFIED 23:48 | 31/31 verdicts OK after warm-up; max verdict gap 0.254 s; worst ages: policy 0.10, cmd 0.227, motor_speed 0.563, encoder 0.099, odom 0.289 s |
+| 5 | Supervisor and probe cleanup mechanisms | VERIFIED (offline + live refusal paths) | Live: the probe refuses without a supervisor *before* `import rclpy` (DDS participants 45 → 45, SHM 145 → 145); `prctl(PR_SET_PDEATHSIG)` armed OK; SIGALRM self-kill rc 142; PDEATHSIG child gone 0.00 s after parent SIGKILL; supervisor refuses without approval. Offline: 18 rehearsal tests |
+| 6 | A CPU spike cannot prevent abort and evidence | VERIFIED with a stated residual | (a) Real storm, Stage A attempt 2: the supervisor's 1-s recorder kept 1.01–1.07 s cadence at 98.5–99.8 % and the abort fired within ~0.5 s of the failed check. (b) The probe ends itself independently (SIGALRM 14 s, PDEATHSIG, 1 s heartbeat). (c) Every CPU and observer sample is streamed to disk as taken; a SIGKILLed recorder keeps its samples (test). Residual: no process can be given priority (RLIMIT_NICE/RTPRIO 0, no cpu cgroup), and a kernel-level freeze would defeat any userland supervisor (see item 8) |
+| 7 | No production restart or modification required | VERIFIED as *not required*; residual stated | The rehearsal code contains no restart/stop/start/reload or production file write. Nothing is installed. Residual: the existing, unmodified recovery may restart a starved monitored service (base on encoder_health > 2 s, since E-STOP is latched; LiDAR/EKF > 5 s). Not observed in two equivalent real storms. Any PID change is detected ≤ 1.25 s → FAIL |
+| 8 | Recovery if the Jetson becomes unresponsive | DOCUMENTED below | — |
+
+### Scope of the CPU exception
+`--cpu-rule transient --transient-bound-s 10` is a per-invocation argument of `stage28_storm_rehearsal.py`.
+- Nothing persists.
+- The deployer (Stage A/B) requires its own explicit `--cpu-rule` and never reads the rehearsal's arguments.
+- The 75 / 80 / 70 limits are constants and unchanged.
+
+### If the Jetson becomes unresponsive during or after the rehearsal
+1. Do **not** reconnect any actuator. The E-STOP latch is held by the mux; motors and servos stay physically disconnected.
+2. Wait 60 s. The probe ends itself by 14 s regardless of the supervisor, and the supervisor's post window ends by about 55 s.
+3. Try SSH over Tailscale **and** LAN, then the dashboard E-STOP page.
+4. If reachable:
+   - `pgrep -af atlas_dds_storm_probe.py` must be empty. If not: `pkill -KILL -f atlas_dds_storm_probe.py`, then `systemctl --user stop atlas-stage28-storm`.
+   - Then run the read-only preflight. Evidence: `~/project-atlas-migration/stage28-storm-rehearsal-*/` (`stream-cpu-R.jsonl`, `stream-observer-R.jsonl`, `log.txt`).
+5. If unreachable after 5 min: the owner checks the rover physically (board LEDs, Jetson fan/LEDs) and, with actuators
+   still disconnected, performs a normal power cycle. Nothing was installed, so all services start exactly as before.
+   Afterwards verify:
+   - no probe process;
+   - DDS participant count back to its usual value;
+   - 14/14 safety ×3;
+   - the evidence stream files (written per sample).
+6. No retry. Report before any further attempt.
+
+### Final gate verdict: **NO-GO**
+Items 1 and 2 are unverified, and they need the owner's physical confirmation; the encoder/odom movement makes item 1
+specifically worth re-checking. All software-verifiable items pass. After the owner's confirmation **and** explicit approval of
+one rehearsal with the scoped 10 s exception, the gate becomes GO.
