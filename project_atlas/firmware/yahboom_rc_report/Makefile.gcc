@@ -23,10 +23,11 @@ $(STAGE)/.staged: $(shell find $(SRC)/Source $(SRC)/CMSIS $(SRC)/FWlib $(SRC)/Fr
 	rm -rf $(STAGE); mkdir -p $(STAGE); cp -r $(SRC)/Source $(SRC)/CMSIS $(SRC)/FWlib $(SRC)/FreeRTOS $(STAGE)/
 	cp gcc/portmacro.h $(STAGE)/FreeRTOS/inc/portmacro.h
 	sed -E 's/"=r" ?\(result\) ?: ?"r" ?\(addr\), ?"r" ?\(value\)/"=\&r" (result) : "r" (addr), "r" (value)/' $(STAGE)/CMSIS/core_cm3.c > $(STAGE)/core_cm3_gccfix.c
+	find $(STAGE)/Source -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/\<pid_t\>/atlas_pid_t/g' {} +
 	touch $@
 $(OUT)/gcc/startup.o: gcc/startup.s
 	@mkdir -p $(dir $@); $(CC) -mcpu=cortex-m3 -mthumb -c $< -o $@
 $(OUT)/fw.elf: $(OBJS)
-	$(CC) -mcpu=cortex-m3 -mthumb -specs=nano.specs -specs=nosys.specs -Tgcc/stm32f103rc.ld -Wl,--gc-sections -Wl,-Map=$(OUT)/fw.map $^ -lm -o $@
+	$(CC) -mcpu=cortex-m3 -mthumb -specs=nano.specs -specs=nosys.specs -Tgcc/stm32f103rc.ld -Wl,-u,_printf_float -Wl,--gc-sections -Wl,-Map=$(OUT)/fw.map $^ -lm -o $@
 	arm-none-eabi-size $@
 	arm-none-eabi-objcopy -O ihex $@ $(OUT)/fw.hex

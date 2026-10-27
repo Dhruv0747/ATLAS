@@ -1,1 +1,4 @@
 *.patch -text -diff
+
+*.sh text eol=lf
+Makefile.gcc text eol=lf

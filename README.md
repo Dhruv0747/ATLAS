@@ -1,5 +1,7 @@
 # Project ATLAS - Autonomous Service Rover
 
+Stage 28: [reproducible offline STM32 candidate and B2 gates](project_atlas/docs/ATLAS_STAGE28_B2_OFFLINE_BUILD_20261027.md). ARM GCC build and 32 focused tests passed; no firmware written.
+
 [Remaining CPU assessment](ATLAS_STAGE32_REMAINING_CPU_AND_JSON_CANDIDATE.md):
 dominant executor cost unresolved; minor exact-live JSON candidate tested but
 NOT deployed. No camera or safety-policy changes.
