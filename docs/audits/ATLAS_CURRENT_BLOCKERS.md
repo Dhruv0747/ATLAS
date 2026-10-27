@@ -1,5 +1,7 @@
 # ATLAS current blockers
 
+2026-10-27 Next gate: one owner-approved supervised DDS storm rehearsal (transient 10 s exception for the probe only). Stage A stays NO-GO until a representative rehearsal PASSes. ATLAS_STAGE28_DDS_STORM_REHEARSAL_PROPOSAL_20261027.md
+
 2026-10-27 Independent safety observer ready offline; blocking gap: producers (mux, base, foxglove_bridge) unmeasured during a real discovery storm. Proposed owner-approved storm rehearsal (test participant, no service restart). Stage A NO-GO until then. ATLAS_STAGE28_INDEPENDENT_SAFETY_OBSERVER_20261027.md
 
 2026-10-27 Stage A attempt 2 aborted fail-closed: safety data source (status web) times out during restart CPU saturation. Next step needs owner decision (prioritise safety path / reduce discovery load / independent monitor). ATLAS_STAGE28_STAGE_A_TRANSIENT_ABORT_20261027.md

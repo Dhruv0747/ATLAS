@@ -362,6 +362,21 @@ class SafetyRecorder:
                 for s in list(self.snaps) if t0 <= s['wall'] <= t1 and not s['window_ok']]
 
 
+def require_pre_window_ok(env, ev, label, rec, safety):
+    """Every sample recorded since the recorders started and BEFORE the restart/probe must already meet the strict
+    limits (this covers the observer's own subscription and warm-up). Otherwise refuse: nothing has changed yet."""
+    over = [(round(ts, 2), x) for ts, x in list(rec.samples) if x > CPU_LIMIT]
+    bad_rt = [r for r in list(rec.rt) if not (type(r[1]) in (int, float) and r[1] <= RAM_LIMIT and
+                                               type(r[2]) in (int, float) and r[2] < TEMP_LIMIT)]
+    since = getattr(safety, 'ready_at', 0.0)       # observer start-up verdicts (no data yet) precede warm-up
+    unsafe = ([s.get('failed') for s in list(safety.snaps) if s['wall'] >= since and not s['window_ok']]
+              if safety is not None else [])
+    ev.save(f'pre-window-{label}', {'cpu': rec.samples, 'ram_temp': rec.rt, 'safety_not_ok': unsafe})
+    if not rec.samples or over or bad_rt or unsafe:
+        raise Fail(f'{label}: pre-window not clean (no change made): cpu>75 {over[:5]}, ram/temp {bad_rt[:3]}, '
+                   f'safety {unsafe[:3]}, samples {len(rec.samples)}')
+
+
 SAFETY_MAX_GAP_S = 3.5          # snapshots every ~1.5 s; a larger gap means monitoring is not operating reliably
 
 
@@ -427,6 +442,7 @@ class ObserverRecorder:
                     break
                 ok_since = s['wall']
             if ok_since and time.time() - ok_since >= self.env.observer_warmup_s:
+                self.ready_at = ok_since                # start of the continuous all-OK warm-up stretch
                 return self
             self.env.sleep(0.1)
         self.__exit__()
@@ -750,6 +766,7 @@ def install_recovery(env, args, ev=None):
                        meta['atlas_sensor_recovery.py']['mode'])
         with CpuRecorder(env) as cpu, ObserverRecorder(env, int(base0['MainPID'])) as safe:
             env.sleep(2.5)                                  # recorders running (observer continuously OK) before the restart
+            require_pre_window_ok(env, ev, 'A', cpu, safe)
             t0 = time.time()
             ev.log('restarting atlas-sensor-recovery ONLY')
             env.systemctl('restart', env.recovery, timeout=30)
@@ -857,6 +874,7 @@ def deploy(env, args, ev=None):
         m.authorize_start(session)
         with CpuRecorder(env) as cpu, ObserverRecorder(env, None, exempt=OBSERVER_BASE_SIGNALS) as safe:
             env.sleep(2.5)
+            require_pre_window_ok(env, ev, 'B', cpu, safe)
             t0 = time.time()
             ev.log('restarting rover-base-telemetry ONLY (1 authorised start)')
             state['restarted'] = True

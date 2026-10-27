@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-27 Stage28 DDS storm rehearsal PREPARED (proposal, not run): probe with recovery's 32-endpoint shape on private topics (SIGALRM/PDEATHSIG/heartbeat fail-safes, UDPv4 only), supervisor with independent observer, pre-window strict check (also added to the deployer), representativeness gate (INCONCLUSIVE, never PASS, for a mild storm), cleanup verification. docs/ATLAS_STAGE28_DDS_STORM_REHEARSAL_PROPOSAL_20261027.md
+
 2026-10-27 Stage28 independent safety observer (offline/read-only, NOT deployed): /api/status timed out in the Stage A spike (synchronous subprocess cache refresh under lock); new stdlib observer reads policy/cmd/motor/encoder via the existing foxglove_bridge WebSocket plus base odom runtime file and /proc; 1.0 s freshness, 0.25 s cadence, 1.0 s gap limit (was 3.5 s). Verified read-only against the real bridge. Not validated in a real discovery storm: Stage A NO-GO. docs/ATLAS_STAGE28_INDEPENDENT_SAFETY_OBSERVER_20261027.md
 
 2026-10-27 Stage28 Stage A attempt 2 (transient 10 s, f7bf93f): FAIL fail-closed at +4.5 s; /api/status timed out during the 98.5-99.8 % spike, so safety unverifiable; rolled back, verified. Rollback restart: last over-limit +8.65 s. docs/ATLAS_STAGE28_STAGE_A_TRANSIENT_ABORT_20261027.md
