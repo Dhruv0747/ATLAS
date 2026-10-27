@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-27 Stage28 Stage A (strict CPU): FAIL, rollback verified. Recovery start-up exceeded 75 % for ~7 s (peak 99.8 %); original recovery restored, base PID 1921 untouched. docs/ATLAS_STAGE28_STAGE_A_STRICT_CPU_ROLLBACK_20261027.md
+
 2026-10-27 Stage28: base-maintenance coordination + RC-bridge deployment package (OFFLINE, NOT deployed).
 Runtime-only (tmpfs) base lease, additive recovery hold (+106 lines), window-only ExecCondition start gate, transactional
 deployer with per-predicate evidence and one-start rollback. Found 0ce6dd1 helper hashes are CRLF artifacts; atlas_flysky_core.py

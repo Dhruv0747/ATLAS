@@ -1,5 +1,7 @@
 # ATLAS current blockers
 
+2026-10-27 Stage28 Stage A FAIL (strict CPU): recovery start-up transient 7 samples >75 % (peak 99.8 %); rolled back, verified. Stage B blocked. Owner decision needed: transient rule vs start-up cap vs baseline reduction. ATLAS_STAGE28_STAGE_A_STRICT_CPU_ROLLBACK_20261027.md
+
 2026-10-27 Stage28 base-restart coordination: offline package READY, NOT deployed. Recovery race narrowed:
 the competing restart needs base deactivation >2 s; during activation recovery defers and spends its single attempt.
 Real CPU blocker is the restart transient (98.8 % in d1d13a3); owner must choose --cpu-rule settle|strict (limits unchanged).
