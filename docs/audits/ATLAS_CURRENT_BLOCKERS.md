@@ -1226,3 +1226,4 @@ See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
 
 ## 2026-10-28 Stage 28 FlySky
 - DEPLOYED and live: link, failsafe and CH1-CH4 PASS. OPEN: CH5-CH10 constant 1024 (likely transmitter AUX assignment, unproven); stick-to-channel mapping unconfirmed; Xbox drive path untested. docs/ATLAS_STAGE28_FLYSKY_LIVE_RESULT_20261028.md
+- 2026-10-28 00:42 PAUSED (owner, ~2 days): Test Lab mapping card deployed (615b846). Still open: CH5-CH10 Aux assignment + per-control verification, CH1-CH4 direction confirmation. Resume: docs/ATLAS_STAGE28_RESUME_20261028.md
