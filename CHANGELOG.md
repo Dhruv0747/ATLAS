@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-27 Stage28 B4: fixed PC monitor status publication using immutable snapshots and terminal/freshness-aware reads. 12 native Windows/fake-serial tests plus32 existing regressions passed. No board access, reset, flash or live retry.
+
 2026-10-27 Stage28: pinned offline GCC firmware build inputs, resolved Newlib type collision, preserved OLED float formatting, verified two reproducible builds and independent HEX/BIN boundaries. Added release-image regressions; 32 focused tests passed. B2 remains gated on exact-image owner confirmation and fresh hardware checks.
 
 2026-10-21 Stage32 thread profiling blocked by verified process-memory access

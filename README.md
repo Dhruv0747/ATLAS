@@ -1,5 +1,7 @@
 # Project ATLAS - Autonomous Service Rover
 
+Stage28 B4: [PC logging fix, offline tests and next approval gate](project_atlas/docs/ATLAS_STAGE28_B4_LOGGING_FIX_20261027.md). Immutable status snapshots avoid replacing Windows reader-held files; no live retry performed.
+
 Stage 28: [reproducible offline STM32 candidate and B2 gates](project_atlas/docs/ATLAS_STAGE28_B2_OFFLINE_BUILD_20261027.md). ARM GCC build and 32 focused tests passed; no firmware written.
 
 [Remaining CPU assessment](ATLAS_STAGE32_REMAINING_CPU_AND_JSON_CANDIDATE.md):
