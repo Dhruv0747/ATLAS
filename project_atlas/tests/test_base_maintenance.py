@@ -539,10 +539,36 @@ class DeployerGateTests(unittest.TestCase):
         with self.assertRaises(D.Fail):            # an unreadable sample never counts as a pass
             self.gate([66] * 42, bound=10, rt=rt)
 
-    def test_safety_failure_inside_window_fails(self):
-        safety = types.SimpleNamespace(snaps=[1], failures=lambda a, b: [{'t': 3.0, 'failed': ['cmd_zero']}])
-        with self.assertRaises(D.Fail):
-            self.gate([90] * 3 + [66] * 40, bound=10, safety=safety)
+    @staticmethod
+    def safety(walls, fail_at=None):
+        snaps = [{'wall': w, 'window_ok': fail_at is None or w < fail_at,
+                  'predicates': {'cmd_zero': fail_at is None or w < fail_at}} for w in walls]
+        return types.SimpleNamespace(snaps=snaps, failures=lambda a, b: [
+            {'t': x['wall'] - a, 'failed': ['cmd_zero']} for x in snaps if a <= x['wall'] <= b and not x['window_ok']])
+
+    def test_safety_failure_aborts_immediately(self):
+        ok_walls = [100.0 + 1.5 * i for i in range(40)]
+        self.gate(self.STAGE_A, bound=10, safety=self.safety(ok_walls))           # reliable monitoring: pass
+        # a failure at +3 s aborts while only 5 samples exist (the window could never complete -> must not wait)
+        env = FakeEnv([status()], steady_s=30)
+        with self.assertRaisesRegex(D.Fail, 'IMMEDIATE ABORT: safety failure'):
+            D.resources_after_restart(env, Ev(), 'x', 'transient', self.rec([95.0] * 5), 100.0, 10,
+                                      self.safety(ok_walls, fail_at=103.0))
+
+    def test_unreliable_safety_monitoring_aborts(self):
+        sparse = [100.0 + 5.0 * i for i in range(12)]                             # API stalling: 5 s gaps
+        with self.assertRaisesRegex(D.Fail, 'not operating reliably'):
+            self.gate(self.STAGE_A, bound=10, safety=self.safety(sparse))
+        with self.assertRaisesRegex(D.Fail, 'not operating reliably'):
+            self.gate(self.STAGE_A, bound=10, safety=self.safety([]))              # no snapshots at all
+
+    def test_late_cpu_and_ram_abort_before_window_end(self):
+        env = FakeEnv([status()], steady_s=30)
+        with self.assertRaisesRegex(D.Fail, 'IMMEDIATE ABORT: CPU'):
+            D.resources_after_restart(env, Ev(), 'x', 'transient', self.rec([90] * 3 + [66] * 8 + [80]), 100.0, 10)
+        rt = [(101.0, 81.0, 60.0)]
+        with self.assertRaisesRegex(D.Fail, 'IMMEDIATE ABORT: RAM'):
+            D.resources_after_restart(env, Ev(), 'x', 'transient', self.rec([90, 90], rt=rt), 100.0, 10)
 
     def test_bound_is_mandatory_and_capped(self):
         for b in (None, 0, 31):

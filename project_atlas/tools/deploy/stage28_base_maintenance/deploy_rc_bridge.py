@@ -354,6 +354,38 @@ class SafetyRecorder:
                 for s in list(self.snaps) if t0 <= s['wall'] <= t1 and not s['window_ok']]
 
 
+SAFETY_MAX_GAP_S = 3.5          # snapshots every ~1.5 s; a larger gap means monitoring is not operating reliably
+
+
+def early_abort(env, ev, label, rec, t_restart, bound_s, safety):
+    """Checked every 0.5 s during the window: any safety failure, unreliable safety monitoring, RAM/temperature
+    violation, or CPU > 75 % after the bound aborts at once (the caller rolls back)."""
+    timed = rec.timed_since(t_restart)
+    now = t_restart + (timed[-1][0] if timed else 0.0)     # same clock as the recorder
+    why = []
+    if safety is not None:
+        fails = safety.failures(t_restart, now)
+        if fails:
+            why.append(f'safety failure {fails[:3]}')
+        walls = [t_restart] + [x['wall'] for x in list(safety.snaps) if t_restart < x['wall'] <= now] + [now]
+        gap = max(b - a for a, b in zip(walls, walls[1:]))
+        if gap > SAFETY_MAX_GAP_S:
+            why.append(f'safety monitoring not operating reliably (gap {gap:.1f} s > {SAFETY_MAX_GAP_S} s)')
+    for ts, ram, temp in list(rec.rt):
+        if ts > t_restart and not (type(ram) in (int, float) and ram <= RAM_LIMIT and
+                                   type(temp) in (int, float) and temp < TEMP_LIMIT):
+            why.append(f'RAM/temperature sample at +{ts - t_restart:.1f} s: ram={ram} temp={temp}')
+            break
+    late = [(d, x) for d, x in timed if d > bound_s and x > CPU_LIMIT]
+    if late:
+        why.append(f'CPU > {CPU_LIMIT} after the {bound_s} s bound: {late}')
+    if why:
+        ev.save(f'abort-{label}', {'t_restart': t_restart, 'reasons': why,
+                                   'cpu_samples_since_restart': rec.timed_since(t_restart),
+                                   'safety_snapshots': list(safety.snaps) if safety else []})
+        raise Fail(f'{label}: IMMEDIATE ABORT: ' + '; '.join(why))
+
+
 def resources_after_restart(env, ev, label, rule, rec, t_restart, bound_s=None, safety=None):
     """Judged on the continuous recorder from the restart moment on (first post-restart seconds included).
 
@@ -368,7 +400,9 @@ def resources_after_restart(env, ev, label, rule, rec, t_restart, bound_s=None, 
     elif rule != 'transient' or bound_s is None or not 0 < bound_s <= MAX_TRANSIENT_BOUND_S:
         raise Fail(f'{label}: transient rule requires an explicit bound 0 < bound <= {MAX_TRANSIENT_BOUND_S} s')
     while len([d for d, _ in rec.timed_since(t_restart) if d > bound_s]) < env.steady_s:
+        early_abort(env, ev, label, rec, t_restart, bound_s, safety)       # immediate, not at window end
         env.sleep(0.5)
+    early_abort(env, ev, label, rec, t_restart, bound_s, safety)
     timed = rec.timed_since(t_restart)
     inside = [(d, x) for d, x in timed if d <= bound_s]
     after = [(d, x) for d, x in timed if d > bound_s]
