@@ -3461,3 +3461,5 @@ Reuse established Nano-aware thermal probe; preserve75/80/70 safeguards and null
 2026-10-27 documented one d1d13a3 maintenance retry: CPU98.84% rejection, verified rollback, preserved hash-verified safety evidence. No runtime changes retained or B1 performed.
 
 2026-10-27 Stage28 read-only restart CPU investigation: lifetime recovery3.040 CPU-seconds; current baseline60.175%; historical per-process attribution/duration unavailable. Added offline timeline analyzer,4 tests pass; no runtime fix/deployment, retry NO-GO.
+
+2026-10-27 Stage28 prepared bounded passive process/cgroup CPU sampler,24 offline tests pass. PC collection overhead3.14ms; Jetson overhead unverified. No deployment/restart; original spike cause unknown.

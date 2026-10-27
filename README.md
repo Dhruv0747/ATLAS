@@ -1707,3 +1707,5 @@ Stage 28 B1 native review: project_atlas/docs/ATLAS_STAGE28_B1_NATIVE_REVIEW_202
 Stage28 corrected maintenance wrapper: project_atlas/docs/ATLAS_STAGE28_THERMAL_RETRY_PREPARATION_20261027.md. Prepared only; separate retry approval required.
 
 Stage28 maintenance retry diagnostics: see [offline safety evidence correction](project_atlas/docs/ATLAS_STAGE28_POSTFLIGHT_SAFETY_DIAGNOSTICS_20261027.md). Deployment requires separate approval; B1 remains blocked.
+
+Stage28 CPU evidence: [bounded passive profiler and future validation gate](project_atlas/docs/ATLAS_STAGE28_BOUNDED_CPU_PROFILER_20261027.md). No maintenance retry authorized by profiler preparation.
