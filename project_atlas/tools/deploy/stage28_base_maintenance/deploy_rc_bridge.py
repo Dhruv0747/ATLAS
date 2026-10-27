@@ -173,6 +173,18 @@ class Evidence:
         with open(self.dir / 'log.txt', 'a') as f:
             f.write(line + '\n')
 
+    def stream(self, name):
+        """Append-only JSONL sink, flushed per record: evidence survives even if this process is killed."""
+        f = open(self.dir / f'stream-{name}.jsonl', 'a', buffering=1)
+
+        def write(obj):
+            try:
+                f.write(json.dumps(obj, default=str, separators=(',', ':')) + '\n')
+                f.flush()
+            except (OSError, ValueError):
+                pass
+        return write
+
     def save(self, name, obj):
         self.n += 1
         p = self.dir / f'{self.n:03d}-{name}.json'
@@ -292,8 +304,9 @@ class CpuRecorder:
     """Continuous 1-s whole-machine CPU + RAM + temperature samples in a background thread, started BEFORE a restart
     so the restart second itself is measured. Nothing is averaged away: every sample is kept, saved and reported."""
 
-    def __init__(self, env):
+    def __init__(self, env, sink=None):
         self.env, self.samples, self.rt, self._stop = env, [], [], threading.Event()
+        self.sink = sink
         self._t = threading.Thread(target=self._run, daemon=True)
 
     def __enter__(self):
@@ -317,6 +330,8 @@ class CpuRecorder:
                 self.rt.append((now, ram, max(temps.values()) if temps else None))
             except Exception as exc:              # an unreadable sample is evidence, never a pass
                 self.rt.append((now, None, f'error {exc!r}'))
+            if self.sink:
+                self.sink({'wall': now, 'cpu': x, 'ram': self.rt[-1][1], 'temp_max': self.rt[-1][2]})
 
     def since(self, t):
         return [x for (ts, x) in list(self.samples) if ts > t]
@@ -421,8 +436,8 @@ class ObserverRecorder:
     max_gap_s = 1.0
     period = 0.25
 
-    def __init__(self, env, base_pid, exempt=()):
-        self.env, self.base_pid, self.exempt = env, base_pid, set(exempt)
+    def __init__(self, env, base_pid, exempt=(), sink=None):
+        self.env, self.base_pid, self.exempt, self.sink = env, base_pid, set(exempt), sink
         self.snaps, self._stop = [], threading.Event()
         self._t = threading.Thread(target=self._run, daemon=True)
         self.obs = None
@@ -466,6 +481,11 @@ class ObserverRecorder:
                 s = {'wall': time.time(), 'window_ok': False, 'failed': ['observer_error'],
                      'predicates': {'observer_error': False}, 'error': repr(exc)}
             self.snaps.append(s)
+            if self.sink:
+                v = s.get('verdict') or {}
+                self.sink({'wall': s['wall'], 'ok': s['window_ok'], 'failed': s['failed'],
+                           'age_s': {k: x.get('age_s') for k, x in v.get('signals', {}).items()},
+                           'error': s.get('error')})
             self._stop.wait(self.period)
 
     def failures(self, t0, t1):
@@ -764,7 +784,8 @@ def install_recovery(env, args, ev=None):
         install_atomic(mine['atlas_base_maintenance.py'], env.scripts / 'atlas_base_maintenance.py', 0o644)
         install_atomic(mine['atlas_sensor_recovery.py'], env.scripts / 'atlas_sensor_recovery.py',
                        meta['atlas_sensor_recovery.py']['mode'])
-        with CpuRecorder(env) as cpu, ObserverRecorder(env, int(base0['MainPID'])) as safe:
+        with CpuRecorder(env, ev.stream('cpu-A')) as cpu, \
+                ObserverRecorder(env, int(base0['MainPID']), sink=ev.stream('observer-A')) as safe:
             env.sleep(2.5)                                  # recorders running (observer continuously OK) before the restart
             require_pre_window_ok(env, ev, 'A', cpu, safe)
             t0 = time.time()
@@ -872,7 +893,8 @@ def deploy(env, args, ev=None):
         require_safe(env, ev, 'B-pre-restart', count=2)
         resources_strict(env, ev, 'B-pre-restart', env.pre_restart_s)
         m.authorize_start(session)
-        with CpuRecorder(env) as cpu, ObserverRecorder(env, None, exempt=OBSERVER_BASE_SIGNALS) as safe:
+        with CpuRecorder(env, ev.stream('cpu-B')) as cpu, \
+                ObserverRecorder(env, None, exempt=OBSERVER_BASE_SIGNALS, sink=ev.stream('observer-B')) as safe:
             env.sleep(2.5)
             require_pre_window_ok(env, ev, 'B', cpu, safe)
             t0 = time.time()

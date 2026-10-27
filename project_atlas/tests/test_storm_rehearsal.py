@@ -248,6 +248,23 @@ class RehearsalTests(unittest.TestCase):
         self.assertEqual(R.main(['--cpu-rule', 'strict'], env=env), 3)
 
 
+class EvidenceSurvivalTests(unittest.TestCase):
+    def test_streamed_evidence_survives_sigkill_of_supervisor(self):
+        """The recorder streams every sample to disk at once: a supervisor killed mid-spike keeps its evidence."""
+        d = Path(tempfile.mkdtemp())
+        code = (f'import sys,os,signal,time\nsys.path.insert(0,{str(PKG)!r})\nimport deploy_rc_bridge as D\n'
+                f'env=D.Env(evidence_root=__import__("pathlib").Path({str(d)!r}),thermal_root={str(d)!r})\n'
+                f'env.ram_temp=lambda:(60.0,{{"cpu-thermal":64.0}})\n'
+                f'ev=D.Evidence(env,"kill-test")\nr=D.CpuRecorder(env,ev.stream("cpu")).__enter__()\n'
+                f'time.sleep(3.6)\nos.kill(os.getpid(),signal.SIGKILL)\n')
+        p = subprocess.run([sys.executable, '-c', code], timeout=30)
+        self.assertEqual(p.returncode, -signal.SIGKILL)
+        lines = next(d.glob('stage28-kill-test-*/stream-cpu.jsonl')).read_text().splitlines()
+        rows = [json.loads(x) for x in lines]
+        self.assertGreaterEqual(len(rows), 3)
+        self.assertTrue(all({'wall', 'cpu', 'ram', 'temp_max'} <= set(r) for r in rows))
+
+
 class ProbeFailSafeTests(unittest.TestCase):
     def probe(self, hb, extra_env=None, hard='14', hold='5'):
         d = Path(tempfile.mkdtemp())

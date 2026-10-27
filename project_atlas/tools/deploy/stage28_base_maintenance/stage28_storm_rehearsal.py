@@ -131,7 +131,8 @@ def rehearse(env, args, ev):
     bound = 0.0 if args.cpu_rule == 'strict' else args.transient_bound_s
     probe, t0, t_probe_end, failure = None, None, None, None
     hb_path, report_path = ev.dir / 'probe.heartbeat', ev.dir / 'probe-report.json'
-    with D.CpuRecorder(env) as cpu, D.ObserverRecorder(env, int(base0['MainPID'])) as safe, \
+    with D.CpuRecorder(env, ev.stream('cpu-R')) as cpu, \
+            D.ObserverRecorder(env, int(base0['MainPID']), sink=ev.stream('observer-R')) as safe, \
             Heartbeat(hb_path, env.hb_period):
         try:
             env.sleep(2.5)                                             # recorders running before the storm
