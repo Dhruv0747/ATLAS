@@ -106,3 +106,47 @@ Safest next step: identify the exact probe and physical J16 orientation, then re
 - Preserved prior failure/recovery report: ATLAS_B1_ABORT_AND_RECOVERY_20261027.md, commit 7e3c4dc.
 
 Validation is documentation/source/CLI-help inspection only. No hardware-read, timing or backup-success test is claimed. No production files or services changed.
+
+## Preparation checklist and bounded attempt — owner follow-up
+
+### Hardware identity gate: still OPEN
+
+Recommended exact product: STMicroelectronics **ST-LINK/V2**, genuine standard non-isolated unit, purchased directly from ST or an authorized distributor. Its CN3 is a 20-pin, 2.54 mm JTAG/SWD connector; ST specifies 1.65–3.6 V target application voltage on SWD, compatible with the board's nominal 3.3 V. USB Type-A to Mini-B powers the probe. This does not authorize powering the target from the probe.
+
+Source: https://www.st.com/en/development-tools/st-link-v2.html . Verify the actual delivered unit and CN3 pin-1/keying against UM1075; a label or software serial number alone does not establish authenticity. No physical probe has been supplied for inspection. Other ST-Link variants require their own connector check, not reuse of these CN3 numbers.
+
+The physical J16 pin-1 position is NOT verified. Required evidence: a clear top-down close-up of the actual J16/SWD area, board revision, nearby labels and connector keying, plus the probe model/connector photo. If marking remains ambiguous, continuity identification requires a separately approved powered-down procedure. Never perform resistance/continuity measurement on the energized board or power it down under this preparation approval. Until resolved, the earlier table is a schematic net mapping only, not an actionable wiring instruction.
+
+### Preconnection checklist (future approval required)
+
+- Confirm genuine probe variant and actual J16 orientation; label both ends of each adapter lead. Confirm connector pitch/mechanical fit; no forced connector.
+- Check adapter pin-to-pin continuity and absence of shorts while detached from ATLAS. Board-side continuity is a different, separately authorized operation.
+- Reference must be VAPP INPUT, not 3.3/5 V output. Verify nominal target voltage with a safe approved measurement method. Leave unused pins, NRST, SWO and all probe power outputs disconnected.
+- Agree a safe physical attachment sequence for the fitted connector. Do not manually probe or attach loose wires to live header pins merely because software mode is called HOTPLUG. If safe attachment requires board power-down, obtain separate approval and re-establish LIVE telemetry before the software attempt.
+- Confirm actuator disconnection, transmitter OFF, E-STOP latched, zero commands, no active goal/commissioning, and normal BOOT0 state. Preserve current battery/main-switch arrangement and host calibration.
+- Preserve 7e3c4dc recovery evidence. No UART operation, B1 script execution or serial-port opening is part of SWD.
+
+### Supervision and maintenance policy gate: still OPEN
+
+The proposed session keeps base telemetry running. Before any hardware attempt, review a bounded maintenance policy that prevents only automatic starts/restarts of rover-base-telemetry during SWD access, while continuing stale-data classification, E-STOP, zero-command enforcement and unrelated monitoring. It must cover in-flight recovery jobs as well as new jobs. Do not blanket-disable atlas-sensor-recovery or silently extend its existing camera-only hold. No maintenance mechanism is installed or approved here.
+
+The maintenance owner must not release a hold into an automatic restart while the probe is still attached or target state is uncertain. On expiry/failure it must stop the SWD client, preserve evidence and require operator recovery; the detailed implementation/expiry behavior needs review before deployment. This is an execution blocker, not a claim of a completed safety mechanism.
+
+### Proposed single session budget
+
+1. Record a 10-second passive dashboard/API baseline: raw board packet counters and ages, checksum/write errors, E-STOP, command values, telemetry/recovery PID and restart counters, resource guards. No new ROS participant or serial reader.
+2. Maximum 180 seconds from first software attach to disconnect; each individual attach/read has a 60-second ceiling, constrained by the remaining total budget. These are stop bounds, not a guarantee that 100 kHz reads will finish. No automatic retry, higher clock, different attach mode or longer timeout if exceeded.
+3. Use one GUI HOTPLUG connection when practicable. Identify target and read-only protection/size first. Only if identity agrees with STM32F103RC and unprotected 256 KB flash is established, perform the two 262144-byte reads. If the GUI cannot enforce/observe the bound, prepare a reviewed supervised client before approval; do not improvise during access.
+4. Monitor existing telemetry at approximately 1 Hz without changing production freshness thresholds. Abort immediately on an existing freshness/safety/resource failure, unexpected packet-counter reset, new serial errors, service identity/restart change, recovery activity involving base, any reset/halt indication, USB loss, protection denial, read error or inconsistent identity. Stop on monitoring loss too.
+5. On abort: cancel reads and disconnect the host probe session; no reset, halt/resume, option change, power cycle or serial recovery command. If cancellation hangs, stop the PC client at the session bound; host termination does not prove the MCU is healthy. Preserve logs, keep E-STOP/physical isolation, inspect passively and request explicit recovery approval. Do not reconnect or retry.
+6. After successful software disconnect, observe 30 seconds of increasing packet counters with fresh raw packet ages, no added checksum/write errors, unchanged service identities, latched stop and zero commands. Recovery activity invalidates the nondisruption result even if the final dashboard appears healthy.
+
+### Offline backup acceptance and copies
+
+Use a new unique output folder; never overwrite earlier evidence. Require two complete 262144-byte files, byte-for-byte equality and independently calculated SHA256. Check vector plausibility and nonblank program content as well as the identified flash size. Preserve the whole image, including the final pages. Extract settings at offset 0x3C000 length 2048 offline; retain raw option bytes/protection display and chip/UID logs separately. A changing settings page is a failed consistency result, not permission to halt the MCU.
+
+Copy BOTH full reads, settings, identity/protection evidence, tool/probe versions, session log and manifest to the Jetson evidence directory over normal file transfer only, then independently rehash both copies on Windows and Jetson. Include separately backed-up Jetson calibration. Report copy failure separately from read success. No MCU write/read-back verification or restore rehearsal is implied; B2 remains blocked pending evidence review.
+
+### Required next approval
+
+First supply physical J16/probe identification evidence. After pin orientation and the maintenance/abort policy are resolved, request explicit approval for the reviewed wiring attachment and **one bounded SWD HOTPLUG read-only session**, with two reads and evidence copies. Any needed power-down or maintenance-policy installation must be named separately. No such hardware approval is granted by the current preparation request. No B2 flashing, erase, unlock or option-byte modification is authorized.
