@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-27 Stage28: base-maintenance coordination + RC-bridge deployment package (OFFLINE, NOT deployed).
+Runtime-only (tmpfs) base lease, additive recovery hold (+106 lines), window-only ExecCondition start gate, transactional
+deployer with per-predicate evidence and one-start rollback. Found 0ce6dd1 helper hashes are CRLF artifacts; atlas_flysky_core.py
+is not replaced. 36 unit (Py3.10/3.13) + 94 existing + 16 real-systemd simulation scenarios pass. Live read-only preflight GO.
+See docs/ATLAS_STAGE28_BASE_MAINTENANCE_COORDINATION_20261027.md.
+
 2026-10-27 Stage28 B4: fixed PC monitor status publication using immutable snapshots and terminal/freshness-aware reads. 12 native Windows/fake-serial tests plus32 existing regressions passed. No board access, reset, flash or live retry.
 
 2026-10-27 Stage28: pinned offline GCC firmware build inputs, resolved Newlib type collision, preserved OLED float formatting, verified two reproducible builds and independent HEX/BIN boundaries. Added release-image regressions; 32 focused tests passed. B2 remains gated on exact-image owner confirmation and fresh hardware checks.

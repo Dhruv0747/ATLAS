@@ -1,0 +1,55 @@
+{
+ "schema": 1,
+ "source_commit": "0ce6dd1f6015e60b70a2199467226286c2e4efc3",
+ "note": "Candidates are rebuilt ON THE JETSON from the exact live baselines with the reviewed insert scripts and must match these hashes. The 0ce6dd1 manifest lists the three helpers with CRLF hashes (Windows checkout); the LF bytes below are the same content as git. atlas_flysky_core.py is NOT replaced: live == git LF version.",
+ "modified": {
+  "atlas_sensor_recovery.py": {
+   "baseline_sha256": "c6b5ac7979b6aff24c2f1a13a365d039b833da4c37997d3a8a07b21a928daaf5",
+   "insert": "insert_recovery_base_hold.py",
+   "candidate_sha256": "5f44cc1fbd7cdc65b8af17abeb9ecd41cec0a8c8f3ee8274fa9b34362633193a",
+   "stage": "A"
+  },
+  "Rosmaster_Lib.py": {
+   "baseline_sha256": "355ac42041e41df216316167ab73bda72eed9129c849222ec07aaba4f7c00371",
+   "insert": "insert_rosmaster_rc.py",
+   "candidate_sha256": "15391e14b13e5e20b8cb506df5cc7930274967f7966f35ba57d217f5cca57fe0",
+   "stage": "B"
+  },
+  "yahboom_base.py": {
+   "baseline_sha256": "c551be0053a43755578fc8e60b534338818a690411322c63a293376e6e560141",
+   "insert": "insert_rc_hooks.py",
+   "candidate_sha256": "bb6db3a10c196be55ccd1bcb7bcbbf538643089c1a7bd5fe833f9b45453b473d",
+   "stage": "B"
+  }
+ },
+ "added": {
+  "atlas_base_maintenance.py": {
+   "sha256": "a768626a1d5e239e07016aeecf5c60141afa2eee0c79a680a2a1418638c5915b",
+   "stage": "A"
+  },
+  "atlas_yahboom_rc_report.py": {
+   "sha256": "f5165a58865f67d134bbdbf30be1af631f1eba67415d2d5a883274364005e88a",
+   "stage": "B",
+   "crlf_sha256_in_0ce6dd1_manifest": "13f8f5165219dc3432c5ebcf5569405b271f9a328ece02af1639b4fd8c952bc0"
+  },
+  "atlas_rc_readonly_bridge.py": {
+   "sha256": "c717ca1b9387608c41aa8942813ca08ea245434bbc97ed99a02a02e976fcbf87",
+   "stage": "B",
+   "crlf_sha256_in_0ce6dd1_manifest": "f8196bf9268e568f95f702efb434f274e6caa8bae759cbb8f9dd98157d0f94de"
+  }
+ },
+ "must_remain": {
+  "atlas_flysky_core.py": "3e4b379e656788c25521a7f8e588f3fd5e7974be19d9234a9028d064859f8ad4",
+  "atlas_flysky_web.py": "f49285fa84b46858daa351f0ab877af7e58e020cfdc09243b20c675210615ae4"
+ },
+ "not_deployed": {
+  "atlas_flysky_core.py": "0ce6dd1 candidate ef1c6eb1... is the CRLF form of the identical live file 3e4b379e...; replacing it is unnecessary",
+  "harden_yahboom_port.py": "not part of the reviewed 0ce6dd1 candidate"
+ },
+ "stage_b_files": [
+  "atlas_yahboom_rc_report.py",
+  "atlas_rc_readonly_bridge.py",
+  "Rosmaster_Lib.py",
+  "yahboom_base.py"
+ ]
+}

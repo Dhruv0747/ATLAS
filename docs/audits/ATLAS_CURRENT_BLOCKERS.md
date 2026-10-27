@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+2026-10-27 Stage28 base-restart coordination: offline package READY, NOT deployed. Recovery race narrowed:
+the competing restart needs base deactivation >2 s; during activation recovery defers and spends its single attempt.
+Real CPU blocker is the restart transient (98.8 % in d1d13a3); owner must choose --cpu-rule settle|strict (limits unchanged).
+Live read-only preflight 19:50 IST GO (CPU mean 65.5/max 68.0, RAM 62.6, 64.4 C). Open: Xbox unavailable; B4 CH5-CH10
+constant 1024 (cause unproven). ATLAS_STAGE28_BASE_MAINTENANCE_COORDINATION_20261027.md.
+
 2026-10-21 remaining CPU: two-thread lifetime pattern persists; existing untagged
 executor samples cannot identify a safe dominant-cost fix. Exact-live compact
 JSON candidate prepared,6+60tests pass; historical expected saving only~0.06

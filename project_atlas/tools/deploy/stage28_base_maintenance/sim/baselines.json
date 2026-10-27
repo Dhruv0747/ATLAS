@@ -1,0 +1,11 @@
+{
+ "git_blobs": {
+  "Rosmaster_Lib.py": "3633b8b7eb60990d2bcfc64400b3881e62cfcf1e",
+  "atlas_sensor_recovery.py": "ea42bb279526c084b2f6808c9a3a9bcbfb9f6680",
+  "atlas_flysky_core.py": "a043b96f28a90e773c1c9137f71efe85855f9cf3",
+  "atlas_flysky_web.py": "22711e3aeac797973e4d9beacc078c4e16b4819d"
+ },
+ "fixture": {
+  "yahboom_base.py": "../baseline/yahboom_base.py.live-c551be00"
+ }
+}
