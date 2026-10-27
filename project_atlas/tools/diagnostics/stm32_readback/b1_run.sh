@@ -64,18 +64,28 @@ python3 "$HERE/atlas_stm32_readback.py" --port "$PORT" --out "$OUT/stm32" --vend
         --i-confirm-bootloader-entered | tee "$OUT/readback.log"
 rc=${PIPESTATUS[0]}
 set -e
-echo "readback exit code: $rc   (0 ok, 3 read-protected, 4 protocol stop, 5 pass mismatch)"
+echo "readback exit code: $rc   (0 ok, 3 read-protected, 4 protocol stop, 5 pass mismatch; script exits 6 if the base is not confirmed back)"
 
 # 6. Return to normal (owner + one start)
 ask "BOOT0 released. Board main switch ON. Press RESET once now."
+START=$(date +%s)
 systemctl --user start rover-base-telemetry.service
-sleep 10
-systemctl --user is-active rover-base-telemetry.service
-if journalctl --user -u rover-base-telemetry --since "-20 s" --no-pager | grep -E "Yahboom board ready.*firmware=3\.6, car_type=5" | tail -1 | tee "$OUT/after_board_ready.txt" | grep -q .; then
+# Firmware 3.3+ waits ~10 s for IMU init after RESET, and the driver may need a systemd restart
+# (RestartSec=3) before discovery succeeds, so poll up to 60 s for a line logged after START.
+ready=""
+for _ in $(seq 60); do
+  ready=$(journalctl --user -u rover-base-telemetry --since "@$START" --no-pager | grep -E "Yahboom board ready.*firmware=3\.6, car_type=5" | tail -1 || true)
+  [[ -n "$ready" ]] && break
+  sleep 1
+done
+systemctl --user is-active rover-base-telemetry.service || true
+if [[ -n "$ready" ]]; then
+  echo "$ready" > "$OUT/after_board_ready.txt"
   SERVICE_STOPPED=0
   echo "base driver is back: board ready, firmware 3.6, car type 5"
 else
-  echo "WARNING: no fresh 'board ready firmware=3.6, car_type=5' line. Is BOOT0 released and RESET pressed? Do not reconnect actuators."
+  echo "WARNING: no 'board ready firmware=3.6, car_type=5' within 60 s. Is BOOT0 released and RESET pressed? Do not reconnect actuators."
+  [[ "$rc" == 0 ]] && rc=6   # backup fine but base not confirmed back: non-zero so it cannot be missed
 fi
 echo "Reconnect steering servos and motors only when you are ready; E-STOP stays latched."
 trap - ERR
