@@ -1505,6 +1505,7 @@
       "remaining_gap": "Fresh post-reboot live installation checks and owner approval; verified maintenance deployment; separate one-attempt B1 approval.",
       "report": "project_atlas/docs/ATLAS_STAGE28_B1_INTERLOCK_AND_STRICT_READBACK.md",
       "native_review_followup": "2026-10-27: fixed heartbeat revival, reusable reader token and restoration race; 94 offline tests and native systemd249 fake-unit lifecycle pass. Not deployed; source review and simulated proof do not establish hardware backup success.",
+      "postflight_diagnostics_followup": "9834093 rollback verified; failed snapshot missing, exact predicate unknown. Offline wrapper now saves atomic redacted per-predicate evidence and SHA256 readback before rollback; 131 tests pass. Not deployed; separate retry approval required.",
       "thermal_wrapper_followup": "d674543 aborted installation before writes: generic thermal reader mishandled unavailable CV nodes. Wrapper now reuses unchanged Nano read_thermal;147 tests and read-only native resource check pass. No deployment/restart; separate retry approval needed."
     }
   ]

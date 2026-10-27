@@ -71,7 +71,7 @@ def test_unknown_model_cannot_exempt_cv(tmp_path,monkeypatch):
     with pytest.raises(ValueError):deploy.validate_resources(20,20,t)
 
 
-@pytest.mark.parametrize('fail_at',['preflight1','preflight2','first_write','recovery_write','condition_write','postflight','none'])
+@pytest.mark.parametrize('fail_at',['preflight1','preflight2','first_write','recovery_write','condition_write','postflight','safety_reject','evidence_failure','none'])
 def test_transaction_with_fake_files_and_services(tmp_path,monkeypatch,fail_at):
     stage=tmp_path/'stage';stage.mkdir();scripts=tmp_path/'scripts';scripts.mkdir();units=tmp_path/'units';units.mkdir()
     dropdir=units/'rover-base-telemetry.service.d';dropdir.mkdir()
@@ -90,6 +90,7 @@ def test_transaction_with_fake_files_and_services(tmp_path,monkeypatch,fail_at):
     realsha=deploy.sha
     monkeypatch.setattr(deploy,'sha',lambda p: {'candidate.tar':'a28c5ea60de2b9276a2a275d1c2bb0bd303d959a61821b7f0217dc05a428a756','baseline-backup.tar':'6f583eb097236eb675986d472b7ece3c74722a051f1867a58e0b98fed2bda87a'}.get(Path(p).name) or realsha(p))
     class Gate:
+        def safe(self,d):return False
         def initialize(self):state.mkdir();(state/'state.json').write_text('{"version":1,"phase":"IDLE"}')
         def start_gate(self):return True
         def load(self):return json.loads((state/'state.json').read_text())
@@ -109,7 +110,15 @@ def test_transaction_with_fake_files_and_services(tmp_path,monkeypatch,fail_at):
         return {n:{'Id':n,'ActiveState':'active','MainPID':str(100+restarts[0] if n=='atlas-sensor-recovery.service' else 20),'NRestarts':'0'} for n in deploy.UNITS}
     monkeypatch.setattr(deploy,'stats',stats)
     packets=[0]
-    def safety():packets[0]+=1;return {'packet_count':packets[0]}
+    actual_safety=deploy.safety
+    def safety():
+        packets[0]+=1
+        if fail_at in ('safety_reject','evidence_failure') and packets[0]==3:
+            monkeypatch.setattr(deploy.urllib.request,'urlopen',lambda *a,**kw:io.StringIO('{"ros":{}}'))
+            if fail_at=='evidence_failure':
+                monkeypatch.setattr(deploy.safety_evidence,'save',lambda *a:(_ for _ in ()).throw(OSError('disk failed')))
+            return actual_safety()
+        return {'packet_count':packets[0]}
     monkeypatch.setattr(deploy,'safety',safety)
     samples=[0]
     def resource():
@@ -132,6 +141,13 @@ def test_transaction_with_fake_files_and_services(tmp_path,monkeypatch,fail_at):
         for name,digest in before.items():assert realsha(name)==digest
         assert not deploy.DROP.exists() and not state.exists() and not (scripts/'atlas_b1_interlock.py').exists()
         if fail_at.startswith('preflight'):assert writes[0]==0 and restarts[0]==0
+        if fail_at in ('safety_reject','evidence_failure'):
+            assert result['status']=='ROLLED_BACK'
+            assert result['safety_evidence'][0]['failed_predicates']
+            if fail_at=='safety_reject':
+                assert json.loads((stage/'safety-001.json').read_text())['payload']['stage']=='post-install'
+            else:
+                assert result['safety_evidence'][0]['fallback_evidence']['failed_predicates']
 
 
 @pytest.mark.parametrize('broken',[False,True])

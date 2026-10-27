@@ -3,6 +3,7 @@ from pathlib import Path
 import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from offboard_bridge_preflight import read_thermal
+import safety_evidence
 ROOT=Path('/UNCONFIGURED-B1-STAGING')
 S=Path('/home/jetson/project_atlas/scripts'); U=Path.home()/'.config/systemd/user'
 STATE=Path.home()/'.local/state/project_atlas/b1_interlock'
@@ -49,8 +50,33 @@ def resource():
  row['temp_c']=validate_resources(load,ram,thermal)
  return row
 def safety():
- with urllib.request.urlopen('http://127.0.0.1:8088/api/status',timeout=3) as r:d=json.load(r)
- assert gate.safe(d),'E-STOP/zero/manual-only policy failure'
+ d=None;api_error=None
+ started=time.monotonic()
+ try:
+  with urllib.request.urlopen('http://127.0.0.1:8088/api/status',timeout=3) as r:d=json.load(r)
+ except Exception as exc:
+  api_error=type(exc).__name__  # exception text/body can contain credentials
+ evidence=safety_evidence.evaluate(d,api_error)
+ evidence['fetch_started_monotonic']=started
+ evidence['fetch_finished_monotonic']=time.monotonic()
+ evidence['stage']='post-install' if modified else 'pre-install'
+ accepted=api_error is None and gate.safe(d)
+ evidence['original_gate_pass']=accepted
+ if not accepted and not evidence['failed_predicates']:
+  evidence['failed_predicates'].append('original_gate_disagreement')
+ sequence=len(result.setdefault('safety_evidence',[]))+1
+ path=ROOT/('safety-%03d.json'%sequence)
+ entry={'path':str(path),'failed_predicates':evidence['failed_predicates']}
+ result['safety_evidence'].append(entry)
+ try:
+  entry['sha256']=safety_evidence.save(path,evidence)
+ except Exception as exc:
+  entry['write_error_type']=type(exc).__name__
+  entry['fallback_evidence']=evidence
+  print(json.dumps({'safety_evidence_write_failure':entry},allow_nan=False),file=sys.stderr,flush=True)
+  raise RuntimeError('safety evidence persistence failed; admission denied') from None
+ if not accepted or evidence['failed_predicates']:
+  raise RuntimeError('safety rejected: '+', '.join(evidence['failed_predicates']))
  count=gate_module.packet_counter(d)
  return {'packet_count':count,'policy':d['ros']['control_policy'],'cmd':d['ros']['cmd_vel'],'encoder':d['ros']['encoder_health']}
 def atomic(src,dst):

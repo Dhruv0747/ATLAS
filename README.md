@@ -1705,3 +1705,5 @@ Stage 28 B1 offline maintenance/readback candidate: see project_atlas/docs/ATLAS
 Stage 28 B1 native review: project_atlas/docs/ATLAS_STAGE28_B1_NATIVE_REVIEW_20261027.md. Offline and native fake-unit validation passed; production deployment and B1 remain separately approval-gated.
 
 Stage28 corrected maintenance wrapper: project_atlas/docs/ATLAS_STAGE28_THERMAL_RETRY_PREPARATION_20261027.md. Prepared only; separate retry approval required.
+
+Stage28 maintenance retry diagnostics: see [offline safety evidence correction](project_atlas/docs/ATLAS_STAGE28_POSTFLIGHT_SAFETY_DIAGNOSTICS_20261027.md). Deployment requires separate approval; B1 remains blocked.

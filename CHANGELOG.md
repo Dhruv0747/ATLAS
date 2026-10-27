@@ -3455,3 +3455,5 @@ Approved interlock installation aborted before production writes on a deployment
 Reuse established Nano-aware thermal probe; preserve75/80/70 safeguards and null unavailable CV values. Import-safe approval-gated wrapper, atomic-write cleanup and fault-injection tests.147 tests passed; native read-only Jetson resource validation passed. No deployment/restarts.
 
 2026-10-27 Stage28 approved maintenance retry rolled back after postflight safety rejection. Thermal preflight passed; production baseline restored and base telemetry unchanged. Published evidence and explicit failed-snapshot gap; no B1.
+
+2026-10-27 Stage28 offline wrapper now persists atomic, redacted, hash-verified per-predicate safety evidence before rollback; 131 tests pass. Original failed postflight cause remains unknown. No deployment.
