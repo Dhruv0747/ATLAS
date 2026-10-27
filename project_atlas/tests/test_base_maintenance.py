@@ -587,6 +587,53 @@ class DeployerGateTests(unittest.TestCase):
         self.gate([75.0] + [66.0] * 40, rule='strict', bound=None)
         self.gate([99.0] + [66.0] * 40, rule='strict', bound=None, t0=95.0)   # spike ended before the restart
 
+    def test_observer_recorder_warmup_gap_and_failures(self):
+        class FakeObs:
+            def __init__(self, script):
+                self.script, self.i = script, 0
+
+            def start(self):
+                return self
+
+            def stop(self):
+                pass
+
+            def evaluate(self):
+                ok = self.script(self.i)
+                self.i += 1
+                return {'wall': time.time(), 'ok': ok,
+                        'signals': {'estop_latched': {'ok': ok}, 'motor_output_zero': {'ok': False}}}
+        env = FakeEnv([status()], observer_warmup_s=0.6)
+        env.sleep = time.sleep
+        env.make_observer = lambda pid: FakeObs(lambda i: True)
+        with D.ObserverRecorder(env, 1, exempt=('motor_output_zero',)) as r:   # exempt base signal ignored
+            time.sleep(0.6)
+        self.assertTrue(all(s['window_ok'] for s in r.snaps))
+        self.assertEqual(r.max_gap_s, 1.0)
+        env.make_observer = lambda pid: FakeObs(lambda i: i % 3 != 0)          # never 0.6 s continuously OK
+        with self.assertRaisesRegex(D.Fail, 'never continuously OK'):
+            with D.ObserverRecorder(env, 1, exempt=('motor_output_zero',)):
+                pass
+        env.make_observer = lambda pid: FakeObs(lambda i: True)
+        with self.assertRaises(D.Fail):                                       # non-exempt signal failing
+            with D.ObserverRecorder(env, 1):
+                pass
+
+        def boom(pid):
+            raise OSError('connection refused')
+        env.make_observer = boom
+        with self.assertRaisesRegex(D.Fail, 'observer unavailable'):
+            with D.ObserverRecorder(env, 1):
+                pass
+
+    def test_observer_gap_limit_is_one_second(self):
+        rec = self.rec([90] * 3 + [66] * 40)
+        walls = [100.0 + 0.25 * i for i in range(8)] + [100.0 + 1.75 + 1.1 + 0.25 * i for i in range(170)]
+        safety = self.safety(walls)
+        safety.max_gap_s = 1.0
+        with self.assertRaisesRegex(D.Fail, 'not operating reliably'):
+            D.resources_after_restart(FakeEnv([status()], steady_s=30), Ev(), 'x', 'transient', rec, 100.0, 10, safety)
+
     def test_recorder_runs_in_background(self):
         env = FakeEnv([status()], cpu=[10, 20, 30])
         env.sleep = time.sleep

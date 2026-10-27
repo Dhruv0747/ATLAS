@@ -70,6 +70,9 @@ class Env:
         self.dropin_name = '90-atlas-base-maintenance.conf'
         self.python = '/usr/bin/python3'
         self.thermal_root = '/sys/class/thermal'
+        self.observer_port = 8765
+        self.observer_odom = Path(f'/run/user/{uid}/atlas_yahboom_odom_state.json')
+        self.observer_warmup_s = 3.0
         self.maint_root = None
         self.lease_s = 480.0
         self.preflight_s = 30
@@ -86,6 +89,11 @@ class Env:
         self.__dict__.update(kw)
 
     # system access, each overridable
+    def make_observer(self, base_pid):
+        sys.path.insert(0, str(HERE))
+        import atlas_safety_observer as so
+        return so.SafetyObserver(port=self.observer_port, base_pid=base_pid, odom_path=self.observer_odom)
+
     def systemctl(self, *args, timeout=30, check=True):
         return subprocess.run(['systemctl', '--user', *args], capture_output=True, text=True,
                               timeout=timeout, check=check)
@@ -369,8 +377,9 @@ def early_abort(env, ev, label, rec, t_restart, bound_s, safety):
             why.append(f'safety failure {fails[:3]}')
         walls = [t_restart] + [x['wall'] for x in list(safety.snaps) if t_restart < x['wall'] <= now] + [now]
         gap = max(b - a for a, b in zip(walls, walls[1:]))
-        if gap > SAFETY_MAX_GAP_S:
-            why.append(f'safety monitoring not operating reliably (gap {gap:.1f} s > {SAFETY_MAX_GAP_S} s)')
+        limit = getattr(safety, 'max_gap_s', SAFETY_MAX_GAP_S)
+        if gap > limit:
+            why.append(f'safety monitoring not operating reliably (gap {gap:.2f} s > {limit} s)')
     for ts, ram, temp in list(rec.rt):
         if ts > t_restart and not (type(ram) in (int, float) and ram <= RAM_LIMIT and
                                    type(temp) in (int, float) and temp < TEMP_LIMIT):
@@ -384,6 +393,68 @@ def early_abort(env, ev, label, rec, t_restart, bound_s, safety):
                                    'cpu_samples_since_restart': rec.timed_since(t_restart),
                                    'safety_snapshots': list(safety.snaps) if safety else []})
         raise Fail(f'{label}: IMMEDIATE ABORT: ' + '; '.join(why))
+
+
+# Base-owned observer signals; exempt only while the base itself is restarted by design (stage B).
+OBSERVER_BASE_SIGNALS = ('motor_output_zero', 'telemetry_live', 'base_loop_alive', 'base_still', 'base_identity')
+
+
+class ObserverRecorder:
+    """In-window safety source independent of the dashboard HTTP server: atlas_safety_observer (existing
+    foxglove_bridge WebSocket + base runtime file + /proc), evaluated every 0.25 s; every verdict is saved.
+    Same interface as SafetyRecorder (snaps with 'wall'/'window_ok', failures()) plus a stricter gap limit."""
+    max_gap_s = 1.0
+    period = 0.25
+
+    def __init__(self, env, base_pid, exempt=()):
+        self.env, self.base_pid, self.exempt = env, base_pid, set(exempt)
+        self.snaps, self._stop = [], threading.Event()
+        self._t = threading.Thread(target=self._run, daemon=True)
+        self.obs = None
+
+    def __enter__(self):
+        try:
+            self.obs = self.env.make_observer(self.base_pid)
+            self.obs.start()
+        except Exception as exc:
+            raise Fail(f'independent safety observer unavailable: {exc}') from exc
+        self._t.start()
+        deadline = time.monotonic() + self.env.observer_warmup_s + 5.0
+        while time.monotonic() < deadline:          # require warmup_s of continuous all-OK verdicts
+            ok_since = None
+            for s in reversed(list(self.snaps)):
+                if not s['window_ok']:
+                    break
+                ok_since = s['wall']
+            if ok_since and time.time() - ok_since >= self.env.observer_warmup_s:
+                return self
+            self.env.sleep(0.1)
+        self.__exit__()
+        bad = self.snaps[-1]['failed'] if self.snaps else ['no verdict']
+        raise Fail(f'independent safety observer never continuously OK for {self.env.observer_warmup_s} s: {bad}')
+
+    def __exit__(self, *exc):
+        self._stop.set()
+        self._t.join(timeout=5)
+        if self.obs:
+            self.obs.stop()
+
+    def _run(self):
+        while not self._stop.is_set():
+            try:
+                v = self.obs.evaluate()
+                failed = [k for k, x in v['signals'].items() if not x['ok'] and k not in self.exempt]
+                s = {'wall': v['wall'], 'window_ok': not failed, 'failed': failed,
+                     'predicates': {k: x['ok'] for k, x in v['signals'].items()}, 'verdict': v}
+            except Exception as exc:
+                s = {'wall': time.time(), 'window_ok': False, 'failed': ['observer_error'],
+                     'predicates': {'observer_error': False}, 'error': repr(exc)}
+            self.snaps.append(s)
+            self._stop.wait(self.period)
+
+    def failures(self, t0, t1):
+        return [{'t': round(s['wall'] - t0, 2), 'failed': s['failed']}
+                for s in list(self.snaps) if t0 <= s['wall'] <= t1 and not s['window_ok']]
 
 
 def resources_after_restart(env, ev, label, rule, rec, t_restart, bound_s=None, safety=None):
@@ -677,8 +748,8 @@ def install_recovery(env, args, ev=None):
         install_atomic(mine['atlas_base_maintenance.py'], env.scripts / 'atlas_base_maintenance.py', 0o644)
         install_atomic(mine['atlas_sensor_recovery.py'], env.scripts / 'atlas_sensor_recovery.py',
                        meta['atlas_sensor_recovery.py']['mode'])
-        with CpuRecorder(env) as cpu, SafetyRecorder(env) as safe:
-            env.sleep(2.5)                                  # recorders running before the restart
+        with CpuRecorder(env) as cpu, ObserverRecorder(env, int(base0['MainPID'])) as safe:
+            env.sleep(2.5)                                  # recorders running (observer continuously OK) before the restart
             t0 = time.time()
             ev.log('restarting atlas-sensor-recovery ONLY')
             env.systemctl('restart', env.recovery, timeout=30)
@@ -784,7 +855,7 @@ def deploy(env, args, ev=None):
         require_safe(env, ev, 'B-pre-restart', count=2)
         resources_strict(env, ev, 'B-pre-restart', env.pre_restart_s)
         m.authorize_start(session)
-        with CpuRecorder(env) as cpu, SafetyRecorder(env, required=NON_BASE_PREDICATES) as safe:
+        with CpuRecorder(env) as cpu, ObserverRecorder(env, None, exempt=OBSERVER_BASE_SIGNALS) as safe:
             env.sleep(2.5)
             t0 = time.time()
             ev.log('restarting rover-base-telemetry ONLY (1 authorised start)')

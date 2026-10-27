@@ -30,8 +30,18 @@ SENSORS = ['atlas-lidar.service', 'atlas-camera.service', 'rover-radar.service',
            'atlas-uno-r4-sensor-hub.service', 'atlas-ekf.service', 'rover-cellular.service', 'atlas-slam-fast.service']
 PROTECTED = ['atlas-cmd-vel-mux.service', 'rover-status-web.service']
 W = None            # workdir
+FOX_PORT = None     # fake foxglove_bridge (independent safety observer source)
 STATE = None        # sim state dir
 SCRIPTS = None      # sim "production" scripts dir
+
+
+def free_port():
+    import socket
+    k = socket.socket()
+    k.bind(('127.0.0.1', 0))
+    port = k.getsockname()[1]
+    k.close()
+    return port
 
 
 def sh(*a, check=True, timeout=60):
@@ -49,6 +59,10 @@ def world(**kw):
     d = json.loads(p.read_text()) if p.exists() else {}
     d.update(kw)
     p.write_text(json.dumps(d))
+    fox = {k: d[k] for k in ('stop_latched', 'cmd_lin', 'cmd_ang', 'encoder_state', 'source') if k in d}
+    tmp = STATE / 'fox_ctl.tmp'
+    tmp.write_text(json.dumps(fox))
+    os.replace(tmp, STATE / 'fox_ctl.json')
 
 
 def flag(name, on=True, value=None):
@@ -147,6 +161,7 @@ def load_deployer():
 
 
 D = load_deployer()
+sys.path.insert(0, str(PKG))
 
 
 class SimEnv(D.Env):
@@ -166,6 +181,10 @@ class SimEnv(D.Env):
         if args and args[0] == 'restart':
             self.transient_left = self.cpu.get('transient_n', 3)
         return super().systemctl(*args, timeout=timeout, check=check)
+
+    def make_observer(self, base_pid):
+        import atlas_safety_observer as so
+        return so.SafetyObserver(port=FOX_PORT, base_pid=base_pid, odom_path=STATE / 'odom.json')
 
     def journal(self, invocation, since_epoch=0.0):
         return '\n'.join(m for _, t, m in log_lines(invocation) if t >= since_epoch)
@@ -229,6 +248,9 @@ def setup(workdir):
         hbv = f'Environment=SIM_HB={STATE}/lidar_hb SIM_NAME={s}' if s == 'atlas-lidar.service' else f'Environment=SIM_NAME={s}'
         unit(s, f'{py} {HERE}/sleeper.py', 'Type=simple\n' + hbv)
     world(estop=True, stop_latched=True, cmd_lin=0.0, cmd_ang=0.0, encoder_state='READY', recovery_encoder_state=None)
+    global FOX_PORT
+    FOX_PORT = free_port()
+    subprocess.Popen([sys.executable, str(HERE / 'fake_foxglove.py'), str(FOX_PORT), str(STATE / 'fox_ctl.json')])
     reset_runtime()
     sh('daemon-reload')
     for s in SENSORS + PROTECTED + [BASE, REC]:
@@ -703,6 +725,38 @@ def s13_no_lease_recovery_unchanged(port):
     return {'line': base_restart_by_recovery(recovery_lines(t0))[0]}
 
 
+@scenario
+def s14_estop_released_inside_stage_a_window(port):
+    """E-STOP released 1 s after the recovery restart: the independent observer sees policy.stop_latched=false,
+    stage A aborts immediately (not at window end) and the original recovery is restored."""
+    install_original_recovery()
+    reset_runtime()
+    fresh_recovery()
+    env = SimEnv(port, cpu={'transient_n': 2, 'transient_val': 98.8, 'steady': 66.0})
+    orig = env.systemctl
+
+    def trip(*a, **k):
+        r = orig(*a, **k)
+        if a[:2] == ('restart', REC):
+            threading.Timer(1.0, lambda: world(stop_latched=False)).start()
+        return r
+    env.systemctl = trip
+    t0 = time.time()
+    try:
+        rc = D.main(['install-recovery', '--cpu-rule', 'transient', '--transient-bound-s', '10',
+                     '--owner-confirms-transmitter-off', '--owner-confirms-actuators-disconnected'], env=env)
+    finally:
+        world(stop_latched=True)
+    ev = sorted((W / 'evidence').glob('stage28-recovery-coordination-*'))[-1]
+    res = json.loads(sorted(ev.glob('*-result.json'))[-1].read_text())
+    abort = json.loads(next(ev.glob('*-abort-A-post.json')).read_text())
+    assert rc == 1 and res['result'] == 'FAIL', res
+    assert any('estop_latched' in str(r) for r in abort['reasons']), abort['reasons']
+    assert D.sha(SCRIPTS / 'atlas_sensor_recovery.py') == D.MANIFEST['modified']['atlas_sensor_recovery.py']['baseline_sha256']
+    return {'reasons': abort['reasons'][:1], 'aborted_after_s': round(abort['cpu_samples_since_restart'][-1][0], 1),
+            'total_s': round(time.time() - t0, 1)}
+
+
 ALL = [s00_original_recovery_races_manual_restart, s00b_original_recovery_defers_during_long_init,
        s01_stage_a_install_recovery, s02_stage_a_strict_rule_rolls_back,
        s03_stage_b_deploy_happy_path_with_dds_gap, s04_inflight_recovery_restart_blocks_entry,
@@ -711,7 +765,7 @@ ALL = [s00_original_recovery_races_manual_restart, s00b_original_recovery_defers
        s07_stop_guard_broken_before_restart, s08_owner_crash_fails_closed_then_abandon,
        s09_expired_lease_stays_closed, s10_unrelated_sensor_recovery_continues,
        s11_recovery_without_module_fails_closed, s12_stop_guard_unchanged_without_lease,
-       s13_no_lease_recovery_unchanged]
+       s13_no_lease_recovery_unchanged, s14_estop_released_inside_stage_a_window]
 
 
 def main():

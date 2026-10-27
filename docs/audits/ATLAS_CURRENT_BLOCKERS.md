@@ -1,5 +1,7 @@
 # ATLAS current blockers
 
+2026-10-27 Independent safety observer ready offline; blocking gap: producers (mux, base, foxglove_bridge) unmeasured during a real discovery storm. Proposed owner-approved storm rehearsal (test participant, no service restart). Stage A NO-GO until then. ATLAS_STAGE28_INDEPENDENT_SAFETY_OBSERVER_20261027.md
+
 2026-10-27 Stage A attempt 2 aborted fail-closed: safety data source (status web) times out during restart CPU saturation. Next step needs owner decision (prioritise safety path / reduce discovery load / independent monitor). ATLAS_STAGE28_STAGE_A_TRANSIENT_ABORT_20261027.md
 
 2026-10-27 Restart CPU spike root cause: peer discovery (89-99 %); strict 1-s rule cannot pass any ROS node restart at ~65 % baseline (model: fixed ~5.5 core-s per new participant). Owner decision: transient bound 10 s for Stage A (evidence: last over-limit +8.5 s). Side issue: user@1000 lacks cpu controller; base CPUWeight not in effect. ATLAS_STAGE28_RESTART_CPU_ROOT_CAUSE_20261027.md

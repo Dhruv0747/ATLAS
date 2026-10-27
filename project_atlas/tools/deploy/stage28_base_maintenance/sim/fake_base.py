@@ -72,6 +72,10 @@ while True:
     if not flag('hang'):
         notify('WATCHDOG=1')
     n += 1
+    if n % 6 == 0:                                   # ~3 Hz, like yahboom_base's odom runtime file
+        otmp = SIM / f'odom.{os.getpid()}.tmp'
+        otmp.write_text(json.dumps({'x': -0.0035, 'y': 0.0, 'yaw': 0.0}))
+        os.replace(otmp, SIM / 'odom.json')
     tmp = SIM / f'hb.{os.getpid()}.tmp'
     tmp.write_text(json.dumps({'mono': time.monotonic(), 'wall': time.time(), 'n': n, 'pid': os.getpid()}))
     os.replace(tmp, SIM / 'hb')
