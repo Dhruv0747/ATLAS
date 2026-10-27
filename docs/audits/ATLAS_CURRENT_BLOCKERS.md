@@ -1189,3 +1189,5 @@ See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
 2026-10-27 B1 follow-up: df1c41e reviewed; expired-heartbeat revival and token reuse corrected. 94 offline tests and native PC fake-unit systemd lifecycle pass. GO for maintenance-only deployment approval subject to fresh post-reboot checks; physical B1 remains NO-GO until deployment verified and separately approved.
 
 2026-10-27 maintenance installation 8736c73 ABORTED BEFORE INSTALL: wrapper used generic thermal reads and hit unavailable CV0/1/2 TypeError. Existing Nano-aware read_thermal must be reused; no production writes/restarts/B1. Exact live baseline and cross-host rollback archive verified; base telemetry remains LIVE. See project_atlas/docs/ATLAS_STAGE28_MAINTENANCE_DEPLOYMENT_ABORT_20261027.md.
+
+2026-10-27 B1 retry preparation: corrected deployment wrapper reuses existing Nano read_thermal.147 tests and read-only native Jetson probe pass (CPU60.24%,RAM58.19%,max60.0C). Runtime candidate8736c73 unchanged; corrected package prepared, NOT deployed. Separate maintenance retry approval required. See project_atlas/docs/ATLAS_STAGE28_THERMAL_RETRY_PREPARATION_20261027.md.

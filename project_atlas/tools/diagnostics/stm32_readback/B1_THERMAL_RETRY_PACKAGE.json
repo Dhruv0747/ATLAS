@@ -1,0 +1,10 @@
+{
+  "runtime_commit": "8736c73cd8ee53d5b082b4fbb9066421143fc4f2",
+  "runtime_unchanged": true,
+  "files": {
+    "deploy_maintenance_once.py": "5e1a366d96fae4a32fc73a570422aa5f38ccdbd0bdac87739209016371de72a0",
+    "offboard_bridge_preflight.py": "1094daa20646255d5019d4354c848ea89dfc1f3a4c7663fc60fa9fd1549cf1c4",
+    "candidate.tar": "a28c5ea60de2b9276a2a275d1c2bb0bd303d959a61821b7f0217dc05a428a756"
+  },
+  "required_existing_baseline_archive_sha256": "6f583eb097236eb675986d472b7ece3c74722a051f1867a58e0b98fed2bda87a"
+}

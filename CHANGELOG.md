@@ -3450,3 +3450,6 @@ Fixed lease revival, read-token reuse and reader/restoration race; added explici
 
 ## 2026-10-27 - Maintenance deployment attempt
 Approved interlock installation aborted before production writes on a deployment-wrapper thermal probe error. No service restarts or B1 operations. Verified baseline archive and post-abort health retained.
+
+## 2026-10-27 - Maintenance wrapper thermal correction
+Reuse established Nano-aware thermal probe; preserve75/80/70 safeguards and null unavailable CV values. Import-safe approval-gated wrapper, atomic-write cleanup and fault-injection tests.147 tests passed; native read-only Jetson resource validation passed. No deployment/restarts.

@@ -1703,3 +1703,5 @@ production page installation, recording or existing-camera restart occurred.
 Stage 28 B1 offline maintenance/readback candidate: see project_atlas/docs/ATLAS_STAGE28_B1_INTERLOCK_AND_STRICT_READBACK.md. Not deployed; independent review and separate B1 approval required.
 
 Stage 28 B1 native review: project_atlas/docs/ATLAS_STAGE28_B1_NATIVE_REVIEW_20261027.md. Offline and native fake-unit validation passed; production deployment and B1 remain separately approval-gated.
+
+Stage28 corrected maintenance wrapper: project_atlas/docs/ATLAS_STAGE28_THERMAL_RETRY_PREPARATION_20261027.md. Prepared only; separate retry approval required.
