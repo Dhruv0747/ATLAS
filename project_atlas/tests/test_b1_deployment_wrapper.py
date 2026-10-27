@@ -109,7 +109,7 @@ def test_transaction_with_fake_files_and_services(tmp_path,monkeypatch,fail_at):
         return {n:{'Id':n,'ActiveState':'active','MainPID':str(100+restarts[0] if n=='atlas-sensor-recovery.service' else 20),'NRestarts':'0'} for n in deploy.UNITS}
     monkeypatch.setattr(deploy,'stats',stats)
     packets=[0]
-    def safety():packets[0]+=1;return {'packet_count':packets[0]}
+    def safety(phase='check'):packets[0]+=1;return {'packet_count':packets[0]}
     monkeypatch.setattr(deploy,'safety',safety)
     samples=[0]
     def resource():

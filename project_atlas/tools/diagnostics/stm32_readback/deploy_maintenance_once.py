@@ -1,4 +1,4 @@
-import os,sys,json,time,hashlib,subprocess,tarfile,shutil,signal,importlib.util,argparse,traceback,math,tempfile
+import os,sys,json,time,hashlib,subprocess,tarfile,shutil,signal,importlib.util,argparse,traceback,math,tempfile,re
 from pathlib import Path
 import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -13,9 +13,179 @@ EXPECTED={str(S/'atlas_sensor_recovery.py'):'c6b5ac7979b6aff24c2f1a13a365d039b83
 result={'status':'PREFLIGHT','source_commit':'8736c73cd8ee53d5b082b4fbb9066421143fc4f2','backup':str(BACK),'camera_started':False,'hardware_accessed':False}
 modified=False
 trace=[]
+STATUS_URL='http://127.0.0.1:8088/api/status'
+STATUS_LIMIT=256*1024          # bytes of /api/status kept as evidence
+SAFETY_SAMPLES=[]              # every evaluated safety snapshot, PASS or REJECT
+EVIDENCE=[]                    # [{'path','sha256','bytes'}] of verified evidence files
+SENSITIVE_KEY=re.compile(r'(pass(word|wd|phrase)?|secret|token|auth|cookie|session|credential|api[_-]?key|private|challenge|psk|ssid|bearer)',re.I)
+SENSITIVE_VALUE=[(re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b'),'[REDACTED-IPV4]'),
+                 (re.compile(r'\b(?:[0-9a-f]{1,4}:){4,7}[0-9a-f]{1,4}\b|(?<![0-9a-f:])[0-9a-f:]*::[0-9a-f:]*[0-9a-f](?![0-9a-f:])',re.I),'[REDACTED-IPV6]'),   # not hh:mm:ss
+                 (re.compile(r'\b(?:tskey|ghp|gho|github_pat|sk|xox[abp])[-_][A-Za-z0-9_\-]{8,}'),'[REDACTED-TOKEN]'),
+                 (re.compile(r'(?i)bearer\s+[A-Za-z0-9._\-]+'),'Bearer [REDACTED]')]
+
+
+class SafetyRejected(AssertionError):
+    """The safety gate rejected a snapshot. Subclass of AssertionError so callers keep fail-closed handling."""
+    def __init__(self,message,record):
+        super().__init__(message);self.record=record
+
+
+class EvidenceError(RuntimeError):
+    pass
+
+
+def redact(value,key=''):
+    """Copy of a JSON value with credentials/addresses removed. Safety fields are never renamed or dropped."""
+    if key and SENSITIVE_KEY.search(key):
+        return '[REDACTED]'
+    if isinstance(value,dict):
+        return {k:redact(v,str(k)) for k,v in value.items()}
+    if isinstance(value,list):
+        return [redact(v) for v in value]
+    if isinstance(value,str):
+        for pattern,replacement in SENSITIVE_VALUE:value=pattern.sub(replacement,value)
+    return value
+
+
+def write_evidence(name,obj):
+    """Atomic JSON write (temp + fsync + rename + dir fsync), then re-read and hash-verify."""
+    folder=ROOT/'evidence';folder.mkdir(exist_ok=True)
+    data=(json.dumps(obj,indent=2,sort_keys=True,default=repr)+'\n').encode()
+    digest=hashlib.sha256(data).hexdigest()
+    fd,tmp=tempfile.mkstemp(prefix=name+'.',suffix='.tmp',dir=folder)
+    try:
+        with os.fdopen(fd,'wb') as f:
+            f.write(data);f.flush();os.fsync(f.fileno())
+        os.replace(tmp,folder/name)
+        dfd=os.open(folder,os.O_RDONLY|os.O_DIRECTORY)
+        try:os.fsync(dfd)
+        finally:os.close(dfd)
+    finally:
+        Path(tmp).unlink(missing_ok=True)
+    if hashlib.sha256((folder/name).read_bytes()).hexdigest()!=digest:
+        raise EvidenceError('evidence verification failed: '+name)
+    entry={'path':str(folder/name),'sha256':digest,'bytes':len(data)}
+    EVIDENCE[:]=[e for e in EVIDENCE if e['path']!=entry['path']]+[entry]
+    return entry
+
+
+def _number(v):
+    return type(v) in (int,float) and math.isfinite(v)
+
+
+def evaluate_safety(status):
+    """Diagnostic, predicate-by-predicate view of Interlock.safe(status) (elapsed=0, as the wrapper calls it).
+    Every missing, stale, malformed or wrong value is a failed predicate; nothing defaults to PASS."""
+    preds=[]
+    def add(name,ok,observed,reason=''):
+        preds.append({'predicate':name,'pass':bool(ok),'observed':redact(observed),'reason':'' if ok else reason})
+    if not isinstance(status,dict) or not isinstance(status.get('ros'),dict):
+        add('api_shape',False,type(status).__name__ if not isinstance(status,dict) else sorted(status)[:40],'response has no ros object')
+        return preds
+    ros=status['ros']
+    items={}
+    for field in ('control_policy','cmd_vel'):
+        item=ros.get(field)
+        if not isinstance(item,dict) or 'value' not in item or 'age' not in item:
+            add(field+'_present',False,item,field+' missing or lacks value/age')
+            continue
+        items[field]=item
+        age=item['age']
+        if not _number(age) or age<0:
+            add(field+'_fresh',False,{'age':age,'sample_time':item.get('sample_time')},'age missing, non-numeric, non-finite or negative')
+        else:
+            add(field+'_fresh',age<=1,{'age':age,'sample_time':item.get('sample_time'),'observed_hz':item.get('observed_hz'),'limit_s':1},
+                'telemetry older than 1 s')
+    policy=None
+    if 'control_policy' in items:
+        raw=items['control_policy']['value']
+        try:
+            policy=json.loads(raw) if isinstance(raw,str) else raw
+            if not isinstance(policy,dict):raise ValueError('policy is not an object')
+        except Exception as exc:
+            add('control_policy_parse',False,raw if isinstance(raw,str) else repr(raw),'control policy unparsable: '+repr(exc));policy=None
+    if policy is not None:
+        for name,key,want in (('estop_latched','stop_latched',True),('manual_only','manual_only',True),
+                              ('commissioning_disarmed','commission_armed',False),('control_source_stopped','source','STOPPED')):
+            if key not in policy:
+                add(name,False,None,key+' missing')
+            else:
+                v=policy[key]
+                ok=(v is want) if isinstance(want,bool) else (v==want)
+                add(name,ok,{key:v,'stop_reason':policy.get('stop_reason')} if name=='estop_latched' else {key:v},
+                    '%s is %r, required %r'%(key,v,want))
+    if 'cmd_vel' in items:
+        cmd=items['cmd_vel']['value']
+        if not isinstance(cmd,dict):
+            add('zero_command',False,cmd,'cmd_vel value is not an object')
+        else:
+            bad={k:cmd.get(k,'<missing>') for k in ('lin','ang') if not (_number(cmd.get(k)) and cmd.get(k)==0)}
+            add('zero_command',not bad,{k:cmd.get(k,'<missing>') for k in ('lin','ang')},'non-zero, missing or non-numeric command: %r'%bad)
+    return preds
+
+
+def safety(phase='check'):
+    """Fetch /api/status, keep the full redacted snapshot and per-predicate verdicts, then fail closed."""
+    rec={'seq':len(SAFETY_SAMPLES)+1,'phase':phase,'url':STATUS_URL,'request_wall':time.time(),'request_monotonic':time.monotonic()}
+    status=None
+    try:
+        with urllib.request.urlopen(STATUS_URL,timeout=3) as r:
+            raw=r.read(STATUS_LIMIT+1);rec['http_status']=getattr(r,'status',None)
+        rec['response_monotonic']=time.monotonic();rec['response_bytes']=len(raw)
+        if len(raw)>STATUS_LIMIT:raise ValueError('status response exceeds %d bytes'%STATUS_LIMIT)
+        status=json.loads(raw)
+        rec['status_redacted']=redact(status)
+    except Exception as exc:
+        rec['api_error']=repr(exc);rec.setdefault('response_monotonic',time.monotonic())
+    preds=evaluate_safety(status) if status is not None else [{'predicate':'api_available','pass':False,'observed':rec.get('api_error'),'reason':'status API error/timeout/malformed JSON'}]
+    gate_ok=False
+    if status is not None:
+        try:gate_ok=gate.safe(status) is True
+        except Exception as exc:rec['gate_error']=repr(exc)
+    failed=[p['predicate'] for p in preds if not p['pass']]
+    if not gate_ok and not failed:
+        preds.append({'predicate':'gate_consistency','pass':False,'observed':rec.get('gate_error'),
+                      'reason':'Interlock.safe rejected the snapshot although every diagnostic predicate passed'})
+        failed=['gate_consistency']
+    count=None
+    if gate_ok and not failed:
+        # packet_counter is the existing encoder-progress gate; its rejection is evidence too.
+        try:count=gate_module.packet_counter(status)
+        except Exception as exc:
+            enc=status['ros'].get('encoder_health') if isinstance(status.get('ros'),dict) else None
+            preds.append({'predicate':'encoder_packets','pass':False,'observed':redact(enc),'reason':repr(exc)})
+            failed=['encoder_packets']
+    rec['evaluated_monotonic']=time.monotonic()
+    rec['evaluation_delay_s']=rec['evaluated_monotonic']-rec['response_monotonic']
+    rec['predicates']=preds;rec['gate_verdict']=gate_ok;rec['packet_count']=count
+    rec['verdict']='PASS' if gate_ok and not failed else 'REJECT'
+    rec['failed_predicates']=failed
+    SAFETY_SAMPLES.append(rec)
+    try:
+        write_evidence('safety-samples.json',SAFETY_SAMPLES)
+        if rec['verdict']=='REJECT':
+            rec['evidence']=write_evidence('safety-rejection-%03d.json'%rec['seq'],rec)
+    except Exception as exc:
+        rec['evidence_error']=repr(exc)
+        if rec['verdict']=='PASS':
+            raise EvidenceError('safety evidence could not be preserved: '+repr(exc)) from exc
+    if rec['verdict']!='PASS':
+        reasons='; '.join('%s (%s)'%(p['predicate'],p['reason']) for p in preds if not p['pass'])
+        prefix='encoder packet evidence rejected' if failed==['encoder_packets'] else 'E-STOP/zero/manual-only policy failure'
+        if rec.get('evidence_error'):reasons+='; EVIDENCE NOT SAVED: '+rec['evidence_error']
+        raise SafetyRejected(prefix+': '+reasons,rec)
+    return {'packet_count':count,'policy':status['ros']['control_policy'],'cmd':status['ros']['cmd_vel'],'encoder':status['ros']['encoder_health']}
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def cmd(*args):return subprocess.check_output(args,text=True,stderr=subprocess.STDOUT,timeout=15)
-def emit(): (ROOT/'result.json').write_text(json.dumps(result,indent=2))
+def emit():
+ # Atomic + verified like all evidence (result.json stays at ROOT for compatibility).
+ data=json.dumps(result,indent=2,default=repr)
+ fd,tmp=tempfile.mkstemp(prefix='result.',suffix='.tmp',dir=ROOT)
+ try:
+  with os.fdopen(fd,'w') as f:f.write(data);f.flush();os.fsync(f.fileno())
+  os.replace(tmp,ROOT/'result.json')
+ finally:Path(tmp).unlink(missing_ok=True)
+ if (ROOT/'result.json').read_text()!=data:raise EvidenceError('result.json verification failed')
 def stats():
  text=cmd('systemctl','--user','show',*UNITS,'-p','Id','-p','ActiveState','-p','MainPID','-p','NRestarts')
  return {v['Id']:v for block in text.strip().split('\n\n') if (v:=dict(line.split('=',1) for line in block.splitlines()))}
@@ -48,11 +218,6 @@ def resource():
  trace.append(row);(ROOT/'resources.json').write_text(json.dumps(trace,indent=2))
  row['temp_c']=validate_resources(load,ram,thermal)
  return row
-def safety():
- with urllib.request.urlopen('http://127.0.0.1:8088/api/status',timeout=3) as r:d=json.load(r)
- assert gate.safe(d),'E-STOP/zero/manual-only policy failure'
- count=gate_module.packet_counter(d)
- return {'packet_count':count,'policy':d['ros']['control_policy'],'cmd':d['ros']['cmd_vel'],'encoder':d['ros']['encoder_health']}
 def atomic(src,dst):
  dst=Path(dst)
  fd,name=tempfile.mkstemp(prefix=dst.name+'.b1-',dir=dst.parent);os.close(fd)
@@ -87,7 +252,7 @@ def deploy():
   for name,digest in EXPECTED.items():assert sha(name)==digest,(name,'live baseline mismatch')
   assert sorted(str(p) for p in (U/'rover-base-telemetry.service.d').glob('*.conf'))==[str(U/'rover-base-telemetry.service.d/priority.conf')]
   before=stats();assert all(v['ActiveState']=='active' and int(v['MainPID'])>0 for v in before.values())
-  result['services_before']=before;result['safety_before']=safety();result['resource_before']=resource();assert not gate_module.no_base_jobs() is False
+  result['services_before']=before;result['safety_before']=safety('preflight');result['resource_before']=resource();assert not gate_module.no_base_jobs() is False
   assert shutil.disk_usage(ROOT).free>100*1024*1024
   BACK.mkdir();records={}
   files=set(Path(n) for n in EXPECTED)
@@ -100,7 +265,7 @@ def deploy():
   (BACK/'units-before.txt').write_text(cmd('systemctl','--user','cat',*UNITS[:2]))
   result['backup_verified']=True;emit()
   # Repeat immediately before the first production write.
-  safety();resource()
+  safety('pre-write');resource()
   for name,digest in EXPECTED.items():assert sha(name)==digest
   modified=True
   atomic(C/'atlas_b1_interlock.py',S/'atlas_b1_interlock.py')
@@ -117,8 +282,8 @@ def deploy():
   result['restarted_only']='atlas-sensor-recovery.service';emit()
   time.sleep(3)
   samples=[]
-  for _ in range(6):
-   samples.append(safety());resource()
+  for i in range(6):
+   samples.append(safety('postflight-%d'%(i+1)));resource()
   after=stats()
   for name,old in before.items():
    assert after[name]['ActiveState']=='active',name
@@ -133,6 +298,11 @@ def deploy():
   assert 'READY: full bounded fault recovery armed' in result['recovery_journal'],'missing recovery READY'
  except BaseException as exc:
   result['traceback']=traceback.format_exc()
+  if isinstance(exc,SafetyRejected):
+   result['safety_rejection']={'phase':exc.record.get('phase'),'seq':exc.record.get('seq'),'failed_predicates':exc.record.get('failed_predicates'),
+                               'predicates':[p for p in exc.record.get('predicates',[]) if not p['pass']],'evaluation_delay_s':exc.record.get('evaluation_delay_s'),
+                               'request_wall':exc.record.get('request_wall'),'api_error':exc.record.get('api_error'),
+                               'evidence':exc.record.get('evidence'),'evidence_error':exc.record.get('evidence_error')}
   result['error']=repr(exc);result['status']='ABORTED_BEFORE_INSTALL' if not modified else 'VALIDATION_FAILED'
   if modified:
    try:
@@ -148,7 +318,12 @@ def deploy():
     result['status']='ROLLED_BACK';result['services_after']=stats()
    except BaseException as rollback_error:result['rollback_error']=repr(rollback_error)
  finally:
-  emit();print(json.dumps(result,indent=2),flush=True)
+  result['safety_samples']=[{k:r.get(k) for k in ('seq','phase','verdict','failed_predicates','evaluation_delay_s')} for r in SAFETY_SAMPLES]
+  result['evidence']=list(EVIDENCE)
+  try:emit()
+  except Exception as emit_error:
+   result['result_write_error']=repr(emit_error)   # main() then exits non-zero
+  print(json.dumps(result,indent=2,default=repr),flush=True)
 
  return result
 
@@ -161,12 +336,13 @@ def main():
  if not a.approve_maintenance_install:
   p.error('separate owner approval required; no changes made')
  ROOT=a.staging.resolve();BACK=ROOT/'rollback';C=ROOT/'candidate'
- if not ROOT.is_dir() or C.exists() or BACK.exists() or (ROOT/'result.json').exists():
+ if not ROOT.is_dir() or C.exists() or BACK.exists() or (ROOT/'result.json').exists() or (ROOT/'evidence').exists():
   p.error('use a new staged package directory; preserve previous attempt')
  result={'status':'PREFLIGHT','source_commit':'8736c73cd8ee53d5b082b4fbb9066421143fc4f2',
          'backup':str(BACK),'camera_started':False,'hardware_accessed':False}
- modified=False;trace=[]
+ modified=False;trace=[];SAFETY_SAMPLES.clear();EVIDENCE.clear()
  for sig in (signal.SIGTERM,signal.SIGHUP,signal.SIGINT):signal.signal(sig,stop_signal)
- return 0 if deploy()['status']=='DEPLOYED_AND_VERIFIED' else 2
+ r=deploy()
+ return 0 if r['status']=='DEPLOYED_AND_VERIFIED' and 'result_write_error' not in r else 2
 
 if __name__=='__main__':raise SystemExit(main())
