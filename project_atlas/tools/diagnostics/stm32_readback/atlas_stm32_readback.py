@@ -316,7 +316,10 @@ def main(argv=None) -> int:            # pragma: no cover - needs the board in b
         print('REFUSED: %s is at %r, expected %r (not the Yahboom board?)' % (a.port, loc, a.expect_location),
               file=sys.stderr)
         return 2
-    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
+    scripts = os.environ.get('ATLAS_SCRIPTS_DIR', '/home/jetson/project_atlas/scripts')
+    if not Path(scripts, 'atlas_usb_identity.py').exists():          # running from the repo checkout
+        scripts = str(Path(__file__).resolve().parents[3] / 'scripts')
+    sys.path.insert(0, scripts)
     from atlas_usb_identity import in_use
     if in_use(os.path.realpath(a.port)):
         print('REFUSED: the port is held by another process (stop rover-base-telemetry first, B1 step)',
