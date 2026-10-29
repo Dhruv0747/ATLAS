@@ -433,3 +433,65 @@ first start is itself unmeasured, so this is an inference from those measurement
 - A CPU, RAM or temperature overrun with safety intact means `FAIL_HELD`: the disabled node stays running and the owner
   decides. Its rollback restarts nothing.
 - No retry.
+
+## Stage A2, 2026-10-29 11:09 IST: PASS
+
+Package `6c54ddd`; bound 12 s. A gated GO check of conditions 1–8 passed in one pass immediately before launch: receiver
+FAILSAFE/LOST, `/joy` 0.0 s, encoders still. Evidence: `~/project-atlas-migration/stage29-deploy-teleop-20261029_110913-377995741/`.
+
+- **Installed:** drive core `567f0433`, teleop `feecba2c`, config `031c9c08` (`reviewed_by_owner` false), unit
+  `eca2270f`. The backup recorded all four as absent. Unit `atlas-flysky-teleop` is active, PID 461352, NRestarts 0,
+  **disabled**: it will not start at boot.
+- **CPU:** peak 100.0 % at +2.1 s. Over 75 % for 8 samples, +1.1 to +8.2 s, inside the 12 s bound. 30 post-bound
+  samples all ≤ 75; steady mean 64.4 % vs pre-window 62.5 % (+1.9 points: the new node's steady load).
+  RAM max 70.2 %, temperature max 63.2 °C.
+- **Observer:** 169 verdicts in the window, 0 not OK, no exemptions, max gap 0.26 s.
+
+  | Signal | max age in the window |
+  |---|---|
+  | Policy | 0.442 s |
+  | `/cmd_vel` | 0.568 s |
+  | `/motor_speed` | **0.850 s** (steady 0.60 s; the 1.8 Hz topic delayed by the spike) |
+  | Encoder health | 0.442 s |
+- **Behavioural verification:** `/cmd_vel_flysky` advertised (the mux's subscription), **0 messages** in 3 s;
+  `drive_status` 7 messages, state `DISABLED`. The journal shows `FlySky teleop DISABLED: gate off; config not reviewed`.
+- **Safety:** E-STOP latched, XBOX, gate false, commands and motor output 0, encoders unchanged. Mux 442503,
+  dashboard 2103, base 1953, recovery 1998, EKF 3440 and foxglove 2056 unchanged.
+
+## Stage A3 readiness (read-only, 2026-10-29 11:11 IST; NOT deployed)
+
+**Preflight GO.**
+- The web candidates were rebuilt from the live files, and every hash matches: status web `4ab16214`, web_v2
+  `4893d1f6`, flysky.css `34d3e404`.
+- New destinations absent; `/api/manual_controller` and `/v2/flysky-drive` return 404 today.
+- The endpoint module imports on Python 3.10.12.
+- Safety OK ×3; CPU mean 63.0 / max 66.3 %; RAM 65.7 %; 63.0 °C. The teleop is publishing the status the new page
+  will show.
+
+**Proposed bound: 20 s, explicitly unmeasured.** Six restarts are now measured: recovery ×3, base, mux, teleop. All
+ended their over-75 % period between +8.1 and +9.3 s, whether the node had 18 or 80 endpoints, which supports a
+duration dominated by the DDS join. The dashboard is different in kind: about 133 endpoints plus a large Python
+start-up (the 217 KB module, HTTP server, many subscriptions), and no dashboard restart has ever been measured.
+A CPU-only overrun gives `FAIL_HELD`, with no automatic second restart.
+
+**Main A3 risk: a spurious fail-closed abort.**
+- `/motor_speed` publishes at only 1.8 Hz. Its freshness margin under the unchanged 1.0 s limit is structural: steady
+  0.60 s, and 0.85 s during A2's 7 s spike.
+- The dashboard restart is the largest spike, so the observer may see `/motor_speed` exceed 1.0 s. That is a safety
+  failure and triggers automatic rollback, which means a second dashboard restart (CPU recorded, not aborted).
+- This fails closed. It is not unsafe, but it costs a second spike. The limit stays 1.0 s.
+- During the dashboard restart the dashboard E-STOP button is unavailable for about 10–20 s. Xbox B and voice stop
+  are unaffected.
+
+**GO/NO-GO for one A3 attempt:** the same ten conditions as A2, with these changes:
+- **6:** A1 and A2 intact (mux `5d096638` active; teleop active, `DISABLED`, NRestarts 0).
+- **7:** the three new A3 files absent.
+
+**A3 PASS criteria** (unchanged limits):
+- CPU over 75 % only within the approved bound, then 30 samples ≤ 75, steady mean ≤ pre-window + 4;
+- observer continuously OK with no exemptions;
+- `rover-status-web` back with a new PID and no traceback;
+- `/api/manual_controller` shows selection supported, XBOX, gate false, FLYSKY not selectable, drive node running and
+  `DISABLED`;
+- `/v2/flysky-drive` served; FlySky Test Lab API unchanged (read-only);
+- dashboard safety ×3; other PIDs unchanged.
