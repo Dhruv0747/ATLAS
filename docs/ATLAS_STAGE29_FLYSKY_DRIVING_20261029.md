@@ -319,3 +319,117 @@ at 90–100 % CPU, logged `RCLError: Failed to publish: publisher's context is i
 zero-on-shutdown messages may not all have been sent. The patch does not touch shutdown, and the original mux's stop at
 10:22:53 logged nothing. Mitigations held: E-STOP latched, commands already zero, base 0.45 s deadman. The base-deadman
 check in the "required before any powered test" list covers this path. There was no retry.
+
+## Stage A1 attempt 2, 2026-10-29 10:37 IST: PASS (accepted by the owner)
+
+Package `1c7f97c`. Evidence: `~/project-atlas-migration/stage29-deploy-mux-20261029_103741-481794692/`.
+
+- **CPU:** peak 99.5 %. Over 75 % for 7 samples, +2.2 to +8.3 s, inside the 15 s bound. 32 post-bound samples all
+  ≤ 75 (max 66.9), steady mean 62.9 % vs pre-window 64.1 %.
+- **RAM and temperature:** max 66.0 % and 62.8 °C.
+- **Exemption timing:** dashboard back at +5.7 s; the observer saw the mux signals fresh from +11.3 s; the exemption
+  cleared at +12.4 s. The 5.6 s bridge lag was waited out by the fix.
+- **Observer:** 181 verdicts in the window, no base-owned failure, all 132 after the exemption OK, max verdict gap
+  0.27 s.
+- **Deployed:** mux `5d096638`, PID 442503, priority line `REMOTE > FLYSKY > …`, policy XBOX / gate false.
+- **Safety and services:** E-STOP latched; no motion; other PIDs unchanged.
+
+## Stage A2 readiness (2026-10-29 11:06 IST; read-only, NOT deployed)
+
+### The 0.88 s policy age seen in A1
+The A1 observer stream shows the cause precisely:
+
+| Window | Policy age | `/cmd_vel` age (same mux process) |
+|---|---|---|
+| Before the restart | max 0.096 s (10 Hz) | normal |
+| +11.3 to ~+18 s after the mux restart | sawtooth up to 0.83 / 0.88 s (about 1–2 Hz) | ≤ 0.21 s from +12.3 s |
+| From +20 s | max 0.109 s | normal |
+
+CPU was already back at 63–67 % during the slow window. A starved mux would have delayed both topics, so the lag is in
+the delivery of the policy topic (most likely the foxglove bridge's new subscription settling), and it is transient.
+
+Steady state at 10:5x, 60 s: 235/235 verdicts OK.
+
+| Signal | max age | p99 |
+|---|---|---|
+| Policy | 0.107 s | 0.101 s |
+| `/cmd_vel` | 0.238 s | — |
+| `/motor_speed` | 0.601 s | — |
+
+Max verdict gap 0.254 s. A2 does not restart the mux, but it adds a new subscriber to the policy topic. If the policy
+age reaches 1.0 s during the join, A2 aborts and rolls back. The limit is **not** raised.
+
+### Two verification defects found in the readiness check and fixed before any A2 attempt
+1. `advertised_topics()` blocked forever on the real bridge: the observer WebSocket has no timeout after the handshake.
+   It now reads with a hard deadline and fails closed on no advertisement (`e16c377`).
+2. `/cmd_vel_flysky` **is already advertised**, because the A1 mux subscribes to it. "Topic absent" would have
+   failed a correctly disabled teleop. The check is now behavioural (`6c54ddd`): subscribe through the bridge, require
+   **0 messages** on `/cmd_vel_flysky`, and a received `drive_status` with state `DISABLED`.
+   Live: `/cmd_vel_flysky` advertised, 0 messages in 3 s; policy 30 messages in 3 s, decoded.
+
+### Package and dependencies (verified on the rover)
+
+| File | SHA-256 prefix |
+|---|---|
+| `scripts/atlas_flysky_drive_core.py` | 567f0433 |
+| `scripts/atlas_flysky_teleop.py` | feecba2c |
+| `config/atlas_flysky_drive.json` | 031c9c08 |
+| `~/.config/systemd/user/atlas-flysky-teleop.service` | eca2270f |
+
+- Package `6c54ddd`, SHA-256 `627a7506…`. All four files are new; their destinations are absent.
+- `systemd-analyze --user verify` passes on a staged copy of the unit.
+- On the rover's Python 3.10.12, with the **live** `atlas_flysky_core.py` (3e4b379e): the config validates, it is
+  *not usable* (`reviewed_by_owner` false), and gate-off logic gives `DISABLED`, publishing nothing.
+- The ROS Python dependencies import (no init, no participant).
+- **Unit:** `After=` mux and base; `PartOf=atlas-cmd-vel-mux` (a mux stop or restart also stops or restarts the
+  teleop; one-way); `Restart=on-failure`; gate `=0`; FastDDS UDPv4.
+- **Not enabled:** it will not start at boot. After a reboot the dashboard would show "drive node not running".
+- **Endpoints:** 2 subscriptions, 2 publishers (stop, status) plus rosout and parameter events, 6 parameter services:
+  about 18. No `/cmd_vel_flysky` publisher while disabled (code path, then checked behaviourally).
+- **Backup and rollback:** the backup records all four files as absent. Rollback stops the unit, removes the four
+  files and runs `daemon-reload`. **No other service is restarted** (tested).
+
+### Proposed CPU transient bound for A2: **12 s**
+Measured restart transients today and on 28 Oct:
+
+| Restart | DDS endpoints | Last sample over 75 % |
+|---|---|---|
+| Recovery (3 runs) | 32 | +8.2–8.7 s |
+| Base | 80 | +9.3 s |
+| Mux, A1 | ≈ 48 | +8.3 s |
+| Mux, rollback | ≈ 48 | +8.1 s |
+
+The duration is about 8–9 s regardless of endpoint count, so it is dominated by the per-participant join. A new
+18-endpoint participant should be similar or shorter. 12 s leaves ≥ 2.7 s over the worst measured case. The teleop's
+first start is itself unmeasured, so this is an inference from those measurements.
+
+### GO / NO-GO for ONE A2 attempt
+**GO only if all of these hold in one gated pre-check immediately before launch** (as for A1 attempt 2):
+1. E-STOP latched: policy fresh (≤ 1.0 s), `stop_latched` true, source STOPPED.
+2. Xbox connected and selected: `/joy` ≤ 0.5 s old; `manual_controller` XBOX; `flysky_drive_enabled` false.
+3. Commands and motor output zero.
+4. Transmitter off: receiver FAILSAFE (flag set), LOST or NO_FRAMES; never LIVE or FRAME_LOST.
+5. Gate off: nothing in `hardware.env`, the mux unit environment or a `flysky-drive.env`.
+6. A1 intact: live mux `5d096638`, active, NRestarts 0.
+7. The four destinations absent; no other stage unit running.
+8. Wheels still: encoders unchanged across the pre-check (≥ 16 s), and the owner confirms lifted, clear and hands
+   off.
+9. Observer healthy: all signals OK; policy age p99 ≤ 0.2 s; verdict gap ≤ 1.0 s.
+10. Resources: deployer preflight (30 s) and pre-window all ≤ 75 % CPU, ≤ 80 % RAM, < 70 °C.
+
+**PASS criteria** (deployer, unchanged limits):
+- one start;
+- CPU over 75 % only within 12 s, then 30 samples ≤ 75, steady mean ≤ pre-window + 4;
+- RAM and temperature strict on every sample;
+- observer continuously OK with **no exemptions**, gap ≤ 1.0 s;
+- unit active, journal shows `FlySky teleop DISABLED`, no traceback;
+- 0 messages on `/cmd_vel_flysky` over 3 s; `drive_status` received with state `DISABLED`;
+- policy unchanged (latched, XBOX, gate false, STOPPED);
+- mux 442503, dashboard 2103, base 1953 and the other protected PIDs unchanged;
+- dashboard safety ×3.
+
+**On failure:**
+- A safety or verification failure means automatic rollback (stop, remove, daemon-reload; no other restart).
+- A CPU, RAM or temperature overrun with safety intact means `FAIL_HELD`: the disabled node stays running and the owner
+  decides. Its rollback restarts nothing.
+- No retry.
