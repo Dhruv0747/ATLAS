@@ -40,6 +40,8 @@ class FakeRover:
         self.break_web_view = False
         self.change_protected = None
         self.mux_never_back = False
+        self.mux_gate = False
+        self.teleop_stays_disabled = False        # scenario: gate-on does not take effect in the teleop
         self.web_restarted = False                # a restarted dashboard has no web_drive item (A3 attempt 1)
         self.web_drive_after_restart = None       # scenario: a present, non-STOP value
         self.bridge_lag_s = 1.5                   # observer sees the restarted mux later than the dashboard (A1 attempt 1)
@@ -53,6 +55,9 @@ class FakeRover:
 
     def mux_patched(self):
         return self.installed('scripts/atlas_cmd_vel_mux.py')
+
+    def gate(self, unit):
+        return (self.env.runtime_unit_dir / f'{unit}.d' / D.GATE_DROPIN).exists()
 
     # ---- systemd
     def systemctl(self, *args, timeout=30, check=True):
@@ -73,6 +78,12 @@ class FakeRover:
             u['pid'] += 100; u['active'] = True; u['inv'] = u['inv'].rsplit('-', 1)[0] + '-' + str(len(self.calls))
             if args[1] == D.UNITS['mux']:
                 self.mux_down_until = time.time() + (1e9 if self.mux_never_back else 1.0)
+                self.mux_gate = self.gate(D.UNITS['mux'])
+                tu = self.units[D.UNITS['teleop']]
+                if tu['active']:                       # PartOf=atlas-cmd-vel-mux: the teleop restarts with the mux
+                    tu['pid'] += 100; tu['inv'] = tu['inv'].rsplit('-', 1)[0] + '-m' + str(len(self.calls))
+                    tu['log'] = ('FlySky teleop ENABLED' if self.gate(D.UNITS['teleop']) and not self.teleop_stays_disabled
+                                 else 'FlySky teleop DISABLED: FlySky driving gate is off')
                 u['log'] = 'ATLAS cmd_vel priority: REMOTE > FLYSKY > COMMISSION' if self.mux_patched() else 'ATLAS cmd_vel priority: REMOTE > COMMISSION'
             if args[1] == D.UNITS['teleop']:
                 u['log'] = 'FlySky teleop DISABLED: FlySky driving gate is off'
@@ -104,7 +115,7 @@ class FakeRover:
             pol = {'stop_latched': True, 'manual_only': True, 'commission_armed': False, 'source': 'STOPPED',
                    'stop_reason': 'REMOTE STOP: B pressed'}
             if self.mux_patched():
-                pol.update(manual_controller='XBOX', flysky_drive_enabled=False)
+                pol.update(manual_controller='XBOX', flysky_drive_enabled=self.mux_gate)
             age = 5.0 if now < self.mux_down_until else 0.1
             return {'ros': {
                 'control_policy': {'age': age, 'value': json.dumps(pol)},
@@ -140,7 +151,9 @@ class FakeRover:
         if self.mux_patched():                      # the patched mux subscribes: advertised, but nobody publishes
             out['/cmd_vel_flysky'].update(advertised=True)
         if teleop:
-            out['/atlas/flysky/drive_status'].update(advertised=True, count=6, last=json.dumps({'state': 'DISABLED'}))
+            enabled = 'ENABLED' in self.units[D.UNITS['teleop']]['log'] and 'DISABLED' not in self.units[D.UNITS['teleop']]['log']
+            out['/atlas/flysky/drive_status'].update(advertised=True, count=6,
+                                                     last=json.dumps({'state': 'NOT_SELECTED' if enabled else 'DISABLED'}))
             if self.advertise_cmd:                  # scenario: the disabled teleop publishes commands
                 out['/cmd_vel_flysky'].update(count=12, last=(0.0, 0, 0, 0, 0, 0.0))
         return out
@@ -196,7 +209,7 @@ class Base(unittest.TestCase):
 
             def ram_temp(self):
                 return 60.0, {'cpu-thermal': 64.0}
-        e = E(project=self.tmp / 'project_atlas', unit_dir=self.tmp / 'units', env_dir=self.tmp / 'envdir',
+        e = E(project=self.tmp / 'project_atlas', unit_dir=self.tmp / 'units', env_dir=self.tmp / 'envdir', runtime_unit_dir=self.tmp / 'run-units',
               evidence_root=self.tmp / 'evidence', steady_s=3, preflight_s=2, observer_warmup_s=0.5,
               mux_back_timeout_s=4.0, hold_poll_s=0.2)
         e.sleep = time.sleep
@@ -411,6 +424,61 @@ class AdvertisedTopicsReal(unittest.TestCase):
     def test_unreachable_bridge_fails(self):
         with self.assertRaises(D.Fail):
             D.Env(observer_port=1).advertised_topics(seconds=0.5)
+
+
+class Commissioning(Base):
+    def deploy_all(self):
+        self.cpu = []
+        for step in D.STEPS:
+            self.assertEqual(self.run_step(step), 0, step)
+
+    def act(self, *argv):
+        with mock.patch.dict(os.environ, {'OWNER_APPROVED': 'yes'}):
+            return D.main(list(argv) + ['--owner-confirms-estop-latched', '--owner-confirms-rover-lifted-and-clear'], env=self.env)
+
+    def cfg(self):
+        return json.loads((self.env.project / 'config/atlas_flysky_drive.json').read_text())
+
+    def test_review_gate_on_gate_off(self):
+        self.deploy_all()
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 3)              # unreviewed: refused, no change
+        self.assertFalse(any(g.exists() for g in D.gate_paths(self.env)))
+        with mock.patch.dict(os.environ, {'OWNER_APPROVED': 'yes'}):
+            self.assertEqual(D.main(['review-config'], env=self.env), 2)             # needs the explicit flag
+            self.assertEqual(D.main(['review-config', '--owner-reviewed-config'], env=self.env), 0)
+        c = self.cfg()
+        self.assertTrue(c['reviewed_by_owner']); self.assertEqual(c['max_linear_mps'], 0.05); self.assertEqual(c['max_angular_radps'], 0.2)
+        mux0 = self.restarts(D.UNITS['mux'])
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 0)
+        self.assertTrue(all(g.exists() for g in D.gate_paths(self.env)))
+        self.assertEqual(self.restarts(D.UNITS['mux']), mux0 + 1)
+        self.assertTrue(json.loads(self.env.get('/api/status')['ros']['control_policy']['value'])['flysky_drive_enabled'])
+        self.env.estop = False
+        self.assertEqual(self.act('gate-off'), 3)                                    # released: refused
+        self.env.estop = True
+        self.assertEqual(self.act('gate-off'), 0)
+        self.assertFalse(any(g.exists() for g in D.gate_paths(self.env)))
+        self.assertFalse(json.loads(self.env.get('/api/status')['ros']['control_policy']['value'])['flysky_drive_enabled'])
+
+    def test_gate_on_refuses_above_caps(self):
+        self.deploy_all()
+        with mock.patch.dict(os.environ, {'OWNER_APPROVED': 'yes'}):
+            D.main(['review-config', '--owner-reviewed-config'], env=self.env)
+        p = self.env.project / 'config/atlas_flysky_drive.json'
+        c = self.cfg(); c['max_linear_mps'] = 0.15; p.write_text(json.dumps(c))
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 3)
+        self.assertIn('commissioning caps', self.result('gate-on')[0]['reason'])
+
+    def test_gate_on_teleop_not_enabled_rolls_back(self):
+        self.deploy_all()
+        with mock.patch.dict(os.environ, {'OWNER_APPROVED': 'yes'}):
+            D.main(['review-config', '--owner-reviewed-config'], env=self.env)
+        self.rover.teleop_stays_disabled = True
+        mux0 = self.restarts(D.UNITS['mux'])
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 1)
+        self.assertEqual(self.result('gate-on')[0]['result'], 'FAIL_ROLLED_BACK')
+        self.assertFalse(any(g.exists() for g in D.gate_paths(self.env)))
+        self.assertEqual(self.restarts(D.UNITS['mux']), mux0 + 2)
 
 
 class Preflight(Base):

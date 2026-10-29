@@ -51,6 +51,7 @@ sys.path.insert(0, str(HERE))
 import deploy_rc_bridge as d28                              # noqa: E402  (reused, unchanged)
 import insert_flysky_mux                                    # noqa: E402
 import insert_status_web_hooks                              # noqa: E402
+sys.path.insert(0, str(REPO / 'scripts'))
 
 Fail = d28.Fail
 CPU_LIMIT, RAM_LIMIT, TEMP_LIMIT = d28.CPU_LIMIT, d28.RAM_LIMIT, d28.TEMP_LIMIT
@@ -226,8 +227,10 @@ def file_plan(env, step):
     return plan
 
 
-def step_done(env, step):
+def step_done(env, step, ignore=()):
     for rel, spec in MANIFEST['steps'][step]['files'].items():
+        if rel in ignore:
+            continue
         dst = (env.unit_dir / Path(rel).name) if spec['kind'] == 'unit' else (env.project / rel)
         if not dst.exists() or d28.sha(dst) != spec['candidate_sha256']:
             return False
@@ -426,7 +429,8 @@ def verify(env, ev, step, before, protected0):
 
 
 def require_safe_after_dashboard_restart(env, ev, label, count=3, spacing=2.0):
-    """d28.require_safe, with ONE documented difference that applies only right after the dashboard itself restarted:
+    """d28.require_safe, with ONE documented difference, used after the dashboard restarted (A3) and for every later
+    action while that dashboard process has never published a drive command:
     the dashboard creates its 'web_drive' item only when it first publishes a drive command (publish() -> 'STOP' or
     a speed), so a fresh dashboard has NO item. Absent means "no dashboard drive command since start" (drive_active
     starts False), which is at least as safe as 'STOP'. A3 attempt 1 (2026-10-29) failed only on this. A PRESENT
@@ -574,6 +578,161 @@ def rollback(env, args):
     return 0
 
 
+# ------------------------------------------------------------------ commissioning (lifted-wheel test only)
+COMMISSION_CAPS = {'max_linear_mps': 0.05, 'max_angular_radps': 0.20, 'max_accel_mps2': 0.5}
+GATE_DROPIN = '90-atlas-flysky-gate.conf'
+GATE_TEXT = ('# ATLAS Stage 29 lifted-wheel commissioning ONLY. Runtime (tmpfs): removed by gate-off, gone after reboot.\n'
+             '[Service]\nEnvironment=ATLAS_FLYSKY_DRIVE_ENABLED=1\n')
+
+
+def gate_paths(env):
+    root = Path(f'/run/user/{os.getuid()}/systemd/user') if not hasattr(env, 'runtime_unit_dir') else env.runtime_unit_dir
+    return [root / f'{UNITS[k]}.d' / GATE_DROPIN for k in ('mux', 'teleop')]
+
+
+def config_path(env):
+    return env.project / 'config/atlas_flysky_drive.json'
+
+
+def review_config(env, args):
+    """Owner action: write the reviewed commissioning config (reviewed_by_owner true + caps), with a backup."""
+    ev = Evidence(env, 'review-config')
+    import atlas_flysky_drive_core as dcore
+    p = config_path(env)
+    cur = json.loads(p.read_text())
+    new = dict(cur, reviewed_by_owner=True, **COMMISSION_CAPS)
+    errs = dcore.validate(new)
+    if errs:
+        ev.log(f'REFUSED: reviewed config invalid: {errs}'); ev.seal(); return 3
+    (ev.dir / 'backup').mkdir()
+    shutil.copy2(p, ev.dir / 'backup' / p.name)
+    d28.install_atomic((json.dumps(new, indent=2) + '\n').encode(), p, stat.S_IMODE(os.stat(p).st_mode))
+    ev.log('config reviewed by owner; changed: ' + json.dumps({k: (cur.get(k), new[k]) for k in new if cur.get(k) != new[k]}))
+    ev.log('takes effect only when the teleop restarts (gate-on); the running teleop keeps its loaded config')
+    ev.save('result', {'result': 'REVIEWED', 'config_sha256': d28.sha(p)}); ev.seal()
+    return 0
+
+
+def gate_on(env, args):
+    ev = Evidence(env, 'gate-on')
+    import atlas_flysky_drive_core as dcore
+    try:
+        for step in STEPS:      # the config is validated below instead: review-config changes it on purpose
+            if not step_done(env, step, ignore=('config/atlas_flysky_drive.json',)):
+                raise Fail(f'step {step} is not installed')
+        if any(g.exists() for g in gate_paths(env)):
+            raise Fail('gate drop-in already present')
+        require_gate_off(env, ev)
+        cfg = json.loads(config_path(env).read_text())
+        ok, errs = dcore.usable(cfg)
+        if not ok:
+            raise Fail(f'config not usable: {errs}')
+        over = {k: cfg[k] for k, cap in COMMISSION_CAPS.items() if cfg[k] > cap}
+        if over:
+            raise Fail(f'config above the commissioning caps {COMMISSION_CAPS}: {over}')
+        require_latched(env)
+        p = policy(env)
+        if p.get('manual_controller') != 'XBOX':
+            raise Fail(f'controller is {p.get("manual_controller")}, required XBOX before gate-on')
+        require_safe_after_dashboard_restart(env, ev, 'gate-on-pre', count=3)   # fresh dashboard since A3
+        d28.resources_strict(env, ev, 'gate-on-preflight', env.preflight_s)
+        base_pid = int(d28.unit_state(env, 'rover-base-telemetry.service').get('MainPID', '0'))
+    except Fail as exc:
+        ev.log(f'REFUSED, nothing changed: {exc}'); ev.save('result', {'result': 'REFUSED_NO_CHANGE', 'reason': str(exc)}); ev.seal()
+        return 3
+    written = []
+    try:
+        with d28.CpuRecorder(env, sink=ev.stream('cpu-gate-on')) as rec, \
+                d28.ObserverRecorder(env, base_pid, sink=ev.stream('observer-gate-on')) as obs:
+            env.sleep(2.5)
+            d28.require_pre_window_ok(env, ev, 'gate-on', rec, obs)
+            for g in gate_paths(env):
+                g.parent.mkdir(parents=True, exist_ok=True)
+                d28.install_atomic(GATE_TEXT.encode(), g, 0o644)
+                written.append(g)
+            env.systemctl('daemon-reload', timeout=30)
+            obs.exempt.update(MUX_SIGNALS)
+            t0 = time.time()
+            ev.log('restarting atlas-cmd-vel-mux (the teleop follows via PartOf) with the gate ON')
+            env.systemctl('restart', UNITS['mux'], timeout=60)
+            wait_mux_back(env, ev, obs, rec, t0, args.cpu_bound_s)
+            try:
+                d28.resources_after_restart(env, ev, 'gate-on-post', 'transient', rec, t0, args.cpu_bound_s, obs)
+            except Fail as exc:
+                if classify(rec, obs, t0, args.cpu_bound_s):
+                    raise
+                raise CpuOverrun(str(exc)) from exc
+        p = policy(env)
+        if not (p.get('flysky_drive_enabled') is True and p.get('manual_controller') == 'XBOX' and p.get('stop_latched') is True):
+            raise Fail(f'post gate-on policy not as required (gate true, XBOX, latched): {p}')
+        t = d28.require_running(env, UNITS['teleop'])
+        log = env.journal(t.get('InvocationID'))
+        if 'FlySky teleop ENABLED' not in log or 'Traceback' in log:
+            raise Fail('teleop did not restart ENABLED')
+        smp = env.sample_topics(['/cmd_vel_flysky', '/atlas/flysky/drive_status'], seconds=3.0)
+        ev.save('gate-on-topic-sample', smp)
+        st = json.loads(smp['/atlas/flysky/drive_status']['last'] or '{}').get('state')
+        if smp['/cmd_vel_flysky']['count'] or st != 'NOT_SELECTED':
+            raise Fail(f'after gate-on with Xbox selected: {smp["/cmd_vel_flysky"]["count"]} command message(s), state {st}')
+        require_safe_after_dashboard_restart(env, ev, 'gate-on-post', count=3)
+        ev.log('GATE ON: FlySky driving enabled for commissioning; Xbox still selected; E-STOP latched')
+        ev.save('result', {'result': 'PASS'}); ev.seal()
+        return 0
+    except CpuOverrun as exc:
+        ev.log(f'gate-on FAILED on resources with safety intact: {exc}; HELD (no automatic restart). Run gate-off to undo.')
+        ev.save('result', {'result': 'FAIL_HELD', 'reason': str(exc)}); ev.seal()
+        return 1
+    except Exception as exc:
+        ev.log(f'gate-on FAILED: {exc!r}; removing the gate and restarting the mux')
+        try:
+            remove_gate(env, ev, restart=bool(written))
+            ev.save('result', {'result': 'FAIL_ROLLED_BACK', 'reason': repr(exc)})
+        except Exception as rb:
+            ev.save('result', {'result': 'FAIL_ROLLBACK_UNCONFIRMED', 'reason': repr(exc), 'rollback': repr(rb)})
+        ev.seal()
+        return 1
+
+
+def remove_gate(env, ev, restart=True):
+    for g in gate_paths(env):
+        if g.exists():
+            g.unlink()
+    env.systemctl('daemon-reload', timeout=30)
+    if restart:
+        with d28.CpuRecorder(env, sink=ev.stream('cpu-gate-off')) as rec:
+            t = time.time()
+            d28.wait_quiescent(env, UNITS['mux'])
+            env.systemctl('restart', UNITS['mux'], timeout=60)
+            d28.require_running(env, UNITS['mux'])
+            env.sleep(env.steady_s)
+            d28.record_rollback_cpu(env, ev, 'gate-off', rec, t)
+    ev.log('gate drop-ins removed' + (' and mux restarted' if restart else ''))
+
+
+def gate_off(env, args):
+    ev = Evidence(env, 'gate-off')
+    try:
+        require_latched(env)
+    except Fail as exc:
+        ev.log(f'REFUSED: {exc}. Press Xbox B (or SwB) first.'); ev.save('result', {'result': 'REFUSED_NO_CHANGE'}); ev.seal()
+        return 3
+    remove_gate(env, ev, restart=True)
+    deadline = time.time() + env.mux_back_timeout_s
+    p = {}
+    while time.time() < deadline:
+        try:
+            p = policy(env)
+            if 'manual_controller' in p:
+                break
+        except Exception:
+            pass
+        env.sleep(0.5)
+    ok = p.get('flysky_drive_enabled') is False and p.get('manual_controller') == 'XBOX' and p.get('stop_latched') is True
+    ev.log(f'GATE OFF {"verified" if ok else "NOT verified"}: {p}')
+    ev.save('result', {'result': 'PASS' if ok else 'FAIL', 'policy': p}); ev.seal()
+    return 0 if ok else 1
+
+
 def require_latched(env):
     if env.get('/api/estop/state').get('latched') is not True:
         raise Fail('E-STOP not latched')
@@ -607,21 +766,34 @@ def preflight(env, args):
 
 def main(argv=None, env=None):
     p = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    p.add_argument('action', choices=['preflight', 'deploy', 'rollback'])
+    p.add_argument('action', choices=['preflight', 'deploy', 'rollback', 'review-config', 'gate-on', 'gate-off'])
     p.add_argument('--step', choices=STEPS)
     p.add_argument('--cpu-bound-s', type=float, help='owner-approved transient bound for THIS step (no default)')
     p.add_argument('--evidence', help='rollback: the evidence directory of the step being undone')
     p.add_argument('--owner-confirms-estop-latched', action='store_true')
     p.add_argument('--owner-confirms-rover-lifted-and-clear', action='store_true')
     p.add_argument('--evidence-root')
+    p.add_argument('--owner-reviewed-config', action='store_true')
     a = p.parse_args(argv)
     env = env or Env(**({'evidence_root': Path(a.evidence_root)} if a.evidence_root else {}))
     if a.action == 'preflight':
         return preflight(env, a)
     if os.environ.get('OWNER_APPROVED') != 'yes':
         print('refused: OWNER_APPROVED=yes required (separate owner approval)'); return 2
-    if not (a.step and a.owner_confirms_estop_latched and a.owner_confirms_rover_lifted_and_clear):
-        print('refused: --step and both owner confirmations are required'); return 2
+    if a.action == 'review-config':
+        if not a.owner_reviewed_config:
+            print('refused: --owner-reviewed-config required'); return 2
+        return review_config(env, a)
+    if not (a.owner_confirms_estop_latched and a.owner_confirms_rover_lifted_and_clear):
+        print('refused: both owner confirmations are required'); return 2
+    if a.action == 'gate-off':
+        return gate_off(env, a)
+    if a.action == 'gate-on':
+        if a.cpu_bound_s is None or not 0 < a.cpu_bound_s <= MAX_BOUND_S:
+            print(f'refused: --cpu-bound-s must be given explicitly, 0 < bound <= {MAX_BOUND_S}'); return 2
+        return gate_on(env, a)
+    if not a.step:
+        print('refused: --step is required'); return 2
     if a.action == 'rollback':
         if not a.evidence:
             print('refused: --evidence required'); return 2
