@@ -91,8 +91,13 @@ class Env(d28.Env):
         return out
 
     def advertised_topics(self, seconds=2.5):
-        """Topics the existing foxglove_bridge advertises (whitelist '.*'): read-only WebSocket, no ROS participant."""
+        """Topics the existing foxglove_bridge advertises (whitelist '.*'): read-only WebSocket, no ROS participant.
+        The observer's WebSocket blocks indefinitely after the handshake (correct for its own reader thread), and the
+        bridge advertises once then goes quiet, so reading happens in a daemon thread with a hard deadline and the
+        socket is closed afterwards (found in the A2 readiness check, 2026-10-29). No advertisement at all = Fail:
+        an empty set would make "/cmd_vel_flysky not advertised" meaningless."""
         import atlas_safety_observer as so
+        import threading
         ws = None
         for proto in so.SUBPROTOCOLS:
             try:
@@ -101,20 +106,27 @@ class Env(d28.Env):
                 continue
         if ws is None:
             raise Fail('foxglove bridge unreachable for the topic check')
-        topics, end = set(), time.time() + seconds
-        try:
-            while time.time() < end:
-                try:
+        topics, seen = set(), threading.Event()
+
+        def reader():
+            try:
+                while True:
                     op, data = ws.recv()
-                except Exception:
-                    continue
-                if op == 0x1:
-                    m = json.loads(data)
-                    if m.get('op') == 'advertise':
-                        topics |= {c.get('topic') for c in m.get('channels', [])}
-        finally:
-            ws.close()
-        return topics
+                    if op == 0x1:
+                        m = json.loads(data)
+                        if m.get('op') == 'advertise':
+                            topics.update(c.get('topic') for c in m.get('channels', []))
+                            seen.set()
+            except Exception:
+                return
+        t = threading.Thread(target=reader, name='s29-advertise', daemon=True)
+        t.start()
+        t.join(seconds)
+        ws.close()                                # unblocks the reader
+        t.join(1.0)
+        if not seen.is_set():
+            raise Fail(f'no advertisement received from the foxglove bridge in {seconds} s')
+        return set(topics)
 
 
 class Evidence(d28.Evidence):

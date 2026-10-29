@@ -363,6 +363,33 @@ class LaterSteps(Base):
         self.assertEqual(self.restarts(D.UNITS['web']), 2)
 
 
+class AdvertisedTopicsReal(unittest.TestCase):
+    """The real advertised_topics() against the fake foxglove bridge (the A2 readiness check found it blocked forever)."""
+    def test_returns_within_deadline_and_lists_topics(self):
+        import socket, subprocess
+        sys.path.insert(0, str(ROOT / 'tests'))
+        port = (lambda s: (s.bind(('127.0.0.1', 0)), s.getsockname()[1], s.close())[1])(socket.socket())
+        ctl = Path(tempfile.mkdtemp()) / 'ctl.json'; ctl.write_text('{}')
+        srv = subprocess.Popen([sys.executable, str(ROOT / 'tools/deploy/stage28_base_maintenance/sim/fake_foxglove.py'),
+                                str(port), str(ctl), 'foxglove.sdk.v1'])
+        try:
+            for _ in range(100):
+                try:
+                    socket.create_connection(('127.0.0.1', port), 0.2).close(); break
+                except OSError:
+                    time.sleep(0.05)
+            env = D.Env(observer_port=port)
+            t0 = time.time(); topics = env.advertised_topics(seconds=1.5); dt = time.time() - t0
+            self.assertLess(dt, 3.0)
+            self.assertIn('/atlas/control_policy', topics); self.assertNotIn('/cmd_vel_flysky', topics)
+        finally:
+            srv.terminate(); srv.wait(5)
+
+    def test_unreachable_bridge_fails(self):
+        with self.assertRaises(D.Fail):
+            D.Env(observer_port=1).advertised_topics(seconds=0.5)
+
+
 class Preflight(Base):
     def test_preflight_is_read_only_and_go(self):
         self.assertEqual(D.main(['preflight'], env=self.env), 0)
