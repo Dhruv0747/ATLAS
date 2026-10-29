@@ -495,3 +495,51 @@ A CPU-only overrun gives `FAIL_HELD`, with no automatic second restart.
   `DISABLED`;
 - `/v2/flysky-drive` served; FlySky Test Lab API unchanged (read-only);
 - dashboard safety ×3; other PIDs unchanged.
+
+## Stage A3 attempt 1, 2026-10-29 11:14 IST: FAIL, rolled back (fail-closed)
+
+Package `6c54ddd`; bound 20 s. A gated GO check of conditions 1–8 passed. Evidence:
+`~/project-atlas-migration/stage29-deploy-web-20261029_111404-215965998/`.
+
+What passed:
+- **Backup:** six files backed up (3 originals, 3 absent).
+- **Install:** candidates installed: status web `983024c3`, web_v2 `252d9261`, css `e5852855`, endpoint
+  `a38a6b35`, page `89f017a9` / `b2d0c83f`. `rover-status-web` restarted once.
+- **CPU, first measured dashboard restart:** over 75 % at +0.9 s (76.1), then from +6.0 to **+15.3 s**
+  (11 samples, peak 99.8 %), inside the 20 s bound. 30 post-bound samples all ≤ 75; steady mean 63.5 % vs
+  pre-window 63.9 %. RAM max 66.2 %, temperature max 63.2 °C.
+- **Observer, no exemptions:** 201 verdicts, **all OK**, max gap 0.255 s.
+
+  | Signal | max age |
+  |---|---|
+  | Policy | 0.149 s |
+  | `/cmd_vel` | 0.246 s |
+  | `/motor_speed` | **0.598 s** (the predicted risk did not occur) |
+  | Encoder health | 0.161 s |
+- **Functional verification** passed: new PID 464121, policy latched / XBOX / gate false / STOPPED.
+
+What failed:
+- The final dashboard safety ×3 failed one predicate, `web_drive_stop`. Its raw value was `{}`: the item was absent.
+- **Rollback, automatic:** originals restored (hashes `4ab16214` / `4893d1f6` / `34d3e404`), the three new files
+  removed, `rover-status-web` restarted once.
+- Rollback CPU over 75 % from +1.0 to +15.2 s (13 samples, peak 99.7 %) and recorded. Dashboard now PID 464587.
+- Test Lab page 200 and API read-only. A1 (mux 442503) and A2 (teleop 461352) untouched. E-STOP latched, commands and
+  motor output 0, encoders unchanged.
+
+**Root cause (deployer verification defect, not a rover fault).** The dashboard creates `web_drive` only when it
+first publishes a drive command (`publish()` sets `STOP` or a speed). `drive_active` starts False. A freshly started
+dashboard therefore has **no** item. The original dashboard, restarted by the rollback, showed the same `None` for
+over 30 s. The Stage 28 predicate treats absent as a failure, and no earlier step had restarted the dashboard, so
+A3 could not pass as written.
+
+**Fix.** After the dashboard restart only, `web_drive` *absent* is accepted and recorded per snapshot ("no dashboard
+drive command since start"). A *present* value other than `STOP` still fails. Every other predicate and check is
+unchanged. Two tests were added: the fake rover's restarted dashboard has no item (the old code fails it), and a
+non-STOP value → rollback.
+
+**Shutdown tracebacks.** Both dashboards (2103 and 464121) logged `Exception in thread atlas-flysky-ros` when
+stopped. It is the same pre-existing shutdown-time behaviour of the Test Lab's executor thread in the original and the
+patched dashboard. It is not a runtime fault.
+
+**Bound evidence now measured.** The dashboard restart is over 75 % until about +15.3 s (forward) and +15.2 s
+(rollback). The 20 s bound held with about 4.7 s of margin, so keep 20 s for a retry.

@@ -40,6 +40,8 @@ class FakeRover:
         self.break_web_view = False
         self.change_protected = None
         self.mux_never_back = False
+        self.web_restarted = False                # a restarted dashboard has no web_drive item (A3 attempt 1)
+        self.web_drive_after_restart = None       # scenario: a present, non-STOP value
         self.bridge_lag_s = 1.5                   # observer sees the restarted mux later than the dashboard (A1 attempt 1)
         self.observer_never_back = False
 
@@ -76,6 +78,7 @@ class FakeRover:
                 u['log'] = 'FlySky teleop DISABLED: FlySky driving gate is off'
             if args[1] == D.UNITS['web']:
                 self.web_down_until = time.time() + 1.0
+                self.web_restarted = True
             if self.change_protected:
                 self.units[self.change_protected]['pid'] += 7
             return NS(stdout='', returncode=0)
@@ -106,7 +109,9 @@ class FakeRover:
             return {'ros': {
                 'control_policy': {'age': age, 'value': json.dumps(pol)},
                 'cmd_vel': {'age': age, 'value': {'lin': 0.0, 'ang': 0.0}},
-                'motor_speed': {'age': 0.2, 'value': 0.0}, 'web_drive': {'age': 0.1, 'value': 'STOP'},
+                'motor_speed': {'age': 0.2, 'value': 0.0},
+                **({} if self.web_restarted and self.web_drive_after_restart is None else
+                   {'web_drive': {'age': 0.1, 'value': self.web_drive_after_restart if self.web_restarted else 'STOP'}}),
                 'drive_pid': {'age': 0.1, 'value': json.dumps({'active': False})},
                 'odom': {'age': 0.1, 'value': {'vx': 0.0, 'wz': 0.0}},
                 **{f'enc_m{i}': {'age': 0.0, 'value': v} for i, v in zip(range(1, 5), (-404, 1471, -14027, 1421))},
@@ -344,7 +349,16 @@ class LaterSteps(Base):
         for rel, want in CAND['web'].items():
             self.assertEqual(self.sha(rel), want, rel)
         self.assertEqual(self.restarts(D.UNITS['web']), 1)
+        self.assertIn('web_drive absent in 3/3', (self.result('deploy-web')[1] / 'log.txt').read_text())
         self.assertEqual(self.run_step('web'), 3)             # already installed: refused
+
+    def test_web_drive_present_and_not_stop_after_restart_rolls_back(self):
+        self.deploy_mux()
+        self.assertEqual(self.run_step('teleop'), 0)
+        self.rover.web_drive_after_restart = '0.10,0.00'
+        self.assertEqual(self.run_step('web'), 1)
+        r, _ = self.result('deploy-web')
+        self.assertEqual(r['result'], 'FAIL_ROLLED_BACK'); self.assertIn('web_drive_stop', r['reason'])
 
     def test_teleop_advertising_a_command_topic_is_rolled_back(self):
         self.deploy_mux()

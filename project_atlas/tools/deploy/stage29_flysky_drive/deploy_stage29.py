@@ -425,6 +425,36 @@ def verify(env, ev, step, before, protected0):
     ev.log(f'{step}: verified {unit} pid {s.get("MainPID")}; policy {p}')
 
 
+def require_safe_after_dashboard_restart(env, ev, label, count=3, spacing=2.0):
+    """d28.require_safe, with ONE documented difference that applies only right after the dashboard itself restarted:
+    the dashboard creates its 'web_drive' item only when it first publishes a drive command (publish() -> 'STOP' or
+    a speed), so a fresh dashboard has NO item. Absent means "no dashboard drive command since start" (drive_active
+    starts False), which is at least as safe as 'STOP'. A3 attempt 1 (2026-10-29) failed only on this. A PRESENT
+    value other than 'STOP' still fails; every other predicate, the encoder-stillness and packet checks are unchanged."""
+    snaps = []
+    for i in range(count):
+        if i:
+            env.sleep(spacing)
+        s = d28.safety_snapshot(env)
+        if s['predicates'].get('web_drive_stop') is False and s['raw'].get('web_drive') in ({}, None):
+            s['predicates']['web_drive_stop'] = True
+            s['web_drive_absent_after_dashboard_restart'] = True
+            s['ok'] = all(s['predicates'].values())
+        ev.save(f'safety-{label}-{i}', s)
+        snaps.append(s)
+        if not s['ok']:
+            raise Fail(f'{label}: safety predicate(s) failed: {[k for k, v in s["predicates"].items() if not v]}')
+    if any(s['encoders'] != snaps[0]['encoders'] for s in snaps):
+        raise Fail(f'{label}: encoder counts changed (motion) {[s["encoders"] for s in snaps]}')
+    pk = [s['packets'] for s in snaps]
+    if not all(type(p) is int for p in pk) or any(b <= a for a, b in zip(pk, pk[1:])):
+        raise Fail(f'{label}: serial packet counter not progressing {pk}')
+    absent = sum(1 for s in snaps if s.get('web_drive_absent_after_dashboard_restart'))
+    ev.log(f'{label}: safety OK x{count}; encoders {snaps[0]["encoders"]}; packets {pk}'
+           + (f'; web_drive absent in {absent}/{count} (fresh dashboard, no drive command since start)' if absent else ''))
+    return snaps
+
+
 # ------------------------------------------------------------------ actions
 def deploy_step(env, args, ev=None):
     step, unit = args.step, UNITS[args.step]
@@ -473,7 +503,7 @@ def deploy_step(env, args, ev=None):
             recovery_mean(ev, step, rec, t0, args.cpu_bound_s)
             ev.save(f'cpu-recorder-{step}', {'t_restart': t0, 'samples': rec.samples, 'ram_temp': rec.rt})
         verify(env, ev, step, before, protected0)
-        d28.require_safe(env, ev, f'{step}-post', count=3)
+        (require_safe_after_dashboard_restart if step == 'web' else d28.require_safe)(env, ev, f'{step}-post', count=3)
         ev.log(f'STEP {step} PASS (gate off; Xbox selected; E-STOP latched)')
         ev.save('result', {'result': 'PASS', 'step': step}); ev.seal()
         return 0
