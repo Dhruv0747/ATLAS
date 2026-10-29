@@ -1,0 +1,80 @@
+/* ATLAS FlySky Remote Test Lab: only what testlab.css does not already provide. Adds nothing global. */
+.v2-flysky{--c1:#22B8F0;--c2:#7CC242;--c3:#F2B33D;--c4:#B79CFF;--c5:#FF8A95;--c6:#5FD6C2;--c7:#E8D36A;--c8:#8FA8FF}
+.fs-sticks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;max-width:760px}
+.fs-stick{background:var(--glass);border:1px solid var(--line);border-radius:var(--r-panel);padding:12px 14px;display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center}
+.fs-stick h3{grid-column:1/3;margin:0;font-size:13px;color:var(--mute);font-weight:650}
+.fs-pad{width:120px;height:120px;border-radius:14px;background:rgba(5,14,26,.55);border:1px solid var(--line);position:relative}
+.fs-pad::before,.fs-pad::after{content:"";position:absolute;background:rgba(128,190,236,.18)}
+.fs-pad::before{left:50%;top:6px;bottom:6px;width:1px}.fs-pad::after{top:50%;left:6px;right:6px;height:1px}
+.fs-dot{position:absolute;width:16px;height:16px;border-radius:50%;background:var(--sky);margin:-8px 0 0 -8px;left:50%;top:50%;box-shadow:0 0 0 3px rgba(34,184,240,.25)}
+.fs-pad.off .fs-dot{background:var(--mute);box-shadow:none;opacity:.5}
+.fs-sel{display:grid;gap:6px;font-size:12.5px;color:var(--mute)}
+.fs-sel label{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
+.fs-sel select{min-height:38px;padding:4px 8px;font:inherit;background:rgba(13,30,49,.7);color:var(--ink);border:1px solid var(--line-strong);border-radius:8px}
+.fs-sel output{color:var(--ink);font-weight:600}
+
+.fs-head,.fs-row{display:grid;grid-template-columns:minmax(120px,1.2fr) 64px 64px minmax(120px,2fr) 96px 120px;gap:6px 12px;align-items:center}
+.fs-head{font-size:11.5px;color:var(--mute);padding:0 10px 4px}
+.fs-chans{display:grid;gap:4px}
+.fs-row{padding:6px 10px;border-radius:10px;border:1px solid var(--line);font-size:13px;font-variant-numeric:tabular-nums}
+.fs-row.hot{border-color:var(--sky);background:rgba(34,184,240,.12)}
+.fs-row .nm{display:flex;gap:8px;align-items:center;min-width:0}
+.fs-row .nm b{flex:none;width:34px;color:var(--ink)}
+.fs-row .nm input{min-width:0;width:100%;min-height:30px;padding:2px 8px;font:inherit;font-size:12.5px;background:transparent;color:var(--ink);border:1px solid transparent;border-radius:6px}
+.fs-row .nm input:hover,.fs-row .nm input:focus{border-color:var(--line-strong)}
+.fs-bar{position:relative;height:12px;border-radius:6px;background:rgba(128,190,236,.12)}
+.fs-bar::before{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;border-left:1px dashed var(--mute)}
+.fs-bar i{position:absolute;top:0;bottom:0;border-radius:6px;background:var(--sky)}
+.fs-row.sw .fs-bar i{background:var(--amber)}
+.fs-row .mv{display:flex;gap:6px;align-items:center;color:var(--mute)}
+.fs-arrow{display:inline-block;width:1.1em;text-align:center;font-weight:700;color:var(--sky)}
+.fs-row .rg{color:var(--mute);font-size:12px}
+.fs-empty{padding:14px;border:1px dashed var(--line-strong);border-radius:10px;color:var(--mute);font-size:13.5px}
+.fs-dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:13px}
+.fs-dl dt{color:var(--mute)}.fs-dl dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums}
+.fs-dl dd.bad{color:#FFB3BB}.fs-dl dd.ok{color:var(--terrain)}.fs-dl dd.dim{color:var(--mute);font-weight:400}
+.fs-legend{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:13px;color:var(--mute);line-height:1.4}
+.fs-legend b{display:block;color:var(--ink)}
+.tl-banner .big{display:block;font:400 clamp(16px,2.6vw,22px)/1.2 var(--display);margin-bottom:4px;letter-spacing:.01em}
+.tl-banner.ok{border-color:rgba(124,194,66,.6);background:rgba(18,50,14,.5)}
+.v2-flysky .tl-banner b{display:inline}
+@media (max-width:900px){
+  .fs-head{display:none}
+  .fs-row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm raw" "bar bar" "mv rg"}
+  .fs-row .nm{grid-area:nm}.fs-row .raw{grid-area:raw;text-align:right}.fs-row .nrm{display:none}
+  .fs-row .fs-bar{grid-area:bar}.fs-row .mv{grid-area:mv}.fs-row .rg{grid-area:rg;text-align:right}
+  .fs-sticks{grid-template-columns:1fr}
+}
+@media (max-width:420px){.fs-stick{grid-template-columns:1fr;justify-items:center}.fs-stick h3{grid-column:1}}
+.fs-row[hidden],.fs-empty[hidden]{display:none}
+.fs-row.old{opacity:.5}
+.fs-oldnote{display:block;margin-top:4px;font-weight:600}
+/* Channel mapping card (flysky-mapping.js). CH11-CH16 rows show only with the raw SBUS toggle. */
+.fs-chans:not(.fs-raw16)>.fs-row:nth-child(n+11){display:none}
+.fm-raw-toggle{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;color:var(--mute);margin-left:auto;margin-right:10px}
+.fm-summary{margin:2px 0 10px;font-size:13.5px;color:var(--ink);font-variant-numeric:tabular-nums}
+.fm-state{font-size:12.5px;color:var(--mute);padding:2px 8px;border-radius:8px}.fm-state.warn{color:var(--ink);background:rgba(242,179,61,.22)}.fm-state.bad{color:var(--ink);font-weight:600;background:rgba(255,138,149,.28)}
+.fm-head,.fm-row{display:grid;grid-template-columns:52px minmax(190px,280px) 60px 120px minmax(180px,1fr);gap:6px 12px;align-items:center}
+.fm-head{font-size:11.5px;color:var(--mute);padding:0 10px 4px}
+.fm-rows{display:grid;gap:4px}
+.fm-row{padding:5px 10px;border-radius:10px;border:1px solid var(--line);font-size:13px;font-variant-numeric:tabular-nums}
+.fm-row.now{border-color:var(--sky);background:rgba(34,184,240,.12)}
+.fm-row.dup{border-color:#FF8A95}
+.fm-row.old{opacity:.6}
+.fm-ch{color:var(--ink)}
+.fm-row select{width:100%;min-height:36px;padding:4px 8px;font:inherit;background:rgba(13,30,49,.7);color:var(--ink);border:1px solid var(--line-strong);border-radius:8px;min-width:0}
+.fm-seen{color:var(--mute);font-size:12px}
+.fm-badge{justify-self:start;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line-strong);color:var(--mute)}
+.fm-badge.verified{color:var(--ink);background:rgba(124,194,66,.24);border-color:rgba(124,194,66,.7)}
+.fm-badge.waiting{color:var(--ink)}
+.fm-badge.check,.fm-badge.stray{color:var(--ink);background:rgba(242,179,61,.24);border-color:rgba(242,179,61,.75)}
+.fm-badge.now{box-shadow:0 0 0 2px rgba(34,184,240,.35)}
+.fm-actions{flex-wrap:wrap;margin-top:10px}
+.fm-import{position:relative;display:inline-flex;align-items:center;cursor:pointer;min-height:44px;padding:8px 14px;border:1px solid var(--line-strong);border-radius:10px;font-size:14px}
+.fm-import input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.fm-import:focus-within{outline:2px solid var(--sky);outline-offset:2px}
+@media (max-width:900px){
+  .fm-head{display:none}
+  .fm-row{grid-template-columns:44px minmax(0,1fr) auto 52px;grid-template-areas:"ch sel sel raw" "seen seen badge badge"}
+  .fm-ch{grid-area:ch}.fm-row select{grid-area:sel}.fm-raw{grid-area:raw;text-align:right}.fm-seen{grid-area:seen}.fm-badge{grid-area:badge;justify-self:end}
+}

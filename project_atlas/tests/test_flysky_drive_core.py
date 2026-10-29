@@ -12,6 +12,7 @@ import atlas_flysky_drive_core as d        # noqa: E402
 
 CFG = json.loads((ROOT / 'config/atlas_flysky_drive.json').read_text())
 UP, MID, DOWN = 240, 1024, 1807
+ST = CFG['steering']['channel']          # owner layout: CH1
 
 
 def reviewed(**over):
@@ -63,6 +64,7 @@ class Config(unittest.TestCase):
 
     def test_shipped_throttle_is_not_the_non_centring_left_stick(self):
         self.assertNotEqual(CFG['throttle']['channel'], 3)
+        self.assertEqual((CFG['throttle']['channel'], CFG['steering']['channel']), (2, 1))   # owner layout 2026-10-29
 
     def test_rejections(self):
         bad = [
@@ -164,14 +166,14 @@ class Driving(unittest.TestCase):
 
     def test_steering_direction_and_speed_mode(self):
         r = Rig(); r.arm()
-        right = r.tick(ch={5: DOWN, 4: DOWN, 7: DOWN}).command[1]
+        right = r.tick(ch={5: DOWN, ST: DOWN, 7: DOWN}).command[1]
         self.assertLess(right, 0.0)                           # stick right -> negative yaw (clockwise, ROS REP-103)
         self.assertAlmostEqual(abs(right), CFG['max_angular_radps'])
-        low = r.tick(ch={5: DOWN, 4: DOWN, 7: UP}).command[1]
+        low = r.tick(ch={5: DOWN, ST: DOWN, 7: UP}).command[1]
         self.assertAlmostEqual(abs(low), CFG['max_angular_radps'] * 0.33)
 
     def test_deadband(self):
-        r = Rig(); r.arm(); out = r.tick(ch={5: DOWN, 2: MID + 50, 4: MID - 50})
+        r = Rig(); r.arm(); out = r.tick(ch={5: DOWN, 2: MID + 50, ST: MID - 50})
         self.assertEqual(out.command, (0.0, 0.0))
 
     def test_impossible_reading_zeroes(self):
