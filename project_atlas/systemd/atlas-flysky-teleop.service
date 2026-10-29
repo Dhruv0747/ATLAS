@@ -1,0 +1,20 @@
+# ATLAS Stage 29 FlySky teleop. NOT INSTALLED, NOT ENABLED. Install only under a separately approved deployment.
+# It drives nothing unless ALL of these hold: ATLAS_FLYSKY_DRIVE_ENABLED=1 here AND in the cmd_vel mux,
+# config/atlas_flysky_drive.json is valid with reviewed_by_owner=true, FlySky is selected in the mux while the
+# E-STOP is latched, the E-STOP is then reset the normal way, and the FlySky arm sequence is completed.
+[Unit]
+Description=Project ATLAS FlySky teleop (bounded requests to the cmd_vel mux; disabled by default)
+After=atlas-cmd-vel-mux.service rover-base-telemetry.service
+PartOf=atlas-cmd-vel-mux.service
+
+[Service]
+Type=simple
+Environment=ATLAS_FLYSKY_DRIVE_ENABLED=0
+EnvironmentFile=-%h/.config/project-atlas/flysky-drive.env
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_flysky_teleop.py'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

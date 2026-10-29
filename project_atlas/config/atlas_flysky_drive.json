@@ -1,0 +1,14 @@
+{
+  "_comment": "ATLAS FlySky FS-i6S driving config. Read by atlas_flysky_teleop.py only when ATLAS_FLYSKY_DRIVE_ENABLED=1. It cannot arm until the owner has reviewed every line and set reviewed_by_owner to true. Channel numbers are the owner-verified mapping of 2026-10-29: CH1 right stick L-R, CH2 right stick U-D, CH3 left stick U-D (NOT self-centring on the FS-i6S, so not used for throttle), CH4 left stick L-R, CH5 SwA, CH6 SwB, CH7 SwC, CH8 SwD, CH9 VrA, CH10 VrB. Raw counts: switch up = 240, down = 1807; stick right/up = 1807.",
+  "reviewed_by_owner": false,
+  "throttle": {"channel": 2, "min": 240, "centre": 1024, "max": 1807, "deadband": 0.08, "reversed": false, "self_centring": true},
+  "steering": {"channel": 4, "min": 240, "centre": 1024, "max": 1807, "deadband": 0.08, "reversed": true},
+  "arm": {"channel": 5, "on_above": 1700, "off_below": 400},
+  "stop": {"channel": 6, "run_below": 400},
+  "speed_mode": {"channel": 7, "scales": [0.33, 0.66, 1.0]},
+  "max_linear_mps": 0.15,
+  "max_angular_radps": 0.6,
+  "max_accel_mps2": 0.5,
+  "frame_timeout_s": 0.3,
+  "policy_timeout_s": 0.5
+}

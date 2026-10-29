@@ -1,0 +1,50 @@
+{
+  "stage": "29 FlySky driving (NOT DEPLOYED; gate off by default)",
+  "built_from_commit_parent": "a97178c",
+  "modified_live_files": {
+    "scripts/atlas_cmd_vel_mux.py": {
+      "live_sha256": "0d95928632f1cac7e8d41f5dfe499eb837cdb014cbf47ac7bebcde6f52ff7dc3",
+      "candidate_sha256": "5d096638bf3c55996fc167e4fe4c2cc7bf8424b7cdea70cc3937c77ca892fa1c",
+      "patcher": "insert_flysky_mux.py",
+      "restart": "atlas-cmd-vel-mux"
+    },
+    "scripts/atlas_status_web.py": {
+      "live_sha256": "4ab162140650f46e26138997de1db54404c7cfdb6fff8df752d10035b05e1406",
+      "candidate_sha256": "983024c3c1688b4ad43e42b773e4518b3ba3bc9ccdf140d5c8bc833219c3137b",
+      "patcher": "insert_status_web_hooks.py",
+      "restart": "rover-status-web (dashboard)"
+    },
+    "scripts/atlas_web_v2.py": {
+      "live_sha256": "4893d1f65fb3 (prefix; equals repo before this change)",
+      "candidate_sha256": "252d9261aada889e2b0217c536fc8d5edc39646a1e7f11b69bbc62a0688b9b86",
+      "restart": "rover-status-web (dashboard)"
+    },
+    "web/v2/flysky.css": {
+      "live_sha256": "34d3e40423c9 (prefix)",
+      "candidate_sha256": "e5852855930a4762c021e45530eb82f07e26ccf09399e47a8f8dd43045b0aafd",
+      "restart": "none (static)"
+    }
+  },
+  "new_files": {
+    "scripts/atlas_flysky_drive_core.py": "567f043337a6aede1fba62716f0263ff839fcc75b3939e5e7b84c8307a17ee70",
+    "scripts/atlas_flysky_teleop.py": "feecba2cb9e6b3c60614765f3888a92f807f857145404ddadaef762b9f7c96e4",
+    "scripts/atlas_manual_controller_web.py": "a38a6b351acf7f4d4ce074697110fedad868ad8420c58ce8d6435b4d2e79f880",
+    "config/atlas_flysky_drive.json": "4acf6e08364fe6e344fd512a2a2bd75a19d90495118607fc8bcdb1f3b4625278",
+    "web/v2/flysky-drive.html": "89f017a92e2872bd68e7ec6d5578a30ce1e11d347dc9b80e565d4c6268b4999f",
+    "web/v2/flysky-drive.js": "b2d0c83f32c17d2b6aab8d707c8d15781d07bd04e7617fe9cc3f045756fb39a5",
+    "systemd/atlas-flysky-teleop.service": "eca2270ff13e018a1c9973fb99b9fab941ed549c8bdd604454314d09e79d43cf"
+  },
+  "unchanged_required": {
+    "scripts/atlas_flysky_core.py": "3e4b379e (prefix)",
+    "scripts/atlas_remote_stop.py": "1a44fb37a532 (prefix)",
+    "firmware": "V3.6.161, no flash"
+  },
+  "gates": [
+    "ATLAS_FLYSKY_DRIVE_ENABLED=1 in the mux environment",
+    "ATLAS_FLYSKY_DRIVE_ENABLED=1 in the teleop environment",
+    "config reviewed_by_owner=true",
+    "FlySky selected while E-STOP latched",
+    "normal E-STOP reset",
+    "arm OFF->ON with throttle centred"
+  ]
+}

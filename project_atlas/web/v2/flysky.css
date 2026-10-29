@@ -78,3 +78,6 @@
   .fm-row{grid-template-columns:44px minmax(0,1fr) auto 52px;grid-template-areas:"ch sel sel raw" "seen seen badge badge"}
   .fm-ch{grid-area:ch}.fm-row select{grid-area:sel}.fm-raw{grid-area:raw;text-align:right}.fm-seen{grid-area:seen}.fm-badge{grid-area:badge;justify-self:end}
 }
+/* FlySky Driving page (flysky-drive.js) */
+.fd-pick button{min-width:140px}
+.v2-flysky-drive .fs-dl dd.bad{color:#B3261E;font-weight:700}.v2-flysky-drive .fs-dl dd.ok{color:#2E7D32}

@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-29 Stage29 FlySky driving integration IMPLEMENTED OFFLINE (not deployed, gate off): pure decision core (arm switch far-end band so centre-value failsafe can never arm; signal loss/failsafe -> zero + latched E-STOP; slew-limited, capped at Xbox non-turbo 0.25 m/s / 0.8 rad/s; throttle must be self-centring, default CH2), teleop node, additive mux patch on the LIVE mux (one manual controller at a time, Xbox default, handover only while latched, FlySky stop-only input, independent clamps), dashboard page /v2/flysky-drive with selection endpoint. 58 new tests. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
+
+2026-10-29 Stage28 COMPLETE: CH1-CH10 owner-verified (CH1 right L-R, CH2 right U-D, CH3 left U-D, CH4 left L-R, CH5-8 SwA-SwD, CH9-10 VrA/VrB), Test Lab 10/10, failsafe and E-STOP criteria pass. docs/ATLAS_STAGE28_FLYSKY_LIVE_RESULT_20261028.md
+
 2026-10-28 FlySky Test Lab channel-mapping card deployed (static files only, no restart; 615b846): CH1-CH10 control dropdowns, assigned/unassigned/changing/verified status, Apply/Cancel/Defaults, browser save + JSON export/import, CH11-CH16 behind a raw SBUS toggle. Stage 28 PAUSED: CH5-CH10 transmitter assignment not yet done/verified. docs/ATLAS_STAGE28_RESUME_20261028.md
 
 2026-10-28 Stage28 FlySky RC bridge DEPLOYED (owner-approved Stage A transient 10 s PASS, Stage B transient 15 s PASS; base PID 1921->151784). /atlas/rc/frames live at 10 Hz, CH1-CH4 full range, CH5-CH10 constant 1024 (not demonstrated), signal loss -> FRAME_LOST then FAILSAFE in 0.43 s and back to LIVE, SBUS drive-disabled bit verified on every report, E-STOP latched throughout, no motion. docs/ATLAS_STAGE28_FLYSKY_LIVE_RESULT_20261028.md
