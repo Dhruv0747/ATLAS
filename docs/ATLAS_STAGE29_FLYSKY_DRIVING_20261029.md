@@ -725,3 +725,39 @@ The approved deployment of 7f196ac was **held and not run**, because the owner a
   - images only from `/v2/assets`, plus the licence record `web/v2/assets/CONTROLLER-IMAGES.txt`.
 
 The `view` step now also installs the two images and the licence record. Nothing outside `/v2/assets` changes for the images: WebP is already served, so `atlas_web_v2.py` is untouched. **A new owner approval is needed for the new commit; the 7f196ac approval does not carry over.**
+
+## Stage 29 `view` deployment, 2026-10-29 14:45 IST: PASS (commit 59956c9, owner-approved, one attempt)
+
+**Before the attempt**
+- Fresh read-only preflight GO at 14:43: all four steps rebuild from the live files, gate off, safety OK ×3, CPU mean 62.9 %.
+- Owner confirmed: E-STOP latched, rover lifted and clear.
+
+**Deployer** (`systemd-run --user --unit=atlas-stage29-view`, bound 20 s), evidence `stage29-deploy-view-20261029_144517-889315630`:
+- Pre-check: safety OK ×3, CPU mean 62.4 %.
+- Backup of A3 `atlas_status_web.py` 983024c3; the new files were absent before.
+- Installed `atlas_status_web.py` e0809e70, `atlas_controller_input_web.py` d2505ddb, `controller-map.js` 8f1f302b, `controller-viz.js` 545aebf9, both images (556474a3 / 5edbd50c), the licence record, and the page/js/css.
+- Restarted `rover-status-web` only (PID 471062 → 563039).
+- CPU over 75 % for 11 samples, peak 99.5 %, last at +15.34 s, inside the 20 s bound. All 30 samples after the bound ≤ 75 %, and the steady mean was 63.9 % against 63.7 % before. RAM and temperature OK on every sample.
+- Verified: policy latched, XBOX, gate off, STOPPED; `/api/controller_inputs` read-only; page served. Post-check safety OK ×3, encoders unchanged [-444, 1473, -14198, 1401], `web_drive` absent (fresh dashboard).
+- **Result: PASS.** Mux 442503 and teleop 461352 unchanged.
+
+**Live checks after the deploy**
+- All page files, both images and the licence record are served with the committed hashes. `/v2/`, `/v2/flysky-testlab` and `/v2/testlab` return 200.
+- `/api/controller_inputs`: Xbox LIVE at 16–18 Hz, 8 axes and 11 buttons, `layout_ok` true.
+- A POST to `/api/controller_inputs` is refused (400 from the dashboard, which never routes a POST to the module).
+- `/api/manual_controller`: XBOX, latched, gate off, `can_select` both false, reason "FlySky driving is disabled on this rover"; teleop DISABLED. No traceback in the dashboard journal.
+
+**Rendering**
+- The owner's browser pane did not run the page's scripts (approval needed per action), and headless Chromium cannot start on the owner's PC workspace.
+- So the **exact deployed files** (hashes checked) were pulled from the rover with **live API snapshots** and rendered in Chromium, at 1440 px and 390 px:
+  - both real photos load, at native aspect ratios 1.366 and 1.131;
+  - "Xbox connected", "Selected remote: Xbox", E-STOP latched, FlySky driving off;
+  - FlySky receiver shown as "receiver failsafe" (the live state at 14:49, transmitter likely off);
+  - the Show FlySky preview is labelled "Preview only";
+  - SELECT FLYSKY is disabled with the exact mux reason;
+  - legend states Active/Blocked/Not used (Xbox) and Proposed/Planned/Not used (FlySky), never Active for FlySky;
+  - no horizontal scroll, no console errors, no non-GET request.
+- Live-highlight path, with **injected** test input on the deployed code: Xbox presses light LS, RS, D-pad, Y and B; FlySky switch changes light SwA and SwC, and the dots read SwA DOWN, SwB UP, SwC MIDDLE, SwD UP. **Physical button presses on the live page were not observed by Claude.** The owner should open the page and confirm.
+
+**Dashboard load with the page's polling**
+- Status-web process: 49.1 % of one core idle, 50.0 % polled. System busy 63.6 % idle, 63.0 % polled. The difference is within noise.
