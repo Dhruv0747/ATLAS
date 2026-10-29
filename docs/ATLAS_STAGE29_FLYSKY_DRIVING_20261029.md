@@ -543,3 +543,55 @@ patched dashboard. It is not a runtime fault.
 
 **Bound evidence now measured.** The dashboard restart is over 75 % until about +15.3 s (forward) and +15.2 s
 (rollback). The 20 s bound held with about 4.7 s of margin, so keep 20 s for a retry.
+
+## Stage A3 attempt 2 (final), 2026-10-29 11:26 IST: PASS. Stage 29 Stage A COMPLETE
+
+Package `fd4e8ba`; bound 20 s. A gated GO check of conditions 1–8 passed. Evidence:
+`~/project-atlas-migration/stage29-deploy-web-20261029_112630-341126257/`.
+
+- **CPU:** peak 99.0 %. Over 75 % for 15 samples, +1.0 to **+17.2 s** (attempt 1: +15.3 s), inside the 20 s
+  bound with 2.8 s of margin. 30 post-bound samples all ≤ 75; steady mean 63.6 % vs pre-window 63.8 %.
+  RAM max 66.7 %, temperature max 63.1 °C.
+- **Observer, no exemptions:** 197 verdicts, all OK, max gap 0.258 s.
+
+  | Signal | max age |
+  |---|---|
+  | Policy | 0.196 s |
+  | `/cmd_vel` | 0.255 s |
+  | `/motor_speed` | 0.609 s |
+  | Encoder health | 0.126 s |
+  | Base still | 0.296 s |
+- **Dashboard safety ×3:** all predicates true. `web_drive` absent in 3/3 (fresh dashboard), accepted under the
+  corrected rule, with every other predicate including zero commands and zero motor output true. The independent
+  observer was continuously OK, `cmd_zero` and `motor_output_zero` included, through the window that ended just before.
+- **Independent observer after the run (8 s):** 29/29 OK; `/cmd_vel` all zeros; `/motor_speed` 0.0; E-STOP latched.
+- **Selection API:** `/api/manual_controller` reports selection supported, XBOX, gate false, latched,
+  `can_select {XBOX: false, FLYSKY: false}`; the drive node is running and `DISABLED` ("FlySky driving is disabled on
+  this rover"). A POST without the dashboard header returns 403.
+- **Pages:** `/v2/flysky-drive` serves "ATLAS · FlySky Driving". `/v2/flysky-testlab`, its scripts, the mapping card
+  and `/v2/` all return 200. The Test Lab API is still read-only, on `/atlas/rc/frames`, receiver FAILSAFE (transmitter
+  off).
+
+### Deployed state (all with the gate OFF)
+
+| Step | Live file(s) | Service |
+|---|---|---|
+| A1 | `atlas_cmd_vel_mux.py` 5d096638 | `atlas-cmd-vel-mux` 442503 |
+| A2 | teleop feecba2c, core 567f0433, config 031c9c08 (`reviewed_by_owner` false), unit eca2270f | `atlas-flysky-teleop` 461352, disabled at boot |
+| A3 | `atlas_status_web.py` 983024c3, web_v2 252d9261, flysky.css e5852855, endpoint a38a6b35, page 89f017a9 / b2d0c83f | `rover-status-web` 471062 |
+
+Base 1953, recovery 1998, EKF 3440 and foxglove 2056 are unchanged. E-STOP latched, XBOX selected, motion zero.
+Backups are in each step's evidence `backup/`; rollback is `deploy_stage29.py rollback --step <step> --evidence <dir>`.
+
+### Still not approved / open before any powered test
+- E-STOP release.
+- Gate on.
+- `reviewed_by_owner`.
+- Powered tests and Stage B. Before any of these, verify on lifted wheels:
+  - every E-STOP path;
+  - the mux 0.35 s and base 0.45 s watchdogs;
+  - arbitration;
+  - FlySky failsafe → latch.
+- **No independent motor-power disconnect** (owner decision). The software E-STOP is not power isolation.
+- Mux shutdown `RCLError` seen once under CPU saturation: zero-on-shutdown may be lost; the base deadman mitigates.
+- The A3 transient is now measured at 15–17 s, so 20 s has only about 3 s of margin for future dashboard restarts.

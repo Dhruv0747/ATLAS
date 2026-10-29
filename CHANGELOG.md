@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-29 Stage29 Stage A COMPLETE (gate off): A3 attempt 2 PASS. Dashboard selection API /api/manual_controller and page /v2/flysky-drive live; Xbox selected, FlySky teleop DISABLED, E-STOP latched, motion zero; Test Lab unchanged. Dashboard restart transient over 75 % until +17.2 s (bound 20 s). docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
+
 2026-10-29 Stage29 A2 PASS (FlySky teleop installed, DISABLED, 0 messages on /cmd_vel_flysky). A3 attempt 1 FAIL fail-closed, rolled back and verified: CPU and functional checks passed; the post-restart dashboard predicate web_drive_stop failed because a freshly started dashboard has no web_drive item until it publishes a drive command. Deployer fixed (absent accepted only after the dashboard restart; any non-STOP value still fails). First measured dashboard restart: over 75 % until about +15.3 s. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
 
 2026-10-29 Stage29 A1 attempt 1: FAIL fail-closed, rolled back and verified (original mux 0d959286 running, E-STOP latched, no motion). Cause: deployer cleared the mux-signal exemption on the dashboard's view before the independent observer re-subscribed through the foxglove bridge. Fixed: exemption clears only when the observer itself sees the mux signals fresh for 1 s. Rollback restart gave the first measured mux transient: over 75 % until +8.1 s, recovered to the pre-window mean. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
