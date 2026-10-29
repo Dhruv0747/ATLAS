@@ -952,3 +952,22 @@ Pre-window means were 64–69 % all day.
   - Mux 619923, teleop 619924, base 1953 and dashboard 563039 unchanged.
   - Policy: latched, XBOX, gate off, STOPPED.
 - Gate-on attempt 3 is **not yet approved**.
+
+## Gate-on attempt 3, 2026-10-29 20:24 IST: PASS (package eba4f6d, bound 15 s, owner-approved, one attempt)
+
+- Fresh preflight 20:23: GO (all five steps installed, teleop with the reviewed config). CPU mean 62.4 %, max 65.5 %.
+- Evidence `stage29-gate-on-20261029_202417-771696135`:
+  - Pre-checks: safety OK ×3, CPU mean 63.1 %.
+  - Lease armed 20:24:55; mux restarted 20:24:58, with the teleop following.
+  - **New mux proven: dashboard `flysky_drive_enabled` True at +9.7 s**; observer OK since +12.5 s; exemption cleared at +14.2 s.
+  - **CPU over 75 % for 12 samples, peak 100 % (+3.6 to +6.7 s), last +12.72 s at 78.3 %** (inside the 15 s bound). All 30 samples after the bound ≤ 75 %; RAM/temperature OK.
+  - Lease released; post-check safety OK ×3; encoders unchanged [85409, -80279, -36663, -80953]. **PASS.**
+- **Feature manager:** `inputs_stale_held` → `inputs_stale_hold_end` after 0.9 s. **All 8 features stayed inactive**; no cascade, against 5 services and 15–33 s on attempts 1–2.
+- **Final state**
+  - Gate drop-ins present for mux and teleop (runtime, cleared by gate-off or a reboot).
+  - Mux 738599; teleop 738601, which logged "FlySky teleop ENABLED" and then "NOT_SELECTED: selected controller is XBOX".
+  - Policy: latched ("joystick unavailable"), XBOX, gate True, STOPPED.
+  - **`can_select` {XBOX: false, FLYSKY: true}**, blocked_reason empty.
+  - Drive config reviewed, no errors, limits 0.05 m/s and 0.20 rad/s.
+  - motor_speed 0, /cmd_vel 0; base 1953 unchanged.
+- **Not done (needs separate approval):** SELECT FLYSKY, E-STOP release, powered lifted-wheel test.

@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-29 Stage29 gate-on attempt 3 PASS (eba4f6d): FlySky driving gate ON for commissioning; mux restart peak 100 %, over 75 % until +12.7 s (bound 15 s); no feature cascade; FlySky selectable (can_select FLYSKY true) while latched; Xbox selected, E-STOP latched, motor 0. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
+
 2026-10-29 Stage29 'features' step DEPLOYED (eba4f6d): PASS. Lease-aware atlas_feature_on_demand.py b0fb5b43; restart CPU >75 % until +10.3 s (bound 15 s), steady 63.3 % vs 64.1 %; restore-all skipped under the authorised-restart lease, the startup stale-input hold lasted 2 s, no AI/fusion service started. Gate off, E-STOP latched. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
 
 2026-10-29 Stage29 dual-controller dashboard DEPLOYED (step 'view', 59956c9): PASS. Dashboard restart over 75 % until +15.3 s (bound 20 s), steady 63.9 % vs 63.7 %; real Xbox (public domain) and FS-i6S (owner) photos served locally; Xbox live input 16-18 Hz; E-STOP latched, Xbox selected, FlySky driving off; page polling adds about 1 % of one core. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
