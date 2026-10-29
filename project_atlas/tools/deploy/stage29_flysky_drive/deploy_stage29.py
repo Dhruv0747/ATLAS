@@ -206,7 +206,8 @@ class Env(d28.Env):
 
 class Evidence(d28.Evidence):
     def __init__(self, env, kind):
-        self.dir = env.evidence_root / f'stage29-{kind}-{time.strftime("%Y%m%d_%H%M%S")}-{time.time_ns() % 10**9:09d}'
+        t = time.time_ns()          # ONE clock read: seconds and nanoseconds must agree or names sort out of order
+        self.dir = env.evidence_root / f'stage29-{kind}-{time.strftime("%Y%m%d_%H%M%S", time.localtime(t // 10**9))}-{t % 10**9:09d}'
         self.dir.mkdir(parents=True, exist_ok=False)
         self.n = 0
 
