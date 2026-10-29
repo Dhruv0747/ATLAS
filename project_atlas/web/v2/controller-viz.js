@@ -35,6 +35,7 @@
   // ---------------------------------------------------------------------------------------------- page state
   let view = null, pinned = false, ctl = null, xb = null, xbMissing = false, xbErr = false, fs = null, fsErr = false;
   let stage = null, timer = null;
+  const photoFailed = {};
 
   // ---------------------------------------------------------------------------------------------- callouts
   function callout(g, side, y, anchorPt, title) {
@@ -55,7 +56,7 @@
 
   // ---------------------------------------------------------------------------------------------- Xbox drawing
   function buildXbox() {
-    const svg = s('svg', { class: 'cv-svg cv-xbox', viewBox: '0 0 1200 640', role: 'img', 'aria-labelledby': 'cvTitleX' });
+    const svg = s('svg', { class: 'cv-svg cv-xbox cv-schematic', viewBox: '0 0 1200 640', role: 'img', 'aria-labelledby': 'cvTitleX' });
     const title = s('title', { id: 'cvTitleX' }, svg); title.textContent = 'Xbox 360 controller schematic with live input and the function of each control on ATLAS';
     const art = s('g', { class: 'cv-art' }, svg);
     const P = {};
@@ -114,58 +115,198 @@
       caption: 'Original schematic of an Xbox 360 controller layout, not product artwork. Button numbers are the /joy indices this rover reads.' };
   }
 
-  // ---------------------------------------------------------------------------------------------- FlySky drawing
-  function buildFlysky() {
-    const svg = s('svg', { class: 'cv-svg cv-flysky', viewBox: '0 0 1200 640', role: 'img', 'aria-labelledby': 'cvTitleF' });
-    const title = s('title', { id: 'cvTitleF' }, svg); title.textContent = 'FlySky FS-i6S transmitter schematic with raw channel values and the function of each control on ATLAS';
+
+  // ---------------------------------------------------------------------------------------------- Xbox photo
+  // Photo: "Xbox-360-Controller-Black.jpg" by Evan-Amos, Wikimedia Commons, public domain (no attribution required;
+  // credited anyway). Served locally from /v2/assets (cropped 0,40-3360,2500 and scaled 0.5, never stretched).
+  // Every overlay below is in ORIGINAL photo pixels (3360x2540) and is mapped by ONE transform, so it stays aligned at
+  // any page size. The photo is a three-quarter view: LB/RB/LT/RT sit on the far top edge and are NOT visible; they
+  // are drawn as markers beside the edge and say so, never as invented positions on the photo.
+  const XB_PHOTO = { src: '/v2/assets/xbox360-controller-black.webp', crop: [0, 40, 3360, 2460], x0: 280, y0: 62, w: 640 };
+  const XB_K = XB_PHOTO.w / XB_PHOTO.crop[2];
+  const XB_P = (ox, oy) => [XB_PHOTO.x0 + (ox - XB_PHOTO.crop[0]) * XB_K, XB_PHOTO.y0 + (oy - XB_PHOTO.crop[1]) * XB_K];
+  const XB_SPOTS = {           // ellipses: [cx, cy, rx, ry] in original photo pixels
+    ls: [1067, 247, 180, 147], dpad: [1300, 740, 213, 197], rs: [2113, 793, 187, 127],
+    back: [1584, 473, 62, 40], guide: [1873, 533, 133, 107], start: [2167, 580, 62, 40],
+    x: [2474, 616, 100, 80], y: [2752, 494, 100, 72], b: [2910, 710, 98, 78], a: [2632, 814, 98, 82],
+    dUp: [1300, 612, 62, 55], dDown: [1300, 872, 62, 55], dLeft: [1146, 740, 62, 55], dRight: [1454, 740, 62, 55]
+  };
+  const XB_HIDDEN = {          // markers beside the top edge: [cx, cy, edgeX, edgeY]
+    lt: [520, 250, 830, 250], lb: [520, 350, 760, 335], rt: [3200, 345, 2960, 380], rb: [3200, 445, 3030, 455]
+  };
+
+  function buildXboxPhoto() {
+    const svg = s('svg', { class: 'cv-svg cv-xbox cv-photo', viewBox: '0 0 1200 640', role: 'img', 'aria-labelledby': 'cvTitleXP' });
+    const title = s('title', { id: 'cvTitleXP' }, svg); title.textContent = 'Photo of an Xbox 360 controller with live input overlays and the function of each control on ATLAS';
     const art = s('g', { class: 'cv-art' }, svg);
+    const H = XB_PHOTO.crop[3] * XB_K;
+    s('image', { href: XB_PHOTO.src, x: XB_PHOTO.x0, y: XB_PHOTO.y0, width: XB_PHOTO.w, height: H, preserveAspectRatio: 'xMidYMid meet', class: 'cv-photo-img' }, art);
+    const ov = s('g', { class: 'cv-ov', transform: `translate(${XB_PHOTO.x0} ${XB_PHOTO.y0}) scale(${XB_K}) translate(${-XB_PHOTO.crop[0]} ${-XB_PHOTO.crop[1]})` }, art);
     const P = {};
-    // switches stand on the top edge; slot with a lever dot at up / middle / down
-    const sw = [['swa', 400, 'SwA'], ['swb', 462, 'SwB'], ['swc', 738, 'SwC'], ['swd', 800, 'SwD']];
-    for (const [id, x, lab] of sw) {
-      P[id + 'Base'] = s('rect', { class: 'cv-ctl', x: x - 14, y: 46, width: 28, height: 72, rx: 10 }, art);
-      P[id] = s('circle', { class: 'cv-lever', cx: x, cy: 60, r: 10 }, art);
-      text(art, x, 36, lab, 'cv-tag', 'middle');
+    for (const [id, [cx, cy, rx, ry]] of Object.entries(XB_SPOTS)) {
+      P[id] = s('ellipse', { class: 'cv-hit' + (id.startsWith('d') && id !== 'dpad' ? ' cv-hit-dir' : ''), cx, cy, rx, ry, 'data-id': id }, ov);
     }
-    s('path', { class: 'cv-body', d: 'M360 150 C360 128 380 116 410 116 L790 116 C820 116 840 128 840 150 L862 300 C882 382 892 470 862 560 C846 602 790 606 760 576 L700 522 L500 522 L440 576 C410 606 354 602 338 560 C308 470 318 382 338 300 Z' }, art);
-    P.screen = s('rect', { class: 'cv-screen', x: 512, y: 142, width: 176, height: 128, rx: 10 }, art);
-    text(art, 600, 212, 'Touch screen', 'cv-tag cv-tag-xs cv-on-screen', 'middle');
-    for (const [id, cx, lab] of [['vra', 432, 'VrA'], ['vrb', 768, 'VrB']]) {
-      P[id] = s('circle', { class: 'cv-ctl cv-dial', cx, cy: 214, r: 24 }, art);
-      P[id + 'Ptr'] = s('line', { class: 'cv-ptr', x1: cx, y1: 214, x2: cx, y2: 194 }, art);
-      text(art, cx, 258, lab, 'cv-tag cv-tag-xs', 'middle');
+    for (const id of ['ls', 'rs']) {
+      const [cx, cy] = XB_SPOTS[id];
+      P[id + 'Vec'] = s('line', { class: 'cv-vec', x1: cx, y1: cy, x2: cx, y2: cy }, ov);
+      P[id + 'Dot'] = s('circle', { class: 'cv-vecdot', cx, cy, r: 30 }, ov);
     }
-    for (const [id, x] of [['left', 440], ['right', 760]]) {
-      P[id + 'Plate'] = s('rect', { class: 'cv-ctl cv-plate', x: x - 76, y: 330, width: 152, height: 152, rx: 18 }, art);
-      s('line', { class: 'cv-cross', x1: x, y1: 342, x2: x, y2: 470 }, art);
-      s('line', { class: 'cv-cross', x1: x - 64, y1: 406, x2: x + 64, y2: 406 }, art);
-      P[id] = s('circle', { class: 'cv-knob cv-gimbal', cx: x, cy: 406, r: 17 }, art);
+    for (const [id, [cx, cy, ex, ey]] of Object.entries(XB_HIDDEN)) {
+      s('line', { class: 'cv-edge-lead', x1: cx + (cx < 1680 ? 110 : -110), y1: cy, x2: ex, y2: ey }, ov);
+      P[id] = s('rect', { class: 'cv-hidden', x: cx - 110, y: cy - 38, width: 220, height: 76, rx: 38 }, ov);
+      if (id === 'lt' || id === 'rt') P[id + 'Fill'] = s('rect', { class: 'cv-hidden-fill', x: cx - 110, y: cy - 38, width: 0, height: 76, rx: 38 }, ov);
+      const t = s('text', { x: cx, y: cy + 20, class: 'cv-hidden-t', 'text-anchor': 'middle' }, ov); t.textContent = id.toUpperCase();
     }
-    text(art, 440, 500, 'Left stick', 'cv-tag cv-tag-xs', 'middle'); text(art, 760, 500, 'Right stick', 'cv-tag cv-tag-xs', 'middle');
-    s('circle', { class: 'cv-ctl-base', cx: 578, cy: 486, r: 9 }, art); s('circle', { class: 'cv-ctl-base', cx: 622, cy: 486, r: 9 }, art);
-    text(art, 600, 512, 'Power', 'cv-tag cv-tag-xs', 'middle');
-    // rear keys inset
-    const rear = s('g', { class: 'cv-rear' }, art);
-    s('rect', { class: 'cv-inset', x: 500, y: 548, width: 200, height: 76, rx: 10 }, rear);
-    text(rear, 600, 568, 'Rear (back of the transmitter)', 'cv-tag cv-tag-xs', 'middle');
-    P.key1 = s('circle', { class: 'cv-ctl', cx: 556, cy: 590, r: 11 }, rear); text(rear, 556, 617, 'Key 1', 'cv-tag cv-tag-xs', 'middle');
-    P.key2 = s('circle', { class: 'cv-ctl', cx: 644, cy: 590, r: 11 }, rear); text(rear, 644, 617, 'Key 2', 'cv-tag cv-tag-xs', 'middle');
+    const note = s('text', { x: XB_P(520, 420)[0], y: XB_P(520, 420)[1], class: 'cv-tag-xs cv-photo-note', 'text-anchor': 'middle' }, art);
+    note.textContent = 'top edge';
+    const note2 = s('text', { x: XB_P(3200, 540)[0], y: XB_P(3200, 540)[1], class: 'cv-tag-xs cv-photo-note', 'text-anchor': 'middle' }, art);
+    note2.textContent = 'top edge';
+    for (const [id, lab] of [['ls', 'LS'], ['rs', 'RS'], ['dpad', 'D-pad']]) {          // phone tags (callouts hidden)
+      const [cx, cy, rx] = XB_SPOTS[id]; const q = XB_P(cx - rx - 40, cy);
+      const t = text(art, q[0], q[1] + 4, lab, 'cv-tag cv-photo-tag', 'end');
+    }
     const C = {};
     const g = s('g', { class: 'cv-callouts' }, svg);
-    C.swa = callout(g, 'left', 40, [386, 100], 'SwA · CH5');
-    C.swb = callout(g, 'left', 126, [448, 112], 'SwB · CH6');
-    C.vra = callout(g, 'left', 212, [408, 214], 'VrA · CH9');
-    C.left = callout(g, 'left', 372, [364, 406], 'Left stick · CH3 and CH4');
-    C.swd = callout(g, 'right', 40, [814, 100], 'SwD · CH8');
-    C.swc = callout(g, 'right', 126, [752, 112], 'SwC · CH7');
-    C.vrb = callout(g, 'right', 212, [792, 214], 'VrB · CH10');
-    C.right = callout(g, 'right', 372, [836, 406], 'Right stick · CH1 and CH2');
+    const A = (ox, oy) => XB_P(ox, oy);
+    C.lb = callout(g, 'left', 40, A(410, 350), 'LB · button 4 (top edge)');
+    C.ls = callout(g, 'left', 160, A(887, 247), 'Left stick · axes 0 and 1');
+    C.dpad = callout(g, 'left', 290, A(1087, 740), 'D-pad · axes 6 and 7');
+    C.rb = callout(g, 'right', 40, A(3310, 445), 'RB · button 5 (top edge)');
+    C.y = callout(g, 'right', 130, A(2852, 494), 'Y · button 3');
+    C.b = callout(g, 'right', 220, A(3008, 710), 'B · button 1');
+    C.rs = callout(g, 'right', 330, A(2300, 793), 'Right stick · axes 3 and 4');
+    const un = s('g', { class: 'cv-callout cv-unused' }, g);
+    s('rect', { class: 'cv-co-box', x: 290, y: 552, width: 620, height: 80, rx: 10 }, un);
+    text(un, 306, 574, 'Not used on ATLAS', 'cv-co-title');
+    text(un, 306, 596, 'A · X · LT · RT · Back · Start · Guide · both stick clicks · left stick left/right · right stick up/down', 'cv-co-fn cv-co-small');
+    const unVal = text(un, 306, 619, '', 'cv-co-val');
+    return { kind: 'XBOX', photo: true, svg, P, C, unVal, title: 'Xbox 360 controller',
+      narrowBox: '250 40 700 500',
+      caption: 'Photo: Xbox 360 controller (black) by Evan-Amos, Wikimedia Commons, public domain; stored on the rover. ' +
+        'Three-quarter view: LB, RB, LT and RT are on the top edge and not visible in this photo, so they are shown as markers beside it. Button numbers are the /joy indices this rover reads.' };
+  }
+
+  function drawXboxPhoto(st, live, ax, on, trig) {
+    const P = st.P, hot = (n, v) => n.classList.toggle('hot', !!v);
+    const vec = (id, axX, axY) => {
+      const [cx, cy, rx, ry] = XB_SPOTS[id];
+      const dx = -ax(axX) * rx * 0.85, dy = -ax(axY) * ry * 0.85;        // joy: +x left, +y up
+      P[id + 'Vec'].setAttribute('x2', cx + dx); P[id + 'Vec'].setAttribute('y2', cy + dy);
+      P[id + 'Dot'].setAttribute('cx', cx + dx); P[id + 'Dot'].setAttribute('cy', cy + dy);
+      const moved = Math.abs(ax(axX)) >= 0.1 || Math.abs(ax(axY)) >= 0.1;
+      P[id + 'Vec'].classList.toggle('on', live && moved); P[id + 'Dot'].classList.toggle('on', live && moved);
+      return moved;
+    };
+    hot(P.ls, vec('ls', 0, 1) || on(9)); hot(P.rs, vec('rs', 3, 4) || on(10));
+    P.ls.classList.toggle('pressed', on(9)); P.rs.classList.toggle('pressed', on(10));
+    P.ltFill.setAttribute('width', 220 * trig(2)); P.rtFill.setAttribute('width', 220 * trig(5));
+    hot(P.lt, trig(2) > 0.05); hot(P.rt, trig(5) > 0.05);
+    for (const [id, b] of [['a', 0], ['b', 1], ['x', 2], ['y', 3], ['lb', 4], ['rb', 5], ['back', 6], ['start', 7], ['guide', 8]]) hot(P[id], on(b));
+    const dl = ax(6) >= 0.5, dr = ax(6) <= -0.5, du = ax(7) >= 0.5, dd = ax(7) <= -0.5;
+    hot(P.dLeft, dl); hot(P.dRight, dr); hot(P.dUp, du); hot(P.dDown, dd); hot(P.dpad, dl || dr || du || dd);
+  }
+
+  // ---------------------------------------------------------------------------------------------- FlySky photo
+  // Photo: the owner's own FS-i6S (front view, supplied 2026-10-29), stored locally, shown at its native aspect ratio.
+  // Layout checked against the FS-i6S manual diagram: SwA SwB (left) SwC SwD (right) on the top edge, VrA / VrB on the
+  // top shoulders behind SwA / SwD (not visible from the front, so drawn as markers), gimbals above the touch screen,
+  // one power button in each lower corner. Overlays are in ORIGINAL photo pixels (1416x1252) under ONE transform.
+  const FS_PHOTO = { src: '/v2/assets/flysky-fs-i6s-front.webp', w0: 1416, h0: 1252, x0: 283, y0: 40, h: 560 };
+  const FS_K = FS_PHOTO.h / FS_PHOTO.h0;
+  const FS_P = (ox, oy) => [FS_PHOTO.x0 + ox * FS_K, FS_PHOTO.y0 + oy * FS_K];
+  const FS_SW = { swa: [350, 150, 270], swb: [488, 140, 568], swc: [982, 140, 902], swd: [1115, 170, 1195] };   // bushing x,y; indicator x
+  const FS_STICK = { left: { c: [377, 467], win: [262, 360, 540, 575], nx: 4, ny: 3 }, right: { c: [1085, 470], win: [930, 363, 1235, 580], nx: 1, ny: 2 } };
+  const FS_KNOB = { vra: [96, 74, 212, 160], vrb: [1320, 74, 1204, 170] };      // marker x,y -> shoulder edge x,y
+
+  function buildFlyskyPhoto() {
+    const svg = s('svg', { class: 'cv-svg cv-flysky cv-photo', viewBox: '0 0 1200 640', role: 'img', 'aria-labelledby': 'cvTitleFP' });
+    const title = s('title', { id: 'cvTitleFP' }, svg); title.textContent = 'Photo of the FlySky FS-i6S transmitter with raw channel values and the function of each control on ATLAS';
+    const art = s('g', { class: 'cv-art' }, svg);
+    s('image', { href: FS_PHOTO.src, x: FS_PHOTO.x0, y: FS_PHOTO.y0, width: FS_PHOTO.w0 * FS_K, height: FS_PHOTO.h, preserveAspectRatio: 'xMidYMid meet', class: 'cv-photo-img' }, art);
+    const ov = s('g', { class: 'cv-ov', transform: `translate(${FS_PHOTO.x0} ${FS_PHOTO.y0}) scale(${FS_K})` }, art);
+    const P = {};
+    for (const [id, [x, y, ix]] of Object.entries(FS_SW)) {
+      P[id + 'Base'] = s('circle', { class: 'cv-hit', cx: x, cy: y, r: 46, 'data-id': id }, ov);
+      s('rect', { class: 'cv-swcol', x: ix - 22, y: y - 78, width: 44, height: 156, rx: 22 }, ov);
+      P[id + 'Dots'] = ['up', 'middle', 'down'].map((pos, i) => s('circle', { class: 'cv-swdot', cx: ix, cy: y - 50 + i * 50, r: 15, 'data-pos': pos }, ov));
+    }
+    for (const [id, [x, y, ex, ey]] of Object.entries(FS_KNOB)) {
+      s('line', { class: 'cv-edge-lead', x1: x, y1: y + 44, x2: ex, y2: ey }, ov);
+      P[id] = s('circle', { class: 'cv-hidden', cx: x, cy: y, r: 44 }, ov);
+      P[id + 'Ptr'] = s('line', { class: 'cv-ptr cv-ptr-photo', x1: x, y1: y, x2: x, y2: y - 34 }, ov);
+      const t = s('text', { x, y: y + 82, class: 'cv-hidden-t cv-hidden-sm', 'text-anchor': 'middle' }, ov); t.textContent = id === 'vra' ? 'VrA' : 'VrB';
+    }
+    for (const [id, st] of Object.entries(FS_STICK)) {
+      const [x1, y1, x2, y2] = st.win;
+      P[id + 'Plate'] = s('rect', { class: 'cv-hit cv-win', x: x1, y: y1, width: x2 - x1, height: y2 - y1, rx: 24 }, ov);
+      P[id + 'Vec'] = s('line', { class: 'cv-vec', x1: st.c[0], y1: st.c[1], x2: st.c[0], y2: st.c[1] }, ov);
+      P[id] = s('circle', { class: 'cv-vecdot cv-gimbaldot', cx: st.c[0], cy: st.c[1], r: 24 }, ov);
+    }
+    s('circle', { class: 'cv-hit cv-quiet', cx: 290, cy: 1000, r: 52 }, ov); s('circle', { class: 'cv-hit cv-quiet', cx: 1170, cy: 1000, r: 52 }, ov);
+    for (const [id, lab] of [['left', 'Left stick'], ['right', 'Right stick']]) {            // phone tags
+      const c = FS_STICK[id].c; const q = FS_P(c[0], FS_STICK[id].win[3] + 36);
+      text(art, q[0], q[1], lab, 'cv-tag cv-photo-tag', 'middle');
+    }
+    for (const id of ['swa', 'swb', 'swc', 'swd']) { const q = FS_P(FS_SW[id][0], 248); text(art, q[0], q[1], id === 'swa' ? 'SwA' : id === 'swb' ? 'SwB' : id === 'swc' ? 'SwC' : 'SwD', 'cv-tag cv-photo-tag', 'middle'); }
+    const C = {};
+    const g = s('g', { class: 'cv-callouts' }, svg);
+    C.swa = callout(g, 'left', 30, FS_P(248, 150), 'SwA · CH5 (2 positions)');
+    C.swb = callout(g, 'left', 116, FS_P(546, 140), 'SwB · CH6 (3 positions)');
+    C.vra = callout(g, 'left', 202, FS_P(52, 74), 'VrA · CH9 (top shoulder)');
+    C.left = callout(g, 'left', 330, FS_P(262, 467), 'Left stick · CH3 and CH4');
+    C.swd = callout(g, 'right', 30, FS_P(1217, 170), 'SwD · CH8 (2 positions)');
+    C.swc = callout(g, 'right', 116, FS_P(880, 140), 'SwC · CH7 (3 positions)');
+    C.vrb = callout(g, 'right', 202, FS_P(1364, 74), 'VrB · CH10 (top shoulder)');
+    C.right = callout(g, 'right', 330, FS_P(1235, 470), 'Right stick · CH1 and CH2');
     const keys = s('g', { class: 'cv-callout' }, g);
-    s('rect', { class: 'cv-co-box', x: 916, y: 556, width: 260, height: 58, rx: 10 }, keys);
-    text(keys, 928, 578, 'Key 1 / Key 2 (rear)', 'cv-co-title'); text(keys, 928, 600, 'Not on any channel: not used', 'cv-co-fn');
-    s('path', { class: 'cv-lead', d: 'M916 584 L700 590' }, keys);
-    return { kind: 'FLYSKY', svg, P, C, title: 'FlySky FS-i6S',
-      caption: 'Original schematic of the FlySky FS-i6S, not to scale and not product artwork. SwA and SwD have 2 positions, SwB and SwC have 3. Identify switches by the SwA to SwD labels printed on your transmitter.' };
+    s('rect', { class: 'cv-co-box', x: 916, y: 470, width: 260, height: 80, rx: 10 }, keys);
+    text(keys, 928, 492, 'Key 1 / Key 2 (rear)', 'cv-co-title'); text(keys, 928, 514, 'Not on any channel: not used', 'cv-co-fn');
+    text(keys, 928, 536, 'No rear photo supplied yet', 'cv-co-val');
+    const pw = s('g', { class: 'cv-callout' }, g);
+    s('rect', { class: 'cv-co-box', x: 24, y: 470, width: 260, height: 58, rx: 10 }, pw);
+    text(pw, 36, 492, 'Power buttons', 'cv-co-title'); text(pw, 36, 514, 'Transmitter on / off only', 'cv-co-fn');
+    s('path', { class: 'cv-lead', d: `M284 499 L${FS_P(238, 1000)[0]} ${FS_P(238, 1000)[1]}` }, pw);
+    return { kind: 'FLYSKY', photo: true, svg, P, C, title: 'FlySky FS-i6S', narrowBox: '270 20 660 600',
+      caption: 'Photo: the owner’s FlySky FS-i6S, stored on the rover. VrA and VrB sit on the top shoulders behind SwA and SwD and are not visible from the front, so they are shown as markers beside the corners. The coloured dots beside each switch show its live position (up, middle, down).' };
+  }
+
+  function buildFlyskyMissing() {
+    const svg = s('svg', { class: 'cv-svg cv-flysky', viewBox: '0 0 1200 640', role: 'img', 'aria-label': 'FlySky photo not available' });
+    const C = {}, g = s('g', { class: 'cv-callouts' }, svg);
+    s('rect', { class: 'cv-inset', x: 300, y: 60, width: 600, height: 520, rx: 18 }, svg);
+    text(svg, 600, 310, 'The FS-i6S photo could not be loaded from the rover.', 'cv-co-title', 'middle');
+    text(svg, 600, 340, 'Live values and functions are in the table below.', 'cv-co-fn', 'middle');
+    for (const [id, side, y, t] of [['swa', 'left', 30, 'SwA · CH5'], ['swb', 'left', 116, 'SwB · CH6'], ['vra', 'left', 202, 'VrA · CH9'], ['left', 'left', 330, 'Left stick · CH3 and CH4'],
+      ['swd', 'right', 30, 'SwD · CH8'], ['swc', 'right', 116, 'SwC · CH7'], ['vrb', 'right', 202, 'VrB · CH10'], ['right', 'right', 330, 'Right stick · CH1 and CH2']])
+      C[id] = callout(g, side, y, [side === 'left' ? 300 : 900, y + 18], t);
+    return { kind: 'FLYSKY', none: true, svg, P: {}, C, title: 'FlySky FS-i6S', caption: 'Photo not available.' };
+  }
+
+  function drawFlyskyPhoto(st, raw, changed, linkLive) {
+    const P = st.P, hot = (n, v) => n.classList.toggle('hot', !!v);
+    for (const c of M.FLYSKY.filter(x => x.kind === 'switch')) {
+      const pos = M.switchPosition(raw(c.ch), c.positions);
+      for (const d of P[c.id + 'Dots']) {
+        const on = linkLive && pos != null && (d.getAttribute('data-pos') === pos || (pos === 'between' && d.getAttribute('data-pos') === 'middle'));
+        d.classList.toggle('on', on);
+        d.classList.toggle('na', c.positions === 2 && d.getAttribute('data-pos') === 'middle');
+      }
+      hot(P[c.id + 'Base'], changed(c.ch));
+    }
+    for (const [id, n] of [['vra', 9], ['vrb', 10]]) {
+      const [x, y] = FS_KNOB[id], v = M.stickNorm(raw(n)), a = (v == null ? 0 : v) * 135 * Math.PI / 180;
+      P[id + 'Ptr'].setAttribute('x2', x + 34 * Math.sin(a)); P[id + 'Ptr'].setAttribute('y2', y - 34 * Math.cos(a));
+      hot(P[id], changed(n));
+    }
+    for (const [id, stc] of Object.entries(FS_STICK)) {           // raw 1807 = right / up on this transmitter (verified)
+      const vx = M.stickNorm(raw(stc.nx)) || 0, vy = M.stickNorm(raw(stc.ny)) || 0;
+      const [x1, y1, x2, y2] = stc.win, [cx, cy] = stc.c;
+      const px = cx + vx * ((vx >= 0 ? x2 - cx : cx - x1) - 26), py = cy - vy * ((vy >= 0 ? cy - y1 : y2 - cy) - 26);
+      P[id + 'Vec'].setAttribute('x2', px); P[id + 'Vec'].setAttribute('y2', py); P[id].setAttribute('cx', px); P[id].setAttribute('cy', py);
+      const dev = [stc.nx, stc.ny].some(n => raw(n) != null && Math.abs(raw(n) - M.RAW.mid) > M.STICK_RAW_DEAD);
+      const act = linkLive && (dev || changed(stc.nx) || changed(stc.ny));
+      P[id].classList.toggle('on', linkLive); P[id + 'Vec'].classList.toggle('on', act); hot(P[id + 'Plate'], act);
+    }
   }
 
   // ---------------------------------------------------------------------------------------------- legend
@@ -230,16 +371,18 @@
     const on = i => live && btn[i] === 1;
     const ax = i => (live && isFinite(axes[i])) ? axes[i] : 0;
     const hot = (n, v) => n.classList.toggle('hot', !!v);
+    const trig = i => live && isFinite(axes[i]) ? Math.max(0, Math.min(1, (1 - axes[i]) / 2)) : 0;
+    if (st.photo) drawXboxPhoto(st, live, ax, on, trig); else {
     // joy convention: +x is left, +y is up
     P.ls.setAttribute('cx', 420 - ax(0) * 18); P.ls.setAttribute('cy', 266 - ax(1) * 18);
     P.rs.setAttribute('cx', 695 - ax(3) * 16); P.rs.setAttribute('cy', 363 - ax(4) * 16);
     hot(P.ls, Math.abs(ax(0)) >= 0.1 || Math.abs(ax(1)) >= 0.1 || on(9)); hot(P.rs, Math.abs(ax(3)) >= 0.1 || Math.abs(ax(4)) >= 0.1 || on(10));
     P.ls.classList.toggle('pressed', on(9)); P.rs.classList.toggle('pressed', on(10));
-    const trig = i => live && isFinite(axes[i]) ? Math.max(0, Math.min(1, (1 - axes[i]) / 2)) : 0;
     P.ltFill.setAttribute('width', 120 * trig(2)); P.rtFill.setAttribute('width', 120 * trig(5));
     hot(P.lt, trig(2) > 0.05); hot(P.rt, trig(5) > 0.05);
     for (const [id, b] of [['a', 0], ['b', 1], ['x', 2], ['y', 3], ['lb', 4], ['rb', 5], ['back', 6], ['start', 7], ['guide', 8]]) hot(P[id], on(b));
     hot(P.dLeft, ax(6) >= 0.5); hot(P.dRight, ax(6) <= -0.5); hot(P.dUp, ax(7) >= 0.5); hot(P.dDown, ax(7) <= -0.5);
+    }
     st.svg.classList.toggle('cv-dim', !live);
 
     // callouts (assigned controls)
@@ -291,27 +434,7 @@
     const raw = n => ch[n] && isFinite(ch[n].raw) ? ch[n].raw : null;
     const changed = n => !!(linkLive && ch[n] && ch[n].changed_ago_s != null && ch[n].changed_ago_s < FLYSKY_CHANGE_S);
     const hot = (n, v) => n.classList.toggle('hot', !!v);
-    // switches
-    for (const c of M.FLYSKY.filter(x => x.kind === 'switch')) {
-      const r = raw(c.ch), pos = M.switchPosition(r, c.positions);
-      const y = pos === 'up' ? 60 : pos === 'down' ? 104 : 82;
-      P[c.id].setAttribute('cy', y); P[c.id].classList.toggle('unknown', pos == null);
-      hot(P[c.id + 'Base'], changed(c.ch)); hot(P[c.id], changed(c.ch));
-    }
-    // knobs: -135..135 degrees
-    for (const [id, n, cx] of [['vra', 9, 432], ['vrb', 10, 768]]) {
-      const v = M.stickNorm(raw(n)), a = (v == null ? 0 : v) * 135 * Math.PI / 180;
-      P[id + 'Ptr'].setAttribute('x2', cx + 20 * Math.sin(a)); P[id + 'Ptr'].setAttribute('y2', 214 - 20 * Math.cos(a));
-      hot(P[id], changed(n));
-    }
-    // sticks: raw 1807 = right / up on this transmitter (verified)
-    const stick = (id, x0, nx, ny) => {
-      const vx = M.stickNorm(raw(nx)), vy = M.stickNorm(raw(ny));
-      P[id].setAttribute('cx', x0 + (vx || 0) * 58); P[id].setAttribute('cy', 406 - (vy || 0) * 58);
-      const dev = [nx, ny].some(n => raw(n) != null && Math.abs(raw(n) - M.RAW.mid) > M.STICK_RAW_DEAD);
-      hot(P[id], linkLive && (dev || changed(nx) || changed(ny))); hot(P[id + 'Plate'], linkLive && (dev || changed(nx) || changed(ny)));
-    };
-    stick('left', 440, 4, 3); stick('right', 760, 1, 2);
+    if (st.photo) drawFlyskyPhoto(st, raw, changed, linkLive);
     st.svg.classList.toggle('cv-dim', !linkLive);
 
     const fsState = c => M.flyskyFunctionState(c, ctx);
@@ -417,8 +540,10 @@
     if (view === kind && stage) { render(); return; }
     view = kind;
     const box = $('cvStage'); box.textContent = '';
-    stage = kind === 'XBOX' ? buildXbox() : buildFlysky();
+    stage = kind === 'XBOX' ? (photoFailed.XBOX ? buildXbox() : buildXboxPhoto()) : (photoFailed.FLYSKY ? buildFlyskyMissing() : buildFlyskyPhoto());
     box.append(stage.svg);
+    const img = stage.svg.querySelector('image');
+    if (img) img.addEventListener('error', () => { photoFailed[kind] = true; const k = view; view = null; show(k, false); }, { once: true });
     setText($('cvCaption'), stage.caption);
     stage.rows = buildLegend(kind);
     setText($('cvLegendTitle'), kind === 'XBOX' ? 'Xbox controls on ATLAS' : 'FlySky controls on ATLAS');
@@ -429,7 +554,7 @@
   function fitView() {
     if (!stage) return;
     const narrow = window.matchMedia('(max-width: 760px)').matches;
-    stage.svg.setAttribute('viewBox', narrow ? (stage.kind === 'XBOX' ? '250 90 700 480' : '300 20 600 615') : '0 0 1200 640');
+    stage.svg.setAttribute('viewBox', narrow ? (stage.narrowBox || (stage.kind === 'XBOX' ? '250 90 700 480' : '300 20 600 615')) : '0 0 1200 640');
     stage.svg.classList.toggle('narrow', narrow);
   }
 

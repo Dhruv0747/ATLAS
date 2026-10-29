@@ -690,3 +690,38 @@ The FlySky Driving page now shows the controller visually. All of this is read-o
 - Preflight and the view pre-check use the documented fresh-dashboard rule (`web_drive` absent accepted, any non-STOP value fails).
 
 **Tests:** test_controller_dashboard (19), deployer ViewStep (3 new), and all Stage 29 and UI suites.
+
+## Real controller photos (owner request 13:22; replaces the schematics before any deployment)
+
+The approved deployment of 7f196ac was **held and not run**, because the owner asked for real photos first.
+
+**Xbox photo**
+- "Xbox-360-Controller-Black.jpg" by Evan-Amos, Wikimedia Commons, **public domain** (attribution not required; credited anyway). The owner chose this one; downloaded with approval.
+- The SHA-1 matches the Commons record.
+- Cropped and scaled by exactly 0.5 to `web/v2/assets/xbox360-controller-black.webp` (1680×1230, aspect kept).
+- It is a three-quarter view, so **LB, RB, LT and RT are not visible**. They are drawn as markers beside the top edge and labelled "top edge", never as invented positions.
+- The only free shoulder-button view found is a white controller under CC BY-SA 3.0 (attribution and share-alike). Not downloaded; optional.
+
+**FlySky photo**
+- No freely licensed FS-i6S photo exists on Commons, and the manufacturer and retailer photos are copyrighted.
+- **The owner supplied his own front photo and confirmed he took and owns it.** Stored as `web/v2/assets/flysky-fs-i6s-front.webp` (1416×1252, native size).
+- The FS-i6S manual diagram, also sent by the owner, was used **only as a layout reference**. It showed the earlier hand-drawn FS-i6S layout was **wrong**:
+  - the screen is at the bottom;
+  - the gimbals are above the screen;
+  - VrA and VrB are on the top shoulders behind SwA and SwD;
+  - there is one power button in each lower corner.
+- That drawing has been **deleted**. If the photo is missing, the page says so, and the controls table still works. The Xbox schematic, whose layout is right, stays as the Xbox fallback.
+- VrA and VrB are drawn as markers beside the corners. Key 1 and Key 2 have no rear photo yet.
+
+**Overlays**
+- Every overlay is defined in original photo pixels under one transform, so it cannot drift from the photo at any page size.
+- Measured: face buttons by colour segmentation, all other controls on a pixel grid.
+- Live elements: highlights, stick-deflection vectors, trigger fill, and a three-dot up/middle/down indicator next to each switch (the photo itself cannot move).
+- Tests:
+  - overlay position relative to the photo constant within 0.5 % at 1440, 1024 and 390 px;
+  - rendered aspect equal to the native aspect, so nothing is stretched;
+  - missing-photo fallback;
+  - live switch indicator;
+  - images only from `/v2/assets`, plus the licence record `web/v2/assets/CONTROLLER-IMAGES.txt`.
+
+The `view` step now also installs the two images and the licence record. Nothing outside `/v2/assets` changes for the images: WebP is already served, so `atlas_web_v2.py` is untouched. **A new owner approval is needed for the new commit; the 7f196ac approval does not carry over.**

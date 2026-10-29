@@ -1,0 +1,15 @@
+ATLAS controller images (FlySky Driving page). Both are stored on the rover and served locally; nothing is fetched online.
+
+xbox360-controller-black.webp
+  Source:   https://commons.wikimedia.org/wiki/File:Xbox-360-Controller-Black.jpg
+  Author:   Evan-Amos
+  Licence:  Public domain (Wikimedia Commons: Public domain; attribution not required, credited anyway)
+  Original: 3360x2540, SHA-1 166791aaa9a5fec7af50094b8cb7ae38d274c07f (matches the downloaded file)
+  Derived:  cropped to x0-3360, y40-2500 and scaled by exactly 0.5 to 1680x1230 (aspect kept), WebP. SHA-256 556474a31f293383ac2a7245b4de22fd6b97a045fac0fa31ed46459e827a4c83
+  Note:     three-quarter view; LB, RB, LT and RT are on the far top edge and are not visible in this photo.
+
+flysky-fs-i6s-front.webp
+  Source:   the owner's own photo of his FlySky FS-i6S, supplied 2026-10-29; the owner confirmed he took / owns it.
+  Original: 1416x1252 JPEG, SHA-256 e25c3cd66e28a2fc6d3b6153473e88ea2896f779bc9d1dea60946a4a335348be
+  Derived:  same size, WebP. SHA-256 5edbd50cd7f6a99981781a8439c71d4dede5c4323f6bf6b424517bde1148d2f9
+  Note:     front view; VrA and VrB are on the top shoulders and not visible. No rear photo yet (Key 1 / Key 2).

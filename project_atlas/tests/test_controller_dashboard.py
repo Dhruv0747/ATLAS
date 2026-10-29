@@ -192,6 +192,18 @@ class PageStatic(unittest.TestCase):
         for bad in ('fetch(', 'XMLHttpRequest', 'WebSocket', 'document.', 'innerHTML'):
             self.assertNotIn(bad, m, bad)
 
+    def test_images_are_local_licensed_and_sized(self):
+        from PIL import Image
+        code = SRC('controller-viz.js')
+        self.assertEqual(sorted(set(re.findall(r"'(/v2/assets/[^']+)'", code))), ['/v2/assets/flysky-fs-i6s-front.webp', '/v2/assets/xbox360-controller-black.webp'])
+        self.assertIsNone(re.search(r"https?://", code.replace("'http://www.w3.org/2000/svg'", '')))   # only the SVG namespace
+        self.assertEqual(Image.open(V2 / 'assets/xbox360-controller-black.webp').size, (1680, 1230))
+        self.assertEqual(Image.open(V2 / 'assets/flysky-fs-i6s-front.webp').size, (1416, 1252))
+        lic = (V2 / 'assets/CONTROLLER-IMAGES.txt').read_text()
+        for needed in ('Evan-Amos', 'Public domain', 'owner', 'xbox360-controller-black.webp', 'flysky-fs-i6s-front.webp'):
+            self.assertIn(needed, lic)
+        self.assertIn('Evan-Amos', code); self.assertIn('public domain', code)
+
     def test_page_wiring(self):
         html = (V2 / 'flysky-drive.html').read_text()
         for needed in ('SELECT XBOX', 'SELECT FLYSKY', 'id="useXbox"', 'id="useFlysky"', 'id="cvStage"', 'id="cvLegendBody"', 'id="v2Estop"'):
@@ -247,7 +259,11 @@ class PageRender(unittest.TestCase):
         self.assertIn('Selected remote: Xbox', self.txt(pg, '#cvSel')); self.assertEqual(pg.get_attribute('#cvTabX', 'aria-selected'), 'true')
         self.assertEqual(pg.get_attribute('#useXbox', 'aria-pressed'), 'true'); self.assertIn('Selected', self.txt(pg, '#useXbox'))
         self.assertIn('Xbox connected', self.txt(pg, '#cvSignal')); self.assertIn('E-STOP latched', self.txt(pg, '#cvEstop'))
-        self.assertGreater(pg.locator('#cvStage .cv-ctl.hot, #cvStage .cv-knob.hot').count(), 3)
+        self.assertGreater(pg.locator('#cvStage .cv-hit.hot, #cvStage .cv-hidden.hot').count(), 3)
+        self.assertEqual(pg.locator('#cvStage image[href="/v2/assets/xbox360-controller-black.webp"]').count(), 1)
+        for cid in ('y', 'dLeft', 'dpad', 'ls', 'rs'):     # pressed or moved in this scene
+            self.assertIn('hot', pg.get_attribute('#cvStage [data-id="%s"]' % cid, 'class'), cid)
+        self.assertNotIn('hot', pg.get_attribute('#cvStage [data-id="b"]', 'class'))
         legend = self.txt(pg, '#cvLegendBody').lower()
         for s in ('remote stop', 'hold to drive', 'camera pan', 'camera tilt', 'camera home', 'not used', 'turbo', 'e-stop reset'):
             self.assertIn(s, legend)
@@ -303,6 +319,50 @@ class PageRender(unittest.TestCase):
             if scen == 'xbox_lost':
                 self.assertIn('Blocked', pg.inner_text('#cvLegendBody'))
             self.assertEqual(errs, [], scen); pg.close()
+
+    def geometry(self, pg, sel):
+        return pg.evaluate('''(sel) => { const img = document.querySelector('#cvStage image').getBoundingClientRect();
+            const el = document.querySelector(sel).getBoundingClientRect();
+            return {fx: (el.x + el.width / 2 - img.x) / img.width, fy: (el.y + el.height / 2 - img.y) / img.height,
+                    aspect: img.width / img.height}; }''', sel)
+
+    def test_photo_overlays_stay_aligned_and_photos_are_not_stretched(self):
+        # B button centre in the original photo: (2910, 710) -> crop (0, 40, 3360, 2460); right stick (2113, 793)
+        expect = {'XBOX': (1680 / 1230, {'#cvStage [data-id="b"]': (2910 / 3360, (710 - 40) / 2460), '#cvStage [data-id="rs"]': (2113 / 3360, (793 - 40) / 2460)}),
+                  'FLYSKY': (1416 / 1252, {'#cvStage [data-id="swb"]': (488 / 1416, 140 / 1252), '#cvStage [data-id="swd"]': (1115 / 1416, 170 / 1252)})}
+        seen = {}
+        for w, h in ((1440, 1000), (1024, 768), (390, 844)):
+            for scen, tab, kind in (('xbox_demo', 'X', 'XBOX'), ('flysky_demo', 'F', 'FLYSKY')):
+                pg, errs, _ = self.open(scen, w, h)
+                pg.click('#cvTab' + tab); pg.wait_for_timeout(500)
+                g = self.geometry(pg, '#cvStage .cv-ov ellipse, #cvStage .cv-ov circle')
+                self.assertAlmostEqual(g['aspect'], expect[kind][0], delta=0.01, msg=(w, kind))     # never stretched
+                for sel, (fx, fy) in expect[kind][1].items():
+                    gg = self.geometry(pg, sel)
+                    self.assertAlmostEqual(gg['fx'], fx, delta=0.01, msg=(w, sel)); self.assertAlmostEqual(gg['fy'], fy, delta=0.01, msg=(w, sel))
+                seen.setdefault(kind, []).append((round(g['fx'], 3), round(g['fy'], 3)))
+                self.assertEqual(errs, []); pg.close()
+        for kind, pts in seen.items():                       # the same overlay sits at the same place on the photo at every size
+            self.assertLess(max(p[0] for p in pts) - min(p[0] for p in pts), 0.005, kind)
+            self.assertLess(max(p[1] for p in pts) - min(p[1] for p in pts), 0.005, kind)
+
+    def test_missing_photo_falls_back_honestly(self):
+        urllib.request.urlopen(self.url('/sim?scenario=flysky_demo')).read()
+        pg = self.browser.new_page(viewport={'width': 1280, 'height': 900})
+        pg.route('**/assets/*.webp', lambda r: r.abort())
+        pg.goto(self.url('/v2/flysky-drive')); pg.wait_for_timeout(1200)
+        self.assertEqual(pg.locator('#cvStage svg.cv-schematic').count(), 1)    # Xbox: accurate schematic fallback
+        self.assertEqual(pg.locator('#cvStage image').count(), 0)
+        pg.click('#cvTabF'); pg.wait_for_timeout(1200)
+        self.assertIn('could not be loaded', pg.inner_text('#cvStage'))
+        self.assertIn('Proposed', pg.inner_text('#cvLegendBody')); pg.close()
+
+    def test_switch_indicator_shows_live_position(self):
+        pg, errs, _ = self.open('flysky_demo')
+        pg.click('#cvTabF'); pg.wait_for_timeout(900)
+        on = pg.evaluate("[...document.querySelectorAll('#cvStage .cv-swdot.on')].map(d => d.getAttribute('data-pos'))")
+        self.assertEqual(sorted(on), sorted(['down', 'up', 'middle', 'up']))          # SwA down, SwB up, SwC middle, SwD up
+        pg.close()
 
     def test_config_mismatch_is_shown(self):
         pg, errs, _ = self.open('mismatch')

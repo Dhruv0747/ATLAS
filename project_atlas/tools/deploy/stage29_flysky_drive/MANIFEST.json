@@ -110,7 +110,22 @@
         "web/v2/controller-viz.js": {
           "kind": "new",
           "source": "web/v2/controller-viz.js",
-          "candidate_sha256": "0ae3452f082c79b7a96bd5864de487907c1418bca094880bdc02a8e1dccfc876"
+          "candidate_sha256": "545aebf938948db909d80c6c8dfa66f1f65f342d04d4ef2b59ac25e73c4053b5"
+        },
+        "web/v2/assets/xbox360-controller-black.webp": {
+          "kind": "new",
+          "source": "web/v2/assets/xbox360-controller-black.webp",
+          "candidate_sha256": "556474a31f293383ac2a7245b4de22fd6b97a045fac0fa31ed46459e827a4c83"
+        },
+        "web/v2/assets/flysky-fs-i6s-front.webp": {
+          "kind": "new",
+          "source": "web/v2/assets/flysky-fs-i6s-front.webp",
+          "candidate_sha256": "5edbd50cd7f6a99981781a8439c71d4dede5c4323f6bf6b424517bde1148d2f9"
+        },
+        "web/v2/assets/CONTROLLER-IMAGES.txt": {
+          "kind": "new",
+          "source": "web/v2/assets/CONTROLLER-IMAGES.txt",
+          "candidate_sha256": "7996e2b092997f428a31123a7394a902664fd5ccdbd595025bae612a44dee9e9"
         },
         "web/v2/flysky-drive.html": {
           "kind": "replace",
@@ -128,7 +143,7 @@
           "kind": "replace",
           "baseline_sha256": "e5852855930a4762c021e45530eb82f07e26ccf09399e47a8f8dd43045b0aafd",
           "source": "web/v2/flysky.css",
-          "candidate_sha256": "2fa74556db481d9ce975e381214d9ce0653a29d72bf4a6002aef3f24b9f89b5d"
+          "candidate_sha256": "c05b98025d90d3d69b77d7591dc1f7c4e024d4e603f136c67726325afd5b9f8b"
         }
       }
     }
