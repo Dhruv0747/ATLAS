@@ -383,7 +383,13 @@ def wait_mux_back(env, ev, obs, rec, t0, bound_s, expect=None, what='the patched
     deadline = time.time() + env.mux_back_timeout_s
     dash = None
     while time.time() < deadline:
-        d28.early_abort(env, ev, 'mux-back', rec, t0, bound_s, obs)
+        # Safety failures, unreliable monitoring and RAM/temperature still abort at once (fail closed). The CPU bound
+        # is judged separately so a CPU-only overrun can HOLD instead of a rollback restart (gate-on attempt 2: the
+        # rollback restart repeated the spike for about 30 s).
+        d28.early_abort(env, ev, 'mux-back', rec, t0, float('inf'), obs)
+        late = [(d, x) for d, x in rec.timed_since(t0) if d > bound_s and x > CPU_LIMIT]
+        if late:
+            cpu_only_overrun(ev, 'mux-back', obs, rec, t0, bound_s, late, dash)
         if dash is None:
             try:
                 p = policy(env)
@@ -400,6 +406,29 @@ def wait_mux_back(env, ev, obs, rec, t0, bound_s, expect=None, what='the patched
         env.sleep(0.25)
     raise Fail(f'mux not back within {env.mux_back_timeout_s} s (dashboard {"proved " + what if dash else "did not show " + what}, '
                f'observer mux signals {"ok" if dash and observer_mux_ok_since(obs, dash[0]) else "not ok"} after that)')
+
+
+def observer_healthy_since(obs, since):
+    """The observer is producing verdicts (no gap over its limit from `since` to now) and none failed."""
+    now = time.time()
+    snaps = [x for x in list(getattr(obs, 'snaps', [])) if x['wall'] > since]
+    walls = [since] + [x['wall'] for x in snaps] + [now]
+    gap = max((b - a for a, b in zip(walls, walls[1:])), default=0.0)
+    return bool(snaps) and gap <= getattr(obs, 'max_gap_s', 1.0) and not obs.failures(since, now)
+
+
+def cpu_only_overrun(ev, label, obs, rec, t0, bound_s, late, dash):
+    """CPU is over the limit after the approved bound. HOLD (CpuOverrun) only when every independent safety check is
+    positively healthy: the NEW mux is proven on the dashboard, the observer has itself seen every mux-owned signal OK
+    since that proof, and the observer has produced verdicts without a gap or any failure since the restart. Anything
+    less (mux unproven, observer silent/unresponsive, any failure) is not CPU-only: fail closed (Fail -> rollback)."""
+    msg = f'{label}: CPU > {CPU_LIMIT} after the {bound_s} s bound: {late[:3]}'
+    proven = dash is not None and observer_mux_ok_since(obs, dash[0]) is not None
+    if proven and observer_healthy_since(obs, t0) and not classify(rec, obs, t0, bound_s):
+        ev.save(f'cpu-only-{label}', {'t_restart': t0, 'late': late, 'mux_proven_at': dash[0] - t0,
+                                       'cpu_samples_since_restart': rec.timed_since(t0)})
+        raise CpuOverrun(msg + '; new mux proven and every independent safety check healthy')
+    raise Fail(msg + ('; observer not healthy' if proven else '; new mux not yet proven by the dashboard and observer'))
 
 
 def verify(env, ev, step, before, protected0):
@@ -714,7 +743,16 @@ def gate_on(env, args):
         ev.save('result', {'result': 'PASS'}); ev.seal()
         return 0
     except CpuOverrun as exc:
-        ev.log(f'gate-on FAILED on resources with safety intact: {exc}; HELD (no automatic restart). Run gate-off to undo.')
+        ev.log(f'gate-on FAILED on resources with safety intact: {exc}; HELD (no automatic restart, no rollback restart)')
+        hold(env, ev, 'gate-on', None, None)
+        try:                                     # read-only report for the owner's decision; changes nothing
+            p = policy(env)
+            ev.save('held-state', {'policy': p, 'gate_dropins': [str(g) for g in gate_paths(env) if g.exists()]})
+            ev.log(f'held state: gate drop-ins present {sum(g.exists() for g in gate_paths(env))}; policy latched '
+                   f'{p.get("stop_latched")}, controller {p.get("manual_controller")}, gate {p.get("flysky_drive_enabled")}')
+        except Exception as rexc:
+            ev.log(f'held state not readable: {rexc!r}')
+        ev.log('HELD: owner decides: verify and accept, or `gate-off` to undo (one mux restart).')
         ev.save('result', {'result': 'FAIL_HELD', 'reason': str(exc)}); ev.seal()
         return 1
     except Exception as exc:
@@ -773,13 +811,32 @@ def require_latched(env):
         raise Fail('E-STOP not latched')
 
 
+CONFIG_REL = 'config/atlas_flysky_drive.json'
+
+
+def reviewed_config_ok(env):
+    """The live config is EXACTLY what review-config writes from the reviewed candidate: candidate +
+    reviewed_by_owner true + COMMISSION_CAPS, nothing else (found at gate-on attempt 2: preflight rejected it)."""
+    spec = MANIFEST['steps']['teleop']['files'][CONFIG_REL]
+    src = REPO / spec['source']
+    if d28.sha(src) != spec['candidate_sha256']:
+        return False
+    try:
+        live = json.loads(config_path(env).read_text())
+    except (OSError, ValueError):
+        return False
+    return live == dict(json.loads(src.read_text()), reviewed_by_owner=True, **COMMISSION_CAPS)
+
+
 def preflight(env, args):
     ev = Evidence(env, 'preflight')
     ok = True
+    reviewed = reviewed_config_ok(env)
     for step in STEPS:
         try:
-            if step_done(env, step):
-                ev.log(f'step {step}: INSTALLED')
+            if step_done(env, step, ignore=(CONFIG_REL,) if reviewed else ()):
+                ev.log(f'step {step}: INSTALLED' + (' (config: the owner-reviewed commissioning config)'
+                                                     if reviewed and CONFIG_REL in MANIFEST['steps'][step]['files'] else ''))
             elif MANIFEST['steps'][step].get('supersedes') and not step_done(env, MANIFEST['steps'][step]['supersedes']):
                 ev.log(f'step {step}: builds on step {MANIFEST["steps"][step]["supersedes"]}, not installed yet; checked after it')
             else:

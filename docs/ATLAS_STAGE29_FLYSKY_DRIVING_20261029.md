@@ -842,3 +842,52 @@ The `view` step now also installs the two images and the licence record. Nothing
 **Finding:** mux restart transients now run 15–32 s, against +8.1 and +8.3 s at 10:22–10:37. The cause is not measured. The likely contributor is more DDS participants: the dashboard's lazy FlySky Test Lab and controller-input nodes while a page is open, plus the enabled teleop's command publisher.
 
 **Deployer behaviour to reconsider:** an abort during the mux-back wait rolls back even when the new mux is already proven and only CPU is over, and the rollback restart repeats the spike. The owner's rule is "CPU-only overrun → hold". No automatic retry was made; a new attempt needs owner approval.
+
+## Restart-time investigation and CPU-only HOLD fix (2026-10-29 16:29–17:10 IST, offline and read-only; nothing restarted)
+
+### Restart transients today (deployer CPU streams; 1 Hz whole-machine CPU)
+
+| Restart | Over 75 % until | Notes |
+|---|---|---|
+| A1 mux (10:22, 10:38) | +5–8 s | before the FlySky teleop existed |
+| A2 teleop start (11:09) | +7 s | |
+| A3 / view dashboard (11:14, 11:27, 14:45) | +10–12 s | |
+| gate-on 1 restart (15:51) | aborted at +1.5 s | |
+| gate-on 1 rollback (15:52) | +33 s | |
+| gate-on 2 restart (16:23) | still 99 % at +15.6 s | |
+| gate-on 2 rollback (16:24) | +31 s | |
+
+Pre-window means were 64–69 % all day.
+
+### Findings (read-only)
+
+1. **46 DDS participants** (processes with RTPS ports; 44 at the Stage 28 measurement). The dashboard's lazy FlySky Test Lab and controller-input nodes share the dashboard's single participant (one set of RTPS ports 7450/7451). They add only a few endpoints, and only while a page is open. **They are not a material contributor.**
+2. **Since A2, every mux restart also restarts the FlySky teleop** (`PartOf=atlas-cmd-vel-mux`). Mux stop 16:23:42.25, start 16:23:42.87, teleop start 16:23:42.88: two participants re-announce at once.
+3. **Main cause: the on-demand feature manager** (`atlas-feature-on-demand`, PID 2106, `atlas_feature_on_demand.py` 8797d992).
+   - By design ("fail-open: unknown means features on") it treats `/atlas/control_policy` older than **policy_stale_s = 5.0 s** as autonomy demand.
+   - The restarted mux printed its priority line only at 16:23:47.3, about 4.5 s after start, under 100 % CPU, and the policy was stale beyond 5 s.
+   - At 16:23:48 the manager started atlas-vision-lidar-fusion and atlas-ai-annotator (`"demand": {"autonomy": true}`), and atlas-person-sensor-fusion, atlas-experience-store and atlas-agent-team came up at the same moment. That is five extra participants plus a camera-AI warm-up (the annotator alone used 30.9 s CPU).
+   - They stopped again at about 16:29:17 (idle_s 300 + min_on 60).
+   - The same cascade followed the 15:51:39 rollback restart. It did not happen at the 10:38 mux restart: the policy came back within 5 s and no teleop restarted with it.
+   - The added load slows the mux start, which keeps the policy stale: **self-reinforcing**.
+   - The rollback restarts (31–33 s) began during the first cascade.
+4. The manager's threshold is read only at start, and **stopping the manager runs `restore-all` (starts every managed feature)**. Tuning it is not a quick or free change. Not done; recorded as a follow-up.
+
+### Deployer fix (prepared, tested, not run)
+
+- In the mux-back wait, safety failures, unreliable monitoring and RAM/temperature still abort at once (fail closed). The CPU bound is judged separately: **CPU over the bound HOLDs (CpuOverrun) only if** all of these hold:
+  - the new mux is proven on the dashboard;
+  - the observer has itself seen every mux-owned signal OK since that proof;
+  - the observer has produced verdicts since the restart with no gap over its limit and no failure.
+
+  Otherwise it is **not CPU-only** and rolls back as before (mux unproven, observer silent or unresponsive, any failure). After the wait, the existing post-restart CPU classification already HOLDs on CPU-only.
+- Gate-on HOLD: no rollback restart. It keeps recording until CPU recovers, saves a read-only held-state report (policy, gate drop-ins), and leaves the decision to the owner: accept, or `gate-off` (one mux restart).
+- **Preflight bug fixed:** `reviewed_config_ok()` accepts the live config only if it is EXACTLY the reviewed candidate + `reviewed_by_owner` true + COMMISSION_CAPS. Any other edit is still NO-GO.
+- Regression tests (`GateOnHold`):
+  - CPU-only after the proof → HOLD, one restart, gate still on;
+  - CPU-only during the wait → HOLD;
+  - CPU over the bound before the proof → ROLLED_BACK;
+  - base safety failure → ROLLED_BACK;
+  - observer frozen → ROLLED_BACK ("safety monitoring not operating reliably");
+  - preflight GO with the reviewed config and NO-GO with a tampered one.
+- Limits 75 / 80 / 70 and the 15 s bound unchanged.

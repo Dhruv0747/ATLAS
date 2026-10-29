@@ -48,6 +48,8 @@ class FakeRover:
         self.observer_never_back = False
         self.old_mux_lingers_s = 0.0              # the OLD mux keeps publishing fresh policy this long after restart (gate-on 1)
         self.restart_at, self.old_gate = -1e9, False
+        self.observer_freeze_after_restart = False  # scenario: the observer stops producing verdicts (unresponsive)
+        self.trigger_after = 0.0                    # scenario flags act only on restarts after this time
 
     # ---- what is installed
     def installed(self, rel, step=None):
@@ -179,6 +181,8 @@ class FakeRover:
             def start(self): return self
             def stop(self): pass
             def evaluate(self):
+                if rover.observer_freeze_after_restart and rover.restart_at > rover.trigger_after:
+                    time.sleep(30)                   # unresponsive: no verdicts at all
                 now = time.time()
                 lingering = now < rover.restart_at + rover.old_mux_lingers_s
                 mux_down = (not lingering and now < rover.mux_down_until + rover.bridge_lag_s) or (rover.observer_never_back and rover.mux_down_until > 0)
@@ -186,7 +190,7 @@ class FakeRover:
                 sig = {k: {'ok': not (mux_down and k in D.MUX_SIGNALS), 'age_s': 0.1}
                        for k in ('observer_connected', 'estop_latched', 'manual_only', 'commission_off', 'source_stopped',
                                  'cmd_zero', 'motor_output_zero', 'telemetry_live', 'base_loop_alive', 'base_still', 'base_identity')}
-                if rover.fail_base_after_restart and restarted:
+                if rover.fail_base_after_restart and restarted and rover.restart_at > rover.trigger_after:
                     sig['motor_output_zero']['ok'] = False
                 return {'wall': now, 'ok': all(s['ok'] for s in sig.values()), 'signals': sig}
         return Obs()
@@ -563,3 +567,77 @@ class GateOnOldMuxLingers(Commissioning):
         proven = float(log.split('flysky_drive_enabled True) after ')[1].split(' s')[0])
         self.assertGreaterEqual(proven, 1.0)                  # not the lingering old mux
         self.assertEqual(self.act('gate-off', '--cpu-bound-s', '3'), 0)
+
+
+class GateOnHold(Commissioning):
+    """CPU-only overrun HOLDs (no rollback restart); every real safety problem still rolls back (2026-10-29 16:29)."""
+
+    def reviewed(self):
+        self.deploy_all()
+        self.assertEqual(self.act('review-config', '--owner-reviewed-config'), 0)
+        self.mux_restarts0 = self.restarts(D.UNITS['mux'])
+        self.rover.trigger_after = time.time()
+
+    def last(self):
+        ev = sorted(self.env.evidence_root.glob('stage29-gate-on-*'))[-1]
+        return json.loads(next(ev.glob('*result.json')).read_text()), (ev / 'log.txt').read_text()
+
+    def test_cpu_only_after_new_mux_proven_holds_without_restart(self):
+        self.reviewed()
+        self.cpu = [62.0] * 9 + [99.0] * 12 + [62.0] * 80          # over the 3 s bound well after the mux is proven
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 1)
+        r, log = self.last()
+        self.assertEqual(r['result'], 'FAIL_HELD', log)
+        self.assertIn('CPU > 75.0 after the 3.0 s bound', r['reason'])         # after the wait: classified CPU-only
+        self.assertEqual(self.restarts(D.UNITS['mux']) - self.mux_restarts0, 1)   # gate-on restart only, no rollback
+        self.assertTrue(all(g.exists() for g in D.gate_paths(self.env)))        # held as is for the owner
+        self.assertIn('held state', log); self.assertIn('owner decides', log)
+
+    def test_cpu_only_during_mux_back_wait_holds(self):
+        self.reviewed()
+        self.rover.bridge_lag_s = 3.0                     # the wait runs past the bound; mux proven, observer OK
+        self.cpu = [62.0] * 9 + [99.0] * 12 + [62.0] * 80
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '4.5'), 1)
+        r, log = self.last()
+        self.assertEqual(r['result'], 'FAIL_HELD', log)
+        self.assertIn('mux-back: CPU > 75.0 after the 4.5 s bound', r['reason'])
+        self.assertIn('new mux proven and every independent safety check healthy', r['reason'])
+        self.assertEqual(self.restarts(D.UNITS['mux']) - self.mux_restarts0, 1)
+        self.assertTrue(all(g.exists() for g in D.gate_paths(self.env)))
+
+    def test_cpu_over_bound_before_mux_proven_rolls_back(self):
+        self.reviewed()
+        self.rover.old_mux_lingers_s = 6.0                          # the new mux is not proven for about 6 s
+        self.cpu = [62.0] * 9 + [99.0] * 12 + [62.0] * 80
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 1)
+        r, log = self.last()
+        self.assertEqual(r['result'], 'FAIL_ROLLED_BACK', log)
+        self.assertIn('new mux not yet proven', r['reason'])
+        self.assertFalse(any(g.exists() for g in D.gate_paths(self.env)))
+
+    def test_safety_failure_rolls_back_immediately(self):
+        self.reviewed()
+        self.rover.fail_base_after_restart = True                   # base-owned signal fails in the window
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 1)
+        r, log = self.last()
+        self.assertEqual(r['result'], 'FAIL_ROLLED_BACK', log)
+        self.assertIn('safety failure', r['reason'])
+        self.assertFalse(any(g.exists() for g in D.gate_paths(self.env)))
+
+    def test_unresponsive_observer_is_not_cpu_only(self):
+        self.reviewed()
+        self.rover.observer_freeze_after_restart = True
+        self.cpu = [62.0] * 9 + [99.0] * 12 + [62.0] * 80
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 1)
+        r, log = self.last()
+        self.assertEqual(r['result'], 'FAIL_ROLLED_BACK', log)
+        self.assertIn('safety monitoring not operating reliably', r['reason'])
+
+    def test_preflight_accepts_exactly_the_reviewed_config(self):
+        self.reviewed()
+        self.assertEqual(D.main(['preflight'], env=self.env), 0)
+        ev = sorted(self.env.evidence_root.glob('stage29-preflight-*'))[-1]
+        self.assertIn('owner-reviewed commissioning config', (ev / 'log.txt').read_text())
+        cfg = self.cfg(); cfg['max_linear_mps'] = 0.04                # any other edit is not the reviewed config
+        (self.env.project / 'config/atlas_flysky_drive.json').write_text(json.dumps(cfg))
+        self.assertEqual(D.main(['preflight'], env=self.env), 1)
