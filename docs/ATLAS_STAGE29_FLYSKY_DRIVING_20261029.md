@@ -793,3 +793,30 @@ The `view` step now also installs the two images and the licence record. Nothing
   - The Xbox reset is one hand gesture away during any Xbox button test. Every instruction that involves pressing Xbox buttons while latched must repeat "never hold LB alone".
   - Prefer tests that don't need the Xbox.
   - The software E-STOP, mux and base all behaved as designed. The failure was in the test procedure.
+
+## review-config PASS and gate-on attempt 1 FAIL (rolled back), 2026-10-29 15:48–15:52 IST
+
+- **15:34 preflight NO-GO:** E-STOP unlatched again by an LB hold (second accidental release). The Xbox drove 12 short commands (15:31:58–15:32:20); encoders reached [85409, -80279, -36483, -80953]. Claude re-latched it with the dashboard E-STOP. The owner says it was accidental, the rover stayed lifted, and the Xbox was put down. At 15:48 the Xbox was at rest: no button pressed and sticks centred over 50 samples.
+- **15:48 preflight GO:** all four steps installed, gate off, safety OK ×3, CPU mean 63.9 %.
+- **15:50 review-config: REVIEWED.**
+  - `config/atlas_flysky_drive.json` 031c9c08 → 875feb35.
+  - Changes: `reviewed_by_owner` false→true, `max_linear_mps` 0.15→0.05, `max_angular_radps` 0.6→0.2.
+  - Backup in `stage29-review-config-*/backup`. No restart.
+  - It stays in place; it takes effect only when the gate is on.
+- **15:50:45 gate-on attempt 1, bound 15 s: FAIL, ROLLED BACK.** Evidence `stage29-gate-on-20261029_155046-033732978`.
+  - Pre-checks OK (safety ×3, CPU mean 63.2 %).
+  - Drop-ins written, mux restarted at 15:51:27.
+  - The deployer logged "mux back on the dashboard after 1.1 s", but the policy it saw had **`flysky_drive_enabled: False`**: it came from the **OLD mux**, which kept publishing for about 1 s after the restart command. A mux started with the gate on reports True.
+  - The observer's mux signals were also still OK from the old mux. The exemption cleared at +1.4 s.
+  - At +1.46 s the real restart gap appeared (all five mux signals stale/unsafe), and the deployer aborted as designed.
+  - The base-owned signals never failed. Encoders were unchanged at [85409, -80279, -36483, -80953], motor_speed 0, /cmd_vel 0.
+  - Rollback: drop-ins removed and the mux restarted again; mux 605157, teleop 605159, which logged "DISABLED: gate off".
+  - The rollback restart had CPU over 75 % for about 32 samples (two mux restarts about 40 s apart). Reported; recovered to about 65 %.
+  - Final state: E-STOP latched (mux startup latch), XBOX, gate off, drive DISABLED.
+- **Root cause:** a deployer defect, the same class as A1 attempt 1. "New mux back" was judged by a field (`manual_controller`) that the old and new mux both publish.
+- **Fix** (`wait_mux_back(expect=...)`):
+  - gate-on must see **`flysky_drive_enabled` True** on the dashboard; the old mux can never show it;
+  - then the observer's continuous OK stretch must **start after** that proof and last **1.5 s**, longer than the observer's 1.0 s freshness, so cached old-mux data cannot satisfy it.
+  - Test environment mux-back timeout 4→6 s (real: 20 s).
+  - New fake-rover scenario `old_mux_lingers_s` reproduces the failure.
+- **A second gate-on attempt needs a new owner approval (no automatic retry).**

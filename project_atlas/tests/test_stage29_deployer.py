@@ -46,6 +46,8 @@ class FakeRover:
         self.web_drive_after_restart = None       # scenario: a present, non-STOP value
         self.bridge_lag_s = 1.5                   # observer sees the restarted mux later than the dashboard (A1 attempt 1)
         self.observer_never_back = False
+        self.old_mux_lingers_s = 0.0              # the OLD mux keeps publishing fresh policy this long after restart (gate-on 1)
+        self.restart_at, self.old_gate = -1e9, False
 
     # ---- what is installed
     def installed(self, rel, step=None):
@@ -79,7 +81,8 @@ class FakeRover:
             u = self.units[args[1]]
             u['pid'] += 100; u['active'] = True; u['inv'] = u['inv'].rsplit('-', 1)[0] + '-' + str(len(self.calls))
             if args[1] == D.UNITS['mux']:
-                self.mux_down_until = time.time() + (1e9 if self.mux_never_back else 1.0)
+                self.restart_at, self.old_gate = time.time(), self.mux_gate
+                self.mux_down_until = time.time() + self.old_mux_lingers_s + (1e9 if self.mux_never_back else 1.0)
                 self.mux_gate = self.gate(D.UNITS['mux'])
                 tu = self.units[D.UNITS['teleop']]
                 if tu['active']:                       # PartOf=atlas-cmd-vel-mux: the teleop restarts with the mux
@@ -116,9 +119,10 @@ class FakeRover:
                 n = self.packets
             pol = {'stop_latched': True, 'manual_only': True, 'commission_armed': False, 'source': 'STOPPED',
                    'stop_reason': 'REMOTE STOP: B pressed'}
+            lingering = now < self.restart_at + self.old_mux_lingers_s
             if self.mux_patched():
-                pol.update(manual_controller='XBOX', flysky_drive_enabled=self.mux_gate)
-            age = 5.0 if now < self.mux_down_until else 0.1
+                pol.update(manual_controller='XBOX', flysky_drive_enabled=self.old_gate if lingering else self.mux_gate)
+            age = 0.1 if lingering else 5.0 if now < self.mux_down_until else 0.1
             return {'ros': {
                 'control_policy': {'age': age, 'value': json.dumps(pol)},
                 'cmd_vel': {'age': age, 'value': {'lin': 0.0, 'ang': 0.0}},
@@ -176,7 +180,8 @@ class FakeRover:
             def stop(self): pass
             def evaluate(self):
                 now = time.time()
-                mux_down = now < rover.mux_down_until + rover.bridge_lag_s or (rover.observer_never_back and rover.mux_down_until > 0)
+                lingering = now < rover.restart_at + rover.old_mux_lingers_s
+                mux_down = (not lingering and now < rover.mux_down_until + rover.bridge_lag_s) or (rover.observer_never_back and rover.mux_down_until > 0)
                 restarted = any(c[0] in ('restart', 'start') for c in rover.calls)
                 sig = {k: {'ok': not (mux_down and k in D.MUX_SIGNALS), 'age_s': 0.1}
                        for k in ('observer_connected', 'estop_latched', 'manual_only', 'commission_off', 'source_stopped',
@@ -220,7 +225,7 @@ class Base(unittest.TestCase):
                 return 60.0, {'cpu-thermal': 64.0}
         e = E(project=self.tmp / 'project_atlas', unit_dir=self.tmp / 'units', env_dir=self.tmp / 'envdir', runtime_unit_dir=self.tmp / 'run-units',
               evidence_root=self.tmp / 'evidence', steady_s=3, preflight_s=2, observer_warmup_s=0.5,
-              mux_back_timeout_s=4.0, hold_poll_s=0.2)
+              mux_back_timeout_s=6.0, hold_poll_s=0.2)
         e.sleep = time.sleep
         e.estop = True
         return e
@@ -289,8 +294,10 @@ class Refusals(Base):
 
 class MuxStep(Base):
     def test_pass_installs_candidate_restarts_once_and_keeps_xbox(self):
-        self.cpu = [62.0] * 6 + [90.0, 99.0] + [62.0] * 40     # spike inside the 3 s bound, then recovery
-        self.assertEqual(self.run_step('mux'), 0)
+        # spike inside the bound, then recovery. Bound 6 s: the new-mux proof (dashboard + 1.5 s fresh observer after
+        # it, behind the simulated 1.5 s bridge lag) takes about 4 s here; the real bound is 15 s.
+        self.cpu = [62.0] * 6 + [90.0, 99.0] + [62.0] * 40
+        self.assertEqual(self.run_step('mux', bound=6.0), 0)
         r, d = self.result('deploy-mux')
         self.assertEqual(r['result'], 'PASS')
         self.assertEqual(self.sha('scripts/atlas_cmd_vel_mux.py'), CAND['mux']['scripts/atlas_cmd_vel_mux.py'])
@@ -312,7 +319,7 @@ class MuxStep(Base):
         # A1 attempt 1 failed exactly here: dashboard fresh at +1 s, observer fresh only at +2.5 s.
         self.assertEqual(self.run_step('mux'), 0)
         log = (self.result('deploy-mux')[1] / 'log.txt').read_text()
-        self.assertIn('mux back on the dashboard', log); self.assertIn('exemption cleared', log)
+        self.assertIn('new mux proven on the dashboard', log); self.assertIn('exemption cleared', log)
 
     def test_observer_never_sees_mux_rolls_back(self):
         self.rover.observer_never_back = True
@@ -328,8 +335,8 @@ class MuxStep(Base):
         self.assertEqual(self.sha('scripts/atlas_cmd_vel_mux.py'), MAN['steps']['mux']['files']['scripts/atlas_cmd_vel_mux.py']['baseline_sha256'])
 
     def test_cpu_overrun_with_safety_ok_holds_without_restart_then_owner_rollback(self):
-        self.cpu = [62.0] * 6 + [99.0] * 6 + [62.0] * 60      # over the limit past the 3 s bound
-        self.assertEqual(self.run_step('mux'), 1)
+        self.cpu = [62.0] * 6 + [99.0] * 9 + [62.0] * 60      # over the limit past the 6 s bound, after the mux is proven
+        self.assertEqual(self.run_step('mux', bound=6.0), 1)
         r, d = self.result('deploy-mux')
         self.assertEqual(r['result'], 'FAIL_HELD')
         self.assertEqual(self.restarts(D.UNITS['mux']), 1)       # no automatic second spike
@@ -539,4 +546,20 @@ class ViewStep(Commissioning):
         self.assertEqual(self.run_step('view'), 0)
         self.assertEqual(self.act('review-config', '--owner-reviewed-config'), 0)
         self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 0)
+        self.assertEqual(self.act('gate-off', '--cpu-bound-s', '3'), 0)
+
+
+class GateOnOldMuxLingers(Commissioning):
+    """gate-on attempt 1, 2026-10-29 15:51: the old mux kept publishing about 1 s after the restart command."""
+
+    def test_old_mux_data_cannot_clear_the_exemption(self):
+        self.deploy_all()
+        self.assertEqual(self.act('review-config', '--owner-reviewed-config'), 0)
+        self.rover.old_mux_lingers_s = 1.0
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 0)
+        ev = sorted(self.env.evidence_root.glob('stage29-gate-on-*'))[-1]
+        log = (ev / 'log.txt').read_text()
+        self.assertIn('new mux proven on the dashboard (flysky_drive_enabled True)', log)
+        proven = float(log.split('flysky_drive_enabled True) after ')[1].split(' s')[0])
+        self.assertGreaterEqual(proven, 1.0)                  # not the lingering old mux
         self.assertEqual(self.act('gate-off', '--cpu-bound-s', '3'), 0)

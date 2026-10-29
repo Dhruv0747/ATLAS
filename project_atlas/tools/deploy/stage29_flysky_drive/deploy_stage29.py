@@ -354,6 +354,9 @@ def classify(rec, obs, t_restart, bound_s):
 
 
 OBSERVER_BACK_S = 1.0            # the observer itself must see the mux signals fresh and OK this long
+# After the NEW mux is proven on the dashboard, the observer's OK stretch must start after that moment and last longer
+# than the observer's 1.0 s freshness window, so a message cached from the OLD mux can never satisfy it.
+OBSERVER_NEW_MUX_S = 1.5
 
 
 def observer_mux_ok_since(obs, t0):
@@ -367,11 +370,16 @@ def observer_mux_ok_since(obs, t0):
     return since
 
 
-def wait_mux_back(env, ev, obs, rec, t0, bound_s):
+def wait_mux_back(env, ev, obs, rec, t0, bound_s, expect=None, what='the patched policy'):
     """Mux-owned observer signals are exempt while the mux restarts. The exemption is cleared only when BOTH the
     dashboard shows the patched policy AND the observer's own verdicts show every mux-owned signal fresh and OK for
     OBSERVER_BACK_S (A1 attempt 1, 2026-10-29: clearing it on the dashboard alone aborted on the foxglove bridge's
-    re-subscription lag). Never clear an exemption on a different source than the one being judged."""
+    re-subscription lag). Never clear an exemption on a different source than the one being judged.
+    gate-on attempt 1 (2026-10-29 15:51): the OLD mux kept publishing for about 1 s after the restart command, and
+    'manual_controller' is in both old and new policies, so stale old-mux data cleared the exemption at +1.4 s. The
+    restarted mux must now be PROVEN by `expect` (for gate-on: flysky_drive_enabled True, which the old mux never
+    reported), and the observer's OK stretch must begin after that proof and last OBSERVER_NEW_MUX_S."""
+    expect = expect or (lambda p: 'manual_controller' in p)
     deadline = time.time() + env.mux_back_timeout_s
     dash = None
     while time.time() < deadline:
@@ -379,19 +387,19 @@ def wait_mux_back(env, ev, obs, rec, t0, bound_s):
         if dash is None:
             try:
                 p = policy(env)
-                if 'manual_controller' in p:
+                if expect(p):
                     dash = (time.time(), p)
-                    ev.log(f'mux back on the dashboard after {dash[0] - t0:.1f} s: {p}')
+                    ev.log(f'new mux proven on the dashboard ({what}) after {dash[0] - t0:.1f} s: {p}')
             except Exception:
                 pass
-        since = observer_mux_ok_since(obs, t0)
-        if dash and since is not None and time.time() - since >= OBSERVER_BACK_S:
+        since = observer_mux_ok_since(obs, dash[0]) if dash else None
+        if dash and since is not None and time.time() - since >= OBSERVER_NEW_MUX_S:
             obs.exempt.clear()
             ev.log(f'observer sees the mux signals fresh since +{since - t0:.1f} s; exemption cleared at +{time.time() - t0:.1f} s')
             return dash[1]
         env.sleep(0.25)
-    raise Fail(f'mux not back within {env.mux_back_timeout_s} s (dashboard {"yes" if dash else "no"}, '
-               f'observer mux signals {"ok" if observer_mux_ok_since(obs, t0) else "not ok"})')
+    raise Fail(f'mux not back within {env.mux_back_timeout_s} s (dashboard {"proved " + what if dash else "did not show " + what}, '
+               f'observer mux signals {"ok" if dash and observer_mux_ok_since(obs, dash[0]) else "not ok"} after that)')
 
 
 def verify(env, ev, step, before, protected0):
@@ -681,7 +689,8 @@ def gate_on(env, args):
             t0 = time.time()
             ev.log('restarting atlas-cmd-vel-mux (the teleop follows via PartOf) with the gate ON')
             env.systemctl('restart', UNITS['mux'], timeout=60)
-            wait_mux_back(env, ev, obs, rec, t0, args.cpu_bound_s)
+            wait_mux_back(env, ev, obs, rec, t0, args.cpu_bound_s,
+                          expect=lambda p: p.get('flysky_drive_enabled') is True, what='flysky_drive_enabled True')
             try:
                 d28.resources_after_restart(env, ev, 'gate-on-post', 'transient', rec, t0, args.cpu_bound_s, obs)
             except Fail as exc:
