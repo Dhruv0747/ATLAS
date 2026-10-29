@@ -971,3 +971,28 @@ Pre-window means were 64–69 % all day.
   - Drive config reviewed, no errors, limits 0.05 m/s and 0.20 rad/s.
   - motor_speed 0, /cmd_vel 0; base 1953 unchanged.
 - **Not done (needs separate approval):** SELECT FLYSKY, E-STOP release, powered lifted-wheel test.
+
+## Night software completion, 2026-10-29 20:30–21:00 IST (no live change, no restart)
+
+- Gate ON and reviewed config 875feb35 left as they were. Not done: E-STOP release, FlySky selection, any command.
+- **New, offline:** `tests/test_flysky_morning_sequence_offline.py` (7 tests). It runs tomorrow's sequence through the real drive core, the patched mux and the Xbox RemoteStop with the exact reviewed config (hash proven 875feb35):
+  - select, LB reset, arm, forward, reverse and turn;
+  - SwC up 0.0165, middle 0.033, down 0.05 m/s, never above the caps;
+  - SwB middle latches;
+  - after any latch (SwB, Xbox B or dashboard) an LB reset still needs SwA off and on again;
+  - LB+A cannot reset;
+  - Xbox is selectable again only while latched.
+- **New helper:** `tools/deploy/stage29_flysky_drive/stage29_morning.py` (`precheck` / `record` / `analyze`), read-only and enforced by a source test. 5 tests.
+- **Bug found by the live read-only dry run and fixed:** one Jetson thermal zone refuses reads, which crashed the precheck. Unreadable zones are now skipped, and an unknown temperature is NO-GO.
+- **Live read-only dry runs** (package bc79e75 at `~/project-atlas-migration/stage29A_pkg_bc79e75`):
+  - **precheck:** 17 of 19 OK. It is NO-GO only because the FlySky transmitter is off (receiver FAILSAFE) and SwC reads 240, which is the failsafe value. CPU 63.8 %, RAM 65.6 %, 65.5 °C; encoders unchanged; all 8 features inactive.
+  - **recorder (10 s):** all topics captured: /joy 171, rc frames 99, policy 100, /cmd_vel 46, encoders 98–100. OVERALL FAIL with no events, as designed.
+- Morning checklist: `docs/ATLAS_STAGE29_MORNING_LIFTED_WHEEL_CHECKLIST_20261030.md`.
+- **Physically unverified:**
+  - wheel directions;
+  - real stop and latch times on powered wheels;
+  - whether 0.033–0.05 m/s turns the lifted wheels at all (about 61–62 PWM against a manual breakaway of about 80);
+  - FlySky failsafe with powered wheels.
+- **Residual risks:**
+  - no independent motor-power disconnect;
+  - the gate is lost on a reboot.

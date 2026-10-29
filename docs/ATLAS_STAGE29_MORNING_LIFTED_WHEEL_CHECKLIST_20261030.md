@@ -6,7 +6,7 @@ The software E-STOP is **not** a motor-power disconnect: there is no independent
 Helper, on the Jetson (read-only: it never selects, resets, releases or commands anything):
 
 ```
-cd ~/project-atlas-migration/stage29A_pkg_<commit>/project_atlas/tools/deploy/stage29_flysky_drive
+cd ~/project-atlas-migration/stage29A_pkg_bc79e75/project_atlas/tools/deploy/stage29_flysky_drive
 python3 stage29_morning.py precheck
 ```
 
@@ -14,7 +14,7 @@ python3 stage29_morning.py precheck
 1. Rover lifted, all four wheels free, nobody's hands near them.
 2. Xbox controller on and in reach. FlySky on with SwA UP, SwB UP, SwC MIDDLE, sticks centred.
 3. If the Jetson rebooted overnight, stop here: the gate is OFF and gate-on needs a fresh approval.
-4. Run `precheck`. Continue only on **PRECHECK GO**.
+4. Run `precheck`. Continue only on **PRECHECK GO**. Check the temperature line: it read 65.5 °C last night (limit 70 °C).
 
 ## B. Hand over and arm
 5. Start the recorder: `python3 stage29_morning.py record 900`.
@@ -43,5 +43,7 @@ python3 stage29_morning.py precheck
 19. Latch with Xbox B. Press **SELECT XBOX** on the dashboard. FlySky SwA UP.
 20. `systemctl --user stop atlas-s29-stop-recorder` (if still running), then `python3 stage29_morning.py analyze`.
 21. Ask Claude to run **gate-off** (separate approval). Send the analyze output.
+
+`analyze` reports OVERALL FAIL when the recording holds no stop events; that means nothing was tested, not a stop failure.
 
 PASS only if every direction was correct by eye and `analyze` prints OVERALL PASS. Simulation results are not physical PASS results.
