@@ -262,21 +262,45 @@ def classify(rec, obs, t_restart, bound_s):
     return bool(safety) or gap > getattr(obs, 'max_gap_s', 1.0)
 
 
+OBSERVER_BACK_S = 1.0            # the observer itself must see the mux signals fresh and OK this long
+
+
+def observer_mux_ok_since(obs, t0):
+    """Start of the latest continuous stretch (after t0) in which the OBSERVER reports every mux-owned signal OK."""
+    since = None
+    for s in reversed([x for x in list(obs.snaps) if x['wall'] > t0]):
+        if all(s.get('predicates', {}).get(k) is True for k in MUX_SIGNALS):
+            since = s['wall']
+        else:
+            break
+    return since
+
+
 def wait_mux_back(env, ev, obs, rec, t0, bound_s):
-    """Mux-owned signals were exempt for the restart; require fresh patched policy, then clear the exemption."""
+    """Mux-owned observer signals are exempt while the mux restarts. The exemption is cleared only when BOTH the
+    dashboard shows the patched policy AND the observer's own verdicts show every mux-owned signal fresh and OK for
+    OBSERVER_BACK_S (A1 attempt 1, 2026-10-29: clearing it on the dashboard alone aborted on the foxglove bridge's
+    re-subscription lag). Never clear an exemption on a different source than the one being judged."""
     deadline = time.time() + env.mux_back_timeout_s
+    dash = None
     while time.time() < deadline:
         d28.early_abort(env, ev, 'mux-back', rec, t0, bound_s, obs)
-        try:
-            p = policy(env)
-            if 'manual_controller' in p:
-                obs.exempt.clear()
-                ev.log(f'mux back after {time.time() - t0:.1f} s: {p}')
-                return p
-        except Exception:
-            pass
-        env.sleep(0.5)
-    raise Fail(f'mux did not publish patched policy within {env.mux_back_timeout_s} s')
+        if dash is None:
+            try:
+                p = policy(env)
+                if 'manual_controller' in p:
+                    dash = (time.time(), p)
+                    ev.log(f'mux back on the dashboard after {dash[0] - t0:.1f} s: {p}')
+            except Exception:
+                pass
+        since = observer_mux_ok_since(obs, t0)
+        if dash and since is not None and time.time() - since >= OBSERVER_BACK_S:
+            obs.exempt.clear()
+            ev.log(f'observer sees the mux signals fresh since +{since - t0:.1f} s; exemption cleared at +{time.time() - t0:.1f} s')
+            return dash[1]
+        env.sleep(0.25)
+    raise Fail(f'mux not back within {env.mux_back_timeout_s} s (dashboard {"yes" if dash else "no"}, '
+               f'observer mux signals {"ok" if observer_mux_ok_since(obs, t0) else "not ok"})')
 
 
 def verify(env, ev, step, before, protected0):

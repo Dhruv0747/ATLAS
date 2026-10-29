@@ -265,3 +265,57 @@ suites. They cover:
 - teleop advertising a command topic → rollback;
 - dashboard verification failure → rollback;
 - read-only preflight.
+
+## Stage A1 attempt 1, 2026-10-29 10:22 IST: FAIL, rolled back (fail-closed)
+
+Approved: one A1 attempt (mux only), bound 15 s. Package `06c4352`. Evidence:
+`~/project-atlas-migration/stage29-deploy-mux-20261029_102213-284142923/`.
+
+Conditions checked before start:
+- E-STOP latched ("B pressed"); Xbox connected (`/joy` age 0.0 s, 15.9 Hz).
+- Transmitter off (receiver LOST, last frame 1443 s old).
+- Commands and motor output 0; live mux = baseline `0d959286`.
+- Encoders had moved 10:13–10:21 with no command: the owner confirmed handling while lifting, and they were steady for
+  20 s before the start.
+
+Timeline:
+
+| Time | Event |
+|---|---|
+| 10:22:17–47 | Pre: safety OK ×3; preflight CPU mean 62.2 / max 64.7, RAM 65.1 %, 61.3 °C |
+| 10:22:53 | Backup verified; patched mux `5d096638` installed; `atlas-cmd-vel-mux` restarted (mux-owned observer signals exempt) |
+| 10:22:59 (+5.8 s) | Dashboard shows the patched policy: `stop_latched` true, XBOX, gate false, STOPPED. The script cleared the exemption **on that basis** |
+| 10:23:00 (+5.8 s) | The observer still had the mux signals stale (foxglove bridge not yet re-subscribed) → IMMEDIATE ABORT |
+| 10:23:01 | Original restored (hash verified) and restarted once; rollback CPU recorded |
+| 10:23:32 | Rollback complete. Mux PID 431020, original, priority line without FLYSKY, NRestarts 0 |
+
+CPU, RAM and temperature:
+- **Forward restart (patched mux):** +1 71.4, +2 69.6, **+3 100.0**, +4 99.5, +5 97.2, +6 92.7, +7 89.8 %.
+  The window was aborted at +7 s, so the forward recovery was not measured. Peak 100.0 %.
+- **Rollback restart (original mux):** over 75 % from +1.0 to **+8.1 s** (7 samples, peak 99.7 %). After +9 s:
+  23 samples, max 71.6 %, mean 62.2 %, equal to the pre-window mean.
+  **This is the first measured mux restart: it ended inside the 15 s bound.**
+- RAM max 66.2 %, temperature max 61.8 °C. No limit was exceeded outside the transient.
+
+Safety:
+- Base-owned observer signals (`/motor_speed`, encoder health, base loop, base still, base identity) stayed OK for the
+  whole window. The only base flags were in the observer's warm-up before the change.
+- E-STOP latched throughout. Encoders `[-444, 1473, -14198, 1401]` unchanged before and after.
+- Commands 0, motor output 0. Dashboard 2103, base 1953, recovery 1998 and EKF 3440 unchanged.
+- After the rollback the E-STOP is still latched. The reason reads "joystick unavailable", because the restarted mux
+  boots latched.
+
+**Root cause (deployer bug, not a rover fault).** `wait_mux_back` cleared the mux-signal exemption when the
+*dashboard* saw the restarted mux. The *observer* reads the same topics through the foxglove bridge, which re-subscribes
+later. The offline fake made both recover at the same instant, so the tests could not see the lag.
+
+**Fix (commit below).** The exemption clears only when the dashboard shows the patched policy **and** the observer's
+own verdicts show every mux-owned signal fresh and OK for 1.0 s, within the same 20 s limit. Two tests were added:
+- a 1.5 s bridge lag in every fake-rover run (the old code fails it);
+- an observer that never sees the mux → rollback.
+
+**Second finding (pre-existing code path, recorded).** The patched mux, stopped by the rollback 7 s after its start and
+at 90–100 % CPU, logged `RCLError: Failed to publish: publisher's context is invalid` during shutdown. Its
+zero-on-shutdown messages may not all have been sent. The patch does not touch shutdown, and the original mux's stop at
+10:22:53 logged nothing. Mitigations held: E-STOP latched, commands already zero, base 0.45 s deadman. The base-deadman
+check in the "required before any powered test" list covers this path. There was no retry.

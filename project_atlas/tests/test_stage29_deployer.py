@@ -40,6 +40,8 @@ class FakeRover:
         self.break_web_view = False
         self.change_protected = None
         self.mux_never_back = False
+        self.bridge_lag_s = 1.5                   # observer sees the restarted mux later than the dashboard (A1 attempt 1)
+        self.observer_never_back = False
 
     # ---- what is installed
     def installed(self, rel):
@@ -144,7 +146,7 @@ class FakeRover:
             def stop(self): pass
             def evaluate(self):
                 now = time.time()
-                mux_down = now < rover.mux_down_until
+                mux_down = now < rover.mux_down_until + rover.bridge_lag_s or (rover.observer_never_back and rover.mux_down_until > 0)
                 restarted = any(c[0] in ('restart', 'start') for c in rover.calls)
                 sig = {k: {'ok': not (mux_down and k in D.MUX_SIGNALS), 'age_s': 0.1}
                        for k in ('observer_connected', 'estop_latched', 'manual_only', 'commission_off', 'source_stopped',
@@ -266,7 +268,7 @@ class MuxStep(Base):
         self.assertTrue((d / 'backup' / 'meta.json').exists())
         self.assertTrue(any(p.name.startswith('stream-observer') for p in d.iterdir()))
         log = (d / 'log.txt').read_text()
-        self.assertIn('mux back after', log); self.assertIn("'manual_controller': 'XBOX'", log)
+        self.assertIn('exemption cleared', log); self.assertIn("'manual_controller': 'XBOX'", log)
 
     def test_base_signal_failure_in_window_rolls_back(self):
         self.rover.fail_base_after_restart = True
@@ -275,6 +277,18 @@ class MuxStep(Base):
         self.assertEqual(r['result'], 'FAIL_ROLLED_BACK')
         self.assertEqual(self.sha('scripts/atlas_cmd_vel_mux.py'), MAN['steps']['mux']['files']['scripts/atlas_cmd_vel_mux.py']['baseline_sha256'])
         self.assertEqual(self.restarts(D.UNITS['mux']), 2)
+
+    def test_bridge_lag_after_dashboard_is_waited_out_not_aborted(self):
+        # A1 attempt 1 failed exactly here: dashboard fresh at +1 s, observer fresh only at +2.5 s.
+        self.assertEqual(self.run_step('mux'), 0)
+        log = (self.result('deploy-mux')[1] / 'log.txt').read_text()
+        self.assertIn('mux back on the dashboard', log); self.assertIn('exemption cleared', log)
+
+    def test_observer_never_sees_mux_rolls_back(self):
+        self.rover.observer_never_back = True
+        self.assertEqual(self.run_step('mux', bound=10.0), 1)
+        r, d = self.result('deploy-mux')
+        self.assertEqual(r['result'], 'FAIL_ROLLED_BACK'); self.assertIn('observer mux signals not ok', r['reason'])
 
     def test_mux_not_back_rolls_back(self):
         self.rover.mux_never_back = True
