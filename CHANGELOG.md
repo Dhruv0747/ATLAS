@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-29 Stage29 'features' step DEPLOYED (eba4f6d): PASS. Lease-aware atlas_feature_on_demand.py b0fb5b43; restart CPU >75 % until +10.3 s (bound 15 s), steady 63.3 % vs 64.1 %; restore-all skipped under the authorised-restart lease, the startup stale-input hold lasted 2 s, no AI/fusion service started. Gate off, E-STOP latched. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
+
 2026-10-29 Stage29 dual-controller dashboard DEPLOYED (step 'view', 59956c9): PASS. Dashboard restart over 75 % until +15.3 s (bound 20 s), steady 63.9 % vs 63.7 %; real Xbox (public domain) and FS-i6S (owner) photos served locally; Xbox live input 16-18 Hz; E-STOP latched, Xbox selected, FlySky driving off; page polling adds about 1 % of one core. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
 
 2026-10-29 Stage29 dashboard: REAL controller photos replace the schematics (still not deployed; 7f196ac deployment held at the owner's request). Xbox: Evan-Amos public-domain photo (Wikimedia Commons). FS-i6S: the owner's own photo. Overlays aligned in photo pixels; hidden shoulder controls (LB/RB/LT/RT, VrA/VrB) shown as edge markers. The hand-drawn FS-i6S layout was wrong (manual diagram) and is removed. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md

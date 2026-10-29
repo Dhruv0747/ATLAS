@@ -935,3 +935,20 @@ Pre-window means were 64–69 % all day.
   - restore-all is skipped only under a valid lease.
 - The original 15 feature-manager unit tests are unchanged and pass.
 - Deployer: `MuxLease` (every restart is leased and released, including the failed gate-on and its rollback; an existing lease refuses gate-on before any change) and `FeaturesStep` (gate-on needs it; a cascade during the restart rolls back).
+
+## `features` step deployment, 2026-10-29 20:16 IST: PASS (package eba4f6d, bound 15 s, owner-approved, one attempt)
+
+- Owner confirmed the rover is lifted and clear; wheel 3's 180-count change (16:23–19:25) was a hand turn.
+- Fresh preflight 20:15: GO (teleop accepted with the reviewed config; `features` candidate rebuilds from the live file); CPU mean 62.8 %. All 8 managed features inactive before.
+- Evidence `stage29-deploy-features-20261029_201601-346213736`:
+  - backup 8797d992; lease armed 20:16:39; installed b0fb5b43; restarted atlas-feature-on-demand only (2106 → 733934).
+  - CPU over 75 % for 8 samples: +2.9 s 97.0, +4.2 99.8, +5.3 100, +6.3 99.0, +7.3 98.2, +8.3 95.0, +9.3 90.4, **last +10.28 s 78.2**. All 30 samples after the bound ≤ 75 %. Steady mean 63.3 % against 64.1 % before. RAM/temperature OK.
+  - Lease released; post-check safety OK ×3; encoders unchanged [85409, -80279, -36663, -80953].
+- **Independent checks**
+  - The old process's ExecStopPost logged `restore_all_skipped` (authorised restart lease).
+  - The new manager logged `start`, then `inputs_stale_held` and, 2 s later, `inputs_stale_hold_end`: the policy arrived and the lease covered the gap.
+  - **All 8 features stayed inactive.**
+  - Lease file removed (only lock files remain).
+  - Mux 619923, teleop 619924, base 1953 and dashboard 563039 unchanged.
+  - Policy: latched, XBOX, gate off, STOPPED.
+- Gate-on attempt 3 is **not yet approved**.
