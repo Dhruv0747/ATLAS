@@ -129,13 +129,16 @@ class FakeRover:
             return 200, 'ATLAS · FlySky Driving'
         return 404, ''
 
-    def advertised(self, seconds=2.5):
-        t = {'/cmd_vel', '/atlas/control_policy'}
-        if self.units[D.UNITS['teleop']]['active']:
-            t.add('/atlas/flysky/drive_status')
-            if self.advertise_cmd:
-                t.add('/cmd_vel_flysky')
-        return t
+    def sample(self, wanted, seconds=3.0):
+        teleop = self.units[D.UNITS['teleop']]['active']
+        out = {w: {'advertised': False, 'count': 0, 'last': None} for w in wanted}
+        if self.mux_patched():                      # the patched mux subscribes: advertised, but nobody publishes
+            out['/cmd_vel_flysky'].update(advertised=True)
+        if teleop:
+            out['/atlas/flysky/drive_status'].update(advertised=True, count=6, last=json.dumps({'state': 'DISABLED'}))
+            if self.advertise_cmd:                  # scenario: the disabled teleop publishes commands
+                out['/cmd_vel_flysky'].update(count=12, last=(0.0, 0, 0, 0, 0, 0.0))
+        return out
 
     # ---- observer
     def observer(self, base_pid):
@@ -175,7 +178,7 @@ class Base(unittest.TestCase):
         self.rover = FakeRover(self.env)
         for name in ('systemctl', 'journal', 'get', 'get_text'):
             setattr(self.env, name, getattr(self.rover, name))
-        self.env.advertised_topics = self.rover.advertised
+        self.env.sample_topics = self.rover.sample
         self.env.make_observer = self.rover.observer
 
     def make_env(self):
@@ -382,6 +385,12 @@ class AdvertisedTopicsReal(unittest.TestCase):
             t0 = time.time(); topics = env.advertised_topics(seconds=1.5); dt = time.time() - t0
             self.assertLess(dt, 3.0)
             self.assertIn('/atlas/control_policy', topics); self.assertNotIn('/cmd_vel_flysky', topics)
+            t0 = time.time(); smp = env.sample_topics(['/atlas/control_policy', '/cmd_vel_flysky'], seconds=1.5)
+            self.assertLess(time.time() - t0, 3.0)
+            pol = smp['/atlas/control_policy']
+            self.assertTrue(pol['advertised']); self.assertGreater(pol['count'], 5)        # 10 Hz in the fake bridge
+            self.assertIn('stop_latched', json.loads(pol['last']))
+            self.assertEqual(smp['/cmd_vel_flysky'], {'advertised': False, 'count': 0, 'last': None, 'schema': None})
         finally:
             srv.terminate(); srv.wait(5)
 

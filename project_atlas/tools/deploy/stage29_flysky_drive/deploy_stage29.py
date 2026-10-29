@@ -129,6 +129,66 @@ class Env(d28.Env):
         return set(topics)
 
 
+    def sample_topics(self, wanted, seconds=3.0):
+        """Subscribe through the existing foxglove_bridge (read-only, no ROS participant) and count messages per topic.
+        A topic can be advertised with no publisher (the patched mux SUBSCRIBES to /cmd_vel_flysky, and the bridge
+        lists every graph topic: found live in the A2 readiness check), so 'no publisher' is proven by receiving NO
+        messages, never by the topic being absent. Returns {topic: {'advertised', 'count', 'last'}}."""
+        import atlas_safety_observer as so
+        import struct as _st
+        import threading
+        ws = None
+        for proto in so.SUBPROTOCOLS:
+            try:
+                ws = so.WebSocket('127.0.0.1', self.observer_port, proto); break
+            except Exception:
+                continue
+        if ws is None:
+            raise Fail('foxglove bridge unreachable for the topic sample')
+        out = {t: {'advertised': False, 'count': 0, 'last': None, 'schema': None} for t in wanted}
+        subs, seen = {}, threading.Event()
+
+        def reader():
+            try:
+                while True:
+                    op, data = ws.recv()
+                    if op == 0x1:
+                        m = json.loads(data)
+                        if m.get('op') != 'advertise':
+                            continue
+                        seen.set()
+                        new = []
+                        for ch in m.get('channels', []):
+                            t = ch.get('topic')
+                            if t in out and not out[t]['advertised']:
+                                out[t].update(advertised=True, schema=ch.get('schemaName'))
+                                sid = len(subs) + 1
+                                subs[sid] = t
+                                new.append({'id': sid, 'channelId': ch['id']})
+                        if new:
+                            ws.send(0x1, json.dumps({'op': 'subscribe', 'subscriptions': new}).encode())
+                    elif data and data[0] == 0x01 and len(data) >= 13:
+                        sid = _st.unpack_from('<I', data, 1)[0]
+                        t = subs.get(sid)
+                        if t is None:
+                            continue
+                        out[t]['count'] += 1
+                        try:
+                            out[t]['last'] = so.decode(out[t]['schema'], data[13:])
+                        except Exception as exc:
+                            out[t]['last'] = f'undecodable: {exc}'
+            except Exception:
+                return
+        th = threading.Thread(target=reader, name='s29-sample', daemon=True)
+        th.start()
+        th.join(seconds)
+        ws.close()
+        th.join(1.0)
+        if not seen.is_set():
+            raise Fail(f'no advertisement received from the foxglove bridge in {seconds} s')
+        return out
+
+
 class Evidence(d28.Evidence):
     def __init__(self, env, kind):
         self.dir = env.evidence_root / f'stage29-{kind}-{time.strftime("%Y%m%d_%H%M%S")}-{time.time_ns() % 10**9:09d}'
@@ -335,11 +395,19 @@ def verify(env, ev, step, before, protected0):
     if step == 'teleop':
         if 'FlySky teleop DISABLED' not in log:
             raise Fail('teleop did not report DISABLED')
-        topics = env.advertised_topics()
-        if '/cmd_vel_flysky' in topics:
-            raise Fail('/cmd_vel_flysky is advertised: the disabled teleop must not create a command publisher')
-        if '/atlas/flysky/drive_status' not in topics:
-            raise Fail('teleop status topic not advertised')
+        smp = env.sample_topics(['/cmd_vel_flysky', '/atlas/flysky/drive_status'], seconds=3.0)
+        ev.save('teleop-topic-sample', smp)
+        if smp['/cmd_vel_flysky']['count'] > 0:
+            raise Fail(f'{smp["/cmd_vel_flysky"]["count"]} message(s) on /cmd_vel_flysky: the disabled teleop must publish nothing')
+        st = smp['/atlas/flysky/drive_status']
+        if st['count'] == 0:
+            raise Fail('teleop status not received through the bridge')
+        try:
+            state = json.loads(st['last']).get('state')
+        except (TypeError, ValueError):
+            state = None
+        if state != 'DISABLED':
+            raise Fail(f'teleop reports state {state!r}, required DISABLED')
     if step == 'web':
         v = env.get('/api/manual_controller')
         pol, drv = v.get('policy', {}), v.get('drive', {})
