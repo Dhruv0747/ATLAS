@@ -42,8 +42,18 @@ def cpu_ram_temp(seconds=3.0):
     cpu = 100.0 * (1 - (i2 - i1) / max(1, t2 - t1))
     mem = {l.split(':')[0]: int(l.split()[1]) for l in open('/proc/meminfo') if l.split(':')[0] in ('MemTotal', 'MemAvailable')}
     ram = 100.0 * (1 - mem['MemAvailable'] / mem['MemTotal'])
-    temps = [int(open(p).read()) / 1000.0 for p in glob.glob('/sys/class/thermal/thermal_zone*/temp')]
-    return cpu, ram, max(temps) if temps else None
+    return cpu, ram, max_temp()
+
+
+def max_temp(paths=None):
+    """Hottest readable thermal zone in C; some Jetson zones refuse reads (skipped). None when none is readable."""
+    temps = []
+    for p in (glob.glob('/sys/class/thermal/thermal_zone*/temp') if paths is None else paths):
+        try:
+            temps.append(int(open(p).read().strip()) / 1000.0)
+        except (OSError, ValueError, TypeError):
+            continue
+    return max(temps) if temps else None
 
 
 def checks(get=get, systemctl=systemctl, resources=cpu_ram_temp, runtime=None, uid=None):
@@ -89,7 +99,7 @@ def checks(get=get, systemctl=systemctl, resources=cpu_ram_temp, runtime=None, u
     add(all(v != 'active' for v in states.values()), 'AI / fusion features idle', ', '.join(f'{k[6:]}={v}' for k, v in states.items()))
     add(not (runtime / 'atlas-mux-maintenance' / 'lease.json').exists(), 'no restart lease left over')
     cpu, ram, temp = resources()
-    add(cpu <= CPU_LIMIT and ram <= RAM_LIMIT and (temp is None or temp < TEMP_LIMIT), 'CPU / RAM / temperature within limits',
+    add(cpu <= CPU_LIMIT and ram <= RAM_LIMIT and temp is not None and temp < TEMP_LIMIT, 'CPU / RAM / temperature within limits',
         f'cpu {cpu:.1f} % ram {ram:.1f} % temp {temp}')
     add((HERE / 'stage29_stop_recorder.py').exists(), 'stop recorder present')
     return out

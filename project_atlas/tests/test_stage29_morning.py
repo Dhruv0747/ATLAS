@@ -21,7 +21,7 @@ def world(**over):
     return w
 
 
-def run(w):
+def run(w, temp=62.0):
     tmp = Path(tempfile.mkdtemp())
     if w['gate']:
         for u in ('atlas-cmd-vel-mux.service', 'atlas-flysky-teleop.service'):
@@ -50,8 +50,12 @@ def run(w):
                             'encoder_health': {'value': json.dumps({'state': 'READY'})}}}
         raise AssertionError(path)
     with mock.patch.object(H.time, 'sleep', lambda s: None):
-        res = H.checks(get=get, systemctl=lambda *a: w['feature'], resources=lambda: (w['cpu'], 60.0, 62.0), runtime=tmp)
+        res = H.checks(get=get, systemctl=lambda *a: w['feature'], resources=lambda: (w['cpu'], 60.0, temp), runtime=tmp)
     return {item: ok for ok, item, _ in res}
+
+
+def run_with_temp(w, temp):
+    return run(w, temp)
 
 
 class Precheck(unittest.TestCase):
@@ -66,6 +70,18 @@ class Precheck(unittest.TestCase):
         for k, v in cases.items():
             r = run(world(**{k: v}))
             self.assertFalse(all(r.values()), f'{k}={v} was GO')
+
+    def test_temperature_unknown_or_hot_is_no_go(self):
+        for temp in (None, 71.0):
+            with self.subTest(temp=temp):
+                tmp = world()
+                r = run_with_temp(tmp, temp)
+                self.assertFalse(r['CPU / RAM / temperature within limits'])
+
+    def test_unreadable_thermal_zones_are_skipped(self):
+        d = Path(tempfile.mkdtemp()); (d / 'a').write_text('55000\n'); (d / 'b').write_text('61500\n')
+        self.assertEqual(H.max_temp([str(d / 'a'), str(d / 'missing'), str(d / 'b')]), 61.5)
+        self.assertIsNone(H.max_temp([str(d / 'missing')]))
 
     def test_helper_is_read_only(self):
         src = (ROOT / 'tools/deploy/stage29_flysky_drive/stage29_morning.py').read_text()
