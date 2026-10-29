@@ -761,3 +761,35 @@ The `view` step now also installs the two images and the licence record. Nothing
 
 **Dashboard load with the page's polling**
 - Status-web process: 49.1 % of one core idle, 50.0 % polled. System busy 63.6 % idle, 63.0 % polled. The difference is within noise.
+
+## Live input check and E-STOP release incident, 2026-10-29 15:01–15:30 IST
+
+**15:01 check (300 s):** no input arrived. The FlySky receiver was in FAILSAFE throughout, so the transmitter was off. This also explains the 12:15 "no switch change" result:
+- in failsafe the receiver outputs exactly CH5–CH8 = 240 and the sticks at 1024 with no jitter, which is what the 12:15 recording showed;
+- the transmitter was probably off then too.
+
+**15:22 check (300 s, file cad948c7, 1496 samples of exactly what the page receives):**
+- **FlySky switch positions verified (raw):**
+  - SwA (CH5): 240 up, 1807 down.
+  - SwB (CH6): 240 up, 1024 middle, 1807 down.
+  - SwC (CH7): 240 up, 1024 middle, 1807 down.
+  - SwD (CH8): 240 up, 1807 down.
+  - These match the config thresholds: arm >1700, off <400, run <400, speed bands.
+- CH1–CH4, CH9 and CH10 all swept the full 240–1807 range.
+- Link: LIVE 1420 samples. Failsafe during transmitter power-on (0–0.6 s), at 72–80 s, and at power-off (293–300 s).
+- Xbox: /joy live, 8 axes and 11 buttons. Received: A, LB (with A), RB, LT, RT. **Not received: B, X, Y, D-pad, sticks.** The mux stop reason stayed "joystick unavailable", proving B never reached the mux in that window.
+
+**15:28 B check (75 s):**
+- B reached /joy and the mux, which logged "REMOTE STOP: B pressed". **The Xbox stop path works.**
+- Right stick axis 3 and LS were also seen.
+
+**INCIDENT: E-STOP released and the Xbox drove.**
+- At about 15:29:32 the mux logged "release LB to reset" then "released by neutral LB hold": **LB held alone for 2 s and released (the designed reset)**, while Claude's B-check instruction asked for B presses and a left-stick push **without repeating the LB warning**.
+- With the latch released and Xbox selected, the mux logged "Safety stop: REMOTE released" six times between 15:29:35 and 15:29:42: six Xbox drive commands, each ended by releasing LB or the stick.
+- Encoders went from [-444, 1473, -14198, 1401] (14:46) to [17452, -15665, -17394, -16521]: **the wheels turned** (about 17,000 counts on three wheels, about 3,000 on m3).
+- At about 15:29:50 Claude **re-latched the stop with the dashboard E-STOP** (POST / action=e_stop: "EMERGENCY STOP LATCHED"; mux reason "voice stop requested"). Afterwards: motor_speed 0, /cmd_vel 0, source STOPPED, XBOX, gate off.
+- The owner had confirmed "lifted and clear" at 14:44. Whether it was still lifted at 15:29 is **unconfirmed (asked)**.
+- Learned:
+  - The Xbox reset is one hand gesture away during any Xbox button test. Every instruction that involves pressing Xbox buttons while latched must repeat "never hold LB alone".
+  - Prefer tests that don't need the Xbox.
+  - The software E-STOP, mux and base all behaved as designed. The failure was in the test procedure.
