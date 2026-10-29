@@ -48,10 +48,12 @@ class FakeRover:
         self.observer_never_back = False
 
     # ---- what is installed
-    def installed(self, rel):
-        spec = MAN['steps'][next(s for s in MAN['steps'] if rel in MAN['steps'][s]['files'])]['files'][rel]
+    def installed(self, rel, step=None):
+        """rel is at a reviewed candidate (of `step`, or of any step that writes it: A3 and 'view' share page files)."""
+        steps = [step] if step else [s for s in MAN['steps'] if rel in MAN['steps'][s]['files']]
+        spec = MAN['steps'][steps[0]]['files'][rel]
         dst = (self.env.unit_dir / Path(rel).name) if spec['kind'] == 'unit' else (self.env.project / rel)
-        return dst.exists() and h(dst) == spec['candidate_sha256']
+        return dst.exists() and h(dst) in {MAN['steps'][s]['files'][rel]['candidate_sha256'] for s in steps}
 
     def mux_patched(self):
         return self.installed('scripts/atlas_cmd_vel_mux.py')
@@ -138,9 +140,16 @@ class FakeRover:
                     'can_select': {'XBOX': False, 'FLYSKY': False}}
         if path == '/api/flysky/state':
             return {'read_only': True, 'link': {'state': 'LIVE'}}
+        if path == '/api/controller_inputs':
+            if not self.installed('scripts/atlas_controller_input_web.py') or not self.web_restarted:
+                raise OSError('404')
+            return {'read_only': True, 'xbox': {'state': 'LIVE', 'layout_ok': not getattr(self, 'bad_joy_layout', False),
+                                                'axes': [0.0] * 8, 'buttons': [0] * 11}}
         raise OSError('unknown ' + path)
 
     def get_text(self, path):
+        if path == '/v2/flysky-drive' and self.installed('web/v2/flysky-drive.html', 'view'):
+            return 200, 'ATLAS · FlySky Driving SELECT FLYSKY <script src="/v2/controller-viz.js">'
         if path == '/v2/flysky-drive' and self.installed('web/v2/flysky-drive.html'):
             return 200, 'ATLAS · FlySky Driving'
         return 404, ''
@@ -429,7 +438,7 @@ class AdvertisedTopicsReal(unittest.TestCase):
 class Commissioning(Base):
     def deploy_all(self):
         self.cpu = []
-        for step in D.STEPS:
+        for step in D.REQUIRED_STEPS:          # what the rover has: A1-A3
             self.assertEqual(self.run_step(step), 0, step)
 
     def act(self, *argv):
@@ -493,3 +502,41 @@ class Preflight(Base):
 
 if __name__ == '__main__':
     unittest.main()
+
+class ViewStep(Commissioning):
+    """The optional dual-controller dashboard step, chained on A3, never required for driving."""
+
+    def test_view_deploys_on_a3_and_rolls_back_exactly(self):
+        self.deploy_all()
+        a3 = {rel: h(self.env.project / rel) for rel in MAN['steps']['view']['files'] if (self.env.project / rel).exists()}
+        self.assertEqual(self.run_step('view'), 0)
+        for rel, cand in CAND['view'].items():
+            self.assertEqual(h(self.env.project / rel), cand, rel)
+        for st in D.STEPS:
+            self.assertTrue(D.step_done(self.env, st), st)          # web is superseded, not broken
+        self.assertEqual(self.run_step('view'), 3)                   # already installed: refused
+        ev = next(d for d in sorted(self.env.evidence_root.glob('stage29-deploy-view-*')) if (d / 'backup/meta.json').exists())
+        with mock.patch.dict(os.environ, {'OWNER_APPROVED': 'yes'}):
+            self.assertEqual(D.main(['rollback', '--step', 'view', '--evidence', str(ev), '--owner-confirms-estop-latched',
+                                     '--owner-confirms-rover-lifted-and-clear'], env=self.env), 0)
+        for rel, sha in a3.items():
+            self.assertEqual(h(self.env.project / rel), sha, rel)
+        self.assertFalse((self.env.project / 'scripts/atlas_controller_input_web.py').exists())
+        self.assertTrue(all(D.step_done(self.env, st) for st in D.REQUIRED_STEPS)); self.assertFalse(D.step_done(self.env, 'view'))
+
+    def test_view_needs_a3_and_bad_layout_rolls_back(self):
+        self.cpu = []
+        for st in ('mux', 'teleop'):
+            self.assertEqual(self.run_step(st), 0)
+        self.assertEqual(self.run_step('view'), 3)                   # A3 missing: refused, nothing changed
+        self.assertEqual(self.run_step('web'), 0)
+        self.rover.bad_joy_layout = True
+        self.assertEqual(self.run_step('view'), 1)                   # verification fails -> rolled back to A3
+        self.assertTrue(D.step_done(self.env, 'web')); self.assertFalse(D.step_done(self.env, 'view'))
+
+    def test_gate_on_works_with_or_without_view(self):
+        self.deploy_all()
+        self.assertEqual(self.run_step('view'), 0)
+        self.assertEqual(self.act('review-config', '--owner-reviewed-config'), 0)
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 0)
+        self.assertEqual(self.act('gate-off', '--cpu-bound-s', '3'), 0)

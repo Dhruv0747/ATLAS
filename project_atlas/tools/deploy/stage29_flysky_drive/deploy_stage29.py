@@ -15,6 +15,9 @@ Steps, in this fixed order, ONE per invocation, each with its own approval and i
   web    : patched atlas_status_web.py, atlas_web_v2.py (+1 route), flysky.css, new endpoint module and page;
            restart rover-status-web. The observer is independent of the dashboard and is the in-window safety
            source; the dashboard's 14 predicates are checked before and after.
+  view   : (UI only, optional) dual-controller dashboard: one additive import + GET route in the A3 status web, the
+           read-only live Xbox input module, the controller visualisation page files; restart rover-status-web.
+           Chained on A3 (its baselines are the A3 candidates). Never required for driving (gate-on ignores it).
 
 Monitoring (reused unchanged from the Stage 28 deployer): continuous 1-s CPU/RAM/temperature recorder and the
 independent safety observer (0.25 s verdicts, 1.0 s freshness, 1.0 s gap limit), both started before the change,
@@ -51,13 +54,17 @@ sys.path.insert(0, str(HERE))
 import deploy_rc_bridge as d28                              # noqa: E402  (reused, unchanged)
 import insert_flysky_mux                                    # noqa: E402
 import insert_status_web_hooks                              # noqa: E402
+import insert_controller_input_hooks                        # noqa: E402
 sys.path.insert(0, str(REPO / 'scripts'))
 
 Fail = d28.Fail
 CPU_LIMIT, RAM_LIMIT, TEMP_LIMIT = d28.CPU_LIMIT, d28.RAM_LIMIT, d28.TEMP_LIMIT
 MANIFEST = json.loads((HERE / 'MANIFEST.json').read_text())
-STEPS = ('mux', 'teleop', 'web')
-UNITS = {'mux': 'atlas-cmd-vel-mux.service', 'teleop': 'atlas-flysky-teleop.service', 'web': 'rover-status-web.service'}
+STEPS = ('mux', 'teleop', 'web', 'view')
+REQUIRED_STEPS = ('mux', 'teleop', 'web')          # what FlySky driving needs; 'view' is the optional dashboard UI
+UNITS = {'mux': 'atlas-cmd-vel-mux.service', 'teleop': 'atlas-flysky-teleop.service', 'web': 'rover-status-web.service',
+         'view': 'rover-status-web.service'}
+DASHBOARD_STEPS = ('web', 'view')
 MUX_SIGNALS = ('estop_latched', 'manual_only', 'commission_off', 'source_stopped', 'cmd_zero')   # published by the mux
 MUX_BACK_TIMEOUT_S = 20.0
 RECOVERY_MEAN_MARGIN = 4.0
@@ -207,7 +214,8 @@ def file_plan(env, step):
             live = dst.read_text(encoding='utf-8')
             if d28.sha(dst) != spec['baseline_sha256']:
                 raise Fail(f'{rel}: live file drifted from the reviewed baseline ({d28.sha(dst)[:12]}); nothing changed')
-            mod = {'insert_flysky_mux.py': insert_flysky_mux, 'insert_status_web_hooks.py': insert_status_web_hooks}[spec['patcher']]
+            mod = {'insert_flysky_mux.py': insert_flysky_mux, 'insert_status_web_hooks.py': insert_status_web_hooks,
+                   'insert_controller_input_hooks.py': insert_controller_input_hooks}[spec['patcher']]
             data = mod.apply(live).encode('utf-8')
         else:
             src = REPO / spec['source']
@@ -228,8 +236,15 @@ def file_plan(env, step):
 
 
 def step_done(env, step, ignore=()):
+    """Every file of `step` is at its reviewed candidate hash. A file that a LATER step also writes is checked by that
+    later step instead, when the later step is installed (the 'view' step replaces A3 page files; its baselines are the
+    A3 candidates, so the chain is exact)."""
+    superseded = set()
+    for later in STEPS[STEPS.index(step) + 1:]:
+        if step_done(env, later, ignore):
+            superseded |= set(MANIFEST['steps'][later]['files'])
     for rel, spec in MANIFEST['steps'][step]['files'].items():
-        if rel in ignore:
+        if rel in ignore or rel in superseded:
             continue
         dst = (env.unit_dir / Path(rel).name) if spec['kind'] == 'unit' else (env.project / rel)
         if not dst.exists() or d28.sha(dst) != spec['candidate_sha256']:
@@ -312,7 +327,8 @@ def preconditions(env, ev, step):
     p = policy(env)
     if p.get('manual_controller', 'XBOX') != 'XBOX' or p.get('flysky_drive_enabled') is True:
         raise Fail(f'unexpected controller policy {p}')
-    d28.require_safe(env, ev, f'{step}-pre', count=3)
+    after_a3 = STEPS.index(step) > STEPS.index('web')      # the dashboard has run since the A3 restart
+    (require_safe_after_dashboard_restart if after_a3 else d28.require_safe)(env, ev, f'{step}-pre', count=3)
     d28.resources_strict(env, ev, f'{step}-preflight', env.preflight_s)
 
 
@@ -411,7 +427,7 @@ def verify(env, ev, step, before, protected0):
             state = None
         if state != 'DISABLED':
             raise Fail(f'teleop reports state {state!r}, required DISABLED')
-    if step == 'web':
+    if step in DASHBOARD_STEPS:
         v = env.get('/api/manual_controller')
         pol, drv = v.get('policy', {}), v.get('drive', {})
         if not (pol.get('selection_supported') is True and pol.get('manual_controller') == 'XBOX'
@@ -425,6 +441,16 @@ def verify(env, ev, step, before, protected0):
         lab = env.get('/api/flysky/state')
         if lab.get('read_only') is not True or 'link' not in lab:
             raise Fail('FlySky Test Lab API changed or unavailable')
+    if step == 'view':
+        ci = env.get('/api/controller_inputs')
+        xb = ci.get('xbox') or {}
+        if ci.get('read_only') is not True or xb.get('state') not in ('LIVE', 'STALE', 'LOST', 'NO_DATA'):
+            raise Fail(f'/api/controller_inputs not as required: {ci}')
+        if xb.get('state') == 'LIVE' and xb.get('layout_ok') is not True:
+            raise Fail(f'Xbox /joy layout differs from the verified 8 axes / 11 buttons: {xb}')
+        if 'controller-viz.js' not in html or 'SELECT FLYSKY' not in html:
+            raise Fail('/v2/flysky-drive is not the dual-controller page')
+        ev.save('view-controller-inputs', ci)
     ev.log(f'{step}: verified {unit} pid {s.get("MainPID")}; policy {p}')
 
 
@@ -507,7 +533,7 @@ def deploy_step(env, args, ev=None):
             recovery_mean(ev, step, rec, t0, args.cpu_bound_s)
             ev.save(f'cpu-recorder-{step}', {'t_restart': t0, 'samples': rec.samples, 'ram_temp': rec.rt})
         verify(env, ev, step, before, protected0)
-        (require_safe_after_dashboard_restart if step == 'web' else d28.require_safe)(env, ev, f'{step}-post', count=3)
+        (require_safe_after_dashboard_restart if step in DASHBOARD_STEPS else d28.require_safe)(env, ev, f'{step}-post', count=3)
         ev.log(f'STEP {step} PASS (gate off; Xbox selected; E-STOP latched)')
         ev.save('result', {'result': 'PASS', 'step': step}); ev.seal()
         return 0
@@ -617,7 +643,7 @@ def gate_on(env, args):
     ev = Evidence(env, 'gate-on')
     import atlas_flysky_drive_core as dcore
     try:
-        for step in STEPS:      # the config is validated below instead: review-config changes it on purpose
+        for step in REQUIRED_STEPS:      # the config is validated below instead: review-config changes it on purpose
             if not step_done(env, step, ignore=('config/atlas_flysky_drive.json',)):
                 raise Fail(f'step {step} is not installed')
         if any(g.exists() for g in gate_paths(env)):
@@ -745,6 +771,8 @@ def preflight(env, args):
         try:
             if step_done(env, step):
                 ev.log(f'step {step}: INSTALLED')
+            elif MANIFEST['steps'][step].get('supersedes') and not step_done(env, MANIFEST['steps'][step]['supersedes']):
+                ev.log(f'step {step}: builds on step {MANIFEST["steps"][step]["supersedes"]}, not installed yet; checked after it')
             else:
                 file_plan(env, step)
                 ev.log(f'step {step}: candidates rebuilt from live files, all hashes match')
@@ -753,7 +781,7 @@ def preflight(env, args):
             ev.log(f'step {step}: {exc}')
     for label, fn in (('gate', lambda: require_gate_off(env, ev)),
                       ('estop', lambda: require_latched(env)),
-                      ('safety', lambda: d28.require_safe(env, ev, 'preflight')),
+                      ('safety', lambda: require_safe_after_dashboard_restart(env, ev, 'preflight')),   # dashboard runs since A3
                       ('resources', lambda: d28.resources_strict(env, ev, 'preflight', env.preflight_s))):
         try:
             fn()

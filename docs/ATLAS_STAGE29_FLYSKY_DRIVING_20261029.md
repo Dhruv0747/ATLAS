@@ -595,3 +595,98 @@ Backups are in each step's evidence `backup/`; rollback is `deploy_stage29.py ro
 - **No independent motor-power disconnect** (owner decision). The software E-STOP is not power isolation.
 - Mux shutdown `RCLError` seen once under CPU saturation: zero-on-shutdown may be lost; the base deadman mitigates.
 - The A3 transient is now measured at 15–17 s, so 20 s has only about 3 s of margin for future dashboard restarts.
+
+## Commissioning preparation, 2026-10-29 11:55–12:16 IST (read-only on the rover; nothing enabled)
+
+### Home-page shortcut (deployed, static files only, no restart; commit e9d9a31)
+`/v2/` now has a **FlySky Driving** tile that links to `/v2/flysky-drive`, and the labs grid is 2×2 (one column on phones).
+
+| File | Before | After |
+|---|---|---|
+| index.html | 3e8e55d2 | 80f905a4 |
+| home.css | 9f93d704 | cad19a86 |
+
+Backups: `~/atlas_backups/stage29_home_button_20261029/`. The mux, teleop and dashboard PIDs did not change.
+
+### Why FlySky could not be selected (12:09, live `/api/manual_controller`)
+`blocked_reason` read "FlySky driving is disabled on this rover". Two causes, both by design:
+- the gate is off (`ATLAS_FLYSKY_DRIVE_ENABLED` is not 1);
+- `reviewed_by_owner` is false.
+
+The runtime conditions for selection were all met: E-STOP latched, source STOPPED, XBOX selected, receiver live.
+
+### Owner decisions (12:10)
+- Accepted the CH2 throttle / CH1 steering layout.
+- Kept SwA = arm, SwB = run/stop, SwC = speed.
+- Kept the 0.05 m/s and 0.20 rad/s commissioning caps, with no base profile change.
+- `reviewed_by_owner` and the gate stay off until the switch positions and final safety behaviour are confirmed.
+
+### Staged on the rover (not applied)
+- `~/project-atlas-migration/stage29A_pkg_3807645/` (tar 1ced5709, manifest check OK).
+- Candidate config `owner_review/atlas_flysky_drive.review_candidate.json` (2a2d9b7f). Versus live 031c9c08 it changes only `max_linear_mps` 0.15→0.05 and `max_angular_radps` 0.6→0.20, and `reviewed_by_owner` stays false.
+
+### Switch check
+- **Static read (5 s):** CH5 = CH6 = CH7 = 240 (SwA OFF, SwB RUN, SwC 33 %), CH1 = CH2 = 1024.
+- **Owner-moved 60 s check (12:15, 75 s record, file fcbb8bbd):** 749 frames, no failsafe or lost frames, longest gap 0.125 s, and **no channel changed**. CH5/6/7 stayed 240 and CH1/2 stayed 1024 throughout. E-STOP stayed latched, /cmd_vel 354/354 zero, /motor_speed zero, 0 messages on /cmd_vel_flysky, encoders unchanged.
+- **Result: switch positions NOT verified.** Frames were fresh, so either the switches were moved outside the window, or the transmitter's AUX assignment no longer puts SwA–SwC on CH5–CH7. Not resolved; re-check on the Test Lab page first.
+
+### Findings that affect the lifted-wheel test (measured from code and config, not on wheels)
+- **SwB and SwC are 3-position on the FS-i6S; SwA and SwD are 2-position** (FS-i6S user manual). The stop logic is still safe: RUN only below 400 (up); middle or down stops and latches.
+- **SwC scales the cap.** At 0.05 m/s:
+  - SwC up: 0.0165 m/s, inside the base's |vx| ≤ 0.02 zero band. **The wheels can never move.**
+  - SwC middle: 0.033 m/s, about 61 PWM.
+  - SwC down: 0.05 m/s, about 62 PWM.
+  - FLYSKY uses the autonomous profile (60 + 40·|vx|), below the manual 80 PWM breakaway floor. The wheels may not turn on the stand, and if they don't, stop timing cannot be measured. Caps kept by owner decision; revisit only with measured evidence and a separate approval.
+
+## Dual-controller dashboard (12:15 request): implemented and tested offline, NOT deployed
+
+The FlySky Driving page now shows the controller visually. All of this is read-only on the visualisation side.
+
+**Page behaviour**
+- **Xbox mode:** an original Xbox 360 layout schematic (not product artwork). Every stick, trigger, bumper, face button, D-pad and the Back/Start/Guide buttons is labelled. Controls highlight live, stick positions move, and each control shows its ATLAS function and state.
+- **FlySky mode:** an original FS-i6S schematic. It covers both sticks (CH1–CH4), SwA–SwD (CH5–CH8) with up/middle/down levers, the VrA/VrB knobs (CH9/CH10), the rear Key 1/Key 2 (not on any channel) and the power buttons. Raw channel values, positions and change highlights come from the existing read-only Test Lab API.
+- **States:**
+  - Active
+  - Inactive (other remote selected)
+  - Blocked (E-STOP latched or signal lost)
+  - Proposed (in the FlySky setup, gate off)
+  - Planned (VrA/VrB camera, not implemented)
+  - Not used
+- **FlySky roles are read from the drive node's reported config, never from the page.** A differing running config raises a visible warning. Nothing proposed is shown as Active unless gate on, reviewed, FLYSKY selected, signal live and E-STOP released.
+- **Selection:** SELECT XBOX / SELECT FLYSKY are the existing mux-backed buttons (the only POST, unchanged). The blocked reason is shown next to them, and "Selected" comes only from fresh mux policy. "Show Xbox / Show FlySky" changes only the drawing and is labelled "Preview only" when it differs from the selected remote.
+- **Indicators:** selected remote, actual command source, E-STOP, FlySky driving enabled, Xbox and FlySky signal (lost, stale, failsafe, dropped frames, not installed).
+- **Layouts:** desktop and tablet use side callouts; on a phone the drawing is cropped and the legend is stacked.
+
+**Verified Xbox assignments.** Read from the rover's own files, whose hashes match the repo:
+- teleop_twist_joy.yaml edfea663:
+  - LB (4) is the hold-to-drive dead-man;
+  - RB (5) is turbo;
+  - axis 1 drives at 0.52 / 0.65 m/s;
+  - axis 3 steers at 1.20 / 1.60 rad/s.
+- atlas_remote_stop.py 1a44fb37:
+  - B (1) is REMOTE STOP and latches;
+  - LB held 2 s with sticks centred, then released, resets the E-STOP.
+- camera_joystick_node.py 6b5ad455: D-pad (axes 6/7) pans and tilts the camera, and Y (3) homes it.
+- Not used: A, X, LT, RT, Back, Start, Guide, the stick clicks, left stick left-right and right stick up-down.
+- Live `/joy`: 8 axes and 11 buttons, triggers resting at +1.0.
+
+**New files**
+- `scripts/atlas_controller_input_web.py`: GET `/api/controller_inputs` only (POST 405). It runs its own lazy read-only node with one `/joy` subscription and no publisher or client, stopped after 60 s idle. The dashboard's existing `joy` item, which feeds the web E-STOP observation, is untouched.
+- `web/v2/controller-map.js`, `web/v2/controller-viz.js`: GET only.
+- `tools/flysky/drive_sim_server.py`: real backends, simulated inputs.
+
+**Deployment: one dashboard restart, approval required.** New deployer step **`view`**, chained on A3 (its baselines are the A3 candidates):
+
+| File | A3 (live) | view |
+|---|---|---|
+| atlas_status_web.py | 983024c3 | e0809e70 (+1 import, +1 GET route) |
+| flysky-drive.html | 89f017a9 | b5b4f12e |
+| flysky-drive.js | b2d0c83f | dd02e0e5 |
+| flysky.css | e5852855 | 2fa74556 |
+| atlas_controller_input_web.py, controller-map.js, controller-viz.js | (new) | see MANIFEST.json |
+
+- `view` is not required for driving: gate-on checks only mux/teleop/web, and `step_done` treats A3 files replaced by an installed `view` as superseded.
+- Rollback restores the exact A3 files.
+- Preflight and the view pre-check use the documented fresh-dashboard rule (`web_drive` absent accepted, any non-STOP value fails).
+
+**Tests:** test_controller_dashboard (19), deployer ViewStep (3 new), and all Stage 29 and UI suites.

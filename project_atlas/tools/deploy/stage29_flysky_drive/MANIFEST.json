@@ -1,7 +1,13 @@
 {
-  "stage": "29 Stage A: FlySky driving integration deployed with the gate OFF",
+  "stage": "29 Stage A: FlySky driving integration deployed with the gate OFF (+ view: dual-controller dashboard)",
   "gate": "ATLAS_FLYSKY_DRIVE_ENABLED must be absent or 0 everywhere; config reviewed_by_owner false",
   "order": [
+    "mux",
+    "teleop",
+    "web",
+    "view"
+  ],
+  "required_for_driving": [
     "mux",
     "teleop",
     "web"
@@ -61,7 +67,7 @@
         "web/v2/flysky.css": {
           "kind": "replace",
           "baseline_sha256": "34d3e40423c9ff8ebd8054e00b77e93aaad618b8140c542d59ec070ef5928427",
-          "source": "web/v2/flysky.css",
+          "source": "tools/deploy/stage29_flysky_drive/baseline/flysky.css.a3-e5852855",
           "candidate_sha256": "e5852855930a4762c021e45530eb82f07e26ccf09399e47a8f8dd43045b0aafd"
         },
         "scripts/atlas_manual_controller_web.py": {
@@ -71,13 +77,58 @@
         },
         "web/v2/flysky-drive.html": {
           "kind": "new",
-          "source": "web/v2/flysky-drive.html",
+          "source": "tools/deploy/stage29_flysky_drive/baseline/flysky-drive.html.a3-89f017a9",
           "candidate_sha256": "89f017a92e2872bd68e7ec6d5578a30ce1e11d347dc9b80e565d4c6268b4999f"
         },
         "web/v2/flysky-drive.js": {
           "kind": "new",
-          "source": "web/v2/flysky-drive.js",
+          "source": "tools/deploy/stage29_flysky_drive/baseline/flysky-drive.js.a3-b2d0c83f",
           "candidate_sha256": "b2d0c83f32c17d2b6aab8d707c8d15781d07bd04e7617fe9cc3f045756fb39a5"
+        }
+      }
+    },
+    "view": {
+      "unit": "rover-status-web.service",
+      "supersedes": "web",
+      "files": {
+        "scripts/atlas_status_web.py": {
+          "kind": "patch",
+          "patcher": "insert_controller_input_hooks.py",
+          "baseline_sha256": "983024c3c1688b4ad43e42b773e4518b3ba3bc9ccdf140d5c8bc833219c3137b",
+          "candidate_sha256": "e0809e70b37adad72e5d6d17da4693cd15f750c6f28ab37b9d8ad416a4cac142"
+        },
+        "scripts/atlas_controller_input_web.py": {
+          "kind": "new",
+          "source": "scripts/atlas_controller_input_web.py",
+          "candidate_sha256": "d2505ddba68c0ff28b26113ccb7e40683b737cf2d4c1d2be347a20ad95715b00"
+        },
+        "web/v2/controller-map.js": {
+          "kind": "new",
+          "source": "web/v2/controller-map.js",
+          "candidate_sha256": "8f1f302b1d6cda22ab02f77af9dd48d499fc1565f7b2f0a0f1435466c50054b0"
+        },
+        "web/v2/controller-viz.js": {
+          "kind": "new",
+          "source": "web/v2/controller-viz.js",
+          "candidate_sha256": "0ae3452f082c79b7a96bd5864de487907c1418bca094880bdc02a8e1dccfc876"
+        },
+        "web/v2/flysky-drive.html": {
+          "kind": "replace",
+          "baseline_sha256": "89f017a92e2872bd68e7ec6d5578a30ce1e11d347dc9b80e565d4c6268b4999f",
+          "source": "web/v2/flysky-drive.html",
+          "candidate_sha256": "b5b4f12e301fceed962e28452ab789c6034e959394282e06b65a137cb897daee"
+        },
+        "web/v2/flysky-drive.js": {
+          "kind": "replace",
+          "baseline_sha256": "b2d0c83f32c17d2b6aab8d707c8d15781d07bd04e7617fe9cc3f045756fb39a5",
+          "source": "web/v2/flysky-drive.js",
+          "candidate_sha256": "dd02e0e51787d7c9a7128ca0fef52a1d5b9b9704c9182d9d4fb08b07e9fb5e84"
+        },
+        "web/v2/flysky.css": {
+          "kind": "replace",
+          "baseline_sha256": "e5852855930a4762c021e45530eb82f07e26ccf09399e47a8f8dd43045b0aafd",
+          "source": "web/v2/flysky.css",
+          "candidate_sha256": "2fa74556db481d9ce975e381214d9ce0653a29d72bf4a6002aef3f24b9f89b5d"
         }
       }
     }

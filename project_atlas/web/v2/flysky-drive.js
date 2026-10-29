@@ -49,7 +49,10 @@
 
     $('useXbox').disabled = busy || !v.can_select.XBOX; $('useFlysky').disabled = busy || !v.can_select.FLYSKY;
     $('useXbox').classList.toggle('tl-primary', p.manual_controller === 'XBOX'); $('useFlysky').classList.toggle('tl-primary', p.manual_controller === 'FLYSKY');
-    setText($('useXbox'), p.manual_controller === 'XBOX' ? 'Xbox (active)' : 'Use Xbox'); setText($('useFlysky'), p.manual_controller === 'FLYSKY' ? 'FlySky (active)' : 'Use FlySky');
+    for (const [id, k] of [['useXbox', 'XBOX'], ['useFlysky', 'FLYSKY']]) {
+      const btn = $(id), sel = p.fresh && p.manual_controller === k;
+      btn.setAttribute('aria-pressed', String(!!sel)); setText(btn.querySelector('.fd-sel'), sel ? 'Selected' : v.can_select[k] ? 'Available' : 'Blocked');
+    }
     if (!busy && Date.now() > noteUntil) setText($('selNote'), (v.can_select.XBOX || v.can_select.FLYSKY) ? 'Ready to change remote.' : v.blocked_reason ? 'Change not possible now: ' + v.blocked_reason + '.' : '');
 
     const live = $('live'); live.textContent = '';
@@ -87,9 +90,11 @@
       const r = await fetch('/api/manual_controller', { cache: 'no-store' });
       if (!r.ok) throw new Error(String(r.status));
       v = await r.json(); render();
+      window.dispatchEvent(new CustomEvent('atlas:controller', { detail: v }));     // read by controller-viz.js
     } catch (e) {
       const b = $('banner'); b.hidden = false; b.className = 'tl-banner fail'; b.textContent = 'Cannot reach the rover. Treat it as live and use the physical stop.';
       chip('chipStop', 'fail', 'Stop state unknown'); $('useXbox').disabled = $('useFlysky').disabled = true;
+      window.dispatchEvent(new CustomEvent('atlas:controller', { detail: null }));
     }
     setTimeout(poll, document.hidden ? 2000 : 500);
   }
