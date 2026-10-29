@@ -71,3 +71,52 @@ E-STOP stayed latched and the encoders were unchanged throughout. The earlier "n
 4. Xbox driving after an E-STOP reset is untested.
 
 Raw logs are kept on the Jetson and in the owner's `Downloads/atlas_deploy/stage28_flysky_evidence_20261028.tgz` (SHA-256 `ac25284243f966a7…`). They are not committed, per AGENTS.md.
+
+## Channel verification, 2026-10-29: Stage 28 COMPLETE
+
+The owner assigned CH5–CH10 on the FS-i6S (Function → Aux. channels) and moved every control once. Evidence comes from
+the read-only logger, 08:28:41–09:13:41 IST: 5394 samples at 2 Hz in `stage28-flysky-live-20261028/rc_state_20261029.jsonl`.
+The owner then saved and exported the Test Lab mapping at 09:23:21.
+
+Context: the Jetson rebooted at 17:46 on 28 Oct. After the reboot:
+- the base and recovery run as PIDs 1953 and 1998;
+- every deployed RC-bridge and Test Lab file still has its deployed hash;
+- `atlas_flysky_core.py` (3e4b379e) is unchanged.
+
+| CH | Control (owner-verified) | Range seen | Direction (first swing after "full right/up") | Kind |
+|---|---|---|---|---|
+| 1 | Right stick left–right | 240–1807 | right = high | analog |
+| 2 | Right stick up–down | 240–1807 | up = high | analog |
+| 3 | Left stick up–down | 240–1807 | up = high | analog (does not spring back on the FS-i6S) |
+| 4 | Left stick left–right | 240–1807 | right = high | analog |
+| 5 | SwA | 240 / 1807 | up = 240, down = 1807 | switch |
+| 6 | SwB | 240 / 1807 | up = 240, down = 1807 | switch |
+| 7 | SwC | 240 … 1807 | up = 240 | switch |
+| 8 | SwD | 240 / 1807 | up = 240, down = 1807 | switch |
+| 9 | VrA | 240–1807 | — | analog |
+| 10 | VrB | 240–1807 | — | analog |
+
+Notes on the evidence:
+- The logged levels for CH5–CH8 include the pre-assignment 1024. The 2- versus 3-position count of each switch is not
+  separately evidenced here.
+- The Test Lab's own classification and the owner's check cover it.
+
+Link and safety during the session:
+- **Link:** LIVE from 08:33:36. Frames 32,222 at 09:27. 0 invalid, 0 incomplete. The frame-lost and failsafe flags were
+  never set (counts 0).
+- **E-STOP:** latched from 08:29:53 for the whole session ("REMOTE STOP: B pressed"). Before that, 08:28:41–08:29:53,
+  it was still released from the owner's use on 28 Oct: "released by neutral LB hold" at 17:55:46. The owner latched it
+  before any transmitter step.
+- **Encoders:** steady.
+- **FlySky driving:** disabled. `DRIVE_DISABLED` was on every report.
+
+| Completion criterion | Status |
+|---|---|
+| Real CH1–CH10 reception | **PASS** (all ten, full range, owner-verified mapping) |
+| Test Lab verification | **PASS** (10/10 assigned and verified; mapping saved and exported) |
+| Failsafe testing | **PASS** (2026-10-28) |
+| E-STOP and existing controls protected | **PASS** |
+| FlySky driving disabled | **PASS** |
+
+**Stage 28 is complete.** The firmware, RC bridge, Test Lab and mapping card are unchanged. Driving work continues in
+Stage 29: `docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md`.

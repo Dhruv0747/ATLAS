@@ -76,3 +76,5 @@ Evidence archive: `Downloads/atlas_deploy/stage28_flysky_evidence_20261028_final
 - The FS-i6S output is bit-identical at rest: CH1–CH4 sat at exactly 1024 for minutes with zero jitter. The offline `FrozenDetector` in `atlas_flysky_mapping.py` assumes "a real transmitter always has a few counts of jitter". That premise is false for this radio, so it must not be used as a signal-loss detector. The SBUS frame-lost and failsafe flags are the reliable signal, and they were verified live.
 - The receiver's failsafe output is currently centre (1024) on every channel. Before any future FlySky-driving stage (not approved), set explicit failsafe values on the transmitter.
 - An owner confirmation conflicted with reality: at 00:05 "isolated", at 00:13 "still connected". Ask for actuator isolation as a fresh, specific confirmation immediately before any step that could command an actuator.
+
+**Resolved 2026-10-29:** CH5–CH10 assigned and verified; Stage 28 complete. See `docs/ATLAS_STAGE28_FLYSKY_LIVE_RESULT_20261028.md` (section "Channel verification, 2026-10-29").
