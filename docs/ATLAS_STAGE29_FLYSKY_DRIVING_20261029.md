@@ -820,3 +820,25 @@ The `view` step now also installs the two images and the licence record. Nothing
   - Test environment mux-back timeout 4→6 s (real: 20 s).
   - New fake-rover scenario `old_mux_lingers_s` reproduces the failure.
 - **A second gate-on attempt needs a new owner approval (no automatic retry).**
+
+## gate-on attempt 2 (package 3c5058f, bound 15 s), 2026-10-29 16:23 IST: FAIL, ROLLED BACK (CPU)
+
+**Before the attempt**
+- Fresh preflight at 16:20: NO-GO only on "step teleop: already present", because preflight compares the config with the original install. The live config 875feb35 is exactly the owner-approved review-config result, and every other teleop file matches.
+- All safety checks passed (gate off, safety OK ×3, CPU mean 62.7 %).
+- The owner chose to proceed. Gate-on re-checks this itself, ignoring the config by design.
+
+**The attempt** (evidence `stage29-gate-on-20261029_162300-765004199`)
+- Pre-checks OK; mux restarted at 16:23:41.
+- **The corrected new-mux check worked:** "new mux proven on the dashboard (flysky_drive_enabled True) after 14.8 s". The restarted mux took 14.8 s to publish.
+- CPU stayed at 97–100 % from the restart. At +15.57 s it was 99.3 %, past the 15 s bound, so: "mux-back: IMMEDIATE ABORT: CPU > 75.0 after the 15.0 s bound". No safety-signal failure.
+- Rollback: gate removed, mux restarted again (mux 619923, teleop 619924, DISABLED). That restart had **30 samples > 75 %, about 30 s at about 100 %**.
+
+**After**
+- E-STOP latched, XBOX, gate off, drive DISABLED.
+- Encoders unchanged [85409, -80279, -36483, -80953]; motor 0; /cmd_vel 0.
+- No gate drop-ins; CPU back to about 66 %.
+
+**Finding:** mux restart transients now run 15–32 s, against +8.1 and +8.3 s at 10:22–10:37. The cause is not measured. The likely contributor is more DDS participants: the dashboard's lazy FlySky Test Lab and controller-input nodes while a page is open, plus the enabled teleop's command publisher.
+
+**Deployer behaviour to reconsider:** an abort during the mux-back wait rolls back even when the new mux is already proven and only CPU is over, and the rollback restart repeats the spike. The owner's rule is "CPU-only overrun → hold". No automatic retry was made; a new attempt needs owner approval.
