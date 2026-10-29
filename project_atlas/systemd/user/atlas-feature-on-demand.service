@@ -1,0 +1,17 @@
+[Unit]
+Description=Project ATLAS on-demand AI features (start when needed, stop when idle; restores always-on when stopped)
+# Not ordered after default.target: that would create a boot ordering cycle (see atlas-remote.service).
+After=rover-status-web.service
+
+[Service]
+Type=simple
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 -u /home/jetson/project_atlas/scripts/atlas_feature_on_demand.py run'
+# Fail-open: whenever the manager stops or crashes, every managed feature is started again (today's behaviour).
+ExecStopPost=/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_feature_on_demand.py restore-all
+Restart=always
+RestartSec=10
+Nice=5
+
+[Install]
+WantedBy=default.target

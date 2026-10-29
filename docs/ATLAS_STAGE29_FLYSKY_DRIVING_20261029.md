@@ -891,3 +891,47 @@ Pre-window means were 64–69 % all day.
   - observer frozen → ROLLED_BACK ("safety monitoring not operating reliably");
   - preflight GO with the reviewed config and NO-GO with a tampered one.
 - Limits 75 / 80 / 70 and the 15 s bound unchanged.
+
+## Root-cause fix: authorised-restart lease for the on-demand feature manager (2026-10-29 17:32–18:40 IST, offline)
+
+**Goal:** a stale mux status during an AUTHORISED restart must not look like an autonomy request.
+
+**Mechanism** (reuses Stage 28's `atlas_base_maintenance.py` lease format unchanged; live a768626a):
+- **Own folder:** a separate tmpfs root `/run/user/<uid>/atlas-mux-maintenance`.
+- **Bound to the deployer:** the lease is tied to this boot, the deployer's PID and start time, and a boot-clock deadline (at most 240 s).
+- **Deployer side:** it arms the lease around each reviewed mux restart (A1-style mux step, gate-on, gate-off, rollback) and around the feature-manager restart. It always releases it, also on failure.
+- **If the deployer dies,** the lease turns INVALID and the feature manager behaves exactly as today.
+
+**Feature manager** (`scripts/atlas_feature_on_demand.py`, live 8797d992 → candidate b0fb5b43; five original lines changed, the rest added):
+- **While a VALID lease exists:**
+  - a stale or missing `/atlas/control_policy` or `/atlas/mission_status` keeps the last received verdict; nothing received yet means no demand;
+  - this is bounded to `mux_restart_grace_s` = 60 s after the input went stale, or after the manager started;
+  - `restore-all` is skipped, because the authorised restart brings the manager straight back.
+- **No lease, INVALID lease, or grace over:** today's fail-open rules, unchanged. A fresh policy with manual_only false, a fresh mission ≠ READY and every other trigger still start features at once.
+- The allowlist, boot grace, min-on, idle timers and replay are unchanged. The unit file and the config are unchanged.
+
+**Deployer** (`deploy_stage29.py`):
+- `mux_lease()` context.
+- New step **`features`**:
+  - replaces the one file (with a backup);
+  - restarts `atlas-feature-on-demand` under the lease. The NEW file on disk runs `ExecStopPost restore-all`, which sees the lease and skips;
+  - verifies the manager logged its start, started no managed feature, and that all 8 feature states are unchanged;
+  - if any feature starts, it rolls back.
+- **Rollback cost:** a rollback stops the manager under the lease, restores the old file and starts it. The old code fails open at start, so a rollback starts the features once (documented).
+- **gate-on refuses** until `features` is installed.
+- `installed()` accepts the config in the install-order check only when it is exactly the reviewed one (found by the new tests).
+
+**Tests**
+- `tests/test_feature_on_demand_mux_lease.py` (12):
+  - without a lease, stale means autonomy;
+  - the lease holds the last verdict, bounded by the grace;
+  - a genuine request is never hidden;
+  - fresh start under a lease waits, then fails open;
+  - a stale mission keeps its last verdict;
+  - the lease ending mid-restart returns to fail-open;
+  - the Planner starts nothing while held;
+  - the real lease file through NONE / ACTIVE / owner gone / corrupt;
+  - read caching;
+  - restore-all is skipped only under a valid lease.
+- The original 15 feature-manager unit tests are unchanged and pass.
+- Deployer: `MuxLease` (every restart is leased and released, including the failed gate-on and its rollback; an existing lease refuses gate-on before any change) and `FeaturesStep` (gate-on needs it; a cascade during the restart rolls back).

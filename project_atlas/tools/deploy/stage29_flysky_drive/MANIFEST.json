@@ -5,7 +5,8 @@
     "mux",
     "teleop",
     "web",
-    "view"
+    "view",
+    "features"
   ],
   "required_for_driving": [
     "mux",
@@ -146,9 +147,21 @@
           "candidate_sha256": "c05b98025d90d3d69b77d7591dc1f7c4e024d4e603f136c67726325afd5b9f8b"
         }
       }
+    },
+    "features": {
+      "unit": "atlas-feature-on-demand.service",
+      "files": {
+        "scripts/atlas_feature_on_demand.py": {
+          "kind": "replace",
+          "baseline_sha256": "8797d9928d30c650a6c6c2f993d697dd149d005ef9af55ccc31d9e95d6239579",
+          "source": "scripts/atlas_feature_on_demand.py",
+          "candidate_sha256": "b0fb5b43d36e1dc95fa6dc7849f4d3783e9063c71470f1ca34545ba56468d32e"
+        }
+      }
     }
   },
   "unchanged_required": {
+    "scripts/atlas_base_maintenance.py": "a768626a (Stage 28 lease module, reused)",
     "scripts/atlas_flysky_core.py": "3e4b379e",
     "scripts/atlas_remote_stop.py": "1a44fb37a532",
     "firmware": "V3.6.161, no flash"

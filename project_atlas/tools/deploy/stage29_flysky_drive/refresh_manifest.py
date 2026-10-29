@@ -18,6 +18,7 @@ BASE_WEB = HERE / 'baseline/atlas_status_web.py.live-4ab16214'
 # Live copies (hashes read on the rover 2026-10-29; equal to repo commits a97178c / 615b846).
 BASE_WEB_V2 = HERE / 'baseline/atlas_web_v2.py.live-4893d1f6'
 BASE_CSS = HERE / 'baseline/flysky.css.live-34d3e404'
+BASE_FEATURES = HERE / 'baseline/atlas_feature_on_demand.py.live-8797d992'
 LIVE_WEB_V2 = h(BASE_WEB_V2.read_bytes())
 LIVE_FLYSKY_CSS = h(BASE_CSS.read_bytes())
 assert LIVE_WEB_V2.startswith('4893d1f65fb3') and LIVE_FLYSKY_CSS.startswith('34d3e40423c9')
@@ -43,7 +44,7 @@ def build():
     return {
         'stage': '29 Stage A: FlySky driving integration deployed with the gate OFF (+ view: dual-controller dashboard)',
         'gate': 'ATLAS_FLYSKY_DRIVE_ENABLED must be absent or 0 everywhere; config reviewed_by_owner false',
-        'order': ['mux', 'teleop', 'web', 'view'],
+        'order': ['mux', 'teleop', 'web', 'view', 'features'],
         'required_for_driving': ['mux', 'teleop', 'web'],
         'steps': {
             'mux': {'unit': 'atlas-cmd-vel-mux.service', 'files': {
@@ -82,8 +83,12 @@ def build():
                                            **src('web/v2/flysky-drive.js')},
                 'web/v2/flysky.css': {'kind': 'replace', 'baseline_sha256': pinned('web/v2/flysky.css')['candidate_sha256'],
                                       **src('web/v2/flysky.css')}}},
+            # Lease-aware on-demand feature manager (2026-10-29): an authorised restart is not an autonomy request.
+            'features': {'unit': 'atlas-feature-on-demand.service', 'files': {
+                'scripts/atlas_feature_on_demand.py': {'kind': 'replace', 'baseline_sha256': h(BASE_FEATURES.read_bytes()),
+                                                       **src('scripts/atlas_feature_on_demand.py')}}},
         },
-        'unchanged_required': {'scripts/atlas_flysky_core.py': '3e4b379e', 'scripts/atlas_remote_stop.py': '1a44fb37a532',
+        'unchanged_required': {'scripts/atlas_base_maintenance.py': 'a768626a (Stage 28 lease module, reused)','scripts/atlas_flysky_core.py': '3e4b379e', 'scripts/atlas_remote_stop.py': '1a44fb37a532',
                                'firmware': 'V3.6.161, no flash'},
     }
 

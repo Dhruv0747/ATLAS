@@ -18,6 +18,9 @@ Steps, in this fixed order, ONE per invocation, each with its own approval and i
   view   : (UI only, optional) dual-controller dashboard: one additive import + GET route in the A3 status web, the
            read-only live Xbox input module, the controller visualisation page files; restart rover-status-web.
            Chained on A3 (its baselines are the A3 candidates). Never required for driving (gate-on ignores it).
+  features: lease-aware atlas_feature_on_demand.py (an authorised restart no longer looks like an autonomy request,
+           and restore-all is skipped under a valid lease); restart atlas-feature-on-demand under the lease, verify
+           that no managed feature started. Required before gate-on (its mux restart otherwise starts 5 AI services).
 
 Monitoring (reused unchanged from the Stage 28 deployer): continuous 1-s CPU/RAM/temperature recorder and the
 independent safety observer (0.25 s verdicts, 1.0 s freshness, 1.0 s gap limit), both started before the change,
@@ -38,6 +41,7 @@ Failure handling:
 Never: firmware, serial, motor/steering commands, E-STOP reset, gate on, threshold changes, retries.
 """
 import argparse
+import contextlib
 import json
 import os
 import shutil
@@ -60,10 +64,13 @@ sys.path.insert(0, str(REPO / 'scripts'))
 Fail = d28.Fail
 CPU_LIMIT, RAM_LIMIT, TEMP_LIMIT = d28.CPU_LIMIT, d28.RAM_LIMIT, d28.TEMP_LIMIT
 MANIFEST = json.loads((HERE / 'MANIFEST.json').read_text())
-STEPS = ('mux', 'teleop', 'web', 'view')
+STEPS = ('mux', 'teleop', 'web', 'view', 'features')
 REQUIRED_STEPS = ('mux', 'teleop', 'web')          # what FlySky driving needs; 'view' is the optional dashboard UI
 UNITS = {'mux': 'atlas-cmd-vel-mux.service', 'teleop': 'atlas-flysky-teleop.service', 'web': 'rover-status-web.service',
-         'view': 'rover-status-web.service'}
+         'view': 'rover-status-web.service', 'features': 'atlas-feature-on-demand.service'}
+LEASED_STEPS = ('mux', 'features')       # restarts that run under the authorised-restart lease
+MANAGED_FEATURES = ('atlas-vision-lidar-fusion', 'atlas-person-sensor-fusion', 'atlas-experience-store', 'atlas-agent-team',
+                    'atlas-ai-annotator', 'atlas-follow-person', 'atlas-camera-tracker', 'atlas-active-vision')
 DASHBOARD_STEPS = ('web', 'view')
 MUX_SIGNALS = ('estop_latched', 'manual_only', 'commission_off', 'source_stopped', 'cmd_zero')   # published by the mux
 MUX_BACK_TIMEOUT_S = 20.0
@@ -309,12 +316,17 @@ def require_gate_off(env, ev):
     ev.log('gate off: no ' + GATE + '=1 in the mux/teleop environment or ' + str(env.env_dir))
 
 
+def installed(env, step):
+    """step_done, accepting the config only when it is EXACTLY the owner-reviewed commissioning config."""
+    return step_done(env, step, ignore=(CONFIG_REL,) if reviewed_config_ok(env) else ())
+
+
 def require_order(env, step):
     i = STEPS.index(step)
     if step_done(env, step):
         raise Fail(f'step {step} is already installed; nothing to do')
     for prev in STEPS[:i]:
-        if not step_done(env, prev):
+        if not installed(env, prev):
             raise Fail(f'step {step} needs step {prev} first (order: {" -> ".join(STEPS)})')
 
 
@@ -408,6 +420,42 @@ def wait_mux_back(env, ev, obs, rec, t0, bound_s, expect=None, what='the patched
                f'observer mux signals {"ok" if dash and observer_mux_ok_since(obs, dash[0]) else "not ok"} after that)')
 
 
+MUX_LEASE_S = 240.0            # upper bound of one mux-restart window (the Stage 28 lease format allows <= 600 s)
+
+
+def mux_lease_root(env):
+    return Path(getattr(env, 'mux_lease_root', None) or f'/run/user/{os.getuid()}/atlas-mux-maintenance')
+
+
+@contextlib.contextmanager
+def mux_lease(env, ev, purpose, active=True):
+    """Authorised-mux-restart lease (Stage 28 atlas_base_maintenance format, own tmpfs root) held for exactly one
+    reviewed mux restart window. While it is VALID, atlas_feature_on_demand treats a stale control policy as the
+    restart it is, not as an autonomy request (gate-on attempts 1-2: five AI/fusion services started mid-restart).
+    It is bound to this process: if the deployer dies the lease turns INVALID and the feature manager falls back to
+    today's fail-open behaviour. Always released, also on failure."""
+    if not active:
+        yield None
+        return
+    import atlas_base_maintenance as bm
+    m = bm.Maintenance(root=mux_lease_root(env))
+    try:
+        session = m.arm(purpose, MUX_LEASE_S)
+    except bm.Refused as exc:
+        raise Fail(f'mux maintenance lease not armed: {exc}') from exc
+    ev.log(f'mux maintenance lease armed ({purpose}; at most {MUX_LEASE_S:.0f} s)')
+    try:
+        yield session
+    finally:
+        try:
+            m.release(session)
+            m.clear(session)
+            ev.log('mux maintenance lease released')
+        except Exception as exc:
+            ev.log(f'mux maintenance lease NOT released ({exc!r}): it turns INVALID when this process exits '
+                   f'or at its deadline, and the feature manager then behaves exactly as before')
+
+
 def observer_healthy_since(obs, since):
     """The observer is producing verdicts (no gap over its limit from `since` to now) and none failed."""
     now = time.time()
@@ -478,6 +526,15 @@ def verify(env, ev, step, before, protected0):
         lab = env.get('/api/flysky/state')
         if lab.get('read_only') is not True or 'link' not in lab:
             raise Fail('FlySky Test Lab API changed or unavailable')
+    if step == 'features':
+        if '"event": "start"' not in log:
+            raise Fail('feature manager did not log its start')
+        started = [l for l in log.splitlines() if '"event": "start", "unit"' in l]
+        if started:
+            raise Fail(f'feature manager started managed features during the authorised restart: {started[:3]}')
+        now_states = {u: d28.unit_state(env, u + '.service').get('ActiveState') for u in MANAGED_FEATURES}
+        if now_states != before.get('features', now_states):
+            raise Fail(f'managed feature states changed during the restart: {before.get("features")} -> {now_states}')
     if step == 'view':
         ci = env.get('/api/controller_inputs')
         xb = ci.get('xbox') or {}
@@ -533,6 +590,8 @@ def deploy_step(env, args, ev=None):
         plan = file_plan(env, step)
         meta = backup(env, ev, plan)
         before = d28.unit_state(env, unit)
+        if step == 'features':
+            before = dict(before, features={u: d28.unit_state(env, u + '.service').get('ActiveState') for u in MANAGED_FEATURES})
         protected0 = d28.identities(env, [u for u in env.protected if u != unit])
         base_pid = int(d28.unit_state(env, 'rover-base-telemetry.service').get('MainPID', '0'))
     except Fail as exc:
@@ -543,7 +602,8 @@ def deploy_step(env, args, ev=None):
     t0 = None
     try:
         with d28.CpuRecorder(env, sink=ev.stream(f'cpu-{step}')) as rec, \
-                d28.ObserverRecorder(env, base_pid, sink=ev.stream(f'observer-{step}')) as obs:
+                d28.ObserverRecorder(env, base_pid, sink=ev.stream(f'observer-{step}')) as obs, \
+                mux_lease(env, ev, f'stage29 {step} authorised restart', active=(step in LEASED_STEPS)):
             env.sleep(2.5)
             d28.require_pre_window_ok(env, ev, step, rec, obs)
             for dst, data, mode, _, _ in plan:
@@ -570,7 +630,7 @@ def deploy_step(env, args, ev=None):
             recovery_mean(ev, step, rec, t0, args.cpu_bound_s)
             ev.save(f'cpu-recorder-{step}', {'t_restart': t0, 'samples': rec.samples, 'ram_temp': rec.rt})
         verify(env, ev, step, before, protected0)
-        (require_safe_after_dashboard_restart if step in DASHBOARD_STEPS else d28.require_safe)(env, ev, f'{step}-post', count=3)
+        (require_safe_after_dashboard_restart if STEPS.index(step) >= STEPS.index('web') else d28.require_safe)(env, ev, f'{step}-post', count=3)
         ev.log(f'STEP {step} PASS (gate off; Xbox selected; E-STOP latched)')
         ev.save('result', {'result': 'PASS', 'step': step}); ev.seal()
         return 0
@@ -617,12 +677,22 @@ def rollback_files(env, ev, step, bkdir, meta, restart=True):
             env.systemctl('stop', unit, timeout=60, check=False)
             restore(env, ev, bkdir, meta)
             env.systemctl('daemon-reload', timeout=30)
+        elif step == 'features' and restart:
+            # stop while the NEW file is on disk and the lease is valid (its restore-all is skipped), then restore the
+            # old file and start it. The old code fails open at start, so a rollback starts the features once.
+            with mux_lease(env, ev, 'stage29 rollback features authorised restart'):
+                env.systemctl('stop', unit, timeout=60, check=False)
+                restore(env, ev, bkdir, meta)
+                env.systemctl('start', unit, timeout=60)
+                d28.require_running(env, unit)
         else:
             restore(env, ev, bkdir, meta)
             if restart:
                 d28.wait_quiescent(env, unit)
-                env.systemctl('restart', unit, timeout=60)
-                d28.require_running(env, unit)
+                with mux_lease(env, ev, f'stage29 rollback {step} mux restart', active=(step == 'mux')):
+                    env.systemctl('restart', unit, timeout=60)
+                    d28.require_running(env, unit)
+                    env.sleep(min(env.steady_s, 20))
         env.sleep(env.steady_s)
         d28.record_rollback_cpu(env, ev, step, rec, t)
     ev.log(f'ROLLBACK of {step} complete')
@@ -683,6 +753,9 @@ def gate_on(env, args):
         for step in REQUIRED_STEPS:      # the config is validated below instead: review-config changes it on purpose
             if not step_done(env, step, ignore=('config/atlas_flysky_drive.json',)):
                 raise Fail(f'step {step} is not installed')
+        if not step_done(env, 'features'):
+            raise Fail('step features (lease-aware feature manager) is not installed: the gate-on mux restart would '
+                       'start five AI/fusion services (gate-on attempts 1-2)')
         if any(g.exists() for g in gate_paths(env)):
             raise Fail('gate drop-in already present')
         require_gate_off(env, ev)
@@ -706,7 +779,8 @@ def gate_on(env, args):
     written = []
     try:
         with d28.CpuRecorder(env, sink=ev.stream('cpu-gate-on')) as rec, \
-                d28.ObserverRecorder(env, base_pid, sink=ev.stream('observer-gate-on')) as obs:
+                d28.ObserverRecorder(env, base_pid, sink=ev.stream('observer-gate-on')) as obs, \
+                mux_lease(env, ev, 'stage29 gate-on mux restart'):
             env.sleep(2.5)
             d28.require_pre_window_ok(env, ev, 'gate-on', rec, obs)
             for g in gate_paths(env):
@@ -775,9 +849,11 @@ def remove_gate(env, ev, restart=True):
         with d28.CpuRecorder(env, sink=ev.stream('cpu-gate-off')) as rec:
             t = time.time()
             d28.wait_quiescent(env, UNITS['mux'])
-            env.systemctl('restart', UNITS['mux'], timeout=60)
-            d28.require_running(env, UNITS['mux'])
-            env.sleep(env.steady_s)
+            with mux_lease(env, ev, 'stage29 gate-off mux restart'):
+                env.systemctl('restart', UNITS['mux'], timeout=60)
+                d28.require_running(env, UNITS['mux'])
+                env.sleep(min(env.steady_s, 20))
+            env.sleep(max(0, env.steady_s - 20))
             d28.record_rollback_cpu(env, ev, 'gate-off', rec, t)
     ev.log('gate drop-ins removed' + (' and mux restarted' if restart else ''))
 

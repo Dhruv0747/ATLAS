@@ -30,7 +30,7 @@ class FakeRover:
     def __init__(self, env):
         self.env, self.lock = env, threading.Lock()
         self.units = {u: {'pid': 1000 + i, 'active': True, 'inv': f'inv-{u}-0', 'log': ''}
-                      for i, u in enumerate(sorted(set(env.protected) | {D.UNITS['teleop']}))}
+                      for i, u in enumerate(sorted(set(env.protected) | {D.UNITS['teleop'], D.UNITS['features']}))}
         self.units[D.UNITS['teleop']]['active'] = False
         self.calls, self.packets = [], 100
         self.mux_down_until = 0.0
@@ -50,6 +50,8 @@ class FakeRover:
         self.restart_at, self.old_gate = -1e9, False
         self.observer_freeze_after_restart = False  # scenario: the observer stops producing verdicts (unresponsive)
         self.trigger_after = 0.0                    # scenario flags act only on restarts after this time
+        self.lease_at_mux_restart = []              # mux-maintenance lease verdict seen at each mux restart
+        self.feature_cascade = False                # scenario: the restarted feature manager starts a feature
 
     # ---- what is installed
     def installed(self, rel, step=None):
@@ -83,6 +85,8 @@ class FakeRover:
             u = self.units[args[1]]
             u['pid'] += 100; u['active'] = True; u['inv'] = u['inv'].rsplit('-', 1)[0] + '-' + str(len(self.calls))
             if args[1] == D.UNITS['mux']:
+                import atlas_base_maintenance as bm
+                self.lease_at_mux_restart.append(bm.Maintenance(root=D.mux_lease_root(self.env)).evaluate().state)
                 self.restart_at, self.old_gate = time.time(), self.mux_gate
                 self.mux_down_until = time.time() + self.old_mux_lingers_s + (1e9 if self.mux_never_back else 1.0)
                 self.mux_gate = self.gate(D.UNITS['mux'])
@@ -94,6 +98,9 @@ class FakeRover:
                 u['log'] = 'ATLAS cmd_vel priority: REMOTE > FLYSKY > COMMISSION' if self.mux_patched() else 'ATLAS cmd_vel priority: REMOTE > COMMISSION'
             if args[1] == D.UNITS['teleop']:
                 u['log'] = 'FlySky teleop DISABLED: FlySky driving gate is off'
+            if args[1] == D.UNITS['features']:
+                u['log'] = '{"event": "start", "features": {}}' + (
+                    '\n{"event": "start", "unit": "atlas-ai-annotator", "demand": {"autonomy": true}}' if self.feature_cascade else '')
             if args[1] == D.UNITS['web']:
                 self.web_down_until = time.time() + 1.0
                 self.web_restarted = True
@@ -203,7 +210,8 @@ class Base(unittest.TestCase):
         for rel, base in (('scripts/atlas_cmd_vel_mux.py', 'atlas_cmd_vel_mux.py.live-0d959286'),
                           ('scripts/atlas_status_web.py', 'atlas_status_web.py.live-4ab16214'),
                           ('scripts/atlas_web_v2.py', 'atlas_web_v2.py.live-4893d1f6'),
-                          ('web/v2/flysky.css', 'flysky.css.live-34d3e404')):
+                          ('web/v2/flysky.css', 'flysky.css.live-34d3e404'),
+                          ('scripts/atlas_feature_on_demand.py', 'atlas_feature_on_demand.py.live-8797d992')):
             (proj / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(PKG / 'baseline' / base, proj / rel)
         (self.tmp / 'envdir').mkdir()
@@ -232,6 +240,7 @@ class Base(unittest.TestCase):
               mux_back_timeout_s=6.0, hold_poll_s=0.2)
         e.sleep = time.sleep
         e.estop = True
+        e.mux_lease_root = self.tmp / 'atlas-mux-maintenance'
         return e
 
     def tearDown(self):
@@ -447,9 +456,9 @@ class AdvertisedTopicsReal(unittest.TestCase):
 
 
 class Commissioning(Base):
-    def deploy_all(self):
+    def deploy_all(self, steps=D.STEPS):
         self.cpu = []
-        for step in D.REQUIRED_STEPS:          # what the rover has: A1-A3
+        for step in steps:                     # what the rover will have: A1-A3, view, features
             self.assertEqual(self.run_step(step), 0, step)
 
     def act(self, *argv):
@@ -518,12 +527,12 @@ class ViewStep(Commissioning):
     """The optional dual-controller dashboard step, chained on A3, never required for driving."""
 
     def test_view_deploys_on_a3_and_rolls_back_exactly(self):
-        self.deploy_all()
+        self.deploy_all(D.REQUIRED_STEPS)
         a3 = {rel: h(self.env.project / rel) for rel in MAN['steps']['view']['files'] if (self.env.project / rel).exists()}
         self.assertEqual(self.run_step('view'), 0)
         for rel, cand in CAND['view'].items():
             self.assertEqual(h(self.env.project / rel), cand, rel)
-        for st in D.STEPS:
+        for st in D.STEPS[:4]:
             self.assertTrue(D.step_done(self.env, st), st)          # web is superseded, not broken
         self.assertEqual(self.run_step('view'), 3)                   # already installed: refused
         ev = next(d for d in sorted(self.env.evidence_root.glob('stage29-deploy-view-*')) if (d / 'backup/meta.json').exists())
@@ -546,8 +555,10 @@ class ViewStep(Commissioning):
         self.assertTrue(D.step_done(self.env, 'web')); self.assertFalse(D.step_done(self.env, 'view'))
 
     def test_gate_on_works_with_or_without_view(self):
-        self.deploy_all()
+        self.deploy_all(D.REQUIRED_STEPS)
         self.assertEqual(self.run_step('view'), 0)
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 3)       # refused: features step missing
+        self.assertEqual(self.run_step('features'), 0)
         self.assertEqual(self.act('review-config', '--owner-reviewed-config'), 0)
         self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 0)
         self.assertEqual(self.act('gate-off', '--cpu-bound-s', '3'), 0)
@@ -641,3 +652,69 @@ class GateOnHold(Commissioning):
         cfg = self.cfg(); cfg['max_linear_mps'] = 0.04                # any other edit is not the reviewed config
         (self.env.project / 'config/atlas_flysky_drive.json').write_text(json.dumps(cfg))
         self.assertEqual(D.main(['preflight'], env=self.env), 1)
+
+
+class MuxLease(Commissioning):
+    """Every reviewed mux restart runs under the authorised-restart lease, and the lease never outlives it."""
+
+    def lease_state(self):
+        import atlas_base_maintenance as bm
+        return bm.Maintenance(root=D.mux_lease_root(self.env)).evaluate().state
+
+    def test_gate_on_and_gate_off_restarts_are_leased_then_released(self):
+        self.deploy_all()
+        self.assertEqual(self.rover.lease_at_mux_restart, ['ACTIVE'])          # A1 mux step also leased
+        self.assertEqual(self.lease_state(), 'NONE')
+        self.assertEqual(self.act('review-config', '--owner-reviewed-config'), 0)
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 0)
+        self.assertEqual(self.lease_state(), 'NONE')
+        self.assertEqual(self.act('gate-off', '--cpu-bound-s', '3'), 0)
+        self.assertEqual(self.rover.lease_at_mux_restart, ['ACTIVE'] * 3)
+        self.assertEqual(self.lease_state(), 'NONE')
+        for ev in self.env.evidence_root.glob('stage29-gate-*'):
+            log = (ev / 'log.txt').read_text()
+            self.assertIn('mux maintenance lease armed', log); self.assertIn('mux maintenance lease released', log)
+
+    def test_failed_gate_on_and_its_rollback_are_leased_and_released(self):
+        self.deploy_all()
+        self.assertEqual(self.act('review-config', '--owner-reviewed-config'), 0)
+        self.rover.trigger_after = time.time(); self.rover.fail_base_after_restart = True
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 1)
+        self.assertEqual(self.rover.lease_at_mux_restart[-2:], ['ACTIVE', 'ACTIVE'])   # gate-on + rollback restart
+        self.assertEqual(self.lease_state(), 'NONE')
+
+    def test_existing_lease_refuses_gate_on_before_any_change(self):
+        import atlas_base_maintenance as bm
+        self.deploy_all()
+        self.assertEqual(self.act('review-config', '--owner-reviewed-config'), 0)
+        s = bm.Maintenance(root=D.mux_lease_root(self.env)).arm('someone else', 60.0)
+        n = len(self.rover.lease_at_mux_restart)
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 1)
+        self.assertEqual(len(self.rover.lease_at_mux_restart), n)               # no mux restart happened
+        self.assertFalse(any(g.exists() for g in D.gate_paths(self.env)))
+        bm.Maintenance(root=D.mux_lease_root(self.env)).release(s)
+
+
+class FeaturesStep(Commissioning):
+    """The lease-aware feature manager: installed and restarted under the lease, and only if nothing starts."""
+
+    def test_features_step_installs_under_lease_and_gate_on_needs_it(self):
+        self.deploy_all(D.STEPS[:4])
+        self.assertEqual(self.act('review-config', '--owner-reviewed-config'), 0)
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 3)
+        self.assertEqual(self.run_step('features'), 0)
+        self.assertEqual(h(self.env.project / 'scripts/atlas_feature_on_demand.py'), CAND['features']['scripts/atlas_feature_on_demand.py'])
+        log = (self.result('deploy-features')[1] / 'log.txt').read_text()
+        self.assertIn('mux maintenance lease armed (stage29 features authorised restart', log)
+        self.assertIn('mux maintenance lease released', log)
+        self.assertEqual(self.act('gate-on', '--cpu-bound-s', '3'), 0)
+
+    def test_feature_cascade_during_restart_rolls_back(self):
+        self.deploy_all(D.STEPS[:4])
+        base = h(self.env.project / 'scripts/atlas_feature_on_demand.py')
+        self.rover.feature_cascade = True
+        self.assertEqual(self.run_step('features'), 1)
+        r, d = self.result('deploy-features')
+        self.assertIn(r['result'], ('FAIL_ROLLED_BACK',)); self.assertIn('started managed features', r['reason'])
+        self.assertEqual(h(self.env.project / 'scripts/atlas_feature_on_demand.py'), base)
+        self.assertIn('rollback features authorised restart', (d / 'log.txt').read_text())
