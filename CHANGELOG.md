@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-29 Stage29 Stage A deployer PREPARED (not run): per-step mux -> teleop -> web with explicit per-step CPU bounds, independent observer (mux signals exempt only during the mux restart), measured recovery criteria, automatic rollback on safety failure, FAIL_HELD without a second restart on CPU-only overrun. Read-only preflight on the rover: GO. Owner: no motor kill switch and no new wiring; residual risks documented; steering CH1. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
+
 2026-10-29 Stage29 FlySky driving integration IMPLEMENTED OFFLINE (not deployed, gate off): pure decision core (arm switch far-end band so centre-value failsafe can never arm; signal loss/failsafe -> zero + latched E-STOP; slew-limited, capped at Xbox non-turbo 0.25 m/s / 0.8 rad/s; throttle must be self-centring, default CH2), teleop node, additive mux patch on the LIVE mux (one manual controller at a time, Xbox default, handover only while latched, FlySky stop-only input, independent clamps), dashboard page /v2/flysky-drive with selection endpoint. 58 new tests. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
 
 2026-10-29 Stage28 COMPLETE: CH1-CH10 owner-verified (CH1 right L-R, CH2 right U-D, CH3 left U-D, CH4 left L-R, CH5-8 SwA-SwD, CH9-10 VrA/VrB), Test Lab 10/10, failsafe and E-STOP criteria pass. docs/ATLAS_STAGE28_FLYSKY_LIVE_RESULT_20261028.md

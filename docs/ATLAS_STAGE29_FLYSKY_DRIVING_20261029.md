@@ -41,8 +41,10 @@ FS-i6S ─RF─ FS-iA receiver ─SBUS─ STM32 (V3.6.161: forwards 0xE1, cannot
 Design choices that need the owner's acknowledgement:
 1. **The throttle is CH2 (right stick up–down), not CH3.** The FS-i6S left stick up–down does not spring back to
    centre. A released stick would keep the rover driving. The config requires `self_centring: true` for the throttle.
-   Steering is CH4 (left stick left–right), stick right = turn right.
-   This is the mirror of the Xbox layout (left = throttle, right = steering).
+   **Owner decision, 09:54:** steering is **CH1** (right stick left–right), stick right = turn right. This replaces the
+   CH4 proposed earlier the same morning, so throttle and steering are now both on the spring-centred right stick.
+   Releasing the stick stops the rover and straightens it. The cost is coupling: a diagonal push mixes throttle and
+   steering beyond the 8 % dead zone. This must be checked in the lifted test.
 2. **The Xbox stays switched on while FlySky drives.** It remains the stop and reset device: its absence latches the
    E-STOP exactly as today. FlySky can stop but never reset.
 3. **A signal loss while armed always ends in a latched E-STOP.** That needs the normal reset; it is not a silent
@@ -129,3 +131,137 @@ Preconditions:
 
 Abort and stop at once on: any unexpected wheel motion, a wrong direction, a stop that doesn't latch, any
 observer signal stale, or CPU, RAM or temperature limits exceeded outside an approved transient.
+
+## Hardware power: owner decisions (2026-10-29 09:57 and 10:00)
+
+- There is **no separate motor-power kill switch**. Motor power comes from the battery through the DC-DC buck
+  converter.
+- The owner will **not** add a kill switch or any wiring. The current hardware configuration is preserved.
+
+**What follows for safety.** The Xbox E-STOP, the dashboard E-STOP, the voice stop and the new FlySky stop are all
+**software**. Each one latches the mux, the mux publishes zero `/cmd_vel`, and `yahboom_base.py` sends zero to the board.
+None of them removes motor power. A fault anywhere in that chain could leave the motors driven:
+- the base driver;
+- the serial link;
+- the STM32 firmware;
+- the motor driver.
+
+The only independent physical barriers today are:
+- wheels off the ground (lifted);
+- unplugging the motor connectors at the board. This needs no new wiring and keeps the board, telemetry and the
+  receiver powered, at the cost of the encoder counts;
+- the main power switch, which also stops the STM32, telemetry and the receiver.
+
+**On the claim that "the E-STOP has prevented unwanted movement".** In every test so far (Stages 27–29) no non-zero
+motor command was ever sent. The E-STOP has therefore never been *challenged*. Zero motion shows that nothing commanded
+motion. It does not show that a stop interrupts commanded motion. The physical E-STOP tests A–E are still open.
+
+### Residual risks (no independent motor disconnect)
+
+| # | Risk | Why it remains | Mitigation without new hardware |
+|---|---|---|---|
+| R1 | A software or serial fault keeps the last non-zero speed | Stopping depends on the base sending zero, or its 0.45 s deadman | Verify the deadman on lifted wheels: stop the command stream and measure the wheel stop |
+| R2 | The firmware ignores or delays zero | STM32 behaviour has not been tested against a live stop | Measure the stop latency on lifted wheels before any ground test |
+| R3 | An E-STOP latch fails to propagate | The mux and the base are separate processes | Verify each stop path (Xbox B, dashboard, voice, FlySky SwB, Xbox off, transmitter off) on lifted wheels |
+| R4 | Wrong direction or a runaway on the first powered test | Directions are unverified | Lifted wheels only; test limits 0.05 m/s and 0.2 rad/s; one axis at a time |
+| R5 | Operator cannot cut power quickly | No kill switch | The owner keeps the main power switch within reach; optionally, motor connectors stay unplugged for the non-motor steps |
+
+### Required before ANY powered driving test (Stage B or later; not approved)
+
+These checks run on lifted wheels, at the test limits, with continuous logging and the measured latency recorded:
+1. **E-STOP paths:** Xbox B, dashboard E-STOP, voice stop. Each must take a commanded non-zero wheel speed to zero, and
+   the latch must hold.
+2. **Watchdogs:**
+   - mux stale-source stop: 0.35 s source timeout, 50 ms cycle;
+   - base deadman: 0.45 s, checked by stopping the mux's output stream.
+3. **Arbitration:** FlySky is dropped while Xbox is selected, and vice versa. Handover is refused while the E-STOP is
+   released.
+4. **FlySky failsafe:** transmitter off → FAILSAFE → zero → latch. Also SwB stop, SwA off, Xbox off → latch.
+5. If any check fails, there is no driving and the fault is fixed first.
+
+## Stage A: deployment plan (prepared; NOT run; separate approval required)
+
+Script: `project_atlas/tools/deploy/stage29_flysky_drive/deploy_stage29.py`, commit `06c4352`.
+Package: `stage29A_pkg_06c4352.tar.gz`, SHA-256 `a0d41ab565f1cd3d…`, already copied to
+`~/project-atlas-migration/stage29A_pkg_06c4352/` on the rover. Nothing is installed.
+
+**Read-only preflight on the real rover, 10:13 IST: GO.**
+- All three steps' candidates rebuilt from the live files; every hash matches MANIFEST.
+- Gate off everywhere; safety OK ×3.
+- CPU mean 61.8 % (max 63.9 %), RAM 66.9 %, 62.9 °C.
+- No restart: mux 1948, dashboard 2103, base 1953.
+
+Observation:
+- Encoders were `[-404, 1471, -14027, 1421]` at 09:27 and `[-402, 1465, -14041, 1408]` at 10:13.
+- The E-STOP stayed latched throughout ("B pressed" since 08:29:53; no release in the journal), motor output was 0,
+  and the counts were steady afterwards.
+- The cause is not proven; the likely cause is handling.
+
+### Order and why
+
+| Step | Restarts | Safety source during the restart | Why here |
+|---|---|---|---|
+| A1 `mux` | `atlas-cmd-vel-mux` | Observer. Mux-owned signals are exempt only until the patched policy returns (≤ 20 s). The **base-owned** signals (`/motor_speed`, encoder health, base loop, base still, base identity) stay strict | Everything depends on its policy keys. The proven old dashboard remains a second safety source |
+| A2 `teleop` | starts the new `atlas-flysky-teleop` | Observer, no exemptions | Small node. It must log DISABLED and must not advertise `/cmd_vel_flysky` before any UI can select it |
+| A3 `web` | `rover-status-web` | Observer only. The dashboard is down by design; the observer does not depend on it | Largest and unmeasured spike, so it runs last and on its own |
+
+One step per invocation. Each step refuses unless the previous one is installed, and each has its own approval and its
+own CPU bound. The E-STOP stays latched and Xbox stays selected throughout; the gate is checked off before and after.
+
+### Measured CPU recovery criteria (limits 75 / 80 / 70 unchanged)
+
+1. Pre-window: 30 s strict preflight, then every recorder sample before the restart ≤ 75. Otherwise the step is
+   refused and nothing changes.
+2. Over 75 is tolerated only inside the approved bound for that service.
+3. Then 30 consecutive 1-s samples all ≤ 75. RAM ≤ 80 and temperature < 70 hold on every sample, inside the bound too.
+4. The steady-window mean must be ≤ the pre-window mean + 4 points (no lasting new load).
+
+Every sample is streamed to disk as taken.
+
+### Proposed bounds (owner decision)
+
+| Step | DDS endpoints | Evidence | Proposed bound |
+|---|---|---|---|
+| A1 mux | ≈ 48 | Not measured. It lies between two measured restarts: recovery (32 endpoints, last over-limit +8.2–8.7 s, 3 runs) and base (80, +9.3 s) | **15 s** (as approved for the base) |
+| A2 teleop | ≈ 19 | Not measured. The join cost is dominated by the per-participant term, so it should resemble recovery | **12 s** |
+| A3 web | ≈ 133, plus heavy Python start-up | **Not measured, and not inferable.** Earlier dashboard restarts (Stages 26, 31, 32) recorded no CPU transient. The DDS trend suggests about 10–11 s, but start-up work is outside that model | **20 s, explicitly unproven.** The first restart is the measurement |
+
+### Failure handling
+
+- **Safety failure** (observer unsafe or stale beyond the exemption, protected PID changed, service not back, or
+  verification failed): automatic rollback of that step. Backups are restored, the service restarts once, and the
+  rollback CPU is recorded but not aborted. Result `FAIL_ROLLED_BACK`. No retry.
+- **CPU, RAM or temperature over the limit with safety intact:** result `FAIL_HELD`. There is **no automatic second
+  restart**, because a rollback would repeat the spike. The script keeps recording until CPU is back under the limit
+  (up to 180 s), then stops. Rollback is the owner's decision:
+  `OWNER_APPROVED=yes deploy_stage29.py rollback --step <step> --evidence <dir> --owner-confirms-estop-latched --owner-confirms-rover-lifted-and-clear`
+- **Partial states are safe by design.** A patched mux with the old dashboard still runs with Xbox only. The disabled
+  teleop without a patched mux stays NOT_SELECTED.
+
+### Physical conditions during Stage A
+
+- Rover lifted and clear; E-STOP latched (Xbox B); Xbox powered.
+- FlySky transmitter off (recommended; the gate is off regardless).
+- The owner keeps hands off the wheels during each window, so the encoder-stillness checks stay meaningful.
+- Motors stay connected, as the owner chose. Stage A commands no motion.
+
+### Command (per step, run detached so a dropped SSH session cannot orphan it)
+
+```
+systemd-run --user --unit=atlas-stage29-A1 --collect -E OWNER_APPROVED=yes \
+  -p WorkingDirectory=$PKG /usr/bin/python3 $PKG/deploy_stage29.py deploy --step mux --cpu-bound-s 15 \
+  --owner-confirms-estop-latched --owner-confirms-rover-lifted-and-clear
+```
+
+Tests: 14 fake-rover end-to-end deployer scenarios, part of 240 tests passing across the FlySky, mux and Stage 28
+suites. They cover:
+- pass;
+- each refusal;
+- base-signal failure → rollback;
+- mux not back → rollback;
+- CPU overrun → hold, then owner rollback;
+- lasting load → hold;
+- protected PID change → rollback;
+- teleop advertising a command topic → rollback;
+- dashboard verification failure → rollback;
+- read-only preflight.
