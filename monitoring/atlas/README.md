@@ -1,5 +1,7 @@
 # ATLAS LAN monitoring (Prometheus + Grafana): read-only
 
+**Timestamp correction:** persistent activation was rolled back due to rounded Unix timestamps. The [offline fix and 86 focused test results](TIMESTAMP_FIX.md) are ready for review; no fixed exporter is active. The previous activation command must not be reused.
+
 **Latest status (2026-10-30):** Ubuntu WSL Prometheus/Grafana are installed on localhost; the final five-minute exporter trial passed and cleaned up. Persistent supervision is implemented and tested offline, not activated. See [persistent/VALIDATION.md](persistent/VALIDATION.md) and [RUNBOOK.md](persistent/RUNBOOK.md). Earlier VM/pending statements below are historical snapshots superseded by this status. The optional supervisor manages only monitoring firewall/service lifecycle; exporter data access remains read-only.
 
 Everything here only *reads*:

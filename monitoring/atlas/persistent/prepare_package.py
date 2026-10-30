@@ -5,14 +5,14 @@ import hashlib
 from pathlib import Path
 import shutil
 
-SHA='caa6ebe571e4ae57aa2be5be9bc80bea00252c6fb9c2897387edc762caf8b0f9'
+SHA='0248d329dd659f3557b68ae8731cb1a85db763bb7855850e1c5cec0ccd0f3e3d'
 
 def trial_bytes(data):
-    # Trial artifact used CRLF; Git's canonical source uses LF. Reconstruct only
-    # those exact bytes and require the trial SHA, independent of checkout OS.
+    # Deployment artifacts retain CRLF; Git's canonical source uses LF.
+    # Require the exact reviewed candidate SHA, independent of checkout OS.
     if hashlib.sha256(data).hexdigest()!=SHA:
         data=data.replace(b'\r\n',b'\n').replace(b'\n',b'\r\n')
-    if hashlib.sha256(data).hexdigest()!=SHA: raise ValueError('trial exporter hash mismatch')
+    if hashlib.sha256(data).hexdigest()!=SHA: raise ValueError('reviewed exporter hash mismatch')
     return data
 
 def prepare(output, uid):

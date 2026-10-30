@@ -91,7 +91,9 @@ class Out:
         if labels:
             esc = lambda s: str(s).replace('\\', '_').replace('"', '_').replace('\n', '_')[:64]
             lab = '{' + ','.join(f'{k}="{esc(v)}"' for k, v in labels.items()) + '}'
-        self.lines.append(f'{name}{lab} {n:g}')
+        # Preserve float64 round-trip precision: :g truncates Unix seconds to
+        # six significant digits (the saved failure lost 2301.702 seconds).
+        self.lines.append(f'{name}{lab} {n!r}')
 
     def raw(self, metric_with_labels, value):
         name, _, rest = metric_with_labels.partition('{')
@@ -276,10 +278,15 @@ def worker():
         try:
             output = collect()
             with LOCK:
-                LATEST, LAST = output, time.time()
+                LATEST, LAST = output, time.monotonic()
         except Exception:
             pass
         time.sleep(INTERVAL_S)
+
+
+def cache_is_fresh(stamp, now):
+    # Local cache duration uses monotonic seconds, never cross-host wall time.
+    return valid_age(stamp) and valid_age(now) and 0 <= now - stamp <= 45
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -289,7 +296,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         with LOCK:
             value, stamp = LATEST, LAST
-        if value is None or time.time() - stamp > 45:
+        if value is None or not cache_is_fresh(stamp, time.monotonic()):
             self.send_error(503, 'Stale metrics')
             return
         body = value.encode()

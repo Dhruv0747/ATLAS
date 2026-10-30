@@ -1,5 +1,7 @@
 # Persistent monitoring candidate — preparation only
 
+**Superseded candidate notice:** the 852feb9 activation was rolled back after a timestamp precision defect. See [../TIMESTAMP_FIX.md](../TIMESTAMP_FIX.md) for the new offline-only exporter hash/package and test results. Do not execute the historical activation command or old hash below; a newly approved single-use activation command is required. Firewall/safety design below is unchanged.
+
 No Jetson installation, activation, firewall change or service restart was performed for this implementation. No Windows startup task was registered. This runbook supersedes the implementation-pending sections of PLAN.md; that document retains the design rationale.
 
 ## Reviewed payload and ordering

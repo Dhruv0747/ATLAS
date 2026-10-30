@@ -22,7 +22,7 @@ import urllib.request
 STATE = Path('/var/lib/atlas-monitoring')
 CONFIG = Path('/etc/atlas-monitoring')
 EXPORTER = Path('/opt/atlas-monitoring-exporter/atlas_health_exporter.py')
-SHA = 'caa6ebe571e4ae57aa2be5be9bc80bea00252c6fb9c2897387edc762caf8b0f9'
+SHA = '0248d329dd659f3557b68ae8731cb1a85db763bb7855850e1c5cec0ccd0f3e3d'
 TABLE = 'atlas_monitor'
 UNIT = 'atlas-monitoring-exporter.service'
 WATCHDOG = 'atlas-monitoring-watchdog.service'

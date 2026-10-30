@@ -205,9 +205,9 @@ class Server(unittest.TestCase):
     def test_read_only_and_stale_handling(self):
         E.LATEST, E.LAST = None, 0.0
         self.assertEqual(self.code('/metrics'), 503)                               # nothing collected yet
-        E.LATEST, E.LAST = 'atlas_x 1\n', E.time.time()
+        E.LATEST, E.LAST = 'atlas_x 1\n', E.time.monotonic()
         self.assertEqual(self.code('/metrics'), 200)
-        E.LAST = E.time.time() - 60
+        E.LAST = E.time.monotonic() - 60
         self.assertEqual(self.code('/metrics'), 503)                               # stale: never serve old data as live
         for m in ('POST', 'PUT', 'DELETE'):
             self.assertEqual(self.code('/metrics', m), 405)

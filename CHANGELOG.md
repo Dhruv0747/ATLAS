@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-30 — Offline monitoring timestamp fix
+
+- Preserve float64 timestamp precision and use monotonic local cache expiry; retain Unix seconds for Prometheus. Reproduced/eliminated the saved 2301.702-second false age. Focused tests passed; production activation remains separately approval-gated.
+
 ## 2026-09-20 — Stationary ultrasonic/LiDAR comparison and sustained observation
 
 - With motor/servo power kept OFF, briefly SIGSTOP/SIGCONT only the exact sensor
