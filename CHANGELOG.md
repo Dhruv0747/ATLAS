@@ -1355,3 +1355,7 @@ Historical first attempt; the later successful installation is recorded above.
 
 
 2026-10-30 PR #13: completed cached battery-power/encoder metrics, corrected missing/stale safety-state reporting and Grafana availability mapping, added native alert tests. See monitoring/atlas/README.md. Optional monitoring deployment remains pending; rover safety controls unchanged.
+# Monitoring preparation — 2026-10-30
+
+- Prepared optional persistent monitoring firewall/safety supervision without changing the trial exporter or rover controls.
+- Added focused offline tests, native isolated packet/fake-systemd validation, inactive Windows startup XML preparation and hashed rollback/deployment instructions. Persistent Jetson activation and reboot validation remain approval-gated.

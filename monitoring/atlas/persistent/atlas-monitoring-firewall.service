@@ -1,0 +1,23 @@
+[Unit]
+Description=ATLAS optional monitoring port protection only
+Before=atlas-monitoring-watchdog.service atlas-monitoring-exporter.service
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/atlas-monitoring-guard.py firewall
+TimeoutStartSec=10
+UMask=0077
+StateDirectory=atlas-monitoring
+StateDirectoryMode=0700
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_NET_ADMIN
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+MemoryMax=64M
+TasksMax=16
+# No ExecStop: retain protection until an explicit, verified rollback.

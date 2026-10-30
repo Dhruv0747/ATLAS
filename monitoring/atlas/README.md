@@ -1,5 +1,7 @@
 # ATLAS LAN monitoring (Prometheus + Grafana): read-only
 
+**Latest status (2026-10-30):** Ubuntu WSL Prometheus/Grafana are installed on localhost; the final five-minute exporter trial passed and cleaned up. Persistent supervision is implemented and tested offline, not activated. See [persistent/VALIDATION.md](persistent/VALIDATION.md) and [RUNBOOK.md](persistent/RUNBOOK.md). Earlier VM/pending statements below are historical snapshots superseded by this status. The optional supervisor manages only monitoring firewall/service lifecycle; exporter data access remains read-only.
+
 Everything here only *reads*:
 - The Jetson exporter has **no ROS node, no ROS subscriber and no camera access**. It sends no commands and answers 405 to POST, PUT and DELETE.
 - Alerts only notify. Nothing here can move the rover or change its safety state.
@@ -86,3 +88,6 @@ Read-only live schema inspection confirmed cache fields on Jetson 192.168.1.16. 
 Deployment PENDING: no monitoring VM address/access was supplied or verified; PC WSL has no Docker. The checked-in targets file is intentionally a placeholder. Owner must provide the VM endpoint, configure its target/secret and restrict Jetson port 9118 to that VM before a separately approved exporter/stack trial. Native Grafana rendering, Compose startup, authenticated access and end-to-end scraping remain unverified. No notification transport/Alertmanager is configured. Monitoring alerts are informational, never substitutes for production safety guards.
 
 Rollback: revert this candidate commit for repository changes; deployment rollback remains stopping only the optional exporter/monitoring stack as described above. No rover service or safety configuration changes are required.
+# Persistent deployment preparation
+
+The unchanged trial exporter now has an optional firewall verifier, stationary safety watchdog, bounded systemd units and inactive Windows/WSL startup preparation. See [persistent/RUNBOOK.md](persistent/RUNBOOK.md) for exact approval-gated commands, [validation evidence](persistent/VALIDATION.md) and [source hashes](persistent/SHA256SUMS). Offline validation passed; Jetson persistent activation and reboot tests remain pending. No production activation or PR merge is implied.
