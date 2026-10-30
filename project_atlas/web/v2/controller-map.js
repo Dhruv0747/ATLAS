@@ -58,8 +58,8 @@
     { ch: 7, id: 'swc', control: 'Switch SwC (3 positions)', name: 'SwC', kind: 'switch', positions: 3, role: 'speed', proposal: 'Speed (up 33 %, middle 66 %, down 100 % of the limit)' },
     { ch: 8, id: 'swd', control: 'Switch SwD (2 positions)', name: 'SwD', kind: 'switch', positions: 2, role: null,
       reset: 'E-STOP reset: SwD up 1 s, down 2-5 s, then up' },
-    { ch: 9, id: 'vra', control: 'Knob VrA', name: 'VrA', kind: 'knob', role: null, planned: 'Camera pan (proposed, not implemented)' },
-    { ch: 10, id: 'vrb', control: 'Knob VrB', name: 'VrB', kind: 'knob', role: null, planned: 'Camera tilt (proposed, not implemented)' }
+    { ch: 9, id: 'vra', control: 'Knob VrA', name: 'VrA', kind: 'knob', role: null, camera: 'Camera pan: turn to take control' },
+    { ch: 10, id: 'vrb', control: 'Knob VrB', name: 'VrB', kind: 'knob', role: null, camera: 'Camera tilt: turn to take control' }
   ];
   const FLYSKY_KEYS = [
     { id: 'key1', name: 'Key 1', control: 'Rear key', note: 'Not sent on any receiver channel in this setup.' },
@@ -135,6 +135,10 @@
   function flyskyFunctionState(c, ctx) {
     if (!ctx.config && c.role) return { state: 'proposed', text: c.proposal, why: 'The drive node is not reporting its setup, so this is the proposed layout only.' };
     const roles = rolesFromConfig(ctx.config)[c.ch] || [];
+    if (c.camera && !roles.length) {                     // FlySky camera knobs (atlas-flysky-camera); not a drive role
+      if (!ctx.flyskyLive) return { state: 'blocked', text: c.camera, why: 'FlySky signal not live: the camera stays where it is.' };
+      return { state: 'active', text: c.camera, why: 'Follows the knob once turned; releases 2 s after you stop, so the D-pad works again.' };
+    }
     if (c.reset && !roles.length) {                      // Stage 29 FlySky reset: from the drive node's report only
       const r = ctx.reset;
       if (!r || !r.enabled) return { state: 'unassigned', text: 'Not assigned', why: 'The FlySky E-STOP reset is off on this rover.' };

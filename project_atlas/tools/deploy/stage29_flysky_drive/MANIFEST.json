@@ -7,7 +7,8 @@
     "web",
     "view",
     "features",
-    "reset"
+    "reset",
+    "camera"
   ],
   "required_for_driving": [
     "mux",
@@ -196,7 +197,7 @@
         "web/v2/controller-map.js": {
           "kind": "replace",
           "baseline_sha256": "8f1f302b1d6cda22ab02f77af9dd48d499fc1565f7b2f0a0f1435466c50054b0",
-          "source": "web/v2/controller-map.js",
+          "source": "tools/deploy/stage29_flysky_drive/baseline/controller-map.js.reset-9ca1352d",
           "candidate_sha256": "9ca1352d5fbc984fb2424e771f8254c57522135b4e84da1eb573aab5eccab8bb"
         },
         "web/v2/controller-viz.js": {
@@ -204,6 +205,28 @@
           "baseline_sha256": "545aebf938948db909d80c6c8dfa66f1f65f342d04d4ef2b59ac25e73c4053b5",
           "source": "web/v2/controller-viz.js",
           "candidate_sha256": "39e42d046ff739f756e5d68ad721a033120492ef8b6042c8b4edc4c70905f313"
+        }
+      }
+    },
+    "camera": {
+      "unit": "atlas-flysky-camera.service",
+      "supersedes": "reset",
+      "files": {
+        "scripts/atlas_flysky_camera.py": {
+          "kind": "new",
+          "source": "scripts/atlas_flysky_camera.py",
+          "candidate_sha256": "b57b195437ea603dd4b720c2a2ee1c5da8eb80ab708295c8809f897225b62e6a"
+        },
+        "systemd/atlas-flysky-camera.service": {
+          "kind": "unit",
+          "source": "systemd/atlas-flysky-camera.service",
+          "candidate_sha256": "ee1615639260834b0ecad284fa7ccd9b43cd928e992760d9327c4c54d3e5f477"
+        },
+        "web/v2/controller-map.js": {
+          "kind": "replace",
+          "baseline_sha256": "9ca1352d5fbc984fb2424e771f8254c57522135b4e84da1eb573aab5eccab8bb",
+          "source": "web/v2/controller-map.js",
+          "candidate_sha256": "bacabb5ff7d1adf2538ad48843120d03ad4c95beef8e334cf3ff4e954d57552a"
         }
       }
     }

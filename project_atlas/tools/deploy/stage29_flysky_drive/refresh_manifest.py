@@ -49,6 +49,16 @@ DEPLOYED = {'scripts/atlas_flysky_teleop.py': 'baseline/atlas_flysky_teleop.py.s
             'web/v2/controller-map.js': 'baseline/controller-map.js.view-8f1f302b',
             'web/v2/controller-viz.js': 'baseline/controller-viz.js.view-545aebf9'}
 S29_MUX = insert_flysky_mux.apply(BASE_MUX.read_text())
+# Files exactly as the reset step installed them (verified on the rover 2026-10-30 11:22); later steps replace them.
+RESET_DEPLOYED = {'web/v2/controller-map.js': 'baseline/controller-map.js.reset-9ca1352d'}
+RESET_MAP = h((HERE / RESET_DEPLOYED['web/v2/controller-map.js']).read_bytes())
+
+
+def reset_src(rel):
+    if rel in RESET_DEPLOYED:
+        path = HERE / RESET_DEPLOYED[rel]
+        return {'source': str(path.relative_to(REPO)), 'candidate_sha256': h(path.read_bytes())}
+    return src(rel)
 
 
 def deployed(rel):
@@ -60,7 +70,7 @@ def build():
     return {
         'stage': '29 Stage A: FlySky driving integration deployed with the gate OFF (+ view: dual-controller dashboard)',
         'gate': 'ATLAS_FLYSKY_DRIVE_ENABLED must be absent or 0 everywhere; config reviewed_by_owner false',
-        'order': ['mux', 'teleop', 'web', 'view', 'features', 'reset'],
+        'order': ['mux', 'teleop', 'web', 'view', 'features', 'reset', 'camera'],
         'required_for_driving': ['mux', 'teleop', 'web'],
         'steps': {
             'mux': {'unit': 'atlas-cmd-vel-mux.service', 'files': {
@@ -111,8 +121,14 @@ def build():
                 'scripts/atlas_cmd_vel_mux.py': {'kind': 'patch', 'patcher': 'insert_flysky_reset_mux.py',
                                                  'baseline_sha256': h(S29_MUX.encode()),
                                                  'candidate_sha256': h(insert_flysky_reset_mux.apply(S29_MUX).encode())},
-                **{rel: {'kind': 'replace', 'baseline_sha256': deployed(rel)['candidate_sha256'], **src(rel)}
+                **{rel: {'kind': 'replace', 'baseline_sha256': deployed(rel)['candidate_sha256'], **reset_src(rel)}
                    for rel in DEPLOYED}}},
+            # FlySky camera knobs (2026-10-30): VrA pan, VrB tilt. A NEW service only (started once, nothing restarted);
+            # chained on the reset step's controller-map.js (dashboard labels).
+            'camera': {'unit': 'atlas-flysky-camera.service', 'supersedes': 'reset', 'files': {
+                'scripts/atlas_flysky_camera.py': {'kind': 'new', **src('scripts/atlas_flysky_camera.py')},
+                'systemd/atlas-flysky-camera.service': {'kind': 'unit', **src('systemd/atlas-flysky-camera.service')},
+                'web/v2/controller-map.js': {'kind': 'replace', 'baseline_sha256': RESET_MAP, **src('web/v2/controller-map.js')}}},
         },
         'unchanged_required': {'scripts/atlas_base_maintenance.py': 'a768626a (Stage 28 lease module, reused)','scripts/atlas_flysky_core.py': '3e4b379e', 'scripts/atlas_remote_stop.py': '1a44fb37a532',
                                'scripts/atlas_flysky_drive_core.py': '567f04333 (drive core, unchanged by reset)',

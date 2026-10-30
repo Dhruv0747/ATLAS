@@ -74,10 +74,12 @@ CPU_LIMIT, RAM_LIMIT, TEMP_LIMIT = d28.CPU_LIMIT, d28.RAM_LIMIT, d28.TEMP_LIMIT
 MANIFEST = json.loads((HERE / 'MANIFEST.json').read_text())
 STEPS = ('mux', 'teleop', 'web', 'view', 'features')
 RESET_STEP = 'reset'                               # gate-ON step with its own action path (deploy_reset)
-ALL_STEPS = STEPS + (RESET_STEP,)
+CAMERA_STEP = 'camera'                             # FlySky camera knobs: a new service only (deploy_camera)
+ALL_STEPS = STEPS + (RESET_STEP, CAMERA_STEP)
 REQUIRED_STEPS = ('mux', 'teleop', 'web')          # what FlySky driving needs; 'view' is the optional dashboard UI
 UNITS = {'mux': 'atlas-cmd-vel-mux.service', 'teleop': 'atlas-flysky-teleop.service', 'web': 'rover-status-web.service',
-         'view': 'rover-status-web.service', 'features': 'atlas-feature-on-demand.service', 'reset': 'atlas-cmd-vel-mux.service'}
+         'view': 'rover-status-web.service', 'features': 'atlas-feature-on-demand.service', 'reset': 'atlas-cmd-vel-mux.service',
+         'camera': 'atlas-flysky-camera.service'}
 LEASED_STEPS = ('mux', 'features')       # restarts that run under the authorised-restart lease
 MANAGED_FEATURES = ('atlas-vision-lidar-fusion', 'atlas-person-sensor-fusion', 'atlas-experience-store', 'atlas-agent-team',
                     'atlas-ai-annotator', 'atlas-follow-person', 'atlas-camera-tracker', 'atlas-active-vision')
@@ -720,6 +722,8 @@ def rollback(env, args):
         ev.log(f'REFUSED: {exc}'); ev.seal(); return 3
     if args.step == RESET_STEP:
         rollback_reset(env, ev, src / 'backup', meta, restart=True)
+    elif args.step == CAMERA_STEP:
+        rollback_camera(env, ev, src / 'backup', meta)
     else:
         rollback_files(env, ev, args.step, src / 'backup', meta, restart=True)
     ev.save('result', {'result': 'ROLLED_BACK', 'step': args.step, 'from': str(src)}); ev.seal()
@@ -1110,6 +1114,133 @@ def preflight_reset(env, args):
     return 0 if ok else 1
 
 
+# ------------------------------------------------------------------ FlySky camera knobs (2026-10-30)
+CAMERA_TOPICS = ['/camera/bottom_servo_cmd_us', '/camera/second_servo_cmd_us']
+
+
+def camera_checks(env, ev):
+    for st in STEPS:
+        if not installed(env, st):
+            raise Fail(f'step {st} is not installed')
+    if not step_done(env, RESET_STEP):
+        raise Fail('step reset is not installed (the camera step is chained on its dashboard files)')
+    if step_done(env, CAMERA_STEP):
+        raise Fail('step camera is already installed; nothing to do')
+    plan = file_plan(env, CAMERA_STEP)
+    require_latched(env)
+    p = policy(env)
+    ev.log(f'camera checks: steps installed; camera files will be installed; latched; controller {p.get("manual_controller")}')
+    return plan, p
+
+
+def rollback_camera(env, ev, bkdir, meta):
+    env.systemctl('stop', UNITS[CAMERA_STEP], timeout=60, check=False)
+    restore(env, ev, bkdir, meta)
+    env.systemctl('daemon-reload', timeout=30)
+    ev.log('ROLLBACK of camera complete (service stopped, files restored)')
+
+
+def deploy_camera(env, args):
+    """Install the camera-knob node, its unit and the dashboard map; START the new service only. No restart of any
+    existing service, no mux lease (the mux is untouched). Rollback: stop it and restore the files."""
+    ev = Evidence(env, 'deploy-camera')
+    unit = UNITS[CAMERA_STEP]
+    ev.log(f'STAGE 29 FlySky camera knobs: bound {args.cpu_bound_s} s; only {unit} is started; E-STOP stays latched')
+    installed_ = False
+    try:
+        plan, p0 = camera_checks(env, ev)
+        require_safe_after_dashboard_restart(env, ev, 'camera-pre', count=3)
+        d28.resources_strict(env, ev, 'camera-preflight', env.preflight_s)
+        meta = backup(env, ev, plan)
+        protected0 = d28.identities(env, [u for u in env.protected if u != unit])
+        base_pid = int(d28.unit_state(env, 'rover-base-telemetry.service').get('MainPID', '0'))
+    except Fail as exc:
+        ev.log(f'REFUSED, nothing changed: {exc}')
+        ev.save('result', {'result': 'REFUSED_NO_CHANGE', 'reason': str(exc)}); ev.seal()
+        return 3
+    rec = obs = t0 = None
+    try:
+        with d28.CpuRecorder(env, sink=ev.stream('cpu-camera')) as rec, \
+                d28.ObserverRecorder(env, base_pid, sink=ev.stream('observer-camera')) as obs:
+            env.sleep(2.5)
+            d28.require_pre_window_ok(env, ev, 'camera', rec, obs)
+            for dst, data, mode, _, _ in plan:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                d28.install_atomic(data, dst, mode)
+            installed_ = True
+            ev.log('installed: ' + ', '.join(f'{dst.name}={hh[:12]}' for dst, _, _, _, hh in plan))
+            env.systemctl('daemon-reload', timeout=30)
+            t0 = time.time()
+            ev.log(f'starting {unit} ONLY')
+            env.systemctl('start', unit, timeout=60)
+            try:
+                d28.resources_after_restart(env, ev, 'camera-post', 'transient', rec, t0, args.cpu_bound_s, obs)
+            except Fail as exc:
+                if classify(rec, obs, t0, args.cpu_bound_s):
+                    raise
+                raise CpuOverrun(str(exc)) from exc
+            recovery_mean(ev, 'camera', rec, t0, args.cpu_bound_s)
+        s = d28.require_running(env, unit)
+        log = env.journal(s.get('InvocationID'))
+        if 'Traceback' in log or 'FlySky camera ready' not in log:
+            raise Fail('camera node did not report ready (or logged a traceback)')
+        changed = {u: (a, d28.identities(env, [u])[u]) for u, a in protected0.items() if d28.identities(env, [u])[u] != a}
+        if changed:
+            raise Fail(f'protected service identity changed: {changed}')
+        p = policy(env)
+        keep = ('stop_latched', 'manual_controller', 'flysky_drive_enabled', 'source')
+        if {k: p.get(k) for k in keep} != {k: p0.get(k) for k in keep} or p.get('stop_latched') is not True:
+            raise Fail(f'control policy changed during the camera step: {p0} -> {p}')
+        smp = env.sample_topics(CAMERA_TOPICS, seconds=3.0)
+        ev.save('camera-topic-sample', smp)
+        sent = {t: v['count'] for t, v in smp.items() if v['count']}
+        if sent:
+            raise Fail(f'camera servo commands with the knobs untouched: {sent}')
+        code, js = env.get_text('/v2/controller-map.js')
+        if code != 200 or 'Camera pan: turn to take control' not in js:
+            raise Fail(f'dashboard does not serve the camera labels ({code})')
+        require_safe_after_dashboard_restart(env, ev, 'camera-post', count=3)
+        ev.log(f'CAMERA STEP PASS: {unit} running (pid {s.get("MainPID")}); no servo command; E-STOP latched; nothing moved')
+        ev.save('result', {'result': 'PASS', 'step': CAMERA_STEP}); ev.seal()
+        return 0
+    except CpuOverrun as exc:
+        ev.log(f'CAMERA STEP FAILED on resources with safety intact: {exc}')
+        hold(env, ev, CAMERA_STEP, rec, t0)
+        ev.log(f'HELD: rollback on owner decision: rollback --step camera --evidence {ev.dir}')
+        ev.save('result', {'result': 'FAIL_HELD', 'step': CAMERA_STEP, 'reason': str(exc), 'rollback_evidence': str(ev.dir)}); ev.seal()
+        return 1
+    except Exception as exc:
+        if not installed_:
+            ev.log(f'REFUSED before any change: {exc!r}')
+            ev.save('result', {'result': 'REFUSED_NO_CHANGE', 'step': CAMERA_STEP, 'reason': repr(exc)}); ev.seal()
+            return 3
+        ev.log(f'CAMERA STEP FAILED: {exc!r}; rolling back')
+        try:
+            rollback_camera(env, ev, ev.dir / 'backup', meta)
+            ev.save('result', {'result': 'FAIL_ROLLED_BACK', 'step': CAMERA_STEP, 'reason': repr(exc)})
+        except Exception as rb:
+            ev.save('result', {'result': 'FAIL_ROLLBACK_UNCONFIRMED', 'step': CAMERA_STEP, 'reason': repr(exc), 'rollback': repr(rb)})
+        ev.seal()
+        return 1
+
+
+def preflight_camera(env, args):
+    """Read-only GO/NO-GO for `deploy --step camera`."""
+    ev = Evidence(env, 'preflight-camera')
+    ok = True
+    for label, fn in (('camera', lambda: camera_checks(env, ev)),
+                      ('safety', lambda: require_safe_after_dashboard_restart(env, ev, 'preflight-camera')),
+                      ('resources', lambda: d28.resources_strict(env, ev, 'preflight-camera', env.preflight_s))):
+        try:
+            fn()
+        except Exception as exc:
+            ok = False
+            ev.log(f'{label}: NO-GO: {exc}')
+    ev.log('PREFLIGHT CAMERA ' + ('GO' if ok else 'NO-GO'))
+    ev.save('result', {'result': 'GO' if ok else 'NO-GO'}); ev.seal()
+    return 0 if ok else 1
+
+
 def require_latched(env):
     if env.get('/api/estop/state').get('latched') is not True:
         raise Fail('E-STOP not latched')
@@ -1177,7 +1308,8 @@ def main(argv=None, env=None):
     a = p.parse_args(argv)
     env = env or Env(**({'evidence_root': Path(a.evidence_root)} if a.evidence_root else {}))
     if a.action == 'preflight':
-        return preflight_reset(env, a) if a.step == RESET_STEP else preflight(env, a)
+        return (preflight_reset(env, a) if a.step == RESET_STEP else preflight_camera(env, a) if a.step == CAMERA_STEP
+                else preflight(env, a))
     if os.environ.get('OWNER_APPROVED') != 'yes':
         print('refused: OWNER_APPROVED=yes required (separate owner approval)'); return 2
     if a.action == 'review-config':
@@ -1202,6 +1334,8 @@ def main(argv=None, env=None):
         print(f'refused: --cpu-bound-s must be given explicitly, 0 < bound <= {MAX_BOUND_S}'); return 2
     if a.step == RESET_STEP:
         return deploy_reset(env, a)
+    if a.step == CAMERA_STEP:
+        return deploy_camera(env, a)
     return deploy_step(env, a)
 
 
