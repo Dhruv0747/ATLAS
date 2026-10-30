@@ -1041,3 +1041,27 @@ A release flushes every channel. The drive core is unchanged, so motion still ne
 - **Failure handling:** a CPU-only overrun HOLDs; any safety or verification failure rolls back (files restored, drop-ins removed, one leased restart).
 - **gate-off** also removes the reset drop-ins. After a reboot, gate-on and then `deploy --step reset` re-enables without copying files.
 - **Deploy tests:** 28 pass. They cover the PASS path, refusals with no change, rollback (teleop not enabled, new mux unproven, base signal failure, unexpected requests or commands), CPU HOLD followed by the owner's rollback, rollback after a PASS, gate-off, the reboot re-enable, and source checks.
+
+### Reset deploy attempt 1, 2026-10-30 11:09 IST: FAIL_ROLLED_BACK (package ed2b55e, bound 15 s, owner-approved, one attempt)
+
+- **Preflight**
+  - 11:08:10 NO-GO: FlySky still selected.
+  - The owner pressed SELECT XBOX at 11:08:23.
+  - 11:09:31 GO: CPU mean 62.7 %, max 65.1 %.
+- **Window**
+  - Lease armed; 7 files installed; reset drop-ins written; mux restarted at 11:10:24.
+  - **New mux proven on the dashboard (policy flysky_reset.enabled True) at +10.2 s.**
+  - **CPU over 75 % from +2.2 to +16.4 s**: peak 100 % (+4.2 to +8.2 s), 83 % at +15.7 s and +16.4 s, then 64.6 % at +17.4 s.
+- **Why it rolled back:** at +15.7 s, after the 15 s bound, the observer had not yet itself confirmed the mux-owned signals for the required 1.5 s after the dashboard proof. By the documented rule this is not a CPU-only case, so the deployer failed closed and rolled back instead of holding. The observer reported no failure at any time during the window.
+- **Rollback**
+  - Files restored to 5d096638 / feecba2c / b5b4f12e / dd02e0e5 / 8f1f302b / 545aebf9, and atlas_flysky_reset.py removed.
+  - Reset drop-ins removed; one leased mux restart.
+  - Rollback CPU over 75 % until +15.1 s (peak 100 %), then a steady mean of about 62.5 %.
+- **State after the rollback (verified)**
+  - Gate drop-ins still present (gate ON).
+  - E-STOP latched, XBOX selected, source STOPPED.
+  - Teleop NOT_SELECTED, can_select FLYSKY true.
+  - motor 0, /cmd_vel 0, encoders unchanged [81195, -74122, -62144, -74805].
+  - AI/fusion features inactive; base PID 1953 and dashboard PID 563039 unchanged.
+  - New mux PID 1163521, teleop PID 1163523.
+- **Finding:** the two mux restarts today stayed over 75 % until +16.4 s and +15.1 s. Gate-on attempt 3 on 10-29 ended at +12.7 s. A 15 s bound has no margin at the current 63–65 % baseline. No automatic retry was made. Another attempt needs an owner decision (for example a 20 s bound).
