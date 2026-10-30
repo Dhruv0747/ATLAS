@@ -1216,3 +1216,17 @@ A release flushes every channel. The drive core is unchanged, so motion still ne
   3. **Ground stopping performance:** not measured.
 
   None of the non-latching stops (SwA off, stick release) is marked PASS. The latching stops SwB (2/2) and Xbox B (1/1) passed on lifted wheels.
+
+### Stop-recording re-analysis, 2026-10-30 17:3x (analyzer fix, root cause found)
+
+- **Root cause of the FAIL flood.** The analyzer counted every stick return and switch flip as a stop test, including when the rover was NOT being driven: 42 of 48 "stick releases" happened disarmed or latched. It then timed the next sparse idle /cmd_vel message, which produced the false 1–4 s "command zero" readings.
+- **Fix.** An event is a stop test only if /cmd_vel was non-zero within 0.3 s before it. Other events are reported as NOT_A_STOP_TEST, never PASS or FAIL. The wheels-still limit (1.0 s) is unchanged.
+- **Corrected results (wheels LIFTED):**
+
+  | Category | Events | Result |
+  |---|---|---|
+  | Stops while driving | 8 (6 stick release, 2 SwA off) | command zero in **0.019–0.047 s, 8/8** |
+  | Lifted-wheel coast-down after those stops | 7 of 8 | 1.6–3.5 s or more; FAIL against the 1.0 s wheels-still limit. Observation only: lifted wheels, ground NOT measured |
+  | **SwB (2) and Xbox B (1)** | 3 | done while NOT driving: they prove the E-STOP latches (≤ 0.08 s), not that it stops a moving rover |
+
+- **Correction to the 16:56 and 17:04 reports:** the "SwB 2/2 PASS, Xbox B 1/1 PASS" entries are latch-only results. **A latching stop of a moving rover is NOT TESTED.**

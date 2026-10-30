@@ -105,6 +105,43 @@ class Analysis(unittest.TestCase):
         self.assertIn('rx_silent', [e['event'] for e in R.analyze(write(rows))['events']])
 
 
+def idle(event):
+    """The same recording, but the rover was NOT being driven: /cmd_vel zero and wheels still throughout
+    (stick or switch moved while disarmed or latched; found in the 2026-10-30 lifted test: 42 of 48 'stick releases')."""
+    rows = synth(event, latch=event in R.LATCHES)
+    for r in rows:
+        if r['topic'] == '/cmd_vel':
+            r['v'] = [0.0, 0, 0, 0, 0, 0.0]
+        elif r['topic'].startswith('/yahboom/encoder/'):
+            r['v'] = 5
+        elif r['topic'] == '/motor_speed':
+            r['v'] = 0.0
+    return [r for r in rows if not (r['topic'] == '/cmd_vel' and 105.0 < r['t'] < 109.0)]   # idle mux: sparse /cmd_vel
+
+
+class DrivingOrIdle(unittest.TestCase):
+    def test_idle_event_is_not_a_stop_test_and_not_a_failure(self):
+        for kind in ('stick_release', 'swa_off', 'swb_stop', 'xbox_b'):
+            r = R.analyze(write(idle(kind)))
+            e = next(e for e in r['events'] if e['event'] == kind)
+            self.assertFalse(e['driving'], kind)
+            self.assertEqual(e['result'], 'NOT_A_STOP_TEST', kind)
+            self.assertEqual(e['cmd_zero_s'], 0.0, kind)          # already zero: not "the next message 4 s later"
+            self.assertNotIn(kind, [x['event'] for x in r['events'] if x['result'] == 'FAIL'])
+
+    def test_driving_event_is_judged_exactly_as_before(self):
+        e = next(e for e in R.analyze(write(synth('stick_release', latch=False)))['events'] if e['event'] == 'stick_release')
+        self.assertTrue(e['driving']); self.assertEqual(e['result'], 'PASS'); self.assertTrue(e['pass'])
+        e = next(e for e in R.analyze(write(synth('xbox_b', wheels_coast=1.5)))['events'] if e['event'] == 'xbox_b')
+        self.assertTrue(e['driving']); self.assertEqual(e['result'], 'FAIL')
+
+    def test_overall_needs_at_least_one_stop_under_motion(self):
+        r = R.analyze(write(idle('swb_stop')))
+        self.assertFalse(r['pass']); self.assertEqual(r['stops_under_motion'], 0)
+        r = R.analyze(write(synth('swb_stop')))
+        self.assertTrue(r['pass']); self.assertGreaterEqual(r['stops_under_motion'], 1)
+
+
 class RecordReal(unittest.TestCase):
     def test_records_through_fake_bridge_without_blocking(self):
         s = socket.socket(); s.bind(('127.0.0.1', 0)); port = s.getsockname()[1]; s.close()
