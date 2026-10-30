@@ -3485,3 +3485,6 @@ Prepared targeted live-baseline patch preserving Stage28 recovery safeguards, di
 
 ## 2026-10-31 — Recovery snapshot runtime validation primitives
 Verified installed hashes and disabled state; six focused offline tests cover independent-safety freshness and durable restart budgets. Runtime supervisor/crash cleanup still pending; activation remains NO-GO.
+
+## 2026-10-31 — Recovery snapshot runtime safety supervisor
+Added independent HTTP/resource watcher, nonblocking bounded restart flow and systemd ExecStopPost cleanup, validated with PC fake units including SIGKILL/timeout. Runtime activation remains separately approval-gated.
