@@ -1,229 +1,1342 @@
 {
-  "uid": "atlas-health",
-  "title": "ATLAS Health — read only",
-  "schemaVersion": 41,
-  "refresh": "15s",
-  "timezone": "browser",
-  "time": {
-    "from": "now-6h",
-    "to": "now"
+ "uid": "atlas-health-monitor",
+ "title": "ATLAS HEALTH MONITOR",
+ "tags": [
+  "atlas",
+  "read-only"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "refresh": "15s",
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "graphTooltip": 1,
+ "panels": [
+  {
+   "id": 1,
+   "type": "row",
+   "title": "Overall",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
   },
-  "panels": [
+  {
+   "id": 2,
+   "type": "stat",
+   "title": "Exporter reachable",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
     {
-      "id": 1,
-      "title": "Exporter reachable",
-      "type": "stat",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 0
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "atlas-prom"
-      },
-      "targets": [
-        {
-          "expr": "up{job=\"atlas-jetson\"}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "NO DATA"
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 2,
-      "title": "Seconds since update",
-      "type": "stat",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "atlas-prom"
-      },
-      "targets": [
-        {
-          "expr": "time()-atlas_exporter_observed_timestamp_seconds",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "NO DATA"
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 3,
-      "title": "RAM available",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "atlas-prom"
-      },
-      "targets": [
-        {
-          "expr": "atlas_memory_available_bytes",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "NO DATA"
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 4,
-      "title": "Swap free",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "atlas-prom"
-      },
-      "targets": [
-        {
-          "expr": "atlas_swap_free_bytes",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "NO DATA"
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 5,
-      "title": "Disk free",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 16
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "atlas-prom"
-      },
-      "targets": [
-        {
-          "expr": "atlas_disk_free_bytes",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "NO DATA"
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 6,
-      "title": "Temperature °C",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 16
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "atlas-prom"
-      },
-      "targets": [
-        {
-          "expr": "atlas_thermal_celsius",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "NO DATA"
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 7,
-      "title": "Service running",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 24
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "atlas-prom"
-      },
-      "targets": [
-        {
-          "expr": "atlas_service_active",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "NO DATA"
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 8,
-      "title": "Service restarts / 10m",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 24
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "atlas-prom"
-      },
-      "targets": [
-        {
-          "expr": "increase(atlas_service_restarts_total[10m])",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "NO DATA"
-        },
-        "overrides": []
-      }
+     "refId": "A",
+     "expr": "up{job=\"atlas-jetson\"}",
+     "legendFormat": "__auto",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
     }
-  ]
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "1": {
+         "text": "UP",
+         "color": "green"
+        },
+        "0": {
+         "text": "DOWN",
+         "color": "red"
+        }
+       }
+      }
+     ],
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "Last successful update",
+   "description": "Seconds since the exporter last collected. Over 45 s = STALE.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "time() - atlas_exporter_observed_timestamp_seconds",
+     "legendFormat": "__auto",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {},
+     "unit": "s",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 30
+       },
+       {
+        "color": "red",
+        "value": 45
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "E-STOP",
+   "description": "From the mux control policy via the dashboard. Display only; this system cannot change it.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_estop_latched",
+     "legendFormat": "__auto",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "1": {
+         "text": "LATCHED",
+         "color": "green"
+        },
+        "0": {
+         "text": "RELEASED",
+         "color": "orange"
+        }
+       }
+      }
+     ],
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 5,
+   "type": "stat",
+   "title": "Selected controller",
+   "description": "XBOX or FLYSKY, from the mux policy.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_control_selected == 1",
+     "legendFormat": "{{controller}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 6,
+   "type": "table",
+   "title": "Data sources",
+   "description": "UNAVAILABLE = that source is missing; its metrics are not shown (never as zero).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 1,
+    "w": 8,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_source_available",
+     "legendFormat": "{{source}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "1": {
+         "text": "OK",
+         "color": "green"
+        },
+        "0": {
+         "text": "UNAVAILABLE",
+         "color": "red"
+        }
+       }
+      }
+     ],
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 7,
+   "type": "row",
+   "title": "Jetson (aligned time axis: compare faults with CPU spikes)",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 5,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 8,
+   "type": "timeseries",
+   "title": "CPU %",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 6,
+    "w": 8,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_cpu_utilization_percent",
+     "legendFormat": "CPU",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "thresholdsStyle": {
+       "mode": "line"
+      },
+      "spanNulls": false,
+      "showPoints": "never"
+     },
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 75
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 9,
+   "type": "timeseries",
+   "title": "Temperature (max zone)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 6,
+    "w": 8,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_thermal_max_celsius",
+     "legendFormat": "max",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "thresholdsStyle": {
+       "mode": "line"
+      },
+      "spanNulls": false,
+      "showPoints": "never"
+     },
+     "unit": "celsius",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 70
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 10,
+   "type": "timeseries",
+   "title": "RAM / swap used %",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 6,
+    "w": 8,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "100 * (1 - atlas_memory_available_bytes / atlas_memory_total_bytes)",
+     "legendFormat": "RAM",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    },
+    {
+     "refId": "B",
+     "expr": "100 * (1 - atlas_swap_free_bytes / clamp_min(atlas_swap_total_bytes, 1))",
+     "legendFormat": "swap",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "thresholdsStyle": {
+       "mode": "line"
+      },
+      "spanNulls": false,
+      "showPoints": "never"
+     },
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 80
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 11,
+   "type": "timeseries",
+   "title": "GPU load % / frequency",
+   "description": "Throttling flags are not exposed by sysfs on this Jetson: frequency drops are the indicator.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 8,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_gpu_load_percent",
+     "legendFormat": "GPU %",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    },
+    {
+     "refId": "B",
+     "expr": "atlas_gpu_frequency_hz / 1e6",
+     "legendFormat": "GPU MHz",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "spanNulls": false,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 12,
+   "type": "timeseries",
+   "title": "Disk free %",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 13,
+    "w": 8,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "100 * atlas_disk_free_bytes / atlas_disk_total_bytes",
+     "legendFormat": "/",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "spanNulls": false,
+      "showPoints": "never"
+     },
+     "unit": "percent"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 13,
+   "type": "timeseries",
+   "title": "Load average (1 min)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 13,
+    "w": 8,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_load1",
+     "legendFormat": "load1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "spanNulls": false,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 14,
+   "type": "row",
+   "title": "Cameras",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 20,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 15,
+   "type": "timeseries",
+   "title": "Pi camera: seconds since last frame seen",
+   "description": "Pi camera FPS is UNAVAILABLE without a new camera subscriber (not allowed). Age is real.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 21,
+    "w": 12,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_topic_age_seconds{topic=\"camera_info\"}",
+     "legendFormat": "age",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "thresholdsStyle": {
+       "mode": "line"
+      },
+      "spanNulls": false,
+      "showPoints": "never"
+     },
+     "unit": "s",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 5
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 16,
+   "type": "stat",
+   "title": "Astra Pro RGB/depth",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 21,
+    "w": 6,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_source_available{source=\"astra\"}",
+     "legendFormat": "__auto",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "1": {
+         "text": "PRESENT",
+         "color": "green"
+        },
+        "0": {
+         "text": "UNAVAILABLE",
+         "color": "red"
+        }
+       }
+      }
+     ],
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 17,
+   "type": "state-timeline",
+   "title": "atlas-camera service",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 21,
+    "w": 6,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_service_active{service=\"atlas-camera\"}",
+     "legendFormat": "__auto",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "1": {
+         "text": "active",
+         "color": "green"
+        },
+        "0": {
+         "text": "not active",
+         "color": "red"
+        }
+       }
+      }
+     ],
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 18,
+   "type": "row",
+   "title": "Sensors and base MCU freshness",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 28,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 19,
+   "type": "timeseries",
+   "title": "Topic age (s)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 29,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_topic_age_seconds",
+     "legendFormat": "{{topic}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "spanNulls": false,
+      "showPoints": "never"
+     },
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 20,
+   "type": "table",
+   "title": "Freshness now",
+   "description": "STALE = older than its limit (atlas_topic_freshness_limit_seconds). available 0 = UNAVAILABLE.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 29,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_topic_stale",
+     "legendFormat": "{{topic}} stale",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    },
+    {
+     "refId": "B",
+     "expr": "atlas_topic_available",
+     "legendFormat": "{{topic}} available",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "0": {
+         "text": "FRESH",
+         "color": "green"
+        },
+        "1": {
+         "text": "STALE",
+         "color": "orange"
+        }
+       }
+      }
+     ],
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 21,
+   "type": "row",
+   "title": "Remote controls",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 37,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 22,
+   "type": "state-timeline",
+   "title": "Active control source",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 38,
+    "w": 12,
+    "h": 6
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_control_selected",
+     "legendFormat": "{{controller}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "1": {
+         "text": "selected",
+         "color": "green"
+        },
+        "0": {
+         "text": "-",
+         "color": "transparent"
+        }
+       }
+      }
+     ],
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 23,
+   "type": "timeseries",
+   "title": "Xbox /joy rate (Hz) / FlySky frame age (s)",
+   "description": "FlySky frame age exists only while the FlySky teleop runs.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 38,
+    "w": 12,
+    "h": 6
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_topic_rate_hz{topic=\"joy\"}",
+     "legendFormat": "Xbox Hz",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    },
+    {
+     "refId": "B",
+     "expr": "atlas_flysky_frame_age_seconds",
+     "legendFormat": "FlySky frame age",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "spanNulls": false,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 24,
+   "type": "state-timeline",
+   "title": "FlySky failsafe / frame lost",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 44,
+    "w": 12,
+    "h": 5
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_flysky_failsafe",
+     "legendFormat": "failsafe",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    },
+    {
+     "refId": "B",
+     "expr": "atlas_flysky_frame_lost",
+     "legendFormat": "frame lost",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "0": {
+         "text": "clear",
+         "color": "green"
+        },
+        "1": {
+         "text": "SET",
+         "color": "red"
+        }
+       }
+      }
+     ],
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 25,
+   "type": "timeseries",
+   "title": "Seconds since last drive command",
+   "description": "The mux publishes /cmd_vel only while something drives: a large age when idle is normal.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 44,
+    "w": 12,
+    "h": 5
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_command_age_seconds",
+     "legendFormat": "__auto",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "spanNulls": false,
+      "showPoints": "never"
+     },
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 26,
+   "type": "row",
+   "title": "ROS services",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 49,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 27,
+   "type": "state-timeline",
+   "title": "Service active",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 50,
+    "w": 16,
+    "h": 9
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_service_active",
+     "legendFormat": "{{service}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "1": {
+         "text": "active",
+         "color": "green"
+        },
+        "0": {
+         "text": "not active",
+         "color": "red"
+        }
+       }
+      }
+     ],
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 28,
+   "type": "timeseries",
+   "title": "Restarts in 10 min",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 50,
+    "w": 8,
+    "h": 9
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "increase(atlas_service_restarts_total[10m])",
+     "legendFormat": "{{service}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "spanNulls": false,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 29,
+   "type": "row",
+   "title": "Battery and encoders",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 59,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 30,
+   "type": "timeseries",
+   "title": "Battery voltage",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 60,
+    "w": 8,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_battery_voltage_volts",
+     "legendFormat": "{{source}}",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "spanNulls": false,
+      "showPoints": "never"
+     },
+     "unit": "volt"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 31,
+   "type": "timeseries",
+   "title": "Battery % (BMS) / current (A)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 60,
+    "w": 8,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_battery_percent",
+     "legendFormat": "%",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    },
+    {
+     "refId": "B",
+     "expr": "atlas_battery_current_amps",
+     "legendFormat": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "spanNulls": false,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 32,
+   "type": "timeseries",
+   "title": "Encoder faults and link errors (10 min)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "atlas-prom"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 60,
+    "w": 8,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "atlas_encoder_faults",
+     "legendFormat": "faults",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    },
+    {
+     "refId": "B",
+     "expr": "increase(atlas_encoder_serial_checksum_errors_total[10m])",
+     "legendFormat": "checksum errors",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    },
+    {
+     "refId": "C",
+     "expr": "increase(atlas_encoder_link_stale_events_total[10m])",
+     "legendFormat": "link stale events",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "atlas-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "noValue": "UNAVAILABLE",
+     "mappings": [],
+     "custom": {
+      "spanNulls": false,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {}
+  }
+ ],
+ "description": "Read-only. UNAVAILABLE = source missing; STALE = older than its limit. Shared crosshair aligns all panels in time."
 }

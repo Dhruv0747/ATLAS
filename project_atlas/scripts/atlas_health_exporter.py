@@ -1,71 +1,240 @@
 #!/usr/bin/env python3
-"""Opt-in read-only metrics endpoint. No ROS, camera or motor interaction."""
+"""Opt-in READ-ONLY Prometheus exporter for ATLAS. No ROS node, no ROS subscriber, no camera access, no commands.
+
+Every 15 s it reads:
+  * /proc and /sys (CPU, RAM, swap, disk, thermal zones, GPU load/frequency);
+  * `systemctl --user show` for a fixed list of units (active state, restart counter);
+  * the EXISTING dashboard API on 127.0.0.1:8088 (rover-status-web), which already caches every ROS topic with its
+    age and rate: /api/status and /api/manual_controller. Nothing new subscribes to ROS for monitoring.
+Missing data is never reported as zero or healthy: a metric whose source is absent is simply not emitted (Grafana
+shows it as UNAVAILABLE) and atlas_source_available{source=...} says which source is missing. A cached topic older
+than its freshness limit is emitted with atlas_topic_stale=1 and its real age.
+/metrics answers 503 if no collection succeeded in 45 s. It binds to an explicit private LAN IPv4 only.
+"""
 import argparse
 import ipaddress
+import json
 import shutil
 import subprocess
 import threading
 import time
+import urllib.request
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 LOCK = threading.Lock()
 LATEST = None
 LAST = 0.0
-UNITS = ('rover-status-web', 'rover-base-telemetry', 'atlas-remote', 'atlas-cmd-vel-mux', 'atlas-uno-r4-sensor-hub', 'atlas-lidar', 'atlas-camera', 'atlas-nav2', 'rover-daly-bms')
+INTERVAL_S = 15.0
+API = 'http://127.0.0.1:8088'
+UNITS = ('rover-status-web', 'rover-base-telemetry', 'atlas-remote', 'atlas-cmd-vel-mux', 'atlas-uno-r4-sensor-hub',
+         'atlas-lidar', 'atlas-camera', 'atlas-nav2', 'rover-daly-bms',
+         # added 2026-10-30
+         'atlas-flysky-teleop', 'atlas-flysky-camera', 'atlas-camera-joystick', 'atlas-ekf', 'atlas-foxglove',
+         'atlas-im10a', 'atlas-gnss', 'atlas-feature-on-demand')
+# Cached dashboard items -> freshness limit (s), from the observed rates on 2026-10-30 (about 2-3x the period).
+# cmd_vel is deliberately absent: the mux publishes it only while something drives, so its age is not staleness.
+TOPICS = {'lidar': 2.0, 'motor_speed': 2.0, 'encoder_health': 1.0, 'odom': 1.0, 'control_policy': 1.0, 'joy': 1.0,
+          'camera_info': 5.0, 'bat_voltage': 5.0, 'bms_voltage': 15.0, 'imu_heading': 2.0, 'board_imu_heading': 1.0,
+          'us_validity': 3.0, 'radar_link': 2.0, 'jetson_power': 5.0, 'drive_pid': 1.0, 'thermal_status': 5.0}
+VALUES = {'bms_voltage': 'atlas_battery_voltage_volts{source="bms"}', 'bat_voltage': 'atlas_battery_voltage_volts{source="base"}',
+          'bms_percent': 'atlas_battery_percent{source="bms"}', 'bms_current': 'atlas_battery_current_amps{source="bms"}',
+          'jetson_power': 'atlas_jetson_power_watts'}
+GPU_LOAD = ('/sys/devices/platform/bus@0/17000000.gpu/load', '/sys/devices/platform/17000000.gpu/load', '/sys/devices/platform/gpu.0/load')
+GPU_FREQ = '/sys/class/devfreq/17000000.gpu/cur_freq'
+STATE = {'cpu': None}
+
 
 def read(path):
     try:
         return Path(path).read_text().strip()
-    except (OSError, UnicodeError):
+    except Exception:                 # some Jetson thermal zones raise TypeError on read (found 2026-10-29)
         return None
 
-def collect():
-    lines = []
-    def emit(name, value, labels=''):
+
+def get_json(path, timeout=3.0):
+    with urllib.request.urlopen(API + path, timeout=timeout) as r:
+        return json.loads(r.read())
+
+
+def cpu_sample(stat_text):
+    v = [int(x) for x in stat_text.splitlines()[0].split()[1:8]]
+    return sum(v), v[3] + v[4]
+
+
+class Out:
+    def __init__(self):
+        self.lines = []
+
+    def emit(self, name, value, labels=None):
         try:
             n = float(value)
-            if n == n and abs(n) != float('inf'):
-                lines.append(f'{name}{labels} {n:g}')
         except (TypeError, ValueError, OverflowError):
-            pass
+            return
+        if n != n or abs(n) == float('inf'):
+            return
+        lab = ''
+        if labels:
+            esc = lambda s: str(s).replace('\\', '_').replace('"', '_').replace('\n', '_')[:64]
+            lab = '{' + ','.join(f'{k}="{esc(v)}"' for k, v in labels.items()) + '}'
+        self.lines.append(f'{name}{lab} {n:g}')
+
+    def raw(self, metric_with_labels, value):
+        name, _, rest = metric_with_labels.partition('{')
+        labels = dict(kv.split('=', 1) for kv in rest.rstrip('}').split(',')) if rest else {}
+        self.emit(name, value, {k: v.strip('"') for k, v in labels.items()})
+
+    def text(self):
+        return '\n'.join(self.lines) + '\n'
+
+
+def collect_system(o, sysroot=''):
     mem = {}
-    for line in (read('/proc/meminfo') or '').splitlines():
+    for line in (read(sysroot + '/proc/meminfo') or '').splitlines():
         try:
             key, val = line.split(':', 1)
             mem[key] = int(val.split()[0]) * 1024
         except (ValueError, IndexError):
             pass
-    for key, metric in [('MemTotal', 'atlas_memory_total_bytes'), ('MemAvailable', 'atlas_memory_available_bytes'), ('SwapTotal', 'atlas_swap_total_bytes'), ('SwapFree', 'atlas_swap_free_bytes')]:
-        emit(metric, mem.get(key))
+    for key, metric in [('MemTotal', 'atlas_memory_total_bytes'), ('MemAvailable', 'atlas_memory_available_bytes'),
+                        ('SwapTotal', 'atlas_swap_total_bytes'), ('SwapFree', 'atlas_swap_free_bytes')]:
+        o.emit(metric, mem.get(key))
     try:
-        disk = shutil.disk_usage('/')
-        emit('atlas_disk_total_bytes', disk.total)
-        emit('atlas_disk_free_bytes', disk.free)
+        disk = shutil.disk_usage(sysroot or '/')
+        o.emit('atlas_disk_total_bytes', disk.total)
+        o.emit('atlas_disk_free_bytes', disk.free)
     except OSError:
         pass
-    for index, path in enumerate(sorted(Path('/sys/class/thermal').glob('thermal_zone*/temp'))[:32]):
-        sensor = (read(path.parent / 'type') or 'unknown').replace('\\', '_').replace('"', '_').replace('\n', '_')[:48]
+    temps = []
+    for index, path in enumerate(sorted(Path(sysroot + '/sys/class/thermal').glob('thermal_zone*/temp'))[:32]):
+        raw = read(path)
         try:
-            emit('atlas_thermal_celsius', float(read(path)) / 1000, f'{{zone="{index}",sensor="{sensor}"}}')
-        except (ValueError, TypeError):
-            pass
+            c = float(raw) / 1000
+        except (TypeError, ValueError):
+            continue                                   # unreadable zone: skipped, never reported as 0
+        temps.append(c)
+        o.emit('atlas_thermal_celsius', c, {'zone': index, 'sensor': read(path.parent / 'type') or 'unknown'})
+    if temps:
+        o.emit('atlas_thermal_max_celsius', max(temps))
+    stat = read(sysroot + '/proc/stat')
+    if stat:
+        cur = cpu_sample(stat)
+        prev, STATE['cpu'] = STATE['cpu'], cur
+        if prev and cur[0] > prev[0]:
+            o.emit('atlas_cpu_utilization_percent', 100.0 * (1 - (cur[1] - prev[1]) / (cur[0] - prev[0])))
+    load = read(sysroot + '/proc/loadavg')
+    if load:
+        o.emit('atlas_load1', load.split()[0])
+    gpu = next((read(sysroot + p) for p in GPU_LOAD if read(sysroot + p) is not None), None)
+    if gpu is not None:
+        o.emit('atlas_gpu_load_percent', float(gpu) / 10.0)          # sysfs reports 0..1000
+    o.emit('atlas_gpu_frequency_hz', read(sysroot + GPU_FREQ))
+    o.emit('atlas_source_available', int(gpu is not None), {'source': 'gpu_load'})
+
+
+def collect_units(o, run=subprocess.run):
     try:
-        proc = subprocess.run(['systemctl', '--user', 'show', '--property=Id,ActiveState,NRestarts', *[u + '.service' for u in UNITS]], capture_output=True, text=True, timeout=3, check=False)
-        if proc.returncode == 0:
-            for block in proc.stdout.strip().split('\n\n'):
-                fields = dict(line.split('=', 1) for line in block.splitlines() if '=' in line)
-                name = fields.get('Id', '').removesuffix('.service')
-                if name not in UNITS:
-                    continue
-                label = f'{{service="{name}"}}'
-                if fields.get('ActiveState') in ('active', 'inactive', 'failed', 'activating', 'deactivating'):
-                    emit('atlas_service_active', int(fields['ActiveState'] == 'active'), label)
-                emit('atlas_service_restarts_total', fields.get('NRestarts'), label)
+        proc = run(['systemctl', '--user', 'show', '--property=Id,LoadState,ActiveState,NRestarts',
+                    *[u + '.service' for u in UNITS]], capture_output=True, text=True, timeout=3, check=False)
     except (OSError, subprocess.TimeoutExpired):
-        pass
-    emit('atlas_exporter_observed_timestamp_seconds', time.time())
-    return '\n'.join(lines) + '\n'
+        o.emit('atlas_source_available', 0, {'source': 'systemd'})
+        return
+    ok = proc.returncode == 0
+    o.emit('atlas_source_available', int(ok), {'source': 'systemd'})
+    if not ok:
+        return
+    for block in proc.stdout.strip().split('\n\n'):
+        fields = dict(line.split('=', 1) for line in block.splitlines() if '=' in line)
+        name = fields.get('Id', '').removesuffix('.service')
+        if name not in UNITS:
+            continue
+        label = {'service': name}
+        loaded = fields.get('LoadState') == 'loaded'
+        o.emit('atlas_service_loaded', int(loaded), label)
+        if not loaded:
+            continue                                   # not installed: UNAVAILABLE, not "down"
+        if fields.get('ActiveState') in ('active', 'inactive', 'failed', 'activating', 'deactivating'):
+            o.emit('atlas_service_active', int(fields['ActiveState'] == 'active'), label)
+            o.emit('atlas_service_failed', int(fields['ActiveState'] == 'failed'), label)
+        o.emit('atlas_service_restarts_total', fields.get('NRestarts'), label)
+
+
+def collect_rover(o, get=get_json):
+    try:
+        st = get('/api/status')
+        ros = st['ros']
+    except Exception:
+        o.emit('atlas_source_available', 0, {'source': 'dashboard_api'})
+        return
+    o.emit('atlas_source_available', 1, {'source': 'dashboard_api'})
+    for topic, limit in TOPICS.items():
+        item = ros.get(topic)
+        age = item.get('age') if isinstance(item, dict) else None
+        if not isinstance(age, (int, float)) or isinstance(age, bool):
+            o.emit('atlas_topic_available', 0, {'topic': topic})
+            continue
+        o.emit('atlas_topic_available', 1, {'topic': topic})
+        o.emit('atlas_topic_age_seconds', age, {'topic': topic})
+        o.emit('atlas_topic_stale', int(age > limit), {'topic': topic})
+        o.emit('atlas_topic_freshness_limit_seconds', limit, {'topic': topic})
+        if item.get('observed_hz') is not None:
+            o.emit('atlas_topic_rate_hz', item['observed_hz'], {'topic': topic})
+    for topic, metric in VALUES.items():
+        item = ros.get(topic)
+        if isinstance(item, dict) and isinstance(item.get('age'), (int, float)) and item['age'] <= max(15.0, TOPICS.get(topic, 15.0)):
+            o.raw(metric, item.get('value'))
+    cmd = ros.get('cmd_vel')
+    if isinstance(cmd, dict) and isinstance(cmd.get('age'), (int, float)):
+        o.emit('atlas_command_age_seconds', cmd['age'])            # idle mux publishes rarely: an age, not a fault
+    enc = ros.get('encoder_health')
+    try:
+        h = json.loads(enc['value']) if isinstance(enc.get('value'), str) else enc.get('value')
+    except Exception:
+        h = None
+    if isinstance(h, dict) and enc.get('age', 99) <= TOPICS['encoder_health'] * 3:
+        o.emit('atlas_encoder_ready', int(h.get('state') == 'READY'))
+        o.emit('atlas_encoder_faults', len(h.get('faults') or []))
+        for k in ('serial_checksum_errors', 'serial_write_errors', 'link_stale_events', 'link_recoveries'):
+            o.emit(f'atlas_encoder_{k}_total', h.get(k))
+    astra = any('astra' in k or 'depth' in k for k in ros)
+    o.emit('atlas_source_available', int(astra), {'source': 'astra'})
+    try:
+        mc = get('/api/manual_controller')
+    except Exception:
+        o.emit('atlas_source_available', 0, {'source': 'control_api'})
+        return
+    o.emit('atlas_source_available', 1, {'source': 'control_api'})
+    p = mc.get('policy') or {}
+    if p.get('fresh') is True:
+        o.emit('atlas_estop_latched', int(p.get('stop_latched') is True))
+        o.emit('atlas_flysky_drive_enabled', int(p.get('flysky_drive_enabled') is True))
+        for c in ('XBOX', 'FLYSKY'):
+            o.emit('atlas_control_selected', int(p.get('manual_controller') == c), {'controller': c})
+    else:
+        o.emit('atlas_source_available', 0, {'source': 'control_policy'})
+    d = mc.get('drive') or {}
+    s = d.get('status') or {}
+    o.emit('atlas_flysky_teleop_running', int(d.get('running') is True))
+    if d.get('running') is True and s:
+        o.emit('atlas_flysky_frame_age_seconds', s.get('frame_age_s'))
+        i = s.get('inputs') or {}
+        if i:
+            o.emit('atlas_flysky_failsafe', int(i.get('failsafe') is True))
+            o.emit('atlas_flysky_frame_lost', int(i.get('frame_lost') is True))
+        if s.get('state'):
+            o.emit('atlas_flysky_drive_state', 1, {'state': s['state']})
+
+
+def collect(get=get_json, run=subprocess.run, sysroot=''):
+    t0 = time.monotonic()
+    o = Out()
+    collect_system(o, sysroot)
+    collect_units(o, run)
+    collect_rover(o, get)
+    o.emit('atlas_exporter_collect_seconds', time.monotonic() - t0)
+    o.emit('atlas_exporter_observed_timestamp_seconds', time.time())
+    return o.text()
+
 
 def worker():
     global LATEST, LAST
@@ -76,7 +245,8 @@ def worker():
                 LATEST, LAST = output, time.time()
         except Exception:
             pass
-        time.sleep(15)
+        time.sleep(INTERVAL_S)
+
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -95,8 +265,15 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_POST(self):                      # read-only: nothing can be sent to the rover through this port
+        self.send_error(405)
+
+    do_PUT = do_DELETE = do_PATCH = do_POST
+
     def log_message(self, *args):
         pass
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -108,6 +285,7 @@ def main():
         parser.error('Bind explicit non-loopback private IPv4 only')
     threading.Thread(target=worker, daemon=True).start()
     ThreadingHTTPServer((args.bind, args.port), Handler).serve_forever()
+
 
 if __name__ == '__main__':
     main()

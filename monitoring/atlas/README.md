@@ -1,32 +1,73 @@
-# ATLAS LAN monitoring — repository implementation, NOT live deployed
+# ATLAS LAN monitoring (Prometheus + Grafana): read-only
 
-All components are optional and read-only. No ROS publishers, camera subscriptions, raw depth processing, motor commands, firmware flashing, service restarts, or changes to E-STOP, watchdog, control mux or RC fallback.
+Everything here only *reads*:
+- The Jetson exporter has **no ROS node, no ROS subscriber and no camera access**. It sends no commands and answers 405 to POST, PUT and DELETE.
+- Alerts only notify. Nothing here can move the rover or change its safety state.
+- If the VM is offline, ATLAS runs exactly as before; the only effect is that scraping stops.
 
-## Jetson
-First check deployed service states and collect a 5-minute baseline. Confirm a private Jetson LAN IPv4 and allow port 9118 *only* from Ubuntu VM source IP. Then from repository checkout:
-```bash
-python3 -m py_compile project_atlas/scripts/atlas_health_exporter.py
-python3 project_atlas/scripts/atlas_health_exporter.py --bind YOUR_JETSON_LAN_IP
-```
-Run as standalone optional process only; no auto-start installation. Exporter collects /proc memory, disk, thermal and limited systemd status. It returns 503 when collection is unavailable or stale, 404 on non-metrics paths. It does not issue commands. If VM is offline, only outbound scraping stops; rover remains independent.
+## What is collected (exporter `project_atlas/scripts/atlas_health_exporter.py`, every 15 s)
 
-## Ubuntu VM
-Replace placeholder in monitoring/atlas/targets.json. Create a strong-password file at monitoring/atlas/grafana_admin_password.txt and chmod 600. In monitoring/atlas:
-```bash
-docker compose config --quiet
-docker compose up -d
-```
-Grafana: http://127.0.0.1:3000 (on VM). Prometheus: http://127.0.0.1:9090. Use SSH tunnel for Windows-host access, not public binding. Dashboard is 'ATLAS Health — read only'. Retention is 7 days or 1GB, memory bound 512MB per server container. No Alertmanager configured; alerts are evaluated locally but no notifications are delivered.
+| Area | Metrics | Source |
+|---|---|---|
+| Jetson | CPU %, load, RAM, swap, disk, every readable thermal zone + max, GPU load %, GPU frequency | /proc, /sys (unreadable thermal zones are skipped, never 0) |
+| Services | loaded / active / failed / restart counter for 17 units | `systemctl --user show` |
+| Freshness | age, rate and STALE flag for lidar, motor_speed, encoder_health, odom, control_policy, joy, camera_info, imu, ultrasonic, radar, power, drive_pid, thermal | existing rover-status-web cache (`/api/status`), **no new subscribers** |
+| Battery | BMS voltage, %, current; base voltage; Jetson power | same cache |
+| Encoders | READY, fault count, checksum and write errors, link stale and recovery counters | `encoder_health` |
+| Controls | E-STOP latched, selected controller, FlySky gate, teleop running, frame age, failsafe, frame lost, drive state, last drive-command age | `/api/manual_controller` |
 
-## Known gaps
-CPU usage, GPU usage/throttling, camera FPS/drop/disconnect, LiDAR/MCU freshness, FlySky SBUS/Xbox/active control/command age, ROS graph status, battery voltage and encoder faults are not yet sourced from authoritative live collectors. Missing measurements remain absent; don't present them as zero. Service active is not proof of sensor health. The 75C alert and other example thresholds require confirmation against ATLAS deployed limits and baselines, not safety controls. 15-second scrapes won't capture every brief event; preserve existing counters and journal/rosbag evidence.
+**UNAVAILABLE (honestly not emitted):**
+- **Pi camera FPS and dropped frames.** Would need a new camera subscriber; only "seconds since last frame" is real.
+- **Astra RGB/depth.** Not published on this rover; `atlas_source_available{source="astra"}` = 0.
+- **GPU throttle flags.** Not in sysfs; watch the GPU frequency.
+- **FlySky frame age** while the FlySky teleop is not running.
 
-## Verification gates, not yet completed
-- Validate with promtool check config and promtool check rules in VM.
-- Check Grafana dashboard sources, no-data display and time alignment.
-- Measure matched before/after idle samples: Jetson CPU, RAM, temperature, camera FPS/drops and ROS response.
-- Verify LAN source-IP firewall, simulated VM/network loss, recovery and unchanged rover safety.
-- Check real deployed endpoint and service/unit names before declaring coverage.
+**Staleness and gaps:**
+- A topic older than its limit is emitted with `atlas_topic_stale=1` and its real age.
+- A missing source shows as `atlas_source_available{source}=0`, and its metrics are absent: **UNAVAILABLE** in Grafana, never 0.
+
+## Jetson (exporter)
+
+**Measured cost (2026-10-30):** about 0.010 s of CPU per collection (about 0.07 % of one core) and 18 MB RAM. The 5-minute before/after trial is in the PR.
+
+1. **Firewall first:** allow TCP 9118 only from the VM IP, for example `sudo ufw allow from <VM_IP> to any port 9118 proto tcp`.
+2. **Run it, bounded:**
+   ```bash
+   systemd-run --user --unit=atlas-health-exporter -p CPUQuota=10% -p MemoryMax=64M \
+     /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_health_exporter.py --bind 192.168.1.16
+   ```
+   This is not enabled at boot. Make it permanent only after the trial, with a separate approval.
+
+## Ubuntu VM (Prometheus + Grafana)
+
+1. Put the Jetson in `targets.json`: `["192.168.1.16:9118"]`.
+2. Create `grafana_admin_password.txt` (mode 600).
+3. In this folder, validate first:
+   ```bash
+   docker run --rm -v $PWD:/c --entrypoint promtool prom/prometheus:v3.5.0 check config /c/prometheus.yml
+   docker run --rm -v $PWD:/c --entrypoint promtool prom/prometheus:v3.5.0 check rules /c/alerts.yml
+   ```
+4. Start the stack: `docker compose up -d`.
+5. Open Grafana at `http://127.0.0.1:3000` on the VM (use an SSH tunnel from Windows), dashboard **ATLAS HEALTH MONITOR**.
+
+Ports bind to 127.0.0.1 only. Retention is 7 days / 1 GB. There is no Alertmanager: alerts show in Prometheus and Grafana but nothing is pushed.
+
+**Dashboard:** `grafana/build_dashboard.py` generates `dashboards/atlas-health.json`. Edit the generator, not the JSON.
 
 ## Rollback
-Stop the optional Jetson exporter process. VM: docker compose down (data preserved), or docker compose down -v (data erased). No critical rover service needs restart.
+
+- **Jetson:** `systemctl --user stop atlas-health-exporter`. Nothing else to undo; no rover service is touched.
+- **VM:** `docker compose down` keeps the data; `docker compose down -v` erases it.
+
+## Jetson trial, 2026-10-30 17:29–17:40 (transient; it stopped itself)
+
+| | Baseline (5 min, 60 samples) | With exporter (5 min, 56 samples) |
+|---|---|---|
+| CPU mean (range) | 60.7 % (59.4–61.9) | 60.5 % (58.8–61.7) |
+| RAM mean | 60.7 % | 60.9 % (exporter about 11 MB) |
+| Temperature mean / max | 62.34 / 62.53 C | 62.37 / 62.56 C |
+| Topic age max: lidar, motor_speed, joy, encoder_health, camera_info | 0.60, 0.60, 0.10, 0.10, 1.10 s | 0.70, 0.60, 0.10, 0.10, 1.10 s |
+
+- `/metrics` answered 200 with 188 lines at both checks.
+- No measurable difference: everything is within the sampling noise.
+- The exporter was not left running: no VM IP was available yet for the firewall rule.
