@@ -1368,3 +1368,5 @@ Historical first attempt; the later successful installation is recorded above.
 - Prepared optional persistent monitoring firewall/safety supervision without changing the trial exporter or rover controls.
 - Added focused offline tests, native isolated packet/fake-systemd validation, inactive Windows startup XML preparation and hashed rollback/deployment instructions. Persistent Jetson activation and reboot validation remain approval-gated.
 
+
+2026-10-30: Grafana controller-label display, explicit unavailable FlySky stats, supported30s refresh; PC dashboard provisioned without restart. Prometheus scrape remains15s.

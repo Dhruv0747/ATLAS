@@ -9,7 +9,7 @@
  "schemaVersion": 39,
  "version": 1,
  "editable": false,
- "refresh": "15s",
+ "refresh": "30s",
  "time": {
   "from": "now-6h",
   "to": "now"
@@ -193,7 +193,7 @@
    "id": 5,
    "type": "stat",
    "title": "Selected controller",
-   "description": "XBOX or FLYSKY, from the mux policy.",
+   "description": "Display-only mapping from verified controller labels: XBOX=1, FLYSKY=2. Missing=UNAVAILABLE; conflicting selection=UNKNOWN.",
    "datasource": {
     "type": "prometheus",
     "uid": "atlas-prom"
@@ -207,8 +207,8 @@
    "targets": [
     {
      "refId": "A",
-     "expr": "atlas_control_selected == 1",
-     "legendFormat": "{{controller}}",
+     "expr": "sum((atlas_control_selected{controller=\"XBOX\"} == 1) or ((atlas_control_selected{controller=\"FLYSKY\"} == 1) * 2)) or vector(-1)",
+     "legendFormat": "__auto",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
@@ -220,7 +220,29 @@
    "fieldConfig": {
     "defaults": {
      "noValue": "UNAVAILABLE",
-     "mappings": [],
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "1": {
+         "text": "XBOX",
+         "color": "green"
+        },
+        "2": {
+         "text": "FLYSKY",
+         "color": "green"
+        },
+        "-1": {
+         "text": "UNAVAILABLE",
+         "color": "orange"
+        },
+        "3": {
+         "text": "UNKNOWN",
+         "color": "orange"
+        }
+       }
+      }
+     ],
      "custom": {}
     },
     "overrides": []
@@ -1040,7 +1062,7 @@
   },
   {
    "id": 25,
-   "type": "state-timeline",
+   "type": "stat",
    "title": "FlySky failsafe / frame lost",
    "description": "",
    "datasource": {
@@ -1056,21 +1078,25 @@
    "targets": [
     {
      "refId": "A",
-     "expr": "atlas_flysky_failsafe",
+     "expr": "atlas_flysky_failsafe or vector(-1)",
      "legendFormat": "failsafe",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
-     }
+     },
+     "instant": true,
+     "range": false
     },
     {
      "refId": "B",
-     "expr": "atlas_flysky_frame_lost",
+     "expr": "atlas_flysky_frame_lost or vector(-1)",
      "legendFormat": "frame lost",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
-     }
+     },
+     "instant": true,
+     "range": false
     }
    ],
    "fieldConfig": {
@@ -1080,6 +1106,10 @@
       {
        "type": "value",
        "options": {
+        "-1": {
+         "text": "UNAVAILABLE",
+         "color": "orange"
+        },
         "0": {
          "text": "clear",
          "color": "green"

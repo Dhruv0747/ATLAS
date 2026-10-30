@@ -87,6 +87,30 @@ class Config(unittest.TestCase):
         targets = json.loads((MON / 'targets.json').read_text())
         self.assertIsInstance(targets[0]['targets'], list)
 
+    def test_controller_display_uses_authoritative_labels(self):
+        p = next(p for p in self.dash['panels'] if p['title'] == 'Selected controller')
+        expr = p['targets'][0]['expr']
+        self.assertIn('controller="XBOX"', expr)
+        self.assertIn('controller="FLYSKY"', expr)
+        self.assertIn('or vector(-1)', expr)
+        values = p['fieldConfig']['defaults']['mappings'][0]['options']
+        self.assertEqual([values[x]['text'] for x in ('1', '2', '-1', '3')],
+                         ['XBOX', 'FLYSKY', 'UNAVAILABLE', 'UNKNOWN'])
+
+    def test_missing_flysky_is_not_false_clear_or_timeline_error(self):
+        p = next(p for p in self.dash['panels'] if p['title'] == 'FlySky failsafe / frame lost')
+        self.assertEqual(p['type'], 'stat')
+        self.assertTrue(all(t['instant'] and 'or vector(-1)' in t['expr'] for t in p['targets']))
+        values = p['fieldConfig']['defaults']['mappings'][0]['options']
+        self.assertEqual(values['-1']['text'], 'UNAVAILABLE')
+        self.assertEqual(values['0']['text'], 'clear')
+        self.assertEqual(values['1']['text'], 'SET')
+
+    def test_refresh_does_not_increase_scrape_rate(self):
+        self.assertEqual(self.dash['refresh'], '30s')
+        prom = yaml.safe_load((MON / 'prometheus.yml').read_text())
+        self.assertEqual(prom['global']['scrape_interval'], '15s')
+
     def test_prometheus_scrape_retention_and_ports(self):
         prom = yaml.safe_load((MON / 'prometheus.yml').read_text())
         self.assertEqual(prom['global']['scrape_interval'], '15s')
@@ -101,3 +125,4 @@ class Config(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

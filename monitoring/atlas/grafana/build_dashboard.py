@@ -57,8 +57,8 @@ def build():
                 desc='Seconds since the exporter last collected. Over 45 s = STALE.'),
           panel('stat', 'E-STOP', ['atlas_estop_latched'], 8, 1, 4, 4, mappings=vmap({1: ('LATCHED', GREEN), 0: ('RELEASED', AMBER)}),
                 desc='From the mux control policy via the dashboard. Display only; this system cannot change it.'),
-          panel('stat', 'Selected controller', ['atlas_control_selected == 1'], 12, 1, 4, 4, legend=['{{controller}}'],
-                desc='XBOX or FLYSKY, from the mux policy.'),
+          panel('stat', 'Selected controller', ['sum((atlas_control_selected{controller="XBOX"} == 1) or ((atlas_control_selected{controller="FLYSKY"} == 1) * 2)) or vector(-1)'], 12, 1, 4, 4, mappings=vmap({1: ('XBOX', GREEN), 2: ('FLYSKY', GREEN), -1: (UNAVAILABLE, AMBER), 3: ('UNKNOWN', AMBER)}),
+                desc='Display-only mapping from verified controller labels: XBOX=1, FLYSKY=2. Missing=UNAVAILABLE; conflicting selection=UNKNOWN.'),
           panel('table', 'Data sources', ['atlas_source_available'], 16, 1, 8, 4, mappings=OKBAD, legend=['{{source}}'],
                 desc='UNAVAILABLE = that source is missing; its metrics are not shown (never as zero).')]
     P.append(row('Jetson (aligned time axis: compare faults with CPU spikes)', 5))
@@ -89,8 +89,8 @@ def build():
                 mappings=vmap({1: ('selected', GREEN), 0: ('-', 'transparent')})),
           panel('timeseries', 'Xbox /joy rate (Hz) / FlySky frame age (s)', ['atlas_topic_rate_hz{topic="joy"}', 'atlas_flysky_frame_age_seconds'],
                 12, 38, 12, 6, legend=['Xbox Hz', 'FlySky frame age'], desc='FlySky frame age exists only while the FlySky teleop runs.'),
-          panel('state-timeline', 'FlySky failsafe / frame lost', ['atlas_flysky_failsafe', 'atlas_flysky_frame_lost'], 0, 44, 12, 5,
-                legend=['failsafe', 'frame lost'], mappings=vmap({0: ('clear', GREEN), 1: ('SET', RED)})),
+          panel('stat', 'FlySky failsafe / frame lost', ['atlas_flysky_failsafe or vector(-1)', 'atlas_flysky_frame_lost or vector(-1)'], 0, 44, 12, 5,
+                legend=['failsafe', 'frame lost'], mappings=vmap({-1: (UNAVAILABLE, AMBER), 0: ('clear', GREEN), 1: ('SET', RED)})),
           panel('timeseries', 'Seconds since last drive command', ['atlas_command_age_seconds'], 12, 44, 12, 5, unit='s',
                 desc='The mux publishes /cmd_vel only while something drives: a large age when idle is normal.')]
     P.append(row('ROS services', 49))
@@ -113,7 +113,7 @@ def build():
                 ['increase(atlas_encoder_serial_write_errors_total[10m])', 'increase(atlas_encoder_link_recoveries_total[10m])'],
                 16, 75, legend=['write errors', 'recoveries'])]
     return {'uid': 'atlas-health-monitor', 'title': 'ATLAS HEALTH MONITOR', 'tags': ['atlas', 'read-only'], 'timezone': 'browser',
-            'schemaVersion': 39, 'version': 1, 'editable': False, 'refresh': '15s', 'time': {'from': 'now-6h', 'to': 'now'},
+            'schemaVersion': 39, 'version': 1, 'editable': False, 'refresh': '30s', 'time': {'from': 'now-6h', 'to': 'now'},
             'graphTooltip': 1, 'panels': P,
             'description': 'Read-only. UNAVAILABLE = source missing; STALE = older than its limit. Shared crosshair aligns all panels in time.'}
 
@@ -122,3 +122,4 @@ if __name__ == '__main__':
     out = Path(__file__).resolve().parent / 'dashboards/atlas-health.json'
     out.write_text(json.dumps(build(), indent=1) + '\n')
     print('wrote', out)
+
