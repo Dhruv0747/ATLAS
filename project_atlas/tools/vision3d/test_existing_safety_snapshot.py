@@ -98,3 +98,28 @@ class IntegrationTests(unittest.TestCase):
         source=Path(__file__).with_name('web_activation_supervisor.py').read_text()
         self.assertNotIn('subprocess.Popen',source)
         self.assertIn('consumer.check(time.monotonic())',source)
+
+class LifecycleTests(unittest.TestCase):
+    def test_throttle_and_old_callback_expiry(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'state';producer=Producer(p,'boot')
+            producer.values=observations(10)
+            producer.receive('command',[0]*6,10)
+            first=p.read_bytes()
+            producer.receive('command',[0]*6,10.05)
+            self.assertEqual(p.read_bytes(),first)
+            producer.receive('command',[0]*6,11.1)
+            with self.assertRaises(ValueError):Consumer(p,'boot').check(11.11)
+
+    def test_atomic_replacement_exposes_complete_old_or_new(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'state';publish(p,observations(10),10,'boot')
+            import os
+            replace=os.replace
+            def observe_then_replace(src,dst):
+                self.assertTrue(verify(dst,10.1,'boot')['safe'])
+                json.loads(Path(src).read_text())
+                replace(src,dst)
+            with patch('existing_safety_snapshot.os.replace',side_effect=observe_then_replace):
+                publish(p,observations(10.1),10.1,'boot')
+            self.assertTrue(verify(p,10.2,'boot')['safe'])
