@@ -1176,7 +1176,7 @@ A release flushes every channel. The drive core is unchanged, so motion still ne
 |---|---|---|
 | SwB stop | 2/2 PASS | cmd 0 in 0.033 s, motor 0 in 0.29 s, wheels still, latched |
 | Xbox B | 1/1 PASS | |
-| SwA off (disarm, no latch) | 2/8 met the analyzer's 1.0 s "wheels still" limit | command zero within 0.006–0.094 s each time; motor or wheels took up to about 5 s to read still |
+| SwA off (disarm, no latch) | 2/8 met the analyzer's 1.0 s "wheels still" limit | command zero ≤ 0.2 s in 7/8 events (one at 3.4 s, see below); motor or wheels took up to about 5 s to read still (lifted wheels) |
 | Stick release | 2/48 met the 1.0 s limit | the analyzer counts every stick return during normal driving as an event |
 
 - **PENDING (not PASS):** whether the slow motor/wheel stops after SwA off and stick release are lifted-wheel coasting or the base's deceleration ramp, and whether the analyzer's 1.0 s limit is the right criterion for non-latching stops. Command zero was always fast, and the latching stops (SwB, Xbox B) passed.
@@ -1193,3 +1193,26 @@ A release flushes every channel. The drive core is unchanged, so motion still ne
 2. **SwD reboot persistence.** The reset enable is a runtime drop-in (like the gate). After a reboot: gate-on, then `deploy --step reset` (re-enable only, no file copy).
 3. **/motor_speed frequency.** 1.8 Hz leaves 0.1–0.4 s of margin to the 1.0 s observer freshness at service starts (1 of 13 windows exceeded). Raise the base-side publish rate; do not relax the limit.
 4. **Also open:** SwA arm debounce (a mid-transition 1024 frame forces a second flip), and the PENDING stop-analysis question above.
+
+### Correction and clarification, 2026-10-30 17:04 IST (owner)
+
+- **The stop tests ran with the wheels LIFTED** (rover in the air, wheels free). The 1–5 s motor/wheel stop times are **lifted-wheel coast-down**, not the rover's stopping distance or time on the ground.
+- **Ground stopping performance: NOT MEASURED.**
+- **Correction:** the 16:56 review stated "SwA off: command zero within 0.006–0.094 s each time". That was wrong; it came from the last rows of the analyzer output only.
+- **Command stopping time** (time for the drive command to reach zero, from the recording's `.report.json`):
+
+  | Stop | Events | ≤ 0.1 s | ≤ 0.2 s | Slowest |
+  |---|---|---|---|---|
+  | SwB stop | 2 | 1 | 2 | 0.13 s |
+  | Xbox B | 1 | 1 | 1 | 0.0 s |
+  | SwA off | 8 | 5 | 7 | 3.4 s |
+  | Stick release | 28 | 12 | 23 | 4.2 s |
+  | **Total** | **39** | **19** | **33** | |
+
+  Six events measured 0.3–4.2 s. These are most likely analyzer event-detection artifacts (for example the stick re-applied straight after a release during normal driving), but that is **unconfirmed: PENDING**.
+- **Separate quantities**, which must not be mixed:
+  1. **Command stopping time:** above.
+  2. **Lifted wheel coast-down:** 1–5 s, observation only.
+  3. **Ground stopping performance:** not measured.
+
+  None of the non-latching stops (SwA off, stick release) is marked PASS. The latching stops SwB (2/2) and Xbox B (1/1) passed on lifted wheels.
