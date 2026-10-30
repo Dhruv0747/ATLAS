@@ -1699,3 +1699,5 @@ Approved stationary setup follow-up: pinned vendor source/private dependencies
 are staged only. Build stopped at CPU75.88% (unchanged75% guard); camera USB
 permissions still require administrator execution. No live Astra stream,
 production page installation, recording or existing-camera restart occurred.
+
+[Isolated RTAB-Map PC preparation](docs/ATLAS_RTABMAP_OFFLINE_20261030.md): offline only; calibration and live mapping remain gated.

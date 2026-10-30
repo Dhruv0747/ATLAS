@@ -3441,3 +3441,5 @@ Historical first attempt; the later successful installation is recorded above.
   corrected launch attempt stopped by CPU75.884%>75%. No streams or retry after
   resource rejection; sudo/USB permission execution remains blocked. Prepare
   exact-ID0660/video udev rule as undeployed candidate only.
+
+2026-10-30: Add isolated localhost RTAB-Map runner, input admission tests, synthetic RGB-D/odometry/LiDAR fixture and RViz configuration. Reuse Astra calibration validation; no rover deployment.
