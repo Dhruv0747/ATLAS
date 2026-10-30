@@ -1183,3 +1183,9 @@ command the steering servos. The repository version is retired. The repository t
 **Still blocking the baseline drive:** AMCL is unseeded on this boot.
 
 See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
+
+## 2026-10-30 Vision Lab backend installation
+
+Rolled back; Type=simple HTTP readiness race corrected offline. CPU79.15% was
+measured during OLD web shutdown, not candidate startup. Attribution remains
+unknown; NO-GO for retry. See [diagnosis](../../ATLAS_OBJECT_TARGET_INSTALL_DIAGNOSIS_20261030.md).
