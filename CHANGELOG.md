@@ -3482,3 +3482,6 @@ Bounded isolated benchmark with unchanged resource/safety gates, child limits, c
 
 ## 2026-10-31 — Exact-live snapshot integration preparation
 Prepared targeted live-baseline patch preserving Stage28 recovery safeguards, disabled by default, with 12 focused checks and byte-exact rollback. Not deployed.
+
+## 2026-10-31 — Recovery snapshot runtime validation primitives
+Verified installed hashes and disabled state; six focused offline tests cover independent-safety freshness and durable restart budgets. Runtime supervisor/crash cleanup still pending; activation remains NO-GO.
