@@ -17,7 +17,7 @@ Everything here only *reads*:
 | Controls | E-STOP latched, selected controller, FlySky gate, teleop running, frame age, failsafe, frame lost, drive state, last drive-command age | `/api/manual_controller` |
 
 **UNAVAILABLE (honestly not emitted):**
-- **Pi camera FPS and dropped frames.** Would need a new camera subscriber; only "seconds since last frame" is real.
+- **Pi camera FPS and dropped frames.** Would need a new camera subscriber; only CameraInfo metadata age is available; it does not prove image delivery.
 - **Astra RGB/depth.** Not published on this rover; `atlas_source_available{source="astra"}` = 0.
 - **GPU throttle flags.** Not in sysfs; watch the GPU frequency.
 - **FlySky frame age** while the FlySky teleop is not running.
@@ -33,19 +33,19 @@ Everything here only *reads*:
 1. **Firewall first:** allow TCP 9118 only from the VM IP, for example `sudo ufw allow from <VM_IP> to any port 9118 proto tcp`.
 2. **Run it, bounded:**
    ```bash
-   systemd-run --user --unit=atlas-health-exporter -p CPUQuota=10% -p MemoryMax=64M \
+   systemd-run --user --unit=atlas-health-exporter -p RuntimeMaxSec=300 -p CPUQuota=10% -p MemoryMax=64M \
      /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_health_exporter.py --bind 192.168.1.16
    ```
    This is not enabled at boot. Make it permanent only after the trial, with a separate approval.
 
 ## Ubuntu VM (Prometheus + Grafana)
 
-1. Put the Jetson in `targets.json`: `["192.168.1.16:9118"]`.
+1. Put the Jetson in `targets.json`: `[{"targets":["192.168.1.16:9118"],"labels":{"robot":"atlas"}}]`.
 2. Create `grafana_admin_password.txt` (mode 600).
 3. In this folder, validate first:
    ```bash
-   docker run --rm -v $PWD:/c --entrypoint promtool prom/prometheus:v3.5.0 check config /c/prometheus.yml
-   docker run --rm -v $PWD:/c --entrypoint promtool prom/prometheus:v3.5.0 check rules /c/alerts.yml
+   docker run --rm -v $PWD:/etc/prometheus:ro --entrypoint promtool prom/prometheus:v3.5.0 check config /etc/prometheus/prometheus.yml
+   docker run --rm -v $PWD:/etc/prometheus:ro --entrypoint promtool prom/prometheus:v3.5.0 check rules /etc/prometheus/alerts.yml
    ```
 4. Start the stack: `docker compose up -d`.
 5. Open Grafana at `http://127.0.0.1:3000` on the VM (use an SSH tunnel from Windows), dashboard **ATLAS HEALTH MONITOR**.
@@ -71,3 +71,18 @@ Ports bind to 127.0.0.1 only. Retention is 7 days / 1 GB. There is no Alertmanag
 - `/metrics` answered 200 with 188 lines at both checks.
 - No measurable difference: everything is within the sampling noise.
 - The exporter was not left running: no VM IP was available yet for the firewall rule.
+
+
+## Review completion (2026-10-30)
+
+Added signed BMS watts and raw M1–M4 encoder counts from verified existing cache keys; no calibration or encoder authority is inferred. Added Jetson watts, encoder READY, serial-write/recovery and drive-enabled panels. Missing/invalid safety booleans are omitted, never mapped to clear. Policy and FlySky status require finite nonnegative age <=1 s; stale values are omitted. Topic age validation rejects NaN, infinity, negative and boolean ages. Existing topic limits are respected for numeric metrics.
+
+Availability and freshness now have separate mappings; current-value tables use instant queries. Dashboard generation is repeatable. CameraInfo is explicitly metadata, not actual frame delivery. No verified Astra frame-health source exists here, so its display remains UNAVAILABLE. Frequency changes alone do not prove throttling. Raw encoder counts are gauges, not monotonic counters or a motion-safety judgment.
+
+Validation: 24 focused Python tests PASS in PC WSL; Prometheus 3.5.0 native promtool accepts config and 14 rules. Two synthetic rule scenarios PASS (70 C boundary, missing LiDAR/control policy; healthy negative case). Release binary verified against official release SHA256 manifest. For config validation only, absolute container paths were translated in an isolated temporary config. Production config is unchanged by that translation. Run `promtool test rules alerts.test.yml` from this directory.
+
+Read-only live schema inspection confirmed cache fields on Jetson 192.168.1.16. No exporter installed, services restarted or camera/motion commands sent during this review. E-STOP was released in the inspected snapshot; no live trial was attempted. Existing trial figures above are historical author evidence, not a measurement of this revised candidate.
+
+Deployment PENDING: no monitoring VM address/access was supplied or verified; PC WSL has no Docker. The checked-in targets file is intentionally a placeholder. Owner must provide the VM endpoint, configure its target/secret and restrict Jetson port 9118 to that VM before a separately approved exporter/stack trial. Native Grafana rendering, Compose startup, authenticated access and end-to-end scraping remain unverified. No notification transport/Alertmanager is configured. Monitoring alerts are informational, never substitutes for production safety guards.
+
+Rollback: revert this candidate commit for repository changes; deployment rollback remains stopping only the optional exporter/monitoring stack as described above. No rover service or safety configuration changes are required.

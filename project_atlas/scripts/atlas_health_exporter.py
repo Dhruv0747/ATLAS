@@ -14,6 +14,7 @@ than its freshness limit is emitted with atlas_topic_stale=1 and its real age.
 import argparse
 import ipaddress
 import json
+import math
 import shutil
 import subprocess
 import threading
@@ -39,7 +40,20 @@ TOPICS = {'lidar': 2.0, 'motor_speed': 2.0, 'encoder_health': 1.0, 'odom': 1.0, 
           'us_validity': 3.0, 'radar_link': 2.0, 'jetson_power': 5.0, 'drive_pid': 1.0, 'thermal_status': 5.0}
 VALUES = {'bms_voltage': 'atlas_battery_voltage_volts{source="bms"}', 'bat_voltage': 'atlas_battery_voltage_volts{source="base"}',
           'bms_percent': 'atlas_battery_percent{source="bms"}', 'bms_current': 'atlas_battery_current_amps{source="bms"}',
-          'jetson_power': 'atlas_jetson_power_watts'}
+          'jetson_power': 'atlas_jetson_power_watts', 'bms_power': 'atlas_battery_power_watts{source="bms"}'}
+for wheel in range(1, 5):
+    TOPICS[f'enc_m{wheel}'] = 1.0
+    VALUES[f'enc_m{wheel}'] = f'atlas_encoder_count{{wheel="M{wheel}"}}'
+
+
+def valid_age(value):
+    return type(value) in (int, float) and math.isfinite(value) and value >= 0
+
+
+def fresh(item, limit):
+    return isinstance(item, dict) and valid_age(item.get('age')) and item['age'] <= limit
+
+
 GPU_LOAD = ('/sys/devices/platform/bus@0/17000000.gpu/load', '/sys/devices/platform/17000000.gpu/load', '/sys/devices/platform/gpu.0/load')
 GPU_FREQ = '/sys/class/devfreq/17000000.gpu/cur_freq'
 STATE = {'cpu': None}
@@ -112,6 +126,8 @@ def collect_system(o, sysroot=''):
             c = float(raw) / 1000
         except (TypeError, ValueError):
             continue                                   # unreadable zone: skipped, never reported as 0
+        if not math.isfinite(c) or c <= -200 or c > 200:
+            continue
         temps.append(c)
         o.emit('atlas_thermal_celsius', c, {'zone': index, 'sensor': read(path.parent / 'type') or 'unknown'})
     if temps:
@@ -163,6 +179,8 @@ def collect_rover(o, get=get_json):
     try:
         st = get('/api/status')
         ros = st['ros']
+        if not isinstance(ros, dict):
+            raise ValueError('invalid ROS cache')
     except Exception:
         o.emit('atlas_source_available', 0, {'source': 'dashboard_api'})
         return
@@ -170,7 +188,7 @@ def collect_rover(o, get=get_json):
     for topic, limit in TOPICS.items():
         item = ros.get(topic)
         age = item.get('age') if isinstance(item, dict) else None
-        if not isinstance(age, (int, float)) or isinstance(age, bool):
+        if not valid_age(age):
             o.emit('atlas_topic_available', 0, {'topic': topic})
             continue
         o.emit('atlas_topic_available', 1, {'topic': topic})
@@ -181,47 +199,63 @@ def collect_rover(o, get=get_json):
             o.emit('atlas_topic_rate_hz', item['observed_hz'], {'topic': topic})
     for topic, metric in VALUES.items():
         item = ros.get(topic)
-        if isinstance(item, dict) and isinstance(item.get('age'), (int, float)) and item['age'] <= max(15.0, TOPICS.get(topic, 15.0)):
+        if fresh(item, TOPICS.get(topic, 15.0)):
             o.raw(metric, item.get('value'))
     cmd = ros.get('cmd_vel')
-    if isinstance(cmd, dict) and isinstance(cmd.get('age'), (int, float)):
+    if isinstance(cmd, dict) and valid_age(cmd.get('age')):
         o.emit('atlas_command_age_seconds', cmd['age'])            # idle mux publishes rarely: an age, not a fault
     enc = ros.get('encoder_health')
     try:
         h = json.loads(enc['value']) if isinstance(enc.get('value'), str) else enc.get('value')
     except Exception:
         h = None
-    if isinstance(h, dict) and enc.get('age', 99) <= TOPICS['encoder_health'] * 3:
-        o.emit('atlas_encoder_ready', int(h.get('state') == 'READY'))
-        o.emit('atlas_encoder_faults', len(h.get('faults') or []))
+    if isinstance(h, dict) and fresh(enc, TOPICS['encoder_health']):
+        if isinstance(h.get('state'), str) and h['state']:
+            o.emit('atlas_encoder_ready', int(h['state'] == 'READY'))
+        if isinstance(h.get('faults'), list):
+            o.emit('atlas_encoder_faults', len(h['faults']))
         for k in ('serial_checksum_errors', 'serial_write_errors', 'link_stale_events', 'link_recoveries'):
             o.emit(f'atlas_encoder_{k}_total', h.get(k))
-    astra = any('astra' in k or 'depth' in k for k in ros)
+    # No verified Astra frame-health source in this API. Key names are not proof of frames.
+    astra = False
     o.emit('atlas_source_available', int(astra), {'source': 'astra'})
     try:
         mc = get('/api/manual_controller')
+        if not isinstance(mc, dict):
+            raise ValueError('invalid control API')
     except Exception:
         o.emit('atlas_source_available', 0, {'source': 'control_api'})
         return
     o.emit('atlas_source_available', 1, {'source': 'control_api'})
-    p = mc.get('policy') or {}
-    if p.get('fresh') is True:
-        o.emit('atlas_estop_latched', int(p.get('stop_latched') is True))
-        o.emit('atlas_flysky_drive_enabled', int(p.get('flysky_drive_enabled') is True))
-        for c in ('XBOX', 'FLYSKY'):
-            o.emit('atlas_control_selected', int(p.get('manual_controller') == c), {'controller': c})
-    else:
-        o.emit('atlas_source_available', 0, {'source': 'control_policy'})
-    d = mc.get('drive') or {}
-    s = d.get('status') or {}
-    o.emit('atlas_flysky_teleop_running', int(d.get('running') is True))
-    if d.get('running') is True and s:
-        o.emit('atlas_flysky_frame_age_seconds', s.get('frame_age_s'))
-        i = s.get('inputs') or {}
-        if i:
-            o.emit('atlas_flysky_failsafe', int(i.get('failsafe') is True))
-            o.emit('atlas_flysky_frame_lost', int(i.get('frame_lost') is True))
-        if s.get('state'):
+    p = mc.get('policy')
+    policy_ok = (isinstance(p, dict) and p.get('fresh') is True
+                 and valid_age(p.get('age_s')) and p['age_s'] <= 1.0)
+    o.emit('atlas_source_available', int(policy_ok), {'source': 'control_policy'})
+    if policy_ok:
+        for field, metric in [('stop_latched', 'atlas_estop_latched'), ('flysky_drive_enabled', 'atlas_flysky_drive_enabled')]:
+            if type(p.get(field)) is bool:
+                o.emit(metric, int(p[field]))
+        if p.get('manual_controller') in ('XBOX', 'FLYSKY'):
+            for c in ('XBOX', 'FLYSKY'):
+                o.emit('atlas_control_selected', int(p['manual_controller'] == c), {'controller': c})
+    d = mc.get('drive')
+    if not isinstance(d, dict):
+        return
+    if type(d.get('running')) is bool:
+        o.emit('atlas_flysky_teleop_running', int(d['running']))
+    s = d.get('status')
+    status_ok = (d.get('running') is True and isinstance(s, dict)
+                 and valid_age(d.get('age_s')) and d['age_s'] <= 1.0)
+    o.emit('atlas_source_available', int(status_ok), {'source': 'flysky_status'})
+    if status_ok:
+        if valid_age(s.get('frame_age_s')):
+            o.emit('atlas_flysky_frame_age_seconds', s['frame_age_s'])
+        i = s.get('inputs')
+        if isinstance(i, dict):
+            for field in ('failsafe', 'frame_lost'):
+                if type(i.get(field)) is bool:
+                    o.emit('atlas_flysky_' + field, int(i[field]))
+        if isinstance(s.get('state'), str) and s['state']:
             o.emit('atlas_flysky_drive_state', 1, {'state': s['state']})
 
 

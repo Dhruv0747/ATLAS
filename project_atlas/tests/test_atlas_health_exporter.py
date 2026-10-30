@@ -43,9 +43,9 @@ def api(age=0.1, enc_faults=(), down=False, policy_fresh=True):
         'joy': {'age': 0.0, 'observed_hz': 16.2}, 'control_policy': {'age': 0.0, 'observed_hz': 10.0},
         'camera_info': {'age': 0.7, 'observed_hz': 0.95}, 'bms_voltage': {'age': 4.2, 'value': 13.1},
         'bat_voltage': {'age': 0.8, 'value': 12.3}, 'bms_percent': {'age': 4.2, 'value': 83.3},
-        'bms_current': {'age': 4.2, 'value': -2.3}, 'jetson_power': {'age': 0.7, 'value': 7.5}, 'cmd_vel': {'age': 1736.8, 'value': {'lin': 0.0, 'ang': 0.0}}}}
-    mc = {'policy': {'fresh': policy_fresh, 'stop_latched': True, 'manual_controller': 'FLYSKY', 'flysky_drive_enabled': True},
-          'drive': {'running': True, 'status': {'state': 'STOP_LATCHED', 'frame_age_s': 0.06, 'inputs': {'failsafe': False, 'frame_lost': False}}}}
+        'bms_power': {'age': 4.2, 'value': -30.13}, 'enc_m1': {'age': 0.1, 'value': 42}, 'bms_current': {'age': 4.2, 'value': -2.3}, 'jetson_power': {'age': 0.7, 'value': 7.5}, 'cmd_vel': {'age': 1736.8, 'value': {'lin': 0.0, 'ang': 0.0}}}}
+    mc = {'policy': {'age_s': 0.1, 'fresh': policy_fresh, 'stop_latched': True, 'manual_controller': 'FLYSKY', 'flysky_drive_enabled': True},
+          'drive': {'age_s': 0.1, 'running': True, 'status': {'state': 'STOP_LATCHED', 'frame_age_s': 0.06, 'inputs': {'failsafe': False, 'frame_lost': False}}}}
 
     def get(path):
         if down:
@@ -131,6 +131,60 @@ class Collect(unittest.TestCase):
     def test_systemd_failure_is_reported(self):
         m = self.two(sysroot(), get=api(), run=lambda *a, **k: NS(returncode=1, stdout=''))
         self.assertEqual(m['atlas_source_available{source="systemd"}'], 0)
+
+
+class InvalidCache(unittest.TestCase):
+    def render(self, status=None, control=None):
+        base = api()
+        def get(path):
+            value = base(path)
+            mutate = status if path == '/api/status' else control
+            if mutate:
+                mutate(value)
+            return value
+        out = E.Out(); E.collect_rover(out, get)
+        return metrics(out.text())
+
+    def test_invalid_ages_never_healthy(self):
+        for age in (None, True, -1, float('nan'), float('inf'), '0'):
+            with self.subTest(age=age):
+                m = self.render(status=lambda s: s['ros']['lidar'].update(age=age))
+                self.assertEqual(m['atlas_topic_available{topic="lidar"}'], 0)
+                self.assertNotIn('atlas_topic_stale{topic="lidar"}', m)
+
+    def test_missing_boolean_not_clear(self):
+        m = self.render(control=lambda s: s['policy'].pop('stop_latched'))
+        self.assertNotIn('atlas_estop_latched', m)
+        m = self.render(control=lambda s: s['drive']['status']['inputs'].clear())
+        self.assertNotIn('atlas_flysky_failsafe', m)
+
+    def test_stale_policy_even_with_fresh_flag(self):
+        for age in (None, True, -1, 1.01, float('nan')):
+            m = self.render(control=lambda s: s['policy'].update(age_s=age))
+            self.assertNotIn('atlas_estop_latched', m)
+            self.assertEqual(m['atlas_source_available{source="control_policy"}'], 0)
+
+    def test_stale_flysky_status_not_clear(self):
+        m = self.render(control=lambda s: s['drive'].update(age_s=2))
+        self.assertNotIn('atlas_flysky_failsafe', m)
+        self.assertNotIn('atlas_flysky_frame_age_seconds', m)
+        self.assertEqual(m['atlas_source_available{source="flysky_status"}'], 0)
+
+    def test_incomplete_encoder_payload_not_ready_or_fault_free(self):
+        m = self.render(status=lambda s: s['ros']['encoder_health'].update(value={}))
+        self.assertNotIn('atlas_encoder_ready', m)
+        self.assertNotIn('atlas_encoder_faults', m)
+
+    def test_new_metrics_and_stale_omission(self):
+        m = self.render()
+        self.assertEqual(m['atlas_encoder_count{wheel="M1"}'], 42)
+        self.assertEqual(m['atlas_battery_power_watts{source="bms"}'], -30.13)
+        m = self.render(status=lambda s: s['ros']['enc_m1'].update(age=2))
+        self.assertNotIn('atlas_encoder_count{wheel="M1"}', m)
+
+    def test_bad_cache_structure_unavailable(self):
+        m = self.render(status=lambda s: s.update(ros=[]))
+        self.assertEqual(m['atlas_source_available{source="dashboard_api"}'], 0)
 
 
 class Server(unittest.TestCase):

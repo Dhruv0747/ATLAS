@@ -74,9 +74,18 @@ class Config(unittest.TestCase):
     def test_dashboard_is_generated_and_provisioned(self):
         sys.path.insert(0, str(MON / 'grafana'))
         import build_dashboard
+        self.assertEqual(build_dashboard.build(), self.dash)
         self.assertEqual(build_dashboard.build(), self.dash)                   # committed JSON == generator output
         ds = yaml.safe_load((MON / 'grafana/provisioning/datasources/atlas.yml').read_text())
         self.assertEqual(ds['datasources'][0]['uid'], 'atlas-prom')
+
+    def test_availability_mapping_and_target_format(self):
+        panels = {p['title']: p for p in self.dash['panels']}
+        self.assertEqual(panels['Topic availability']['fieldConfig']['defaults']['mappings'][0]['options']['1']['text'], 'OK')
+        self.assertEqual(len(panels['Freshness now']['targets']), 1)
+        self.assertTrue(panels['Topic availability']['targets'][0]['instant'])
+        targets = json.loads((MON / 'targets.json').read_text())
+        self.assertIsInstance(targets[0]['targets'], list)
 
     def test_prometheus_scrape_retention_and_ports(self):
         prom = yaml.safe_load((MON / 'prometheus.yml').read_text())

@@ -16,6 +16,12 @@ def panel(kind, title, exprs, x, y, w=8, h=7, unit=None, mappings=None, threshol
                      for i, e in enumerate(exprs)],
          'fieldConfig': {'defaults': {'noValue': UNAVAILABLE, 'mappings': mappings or [], 'custom': {}}, 'overrides': []},
          'options': {}}
+    if kind in ('table', 'stat'):
+        for target in p['targets']:
+            target.update(instant=True, range=False)
+    if kind == 'table':
+        for target in p['targets']:
+            target['format'] = 'table'
     if unit:
         p['fieldConfig']['defaults']['unit'] = unit
     if thresholds:
@@ -42,6 +48,7 @@ def row(title, y):
 
 
 def build():
+    pid[0] = 0
     P = []
     P.append(row('Overall', 0))
     P += [panel('stat', 'Exporter reachable', ['up{job="atlas-jetson"}'], 0, 1, 4, 4, mappings=vmap({1: ('UP', GREEN), 0: ('DOWN', RED)})),
@@ -62,20 +69,21 @@ def build():
                                                   '100 * (1 - atlas_swap_free_bytes / clamp_min(atlas_swap_total_bytes, 1))'],
                 16, 6, 8, 7, unit='percent', thresholds=lim(80), legend=['RAM', 'swap']),
           panel('timeseries', 'GPU load % / frequency', ['atlas_gpu_load_percent', 'atlas_gpu_frequency_hz / 1e6'], 0, 13, 8, 7,
-                legend=['GPU %', 'GPU MHz'], desc='Throttling flags are not exposed by sysfs on this Jetson: frequency drops are the indicator.'),
+                legend=['GPU %', 'GPU MHz'], desc='Frequency scaling alone does not establish thermal throttling; throttle flags are unavailable.'),
           panel('timeseries', 'Disk free %', ['100 * atlas_disk_free_bytes / atlas_disk_total_bytes'], 8, 13, 8, 7, unit='percent', legend=['/']),
           panel('timeseries', 'Load average (1 min)', ['atlas_load1'], 16, 13, 8, 7, legend=['load1'])]
     P.append(row('Cameras', 20))
-    P += [panel('timeseries', 'Pi camera: seconds since last frame seen', ['atlas_topic_age_seconds{topic="camera_info"}'], 0, 21, 12, 7, unit='s',
-                thresholds=lim(5), legend=['age'], desc='Pi camera FPS is UNAVAILABLE without a new camera subscriber (not allowed). Age is real.'),
+    P += [panel('timeseries', 'Pi camera: metadata age', ['atlas_topic_age_seconds{topic="camera_info"}'], 0, 21, 12, 7, unit='s',
+                thresholds=lim(5), legend=['age'], desc='Pi camera FPS is UNAVAILABLE without a new camera subscriber (not allowed). CameraInfo age is metadata freshness, not proof of image frames.'),
           panel('stat', 'Astra Pro RGB/depth', ['atlas_source_available{source="astra"}'], 12, 21, 6, 7, mappings=vmap({1: ('PRESENT', GREEN), 0: (UNAVAILABLE, RED)})),
           panel('state-timeline', 'atlas-camera service', ['atlas_service_active{service="atlas-camera"}'], 18, 21, 6, 7,
                 mappings=vmap({1: ('active', GREEN), 0: ('not active', RED)}))]
     P.append(row('Sensors and base MCU freshness', 28))
     P += [panel('timeseries', 'Topic age (s)', ['atlas_topic_age_seconds'], 0, 29, 12, 8, unit='s', legend=['{{topic}}']),
-          panel('table', 'Freshness now', ['atlas_topic_stale', 'atlas_topic_available'], 12, 29, 12, 8,
-                mappings=STALE, legend=['{{topic}} stale', '{{topic}} available'],
-                desc='STALE = older than its limit (atlas_topic_freshness_limit_seconds). available 0 = UNAVAILABLE.')]
+          panel('table', 'Freshness now', ['atlas_topic_stale'], 12, 29, 6, 8,
+                mappings=STALE, legend=['{{topic}}'],
+                desc='STALE = older than its limit (atlas_topic_freshness_limit_seconds). missing topics appear in the availability table.'),
+          panel('table', 'Topic availability', ['atlas_topic_available'], 18, 29, 6, 8, mappings=OKBAD, legend=['{{topic}}'])]
     P.append(row('Remote controls', 37))
     P += [panel('state-timeline', 'Active control source', ['atlas_control_selected'], 0, 38, 12, 6, legend=['{{controller}}'],
                 mappings=vmap({1: ('selected', GREEN), 0: ('-', 'transparent')})),
@@ -95,6 +103,15 @@ def build():
           panel('timeseries', 'Encoder faults and link errors (10 min)', ['atlas_encoder_faults', 'increase(atlas_encoder_serial_checksum_errors_total[10m])',
                                                                            'increase(atlas_encoder_link_stale_events_total[10m])'],
                 16, 60, 8, 7, legend=['faults', 'checksum errors', 'link stale events'])]
+    P.append(row('Additional cached telemetry (no new ROS subscribers)', 67))
+    P += [panel('timeseries', 'Battery power (signed BMS value)', ['atlas_battery_power_watts'], 0, 68, unit='watt'),
+          panel('timeseries', 'Jetson power', ['atlas_jetson_power_watts'], 8, 68, unit='watt'),
+          panel('timeseries', 'Raw encoder counts', ['atlas_encoder_count'], 16, 68, legend=['{{wheel}}']),
+          panel('stat', 'Encoder READY', ['atlas_encoder_ready'], 0, 75, mappings=vmap({1: ('READY', GREEN), 0: ('NOT READY', RED)})),
+          panel('stat', 'FlySky drive enabled (display only)', ['atlas_flysky_drive_enabled'], 8, 75),
+          panel('timeseries', 'Serial writes and link recoveries (10 min)',
+                ['increase(atlas_encoder_serial_write_errors_total[10m])', 'increase(atlas_encoder_link_recoveries_total[10m])'],
+                16, 75, legend=['write errors', 'recoveries'])]
     return {'uid': 'atlas-health-monitor', 'title': 'ATLAS HEALTH MONITOR', 'tags': ['atlas', 'read-only'], 'timezone': 'browser',
             'schemaVersion': 39, 'version': 1, 'editable': False, 'refresh': '15s', 'time': {'from': 'now-6h', 'to': 'now'},
             'graphTooltip': 1, 'panels': P,

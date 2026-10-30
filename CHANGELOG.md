@@ -1352,3 +1352,6 @@ Historical first attempt; the later successful installation is recorded above.
 - Add an opt-in front-channel setting to the existing UNO serial owner. Reapply
   `USENABLE,F,1` on connection with the installed drop-in; preserve rear/left/right
   settings and all navigation safety configuration. No firmware flash required.
+
+
+2026-10-30 PR #13: completed cached battery-power/encoder metrics, corrected missing/stale safety-state reporting and Grafana availability mapping, added native alert tests. See monitoring/atlas/README.md. Optional monitoring deployment remains pending; rover safety controls unchanged.

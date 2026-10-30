@@ -41,7 +41,7 @@ groups:
         labels: {severity: critical}
         annotations: {summary: "LiDAR data stale or missing for 1 min"}
       - alert: AtlasMcuTelemetryStale
-        expr: max by (topic) (atlas_topic_stale{topic=~"encoder_health|motor_speed|drive_pid"}) == 1 or max by (topic) (atlas_topic_available{topic=~"encoder_health|motor_speed|drive_pid"} == 0)
+        expr: atlas_topic_stale{topic=~"encoder_health|motor_speed|drive_pid"} == 1 or atlas_topic_available{topic=~"encoder_health|motor_speed|drive_pid"} == 0
         for: 1m
         labels: {severity: critical}
         annotations: {summary: "Base MCU telemetry {{ $labels.topic }} stale or missing for 1 min"}
@@ -54,7 +54,7 @@ groups:
         expr: atlas_topic_stale{topic="camera_info"} == 1 or atlas_topic_available{topic="camera_info"} == 0 or atlas_service_active{service="atlas-camera"} == 0
         for: 2m
         labels: {severity: warning}
-        annotations: {summary: "Raspberry Pi camera frames stale/missing or atlas-camera not active"}
+        annotations: {summary: "Raspberry Pi camera metadata stale/missing or atlas-camera not active"}
       - alert: AtlasServiceRestarting
         expr: increase(atlas_service_restarts_total[10m]) >= 3
         for: 1m
@@ -65,3 +65,14 @@ groups:
         for: 1m
         labels: {severity: critical}
         annotations: {summary: "{{ $labels.service }} is in the failed state"}
+
+      - alert: AtlasMemoryHigh
+        expr: 100 * (1 - atlas_memory_available_bytes / atlas_memory_total_bytes) > 80
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Jetson RAM above 80 percent"}
+      - alert: AtlasControlPolicyUnavailable
+        expr: atlas_source_available{source="control_policy"} == 0
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "Control policy unavailable; do not infer safety state"}
