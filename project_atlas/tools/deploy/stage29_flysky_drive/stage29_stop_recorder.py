@@ -13,6 +13,7 @@ Usage: stage29_stop_recorder.py record --out FILE --seconds N      (N <= 900)
 """
 import argparse
 import json
+import math
 import struct
 import sys
 import threading
@@ -194,7 +195,18 @@ def driving_before(rows, t0):
             break
         if _is_cmd(r):
             last = r
-    return last is not None and t0 - last['t'] <= DRIVING_LOOKBACK_S and _moving(last['v'])
+    if last is None or len(last['v']) != 6:
+        return None  # no command evidence is not evidence of idle
+    try:
+        if not all(math.isfinite(float(x)) for x in last['v']):
+            return None
+        moving = _moving(last['v'])
+    except (TypeError, ValueError):
+        return None
+    if moving and t0 - last['t'] > DRIVING_LOOKBACK_S:
+        return None  # never discard a potentially real stop because its command is stale
+    return moving
+
 
 
 def measure(rows, kind, t0, horizon=5.0):
@@ -227,10 +239,13 @@ def measure(rows, kind, t0, horizon=5.0):
     # A switch flipped or stick moved while the rover was NOT being driven is not a stop test: it proves at most
     # that the latch works. It is reported, never counted as PASS or FAIL (2026-10-30: 42 of 48 'stick releases').
     res['driving'] = driving
-    if not driving:
+    if driving is False:
         res['cmd_zero_s'] = 0.0                    # already zero; do not time the next sparse idle message
         res['pass'] = None
-    res['result'] = 'NOT_A_STOP_TEST' if not driving else 'PASS' if res['pass'] else 'FAIL'
+    if driving is None:
+        res['pass'] = None
+    res['result'] = ('INSUFFICIENT_EVIDENCE' if driving is None else
+                     'NOT_A_STOP_TEST' if not driving else 'PASS' if res['pass'] else 'FAIL')
     return res
 
 
@@ -238,7 +253,7 @@ def analyze(path):
     rows = load(path)
     out = [measure(rows, k, t) for k, t in events(rows)]
     judged = [e for e in out if e['driving']]
-    return {'events': out, 'pass': bool(judged) and all(e['pass'] for e in judged), 'stops_under_motion': len(judged),
+    return {'events': out, 'pass': bool(judged) and all(e['pass'] for e in judged) and all(e['driving'] is not None for e in out), 'stops_under_motion': len(judged),
             'counts': {t: sum(1 for r in rows if r['topic'] == t) for t in TOPICS}}
 
 

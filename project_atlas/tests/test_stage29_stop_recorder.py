@@ -129,6 +129,17 @@ class DrivingOrIdle(unittest.TestCase):
             self.assertEqual(e['cmd_zero_s'], 0.0, kind)          # already zero: not "the next message 4 s later"
             self.assertNotIn(kind, [x['event'] for x in r['events'] if x['result'] == 'FAIL'])
 
+    def test_missing_and_stale_nonzero_commands_are_inconclusive(self):
+        for mode in ('missing', 'stale'):
+            rows = synth('swb_stop')
+            if mode == 'missing':
+                rows = [r for r in rows if r['topic'] != '/cmd_vel']
+            else:
+                rows = [r for r in rows if r['topic'] != '/cmd_vel' or r['t'] < 104 or r['t'] > 109]
+            result = R.analyze(write(rows))
+            self.assertFalse(result['pass'])
+            self.assertTrue(any(e['result'] == 'INSUFFICIENT_EVIDENCE' for e in result['events']))
+
     def test_driving_event_is_judged_exactly_as_before(self):
         e = next(e for e in R.analyze(write(synth('stick_release', latch=False)))['events'] if e['event'] == 'stick_release')
         self.assertTrue(e['driving']); self.assertEqual(e['result'], 'PASS'); self.assertTrue(e['pass'])
