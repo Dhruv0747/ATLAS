@@ -8,6 +8,7 @@ import fcntl
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import signal
@@ -21,6 +22,30 @@ from restart_safety_observer import read_observer
 LIVE=Path('/home/jetson/project_atlas')
 REVIEW=Path('/home/jetson/project-atlas-migration/object-target-staged-7dba9bd/review')
 EXPECTED='a586c2d22276ef4f7385387a79cadd581b2c7a52567d89a8754ee051b9c99e68'
+
+def sample_deadline(snapshot):
+    stamp=snapshot['cpu_started']
+    if type(stamp) not in (int,float) or not math.isfinite(stamp):raise ValueError('invalid aggregate sample timestamp')
+    return stamp+1.0
+
+def interval_valid(before,after):
+    elapsed=after['cpu_started']-before['cpu_started']
+    return math.isfinite(elapsed) and .9<=elapsed<=1.1
+
+def persist_cpu_row(stage,row):
+    output=stage/'process-cpu.jsonl';encoded=(json.dumps(row,allow_nan=False)+'\n').encode()
+    if (output.stat().st_size if output.exists() else 0)+len(encoded)>16*1024*1024:raise ValueError('CPU evidence quota exceeded')
+    with output.open('ab') as stream:stream.write(encoded);stream.flush();os.fsync(stream.fileno())
+
+def measure_cpu_interval(cpu,before,after,hz,stage):
+    delta=cpu.differences(before,after,hz)
+    if not interval_valid(before,after):
+        # Preserve the rejected raw endpoint and delta before fail-closed abort.
+        # The previous endpoint is in the baseline or preceding JSONL row.
+        persist_cpu_row(stage,{'kind':'rejected_timing','before_cpu_started':before['cpu_started'],
+                              'before_cpu':before['cpu'],'snapshot':after,'delta':delta})
+        raise ValueError('CPU sample interval failed: '+str(delta['aggregate_interval_s']))
+    return delta
 
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def load(name,path):
@@ -99,10 +124,10 @@ def run(stage):
         if last_resource[0] is None or not 0<=time.monotonic()-last_resource[0]<=1.5:raise ValueError('resource monitor missing/stalled')
     def monitor():
         try:
-            last=cpu.snapshot();save(stage/'cpu-baseline-counters.json',last);target=time.monotonic()+1;baseline_ready.set()
+            last=cpu.snapshot();save(stage/'cpu-baseline-counters.json',last);target=sample_deadline(last);baseline_ready.set()
             while not stop.wait(max(0,target-time.monotonic())):
-                now=cpu.snapshot();delta=cpu.differences(last,now,os.sysconf('SC_CLK_TCK'));last=now;target+=1
-                if not .9<=delta['aggregate_interval_s']<=1.1:raise ValueError('CPU sample interval failed')
+                now=cpu.snapshot();delta=measure_cpu_interval(cpu,last,now,os.sysconf('SC_CLK_TCK'),stage)
+                last=now;target=sample_deadline(now)
                 mem={x.split(':')[0]:int(x.split()[1]) for x in Path('/proc/meminfo').read_text().splitlines()}
                 temps={};required={'cpu-thermal','gpu-thermal','soc0-thermal','soc1-thermal','soc2-thermal','tj-thermal'}
                 for z in Path('/sys/class/thermal').glob('thermal_zone*'):
@@ -117,9 +142,7 @@ def run(stage):
                     row['safety_error']=str(exc)  # warmup is NOT safety admission
                 if resources['failed']:errors.append('resource guard '+str(resources))
                 last_resource[0]=time.monotonic()
-                output=stage/'process-cpu.jsonl';encoded=(json.dumps(row,allow_nan=False)+'\n').encode()
-                if (output.stat().st_size if output.exists() else 0)+len(encoded)>16*1024*1024:raise ValueError('CPU evidence quota exceeded')
-                with output.open('ab') as stream:stream.write(encoded);stream.flush();os.fsync(stream.fileno())
+                persist_cpu_row(stage,row)
         except BaseException as exc:errors.append(str(exc))
     thread=None
     try:
