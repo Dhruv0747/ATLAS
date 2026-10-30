@@ -1132,3 +1132,20 @@ A release flushes every channel. The drive core is unchanged, so motion still ne
 
   All other windows stayed at or below 0.85 s; teleop start max 0.85, dashboard restarts max 0.61.
 - **Conclusion:** the gap is a transient start-up delay (DDS discovery / CPU burst while a node joins), not a steady-state fault. It recurs at starts and restarts. Because /motor_speed arrives only every ~0.55 s, the margin to the 1.0 s limit at those moments is about 0.1–0.4 s. The 1.0 s limit is kept.
+
+### Camera deploy attempt 2, 15:19: FAIL_HELD, accepted provisionally by the owner (cbe1862, bound 5 s)
+
+- **Pre-checks:** encoders identical over 20 s; the owner confirmed the earlier M3/M4 counts were his manual wheel movement; preflight GO.
+- **Service start:** 15:20:04.
+- **CPU:** over 75 % from +1.8 to +8.9 s (peak 100 % at +2.8..+4.9 s), then ≤ 70 % from +9.9 s and steady at 61–65 %. RAM max 70.8 %, temperature max 62.5 °C.
+  - 5 s bound exceeded → HOLD with safety intact.
+  - The bound was mis-estimated: starting a Python ROS node peaks the Jetson for about 4 s.
+- **Observer:** no failures; max motor_output_zero age 0.864 s.
+- **No other service restarted** (mux, teleop, dashboard, base, camera-joystick PIDs unchanged).
+- **Owner accepted at 15:24** (no rollback).
+- **Final read-only checks, 15:25:** all PASS.
+  - Service active, NRestarts 0, no errors.
+  - 0 servo or tracking messages in 8 s with VrA/VrB untouched at 1024; receiver LIVE.
+  - E-STOP latched; motor 0, /cmd_vel 0; encoders still for 6 s.
+  - CPU 63.9 %, RAM 68.1 %, temperature 62.3 °C.
+- **CAMERA READY FOR PHYSICAL VERIFICATION.** Physical VrA/VrB movement is not yet verified.
