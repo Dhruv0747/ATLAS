@@ -1,5 +1,6 @@
 /* Offline intercepted requests only. Never connects to Jetson or runs a camera. */
 const {chromium}=require('playwright');const fs=require('fs');const path=require('path');
+const {verifyStopped}=require('./verify_ui_stopped.cjs');
 (async()=>{
  const baseline=path.resolve(process.argv[2]),pkg=path.resolve(process.argv[3]);
  const repo=path.resolve(__dirname,'../../web/v2');
@@ -11,9 +12,10 @@ const {chromium}=require('playwright');const fs=require('fs');const path=require
    for(const candidate of [false,true]){
     const page=await browser.newPage({viewport:{width,height:900}});const errors=[],writes=[],unknown=[];
     page.on('pageerror',e=>errors.push(String(e)));
-    await page.route('**/*',async route=>{
+    await page.context().route('**/*',async route=>{
      const req=route.request(),url=new URL(req.url());if(req.method()!=='GET')writes.push(req.method()+' '+url.pathname);
      if(url.pathname==='/api/vision3d/status')return route.fulfill({contentType:'application/json',body:fs.readFileSync(path.join(pkg,'offline-status.json'),'utf8')});
+     if(url.pathname==='/api/vision3d/summary')return route.fulfill({contentType:'application/json',body:JSON.stringify({state:'OFF',driver_stopped:true})});
      let name=url.pathname==='/v2/vision3d'?'vision3d.html':url.pathname.replace(/^\/v2\//,'');
      if(name.includes('..'))return route.abort();
      let file=name==='vision3d.html'?path.join(pkg,candidate?'candidate.html':'original.html'):path.join(baseline,name);
@@ -25,7 +27,11 @@ const {chromium}=require('playwright');const fs=require('fs');const path=require
      unknown.push(url.pathname);return route.fulfill({status:404,body:''});
     });
     await page.goto('http://offline.invalid/v2/vision3d');
-    await page.waitForFunction(()=>document.querySelector('#vlTitle').textContent==='Camera off');
+    // APIRequestContext is separately stubbed: no real network requests in this test.
+    const originalGet=page.request.get.bind(page.request);
+    page.request.get=async url=>({ok:()=>true,headers:()=>({}),json:async()=>({state:'OFF',driver_stopped:true})});
+    await verifyStopped(page,'http://offline.invalid');
+    page.request.get=originalGet;
     const observation=await page.evaluate(()=>({
      width:document.documentElement.scrollWidth,
      links:[...document.querySelectorAll('a')].map(n=>n.getAttribute('href')),
