@@ -3479,3 +3479,6 @@ Reuse existing recovery callback observations without a duplicate ROS observer; 
 
 ## 2026-10-31 — Snapshot benchmark wrapper preparation
 Bounded isolated benchmark with unchanged resource/safety gates, child limits, cleanup and seven focused offline tests. Inert package staged; execution requires separate approval.
+
+## 2026-10-31 — Exact-live snapshot integration preparation
+Prepared targeted live-baseline patch preserving Stage28 recovery safeguards, disabled by default, with 12 focused checks and byte-exact rollback. Not deployed.

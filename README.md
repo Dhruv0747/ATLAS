@@ -1724,3 +1724,5 @@ Vision Lab restart safety control package (offline/native fake-unit validated):
 [review and approval gates](ATLAS_WEB_RESTART_SAFETY_PACKAGE_20261030.md).
 
 Vision Lab: offline snapshot-supervisor integration and deployment gates are documented in ATLAS_SNAPSHOT_SUPERVISOR_INTEGRATION_20261030.md. Producer remains opt-in and undeployed.
+
+Exact-live snapshot producer installation preparation: ATLAS_PRODUCTION_SNAPSHOT_PREPARATION_20261031.md. Preserve the live Stage28 maintenance interlock; do not deploy the generic recovery script.
