@@ -71,4 +71,3 @@ sudo python3 -I -B /usr/local/libexec/atlas-monitoring-guard.py rollback
 ```
 
 Reviewed helper disables/stops exporter, stops watchdog, proves listener absent, then removes only owned firewall protection. It retains protection on ambiguous shutdown. See RUNBOOK.md for independent rollback. Do not rerun activation automatically.
-

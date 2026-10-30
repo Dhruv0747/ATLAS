@@ -1,9 +1,6 @@
 # ATLAS LAN monitoring (Prometheus + Grafana): read-only
 
-**Timestamp correction:** persistent activation was rolled back due to rounded Unix timestamps. The [offline fix and 86 focused test results](TIMESTAMP_FIX.md) are ready for review; no fixed exporter is active. The previous activation command must not be reused.
-
-**Latest status (2026-10-30):** Ubuntu WSL Prometheus/Grafana are installed on localhost; the final five-minute exporter trial passed and cleaned up. Persistent supervision is implemented and tested offline, not activated. See [persistent/VALIDATION.md](persistent/VALIDATION.md) and [RUNBOOK.md](persistent/RUNBOOK.md). Earlier VM/pending statements below are historical snapshots superseded by this status. The optional supervisor manages only monitoring firewall/service lifecycle; exporter data access remains read-only.
-
+**Current status (2026-10-30):** timestamp-fixed persistent monitoring is ENABLED and ACTIVE. The guarded five-minute activation and evidence checksums passed. See [final live review](persistent/FINAL_REVIEW_20261030.md) and [activation measurements](persistent/TIMESTAMP_RETRY_RESULT_20261030.md). Reboot recovery is PENDING; Windows logon task is not registered. Earlier dated trial/preparation sections below are historical, not current deployment instructions.
 Everything here only *reads*:
 - The Jetson exporter has **no ROS node, no ROS subscriber and no camera access**. It sends no commands and answers 405 to POST, PUT and DELETE.
 - Alerts only notify. Nothing here can move the rover or change its safety state.
@@ -34,14 +31,7 @@ Everything here only *reads*:
 
 **Measured cost (2026-10-30):** about 0.010 s of CPU per collection (about 0.07 % of one core) and 18 MB RAM. The 5-minute before/after trial is in the PR.
 
-1. **Firewall first:** allow TCP 9118 only from the VM IP, for example `sudo ufw allow from <VM_IP> to any port 9118 proto tcp`.
-2. **Run it, bounded:**
-   ```bash
-   systemd-run --user --unit=atlas-health-exporter -p RuntimeMaxSec=300 -p CPUQuota=10% -p MemoryMax=64M \
-     /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_health_exporter.py --bind 192.168.1.16
-   ```
-   This is not enabled at boot. Make it permanent only after the trial, with a separate approval.
-
+Use only the reviewed [persistent runbook](persistent/RUNBOOK.md). Do not start a second exporter or rerun consumed activation commands. An allow-only UFW rule does not restrict an ACCEPT-default firewall; the deployed dedicated nft table explicitly drops every non-approved source on TCP9118.
 ## Ubuntu VM (Prometheus + Grafana)
 
 1. Put the Jetson in `targets.json`: `[{"targets":["192.168.1.16:9118"],"labels":{"robot":"atlas"}}]`.
@@ -60,7 +50,7 @@ Ports bind to 127.0.0.1 only. Retention is 7 days / 1 GB. There is no Alertmanag
 
 ## Rollback
 
-- **Jetson:** `systemctl --user stop atlas-health-exporter`. Nothing else to undo; no rover service is touched.
+- **Jetson persistent monitoring:** use the ordered root helper `sudo python3 -I -B /usr/local/libexec/atlas-monitoring-guard.py rollback`; it stops/verifies the exporter before removing only owned protection. See RUNBOOK.md. The historical user-unit stop command does not stop the current system service.
 - **VM:** `docker compose down` keeps the data; `docker compose down -v` erases it.
 
 ## Jetson trial, 2026-10-30 17:29–17:40 (transient; it stopped itself)
@@ -93,3 +83,4 @@ Rollback: revert this candidate commit for repository changes; deployment rollba
 # Persistent deployment preparation
 
 The unchanged trial exporter now has an optional firewall verifier, stationary safety watchdog, bounded systemd units and inactive Windows/WSL startup preparation. See [persistent/RUNBOOK.md](persistent/RUNBOOK.md) for exact approval-gated commands, [validation evidence](persistent/VALIDATION.md) and [source hashes](persistent/SHA256SUMS). Offline validation passed; Jetson persistent activation and reboot tests remain pending. No production activation or PR merge is implied.
+

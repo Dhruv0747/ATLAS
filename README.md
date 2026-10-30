@@ -610,4 +610,5 @@ after that target. Camera joystick units may start after the remote. An explicit
 service stop is not automatically reversed by `Restart=always`.
 
 
-2026-10-30 PR #13: completed cached battery-power/encoder metrics, corrected missing/stale safety-state reporting and Grafana availability mapping, added native alert tests. See monitoring/atlas/README.md. Optional monitoring deployment remains pending; rover safety controls unchanged.
+2026-10-30 PR #13: completed cached battery-power/encoder metrics, corrected missing/stale safety-state reporting and Grafana availability mapping, added native alert tests. See monitoring/atlas/README.md. Persistent monitoring activation passed; reboot recovery remains pending. See monitoring/atlas/persistent/FINAL_REVIEW_20261030.md; rover safety controls unchanged.
+

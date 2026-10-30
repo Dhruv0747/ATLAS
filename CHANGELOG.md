@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-30 — Monitoring final review
+
+- Verified active monitoring, current firewall restriction and fresh Grafana metrics. Corrected obsolete deployment/rollback guidance. Documented boot-readiness and rendered dashboard issues; no live changes or reboot performed.
+
 ## 2026-10-30 — Offline monitoring timestamp fix
 
 - Preserve float64 timestamp precision and use monotonic local cache expiry; retain Unix seconds for Prometheus. Reproduced/eliminated the saved 2301.702-second false age. Focused tests passed; production activation remains separately approval-gated.
@@ -1363,3 +1367,4 @@ Historical first attempt; the later successful installation is recorded above.
 
 - Prepared optional persistent monitoring firewall/safety supervision without changing the trial exporter or rover controls.
 - Added focused offline tests, native isolated packet/fake-systemd validation, inactive Windows startup XML preparation and hashed rollback/deployment instructions. Persistent Jetson activation and reboot validation remain approval-gated.
+
