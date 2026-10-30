@@ -996,3 +996,48 @@ Pre-window means were 64–69 % all day.
 - **Residual risks:**
   - no independent motor-power disconnect;
   - the gate is lost on a reboot.
+
+## FlySky SwD (CH8) E-STOP reset, 2026-10-30 (branch agent/stage29-flysky-reset-20261030; NOT deployed)
+
+- **Owner request (09:48):** reset or unlock the E-STOP from the FlySky instead of Xbox LB.
+- **Morning incident it follows:** at 09:24 an LB reset released the E-STOP while the Xbox was selected, and the Xbox drove the lifted wheels at 0.52 m/s and 1.2 rad/s (wheel 3 about 25,000 counts). This was the third such event.
+- **Choice of control:** SwD (CH8) is unused, verified at 240 / 1807; a receiver failsafe of 1024 is neither position. The FS-i6S rear keys are not sent on any channel (CH11–16 constant).
+- **Xbox stays required:** while the Xbox is off, the mux re-latches every 50 ms, so the Xbox remains the independent stop device. Driving without the Xbox would remove a protection and was not done.
+
+**Gesture** (scripts/atlas_flysky_reset.py, teleop side). All conditions must hold for the whole gesture:
+- FlySky selected and E-STOP latched;
+- receiver LIVE, with no failsafe or frame-lost, for at least 3 s;
+- SwA up, SwB up, right stick centred;
+- then: SwD up for at least 1 s, SwD down for 2–5 s, SwD up. The teleop sends one request.
+
+**Mux side** (independent; insert_flysky_reset_mux.py, additive over the deployed mux 5d096638). It releases only if:
+- the reset gate is on, the drive gate is on and FlySky is selected;
+- the E-STOP has been latched for at least 2 s;
+- the Xbox is fresh and untouched for at least 1 s;
+- the rover is commanded zero and the encoders are fresh, READY and still for at least 1 s;
+- the request is fresh (0.3 s or less), carries a new sequence number, and no other request came in the last 3 s.
+
+A release flushes every channel. The drive core is unchanged, so motion still needs SwA up then down (a fresh arm).
+
+**Offline results**
+- 29 fault-injection tests, with 17 of 17 deliberately broken checks caught.
+- Every stop still latches after a FlySky reset (1.3 s or less), and the Xbox LB reset still works.
+- Dashboard reset card checked in every state in a browser.
+
+**Deploy step `reset`** (deploy_stage29.py; MANIFEST step 'reset'). The earlier steps are pinned to the files verified on the rover on 2026-10-30, so their hashes are unchanged.
+- **Requires:**
+  - all five Stage A steps installed and the gate ON;
+  - exactly the reviewed config 875feb35, with CH8 free;
+  - E-STOP latched and Xbox selected;
+  - safety ×3 and the resource preflight.
+- **Change:** installs 7 files, writes the runtime drop-in 91-atlas-flysky-reset.conf (mux and teleop), and runs ONE leased mux restart (the teleop follows).
+- **Proof that the new mux is running:** policy flysky_reset.enabled True, with 1.5 s of observer OK after that.
+- **Verification:**
+  - mux and teleop PIDs changed, teleop ENABLED;
+  - 0 messages on /cmd_vel_flysky and 0 reset requests;
+  - teleop status NOT_SELECTED, with reset UNAVAILABLE;
+  - the page serves the reset card;
+  - safety ×3.
+- **Failure handling:** a CPU-only overrun HOLDs; any safety or verification failure rolls back (files restored, drop-ins removed, one leased restart).
+- **gate-off** also removes the reset drop-ins. After a reboot, gate-on and then `deploy --step reset` re-enables without copying files.
+- **Deploy tests:** 28 pass. They cover the PASS path, refusals with no change, rollback (teleop not enabled, new mux unproven, base signal failure, unexpected requests or commands), CPU HOLD followed by the owner's rollback, rollback after a PASS, gate-off, the reboot re-enable, and source checks.

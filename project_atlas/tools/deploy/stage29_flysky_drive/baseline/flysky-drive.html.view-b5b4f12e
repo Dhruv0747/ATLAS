@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" class="v2page v2-testlab v2-flysky v2-flysky-drive"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ATLAS · FlySky Driving</title>
+<link rel="icon" href="/v2/assets/atlas-logo-96.png">
+<link rel="preload" href="/v2/assets/michroma-latin-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/pages.css"><link rel="stylesheet" href="/v2/testlab.css"><link rel="stylesheet" href="/v2/flysky.css">
+<link rel="stylesheet" href="/v2/material.css"></head><body>
+<header class="tl-head">
+  <div class="tl-title">
+    <a class="tl-back" href="/v2/">← Command center</a>
+    <h1>FlySky Driving</h1>
+    <p>Choose which remote drives ATLAS. Only one remote can drive at a time. Changing remote never moves the rover.</p>
+  </div>
+  <div class="tl-chips" id="chips" role="status" aria-live="polite">
+    <span class="chip" id="chipCtl">Remote …</span>
+    <span class="chip" id="chipStop">E-STOP …</span>
+    <span class="chip" id="chipGate">FlySky driving …</span>
+    <span class="chip" id="chipState">Drive node …</span>
+  </div>
+</header>
+
+<main class="tl-main">
+  <section class="tl-banner" id="banner" role="status" aria-live="polite"></section>
+
+  <section class="tl-two">
+    <div class="tl-card" aria-labelledby="hSel">
+      <h2 id="hSel">Active remote</h2>
+      <p class="tl-note">Change the remote only while the E-STOP is latched. After the change, reset the E-STOP the usual way. The Xbox controller stays the stop and reset device and must stay switched on, even when FlySky drives.</p>
+      <div class="tl-row tl-gap fd-pick" role="group" aria-label="Active remote">
+        <button type="button" id="useXbox" class="fd-select" aria-pressed="false"><b>SELECT XBOX</b><span class="fd-sel">…</span></button>
+        <button type="button" id="useFlysky" class="fd-select" aria-pressed="false"><b>SELECT FLYSKY</b><span class="fd-sel">…</span></button>
+      </div>
+      <p class="tl-note" id="selNote" role="status"></p>
+    </div>
+    <div class="tl-card" aria-labelledby="hLive">
+      <h2 id="hLive">FlySky input <span class="tl-note">as the drive node sees it</span></h2>
+      <dl class="fs-dl" id="live"></dl>
+    </div>
+  </section>
+
+  <section class="tl-card cv-card" aria-labelledby="hViz">
+    <div class="cv-top">
+      <h2 id="hViz">Controller</h2>
+      <div class="cv-tabs" role="tablist" aria-label="Controller to show on the drawing">
+        <button type="button" role="tab" id="cvTabX" aria-controls="cvStage" aria-selected="false"><b>Show Xbox</b><span class="cv-tab-sel">…</span></button>
+        <button type="button" role="tab" id="cvTabF" aria-controls="cvStage" aria-selected="false"><b>Show FlySky</b><span class="cv-tab-sel">…</span></button>
+      </div>
+      <button type="button" class="cv-follow" id="cvFollow" hidden>Follow the selected remote</button>
+    </div>
+    <p class="cv-viewnote" id="cvViewNote" role="status"></p>
+    <div class="cv-status" role="status" aria-live="polite">
+      <span class="cv-pill info" id="cvSel">Selected remote …</span><span class="cv-pill" id="cvSrc">Command source …</span><span class="cv-pill" id="cvEstop">E-STOP …</span><span class="cv-pill" id="cvGate">FlySky driving …</span><span class="cv-pill" id="cvSignal">Signal …</span>
+    </div>
+    <p class="cv-alert" id="cvLost" hidden></p>
+    <p class="cv-alert bad" id="cvMismatch" hidden></p>
+    <div class="cv-stage" id="cvStage" role="tabpanel" aria-labelledby="hViz"></div>
+    <p class="tl-note cv-caption" id="cvCaption"></p>
+    <ul class="cv-key" aria-label="What the states mean">
+      <li><span class="cv-st st-active">Active</span>Works now.</li>
+      <li><span class="cv-st st-inactive">Inactive</span>Assigned, but the other remote is selected.</li>
+      <li><span class="cv-st st-blocked">Blocked</span>Assigned, but held by the E-STOP or a lost signal.</li>
+      <li><span class="cv-st st-proposed">Proposed</span>In the FlySky setup, but FlySky driving is not enabled.</li>
+      <li><span class="cv-st st-planned">Planned</span>Proposed, not built yet.</li>
+      <li><span class="cv-st st-unassigned">Not used</span>No function on ATLAS.</li>
+    </ul>
+    <p class="tl-note">Watching the controller here is read only. The drawing never sends a command: moving a stick changes the picture, and the rover only drives through the stop multiplexer as before.</p>
+  </section>
+
+  <section class="tl-card" aria-labelledby="cvLegendTitle">
+    <h2 id="cvLegendTitle">Controls on ATLAS</h2>
+    <div class="cv-tablewrap"><table class="cv-legend">
+      <thead><tr><th scope="col">Control</th><th scope="col" id="cvLegendInputHead">Input</th><th scope="col" id="cvLegendLiveHead">Live</th><th scope="col">Function on ATLAS</th><th scope="col">State</th></tr></thead>
+      <tbody id="cvLegendBody"></tbody>
+    </table></div>
+  </section>
+
+  <section class="tl-card" aria-labelledby="hCfg">
+    <h2 id="hCfg">Driving setup <span class="tl-note">Read only. Set on the rover in config/atlas_flysky_drive.json and reviewed by the owner.</span></h2>
+    <dl class="fs-dl" id="cfg"></dl>
+  </section>
+
+  <section class="tl-card" aria-labelledby="hRules">
+    <h2 id="hRules">When FlySky driving stops the rover</h2>
+    <ul class="fs-legend">
+      <li><b>Arm switch</b> Driving needs the arm switch fully on. It must be seen off first, and the throttle must be centred when you arm.</li>
+      <li><b>Signal lost or receiver failsafe</b> The rover stops at once and the E-STOP latches.</li>
+      <li><b>Stop switch</b> Anything but the run position stops the rover and latches the E-STOP.</li>
+      <li><b>Xbox switched off</b> The E-STOP latches, as it always has.</li>
+      <li><b>Receiver centre values</b> A failsafe that only centres every channel cannot keep the rover armed.</li>
+    </ul>
+  </section>
+
+  <p class="tl-foot">This page can only choose the active remote. It cannot release the E-STOP, send a drive command or change driving settings. <a class="tl-link" href="/v2/flysky-testlab">FlySky Remote Test Lab</a></p>
+</main>
+
+<div class="v2dock" role="region" aria-label="Emergency stop">
+<button class="v2estop" id="v2Estop" type="button"><svg class="v2icon" aria-hidden="true"><use href="/v2/assets/icons.svg#i-stop"/></svg>E-STOP</button>
+<span class="v2dock-msg" id="v2EstopMsg" role="status">Sends one zero-speed command. Keep the physical remote stop available.</span>
+<a class="v2dock-link" href="/v2/">Command center</a></div>
+<script src="/v2/estop.js"></script><script src="/v2/controller-map.js"></script><script src="/v2/controller-viz.js"></script><script src="/v2/flysky-drive.js"></script>
+</body></html>
