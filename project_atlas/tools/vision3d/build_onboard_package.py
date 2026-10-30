@@ -15,7 +15,7 @@ def main():
     for name in FILES:
         dst=a.output/name;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,dst)
         hashes[name]=hashlib.sha256(dst.read_bytes()).hexdigest()
-    (a.output/'SHA256SUMS').write_text(''.join(h+'  '+n+'\n' for n,h in hashes.items()))
+    (a.output/'SHA256SUMS').write_bytes(''.join(h+'  '+n+'\n' for n,h in hashes.items()).encode('utf-8'))
     (a.output/'REVIEW_ONLY.json').write_text(json.dumps(dict(activation_allowed=False,files=hashes,
         dashboard_integration='Apply only targeted import, route and navigation changes against fresh live hashes; do not overwrite live homepage or web server',
         source_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()),indent=2))
