@@ -4,7 +4,7 @@
 
 One owner-authorized attempt ran using source b1946bd204584b106c950ce9f9f4c06315b7fc1d and the single-use wrapper prepared in 10141f05faee2e4064abd60064ee91cad284d505. No retry was performed.
 
-At 20:50:34 IST, the exporter was ENABLED and ACTIVE, watchdog ACTIVE, both with NRestarts=0; the independent rollback timer was inactive. This matches the wrapper's acceptance path. The root-owned final result and full sample checksum summary still require owner-terminal retrieval; do not substitute these observations for that evidence.
+At 20:50:34 IST, the exporter was ENABLED and ACTIVE, watchdog ACTIVE, both with NRestarts=0; the independent rollback timer was inactive. This matches the wrapper's acceptance path. Owner-terminal retrieval subsequently confirmed result PASS, persistent ENABLED_ACTIVE and evidence checksums PASS. Grafana PC verification was completed separately as documented below; the immutable wrapper result retains its PENDING PC verification label.
 
 ## Verified deployment
 
@@ -40,7 +40,15 @@ At host uptime14639.81 seconds:
 - Watchdog active since14329.576210: cumulative cgroup CPU3.415493 seconds, approximately1.101% of one CPU core; memory10665984 bytes (10.17MiB).
 - Combined approximately1.49% of one core; these cumulative figures include startup CPU and are not whole-machine percentage-point overhead or a matched causal baseline comparison.
 - Preflight CPU samples62.4204%,59.3537%,61.0282%; RAM62.4288–62.5531%; temperature63.562–63.718C.
-- Full baseline/active averages and peaks remain pending root evidence summary.
+- Verified root evidence: baseline60 samples, active290 samples over the bounded five-minute window (processing adds to nominal one-second sampling cadence).
+
+| Measurement | Baseline average / peak | Active average / peak |
+|---|---|---|
+| Whole-Jetson CPU | 61.59668% / 66.83250% | 61.87556% / 71.31012% |
+| RAM | 62.45925% / 62.59204% | 61.35246% / 63.00842% |
+| Temperature | 63.60738C / 63.781C | 63.59727C / 63.812C |
+
+Observed CPU-average increase:0.27887 percentage points. Background workload is not controlled, so this is not a causal estimate of exporter-only cost; use the cgroup figures above for direct process accounting. RAM-average decline likewise is not claimed as an optimization. All captured samples passed the unchanged guards.
 
 ## Safety and remaining evidence
 
@@ -63,3 +71,4 @@ sudo python3 -I -B /usr/local/libexec/atlas-monitoring-guard.py rollback
 ```
 
 Reviewed helper disables/stops exporter, stops watchdog, proves listener absent, then removes only owned firewall protection. It retains protection on ambiguous shutdown. See RUNBOOK.md for independent rollback. Do not rerun activation automatically.
+
