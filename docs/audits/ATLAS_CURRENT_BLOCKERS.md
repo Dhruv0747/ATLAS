@@ -1193,3 +1193,8 @@ unknown; NO-GO for retry. See [diagnosis](../../ATLAS_OBJECT_TARGET_INSTALL_DIAG
 2026-10-30 shutdown follow-up:39/39 historical scrapes failed; CPU attribution and
 duration remain UNKNOWN. Staging avoids restarts; functional API activation does
 not. See [assessment](../../ATLAS_WEB_SHUTDOWN_CPU_ASSESSMENT_20261030.md).
+
+2026-10-30 restart safety follow-up: independent ROS observer and bounded restart/
+policy/file recovery implemented offline.8 focused tests including native WSL
+SIGKILL fake-unit recovery pass. Actual Jetson admission/performance remains gated;
+79.15% cause remains UNKNOWN. [Package](../../ATLAS_WEB_RESTART_SAFETY_PACKAGE_20261030.md).

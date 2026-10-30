@@ -1719,3 +1719,6 @@ production page installation, recording or existing-camera restart occurred.
 
 Vision Lab installation readiness and rollback diagnosis (offline only):
 [2026-10-30 report](ATLAS_OBJECT_TARGET_INSTALL_DIAGNOSIS_20261030.md).
+
+Vision Lab restart safety control package (offline/native fake-unit validated):
+[review and approval gates](ATLAS_WEB_RESTART_SAFETY_PACKAGE_20261030.md).

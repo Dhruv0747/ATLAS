@@ -3468,3 +3468,8 @@ Historical first attempt; the later successful installation is recorded above.
 Bounded HTTP readiness, kernel camera-process checks, preserved resource rejection
 and rollback readiness;13 focused simulated tests. Backend unchanged. Restart CPU
 rejection remains unresolved; no live retry.
+
+## 2026-10-30 — Bounded Vision Lab restart controls (not deployed)
+
+Independent read-only safety observer, durable two-restart budget, runtime policy
+restoration and SIGKILL recovery for the unchanged staged backend. Offline-only.
