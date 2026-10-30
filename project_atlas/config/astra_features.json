@@ -1,0 +1,17 @@
+{
+  "enabled": false,
+  "features": {
+    "mapping": false,
+    "obstacle_awareness": false,
+    "object_detection": false,
+    "target_tracking": false,
+    "body_tracking": false,
+    "gesture_recognition": false,
+    "face_identification": false
+  },
+  "pan_tilt_allowed": false,
+  "face_enrollment_allowed": false,
+  "automatic_model_downloads": false,
+  "maximum_optional_pipelines": 1,
+  "status": "OFFLINE DESIGN ONLY; no runtime consumes this file yet"
+}

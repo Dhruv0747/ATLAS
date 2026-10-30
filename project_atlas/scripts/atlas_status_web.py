@@ -12,6 +12,7 @@ import atlas_web_v2
 import atlas_location_check_web
 import atlas_testlab_web   # Motor & Encoder Test Lab (additive; own node, read-only unless the lifted gates are open)
 import atlas_flysky_web   # FlySky Remote Test Lab (additive; read-only, lazy subscriber, no publishers)
+import atlas_map3d_web  # Read-only local stored map API
 import atlas_vision3d_web  # Opt-in read-only Astra viewer; no node/driver starts on import
 import atlas_camera_settings_web  # Camera settings (issue #11; additive)
 from atlas_single_person_steering_web import SinglePersonSteeringService
@@ -1965,6 +1966,8 @@ class Handler(BaseHTTPRequestHandler):
         if atlas_testlab_web.serve(self, ROS):
             return
         if atlas_flysky_web.serve(self, ROS):
+            return
+        if atlas_map3d_web.serve(self):
             return
         if atlas_vision3d_web.serve(self):
             return

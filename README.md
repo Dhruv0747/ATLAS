@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Standalone mapping candidate](ATLAS_ONBOARD_MAPPING_IMPLEMENTATION_20261030.md)
+and [six-feature Astra audit](ATLAS_ASTRA_VISION_INTEGRATION_20261030.md):
+repository-only, disabled by default; real Astra mapping/inference validation pending.
+
 [Remaining CPU assessment](ATLAS_STAGE32_REMAINING_CPU_AND_JSON_CANDIDATE.md):
 dominant executor cost unresolved; minor exact-live JSON candidate tested but
 NOT deployed. No camera or safety-policy changes.

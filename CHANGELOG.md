@@ -1,5 +1,10 @@
 # Changelog
 
+2026-10-30: prepared disabled standalone mapping adapter/supervisor/storage/viewer,
+focused native PC tests, and offline Astra feature admission/priority policy.
+No live deployment, camera activation or actuator control. See the dated mapping
+implementation and Astra vision integration reports for measured evidence and blockers.
+
 2026-10-21 Stage32 thread profiling blocked by verified process-memory access
 denial. Documented stopped RESOURCE BLOCKED camera state and evidence limits.
 No hot-function attribution, optimization deployment or camera test claimed.
