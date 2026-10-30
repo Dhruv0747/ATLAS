@@ -1,5 +1,8 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Exact-live six-panel UI preparation](ATLAS_SIX_FEATURE_UI_DEPLOYMENT_20261030.md):
+one HTML insertion, no executable feature backend, no restart; awaiting approval.
+
 [Six-feature Vision Lab candidate](ATLAS_SIX_FEATURE_LAB_20261030.md): additive
 panels and read-only YOLO/person/target adapters, disabled pending deployment review.
 

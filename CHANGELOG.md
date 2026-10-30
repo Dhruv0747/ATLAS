@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-30: prepared exact-live one-file static Vision Lab feature-panel patch;
+preserved material.css and all original controls. Desktop/mobile checks pass.
+No deployment, activation or restart performed.
+
 2026-10-30: extended existing 3D Vision Lab repository with six honest-status
 panels, bounded optional YOLO/person/target adapters and local manual test evidence.
 No servo publishers or new raw subscriptions. Runtime disabled; no live activation.
