@@ -1065,3 +1065,39 @@ A release flushes every channel. The drive core is unchanged, so motion still ne
   - AI/fusion features inactive; base PID 1953 and dashboard PID 563039 unchanged.
   - New mux PID 1163521, teleop PID 1163523.
 - **Finding:** the two mux restarts today stayed over 75 % until +16.4 s and +15.1 s. Gate-on attempt 3 on 10-29 ended at +12.7 s. A 15 s bound has no margin at the current 63–65 % baseline. No automatic retry was made. Another attempt needs an owner decision (for example a 20 s bound).
+
+### Reset deploy attempt 2, 2026-10-30 11:21 IST: PASS (package ed2b55e, bound 20 s, owner-approved, one attempt)
+
+- **Preflight:** 11:20:46 GO (CPU mean 62.5 %, max 65.5 %).
+- **Window**
+  - Mux restarted at 11:21:38.274.
+  - New mux proven on the dashboard at +10.5 s; the observer saw the mux signals fresh from +15.1 s; exemption cleared at +16.8 s.
+- **CPU timeline (s after restart : %):**
+  - -5.5:69 -4.5:64 -3.5:62 -2.5:64 -1.5:64 -0.5:65
+  - +0.5:76 +1.5:78 +2.5:94 +3.5..+9.6: 100 +10.6:98 +11.6:93 +12.6:91 +13.6:90 +14.6:87
+  - +15.6:68, then 58–65 to +50.9.
+  - **15 samples over 75 % (last +14.6 s), inside the 20 s bound.** All 30 samples after the bound were 75 % or less.
+  - Recovery mean 62.4 % against 64.7 % before. RAM max 72.7 %, temperature max 62.2 °C.
+- **Installed hashes**
+
+  | File | Hash |
+  |---|---|
+  | atlas_flysky_reset.py | 952b66a6 |
+  | mux | e70df2ba |
+  | teleop | c02cf146 |
+  | flysky-drive.html | a82333e9 |
+  | flysky-drive.js | fa70db65 |
+  | controller-map.js | 9ca1352d |
+  | controller-viz.js | 39e42d04 |
+
+  Drive core 567f0433, remote_stop 1a44fb37 and config 875feb35 are unchanged. Runtime drop-in 91-atlas-flysky-reset.conf is set for the mux and the teleop.
+- **Verified after the deploy**
+  - Mux PID 1169350; teleop PID 1169352, ENABLED, NOT_SELECTED.
+  - Policy: latched, XBOX, gate true, STOPPED, flysky_reset enabled.
+  - Teleop reset status: enabled, UNAVAILABLE ("FlySky is not the selected controller"); mux stationary true; no request yet.
+  - 0 messages on /cmd_vel_flysky and 0 reset requests.
+  - Xbox LIVE at 17.7 Hz, layout OK, nothing pressed. FlySky transmitter off (LOST), as expected.
+  - motor 0, /cmd_vel 0, encoders unchanged [81195, -74122, -62144, -74805].
+  - AI/fusion features inactive; lease released; base PID 1953 and dashboard PID 563039 unchanged.
+  - Page (deployed files + live API, rendered in the container browser): chips "Remote: Xbox / E-STOP latched / FlySky driving enabled / Drive node: not selected". Reset card: "E-STOP latched · Reset: select FlySky first · Blocked because: FlySky is not the selected controller · Rover still: yes". SELECT FLYSKY available. No page errors.
+- **Not done (separate approval):** the physical SwD gesture test and any powered test.

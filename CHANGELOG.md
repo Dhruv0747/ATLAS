@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-30 Stage29 FlySky SwD reset DEPLOYED (ed2b55e, attempt 2, bound 20 s): PASS. Mux restart over 75 % until +14.6 s (peak 100 %), steady 62.4 % vs 64.7 %; reset enabled (runtime drop-in, gone after reboot); E-STOP latched, Xbox selected, nothing moved. Attempt 1 (15 s bound) FAIL_ROLLED_BACK. Physical gesture test pending approval. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
+
 2026-10-30 Stage29 FlySky SwD (CH8) E-STOP reset IMPLEMENTED OFFLINE + deploy step 'reset' (not deployed): deliberate SwD gesture (up 1 s, down 2-5 s, up) with SwA/SwB up, stick centred, steady link; the mux independently requires the reset gate, gate on, FlySky selected, latched >= 2 s, Xbox connected and untouched, the rover still, and a fresh one-time request; no motion until SwA is cycled. Xbox stays the independent stop. 29 fault-injection + 28 deploy tests. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
 
 2026-10-29 Stage29 night software completion (bc79e75, offline + read-only): morning helper stage29_morning.py (precheck/record/analyze, read-only), offline morning-sequence tests with the exact reviewed config 875feb35, morning checklist. Live dry runs: precheck NO-GO only for the FlySky transmitter being off; recorder captures all topics. Bug fixed: unreadable Jetson thermal zone crashed the precheck (unknown temperature now NO-GO). No restart, no E-STOP release, no selection. docs/ATLAS_STAGE29_MORNING_LIFTED_WHEEL_CHECKLIST_20261030.md
