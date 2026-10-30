@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-30 Stage29 FlySky camera pan-tilt FINAL PASS (owner, physical): VrA (CH9) pan left/right PASS and VrB (CH10) tilt up/down PASS, both in the correct direction; no reversal needed; configuration unchanged. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
+
 2026-10-30 Stage29 FlySky camera knobs DEPLOYED (cbe1862) and PHYSICALLY VERIFIED by the owner: VrA (CH9) pans and VrB (CH10) tilts the camera through the existing servo topics, at D-pad speed. The knob takes control only after a deliberate turn, never chases failsafe values, and releases after 2 s. Deploy attempt 1 rolled back (one stale-telemetry verdict at start-up, 1.10 s against the 1.0 s limit); attempt 2 FAIL_HELD on the 5 s CPU bound (Python node start-up over 75 % for about 7 s) with safety intact, accepted by the owner. Final checks PASS. Service started, not enabled at boot. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md
 
 2026-10-30 Stage29 FlySky SwD reset DEPLOYED (ed2b55e, attempt 2, bound 20 s): PASS. Mux restart over 75 % until +14.6 s (peak 100 %), steady 62.4 % vs 64.7 %; reset enabled (runtime drop-in, gone after reboot); E-STOP latched, Xbox selected, nothing moved. Attempt 1 (15 s bound) FAIL_ROLLED_BACK. Physical gesture test pending approval. docs/ATLAS_STAGE29_FLYSKY_DRIVING_20261029.md

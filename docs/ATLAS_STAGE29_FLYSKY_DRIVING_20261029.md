@@ -1152,3 +1152,11 @@ A release flushes every channel. The drive core is unchanged, so motion still ne
 - **2026-10-30 15:28 PHYSICAL TEST PASS (owner):** the camera moves correctly with VrA (pan) and VrB (tilt) on the FlySky. VrA/VrB camera control is physically verified.
   - The configuration is unchanged: no redeploy, no restart; the Xbox D-pad camera controls and all driving safety settings are as before.
   - The service runs until the next reboot. It is started, not enabled; enabling it at boot needs separate approval.
+- **2026-10-30 15:30 FINAL PASS, camera pan-tilt (owner, physical):**
+
+  | Control | Function | Result |
+  |---|---|---|
+  | VrA (CH9) | pan left / right | **PASS**, correct direction |
+  | VrB (CH10) | tilt up / down | **PASS**, correct direction |
+
+  No reversal setting is needed (pan and tilt reversed = False). Configuration unchanged: no deployment, firmware flash or restart.
