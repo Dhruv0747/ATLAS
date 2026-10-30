@@ -3476,3 +3476,6 @@ restoration and SIGKILL recovery for the unchanged staged backend. Offline-only.
 
 ## 2026-10-30 — Offline independent safety snapshot integration
 Reuse existing recovery callback observations without a duplicate ROS observer; session-latched rejection and eight focused tests. No live deployment or verified Jetson savings.
+
+## 2026-10-31 — Snapshot benchmark wrapper preparation
+Bounded isolated benchmark with unchanged resource/safety gates, child limits, cleanup and seven focused offline tests. Inert package staged; execution requires separate approval.
