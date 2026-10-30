@@ -1701,3 +1701,5 @@ permissions still require administrator execution. No live Astra stream,
 production page installation, recording or existing-camera restart occurred.
 
 [Isolated RTAB-Map PC preparation](docs/ATLAS_RTABMAP_OFFLINE_20261030.md): offline only; calibration and live mapping remain gated.
+
+[Standalone Jetson mapping readiness](docs/ATLAS_ONBOARD_MAPPING_READINESS_20261030.md): mandatory onboard architecture, recorded-data blocker and offline adapter evidence.

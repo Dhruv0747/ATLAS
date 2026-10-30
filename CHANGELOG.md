@@ -3443,3 +3443,5 @@ Historical first attempt; the later successful installation is recorded above.
   exact-ID0660/video udev rule as undeployed candidate only.
 
 2026-10-30: Add isolated localhost RTAB-Map runner, input admission tests, synthetic RGB-D/odometry/LiDAR fixture and RViz configuration. Reuse Astra calibration validation; no rover deployment.
+
+2026-10-30: Add original-CDR Astra bag adapter, isolated replay admission, offline capture supervisor core and measurement sheet. No live adapter activation or Jetson deployment; real Astra replay remains blocked by missing saved image data.
