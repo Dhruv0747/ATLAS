@@ -1149,3 +1149,6 @@ A release flushes every channel. The drive core is unchanged, so motion still ne
   - E-STOP latched; motor 0, /cmd_vel 0; encoders still for 6 s.
   - CPU 63.9 %, RAM 68.1 %, temperature 62.3 °C.
 - **CAMERA READY FOR PHYSICAL VERIFICATION.** Physical VrA/VrB movement is not yet verified.
+- **2026-10-30 15:28 PHYSICAL TEST PASS (owner):** the camera moves correctly with VrA (pan) and VrB (tilt) on the FlySky. VrA/VrB camera control is physically verified.
+  - The configuration is unchanged: no redeploy, no restart; the Xbox D-pad camera controls and all driving safety settings are as before.
+  - The service runs until the next reboot. It is started, not enabled; enabling it at boot needs separate approval.
