@@ -1,0 +1,18 @@
+groups:
+  - name: atlas-observability
+    rules:
+      - alert: AtlasExporterDown
+        expr: up{job="atlas-jetson"} == 0
+        for: 2m
+      - alert: AtlasTelemetryStale
+        expr: time() - atlas_exporter_observed_timestamp_seconds > 45
+        for: 2m
+      - alert: AtlasDiskLow
+        expr: atlas_disk_free_bytes / atlas_disk_total_bytes < 0.10
+        for: 5m
+      - alert: AtlasTemperatureElevated
+        expr: atlas_thermal_celsius > 75
+        for: 5m
+      - alert: AtlasRepeatedServiceRestarts
+        expr: increase(atlas_service_restarts_total[10m]) >= 3
+        for: 1m
