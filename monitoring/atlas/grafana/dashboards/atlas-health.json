@@ -1,0 +1,229 @@
+{
+  "uid": "atlas-health",
+  "title": "ATLAS Health — read only",
+  "schemaVersion": 41,
+  "refresh": "15s",
+  "timezone": "browser",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Exporter reachable",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "targets": [
+        {
+          "expr": "up{job=\"atlas-jetson\"}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Seconds since update",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "targets": [
+        {
+          "expr": "time()-atlas_exporter_observed_timestamp_seconds",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "RAM available",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "targets": [
+        {
+          "expr": "atlas_memory_available_bytes",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "Swap free",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "targets": [
+        {
+          "expr": "atlas_swap_free_bytes",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "Disk free",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "targets": [
+        {
+          "expr": "atlas_disk_free_bytes",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "Temperature °C",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "targets": [
+        {
+          "expr": "atlas_thermal_celsius",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "Service running",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "targets": [
+        {
+          "expr": "atlas_service_active",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "Service restarts / 10m",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "targets": [
+        {
+          "expr": "increase(atlas_service_restarts_total[10m])",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      }
+    }
+  ]
+}
