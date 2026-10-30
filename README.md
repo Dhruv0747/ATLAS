@@ -1722,3 +1722,5 @@ Vision Lab installation readiness and rollback diagnosis (offline only):
 
 Vision Lab restart safety control package (offline/native fake-unit validated):
 [review and approval gates](ATLAS_WEB_RESTART_SAFETY_PACKAGE_20261030.md).
+
+Vision Lab: offline snapshot-supervisor integration and deployment gates are documented in ATLAS_SNAPSHOT_SUPERVISOR_INTEGRATION_20261030.md. Producer remains opt-in and undeployed.

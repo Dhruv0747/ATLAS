@@ -17,7 +17,7 @@ import sys
 import threading
 import time
 from restart_policy import Policy,save
-from restart_safety_observer import read_observer
+from existing_safety_snapshot import Consumer
 
 LIVE=Path('/home/jetson/project_atlas')
 REVIEW=Path('/home/jetson/project-atlas-migration/object-target-staged-7dba9bd/review')
@@ -108,7 +108,9 @@ def run(stage):
     verify_package()
     if (stage/'CONTROL_ATTEMPT_USED').exists():raise ValueError('attempt already used')
     (stage/'CONTROL_ATTEMPT_USED').open('x').close()
-    nonce=os.urandom(16).hex();observer_path=stage/'independent-safety.json'
+    observer_path=Path('/run/user')/str(os.getuid())/'atlas-restart-safety/state.json'
+    consumer=Consumer(observer_path,Path('/proc/sys/kernel/random/boot_id').read_text().strip())
+    consumer.check(time.monotonic())  # no warmup of missing/stale source
     # Inherit the verified web ROS environment only when explicitly launched by owner.
     if os.environ.get('ROS_DOMAIN_ID','0')!='0':raise ValueError('unexpected production safety domain')
     p=policy(stage);errors=[];stop=threading.Event();observer_ready=threading.Event();baseline_ready=threading.Event();last_resource=[None]
@@ -116,8 +118,7 @@ def run(stage):
     sys.path.insert(0,str(REVIEW))
     installer=load('reviewed_installer',REVIEW/'install_object_target_once.py')
     installer.STAGE=stage;installer.PKG=REVIEW/'package'
-    observer=None
-    def safety():return read_observer(observer_path,nonce,time.monotonic())
+    def safety():return consumer.check(time.monotonic())
     def independent_check():
         safety()
         if errors:raise ValueError('latched observation failure: '+str(errors[0]))
@@ -148,15 +149,14 @@ def run(stage):
     try:
         thread=threading.Thread(target=monitor,daemon=True);thread.start()
         if not baseline_ready.wait(1):raise ValueError('initial process counters unavailable')
-        observer=subprocess.Popen([sys.executable,'-B',str(Path(__file__).with_name('restart_safety_observer.py')),'--output',str(observer_path),'--nonce',nonce,'--duration','180'])
-        deadline=time.monotonic()+10
-        while True:
-            if errors:raise ValueError('resource failure during observer startup: '+str(errors[0]))
-            if observer.poll() is not None:raise ValueError('observer exited')
-            try:independent_check();observer_ready.set();break
-            except (ValueError,OSError):
-                if time.monotonic()>=deadline:raise ValueError('independent observer warmup failed')
-                time.sleep(.1)
+        observer_ready.set()
+        deadline=time.monotonic()+2
+        while last_resource[0] is None:
+            safety()
+            if errors or time.monotonic()>=deadline:
+                raise ValueError('initial resource monitor unavailable: '+str(errors))
+            time.sleep(.05)
+        independent_check()
         for _ in range(150):time.sleep(.1);independent_check()
         installer.G.preflight();independent_check()
         # Single runtime policy override; effective no-restart policy verified.
@@ -194,10 +194,6 @@ def run(stage):
         finally:
             stop.set()
             if thread:thread.join(3)
-            if observer is not None:
-                observer.terminate()
-                try:observer.wait(timeout=3)
-                except subprocess.TimeoutExpired:observer.kill();observer.wait(timeout=2)
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--stage',required=True);parser.add_argument('--recover',action='store_true');args=parser.parse_args();stage=Path(args.stage).resolve()

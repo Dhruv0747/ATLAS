@@ -3473,3 +3473,6 @@ rejection remains unresolved; no live retry.
 
 Independent read-only safety observer, durable two-restart budget, runtime policy
 restoration and SIGKILL recovery for the unchanged staged backend. Offline-only.
+
+## 2026-10-30 — Offline independent safety snapshot integration
+Reuse existing recovery callback observations without a duplicate ROS observer; session-latched rejection and eight focused tests. No live deployment or verified Jetson savings.

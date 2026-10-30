@@ -32,3 +32,49 @@ def verify(path,now,boot_id):
     result=state.evaluate(now)
     if not result['safe']:raise ValueError(result['reason'])
     return result
+
+
+class Producer:
+    """Opt-in export from existing callbacks; no ROS entity or background task."""
+    def __init__(self, path, boot_id):
+        self.path = Path(path)
+        self.boot_id = boot_id
+        self.values = {}
+        self.last_write = float('-inf')
+        self.failed = False
+
+    def receive(self, key, value, now):
+        if self.failed:
+            return
+        self.values[key] = [value, now]
+        if now - self.last_write < .1:
+            return
+        try:
+            publish(self.path, self.values, now, self.boot_id)
+            self.last_write = now
+        except Exception:
+            # Never disturb recovery callbacks; stale cache rejects the consumer.
+            self.failed = True
+            try:
+                self.path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+class Consumer:
+    """Session-latched rejection, including failures before admission."""
+    def __init__(self, path, boot_id):
+        import threading
+        self.path, self.boot_id = path, boot_id
+        self.failure = None
+        self.lock = threading.Lock()
+
+    def check(self, now):
+        with self.lock:
+            if self.failure is not None:
+                raise ValueError(self.failure)
+            try:
+                return verify(self.path, now, self.boot_id)
+            except Exception as exc:
+                self.failure = str(exc)
+                raise

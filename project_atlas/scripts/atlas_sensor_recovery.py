@@ -144,6 +144,18 @@ class AtlasRecovery(Node):
         self.motion_active = False
         self.stop_latched = False
         self.stop_latch_seen = None
+        self.safety_snapshot = None
+        # Default disabled. Separately approved installation must create private
+        # runtime directory and set this fixed-path opt-in. No new ROS entities.
+        if os.environ.get('ATLAS_RESTART_SNAPSHOT') == '1':
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools/vision3d'))
+            from existing_safety_snapshot import Producer
+            self.safety_snapshot = Producer(
+                Path('/run/user') / str(os.getuid()) / 'atlas-restart-safety/state.json',
+                Path('/proc/sys/kernel/random/boot_id').read_text().strip())
+
         self.status_pub = self.create_publisher(
             String, "/atlas/recovery_status", 10
         )
@@ -179,10 +191,16 @@ class AtlasRecovery(Node):
         self.status_pub.publish(String(data=text))
         self.get_logger().info(text)
 
+    def snapshot_observation(self, key, value, now):
+        if self.safety_snapshot is not None:
+            self.safety_snapshot.receive(key, value, now)
+
     def on_velocity(self, msg):
         now = time.monotonic()
         if self.motion_last_seen is None or now - self.motion_last_seen > STOP_COMMAND_MAX_AGE:
             self.motion_zero_since = None
+        self.snapshot_observation('command', [msg.linear.x, msg.linear.y, msg.linear.z,
+                                             msg.angular.x, msg.angular.y, msg.angular.z], now)
         self.motion_last_seen = now
         values = (msg.linear.x, msg.linear.y, msg.angular.z)
         self.motion_active = any(not math.isfinite(v) or abs(v) > 0.01 for v in values)
@@ -198,7 +216,8 @@ class AtlasRecovery(Node):
             payload = json.loads(msg.data) if len(msg.data) <= MAX_STATUS_CHARS else None
             self.stop_latched = isinstance(payload, dict) and payload.get('stop_latched') is True
         except (ValueError, TypeError):
-            pass
+            payload = None
+        self.snapshot_observation('policy', payload, self.stop_latch_seen)
 
     def stop_command_confirmed(self):
         """Fresh sustained zero command; not a physical wheel-stop assertion."""
@@ -236,6 +255,12 @@ class AtlasRecovery(Node):
             value = f"status={msg.status.status} lat={msg.latitude:.6f} lon={msg.longitude:.6f}"
         else:
             value = "data received"
+        if name == 'encoder_health':
+            try:
+                raw_encoder = json.loads(value)
+            except (ValueError, TypeError):
+                raw_encoder = None
+            self.snapshot_observation('encoders', raw_encoder, now)
         self.last_value[name] = value
         # Sustained healthy data clears the old retry budget.
         if self.attempts[name] and now - self.attempts[name][-1] > ATTEMPT_WINDOW:
