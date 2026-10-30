@@ -1699,3 +1699,6 @@ Approved stationary setup follow-up: pinned vendor source/private dependencies
 are staged only. Build stopped at CPU75.88% (unchanged75% guard); camera USB
 permissions still require administrator execution. No live Astra stream,
 production page installation, recording or existing-camera restart occurred.
+# Health Monitor homepage navigation
+
+The V2 homepage now includes a private Windows-PC-only Grafana navigation card. Availability is explicitly unverified; no rover controls or security settings change. See [ATLAS_HEALTH_MONITOR_HOME.md](ATLAS_HEALTH_MONITOR_HOME.md) for access restrictions, focused tests and pending live deployment.

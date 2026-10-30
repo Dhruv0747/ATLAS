@@ -3441,3 +3441,4 @@ Historical first attempt; the later successful installation is recorded above.
   corrected launch attempt stopped by CPU75.884%>75%. No streams or retry after
   resource rejection; sudo/USB permission execution remains blocked. Prepare
   exact-ID0660/video udev rule as undeployed candidate only.
+2026-10-30: Prepared ATLAS Health Monitor homepage card with explicit Windows-host confirmation, disabled remote-device localhost link, new-tab navigation and truthful unverified status. Four focused tests passed; production deployment remains pending. Existing control/safety behavior unchanged.
