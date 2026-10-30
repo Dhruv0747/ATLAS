@@ -1189,3 +1189,7 @@ See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
 Rolled back; Type=simple HTTP readiness race corrected offline. CPU79.15% was
 measured during OLD web shutdown, not candidate startup. Attribution remains
 unknown; NO-GO for retry. See [diagnosis](../../ATLAS_OBJECT_TARGET_INSTALL_DIAGNOSIS_20261030.md).
+
+2026-10-30 shutdown follow-up:39/39 historical scrapes failed; CPU attribution and
+duration remain UNKNOWN. Staging avoids restarts; functional API activation does
+not. See [assessment](../../ATLAS_WEB_SHUTDOWN_CPU_ASSESSMENT_20261030.md).

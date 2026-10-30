@@ -1503,7 +1503,8 @@
       "evidence": "Type=simple restart returned before HTTP bind; connection refused. CPU79.1453% sample ended22146.439869 before old process stopped22147.582186 and candidate started22147.586605. Process attribution unavailable.",
       "candidate": "Offline bounded readiness, independent camera process authority, latched guard/error retention and rollback readiness;13 simulated tests PASS. Not deployed.",
       "remaining_gap": "CPU rejection not attributed; candidate API startup not verified. No deployment retry approved.",
-      "report": "ATLAS_OBJECT_TARGET_INSTALL_DIAGNOSIS_20261030.md"
+      "report": "ATLAS_OBJECT_TARGET_INSTALL_DIAGNOSIS_20261030.md",
+      "shutdown_followup": "Prometheus39/39 scrapes failed; no CPU or process deltas. ROS/Foxglove activity is not causal attribution. Duration UNKNOWN.2 isolated staging/import tests PASS. No CPU fix or restart-free API activation. See ATLAS_WEB_SHUTDOWN_CPU_ASSESSMENT_20261030.md."
     }
   ]
 }
