@@ -1101,3 +1101,34 @@ A release flushes every channel. The drive core is unchanged, so motion still ne
   - AI/fusion features inactive; lease released; base PID 1953 and dashboard PID 563039 unchanged.
   - Page (deployed files + live API, rendered in the container browser): chips "Remote: Xbox / E-STOP latched / FlySky driving enabled / Drive node: not selected". Reset card: "E-STOP latched · Reset: select FlySky first · Blocked because: FlySky is not the selected controller · Rover still: yes". SELECT FLYSKY available. No page errors.
 - **Not done (separate approval):** the physical SwD gesture test and any powered test.
+
+## FlySky camera knobs (VrA pan, VrB tilt), 2026-10-30
+
+### Camera deploy attempt 1, 15:07: FAIL_ROLLED_BACK (2dca653, bound 5 s)
+
+- **Preflight:**
+  - 14:59 NO-GO: the E-STOP was not latched.
+  - 15:06:42 GO.
+- **What happened**
+  - Files installed and the new service started at 15:07:34.
+  - At +2.44 s the observer reported motor_output_zero failed for one 0.25 s verdict. The reason was age 1.104 s, over the 1.0 s freshness limit; the value was not non-zero. cmd_zero age was 0.83 s at the same moment.
+  - IMMEDIATE ABORT and rollback: files removed, controller-map.js restored to 9ca1352d, service stopped.
+- **Nothing moved:**
+  - E-STOP latched; motor 0 and /cmd_vel 0;
+  - encoders unchanged; base_still OK;
+  - no other service restarted (same PIDs).
+- **Side finding:** the stopped camera node logged an ExternalShutdownException traceback. Fixed: a SIGTERM now exits quietly.
+
+**Investigation** (existing observer streams of 13 deploy windows on 10-29 and 10-30, 1978 verdicts):
+- **Steady state:** /motor_speed runs at 1.80 Hz, with intervals of 0.50–0.61 s (live, 15:1x).
+- **Before any start or restart:** age median 0.27 s, p99 0.58 s, max 0.60 s, and never above 0.85 s.
+- **Within 2–7 s after a start or restart:**
+
+  | Window | Ages above 0.85 s |
+  |---|---|
+  | camera start | 0.853, 1.104 |
+  | mux step (10-29) | 0.905 |
+  | gate-on attempt 2 | 0.935, 0.852 |
+
+  All other windows stayed at or below 0.85 s; teleop start max 0.85, dashboard restarts max 0.61.
+- **Conclusion:** the gap is a transient start-up delay (DDS discovery / CPU burst while a node joins), not a steady-state fault. It recurs at starts and restarts. Because /motor_speed arrives only every ~0.55 s, the margin to the 1.0 s limit at those moments is about 0.1–0.4 s. The 1.0 s limit is kept.

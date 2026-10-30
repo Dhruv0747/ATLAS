@@ -99,6 +99,10 @@ class Knobs(unittest.TestCase):
         s = Sim(); s.cam.axes['pan'].feedback = None; s.run(2); s.ch[9] = 1807; s.run(2)
         self.assertNotIn('pan', {k for c in s.cmds() for k in c})
 
+    def test_systemd_stop_exits_quietly(self):
+        code = (ROOT / 'scripts/atlas_flysky_camera.py').read_text()
+        self.assertIn('except (KeyboardInterrupt, ExternalShutdownException):', code)   # no traceback on SIGTERM
+
     def test_reversal(self):
         self.assertEqual(K.knob_to_us(240, False), 700); self.assertEqual(K.knob_to_us(1807, False), 2300)
         self.assertEqual(K.knob_to_us(240, True), 2300); self.assertAlmostEqual(K.knob_to_us(1024, False), 1500, delta=1)

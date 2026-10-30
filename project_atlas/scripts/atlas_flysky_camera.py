@@ -162,10 +162,11 @@ def main(argv=None):                                        # pragma: no cover -
     node.create_timer(0.04, tick)
     node.get_logger().info('FlySky camera ready: VrA (CH9) pan, VrB (CH10) tilt; turn a knob to take control '
                            '(reversed pan=%s tilt=%s)' % (logic.axes['pan'].reversed, logic.axes['tilt'].reversed))
+    from rclpy.executors import ExternalShutdownException
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass                                        # systemd stop (SIGTERM): a normal, quiet exit
     finally:
         node.destroy_node()
         if rclpy.ok():

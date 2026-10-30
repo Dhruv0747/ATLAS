@@ -215,7 +215,7 @@
         "scripts/atlas_flysky_camera.py": {
           "kind": "new",
           "source": "scripts/atlas_flysky_camera.py",
-          "candidate_sha256": "b57b195437ea603dd4b720c2a2ee1c5da8eb80ab708295c8809f897225b62e6a"
+          "candidate_sha256": "a03942f80c6fafd5ac77d458289acf1540cb7dde5b92cc8e3a56aee7ae5d6fdc"
         },
         "systemd/atlas-flysky-camera.service": {
           "kind": "unit",
