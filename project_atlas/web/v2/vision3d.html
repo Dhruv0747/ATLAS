@@ -84,7 +84,22 @@
    <h3 class="vl-sub">Shadow obstacle prototype (camera frame only)</h3><pre id="obstacles">Not active</pre>
   </div>
  </details>
+ <section class="vl-state" aria-labelledby="featureHeading">
+  <h2 id="featureHeading">Astra feature tests</h2>
+  <p>One stationary test at a time, at most 30 seconds. Uses the existing approved RGB viewer; these controls never start a camera or move a servo.</p>
+  <p id="featureNotice" role="status">Checking installed feature adapters…</p>
+  <div id="featureCards" class="feature-cards"></div>
+  <p>Face identification: <label><input type="checkbox" disabled> Opt-in enrollment unavailable</label>
+   <button class="btn" disabled>Delete saved identity (not installed)</button></p>
+  <p><label><input type="checkbox" disabled> Pan/tilt tracking — separate approval required</label></p>
+  <p>Shared RGB/depth previews remain above. Detection boxes appear only on an exactly matching RGB frame. Distances remain unavailable without verified registration.</p>
+  <canvas id="featureOverlay" width="640" height="480" aria-label="Matching RGB detection overlay" hidden></canvas>
+  <p id="featureOverlayStatus">No detection overlay available</p>
+  <a class="btn" href="/v2/map3d">Local stored 3D maps — calibration unverified</a>
+ </section>
 </main>
+<link rel="stylesheet" href="/v2/vision_features.css">
+<script src="/v2/vision_features.js" defer></script>
 <div class="dock" role="region" aria-label="Emergency stop">
  <button class="estop" id="v2Estop" type="button" title="Sends the same immediate zero-speed command as the Home E-STOP"><svg class="icon"><use href="/v2/assets/icons.svg#i-stop"/></svg> E-STOP</button>
  <span class="dock-note" id="v2EstopMsg">E-STOP sends one zero-speed command to the drive.</span>

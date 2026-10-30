@@ -1,0 +1,6 @@
+{
+  "enabled": false,
+  "model_path": "/home/jetson/project_atlas/scripts/yolov8n_fp16.engine",
+  "model_sha256": "97cd66586901c75707164e912e609253d1e71705055248b9c83430c3421721df",
+  "note": "Repository candidate only; enable after separate controlled deployment approval"
+}

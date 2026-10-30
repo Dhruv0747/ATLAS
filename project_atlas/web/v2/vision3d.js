@@ -153,7 +153,7 @@
         }
         try {
           const response = await get('frame?kind=' + k), blob = await response.blob(); clearImage(k);
-          imageStamps[k] = response.headers.get('X-Source-Stamp'); urls[k] = URL.createObjectURL(blob); $(k + 'Image').src = urls[k];
+          imageStamps[k] = response.headers.get('X-Source-Stamp'); urls[k] = URL.createObjectURL(blob); $(k + 'Image').dataset.sourceStamp = imageStamps[k]; $(k + 'Image').src = urls[k];
           const e = $(k + 'Empty'); if (e) e.hidden = true;
         } catch (e) { clearImage(k); $(k + 'State').textContent = e.message; }
       }

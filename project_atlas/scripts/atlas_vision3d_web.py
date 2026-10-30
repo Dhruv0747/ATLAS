@@ -379,6 +379,29 @@ def serve(handler,service=None,post=False):
         for k,v in (extra or {}).items():handler.send_header(k,v)
         handler.end_headers();handler.wfile.write(body)
     route=p.path[len(API):];q=parse_qs(p.query)
+    if route in ('features','feature-report'):
+        from atlas_vision_feature_lab import LAB
+        try:
+            if post:
+                if route!='features':raise ValueError('report download is read-only')
+                origin=urlsplit(handler.headers.get('Origin',''))
+                if origin.scheme not in ('http','https') or origin.netloc!=handler.headers.get('Host') or handler.headers.get('X-Atlas-Vision3D')!='1':
+                    send(403,{'error':'same-origin request required'});return True
+                length=int(handler.headers.get('Content-Length','0'))
+                if not 0<length<=512 or handler.headers.get_content_type()!='application/json':raise ValueError('invalid request')
+                data=json.loads(handler.rfile.read(length))
+                if not isinstance(data,dict):raise ValueError('object required')
+                if data=={'action':'stop'}:LAB.stop()
+                elif set(data)=={'action','feature'} and data['action']=='start':LAB.start(data['feature'],svc)
+                elif set(data)=={'action','feature','verdict'} and data['action']=='verdict':LAB.verdict(data['feature'],data['verdict'])
+                else:raise ValueError('unsupported feature operation')
+                send(200,LAB.status())
+            elif route=='features':send(200,LAB.status())  # no viewer touch or lease renewal
+            else:
+                raw,digest=LAB.download(q.get('feature',[''])[0])
+                send(200,raw,extra={'Content-Disposition':'attachment; filename="atlas-feature-report.json"','X-Evidence-SHA256':digest})
+        except (ValueError,KeyError,TypeError,OSError) as e:send(409,{'error':str(e)})
+        return True
     if post:
         origin=urlsplit(handler.headers.get('Origin',''))
         if origin.scheme not in ('http','https') or origin.netloc!=handler.headers.get('Host') or handler.headers.get('X-Atlas-Vision3D')!='1':

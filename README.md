@@ -1,5 +1,8 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Six-feature Vision Lab candidate](ATLAS_SIX_FEATURE_LAB_20261030.md): additive
+panels and read-only YOLO/person/target adapters, disabled pending deployment review.
+
 [Standalone mapping candidate](ATLAS_ONBOARD_MAPPING_IMPLEMENTATION_20261030.md)
 and [six-feature Astra audit](ATLAS_ASTRA_VISION_INTEGRATION_20261030.md):
 repository-only, disabled by default; real Astra mapping/inference validation pending.

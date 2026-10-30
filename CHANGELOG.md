@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-30: extended existing 3D Vision Lab repository with six honest-status
+panels, bounded optional YOLO/person/target adapters and local manual test evidence.
+No servo publishers or new raw subscriptions. Runtime disabled; no live activation.
+
 2026-10-30: prepared disabled standalone mapping adapter/supervisor/storage/viewer,
 focused native PC tests, and offline Astra feature admission/priority policy.
 No live deployment, camera activation or actuator control. See the dated mapping
