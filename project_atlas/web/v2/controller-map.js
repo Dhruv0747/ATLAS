@@ -56,7 +56,8 @@
     { ch: 5, id: 'swa', control: 'Switch SwA (2 positions)', name: 'SwA', kind: 'switch', positions: 2, role: 'arm', proposal: 'Arm / disarm (up = off, down = arm)' },
     { ch: 6, id: 'swb', control: 'Switch SwB (3 positions)', name: 'SwB', kind: 'switch', positions: 3, role: 'stop', proposal: 'Run / stop (up = run, middle or down = stop and latch)' },
     { ch: 7, id: 'swc', control: 'Switch SwC (3 positions)', name: 'SwC', kind: 'switch', positions: 3, role: 'speed', proposal: 'Speed (up 33 %, middle 66 %, down 100 % of the limit)' },
-    { ch: 8, id: 'swd', control: 'Switch SwD (2 positions)', name: 'SwD', kind: 'switch', positions: 2, role: null },
+    { ch: 8, id: 'swd', control: 'Switch SwD (2 positions)', name: 'SwD', kind: 'switch', positions: 2, role: null,
+      reset: 'E-STOP reset: SwD up 1 s, down 2-5 s, then up' },
     { ch: 9, id: 'vra', control: 'Knob VrA', name: 'VrA', kind: 'knob', role: null, planned: 'Camera pan (proposed, not implemented)' },
     { ch: 10, id: 'vrb', control: 'Knob VrB', name: 'VrB', kind: 'knob', role: null, planned: 'Camera tilt (proposed, not implemented)' }
   ];
@@ -134,6 +135,14 @@
   function flyskyFunctionState(c, ctx) {
     if (!ctx.config && c.role) return { state: 'proposed', text: c.proposal, why: 'The drive node is not reporting its setup, so this is the proposed layout only.' };
     const roles = rolesFromConfig(ctx.config)[c.ch] || [];
+    if (c.reset && !roles.length) {                      // Stage 29 FlySky reset: from the drive node's report only
+      const r = ctx.reset;
+      if (!r || !r.enabled) return { state: 'unassigned', text: 'Not assigned', why: 'The FlySky E-STOP reset is off on this rover.' };
+      if (ctx.controller !== 'FLYSKY') return { state: 'inactive', text: c.reset, why: 'Xbox is the selected remote.' };
+      if (ctx.latched === false) return { state: 'inactive', text: c.reset, why: 'E-STOP is not latched.' };
+      if (r.available) return { state: 'active', text: c.reset, why: 'Ready: do the reset gesture.' };
+      return { state: 'blocked', text: c.reset, why: (r.blocked || []).join(' · ') || 'Put SwD up for 1 s.' };
+    }
     if (!roles.length) {
       if (c.planned) return { state: 'planned', text: c.planned, why: 'Not implemented on the rover.' };
       return { state: 'unassigned', text: 'Not assigned', why: c.note || 'No function on this rover.' };

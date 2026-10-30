@@ -360,7 +360,8 @@
       enabled: !!(p && p.flysky_drive_enabled && sDrv && sDrv.config && sDrv.config.reviewed_by_owner && !(sDrv.config.errors || []).length),
       config: sDrv && sDrv.config || null,
       blockReason: ctl && ctl.blocked_reason,
-      xboxLive: xbLive, flyskyLive: fsLive
+      xboxLive: xbLive, flyskyLive: fsLive,
+      reset: sDrv && sDrv.reset || null            // Stage 29 FlySky reset status (drive node)
     };
   }
 
