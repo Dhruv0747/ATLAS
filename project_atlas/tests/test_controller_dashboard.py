@@ -151,7 +151,8 @@ class MappingMatchesRover(unittest.TestCase):
         for ch, (where, role) in want.items():
             self.assertEqual(f[ch]['role'], role, ch)
             self.assertTrue(where in (f[ch].get('stick') or f[ch]['name']), ch)
-        self.assertIn('not implemented', f[9]['planned']); self.assertIn('not implemented', f[10]['planned'])
+        self.assertIn('Camera pan', f[9]['camera']); self.assertIn('Camera tilt', f[10]['camera'])      # atlas-flysky-camera
+        self.assertNotIn('planned', f[9]); self.assertNotIn('planned', f[10])
         cfg = json.loads((ROOT / 'config/atlas_flysky_drive.json').read_text())
         live_cfg = {'throttle': {'channel': cfg['throttle']['channel']}, 'steering': {'channel': cfg['steering']['channel']},
                     'arm_channel': cfg['arm']['channel'], 'stop_channel': cfg['stop']['channel'], 'speed_mode_channel': cfg['speed_mode']['channel']}
@@ -169,7 +170,9 @@ class MappingMatchesRover(unittest.TestCase):
             ctx = dict(base, **over)
             for i in range(5):
                 self.assertEqual(node_eval('m.flyskyFunctionState(m.FLYSKY[%d], %s).state' % (i if i < 2 else i + 2, json.dumps(ctx))), want, (over, i))
-        self.assertEqual(node_eval('m.flyskyFunctionState(m.FLYSKY[8], %s).state' % json.dumps(base)), 'planned')
+        self.assertEqual(node_eval('m.flyskyFunctionState(m.FLYSKY[8], %s).state' % json.dumps(base)), 'active')     # VrA camera
+        self.assertEqual(node_eval('m.flyskyFunctionState(m.FLYSKY[8], %s).state' % json.dumps(dict(base, flyskyLive=False))), 'blocked')
+        self.assertEqual(node_eval('m.flyskyFunctionState(m.FLYSKY[9], %s).state' % json.dumps(dict(base, controller='XBOX', latched=True))), 'active')
         self.assertEqual(node_eval('m.flyskyFunctionState(m.FLYSKY[2], %s).state' % json.dumps(base)), 'unassigned')
 
     def test_xbox_drive_only_active_when_xbox_selected_live_and_released(self):
@@ -280,7 +283,9 @@ class PageRender(unittest.TestCase):
         self.assertIn('Preview only', self.txt(pg, '#cvViewNote')); self.assertIn('Selected remote: Xbox', self.txt(pg, '#cvSel'))
         self.assertEqual(pg.get_attribute('#useFlysky', 'aria-pressed'), 'false')
         legend = self.txt(pg, '#cvLegendBody')
-        self.assertNotIn('Active', legend); self.assertIn('Proposed', legend); self.assertIn('Planned', legend)
+        drive_rows = [r for r in legend.split('\n') if any(k in r for k in ('CH1', 'CH2', 'SwA', 'SwB', 'SwC'))]
+        self.assertTrue(drive_rows); self.assertFalse(any('Active' in r for r in drive_rows), drive_rows)   # driving never shown active
+        self.assertIn('Proposed', legend); self.assertIn('Camera pan', legend)
         self.assertIn('CH5', legend); self.assertIn('240', legend)
         # the backend refuses too, with the same reason, and nothing changes
         req = urllib.request.Request(self.url('/api/manual_controller'), data=b'{"target": "FLYSKY"}', method='POST',
@@ -295,10 +300,12 @@ class PageRender(unittest.TestCase):
         pg, errs, _ = self.open('flysky_selected')
         self.assertEqual(pg.get_attribute('#cvTabF', 'aria-selected'), 'true'); self.assertIn('Selected remote: FlySky', self.txt(pg, '#cvSel'))
         self.assertEqual(pg.get_attribute('#useFlysky', 'aria-pressed'), 'true')
-        rows = self.txt(pg, '#cvLegendBody'); self.assertIn('Blocked', rows); self.assertNotIn('Active', rows)
+        rows = self.txt(pg, '#cvLegendBody'); self.assertIn('Blocked', rows)
+        drive = rows.split('Switch SwD')[0]                     # CH1..SwC: the drive rows (the camera knobs follow SwD)
+        self.assertIn('CH1', drive); self.assertNotIn('Active', drive)
         pg.close()
         pg, errs, _ = self.open('flysky_armed')
-        self.assertIn('Active', self.txt(pg, '#cvLegendBody')); self.assertIn('Command source: FlySky', self.txt(pg, '#cvSrc'))
+        self.assertIn('Active', self.txt(pg, '#cvLegendBody').split('Switch SwD')[0]); self.assertIn('Command source: FlySky', self.txt(pg, '#cvSrc'))
         self.assertIn('FlySky driving enabled', self.txt(pg, '#cvGate'))
         pg.screenshot(path=str(self.shots / 'flysky_armed.png')); self.assertEqual(errs, []); pg.close()
 

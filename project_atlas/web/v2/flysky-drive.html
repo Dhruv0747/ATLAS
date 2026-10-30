@@ -32,6 +32,11 @@
       </div>
       <p class="tl-note" id="selNote" role="status"></p>
     </div>
+    <div class="tl-card" aria-labelledby="hReset">
+      <h2 id="hReset">FlySky E-STOP reset <span class="tl-note">SwD, when enabled on the rover</span></h2>
+      <p class="tl-note">With FlySky selected, the E-STOP latched, SwA up, SwB up and the right stick centred: SwD up for 1 s, down for 2 to 5 s, then up. The Xbox must stay on and untouched; it is still the independent stop. Nothing moves after a reset until you switch SwA off and on again.</p>
+      <dl class="fs-dl" id="reset"></dl>
+    </div>
     <div class="tl-card" aria-labelledby="hLive">
       <h2 id="hLive">FlySky input <span class="tl-note">as the drive node sees it</span></h2>
       <dl class="fs-dl" id="live"></dl>
@@ -87,6 +92,7 @@
       <li><b>Stop switch</b> Anything but the run position stops the rover and latches the E-STOP.</li>
       <li><b>Xbox switched off</b> The E-STOP latches, as it always has.</li>
       <li><b>Receiver centre values</b> A failsafe that only centres every channel cannot keep the rover armed.</li>
+      <li><b>FlySky reset</b> Only the full SwD gesture can release the E-STOP from the FlySky, and only while the rover is still, the Xbox is connected and untouched, and the signal has been steady for 3 s. A flip, a stuck switch, power-on or a returning signal never resets it.</li>
     </ul>
   </section>
 

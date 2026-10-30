@@ -21,6 +21,13 @@ Steps, in this fixed order, ONE per invocation, each with its own approval and i
   features: lease-aware atlas_feature_on_demand.py (an authorised restart no longer looks like an autonomy request,
            and restore-all is skipped under a valid lease); restart atlas-feature-on-demand under the lease, verify
            that no managed feature started. Required before gate-on (its mux restart otherwise starts 5 AI services).
+  reset  : (2026-10-30, separate approval, gate ON) FlySky SwD (CH8) E-STOP reset: new atlas_flysky_reset.py, the
+           reset-patched mux (over the deployed Stage 29 mux), the reset-aware teleop and page files, plus a RUNTIME
+           drop-in ATLAS_FLYSKY_RESET_ENABLED=1 for the mux and the teleop; ONE mux restart under the lease (the
+           teleop follows via PartOf); the new mux is proven by policy flysky_reset.enabled True. After a reboot the
+           drop-in is gone (like the gate): gate-on, then `deploy --step reset` again re-enables it without copying
+           files. gate-off removes it. It can only RELEASE a latched E-STOP after the full SwD gesture and every mux
+           check; it never commands motion. See scripts/atlas_flysky_reset.py.
 
 Monitoring (reused unchanged from the Stage 28 deployer): continuous 1-s CPU/RAM/temperature recorder and the
 independent safety observer (0.25 s verdicts, 1.0 s freshness, 1.0 s gap limit), both started before the change,
@@ -59,15 +66,20 @@ import deploy_rc_bridge as d28                              # noqa: E402  (reuse
 import insert_flysky_mux                                    # noqa: E402
 import insert_status_web_hooks                              # noqa: E402
 import insert_controller_input_hooks                        # noqa: E402
+import insert_flysky_reset_mux                             # noqa: E402
 sys.path.insert(0, str(REPO / 'scripts'))
 
 Fail = d28.Fail
 CPU_LIMIT, RAM_LIMIT, TEMP_LIMIT = d28.CPU_LIMIT, d28.RAM_LIMIT, d28.TEMP_LIMIT
 MANIFEST = json.loads((HERE / 'MANIFEST.json').read_text())
 STEPS = ('mux', 'teleop', 'web', 'view', 'features')
+RESET_STEP = 'reset'                               # gate-ON step with its own action path (deploy_reset)
+CAMERA_STEP = 'camera'                             # FlySky camera knobs: a new service only (deploy_camera)
+ALL_STEPS = STEPS + (RESET_STEP, CAMERA_STEP)
 REQUIRED_STEPS = ('mux', 'teleop', 'web')          # what FlySky driving needs; 'view' is the optional dashboard UI
 UNITS = {'mux': 'atlas-cmd-vel-mux.service', 'teleop': 'atlas-flysky-teleop.service', 'web': 'rover-status-web.service',
-         'view': 'rover-status-web.service', 'features': 'atlas-feature-on-demand.service'}
+         'view': 'rover-status-web.service', 'features': 'atlas-feature-on-demand.service', 'reset': 'atlas-cmd-vel-mux.service',
+         'camera': 'atlas-flysky-camera.service'}
 LEASED_STEPS = ('mux', 'features')       # restarts that run under the authorised-restart lease
 MANAGED_FEATURES = ('atlas-vision-lidar-fusion', 'atlas-person-sensor-fusion', 'atlas-experience-store', 'atlas-agent-team',
                     'atlas-ai-annotator', 'atlas-follow-person', 'atlas-camera-tracker', 'atlas-active-vision')
@@ -223,7 +235,8 @@ def file_plan(env, step):
             if d28.sha(dst) != spec['baseline_sha256']:
                 raise Fail(f'{rel}: live file drifted from the reviewed baseline ({d28.sha(dst)[:12]}); nothing changed')
             mod = {'insert_flysky_mux.py': insert_flysky_mux, 'insert_status_web_hooks.py': insert_status_web_hooks,
-                   'insert_controller_input_hooks.py': insert_controller_input_hooks}[spec['patcher']]
+                   'insert_controller_input_hooks.py': insert_controller_input_hooks,
+                   'insert_flysky_reset_mux.py': insert_flysky_reset_mux}[spec['patcher']]
             data = mod.apply(live).encode('utf-8')
         else:
             src = REPO / spec['source']
@@ -248,7 +261,7 @@ def step_done(env, step, ignore=()):
     later step instead, when the later step is installed (the 'view' step replaces A3 page files; its baselines are the
     A3 candidates, so the chain is exact)."""
     superseded = set()
-    for later in STEPS[STEPS.index(step) + 1:]:
+    for later in ALL_STEPS[ALL_STEPS.index(step) + 1:]:
         if step_done(env, later, ignore):
             superseded |= set(MANIFEST['steps'][later]['files'])
     for rel, spec in MANIFEST['steps'][step]['files'].items():
@@ -707,7 +720,12 @@ def rollback(env, args):
         require_latched(env)
     except Exception as exc:
         ev.log(f'REFUSED: {exc}'); ev.seal(); return 3
-    rollback_files(env, ev, args.step, src / 'backup', meta, restart=True)
+    if args.step == RESET_STEP:
+        rollback_reset(env, ev, src / 'backup', meta, restart=True)
+    elif args.step == CAMERA_STEP:
+        rollback_camera(env, ev, src / 'backup', meta)
+    else:
+        rollback_files(env, ev, args.step, src / 'backup', meta, restart=True)
     ev.save('result', {'result': 'ROLLED_BACK', 'step': args.step, 'from': str(src)}); ev.seal()
     return 0
 
@@ -842,7 +860,7 @@ def gate_on(env, args):
 
 
 def remove_gate(env, ev, restart=True):
-    for g in gate_paths(env):
+    for g in gate_paths(env) + reset_paths(env):   # the FlySky reset is meaningless without the gate: removed with it
         if g.exists():
             g.unlink()
     env.systemctl('daemon-reload', timeout=30)
@@ -883,6 +901,346 @@ def gate_off(env, args):
     return 0 if ok else 1
 
 
+# ------------------------------------------------------------------ FlySky SwD E-STOP reset (2026-10-30)
+RESET_DROPIN = '91-atlas-flysky-reset.conf'
+RESET_TEXT = ('# ATLAS Stage 29 FlySky SwD E-STOP reset. Runtime (tmpfs): removed by gate-off / rollback, gone after reboot.\n'
+              '[Service]\nEnvironment=ATLAS_FLYSKY_RESET_ENABLED=1\n')
+RESET_TOPICS = ['/cmd_vel_flysky', '/atlas/flysky/drive_status', '/atlas/flysky/reset_request']
+
+
+def reset_paths(env):
+    root = Path(f'/run/user/{os.getuid()}/systemd/user') if not hasattr(env, 'runtime_unit_dir') else env.runtime_unit_dir
+    return [root / f'{UNITS[k]}.d' / RESET_DROPIN for k in ('mux', 'teleop')]
+
+
+def reset_enabled_in(p):
+    r = p.get('flysky_reset')
+    return isinstance(r, dict) and r.get('enabled') is True
+
+
+def reset_checks(env, ev):
+    """Read-only GO/NO-GO for the reset step. Returns (files_done, plan). Raises Fail with the first NO-GO reason."""
+    import atlas_flysky_drive_core as dcore
+    import atlas_flysky_reset as fsr
+    for st in STEPS:
+        if not installed(env, st):
+            raise Fail(f'step {st} is not installed')
+    files_done = step_done(env, RESET_STEP)
+    plan = [] if files_done else file_plan(env, RESET_STEP)       # drift / partial install -> Fail, nothing changed
+    if any(r.exists() for r in reset_paths(env)):
+        raise Fail('FlySky reset drop-in already present (already enabled)')
+    if not all(g.exists() for g in gate_paths(env)):
+        raise Fail('FlySky driving gate is OFF: run gate-on first (the reset needs the gate)')
+    cfg = json.loads(config_path(env).read_text())
+    ok, errs = dcore.usable(cfg)
+    if not ok or not reviewed_config_ok(env):
+        raise Fail(f'drive config is not exactly the owner-reviewed config: {errs}')
+    over = {k: cfg[k] for k, cap in COMMISSION_CAPS.items() if cfg[k] > cap}
+    if over:
+        raise Fail(f'config above the commissioning caps {COMMISSION_CAPS}: {over}')
+    conflict = fsr.channel_conflict(cfg)
+    if conflict:
+        raise Fail(f'reset channel not free: {conflict}')
+    require_latched(env)
+    p = policy(env)
+    if not (p.get('stop_latched') is True and p.get('flysky_drive_enabled') is True):
+        raise Fail(f'policy not as required (latched, gate true): {p}')
+    if p.get('manual_controller') != 'XBOX':
+        raise Fail(f'controller is {p.get("manual_controller")}: press SELECT XBOX on the dashboard (E-STOP latched) first')
+    if reset_enabled_in(p):
+        raise Fail('the running mux already reports the FlySky reset enabled')
+    ev.log(f'reset checks: steps installed; reset files {"already installed (re-enable only)" if files_done else "will be installed"}; '
+           f'gate ON; reviewed config; CH{fsr.RESET_CHANNEL} free; latched; XBOX selected')
+    return files_done, plan
+
+
+def write_reset(env, ev):
+    written = []
+    for r in reset_paths(env):
+        r.parent.mkdir(parents=True, exist_ok=True)
+        d28.install_atomic(RESET_TEXT.encode(), r, 0o644)
+        written.append(r)
+    env.systemctl('daemon-reload', timeout=30)
+    ev.log('reset drop-ins written: ' + ', '.join(str(r) for r in written))
+    return written
+
+
+def verify_reset(env, ev, before, protected0):
+    mux, tel = d28.require_running(env, UNITS['mux']), d28.require_running(env, UNITS['teleop'])
+    for unit, s, b in ((UNITS['mux'], mux, before['mux']), (UNITS['teleop'], tel, before['teleop'])):
+        if s.get('MainPID') == b.get('MainPID'):
+            raise Fail(f'{unit} PID did not change ({s.get("MainPID")}): restart not effective')
+    mlog, tlog = env.journal(mux.get('InvocationID')), env.journal(tel.get('InvocationID'))
+    if 'Traceback' in mlog or 'Traceback' in tlog:
+        raise Fail('traceback in the new mux or teleop journal')
+    if 'FLYSKY' not in mlog:
+        raise Fail('mux journal does not show the FLYSKY channel')
+    if 'FlySky teleop ENABLED' not in tlog:
+        raise Fail('teleop did not restart ENABLED')
+    changed = {u: (a, d28.identities(env, [u])[u]) for u, a in protected0.items() if d28.identities(env, [u])[u] != a}
+    if changed:
+        raise Fail(f'protected service identity changed: {changed}')
+    p = policy(env)
+    if not (p.get('stop_latched') is True and p.get('manual_controller') == 'XBOX' and p.get('flysky_drive_enabled') is True
+            and p.get('source') == 'STOPPED' and reset_enabled_in(p)):
+        raise Fail(f'post-reset policy not as required (latched, XBOX, gate true, STOPPED, flysky_reset enabled): {p}')
+    smp = env.sample_topics(RESET_TOPICS, seconds=3.0)
+    ev.save('reset-topic-sample', smp)
+    if smp['/cmd_vel_flysky']['count'] or smp['/atlas/flysky/reset_request']['count']:
+        raise Fail(f'unexpected messages with Xbox selected: cmd {smp["/cmd_vel_flysky"]["count"]}, '
+                   f'reset requests {smp["/atlas/flysky/reset_request"]["count"]}')
+    try:
+        st = json.loads(smp['/atlas/flysky/drive_status']['last'] or '{}')
+    except (TypeError, ValueError):
+        st = {}
+    rs = st.get('reset') or {}
+    if st.get('state') != 'NOT_SELECTED' or rs.get('enabled') is not True or rs.get('state') != 'UNAVAILABLE':
+        raise Fail(f'teleop status not as required (NOT_SELECTED, reset enabled and UNAVAILABLE): {st}')
+    code, html = env.get_text('/v2/flysky-drive')
+    jcode, js = env.get_text('/v2/flysky-drive.js')
+    if code != 200 or 'id="hReset"' not in html or jcode != 200 or 'Stage 29 FlySky reset' not in js:
+        raise Fail(f'dashboard does not serve the reset card ({code}/{jcode})')
+    ev.log(f'reset: verified mux pid {mux.get("MainPID")}, teleop pid {tel.get("MainPID")}; policy {p}; teleop reset {rs}')
+
+
+def rollback_reset(env, ev, bkdir, meta, restart=True):
+    """Remove the reset drop-ins, restore every file of the backup, and (if the mux had restarted) one leased restart."""
+    with d28.CpuRecorder(env, sink=ev.stream('cpu-rollback-reset')) as rec:
+        t = time.time()
+        for r in reset_paths(env):
+            if r.exists():
+                r.unlink()
+        restore(env, ev, bkdir, meta)
+        env.systemctl('daemon-reload', timeout=30)
+        if restart:
+            d28.wait_quiescent(env, UNITS['mux'])
+            with mux_lease(env, ev, 'stage29 rollback reset mux restart'):
+                env.systemctl('restart', UNITS['mux'], timeout=60)
+                d28.require_running(env, UNITS['mux'])
+                env.sleep(min(env.steady_s, 20))
+        env.sleep(env.steady_s)
+        d28.record_rollback_cpu(env, ev, 'reset', rec, t)
+    ev.log('ROLLBACK of reset complete (drop-ins removed' + (', files restored' if meta else '') + (', mux restarted)' if restart else ')'))
+
+
+def deploy_reset(env, args):
+    ev = Evidence(env, 'deploy-reset')
+    ev.log(f'STAGE 29 FlySky SwD reset: bound {args.cpu_bound_s} s; gate stays ON; Xbox selected; E-STOP stays latched; '
+           f'no motion is commanded and the E-STOP is never released by this deployer')
+    state = {'installed': False, 'written': False, 'restarted': False}
+    try:
+        files_done, plan = reset_checks(env, ev)
+        require_safe_after_dashboard_restart(env, ev, 'reset-pre', count=3)
+        d28.resources_strict(env, ev, 'reset-preflight', env.preflight_s)
+        meta = backup(env, ev, plan)
+        before = {'mux': d28.unit_state(env, UNITS['mux']), 'teleop': d28.unit_state(env, UNITS['teleop'])}
+        protected0 = d28.identities(env, [u for u in env.protected if u not in (UNITS['mux'], UNITS['teleop'])])
+        base_pid = int(d28.unit_state(env, 'rover-base-telemetry.service').get('MainPID', '0'))
+    except Fail as exc:
+        ev.log(f'REFUSED, nothing changed: {exc}')
+        ev.save('result', {'result': 'REFUSED_NO_CHANGE', 'reason': str(exc)}); ev.seal()
+        return 3
+    rec = obs = t0 = None
+    try:
+        with d28.CpuRecorder(env, sink=ev.stream('cpu-reset')) as rec, \
+                d28.ObserverRecorder(env, base_pid, sink=ev.stream('observer-reset')) as obs, \
+                mux_lease(env, ev, 'stage29 reset authorised mux restart'):
+            env.sleep(2.5)
+            d28.require_pre_window_ok(env, ev, 'reset', rec, obs)
+            for dst, data, mode, _, _ in plan:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                d28.install_atomic(data, dst, mode)
+            state['installed'] = bool(plan)
+            ev.log('installed: ' + (', '.join(f'{dst.name}={hh[:12]}' for dst, _, _, _, hh in plan) or 'nothing (files already installed)'))
+            write_reset(env, ev)
+            state['written'] = True
+            obs.exempt.update(MUX_SIGNALS)
+            t0 = time.time()
+            ev.log('restarting atlas-cmd-vel-mux ONLY (the teleop follows via PartOf) with the FlySky reset enabled')
+            env.systemctl('restart', UNITS['mux'], timeout=60)
+            state['restarted'] = True
+            wait_mux_back(env, ev, obs, rec, t0, args.cpu_bound_s,
+                          expect=lambda p: reset_enabled_in(p) and p.get('flysky_drive_enabled') is True,
+                          what='flysky_reset enabled')
+            try:
+                d28.resources_after_restart(env, ev, 'reset-post', 'transient', rec, t0, args.cpu_bound_s, obs)
+            except Fail as exc:
+                if classify(rec, obs, t0, args.cpu_bound_s):
+                    raise
+                raise CpuOverrun(str(exc)) from exc
+            recovery_mean(ev, 'reset', rec, t0, args.cpu_bound_s)
+            ev.save('cpu-recorder-reset', {'t_restart': t0, 'samples': rec.samples, 'ram_temp': rec.rt})
+        verify_reset(env, ev, before, protected0)
+        require_safe_after_dashboard_restart(env, ev, 'reset-post', count=3)
+        ev.log('RESET STEP PASS: FlySky SwD reset enabled; Xbox selected; E-STOP latched; nothing moved')
+        ev.save('result', {'result': 'PASS', 'step': RESET_STEP, 'files_installed': state['installed']}); ev.seal()
+        return 0
+    except CpuOverrun as exc:
+        ev.log(f'RESET STEP FAILED on resources with safety intact: {exc}')
+        hold(env, ev, RESET_STEP, rec, t0)
+        ev.log(f'HELD: no automatic restart. Rollback on owner decision: rollback --step reset --evidence {ev.dir}')
+        ev.save('result', {'result': 'FAIL_HELD', 'step': RESET_STEP, 'reason': str(exc), 'rollback_evidence': str(ev.dir)}); ev.seal()
+        return 1
+    except Exception as exc:
+        if not (state['installed'] or state['written']):
+            ev.log(f'REFUSED before any change: {exc!r}')
+            ev.save('result', {'result': 'REFUSED_NO_CHANGE', 'step': RESET_STEP, 'reason': repr(exc)}); ev.seal()
+            return 3
+        ev.log(f'RESET STEP FAILED (safety/verification): {exc!r}; rolling back')
+        try:
+            rollback_reset(env, ev, ev.dir / 'backup', meta, restart=state['restarted'])
+            ev.save('result', {'result': 'FAIL_ROLLED_BACK', 'step': RESET_STEP, 'reason': repr(exc)})
+        except Exception as rb:
+            ev.log(f'ROLLBACK NOT CONFIRMED ({rb!r}): owner inspection required; no further restart attempted')
+            ev.save('result', {'result': 'FAIL_ROLLBACK_UNCONFIRMED', 'step': RESET_STEP, 'reason': repr(exc), 'rollback': repr(rb)})
+        ev.seal()
+        return 1
+
+
+def preflight_reset(env, args):
+    """Read-only GO/NO-GO for `deploy --step reset` (the Stage A preflight requires the gate OFF, this one ON)."""
+    ev = Evidence(env, 'preflight-reset')
+    ok = True
+    for label, fn in (('reset', lambda: reset_checks(env, ev)),
+                      ('safety', lambda: require_safe_after_dashboard_restart(env, ev, 'preflight-reset')),
+                      ('resources', lambda: d28.resources_strict(env, ev, 'preflight-reset', env.preflight_s))):
+        try:
+            fn()
+        except Exception as exc:
+            ok = False
+            ev.log(f'{label}: NO-GO: {exc}')
+    ev.log('PREFLIGHT RESET ' + ('GO' if ok else 'NO-GO'))
+    ev.save('result', {'result': 'GO' if ok else 'NO-GO'}); ev.seal()
+    return 0 if ok else 1
+
+
+# ------------------------------------------------------------------ FlySky camera knobs (2026-10-30)
+CAMERA_TOPICS = ['/camera/bottom_servo_cmd_us', '/camera/second_servo_cmd_us']
+
+
+def camera_checks(env, ev):
+    for st in STEPS:
+        if not installed(env, st):
+            raise Fail(f'step {st} is not installed')
+    if not step_done(env, RESET_STEP):
+        raise Fail('step reset is not installed (the camera step is chained on its dashboard files)')
+    if step_done(env, CAMERA_STEP):
+        raise Fail('step camera is already installed; nothing to do')
+    plan = file_plan(env, CAMERA_STEP)
+    require_latched(env)
+    p = policy(env)
+    ev.log(f'camera checks: steps installed; camera files will be installed; latched; controller {p.get("manual_controller")}')
+    return plan, p
+
+
+def rollback_camera(env, ev, bkdir, meta):
+    env.systemctl('stop', UNITS[CAMERA_STEP], timeout=60, check=False)
+    restore(env, ev, bkdir, meta)
+    env.systemctl('daemon-reload', timeout=30)
+    ev.log('ROLLBACK of camera complete (service stopped, files restored)')
+
+
+def deploy_camera(env, args):
+    """Install the camera-knob node, its unit and the dashboard map; START the new service only. No restart of any
+    existing service, no mux lease (the mux is untouched). Rollback: stop it and restore the files."""
+    ev = Evidence(env, 'deploy-camera')
+    unit = UNITS[CAMERA_STEP]
+    ev.log(f'STAGE 29 FlySky camera knobs: bound {args.cpu_bound_s} s; only {unit} is started; E-STOP stays latched')
+    installed_ = False
+    try:
+        plan, p0 = camera_checks(env, ev)
+        require_safe_after_dashboard_restart(env, ev, 'camera-pre', count=3)
+        d28.resources_strict(env, ev, 'camera-preflight', env.preflight_s)
+        meta = backup(env, ev, plan)
+        protected0 = d28.identities(env, [u for u in env.protected if u != unit])
+        base_pid = int(d28.unit_state(env, 'rover-base-telemetry.service').get('MainPID', '0'))
+    except Fail as exc:
+        ev.log(f'REFUSED, nothing changed: {exc}')
+        ev.save('result', {'result': 'REFUSED_NO_CHANGE', 'reason': str(exc)}); ev.seal()
+        return 3
+    rec = obs = t0 = None
+    try:
+        with d28.CpuRecorder(env, sink=ev.stream('cpu-camera')) as rec, \
+                d28.ObserverRecorder(env, base_pid, sink=ev.stream('observer-camera')) as obs:
+            env.sleep(2.5)
+            d28.require_pre_window_ok(env, ev, 'camera', rec, obs)
+            for dst, data, mode, _, _ in plan:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                d28.install_atomic(data, dst, mode)
+            installed_ = True
+            ev.log('installed: ' + ', '.join(f'{dst.name}={hh[:12]}' for dst, _, _, _, hh in plan))
+            env.systemctl('daemon-reload', timeout=30)
+            t0 = time.time()
+            ev.log(f'starting {unit} ONLY')
+            env.systemctl('start', unit, timeout=60)
+            try:
+                d28.resources_after_restart(env, ev, 'camera-post', 'transient', rec, t0, args.cpu_bound_s, obs)
+            except Fail as exc:
+                if classify(rec, obs, t0, args.cpu_bound_s):
+                    raise
+                raise CpuOverrun(str(exc)) from exc
+            recovery_mean(ev, 'camera', rec, t0, args.cpu_bound_s)
+        s = d28.require_running(env, unit)
+        log = env.journal(s.get('InvocationID'))
+        if 'Traceback' in log or 'FlySky camera ready' not in log:
+            raise Fail('camera node did not report ready (or logged a traceback)')
+        changed = {u: (a, d28.identities(env, [u])[u]) for u, a in protected0.items() if d28.identities(env, [u])[u] != a}
+        if changed:
+            raise Fail(f'protected service identity changed: {changed}')
+        p = policy(env)
+        keep = ('stop_latched', 'manual_controller', 'flysky_drive_enabled', 'source')
+        if {k: p.get(k) for k in keep} != {k: p0.get(k) for k in keep} or p.get('stop_latched') is not True:
+            raise Fail(f'control policy changed during the camera step: {p0} -> {p}')
+        smp = env.sample_topics(CAMERA_TOPICS, seconds=3.0)
+        ev.save('camera-topic-sample', smp)
+        sent = {t: v['count'] for t, v in smp.items() if v['count']}
+        if sent:
+            raise Fail(f'camera servo commands with the knobs untouched: {sent}')
+        code, js = env.get_text('/v2/controller-map.js')
+        if code != 200 or 'Camera pan: turn to take control' not in js:
+            raise Fail(f'dashboard does not serve the camera labels ({code})')
+        require_safe_after_dashboard_restart(env, ev, 'camera-post', count=3)
+        ev.log(f'CAMERA STEP PASS: {unit} running (pid {s.get("MainPID")}); no servo command; E-STOP latched; nothing moved')
+        ev.save('result', {'result': 'PASS', 'step': CAMERA_STEP}); ev.seal()
+        return 0
+    except CpuOverrun as exc:
+        ev.log(f'CAMERA STEP FAILED on resources with safety intact: {exc}')
+        hold(env, ev, CAMERA_STEP, rec, t0)
+        ev.log(f'HELD: rollback on owner decision: rollback --step camera --evidence {ev.dir}')
+        ev.save('result', {'result': 'FAIL_HELD', 'step': CAMERA_STEP, 'reason': str(exc), 'rollback_evidence': str(ev.dir)}); ev.seal()
+        return 1
+    except Exception as exc:
+        if not installed_:
+            ev.log(f'REFUSED before any change: {exc!r}')
+            ev.save('result', {'result': 'REFUSED_NO_CHANGE', 'step': CAMERA_STEP, 'reason': repr(exc)}); ev.seal()
+            return 3
+        ev.log(f'CAMERA STEP FAILED: {exc!r}; rolling back')
+        try:
+            rollback_camera(env, ev, ev.dir / 'backup', meta)
+            ev.save('result', {'result': 'FAIL_ROLLED_BACK', 'step': CAMERA_STEP, 'reason': repr(exc)})
+        except Exception as rb:
+            ev.save('result', {'result': 'FAIL_ROLLBACK_UNCONFIRMED', 'step': CAMERA_STEP, 'reason': repr(exc), 'rollback': repr(rb)})
+        ev.seal()
+        return 1
+
+
+def preflight_camera(env, args):
+    """Read-only GO/NO-GO for `deploy --step camera`."""
+    ev = Evidence(env, 'preflight-camera')
+    ok = True
+    for label, fn in (('camera', lambda: camera_checks(env, ev)),
+                      ('safety', lambda: require_safe_after_dashboard_restart(env, ev, 'preflight-camera')),
+                      ('resources', lambda: d28.resources_strict(env, ev, 'preflight-camera', env.preflight_s))):
+        try:
+            fn()
+        except Exception as exc:
+            ok = False
+            ev.log(f'{label}: NO-GO: {exc}')
+    ev.log('PREFLIGHT CAMERA ' + ('GO' if ok else 'NO-GO'))
+    ev.save('result', {'result': 'GO' if ok else 'NO-GO'}); ev.seal()
+    return 0 if ok else 1
+
+
 def require_latched(env):
     if env.get('/api/estop/state').get('latched') is not True:
         raise Fail('E-STOP not latched')
@@ -909,6 +1267,8 @@ def preflight(env, args):
     ev = Evidence(env, 'preflight')
     ok = True
     reviewed = reviewed_config_ok(env)
+    if step_done(env, RESET_STEP):
+        ev.log('step reset: files INSTALLED (FlySky SwD reset ' + ('ENABLED' if all(r.exists() for r in reset_paths(env)) else 'not enabled') + ')')
     for step in STEPS:
         try:
             if step_done(env, step, ignore=(CONFIG_REL,) if reviewed else ()):
@@ -938,7 +1298,7 @@ def preflight(env, args):
 def main(argv=None, env=None):
     p = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     p.add_argument('action', choices=['preflight', 'deploy', 'rollback', 'review-config', 'gate-on', 'gate-off'])
-    p.add_argument('--step', choices=STEPS)
+    p.add_argument('--step', choices=ALL_STEPS)
     p.add_argument('--cpu-bound-s', type=float, help='owner-approved transient bound for THIS step (no default)')
     p.add_argument('--evidence', help='rollback: the evidence directory of the step being undone')
     p.add_argument('--owner-confirms-estop-latched', action='store_true')
@@ -948,7 +1308,8 @@ def main(argv=None, env=None):
     a = p.parse_args(argv)
     env = env or Env(**({'evidence_root': Path(a.evidence_root)} if a.evidence_root else {}))
     if a.action == 'preflight':
-        return preflight(env, a)
+        return (preflight_reset(env, a) if a.step == RESET_STEP else preflight_camera(env, a) if a.step == CAMERA_STEP
+                else preflight(env, a))
     if os.environ.get('OWNER_APPROVED') != 'yes':
         print('refused: OWNER_APPROVED=yes required (separate owner approval)'); return 2
     if a.action == 'review-config':
@@ -971,6 +1332,10 @@ def main(argv=None, env=None):
         return rollback(env, a)
     if a.cpu_bound_s is None or not 0 < a.cpu_bound_s <= MAX_BOUND_S:
         print(f'refused: --cpu-bound-s must be given explicitly, 0 < bound <= {MAX_BOUND_S}'); return 2
+    if a.step == RESET_STEP:
+        return deploy_reset(env, a)
+    if a.step == CAMERA_STEP:
+        return deploy_camera(env, a)
     return deploy_step(env, a)
 
 

@@ -996,3 +996,200 @@ Pre-window means were 64–69 % all day.
 - **Residual risks:**
   - no independent motor-power disconnect;
   - the gate is lost on a reboot.
+
+## FlySky SwD (CH8) E-STOP reset, 2026-10-30 (branch agent/stage29-flysky-reset-20261030; NOT deployed)
+
+- **Owner request (09:48):** reset or unlock the E-STOP from the FlySky instead of Xbox LB.
+- **Morning incident it follows:** at 09:24 an LB reset released the E-STOP while the Xbox was selected, and the Xbox drove the lifted wheels at 0.52 m/s and 1.2 rad/s (wheel 3 about 25,000 counts). This was the third such event.
+- **Choice of control:** SwD (CH8) is unused, verified at 240 / 1807; a receiver failsafe of 1024 is neither position. The FS-i6S rear keys are not sent on any channel (CH11–16 constant).
+- **Xbox stays required:** while the Xbox is off, the mux re-latches every 50 ms, so the Xbox remains the independent stop device. Driving without the Xbox would remove a protection and was not done.
+
+**Gesture** (scripts/atlas_flysky_reset.py, teleop side). All conditions must hold for the whole gesture:
+- FlySky selected and E-STOP latched;
+- receiver LIVE, with no failsafe or frame-lost, for at least 3 s;
+- SwA up, SwB up, right stick centred;
+- then: SwD up for at least 1 s, SwD down for 2–5 s, SwD up. The teleop sends one request.
+
+**Mux side** (independent; insert_flysky_reset_mux.py, additive over the deployed mux 5d096638). It releases only if:
+- the reset gate is on, the drive gate is on and FlySky is selected;
+- the E-STOP has been latched for at least 2 s;
+- the Xbox is fresh and untouched for at least 1 s;
+- the rover is commanded zero and the encoders are fresh, READY and still for at least 1 s;
+- the request is fresh (0.3 s or less), carries a new sequence number, and no other request came in the last 3 s.
+
+A release flushes every channel. The drive core is unchanged, so motion still needs SwA up then down (a fresh arm).
+
+**Offline results**
+- 29 fault-injection tests, with 17 of 17 deliberately broken checks caught.
+- Every stop still latches after a FlySky reset (1.3 s or less), and the Xbox LB reset still works.
+- Dashboard reset card checked in every state in a browser.
+
+**Deploy step `reset`** (deploy_stage29.py; MANIFEST step 'reset'). The earlier steps are pinned to the files verified on the rover on 2026-10-30, so their hashes are unchanged.
+- **Requires:**
+  - all five Stage A steps installed and the gate ON;
+  - exactly the reviewed config 875feb35, with CH8 free;
+  - E-STOP latched and Xbox selected;
+  - safety ×3 and the resource preflight.
+- **Change:** installs 7 files, writes the runtime drop-in 91-atlas-flysky-reset.conf (mux and teleop), and runs ONE leased mux restart (the teleop follows).
+- **Proof that the new mux is running:** policy flysky_reset.enabled True, with 1.5 s of observer OK after that.
+- **Verification:**
+  - mux and teleop PIDs changed, teleop ENABLED;
+  - 0 messages on /cmd_vel_flysky and 0 reset requests;
+  - teleop status NOT_SELECTED, with reset UNAVAILABLE;
+  - the page serves the reset card;
+  - safety ×3.
+- **Failure handling:** a CPU-only overrun HOLDs; any safety or verification failure rolls back (files restored, drop-ins removed, one leased restart).
+- **gate-off** also removes the reset drop-ins. After a reboot, gate-on and then `deploy --step reset` re-enables without copying files.
+- **Deploy tests:** 28 pass. They cover the PASS path, refusals with no change, rollback (teleop not enabled, new mux unproven, base signal failure, unexpected requests or commands), CPU HOLD followed by the owner's rollback, rollback after a PASS, gate-off, the reboot re-enable, and source checks.
+
+### Reset deploy attempt 1, 2026-10-30 11:09 IST: FAIL_ROLLED_BACK (package ed2b55e, bound 15 s, owner-approved, one attempt)
+
+- **Preflight**
+  - 11:08:10 NO-GO: FlySky still selected.
+  - The owner pressed SELECT XBOX at 11:08:23.
+  - 11:09:31 GO: CPU mean 62.7 %, max 65.1 %.
+- **Window**
+  - Lease armed; 7 files installed; reset drop-ins written; mux restarted at 11:10:24.
+  - **New mux proven on the dashboard (policy flysky_reset.enabled True) at +10.2 s.**
+  - **CPU over 75 % from +2.2 to +16.4 s**: peak 100 % (+4.2 to +8.2 s), 83 % at +15.7 s and +16.4 s, then 64.6 % at +17.4 s.
+- **Why it rolled back:** at +15.7 s, after the 15 s bound, the observer had not yet itself confirmed the mux-owned signals for the required 1.5 s after the dashboard proof. By the documented rule this is not a CPU-only case, so the deployer failed closed and rolled back instead of holding. The observer reported no failure at any time during the window.
+- **Rollback**
+  - Files restored to 5d096638 / feecba2c / b5b4f12e / dd02e0e5 / 8f1f302b / 545aebf9, and atlas_flysky_reset.py removed.
+  - Reset drop-ins removed; one leased mux restart.
+  - Rollback CPU over 75 % until +15.1 s (peak 100 %), then a steady mean of about 62.5 %.
+- **State after the rollback (verified)**
+  - Gate drop-ins still present (gate ON).
+  - E-STOP latched, XBOX selected, source STOPPED.
+  - Teleop NOT_SELECTED, can_select FLYSKY true.
+  - motor 0, /cmd_vel 0, encoders unchanged [81195, -74122, -62144, -74805].
+  - AI/fusion features inactive; base PID 1953 and dashboard PID 563039 unchanged.
+  - New mux PID 1163521, teleop PID 1163523.
+- **Finding:** the two mux restarts today stayed over 75 % until +16.4 s and +15.1 s. Gate-on attempt 3 on 10-29 ended at +12.7 s. A 15 s bound has no margin at the current 63–65 % baseline. No automatic retry was made. Another attempt needs an owner decision (for example a 20 s bound).
+
+### Reset deploy attempt 2, 2026-10-30 11:21 IST: PASS (package ed2b55e, bound 20 s, owner-approved, one attempt)
+
+- **Preflight:** 11:20:46 GO (CPU mean 62.5 %, max 65.5 %).
+- **Window**
+  - Mux restarted at 11:21:38.274.
+  - New mux proven on the dashboard at +10.5 s; the observer saw the mux signals fresh from +15.1 s; exemption cleared at +16.8 s.
+- **CPU timeline (s after restart : %):**
+  - -5.5:69 -4.5:64 -3.5:62 -2.5:64 -1.5:64 -0.5:65
+  - +0.5:76 +1.5:78 +2.5:94 +3.5..+9.6: 100 +10.6:98 +11.6:93 +12.6:91 +13.6:90 +14.6:87
+  - +15.6:68, then 58–65 to +50.9.
+  - **15 samples over 75 % (last +14.6 s), inside the 20 s bound.** All 30 samples after the bound were 75 % or less.
+  - Recovery mean 62.4 % against 64.7 % before. RAM max 72.7 %, temperature max 62.2 °C.
+- **Installed hashes**
+
+  | File | Hash |
+  |---|---|
+  | atlas_flysky_reset.py | 952b66a6 |
+  | mux | e70df2ba |
+  | teleop | c02cf146 |
+  | flysky-drive.html | a82333e9 |
+  | flysky-drive.js | fa70db65 |
+  | controller-map.js | 9ca1352d |
+  | controller-viz.js | 39e42d04 |
+
+  Drive core 567f0433, remote_stop 1a44fb37 and config 875feb35 are unchanged. Runtime drop-in 91-atlas-flysky-reset.conf is set for the mux and the teleop.
+- **Verified after the deploy**
+  - Mux PID 1169350; teleop PID 1169352, ENABLED, NOT_SELECTED.
+  - Policy: latched, XBOX, gate true, STOPPED, flysky_reset enabled.
+  - Teleop reset status: enabled, UNAVAILABLE ("FlySky is not the selected controller"); mux stationary true; no request yet.
+  - 0 messages on /cmd_vel_flysky and 0 reset requests.
+  - Xbox LIVE at 17.7 Hz, layout OK, nothing pressed. FlySky transmitter off (LOST), as expected.
+  - motor 0, /cmd_vel 0, encoders unchanged [81195, -74122, -62144, -74805].
+  - AI/fusion features inactive; lease released; base PID 1953 and dashboard PID 563039 unchanged.
+  - Page (deployed files + live API, rendered in the container browser): chips "Remote: Xbox / E-STOP latched / FlySky driving enabled / Drive node: not selected". Reset card: "E-STOP latched · Reset: select FlySky first · Blocked because: FlySky is not the selected controller · Rover still: yes". SELECT FLYSKY available. No page errors.
+- **Not done (separate approval):** the physical SwD gesture test and any powered test.
+
+## FlySky camera knobs (VrA pan, VrB tilt), 2026-10-30
+
+### Camera deploy attempt 1, 15:07: FAIL_ROLLED_BACK (2dca653, bound 5 s)
+
+- **Preflight:**
+  - 14:59 NO-GO: the E-STOP was not latched.
+  - 15:06:42 GO.
+- **What happened**
+  - Files installed and the new service started at 15:07:34.
+  - At +2.44 s the observer reported motor_output_zero failed for one 0.25 s verdict. The reason was age 1.104 s, over the 1.0 s freshness limit; the value was not non-zero. cmd_zero age was 0.83 s at the same moment.
+  - IMMEDIATE ABORT and rollback: files removed, controller-map.js restored to 9ca1352d, service stopped.
+- **Nothing moved:**
+  - E-STOP latched; motor 0 and /cmd_vel 0;
+  - encoders unchanged; base_still OK;
+  - no other service restarted (same PIDs).
+- **Side finding:** the stopped camera node logged an ExternalShutdownException traceback. Fixed: a SIGTERM now exits quietly.
+
+**Investigation** (existing observer streams of 13 deploy windows on 10-29 and 10-30, 1978 verdicts):
+- **Steady state:** /motor_speed runs at 1.80 Hz, with intervals of 0.50–0.61 s (live, 15:1x).
+- **Before any start or restart:** age median 0.27 s, p99 0.58 s, max 0.60 s, and never above 0.85 s.
+- **Within 2–7 s after a start or restart:**
+
+  | Window | Ages above 0.85 s |
+  |---|---|
+  | camera start | 0.853, 1.104 |
+  | mux step (10-29) | 0.905 |
+  | gate-on attempt 2 | 0.935, 0.852 |
+
+  All other windows stayed at or below 0.85 s; teleop start max 0.85, dashboard restarts max 0.61.
+- **Conclusion:** the gap is a transient start-up delay (DDS discovery / CPU burst while a node joins), not a steady-state fault. It recurs at starts and restarts. Because /motor_speed arrives only every ~0.55 s, the margin to the 1.0 s limit at those moments is about 0.1–0.4 s. The 1.0 s limit is kept.
+
+### Camera deploy attempt 2, 15:19: FAIL_HELD, accepted provisionally by the owner (cbe1862, bound 5 s)
+
+- **Pre-checks:** encoders identical over 20 s; the owner confirmed the earlier M3/M4 counts were his manual wheel movement; preflight GO.
+- **Service start:** 15:20:04.
+- **CPU:** over 75 % from +1.8 to +8.9 s (peak 100 % at +2.8..+4.9 s), then ≤ 70 % from +9.9 s and steady at 61–65 %. RAM max 70.8 %, temperature max 62.5 °C.
+  - 5 s bound exceeded → HOLD with safety intact.
+  - The bound was mis-estimated: starting a Python ROS node peaks the Jetson for about 4 s.
+- **Observer:** no failures; max motor_output_zero age 0.864 s.
+- **No other service restarted** (mux, teleop, dashboard, base, camera-joystick PIDs unchanged).
+- **Owner accepted at 15:24** (no rollback).
+- **Final read-only checks, 15:25:** all PASS.
+  - Service active, NRestarts 0, no errors.
+  - 0 servo or tracking messages in 8 s with VrA/VrB untouched at 1024; receiver LIVE.
+  - E-STOP latched; motor 0, /cmd_vel 0; encoders still for 6 s.
+  - CPU 63.9 %, RAM 68.1 %, temperature 62.3 °C.
+- **CAMERA READY FOR PHYSICAL VERIFICATION.** Physical VrA/VrB movement is not yet verified.
+- **2026-10-30 15:28 PHYSICAL TEST PASS (owner):** the camera moves correctly with VrA (pan) and VrB (tilt) on the FlySky. VrA/VrB camera control is physically verified.
+  - The configuration is unchanged: no redeploy, no restart; the Xbox D-pad camera controls and all driving safety settings are as before.
+  - The service runs until the next reboot. It is started, not enabled; enabling it at boot needs separate approval.
+- **2026-10-30 15:30 FINAL PASS, camera pan-tilt (owner, physical):**
+
+  | Control | Function | Result |
+  |---|---|---|
+  | VrA (CH9) | pan left / right | **PASS**, correct direction |
+  | VrB (CH10) | tilt up / down | **PASS**, correct direction |
+
+  No reversal setting is needed (pan and tilt reversed = False). Configuration unchanged: no deployment, firmware flash or restart.
+
+## Final FlySky review, 2026-10-30 16:56 IST (closes FlySky development)
+
+**Physically verified by the owner (PASS)**
+- Driving forward, reverse, left and right in the correct directions (11:48).
+- Switches and buttons respond as mapped.
+- E-STOP lock from the FlySky (SwB) and Xbox B.
+- E-STOP unlock by Xbox LB and by the SwD gesture: first SwD unlock 11:55:53; correctly BLOCKED with SwA down at 11:53.
+- Camera pan VrA and tilt VrB in the correct directions (15:30).
+
+**Stop recording 11:48–12:04** (`stage29-liftedtest-20261030_114856.jsonl` + `.report.json`, read-only analysis)
+
+| Stop | Result | Detail |
+|---|---|---|
+| SwB stop | 2/2 PASS | cmd 0 in 0.033 s, motor 0 in 0.29 s, wheels still, latched |
+| Xbox B | 1/1 PASS | |
+| SwA off (disarm, no latch) | 2/8 met the analyzer's 1.0 s "wheels still" limit | command zero within 0.006–0.094 s each time; motor or wheels took up to about 5 s to read still |
+| Stick release | 2/48 met the 1.0 s limit | the analyzer counts every stick return during normal driving as an event |
+
+- **PENDING (not PASS):** whether the slow motor/wheel stops after SwA off and stick release are lifted-wheel coasting or the base's deceleration ramp, and whether the analyzer's 1.0 s limit is the right criterion for non-latching stops. Command zero was always fast, and the latching stops (SwB, Xbox B) passed.
+- **Not in the recording:** transmitter-off stop and dashboard E-STOP.
+
+**SwD reset: untested safety scenarios** (offline tests only; NOT physically PASS)
+- Quick flip under 2 s; hold over 5 s.
+- An Xbox button held during the gesture.
+- Transmitter off/on, and the gesture inside 3 s of signal return.
+- Wheel turned during the gesture.
+
+**Remaining improvements (separate, each needs approval; FlySky configuration unchanged)**
+1. **Camera auto-start.** `atlas-flysky-camera` is started, not enabled; after a reboot the knobs stop until it is started again.
+2. **SwD reboot persistence.** The reset enable is a runtime drop-in (like the gate). After a reboot: gate-on, then `deploy --step reset` (re-enable only, no file copy).
+3. **/motor_speed frequency.** 1.8 Hz leaves 0.1–0.4 s of margin to the 1.0 s observer freshness at service starts (1 of 13 windows exceeded). Raise the base-side publish rate; do not relax the limit.
+4. **Also open:** SwA arm debounce (a mid-transition 1024 frame forces a second flip), and the PENDING stop-analysis question above.

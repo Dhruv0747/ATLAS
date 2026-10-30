@@ -6,7 +6,9 @@
     "teleop",
     "web",
     "view",
-    "features"
+    "features",
+    "reset",
+    "camera"
   ],
   "required_for_driving": [
     "mux",
@@ -35,7 +37,7 @@
         },
         "scripts/atlas_flysky_teleop.py": {
           "kind": "new",
-          "source": "scripts/atlas_flysky_teleop.py",
+          "source": "tools/deploy/stage29_flysky_drive/baseline/atlas_flysky_teleop.py.s29-feecba2c",
           "candidate_sha256": "feecba2cb9e6b3c60614765f3888a92f807f857145404ddadaef762b9f7c96e4"
         },
         "config/atlas_flysky_drive.json": {
@@ -105,12 +107,12 @@
         },
         "web/v2/controller-map.js": {
           "kind": "new",
-          "source": "web/v2/controller-map.js",
+          "source": "tools/deploy/stage29_flysky_drive/baseline/controller-map.js.view-8f1f302b",
           "candidate_sha256": "8f1f302b1d6cda22ab02f77af9dd48d499fc1565f7b2f0a0f1435466c50054b0"
         },
         "web/v2/controller-viz.js": {
           "kind": "new",
-          "source": "web/v2/controller-viz.js",
+          "source": "tools/deploy/stage29_flysky_drive/baseline/controller-viz.js.view-545aebf9",
           "candidate_sha256": "545aebf938948db909d80c6c8dfa66f1f65f342d04d4ef2b59ac25e73c4053b5"
         },
         "web/v2/assets/xbox360-controller-black.webp": {
@@ -131,13 +133,13 @@
         "web/v2/flysky-drive.html": {
           "kind": "replace",
           "baseline_sha256": "89f017a92e2872bd68e7ec6d5578a30ce1e11d347dc9b80e565d4c6268b4999f",
-          "source": "web/v2/flysky-drive.html",
+          "source": "tools/deploy/stage29_flysky_drive/baseline/flysky-drive.html.view-b5b4f12e",
           "candidate_sha256": "b5b4f12e301fceed962e28452ab789c6034e959394282e06b65a137cb897daee"
         },
         "web/v2/flysky-drive.js": {
           "kind": "replace",
           "baseline_sha256": "b2d0c83f32c17d2b6aab8d707c8d15781d07bd04e7617fe9cc3f045756fb39a5",
-          "source": "web/v2/flysky-drive.js",
+          "source": "tools/deploy/stage29_flysky_drive/baseline/flysky-drive.js.view-dd02e0e5",
           "candidate_sha256": "dd02e0e51787d7c9a7128ca0fef52a1d5b9b9704c9182d9d4fb08b07e9fb5e84"
         },
         "web/v2/flysky.css": {
@@ -158,12 +160,83 @@
           "candidate_sha256": "b0fb5b43d36e1dc95fa6dc7849f4d3783e9063c71470f1ca34545ba56468d32e"
         }
       }
+    },
+    "reset": {
+      "unit": "atlas-cmd-vel-mux.service",
+      "supersedes": "features",
+      "files": {
+        "scripts/atlas_flysky_reset.py": {
+          "kind": "new",
+          "source": "scripts/atlas_flysky_reset.py",
+          "candidate_sha256": "952b66a60bddb37605bd052693f593f52e6519ba505bef6fe76493fbab1fab68"
+        },
+        "scripts/atlas_cmd_vel_mux.py": {
+          "kind": "patch",
+          "patcher": "insert_flysky_reset_mux.py",
+          "baseline_sha256": "5d096638bf3c55996fc167e4fe4c2cc7bf8424b7cdea70cc3937c77ca892fa1c",
+          "candidate_sha256": "e70df2baf9f77ef688d253a93f091394b33686f3f88a85ba8d7fd9c9ef6cc033"
+        },
+        "scripts/atlas_flysky_teleop.py": {
+          "kind": "replace",
+          "baseline_sha256": "feecba2cb9e6b3c60614765f3888a92f807f857145404ddadaef762b9f7c96e4",
+          "source": "scripts/atlas_flysky_teleop.py",
+          "candidate_sha256": "c02cf1462cff469de3685c783a2c273e5499fe10ef004734a58acf6e551c7d5f"
+        },
+        "web/v2/flysky-drive.html": {
+          "kind": "replace",
+          "baseline_sha256": "b5b4f12e301fceed962e28452ab789c6034e959394282e06b65a137cb897daee",
+          "source": "web/v2/flysky-drive.html",
+          "candidate_sha256": "a82333e91de40366e97bf73c89db935a1fc1739abf1542ddf7d0b052124f106d"
+        },
+        "web/v2/flysky-drive.js": {
+          "kind": "replace",
+          "baseline_sha256": "dd02e0e51787d7c9a7128ca0fef52a1d5b9b9704c9182d9d4fb08b07e9fb5e84",
+          "source": "web/v2/flysky-drive.js",
+          "candidate_sha256": "fa70db6596d056e40a00b638f2c35879c95fe356bb2c0daee6bfb0d45f60664b"
+        },
+        "web/v2/controller-map.js": {
+          "kind": "replace",
+          "baseline_sha256": "8f1f302b1d6cda22ab02f77af9dd48d499fc1565f7b2f0a0f1435466c50054b0",
+          "source": "tools/deploy/stage29_flysky_drive/baseline/controller-map.js.reset-9ca1352d",
+          "candidate_sha256": "9ca1352d5fbc984fb2424e771f8254c57522135b4e84da1eb573aab5eccab8bb"
+        },
+        "web/v2/controller-viz.js": {
+          "kind": "replace",
+          "baseline_sha256": "545aebf938948db909d80c6c8dfa66f1f65f342d04d4ef2b59ac25e73c4053b5",
+          "source": "web/v2/controller-viz.js",
+          "candidate_sha256": "39e42d046ff739f756e5d68ad721a033120492ef8b6042c8b4edc4c70905f313"
+        }
+      }
+    },
+    "camera": {
+      "unit": "atlas-flysky-camera.service",
+      "supersedes": "reset",
+      "files": {
+        "scripts/atlas_flysky_camera.py": {
+          "kind": "new",
+          "source": "scripts/atlas_flysky_camera.py",
+          "candidate_sha256": "a03942f80c6fafd5ac77d458289acf1540cb7dde5b92cc8e3a56aee7ae5d6fdc"
+        },
+        "systemd/atlas-flysky-camera.service": {
+          "kind": "unit",
+          "source": "systemd/atlas-flysky-camera.service",
+          "candidate_sha256": "ee1615639260834b0ecad284fa7ccd9b43cd928e992760d9327c4c54d3e5f477"
+        },
+        "web/v2/controller-map.js": {
+          "kind": "replace",
+          "baseline_sha256": "9ca1352d5fbc984fb2424e771f8254c57522135b4e84da1eb573aab5eccab8bb",
+          "source": "web/v2/controller-map.js",
+          "candidate_sha256": "bacabb5ff7d1adf2538ad48843120d03ad4c95beef8e334cf3ff4e954d57552a"
+        }
+      }
     }
   },
   "unchanged_required": {
     "scripts/atlas_base_maintenance.py": "a768626a (Stage 28 lease module, reused)",
     "scripts/atlas_flysky_core.py": "3e4b379e",
     "scripts/atlas_remote_stop.py": "1a44fb37a532",
+    "scripts/atlas_flysky_drive_core.py": "567f04333 (drive core, unchanged by reset)",
+    "config/atlas_flysky_drive.json": "875feb35 (owner-reviewed; reset uses CH8, unused by it)",
     "firmware": "V3.6.161, no flash"
   }
 }

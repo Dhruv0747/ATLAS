@@ -70,6 +70,22 @@
       const c = s.command; row(live, 'Request to mux', c ? fmt(c[0]) + ' m/s · ' + fmt(c[1]) + ' rad/s' : 'none');
     }
 
+    // Stage 29 FlySky reset: what the drive node and the mux report (this page cannot reset anything)
+    const rs = $('reset'); rs.textContent = '';
+    const g = s && s.reset, mx = g && g.mux;
+    if (!d.running || !g) row(rs, 'Reset', d.running ? 'not reported by the drive node' : 'shown when the drive node runs', 'dim');
+    else if (!g.enabled || !mx || !mx.enabled) row(rs, 'Reset', 'off on this rover. Use Xbox LB.', 'dim');
+    else {
+      row(rs, 'E-STOP', p.stop_latched ? 'latched' : 'released', p.stop_latched ? 'ok' : 'bad');
+      const RS = { READY: 'available: SwD down now', HOLDING: 'holding SwD ' + fmt(g.held_s) + ' s of ' + fmt(g.hold_s), RELEASE_NOW: 'release SwD up now',
+                   SENT: 'requested, waiting for the stop multiplexer', WAIT_SWD_UP: 'put SwD up for 1 s', BLOCKED: 'blocked',
+                   UNAVAILABLE: 'select FlySky first', NOT_NEEDED: 'not needed', OFF: 'off' };
+      row(rs, 'Reset', RS[g.state] || g.state, g.state === 'BLOCKED' ? 'bad' : g.available ? 'ok' : '');
+      if (g.blocked && g.blocked.length) row(rs, 'Blocked because', g.blocked.join(' · '), 'bad');
+      row(rs, 'Rover still', mx.stationary ? 'yes' : 'not confirmed', mx.stationary ? 'ok' : 'bad');
+      if (mx.last_result) row(rs, 'Last request', (mx.last_result === 'RELEASED' ? 'released' : 'refused: ' + mx.last_reason) + (mx.age_s != null ? ' (' + fmt(mx.age_s) + ' s ago)' : ''), mx.last_result === 'RELEASED' ? '' : 'bad');
+    }
+
     const cfg = $('cfg'); cfg.textContent = '';
     const k = s && s.config;
     if (!k) row(cfg, 'Setup', d.running ? 'not reported' : 'shown when the drive node runs', 'dim');

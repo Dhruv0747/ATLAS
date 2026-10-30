@@ -35,7 +35,8 @@ CONFIG = {'enabled': False, 'errors': ['FlySky driving gate is off (ATLAS_FLYSKY
           'hard_max_linear_mps': 0.25, 'hard_max_angular_radps': 0.8}
 REST_AXES = [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
 SCENARIOS = ['live', 'xbox_demo', 'flysky_demo', 'flysky_selected', 'flysky_armed', 'xbox_driving',
-             'rc_lost', 'rc_failsafe', 'xbox_lost', 'no_input_api', 'mismatch']
+             'rc_lost', 'rc_failsafe', 'xbox_lost', 'no_input_api', 'mismatch',
+             'reset_blocked', 'reset_ready', 'reset_holding', 'reset_refused', 'reset_off']
 
 
 def scene(name, t):
@@ -55,7 +56,7 @@ def scene(name, t):
         axes[5] = -0.2
     elif name == 'flysky_demo':
         rc[4], rc[6], rc[0], rc[1], rc[8] = DOWN, MID, 1380, 1560, 1500
-    elif name in ('flysky_selected', 'flysky_armed', 'mismatch'):
+    elif name in ('flysky_selected', 'flysky_armed', 'mismatch') or name.startswith('reset_'):
         cfg.update(enabled=True, errors=[], reviewed_by_owner=True, max_linear_mps=0.05, max_angular_radps=0.2)
         pol.update(manual_controller='FLYSKY', flysky_drive_enabled=True)
         state, reason = 'STOP_LATCHED', 'E-STOP latched'
@@ -86,6 +87,20 @@ def scene(name, t):
                                                'failsafe': fsafe, 'frame_lost': False,
                                                'speed_scale': 0.33 if rc[6] < 400 else 1.0 if rc[6] > 1700 else 0.66},
              'frame_age_s': 0.05 if rc_on else None, 'config': cfg, 'gate_env': 'ATLAS_FLYSKY_DRIVE_ENABLED'}
+    if name.startswith('reset_'):          # Stage 29 FlySky reset status, as the teleop reports it
+        mux = {'enabled': name != 'reset_off', 'last_result': None, 'last_reason': '', 'age_s': None, 'stationary': True}
+        g = {'enabled': name != 'reset_off', 'state': 'READY', 'blocked': [], 'held_s': None, 'hold_s': 2.0, 'max_hold_s': 5.0,
+             'channel': 8, 'switch': 'SwD', 'available': True, 'last_seq': 0, 'mux': mux}
+        if name == 'reset_blocked':
+            rc[4] = DOWN; drive['inputs']['arm'] = 'ON'
+            g.update(state='BLOCKED', available=False, blocked=['SwA must be OFF (up)'])
+        elif name == 'reset_holding':
+            rc[7] = DOWN; g.update(state='HOLDING', held_s=1.2)
+        elif name == 'reset_refused':
+            g.update(state='WAIT_SWD_UP', available=False)
+            mux.update(last_result='REFUSED', last_reason='rover not confirmed stationary (encoders fresh, healthy and still for 1 s)',
+                       age_s=1.4, stationary=False)
+        drive['reset'] = g
     return {'policy': pol, 'drive': drive, 'rc': rc if rc_on else None, 'rc_failsafe': fsafe,
             'joy': (axes, buttons) if joy_on else None, 'inputs_api': api}
 

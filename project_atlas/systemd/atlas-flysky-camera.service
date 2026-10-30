@@ -1,0 +1,16 @@
+# ATLAS FlySky camera knobs: VrA (CH9) pan, VrB (CH10) tilt. Read-only on the receiver; its only outputs are the camera
+# servo command topics the Xbox D-pad node already uses. Never touches driving or the E-STOP.
+[Unit]
+Description=Project ATLAS FlySky camera knobs (VrA pan, VrB tilt)
+After=rover-base-telemetry.service
+
+[Service]
+Type=simple
+EnvironmentFile=-%h/.config/project-atlas/flysky-camera.env
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_flysky_camera.py'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

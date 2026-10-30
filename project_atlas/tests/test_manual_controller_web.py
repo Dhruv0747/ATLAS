@@ -149,8 +149,14 @@ class PageStatic(unittest.TestCase):
         js = (ROOT / 'web/v2/flysky-drive.js').read_text(); code = re.sub(r'/\*[\s\S]*?\*/', '', js)
         self.assertEqual(sorted(set(re.findall(r"fetch\('([^']+)'", code))), ['/api/manual_controller'])
         self.assertEqual(code.count("method: 'POST'"), 1)
+        # Stage 29 FlySky reset: one marked block DISPLAYS the reset status; it may not call, post or dispatch anything.
+        start, end = code.index('// Stage 29 FlySky reset:'), code.index("const cfg = $('cfg')")
+        block, code = code[start:end], code[:start] + code[end:]
+        for bad in ('fetch', 'POST', 'dispatchEvent', 'addEventListener', 'method', 'XMLHttpRequest', 'WebSocket', 'innerHTML'):
+            self.assertNotIn(bad, block, bad)
         for bad in ('/api/estop', 'cmd_vel', 'innerHTML', 'eval(', 'WebSocket', 'XMLHttpRequest', 'pin', 'reset'):
             self.assertNotIn(bad, code, bad)
+        self.assertIn('body: JSON.stringify({ target })', code)          # the one POST still only names a remote
         html = (ROOT / 'web/v2/flysky-drive.html').read_text()
         self.assertIn('id="v2Estop"', html); self.assertIsNone(re.search(r'\son[a-z]+=', html))
         self.assertEqual(re.findall(r'(?:src|href)="(https?:)?//', html), [])
