@@ -1160,3 +1160,36 @@ A release flushes every channel. The drive core is unchanged, so motion still ne
   | VrB (CH10) | tilt up / down | **PASS**, correct direction |
 
   No reversal setting is needed (pan and tilt reversed = False). Configuration unchanged: no deployment, firmware flash or restart.
+
+## Final FlySky review, 2026-10-30 16:56 IST (closes FlySky development)
+
+**Physically verified by the owner (PASS)**
+- Driving forward, reverse, left and right in the correct directions (11:48).
+- Switches and buttons respond as mapped.
+- E-STOP lock from the FlySky (SwB) and Xbox B.
+- E-STOP unlock by Xbox LB and by the SwD gesture: first SwD unlock 11:55:53; correctly BLOCKED with SwA down at 11:53.
+- Camera pan VrA and tilt VrB in the correct directions (15:30).
+
+**Stop recording 11:48–12:04** (`stage29-liftedtest-20261030_114856.jsonl` + `.report.json`, read-only analysis)
+
+| Stop | Result | Detail |
+|---|---|---|
+| SwB stop | 2/2 PASS | cmd 0 in 0.033 s, motor 0 in 0.29 s, wheels still, latched |
+| Xbox B | 1/1 PASS | |
+| SwA off (disarm, no latch) | 2/8 met the analyzer's 1.0 s "wheels still" limit | command zero within 0.006–0.094 s each time; motor or wheels took up to about 5 s to read still |
+| Stick release | 2/48 met the 1.0 s limit | the analyzer counts every stick return during normal driving as an event |
+
+- **PENDING (not PASS):** whether the slow motor/wheel stops after SwA off and stick release are lifted-wheel coasting or the base's deceleration ramp, and whether the analyzer's 1.0 s limit is the right criterion for non-latching stops. Command zero was always fast, and the latching stops (SwB, Xbox B) passed.
+- **Not in the recording:** transmitter-off stop and dashboard E-STOP.
+
+**SwD reset: untested safety scenarios** (offline tests only; NOT physically PASS)
+- Quick flip under 2 s; hold over 5 s.
+- An Xbox button held during the gesture.
+- Transmitter off/on, and the gesture inside 3 s of signal return.
+- Wheel turned during the gesture.
+
+**Remaining improvements (separate, each needs approval; FlySky configuration unchanged)**
+1. **Camera auto-start.** `atlas-flysky-camera` is started, not enabled; after a reboot the knobs stop until it is started again.
+2. **SwD reboot persistence.** The reset enable is a runtime drop-in (like the gate). After a reboot: gate-on, then `deploy --step reset` (re-enable only, no file copy).
+3. **/motor_speed frequency.** 1.8 Hz leaves 0.1–0.4 s of margin to the 1.0 s observer freshness at service starts (1 of 13 windows exceeded). Raise the base-side publish rate; do not relax the limit.
+4. **Also open:** SwA arm debounce (a mid-transition 1024 frame forces a second flip), and the PENDING stop-analysis question above.
