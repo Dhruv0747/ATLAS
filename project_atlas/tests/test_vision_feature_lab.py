@@ -70,8 +70,7 @@ class Features(unittest.TestCase):
     def test_guard_rejection_no_optional_process(self):
         fake=NS(status=lambda:dict(state='OFF'))
         with tempfile.TemporaryDirectory() as d, patch.dict(sys.modules,{
-            'onboard_supervisor':NS(observe=lambda *args:None),
-            'stationary_gate':NS(ticks=lambda:None,cpu_delta=lambda *args:0),
+            'atlas_vision_feature_guard':NS(observe=lambda *args:None,ticks=lambda:None,cpu_delta=lambda *args:0),
             'atlas_vision3d_runtime':NS(SESSION=fake)}), patch('subprocess.Popen') as spawn:
             lab=Lab(d);r=dict(id='c'*32,feature='object',state='RUNNING',frames=0)
             lab.active='object';lab.reports['object']=r
@@ -127,13 +126,15 @@ class Features(unittest.TestCase):
                 (root/'trt_yolo_detector.py').write_text(
                     'import time\nclass TensorRTYOLO:\n def __init__(self,*a):pass\n def close(self):pass\n def infer(self,image):\n'+
                     ('  time.sleep(10)\n' if hang else '')+'  return [(0,0,2,2,0,.9)]\n')
-                packet=dict(width=2,height=2,stamp_ns=time.time_ns(),rgb=base64.b64encode(bytes(12)).decode())
-                result=subprocess.run([sys.executable,'-B',str(root/'atlas_vision_feature_worker.py'),'target',str(model),digest],
-                                      input=json.dumps(packet)+'\n',capture_output=True,text=True,timeout=8)
-                if hang:self.assertEqual(result.returncode,-14)
+                process=subprocess.Popen([sys.executable,'-B',str(root/'atlas_vision_feature_worker.py'),'target',str(model),digest],
+                                      stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                self.assertEqual(json.loads(process.stdout.readline()),{'ready':True})
+                packet=dict(width=2,height=2,stamp_ns=time.time_ns(),guard_expires_mono=time.monotonic()+2,rgb=base64.b64encode(bytes(12)).decode())
+                output,error=process.communicate(json.dumps(packet)+'\n',timeout=8)
+                if hang:self.assertEqual(process.returncode,-14)
                 else:
-                    self.assertEqual(result.returncode,0,result.stderr)
-                    value=json.loads(result.stdout);self.assertEqual(value['stamp_ns'],packet['stamp_ns'])
+                    self.assertEqual(process.returncode,0,error+output)
+                    value=json.loads(output);self.assertEqual(value['stamp_ns'],packet['stamp_ns'])
                     self.assertEqual(value['detections'][0]['track_id'],1)
 
     def test_stop_kills_only_optional_worker(self):

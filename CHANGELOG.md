@@ -1,5 +1,9 @@
 # Changelog
 
+2026-10-30: prepared Object/Target-only admission, model-ready handshake, expiring
+safety lease, bounded recorder check and exact-live functional Lab package. Native
+synthetic lifecycle/UI checks passed; camera and inference remain off.
+
 2026-10-30: prepared exact-live one-file static Vision Lab feature-panel patch;
 preserved material.css and all original controls. Desktop/mobile checks pass.
 No deployment, activation or restart performed.

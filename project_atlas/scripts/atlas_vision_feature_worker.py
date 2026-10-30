@@ -3,6 +3,7 @@ import base64
 import ctypes
 import hashlib
 import json
+import math
 import os
 import resource
 import select
@@ -19,12 +20,13 @@ def main():
     signal.alarm(5)  # independent startup deadline, including native engine load
     resource.setrlimit(resource.RLIMIT_CORE,(0,0))
     feature,model,expected=sys.argv[1:]
-    if feature not in ('object','target','body'):raise ValueError('unsupported feature')
+    if feature not in ('object','target'):raise ValueError('unsupported feature')
     if hashlib.sha256(Path(model).read_bytes()).hexdigest()!=expected:raise ValueError('model hash mismatch')
     from trt_yolo_detector import TensorRTYOLO
     from atlas_vision_features import detections,Tracker
     import numpy as np
     detector=TensorRTYOLO(model);tracker=Tracker();deadline=time.monotonic()+60
+    print(json.dumps({'ready':True}),flush=True)
     try:
         while time.monotonic()<deadline:
             if not select.select([sys.stdin],[],[],2)[0]:break
@@ -33,6 +35,9 @@ def main():
             if not line:break
             if not line.endswith(b'\n'):raise ValueError('oversized frame')
             m=json.loads(line);w,h=m['width'],m['height']
+            lease=m['guard_expires_mono']-time.monotonic()
+            if not math.isfinite(lease) or not 0<lease<=2:raise ValueError('expired/invalid safety lease')
+            signal.setitimer(signal.ITIMER_REAL,lease)
             if type(w)!=int or type(h)!=int or not 0<w<=1920 or not 0<h<=1080:raise ValueError('dimensions')
             if not 0<=time.time_ns()-m['stamp_ns']<=500_000_000:raise ValueError('stale input')
             raw=base64.b64decode(m['rgb'],validate=True)

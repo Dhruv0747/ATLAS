@@ -30,6 +30,7 @@
    c.state.textContent=row.state;c.reason.textContent=row.reason;c.buttons.start.disabled=!row.start_available||busy;
    c.buttons.stop.disabled=data.active!==row.id;c.buttons.pass.disabled=!!data.active||!r||r.state!=='READY'||r.frames<2||r.detections_seen<1;
    c.buttons.fail.disabled=!!data.active||!r;c.download.hidden=!r;
+   if(!['object','target'].includes(row.id))for(const button of Object.values(c.buttons))button.disabled=true;
    c.metrics.textContent='FPS: '+number(r?.fps)+'\nWhole Jetson CPU: '+number(m.cpu,'%')+'\nWhole Jetson RAM: '+number(m.ram,'%')+'\nTemperature: '+number(m.temperature,' °C')+
     '\nWorker peak RSS: '+number(r?.last_result?.peak_rss_kib/1024,' MiB')+'\nInference CPU time: '+number(r?.last_result?.cpu_s,' s')+
     '\nFrames: '+(r?.frames??'UNAVAILABLE')+'\nSource timestamp ns: '+(r?.last_result?.stamp_ns_exact??'UNAVAILABLE')+

@@ -19,6 +19,7 @@ NAMES={'face':'Face Recognition','gesture':'Gesture Recognition','body':'Human B
        'target':'Target Tracking','object':'Object Detection','mapping':'RGB-D 3D Mapping'}
 BLOCKERS={'face':'Identity model, opt-in enrollment and deletion backend not installed',
           'gesture':'Hand landmarks and gesture model not installed',
+          'body':'Person-box prototype only; not approved for this Object/Target test stage',
           'mapping':'Calibration/registration/TF and onboard mapping activation not verified'}
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -45,6 +46,7 @@ class Lab:
         if c.get('enabled') is not True:raise ValueError('Feature execution disabled; reviewed deployment required')
         if c.get('model_sha256')!='97cd66586901c75707164e912e609253d1e71705055248b9c83430c3421721df':
             raise ValueError('unreviewed model hash')
+        if type(c.get('duration_s')) is not int or not 1<=c['duration_s']<=30:raise ValueError('invalid bounded test duration')
         return c
 
     def status(self):
@@ -56,7 +58,7 @@ class Lab:
                 r=self.reports.get(key)
                 reason=BLOCKERS.get(key,'Read-only adapter prepared; live Astra validation pending')
                 state='NOT INSTALLED' if key in ('face','gesture') else 'UNAVAILABLE'
-                if enabled and key in ('object','body','target'):reason='Start requires active approved RGB viewer and fresh safety admission'
+                if enabled and key in ('object','target'):reason='Start requires active approved RGB viewer and fresh safety admission'
                 if r:state=r['state'];reason=r['reason']
                 rows.append(dict(id=key,name=name,state=state,reason=reason,
                                  start_available=enabled and key not in BLOCKERS and self.active is None,
@@ -93,6 +95,7 @@ class Lab:
 
     def verdict(self,feature,value):
         with self.lock:
+            if feature in BLOCKERS:raise ValueError('feature not approved for this test stage')
             if value not in ('PASS','FAIL'):raise ValueError('invalid manual verdict')
             r=self.reports.get(feature)
             if not r or self.active:raise ValueError('completed test evidence required')
@@ -129,8 +132,7 @@ class Lab:
         p=None;io=None;error=None;completed=False;io_error=[];last_result=[time.monotonic()];last_stamp=[None]
         try:
             sys.path.insert(0,str(ROOT/'tools/vision3d'))
-            from onboard_supervisor import observe
-            from stationary_gate import ticks,cpu_delta
+            from atlas_vision_feature_guard import observe,ticks,cpu_delta
             from atlas_vision3d_runtime import SESSION
             from atlas_vision_features import rgb_array
             camera=SESSION.status()
@@ -148,6 +150,7 @@ class Lab:
             before=ticks();t=time.monotonic()
             if self.stop_event.wait(1):raise ValueError('operator stopped before admission')
             now=time.monotonic();cur=ticks();r['resources']=observe(cpu_delta(before,cur),now-t)
+            guard_at=[time.monotonic()]
             check_camera()
             if self.stop_event.is_set():raise ValueError('operator stopped before worker launch')
             env=dict(os.environ,OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1')
@@ -157,10 +160,14 @@ class Lab:
             started=time.monotonic();last_result[0]=started
             def exchange():
                 try:
+                    ready=json.loads(p.stdout.readline(4097))
+                    if ready!={'ready':True}:raise ValueError('model startup failed: '+str(ready)[:500])
                     while not self.stop_event.is_set():
+                        if time.monotonic()-guard_at[0]>1.25:raise ValueError('local safety lease stale')
                         image,stamp=check_camera()
                         if stamp==last_stamp[0]:self.stop_event.wait(.05);continue
                         request=dict(width=image.shape[1],height=image.shape[0],stamp_ns=stamp,
+                                     guard_expires_mono=guard_at[0]+2,
                                      rgb=base64.b64encode(image.tobytes()).decode())
                         p.stdin.write((json.dumps(request)+'\n').encode());p.stdin.flush()
                         raw=p.stdout.readline(65537)
@@ -178,24 +185,36 @@ class Lab:
                         self.stop_event.wait(.5)  # at most 2 Hz; no duplicate raw subscribers
                 except Exception as e:io_error.append(str(e))
             io=threading.Thread(target=exchange,daemon=True,name='astra-feature-ipc');io.start()
-            while time.monotonic()-started<30 and not self.stop_event.is_set():
+            while time.monotonic()-started<c['duration_s'] and not self.stop_event.is_set():
                 if self.stop_event.wait(max(0,1-(time.monotonic()-now))):break
                 prev=cur;t=now;now=time.monotonic();cur=ticks()
                 obs=observe(cpu_delta(prev,cur),now-t);check_camera()
+                guard_at[0]=time.monotonic()
                 if io_error:raise ValueError(io_error[0])
                 if p.poll() is not None:raise ValueError('optional inference worker exited')
                 if now-last_result[0]>5:raise ValueError('model startup/inference timeout')
                 with self.lock:
                     r['resources']=obs;r['events'].append(dict(at=time.time(),cpu=obs['cpu'],ram=obs['ram'],temperature=obs['temperature']))
                     r['events']=r['events'][-64:]
+            if io_error:raise ValueError(io_error[0])
             completed=not self.stop_event.is_set() and r['frames']>=2
-        except Exception as e:error=str(e)
+        except Exception as e:
+            error=str(e)
+            if hasattr(e,'evidence'):r['failed_observation']=e.evidence
         finally:
             self.stop_event.set()
             if p:
-                if p.poll() is None:p.kill()
-                p.wait(timeout=2)
+                try:
+                    if p.poll() is None:p.kill()
+                    p.wait(timeout=2)
+                except (OSError,subprocess.TimeoutExpired) as e:
+                    completed=False;error='Worker cleanup failed: '+str(e)
             if io:io.join(timeout=2)
+            if p:
+                for stream in (p.stdin,p.stdout):
+                    if stream:
+                        try:stream.close()
+                        except OSError:pass
             with self.lock:
                 r.update(state='READY' if completed else 'FAILED',ended_at=time.time(),
                          reason='Bounded test complete; manual verification required' if completed else error or 'Operator stopped; incomplete test')

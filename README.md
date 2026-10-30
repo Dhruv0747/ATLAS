@@ -1,5 +1,8 @@
 # Project ATLAS - Autonomous Service Rover
 
+[Object/Target test preparation](ATLAS_OBJECT_TARGET_PREPARATION_20261030.md):
+guarded read-only adapters tested offline; installation and live tests not performed.
+
 [Exact-live six-panel UI preparation](ATLAS_SIX_FEATURE_UI_DEPLOYMENT_20261030.md):
 one HTML insertion, no executable feature backend, no restart; awaiting approval.
 
