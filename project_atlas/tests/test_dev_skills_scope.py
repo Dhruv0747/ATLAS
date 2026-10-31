@@ -23,3 +23,26 @@ def test_only_reviewed_skills_vendored():
     assert actual == {'atlas-workflow', 'systematic-debugging', 'test-driven-development',
                       'requesting-code-review', 'using-git-worktrees', 'writing-plans',
                       'verification-before-completion'}
+
+
+def test_codex_manifests_link_to_canonical_skills():
+    import re
+    canonical = {p.parent.name for p in (ROOT / '.claude/skills').glob('*/SKILL.md')}
+    entries = list((ROOT / '.agents/skills').glob('*/SKILL.md'))
+    assert {p.parent.name for p in entries} == canonical
+    for entry in entries:
+        text = entry.read_text(encoding='utf-8')
+        source = ROOT / '.claude/skills' / entry.parent.name / 'SKILL.md'
+        assert text.split('---')[1] == source.read_text(encoding='utf-8').split('---')[1]
+        assert len(text.splitlines()) < 20
+        for link in re.findall(r'\]\(([^)]+)\)', text):
+            assert (entry.parent / link).resolve().is_file()
+        assert 'atlas-workflow/SKILL.md' in text
+    assert not (ROOT / 'project_atlas/.agents').exists()
+    assert '.claude/skills/atlas-workflow/SKILL.md' in (ROOT/'AGENTS.md').read_text()
+
+
+def test_both_clients_load_safety_overrides():
+    for name in ('AGENTS.md', 'CLAUDE.md'):
+        assert '.claude/skills/atlas-workflow/SKILL.md' in (ROOT/name).read_text()
+    assert all(p.name == 'SKILL.md' for p in (ROOT/'.agents').rglob('*') if p.is_file())
