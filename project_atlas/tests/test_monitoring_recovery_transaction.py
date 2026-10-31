@@ -26,6 +26,7 @@ def state(tmp_path, monkeypatch):
     monkeypatch.setattr(R, 'EXPECTED_STATE', {p.name:R.digest(p) for p in live.iterdir()})
     monkeypatch.setattr(R, 'G', SimpleNamespace(STATE=live))
     monkeypatch.setattr(R, 'cancel_expiry', Mock())
+    monkeypatch.setattr(R, 'verify_lineage', lambda: None)   # lineage has its own regression test below
     return live, evidence
 
 
@@ -351,6 +352,7 @@ def test_deadline_margin_is_finite_and_step_bound_unchanged():
 def test_new_attempt_never_reuses_attempt_one_identity():
     assert R.E != Path('/var/lib/atlas-monitoring-recovery-20261031')
     assert R.TX != 'atlas-monitoring-recovery-once-20261031'
+    assert R.E not in (R.ATTEMPT1, R.ATTEMPT2) and R.TX.endswith('-20261031-3')
 
 
 @pytest.mark.parametrize('show,expect,stopped', [
@@ -373,3 +375,59 @@ def test_launcher_stop_never_raises_or_masks_the_original_error(monkeypatch):
     src = (ROOT/'monitoring/atlas/persistent/recover_once.py').read_text()
     start = src.split("if action=='start':")[1].split("elif action=='confirm-client'")[0]
     assert 'stop_if_running()' in start and "run('systemctl','--no-block','stop'" not in start
+
+
+def _attempt1_lineage(tmp_path, monkeypatch, original, fault):
+    """Retained attempt-1/attempt-2 evidence directories exactly as the real transaction leaves them."""
+    a1, a2 = tmp_path/'a1', tmp_path/'a2'
+    (a1/'original-state').mkdir(parents=True); a2.mkdir()
+    (a1/'state-manifest.json').write_text(json.dumps(original))
+    (a1/'original-state'/'FAULT.json').write_bytes(fault)
+    (a1/'result.json').write_text('{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}')
+    (a2/'result.json').write_text('{"cleanup": "NO_MUTATION", "result": "FAIL"}')
+    monkeypatch.setattr(R, 'ATTEMPT1', a1); monkeypatch.setattr(R, 'ATTEMPT2', a2)
+    monkeypatch.setattr(R, 'ATTEMPT1_RESULT_SHA', R.digest(a1/'result.json'))
+    monkeypatch.setattr(R, 'ATTEMPT2_RESULT_SHA', R.digest(a2/'result.json'))
+    return a1, a2
+
+
+@pytest.mark.parametrize('tamper', [None, 'last-health', 'fault', 'extra', 'a1-manifest', 'a2-mutated', 'unverified'])
+def test_attempt2_refusal_reproduced_and_only_verified_post_attempt1_state_accepted(tmp_path, monkeypatch, tamper):
+    """2026-10-31 12:57 attempt 2: attempt 1 legitimately changed the state, so the pre-attempt-1 expectation refused."""
+    live = tmp_path/'state'; live.mkdir(); evidence = tmp_path/'attempt'; evidence.mkdir()
+    fault = b'{"reason":"original watchdog rejection","time":1}'
+    files = {'FAULT.json': fault, 'observer-active.json': b'{"pid":1,"time":1}',
+             'firewall-owned.json': b'{"table":"atlas_monitor","time":1}', 'last-health.json': b'{"time":1}',
+             'operations.lock': b''}
+    for n, b in files.items(): (live/n).write_bytes(b)
+    original = {n: R.digest(live/n) for n in files}
+    # What attempt 1 legitimately left behind (firewall + watchdog start, clean stop, rollback, latch restored).
+    (live/'firewall-owned.json').write_bytes(b'{"table":"atlas_monitor","time":2}')
+    (live/'last-health.json').write_bytes(b'{"time":2}')
+    (live/'observer-active.json').unlink()
+    (live/'rollback.json').write_bytes(b'{"result":"PASS","time":2}')
+    (live/'evidence.lock').write_bytes(b'')
+    verified = {p.name: R.digest(p) for p in live.iterdir()}
+    monkeypatch.setattr(R, 'E', evidence); monkeypatch.setattr(R, 'G', SimpleNamespace(STATE=live))
+    monkeypatch.setattr(R, 'EXPECTED_FAULT', R.digest(live/'FAULT.json')); monkeypatch.setattr(R, 'ORIGINAL_STATE', original)
+    a1, a2 = _attempt1_lineage(tmp_path, monkeypatch, original, fault)
+
+    # The exact attempt-2 failure: the stale pre-attempt-1 expectation.
+    monkeypatch.setattr(R, 'EXPECTED_STATE', {k: v for k, v in original.items() if k != 'evidence.lock'})
+    with pytest.raises(RuntimeError, match='retained evidence changed'): R.archive_state()
+
+    monkeypatch.setattr(R, 'EXPECTED_STATE', verified)
+    if tamper == 'last-health': (live/'last-health.json').write_bytes(b'{"time":3}')
+    if tamper == 'fault': (live/'FAULT.json').write_bytes(b'{"reason":"replaced"}')
+    if tamper == 'extra': (live/'unexpected.json').write_bytes(b'{}')
+    if tamper == 'a1-manifest': (a1/'state-manifest.json').write_text('{}')
+    if tamper == 'a2-mutated': (a2/'mutation-intent.json').write_text('{}')
+    if tamper == 'unverified': monkeypatch.setattr(R, 'EXPECTED_STATE', {})
+    if tamper:
+        with pytest.raises(RuntimeError): R.archive_state()
+        assert (live/'FAULT.json').exists() and not (evidence/'reset-intent.json').exists()   # latch kept
+        return
+    R.archive_state(); R.rearm()                     # absent observer-active.json must not crash the reset
+    assert not (live/'FAULT.json').exists() and (evidence/'original-state'/'FAULT.json').read_bytes() == fault
+    R.restore_latch()
+    assert (live/'FAULT.json').read_bytes() == fault

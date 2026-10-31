@@ -21,21 +21,34 @@ import threading
 import time
 
 BASE = Path(__file__).resolve().parent
-# Attempt 2: attempt 1's directory and unit name are retained evidence and must never be reused (2026-10-31).
-E = Path('/var/lib/atlas-monitoring-recovery-20261031-2')
+# Attempt 3: the directories and unit names of attempts 1 and 2 are retained evidence and must never be reused.
+E = Path('/var/lib/atlas-monitoring-recovery-20261031-3')
+ATTEMPT1 = Path('/var/lib/atlas-monitoring-recovery-20261031')
+ATTEMPT2 = Path('/var/lib/atlas-monitoring-recovery-20261031-2')
 GUARD = Path('/usr/local/libexec/atlas-monitoring-guard.py')
 GUARD_SHA = '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'
 SAMPLER_SHA = 'a25ff2d8c6a516357d61f4a1d70fadf98b36178b9e547d25d1643b937bdd8969'
 EXPECTED_FAULT = '3715b150b880ed06d9e21f25006b81a699693328bb77a80155cf148dcdb1ae97'
-EXPECTED_STATE = {
+# Fault-state directory as it was BEFORE attempt 1 (2026-10-31 11:40). Kept: attempt 1's own archive manifest
+# must still equal it, which ties the post-attempt-1 state below to the original latch.
+ORIGINAL_STATE = {
     'FAULT.json': EXPECTED_FAULT,
     'observer-active.json': '574d708ac320bbdce4d5d5c55dfa19158987790b6ccddf6fa982f1edd2d2c52a',
     'firewall-owned.json': '9f1d631e89ac334313bc3df77f868698574a8b979cd63efb54a8fde55459a8a3',
     'last-health.json': '2c4e1c31cfe70c4fed2935ca0e3b514cb808f3c8903f9d9099e353d9e0900a02',
     'operations.lock': hashlib.sha256(b'').hexdigest(),
 }
+# Attempt 2 (2026-10-31 12:57) refused with 'retained evidence changed': attempt 1 legitimately rewrote
+# firewall-owned.json/last-health.json, removed observer-active.json and added rollback.json before its verified
+# cleanup restored only FAULT.json. Exact hashes, read by the owner with sudo after attempt 2's expiry finished.
+# FAULT.json must still be the original latch. Empty means NOT VERIFIED: the worker refuses.
+VERIFIED_STATE = {}
+EXPECTED_STATE = VERIFIED_STATE
+# Exact bytes of the earlier attempts' terminal results (attempt 1: FAIL/VERIFIED cleanup; attempt 2: FAIL/NO_MUTATION).
+ATTEMPT1_RESULT_SHA = ''
+ATTEMPT2_RESULT_SHA = ''
 NAMES = tuple('atlas-monitoring-'+n+'.service' for n in ('firewall','watchdog','exporter'))
-TX = 'atlas-monitoring-recovery-once-20261031-2'
+TX = 'atlas-monitoring-recovery-once-20261031-3'
 # Exporter start (systemd Starting->Started, incl. its guarded ExecCondition) measured 3.629 s, 3.623 s (2026-10-30)
 # and 3.598 s (2026-10-31 attempt 1, which failed on the old 3 s sub-deadline). 12 s = 3.3x the slowest measured
 # start. The 25 s supervised step bound below is unchanged and remains the hard cap for watchdog + exporter.
@@ -106,7 +119,18 @@ def state_hashes():
     return result
 
 
+def verify_lineage():
+    """The accepted post-attempt-1 state is only valid as the successor of the original latch."""
+    require(bool(EXPECTED_STATE) and EXPECTED_STATE.get('FAULT.json') == EXPECTED_FAULT, 'expected state not verified')
+    require(json.loads((ATTEMPT1/'state-manifest.json').read_text()) == ORIGINAL_STATE, 'attempt-1 archive changed')
+    require(digest(ATTEMPT1/'original-state'/'FAULT.json') == EXPECTED_FAULT, 'attempt-1 fault archive changed')
+    require(bool(ATTEMPT1_RESULT_SHA) and digest(ATTEMPT1/'result.json') == ATTEMPT1_RESULT_SHA, 'attempt-1 result changed')
+    require(bool(ATTEMPT2_RESULT_SHA) and digest(ATTEMPT2/'result.json') == ATTEMPT2_RESULT_SHA, 'attempt-2 result changed')
+    require(not (ATTEMPT2/'mutation-intent.json').exists(), 'attempt 2 was not mutation-free')
+
+
 def archive_state():
+    verify_lineage()
     hashes = state_hashes()
     expected = dict(EXPECTED_STATE)
     if 'evidence.lock' in hashes: expected['evidence.lock'] = hashlib.sha256(b'').hexdigest()
@@ -144,7 +168,9 @@ def rearm():
     hashes = verify_archive()
     require(state_hashes() == hashes, 'state changed before reset')
     write(E/'reset-intent.json', {'time':time.time(), 'original_cause':'UNKNOWN'})
-    for name in ('FAULT.json','observer-active.json'): (G.STATE/name).unlink()
+    # observer-active.json is absent after attempt 1's clean watchdog stop; only verified present files are removed.
+    for name in ('FAULT.json','observer-active.json'):
+        if name in hashes: (G.STATE/name).unlink()
     sync_dir(G.STATE)
 
 
