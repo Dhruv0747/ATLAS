@@ -1730,3 +1730,5 @@ Exact-live snapshot producer installation preparation: ATLAS_PRODUCTION_SNAPSHOT
 [Recovery CPU attribution preparation](ATLAS_RECOVERY_CPU_ATTRIBUTION_PREPARATION_20261031.md): offline collector validated; Recovery restart remains NO-GO.
 
 [Guarded passive Recovery attribution test](ATLAS_RECOVERY_ATTRIBUTION_GUARDED_TEST_20261031.md): offline integration passed; one isolated Jetson overhead test awaits approval. No recovery start.
+
+[Jetson passive attribution result](ATLAS_RECOVERY_ATTRIBUTION_JETSON_RESULT_20261031.md): one approved test PASS; Recovery remains stopped; no startup diagnosis executed.

@@ -3495,3 +3495,5 @@ Reviewed retained original-service CPU rejection, ROS constructor stack and unav
 2026-10-31: added passive /proc and selected-cgroup startup attribution collector, durable per-sample evidence and11focused offline tests. PC overhead measured; no Jetson execution or service changes.
 
 2026-10-31: integrated passive CPU attribution with independent safety checks, parent-death cleanup and single-use package.13 focused tests PASS including native simulated-safety lifecycle; no live execution.
+
+2026-10-31: documented single approved Jetson attribution test PASS, CPU peak63.12%, observer0.68516CPU-s/20.42MiB;42service identities unchanged. No production source changes.

@@ -1204,3 +1204,5 @@ SIGKILL fake-unit recovery pass. Actual Jetson admission/performance remains gat
 2026-10-31 CPU attribution preparation: stdlib all-PID/selected-cgroup collector;11focused PC tests PASS,12s native PC run0.045941CPU-s/14.80MiB. No live execution. Root cause still UNKNOWN; Recovery restart NO-GO pending guarded collector integration and Jetson overhead validation. See ATLAS_RECOVERY_CPU_ATTRIBUTION_PREPARATION_20261031.md.
 
 2026-10-31 attribution follow-up: guarded passive wrapper complete,13 new focused tests PASS. Native PC observer0.05061CPU-s first sample,0.09019CPU-s over12s,20.64MiB. GO for separately approved isolated overhead test only. Recovery start remains NO-GO; cause UNKNOWN. See ATLAS_RECOVERY_ATTRIBUTION_GUARDED_TEST_20261031.md.
+
+2026-10-31 passive attribution test PASS on Jetson: observer0.68516CPU-s through final sample/20.42MiB, peak aggregate63.12%;42units unchanged, child absent after cleanup. Recovery remains stopped; original93.624%cause unknown. Future startup needs separate actor/cgroup integration and approval. See ATLAS_RECOVERY_ATTRIBUTION_JETSON_RESULT_20261031.md.
