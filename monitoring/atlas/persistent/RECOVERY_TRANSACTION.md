@@ -1,5 +1,36 @@
 # One monitoring recovery transaction — offline preparation
 
+## Attempt 3 result (2026-10-31; FAIL, cleanup completed; no attempt 4 built)
+
+**Cause: the owner confirmation arrived after the 300 s window closed.** The transaction behaved as designed.
+
+| Time (IST) | Event (Jetson journal and sudo log) |
+|---|---|
+| 13:20:14.8 | `start` (worker started 13:20:15) |
+| 13:20:20.7 / 23.9 / 27.6 | Firewall / watchdog / exporter started. The window runs from the firewall start to about **13:25:20.7**. |
+| 13:20:30 – 13:25 | Prometheus target `up`, 221 series, no stale topics, E-STOP = 1. The owner confirmed live Grafana data. |
+| **13:25:22.36** | **First failure:** the worker's final check found no `client-confirmation.json` (`FileNotFoundError`); exit 1 |
+| 13:25:23.4 | Exporter, watchdog and firewall stopped cleanly ("Deactivated successfully") |
+| 13:25:25.58 | Expiry cancelled. This happens only after cleanup records `FAIL / VERIFIED` and restores the latch. |
+| 13:25:56.23 | `confirm-client` ran, 34 s too late; refused with `fault latched` (latch already restored) |
+
+- **No independent watchdog rejection.** The watchdog stopped cleanly. A rejection would have latched a new fault and ended the worker early.
+- **Final state:** monitoring units inactive, no drop-ins, exporter enable state and restart policy restored, no 9118 listener, no recovery units. The `-3` folders are kept; the attempt is consumed.
+- **Monitoring UNAVAILABLE afterwards is expected:** the exporter is stopped. The rover's own status at 13:28 showed E-STOP latched, encoders READY and stationary, and all topics fresh.
+- **A future `-4` needs a fresh owner `sudo` read of `/var/lib/atlas-monitoring`,** because attempt 3 legitimately rewrote its firewall-owner, health and rollback records again, plus attempt 3's `result.json` pinned. Not built.
+
+### Operator checklist for any future attempt
+
+1. Claude runs a read-only preflight and reports GO: E-STOP latched, manual-only, commissioning off, zero commands, stationary encoders, fresh telemetry, CPU < 75 %, RAM < 80 %, temperature < 70 °C, attempt unused.
+2. Open **two** Jetson terminals. In terminal 2, run `sudo -v` first, so no password prompt costs window time.
+3. In terminal 2, type the `confirm-client` command but **do not press Enter**.
+4. Open Grafana (`http://127.0.0.1:3000`, logged in) on **ATLAS HEALTH MONITOR**.
+5. In terminal 1, run the single `start` command, then tell Claude "started" and note the clock time.
+6. Within about 60 s, Claude reports the Prometheus result: target up, fresh samples, valid timestamps, missing data shown as UNAVAILABLE.
+7. Once Grafana shows live data, press Enter in terminal 2. **Deadline: start time + 4 minutes.** The hard limit is about 5 minutes after the firewall starts.
+8. If anything fails, do nothing: the transaction cleans up itself. Never re-run `start` or `confirm-client`.
+
+
 ## Attempt 2 result and attempt-3 correction (2026-10-31; offline; NOT executed)
 
 **Attempt 2** (`-20261031-2`, 12:57:21 IST) was **FAIL before any change**. The worker refused in `archive_state()` with `retained evidence changed`. No `mutation-intent.json` was written, the latch and firewall were untouched, and no unit started. `result.json` = `{"cleanup": "NO_MUTATION", "result": "FAIL"}`; the expiry fired at 13:04:11 and recorded the same result. Its directory is retained evidence and is never reused.

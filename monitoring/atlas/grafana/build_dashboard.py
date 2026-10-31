@@ -10,9 +10,15 @@ pid = [0]
 
 def panel(kind, title, exprs, x, y, w=8, h=7, unit=None, mappings=None, thresholds=None, desc='', legend=None):
     pid[0] += 1
+    # Readable series names: a single-query panel is named by its title; multi-query panels must name each query.
+    # Grafana's '__auto' printed raw 'metric{instance=...,job=...}' labels (fixed 2026-10-31).
+    if legend is None:
+        if len(exprs) != 1:
+            raise ValueError('multi-query panel needs explicit legend names: ' + title)
+        legend = [title]
     p = {'id': pid[0], 'type': kind, 'title': title, 'description': desc, 'datasource': DS,
          'gridPos': {'x': x, 'y': y, 'w': w, 'h': h},
-         'targets': [{'refId': chr(65 + i), 'expr': e, 'legendFormat': (legend or ['__auto'] * len(exprs))[i], 'datasource': DS}
+         'targets': [{'refId': chr(65 + i), 'expr': e, 'legendFormat': legend[i], 'datasource': DS}
                      for i, e in enumerate(exprs)],
          'fieldConfig': {'defaults': {'noValue': UNAVAILABLE, 'mappings': mappings or [], 'custom': {}}, 'overrides': []},
          'options': {}}

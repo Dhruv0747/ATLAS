@@ -48,7 +48,7 @@
     {
      "refId": "A",
      "expr": "up{job=\"atlas-jetson\"}",
-     "legendFormat": "__auto",
+     "legendFormat": "Exporter reachable",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
@@ -100,7 +100,7 @@
     {
      "refId": "A",
      "expr": "time() - atlas_exporter_observed_timestamp_seconds",
-     "legendFormat": "__auto",
+     "legendFormat": "Last successful update",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
@@ -156,7 +156,7 @@
     {
      "refId": "A",
      "expr": "atlas_estop_latched",
-     "legendFormat": "__auto",
+     "legendFormat": "E-STOP",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
@@ -208,7 +208,7 @@
     {
      "refId": "A",
      "expr": "sum((atlas_control_selected{controller=\"XBOX\"} == 1) or ((atlas_control_selected{controller=\"FLYSKY\"} == 1) * 2)) or vector(-1)",
-     "legendFormat": "__auto",
+     "legendFormat": "Selected controller",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
@@ -707,7 +707,7 @@
     {
      "refId": "A",
      "expr": "atlas_source_available{source=\"astra\"}",
-     "legendFormat": "__auto",
+     "legendFormat": "Astra Pro RGB/depth",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
@@ -759,7 +759,7 @@
     {
      "refId": "A",
      "expr": "atlas_service_active{service=\"atlas-camera\"}",
-     "legendFormat": "__auto",
+     "legendFormat": "atlas-camera service",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
@@ -1146,7 +1146,7 @@
     {
      "refId": "A",
      "expr": "atlas_command_age_seconds",
-     "legendFormat": "__auto",
+     "legendFormat": "Seconds since last drive command",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
@@ -1459,7 +1459,7 @@
     {
      "refId": "A",
      "expr": "atlas_battery_power_watts",
-     "legendFormat": "__auto",
+     "legendFormat": "Battery power (signed BMS value)",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
@@ -1499,7 +1499,7 @@
     {
      "refId": "A",
      "expr": "atlas_jetson_power_watts",
-     "legendFormat": "__auto",
+     "legendFormat": "Jetson power",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
@@ -1578,7 +1578,7 @@
     {
      "refId": "A",
      "expr": "atlas_encoder_ready",
-     "legendFormat": "__auto",
+     "legendFormat": "Encoder READY",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"
@@ -1630,7 +1630,7 @@
     {
      "refId": "A",
      "expr": "atlas_flysky_drive_enabled",
-     "legendFormat": "__auto",
+     "legendFormat": "FlySky drive enabled (display only)",
      "datasource": {
       "type": "prometheus",
       "uid": "atlas-prom"

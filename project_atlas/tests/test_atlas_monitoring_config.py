@@ -71,6 +71,13 @@ class Config(unittest.TestCase):
         for word in ('STALE', 'UNAVAILABLE', 'LATCHED'):
             self.assertIn(word, text)
 
+    def test_every_query_has_a_readable_series_name(self):
+        # 2026-10-31: '__auto' showed raw metric{instance=...,job=...} labels in Grafana.
+        for p in self.dash['panels']:
+            for t in p.get('targets', []):
+                self.assertTrue(t.get('legendFormat') and t['legendFormat'] != '__auto', p['title'])
+                self.assertNotIn('{', re.sub(r'\{\{\w+\}\}', '', t['legendFormat']), p['title'])   # only {{label}} templates
+
     def test_dashboard_is_generated_and_provisioned(self):
         sys.path.insert(0, str(MON / 'grafana'))
         import build_dashboard

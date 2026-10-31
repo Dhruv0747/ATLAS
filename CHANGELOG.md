@@ -2,6 +2,11 @@
 
 2026-10-31 Monitoring recovery attempt-2 package prepared (offline, not executed): exporter start measured 3.598-3.629 s (three systemd starts) against attempt 1's 3 s sub-deadline; exporter deadline 12 s (outer 25 s bound unchanged); idempotent launcher stop (attempt 1's collected-unit exit 5); new attempt identity -20261031-2. Guard, thresholds, firewall and archive logic byte-identical. 37/37 focused transaction tests. Archive b997bcd4e503. monitoring/atlas/persistent/RECOVERY_TRANSACTION.md
 
+## 2026-10-31 — Dashboard labels; recovery attempt 3 recorded
+
+- Grafana: 11 single-query panels used `legendFormat: __auto` and showed raw `metric{instance=...}` labels. They are now named by their panel title, and multi-query panels must name every query. Queries, thresholds, mappings, the 30 s refresh and the 15 s scrape are unchanged. A config test now blocks `__auto` (10/10 pass). Not deployed.
+- Recovery attempt 3 failed only because `confirm-client` arrived 34 s after the window. There was no watchdog rejection, and cleanup completed. A simpler operator checklist was added; attempt 4 is not built.
+
 ## 2026-10-31 — Monitoring recovery attempt 3 (offline; not executed)
 
 - Attempt 2 failed before any change (`retained evidence changed`): its expected state predated attempt 1's legitimate changes.
