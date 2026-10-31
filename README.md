@@ -1728,3 +1728,5 @@ Vision Lab: offline snapshot-supervisor integration and deployment gates are doc
 Exact-live snapshot producer installation preparation: ATLAS_PRODUCTION_SNAPSHOT_PREPARATION_20261031.md. Preserve the live Stage28 maintenance interlock; do not deploy the generic recovery script.
 
 [Recovery CPU attribution preparation](ATLAS_RECOVERY_CPU_ATTRIBUTION_PREPARATION_20261031.md): offline collector validated; Recovery restart remains NO-GO.
+
+[Guarded passive Recovery attribution test](ATLAS_RECOVERY_ATTRIBUTION_GUARDED_TEST_20261031.md): offline integration passed; one isolated Jetson overhead test awaits approval. No recovery start.

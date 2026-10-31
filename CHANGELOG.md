@@ -3493,3 +3493,5 @@ Added independent HTTP/resource watcher, nonblocking bounded restart flow and sy
 Reviewed retained original-service CPU rejection, ROS constructor stack and unavailable historical metrics. Added offline failure-first raw CPU evidence retention; no runtime CPU fix or restart. Recovery incident remains open.
 
 2026-10-31: added passive /proc and selected-cgroup startup attribution collector, durable per-sample evidence and11focused offline tests. PC overhead measured; no Jetson execution or service changes.
+
+2026-10-31: integrated passive CPU attribution with independent safety checks, parent-death cleanup and single-use package.13 focused tests PASS including native simulated-safety lifecycle; no live execution.
