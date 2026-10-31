@@ -33,7 +33,7 @@ confirmed override precedence. No application code or physical tests ran.
 Generic upstream subagent/workflow assumptions are subject to ATLAS overrides
 and host tool availability; no full Superpowers runtime is implied.
 
-## Claude Code PENDING: authentication
+## Earlier Claude Code attempt: authentication blocked (resolved below)
 
 Installed Windows Claude Code 2.1.220 was invoked in this checkout for the same
 read-only practical exercise, with only Read and Skill tools permitted. It
@@ -50,5 +50,25 @@ is empty. Reviewed project_atlas archive contains neither skill tree. Existing
 19-test stop-analyzer/scope review evidence remains historical and is reused;
 stop analyzer source was not changed. No Jetson access or service operation.
 
-PR15 merge HOLD until the Claude practical check passes and owner approves.
-PR13 description update deferred under the owner's sequential-completion rule.
+## Final Claude Code verification PASS — 2026-10-31
+
+After local owner authentication, the single read-only smoke test completed
+successfully in Windows Claude Code 2.1.220 (session
+8ac68eea-ea56-428e-84c1-dcdcc1432cab; terminal_reason completed; is_error false;
+no permission denials). Startup metadata listed all six approved skills and
+atlas-workflow. Actual tool evidence contains two Skill invocations:
+atlas-workflow followed by verification-before-completion, and six successful
+Read calls for the canonical skill files. No failing tool results occurred.
+
+The practical exercise rejected yesterday's test results as proof after a code
+change, recommended only changed/affected tests, and preserved broader safety
+checks for safety-critical changes. It correctly applied ATLAS overrides for
+existing-code preservation, no forced brainstorming, unchanged resource limits
+and explicit deployment approval. Repository .claude contains only skills;
+this PR adds no startup hooks. This does not audit unrelated global plugins.
+
+Both Claude Code and the previously verified fresh Codex Desktop session PASS.
+READY TO MERGE subject to owner approval; no automatic merge. No new regression
+suite, Codex retest, Jetson operation or runtime change. GitHub has no CI checks
+or submitted reviews; these are local application/test results, not CI results.
+
