@@ -1,5 +1,47 @@
 # One monitoring recovery transaction — offline preparation
 
+## Correction for attempt 2: startup deadline and launcher stop only (2026-10-31, offline; NOT executed)
+
+**Measured exporter start** (systemd `Starting` → `Started`, Jetson journal, including the guarded ExecCondition):
+
+| Start | Duration |
+|---|---|
+| 2026-10-30 20:26 | 3.629 s |
+| 2026-10-30 20:45 | 3.623 s |
+| 2026-10-31 11:40 (attempt 1) | **3.598 s** |
+
+- Attempt 1 waited only 3 s from watchdog-ready (11:40:02.575) and gave up at about 11:40:05.6. Systemd reported the exporter started at 11:40:06.177.
+- Watchdog start: 2.217 s. Firewall start: 0.249 s (deadline 8 s, unchanged).
+
+**Fix in `recover_once.py` (the only changed package file):**
+- `EXPORTER_START_S = 12.0` (3.3x the slowest measured start, finite). `WATCHDOG_START_S = 20` and the outer `START_STEP_S = 25` supervised bound are **unchanged** and remain the hard cap.
+- Launcher stop is idempotent. After `systemd-run --wait --collect`, a finished unit is already removed: attempt 1's extra stop exited 5 and masked the real error. `stop_if_running()` stops only a loaded, running unit, never raises, and the original exception always propagates.
+- New attempt identity: `/var/lib/atlas-monitoring-recovery-20261031-2` and `atlas-monitoring-recovery-once-20261031-2`. Attempt 1's directory and unit name are retained evidence and are never reused. Stage to `/opt/atlas-monitoring-recovery-20261031-2`; the attempt-1 `/opt` directory stays as it is.
+
+**Unchanged (byte-identical):**
+- `guard.py` (27d4cacae470): first-fault preservation; 75 % CPU, 80 % RAM, < 70 C.
+- `activate_timestamp_retry_once.py` (the sampler).
+- The nft table and all three units.
+- Archive-before-reset, firewall protection, fail-closed cleanup, client confirmation, the 300 s window and the 410 s / ~440 s independent expiry.
+
+**Focused tests:** `test_monitoring_recovery_transaction.py` **37/37 pass**: the 29 existing tests plus 8 new ones. The new tests reproduce the 3 s failure with the measured 3.629 s start, pass it with the new deadline, check that a never-started exporter still fails within the bound, check the bound constants and the new identity, and check the idempotent, non-masking stop.
+- `test_monitoring_recovery_native.py` (4) is opt-in PC/WSL only (`ATLAS_FAKE_SYSTEMD=1`). It was not run in this session.
+- Guard tests were not repeated: guard.py is unchanged.
+
+**Package (PC only):** `monitoring-recovery-transaction-20261031-2.tar.gz`. Members root:root 0644; reproducible gzip.
+- Archive SHA256 `b997bcd4e503e9bd9900012d52dc3a17091fdc619094afbd7f73354f1da7c167`
+- Manifest SHA256 `0891413d345b271b6796cd67b61dbd93ffc0a485188523582f664605704607b4`
+- Use the staging/run/confirm/abort sequence below with `-20261031-2` in every path and unit name, and the new archive hash. Do **not** reuse attempt 1's paths.
+
+**On-device read-only check (11:5x):**
+- Attempt-1 evidence present; `-2` paths absent.
+- Monitoring units inactive (exporter enabled/on-failure as restored); no 9118 listener; no recovery timer.
+- Live guard hash 27d4cacae470 matches.
+- Root-private state hashes are verified by the transaction itself before any change. It refuses on mismatch.
+
+The original October 30 watchdog rejection remains UNKNOWN. The fault latch was not cleared, nothing was started, and the firewall was not changed.
+
+
 ## Controlled execution result — 2026-10-31 11:39:53–11:40:09 IST
 
 **FAIL; cleanup VERIFIED. NO-GO for another attempt without correction/review.**

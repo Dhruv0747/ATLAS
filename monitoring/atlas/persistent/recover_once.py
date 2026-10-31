@@ -21,7 +21,8 @@ import threading
 import time
 
 BASE = Path(__file__).resolve().parent
-E = Path('/var/lib/atlas-monitoring-recovery-20261031')
+# Attempt 2: attempt 1's directory and unit name are retained evidence and must never be reused (2026-10-31).
+E = Path('/var/lib/atlas-monitoring-recovery-20261031-2')
 GUARD = Path('/usr/local/libexec/atlas-monitoring-guard.py')
 GUARD_SHA = '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'
 SAMPLER_SHA = 'a25ff2d8c6a516357d61f4a1d70fadf98b36178b9e547d25d1643b937bdd8969'
@@ -34,7 +35,13 @@ EXPECTED_STATE = {
     'operations.lock': hashlib.sha256(b'').hexdigest(),
 }
 NAMES = tuple('atlas-monitoring-'+n+'.service' for n in ('firewall','watchdog','exporter'))
-TX = 'atlas-monitoring-recovery-once-20261031'
+TX = 'atlas-monitoring-recovery-once-20261031-2'
+# Exporter start (systemd Starting->Started, incl. its guarded ExecCondition) measured 3.629 s, 3.623 s (2026-10-30)
+# and 3.598 s (2026-10-31 attempt 1, which failed on the old 3 s sub-deadline). 12 s = 3.3x the slowest measured
+# start. The 25 s supervised step bound below is unchanged and remains the hard cap for watchdog + exporter.
+EXPORTER_START_S = 12.0
+WATCHDOG_START_S = 20.0
+START_STEP_S = 25
 EXPIRY = TX+'-expiry'
 DROP_NAME = '90-atlas-recovery-once.conf'
 DROP_BYTES = b'[Service]\nRestart=no\n'
@@ -398,7 +405,8 @@ def worker():
     start=time.monotonic()
     supervised(lambda: (run('systemctl','--no-block','start',G.FIREWALL),wait_active(G.FIREWALL,8)), 10)
     G.verify_firewall(); protected=True
-    supervised(lambda: (run('systemctl','--no-block','start',G.UNIT),wait_active(G.WATCHDOG,20),wait_active(G.UNIT,3)),25)
+    supervised(lambda: (run('systemctl','--no-block','start',G.UNIT),wait_active(G.WATCHDOG,WATCHDOG_START_S),
+                        wait_active(G.UNIT,EXPORTER_START_S)),START_STEP_S)
     write(E/'running.json',{u:props(u)['MainPID'] for u in NAMES})
     while time.monotonic()-start < 300:
         sample()
@@ -408,6 +416,19 @@ def worker():
     supervised(restore_configuration)
     supervised(verify_success)
     write(E/'candidate-pass.json',{'time':time.time(),'local_validation':'PASS'})
+
+
+def stop_if_running():
+    try:
+        out = subprocess.run(['systemctl','show',TX+'.service','-p','LoadState','-p','ActiveState'],
+                             capture_output=True, text=True, timeout=3).stdout
+        p = dict(line.split('=',1) for line in out.splitlines() if '=' in line)
+        if p.get('LoadState')=='loaded' and p.get('ActiveState') in ('active','activating','deactivating','reloading'):
+            subprocess.run(['systemctl','--no-block','stop',TX+'.service'], capture_output=True, timeout=3)
+            return 'stop-requested'
+        return 'already-finished'
+    except Exception:
+        return 'unknown'                 # the independent expiry still owns cleanup
 
 
 def transient_command():
@@ -447,8 +468,10 @@ def main():
             require(run('systemctl','is-active',EXPIRY+'.timer').strip()=='active', 'expiry not armed')
             subprocess.run(transient_command(),check=True,timeout=445)
         except BaseException:
-            # Independent expiry remains armed even if this stop request fails.
-            run('systemctl','--no-block','stop',TX+'.service')
+            # Independent expiry remains armed even if this stop request fails. `--wait --collect` has normally
+            # already removed a finished unit (attempt 1: stop then failed with exit 5 and masked the real error):
+            # stop only a unit that still exists and runs, and never let this replace the original exception.
+            stop_if_running()
             raise
         print((E/'result.json').read_text())
     elif action=='confirm-client':

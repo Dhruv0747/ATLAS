@@ -310,3 +310,66 @@ def test_complete_transaction_with_simulated_services(state, monkeypatch, failur
     if failure:
         assert (live/'FAULT.json').read_bytes()==(evidence/'original-state'/'FAULT.json').read_bytes()
         assert all(p['MainPID']=='0' for p in units.values())
+
+
+# ---- 2026-10-31 attempt 1 failure: exporter start deadline and redundant launcher stop
+MEASURED_EXPORTER_STARTS_S = (3.629, 3.623, 3.598)       # systemd Starting->Started, Jetson journal
+
+
+def _timed_unit(monkeypatch, active_after):
+    clock = [0.0]
+    monkeypatch.setattr(R.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(R.time, 'sleep', lambda dt: clock.__setitem__(0, clock[0] + dt))
+    state = lambda: 'active' if active_after is not None and clock[0] >= active_after else 'activating'
+    monkeypatch.setattr(R, 'props', lambda u: {'ActiveState': state()})
+    return clock
+
+
+def test_measured_exporter_start_fails_old_deadline_and_passes_new(monkeypatch):
+    slowest = max(MEASURED_EXPORTER_STARTS_S)
+    _timed_unit(monkeypatch, slowest)
+    with pytest.raises(RuntimeError, match='startup deadline'):
+        R.wait_active('exporter', 3)                         # reproduces attempt 1
+    _timed_unit(monkeypatch, slowest)
+    R.wait_active('exporter', R.EXPORTER_START_S)            # corrected deadline
+
+
+def test_exporter_that_never_starts_still_fails_within_the_bound(monkeypatch):
+    clock = _timed_unit(monkeypatch, None)
+    with pytest.raises(RuntimeError, match='startup deadline'):
+        R.wait_active('exporter', R.EXPORTER_START_S)
+    assert clock[0] <= R.EXPORTER_START_S + 0.2               # finite: no open-ended wait
+
+
+def test_deadline_margin_is_finite_and_step_bound_unchanged():
+    assert 3 * max(MEASURED_EXPORTER_STARTS_S) <= R.EXPORTER_START_S <= 15
+    assert R.START_STEP_S == 25 and R.WATCHDOG_START_S == 20  # outer hard cap unchanged
+    src = (ROOT/'monitoring/atlas/persistent/recover_once.py').read_text()
+    assert 'wait_active(G.UNIT,3)' not in src and 'wait_active(G.UNIT,EXPORTER_START_S)' in src
+
+
+def test_new_attempt_never_reuses_attempt_one_identity():
+    assert R.E != Path('/var/lib/atlas-monitoring-recovery-20261031')
+    assert R.TX != 'atlas-monitoring-recovery-once-20261031'
+
+
+@pytest.mark.parametrize('show,expect,stopped', [
+    ('LoadState=not-found\nActiveState=inactive\n', 'already-finished', False),   # attempt 1: collected unit
+    ('LoadState=loaded\nActiveState=failed\n', 'already-finished', False),
+    ('LoadState=loaded\nActiveState=active\n', 'stop-requested', True)])
+def test_launcher_stop_is_idempotent(monkeypatch, show, expect, stopped):
+    calls = []
+    def run(args, **kw):
+        calls.append(args)
+        return SimpleNamespace(stdout=show if args[1] == 'show' else '', returncode=0)
+    monkeypatch.setattr(R.subprocess, 'run', run)
+    assert R.stop_if_running() == expect
+    assert any(a[:3] == ['systemctl', '--no-block', 'stop'] for a in calls) == stopped
+
+
+def test_launcher_stop_never_raises_or_masks_the_original_error(monkeypatch):
+    monkeypatch.setattr(R.subprocess, 'run', Mock(side_effect=OSError('bus down')))
+    assert R.stop_if_running() == 'unknown'
+    src = (ROOT/'monitoring/atlas/persistent/recover_once.py').read_text()
+    start = src.split("if action=='start':")[1].split("elif action=='confirm-client'")[0]
+    assert 'stop_if_running()' in start and "run('systemctl','--no-block','stop'" not in start
