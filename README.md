@@ -1740,3 +1740,5 @@ Exact-live snapshot producer installation preparation: ATLAS_PRODUCTION_SNAPSHOT
 [Collector timeout fix and CPU audit](ATLAS_RECOVERY_PARTIAL_EVIDENCE_FIX_AND_CPU_AUDIT_20261031.md): small offline correction; no new monitor or benchmark; Recovery remains stopped.
 
 Recovery restoration package prepared offline: [corrected package and single-use command](ATLAS_RECOVERY_CORRECTED_RESTORATION_PACKAGE_20261031.md). Separate execution approval required.
+
+[Corrected Recovery attempt result](ATLAS_RECOVERY_CORRECTED_ATTEMPT_RESULT_20261031.md): FAIL at 86.93% CPU; evidence retained, cleanup verified, Recovery stopped.

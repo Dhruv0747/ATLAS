@@ -1214,3 +1214,5 @@ SIGKILL fake-unit recovery pass. Actual Jetson admission/performance remains gat
 2026-10-31 confirmed tooling defect corrected OFFLINE:150ms scan exhaustion returns explicit partial evidence rather than discarding acquired counters; safety measurements still validated and true CPU rejection retained.8focused tests PASS. Runtime CPU root cause remains UNKNOWN; no startup performed. See ATLAS_RECOVERY_PARTIAL_EVIDENCE_FIX_AND_CPU_AUDIT_20261031.md.
 
 2026-10-31 corrected restoration package prepared: eight focused built-package tests PASS; nine hashes verified. GO for separate execution approval with fresh admission, not a live safety PASS. Recovery remains last verified STOPPED; startup CPU cause UNKNOWN. See ATLAS_RECOVERY_CORRECTED_RESTORATION_PACKAGE_20261031.md.
+
+2026-10-31 corrected attempt: FAIL at actual 86.934673% CPU; complete 42.96ms scan retained. Recovery PID374161 reached READY but failed safety, now STOPPED. Recovery cgroup54.71% and localization48.22% of one core; causal hot functions UNKNOWN. Original policy/config restored, 41 unrelated services unchanged. See ATLAS_RECOVERY_CORRECTED_ATTEMPT_RESULT_20261031.md.
