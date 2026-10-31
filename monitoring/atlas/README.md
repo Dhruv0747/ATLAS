@@ -6,6 +6,12 @@
 - **Proven path:** Prometheus recorded `up=1` from 2026-10-30 20:50 to 21:45 IST, while the Jetson port-9118 firewall admitted only 192.168.1.6. WSL scrapes therefore reach the Jetson from source 192.168.1.6.
 - **Jetson side STOPPED, target `down`** (connection refused): the monitoring watchdog latched a fault on 2026-10-30. Recovery attempt 1 (`-20261031`) failed closed. The single-use attempt 2 (`-20261031-2`) is approved but not yet executed. See [RECOVERY_TRANSACTION.md](persistent/RECOVERY_TRANSACTION.md).
 
+**Grafana dashboard UI: COMPLETE / PASS (2026-10-31 13:47 IST, owner's browser).**
+- Deployed file: `/opt/atlas-monitoring/grafana/dashboards/atlas-health.json`, SHA256 `2b598f1c…6a3e`, from commit 8e3c785. Backup: `atlas-health.json.bak-20261031-pre-8e3c785`.
+- Verified: 40 panels, 30 s refresh, readable series names (0 raw `metric{…}` labels), UNAVAILABLE shown while the exporter is off, history kept with gaps left visible. Loaded by file provisioning with no restart.
+
+**Monitoring recovery: OPEN.** The Jetson exporter is OFF and the watchdog fault latch is retained. See [RECOVERY_TRANSACTION.md](persistent/RECOVERY_TRANSACTION.md).
+
 *Superseded 2026-10-30 status, kept for history:* timestamp-fixed persistent monitoring is ENABLED and ACTIVE. The guarded five-minute activation and evidence checksums passed. See [final live review](persistent/FINAL_REVIEW_20261030.md) and [activation measurements](persistent/TIMESTAMP_RETRY_RESULT_20261030.md). Reboot recovery is PENDING; Windows logon task is not registered. Earlier dated trial/preparation sections below are historical, not current deployment instructions.
 Everything here only *reads*:
 - The Jetson exporter has **no ROS node, no ROS subscriber and no camera access**. It sends no commands and answers 405 to POST, PUT and DELETE.
