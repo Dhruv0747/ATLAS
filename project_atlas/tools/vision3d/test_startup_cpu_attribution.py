@@ -54,7 +54,7 @@ class Tests(unittest.TestCase):
             p=Path(d);(p/'stat').write_text('cpu 1 2 3 4 5 6 7 8\n');(p/'1').mkdir()
             with patch.object(m,'MAX_PIDS',0):
                 with self.assertRaises(ValueError):m.snapshot(p)
-            with self.assertRaises(TimeoutError):m.snapshot(p,budget=-1)
+            with self.assertRaises(ValueError):m.snapshot(p,budget=-1)
     def test_atomic_evidence_quota_and_no_overwrite(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d);h=m.persist(p,0,{'a':1});self.assertEqual(len(h),64)

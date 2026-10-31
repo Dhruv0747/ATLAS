@@ -1512,7 +1512,7 @@
       "resolution": "UNRESOLVED",
       "evidence": "Original source startup rejected93.624% before custom node subscriptions/timers; recovery lifetime1.828CPU-s, firstPID sample0.69CPU-s; exact rejected process/cgroup window missing. Historical Prometheus19failed scrapes/noCPU series. Recovery stopped.",
       "candidate": "Offline failure-first raw CPU retention plus passive all-PID/selected-cgroup collector;11 focused tests PASS; PC12s overhead0.045941CPU-s,14.80MiB. Guarded integration now passes13 focused tests including native parent-SIGKILL cleanup; One approved passive Jetson test PASS:0.68516CPU-s through final12s sample,20.42MiB,aggregate peak63.12%;42units unchanged. Recovery remains stopped. No runtime optimization.",
-      "remaining_gap": "ROS/DDS/import/concurrent-process attribution and restoration unresolved. One approved start attempted: first sample68.729% with PID/cgroup; next scan failed150ms budget before partial sample persistence. Recovery stopped and original policy restored,41unrelated units unchanged. No retry; failing interval CPU unknown. Offline timeout-evidence correction required.",
+      "remaining_gap": "ROS/DDS/import/concurrent-process attribution and restoration unresolved. One approved start attempted: first sample68.729% with PID/cgroup; next scan failed150ms budget before partial sample persistence. Recovery stopped and original policy restored,41unrelated units unchanged. No retry; failing interval CPU unknown. Offline timeout-evidence correction now passes8 focused tests: partial scan preserves aggregate/acquired records, no raised budget or safety limit. Not deployed; original CPU cause unknown.",
       "report": "ATLAS_RECOVERY_STARTUP_ROOT_CAUSE_REVIEW_20261031.md"
     }
   ]

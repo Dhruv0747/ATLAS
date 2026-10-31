@@ -27,22 +27,26 @@ def stat(text):
             'user_ticks':int(fields[11]),'system_ticks':int(fields[12]),'rss_pages':int(fields[21])}
 
 
-def snapshot(proc=Path('/proc'),groups=(),budget=.15):
+def snapshot(proc=Path('/proc'),groups=(),budget=.15,priority_pids=()):
+    if not 0<budget<=.15:raise ValueError('invalid scan budget')
     start=time.monotonic();cpu=read(proc/'stat').splitlines()[0].split()[1:9]
     result={'mono':start,'wall':time.time(),'cpu':list(map(int,cpu)),
             'cpu_read_finished':time.monotonic(),'hz':os.sysconf('SC_CLK_TCK'),'online_cpus':os.cpu_count(),
-            'processes':{},'groups':{},'gaps':[]}
+            'processes':{},'groups':{},'gaps':[],'complete':True}
     if len(cpu)!=8:raise ValueError('invalid aggregate')
     paths=[p for p in proc.iterdir() if p.name.isdigit()]
     if len(paths)>MAX_PIDS or len(groups)>MAX_GROUPS:raise ValueError('inventory bound')
-    for p in paths:
-        if time.monotonic()-start>budget:raise TimeoutError('collection budget exceeded')
-        try:
-            stamp=time.monotonic();value=stat(read(p/'stat'));value['mono']=stamp;value['read_finished']=time.monotonic()
-            result['processes'][p.name]=value
-        except (FileNotFoundError,ProcessLookupError):result['gaps'].append({'pid':p.name,'reason':'exited during scan'})
-        except PermissionError:result['gaps'].append({'pid':p.name,'reason':'permission denied'})
+    priorities={str(pid) for pid in priority_pids}
+    paths.sort(key=lambda p:(p.name not in priorities,int(p.name)))
+    def finish(reason=None):
+        result['finished']=time.monotonic()
+        result['complete']=reason is None
+        result['collection_issue']=reason
+        result['unread_pids']=[p.name for p in paths if p.name not in result['processes'] and not any(g.get('pid')==p.name for g in result['gaps'])]
+        result['unread_groups']=[name for name,_,_ in groups if name not in result['groups'] and not any(g.get('group')==name for g in result['gaps'])]
+        return result
     for name,path,version in groups:
+        if time.monotonic()-start>budget:return finish('scan_budget_exhausted')
         path=Path(path)
         if version not in (1,2):raise ValueError('unsupported cgroup version')
         try:
@@ -55,9 +59,15 @@ def snapshot(proc=Path('/proc'),groups=(),budget=.15):
             if (identity.st_ino,identity.st_dev)!=(after.st_ino,after.st_dev):raise ValueError('cgroup changed during read')
             result['groups'][name]={'mono':stamp,'path':str(path),'inode':identity.st_ino,'device':identity.st_dev,'usage_ns':usage,'version':version,'read_finished':time.monotonic()}
         except FileNotFoundError:result['gaps'].append({'group':name,'reason':'absent'})
+    for p in paths:
+        if time.monotonic()-start>budget:return finish('scan_budget_exhausted')
+        try:
+            stamp=time.monotonic();value=stat(read(p/'stat'));value['mono']=stamp;value['read_finished']=time.monotonic()
+            result['processes'][p.name]=value
+        except (FileNotFoundError,ProcessLookupError):result['gaps'].append({'pid':p.name,'reason':'exited during scan'})
+        except PermissionError:result['gaps'].append({'pid':p.name,'reason':'permission denied'})
     result['finished']=time.monotonic()
-    if result['finished']-start>budget:raise TimeoutError('collection budget exceeded')
-    return result
+    return finish('scan_budget_exhausted' if result['finished']-start>budget else None)
 
 
 def differences(a,b):
@@ -65,7 +75,8 @@ def differences(a,b):
     if a['hz']!=b['hz'] or len(delta)!=8 or min(delta)<0 or sum(delta)<=0 or elapsed<=0:raise ValueError('invalid aggregate interval')
     out={'interval':elapsed,'cpu_pct':100*(sum(delta)-delta[3]-delta[4])/sum(delta),
          'irq_ticks':delta[5],'softirq_ticks':delta[6],'processes':{},'new_or_reused':{},
-         'exited':list(a['processes'].keys()-b['processes'].keys()),'groups':{},
+         'exited':list(a['processes'].keys()-b['processes'].keys()) if b.get('complete',True) else [],
+         'not_observed':list(a['processes'].keys()-b['processes'].keys()) if not b.get('complete',True) else [],'groups':{},
          'warning':'Sequential endpoints; do not sum nested cgroups or call residual exact kernel CPU.'}
     for pid,current in b['processes'].items():
         old=a['processes'].get(pid)

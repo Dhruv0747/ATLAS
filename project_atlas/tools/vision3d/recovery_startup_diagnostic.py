@@ -95,7 +95,7 @@ def observe(root):
             def collect(**_):
                 nonlocal groups
                 groups,target=target_groups(root,groups)
-                data=counters.snapshot(groups=groups);data['target']=target
+                data=counters.snapshot(groups=groups,priority_pids=[target['pid']] if target.get('pid') else ());data['target']=target
                 return data
             def safety(current,previous):
                 status=passive.check(current,previous)

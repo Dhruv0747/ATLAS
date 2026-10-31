@@ -1736,3 +1736,5 @@ Exact-live snapshot producer installation preparation: ATLAS_PRODUCTION_SNAPSHOT
 [Final Recovery startup diagnostic preparation](ATLAS_RECOVERY_STARTUP_DIAGNOSTIC_PACKAGE_20261031.md): integrated attribution and bounded original-service start tested offline; one real attempt awaits separate approval.
 
 [Recovery diagnostic attempt result](ATLAS_RECOVERY_DIAGNOSTIC_ATTEMPT_RESULT_20261031.md): FAIL on collector deadline; original Recovery stopped, policy restored, incident OPEN.
+
+[Collector timeout fix and CPU audit](ATLAS_RECOVERY_PARTIAL_EVIDENCE_FIX_AND_CPU_AUDIT_20261031.md): small offline correction; no new monitor or benchmark; Recovery remains stopped.

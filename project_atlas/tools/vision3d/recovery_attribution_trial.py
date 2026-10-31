@@ -81,11 +81,13 @@ def sample(directory,index,old,groups=(),collect=collector.snapshot,safety=check
         record['safe']=True
     except BaseException as exc:
         error=exc;record.update(safe=False,error=type(exc).__name__+': '+str(exc))
+        delta=record.get('delta',{})
+        record['failure_kind']='CPU_LIMIT' if delta.get('cpu_pct',0)>75 else ('SAMPLING_INTERVAL' if 'interval' in delta and not .9<=delta['interval']<=1.1 else 'SAFETY_OBSERVATION')
         # Fail state precedes durable full rejected endpoint, never a false PASS.
         save(directory/'health.json',{'safe':False,'mono':time.monotonic(),'error':record['error']})
     collector.persist(directory,index,record)
     if error:raise error
-    save(directory/'health.json',{'safe':True,'mono':current['mono'],'index':index})
+    save(directory/'health.json',{'safe':True,'mono':current['mono'],'index':index,'attribution_complete':current.get('complete',True)})
     return current
 
 def observe(directory,groups):

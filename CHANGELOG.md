@@ -3501,3 +3501,5 @@ Reviewed retained original-service CPU rejection, ROS constructor stack and unav
 2026-10-31: prepared original Recovery one-start diagnostic supervisor with dynamic PID/cgroup attribution and independent ExecStopPost cleanup.8 focused tests PASS including native PC fake-unit SIGKILL/timeout. No Jetson operations.
 
 2026-10-31: recorded one approved diagnostic start; collector150ms deadline failed after first startup attribution sample. Recovery stopped and policy restored;41unrelated units unchanged. No retry or source modification.
+
+2026-10-31: corrected150ms attribution truncation to preserve valid aggregate/partial counters with explicit gaps; unchanged safety gates.8 focused offline tests PASS; no runtime execution.
