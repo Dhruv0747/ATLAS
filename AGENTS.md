@@ -10,3 +10,6 @@
 - Update `README.md` and `CHANGELOG.md` when behavior or interfaces change.
 - Treat the live Jetson deployment and this repository deliberately: deploy only verified changes and record what was deployed.
 
+## Shared development skills
+
+Before using any vendored Superpowers skill, read `.claude/skills/atlas-workflow/SKILL.md` and apply its overrides. Claude Code discovers `.claude/skills`; Codex discovers the linked manifests in `.agents/skills`. Canonical instructions and supporting files stay in `.claude/skills` only. Both directories are development-only and must be excluded from rover deployment packages. No hooks, mandatory brainstorming or full plugin installation is authorized by these manifests.
