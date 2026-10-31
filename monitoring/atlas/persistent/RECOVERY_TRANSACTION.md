@@ -1,5 +1,21 @@
 # One monitoring recovery transaction — offline preparation
 
+## Attempt 5 result: PASS (2026-10-31 15:55:14 – 16:00:27 IST)
+
+`result.json` = `{"cleanup": "NOT_NEEDED", "grafana": "OWNER_CONFIRMED", "result": "PASS"}`; the transaction exited with status 0 after a runtime of 5 min 12.8 s.
+
+| Item | Evidence |
+|---|---|
+| Preflight 15:51 | Encoders stationary over 10 s at [107, -126, -268, -164]; E-STOP latched, manual-only, commissioning off, commands 0; CPU 61.2 %, RAM 63.5 %, 62.4 °C. The earlier change from [104, -126, -183, -164] (manual handling between 14:15 and 15:01) is recorded as history, not current motion. |
+| Prometheus | Target UP from 15:55:42; 221 series; 0 stale topics; E-STOP = 1 |
+| Confirmation | `confirm-client` ran at 15:57:02 (target 15:57:14, latest 15:59:14), after Prometheus PASS and the owner's Grafana check |
+| Final state 16:03:45 | Firewall, watchdog and exporter active, 0 restarts. Exporter `enabled` with restart policy `on-failure`; no override drop-ins; expiry timer inactive; 9118 listening on 192.168.1.16 only. |
+| Rover | E-STOP latched, manual-only, commissioning off, commands 0, encoders unchanged; telemetry ≤ 0.3 s; CPU 62.4 %, RAM 63.6 %, 63.1 °C |
+| Monitoring | Prometheus `up` ratio 1.0 over the last 8 min; CPU max 63.0 % |
+
+The original watchdog fault cause remains **UNKNOWN**. Its evidence is kept in the attempt 1–5 archives. Reboot persistence is unverified.
+
+
 ## Attempt 4 result and attempt-5 preparation (2026-10-31; offline; NOT executed)
 
 **Attempt 4** (`-20261031-4`, 14:06:42 – 14:11:53) was **FAIL; cleanup VERIFIED**.

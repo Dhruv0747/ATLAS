@@ -10,7 +10,7 @@
 - Deployed file: `/opt/atlas-monitoring/grafana/dashboards/atlas-health.json`, SHA256 `2b598f1c…6a3e`, from commit 8e3c785. Backup: `atlas-health.json.bak-20261031-pre-8e3c785`.
 - Verified: 40 panels, 30 s refresh, readable series names (0 raw `metric{…}` labels), UNAVAILABLE shown while the exporter is off, history kept with gaps left visible. Loaded by file provisioning with no restart.
 
-**Monitoring recovery: OPEN.** The Jetson exporter is OFF and the watchdog fault latch is retained. See [RECOVERY_TRANSACTION.md](persistent/RECOVERY_TRANSACTION.md).
+**Monitoring recovery: PASS (2026-10-31 16:00 IST, attempt 5).** The exporter, watchdog and firewall are active; the Prometheus target is UP. Reboot persistence is unverified, and the original fault cause is UNKNOWN. See [RECOVERY_TRANSACTION.md](persistent/RECOVERY_TRANSACTION.md).
 
 *Superseded 2026-10-30 status, kept for history:* timestamp-fixed persistent monitoring is ENABLED and ACTIVE. The guarded five-minute activation and evidence checksums passed. See [final live review](persistent/FINAL_REVIEW_20261030.md) and [activation measurements](persistent/TIMESTAMP_RETRY_RESULT_20261030.md). Reboot recovery is PENDING; Windows logon task is not registered. Earlier dated trial/preparation sections below are historical, not current deployment instructions.
 Everything here only *reads*:
