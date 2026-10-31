@@ -42,11 +42,21 @@ ORIGINAL_STATE = {
 # firewall-owned.json/last-health.json, removed observer-active.json and added rollback.json before its verified
 # cleanup restored only FAULT.json. Exact hashes, read by the owner with sudo after attempt 2's expiry finished.
 # FAULT.json must still be the original latch. Empty means NOT VERIFIED: the worker refuses.
-VERIFIED_STATE = {}
+# Verified 2026-10-31 13:15: every hash recomputed from the printed bytes; content times 11:39:59.555 (firewall),
+# 11:40:02.572 (watchdog health) and 11:40:07.851 (cleanup rollback) lie inside attempt 1; nothing newer than 11:40:08.
+EMPTY_SHA = hashlib.sha256(b'').hexdigest()
+VERIFIED_STATE = {
+    'FAULT.json': EXPECTED_FAULT,                                                            # original latch, byte-identical
+    'evidence.lock': EMPTY_SHA,                                                              # attempt-1 lock file, empty
+    'firewall-owned.json': '5f3fe2b4c402d0dd7b997193b426932d3db44fa65f87c1b5d33fc06f1ade648b',
+    'last-health.json': '8e918d715bba90e526716d3bd0fc5e79effff3c9a902c8162bb77208b5daaa7f',
+    'operations.lock': EMPTY_SHA,                                                            # unchanged since 10-30 20:45
+    'rollback.json': '3bc4ba22f58b9e1173c430e79ae7ee94f23040b4c95d106a63976165bb18204e',
+}
 EXPECTED_STATE = VERIFIED_STATE
 # Exact bytes of the earlier attempts' terminal results (attempt 1: FAIL/VERIFIED cleanup; attempt 2: FAIL/NO_MUTATION).
-ATTEMPT1_RESULT_SHA = ''
-ATTEMPT2_RESULT_SHA = ''
+ATTEMPT1_RESULT_SHA = '235d2a6e024e667cbef63009085035ddc7fa13df5c18f3d6f8a8adcef139a045'   # FAIL / cleanup VERIFIED
+ATTEMPT2_RESULT_SHA = '2e2fbbf009f7c1508195eede2be9aa42d6c85f9ddf9be95392b115c35a3b2fb6'   # FAIL / NO_MUTATION
 NAMES = tuple('atlas-monitoring-'+n+'.service' for n in ('firewall','watchdog','exporter'))
 TX = 'atlas-monitoring-recovery-once-20261031-3'
 # Exporter start (systemd Starting->Started, incl. its guarded ExecCondition) measured 3.629 s, 3.623 s (2026-10-30)
@@ -122,7 +132,9 @@ def state_hashes():
 def verify_lineage():
     """The accepted post-attempt-1 state is only valid as the successor of the original latch."""
     require(bool(EXPECTED_STATE) and EXPECTED_STATE.get('FAULT.json') == EXPECTED_FAULT, 'expected state not verified')
-    require(json.loads((ATTEMPT1/'state-manifest.json').read_text()) == ORIGINAL_STATE, 'attempt-1 archive changed')
+    # Attempt 1 archived ORIGINAL_STATE plus its own empty evidence.lock (the same allowance archive_state makes).
+    require(json.loads((ATTEMPT1/'state-manifest.json').read_text()) == dict(ORIGINAL_STATE, **{'evidence.lock': EMPTY_SHA}),
+            'attempt-1 archive changed')
     require(digest(ATTEMPT1/'original-state'/'FAULT.json') == EXPECTED_FAULT, 'attempt-1 fault archive changed')
     require(bool(ATTEMPT1_RESULT_SHA) and digest(ATTEMPT1/'result.json') == ATTEMPT1_RESULT_SHA, 'attempt-1 result changed')
     require(bool(ATTEMPT2_RESULT_SHA) and digest(ATTEMPT2/'result.json') == ATTEMPT2_RESULT_SHA, 'attempt-2 result changed')

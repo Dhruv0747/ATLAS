@@ -1,6 +1,36 @@
 # One monitoring recovery transaction — offline preparation
 
-## Correction for attempt 2: startup deadline and launcher stop only (2026-10-31, offline; NOT executed)
+## Attempt 2 result and attempt-3 correction (2026-10-31; offline; NOT executed)
+
+**Attempt 2** (`-20261031-2`, 12:57:21 IST) was **FAIL before any change**. The worker refused in `archive_state()` with `retained evidence changed`. No `mutation-intent.json` was written, the latch and firewall were untouched, and no unit started. `result.json` = `{"cleanup": "NO_MUTATION", "result": "FAIL"}`; the expiry fired at 13:04:11 and recorded the same result. Its directory is retained evidence and is never reused.
+
+**Cause:** the expected-state list was the snapshot from *before* attempt 1. Attempt 1 legitimately changed the folder before its verified cleanup, which restored only `FAULT.json`. The readiness review verified `FAULT.json` alone and did not flag that the other root-only hashes were unverified.
+
+**Owner-read state** (`sudo`, 13:15, `/var/lib/atlas-monitoring`). Every hash was recomputed from the printed bytes, and the content times lie inside attempt 1:
+
+| File | SHA256 | Provenance |
+|---|---|---|
+| `FAULT.json` | `3715b150…ae97` | Original latch, byte-identical (content time 10-31 09:34:08). Restored by attempt 1's cleanup at 11:40:08. |
+| `firewall-owned.json` | `5f3fe2b4…648b` | Attempt-1 firewall start, 11:39:59.555 |
+| `last-health.json` | `8e918d71…aa7f` | Attempt-1 watchdog start, 11:40:02.572 |
+| `rollback.json` | `3bc4ba22…204e` | Attempt-1 cleanup rollback, 11:40:07.851 (`result: PASS`) |
+| `observer-active.json` | absent | Removed by attempt 1's clean watchdog stop |
+| `evidence.lock`, `operations.lock` | empty | Unchanged lock files |
+
+Nothing in the folder is newer than 11:40:08, so attempt 2 changed nothing.
+
+**Correction (`recover_once.py` only; nothing else in the package changed):**
+- New identity `-20261031-3`.
+- `VERIFIED_STATE` holds exactly the hashes above. `FAULT.json` must equal the original latch hash; an extra, missing or changed file is refused.
+- `verify_lineage()` runs before archiving. Attempt 1's archive manifest must equal the pre-attempt-1 state (plus its empty `evidence.lock`). Attempt 1's archived `FAULT.json` must match the original hash. Attempt 1's `result.json` (FAIL / cleanup VERIFIED) and attempt 2's (FAIL / NO_MUTATION) are pinned by hash. Attempt 2 must have no `mutation-intent.json`.
+- The reset removes `observer-active.json` only if it is part of the verified state.
+- The startup deadlines, supervision, expiry, cleanup, firewall and rollback are unchanged.
+
+**Validation:** 45/45 transaction tests pass, including the attempt-2 reproduction with 6 tamper cases and the pinned constants. The 4 native systemd tests still apply: the launch command is unchanged.
+
+**Package:** `monitoring-recovery-transaction-20261031-3.tar.gz`, SHA256 `d165261bc878a37bc48323fba88b65c1d33945ab71a3c90f5ca3584285e6fc20`. 8 members, root:root 0644; manifest SHA256 `8c5ac7d31fc436c0aad894aed0c80a97c7447ef9765182730b7485272eb05dfe`; `recover_once.py` `7d038f36…596e`. Use only the `-20261031-3` commands below.
+
+## Correction for attempt 2 (superseded by attempt 3): startup deadline and launcher stop only (2026-10-31, offline; NOT executed)
 
 **Measured exporter start** (systemd `Starting` → `Started`, Jetson journal, including the guarded ExecCondition):
 
@@ -195,7 +225,7 @@ Prepared archive: `monitoring-recovery-transaction-20261031.tar.gz`.
 The package is prepared on the PC only, not copied to Jetson. Original file
 owner/group/mode and mtime/ctime are recorded alongside the byte archive.
 
-## Exact execution sequence — attempt 2 (`-20261031-2`); NOT authorized by this document
+## Exact execution sequence — attempt 3 (`-20261031-3`); NOT authorized by this document
 
 Approval must cover: one archival/reset accepting UNKNOWN original cause; optional
 monitoring starts; temporary monitoring-only Restart=no/system daemon-reload;
@@ -204,18 +234,18 @@ Administrator passwords belong only in the local Jetson terminal.
 
 1. Confirm the approved package tar/manifest hashes against the review report.
    Copy the verified extracted seven files plus manifest to the new root-owned
-   directory `/opt/atlas-monitoring-recovery-20261031-2` (0755 directory, root:root
+   directory `/opt/atlas-monitoring-recovery-20261031-3` (0755 directory, root:root
    files 0644). Do not reuse an existing directory or overwrite installed files.
    Installation of this transaction package does not start a service.
    Once the separately approved copy is at the path below, exact staging is:
 
    ```sh
    cd /home/jetson/project-atlas-migration &&
-   printf '%s\n' 'b997bcd4e503e9bd9900012d52dc3a17091fdc619094afbd7f73354f1da7c167  monitoring-recovery-transaction-20261031-2.tar.gz' | sha256sum -c - &&
+   printf '%s\n' 'd165261bc878a37bc48323fba88b65c1d33945ab71a3c90f5ca3584285e6fc20  monitoring-recovery-transaction-20261031-3.tar.gz' | sha256sum -c - &&
    sudo /bin/sh -c 'set -eu; umask 022
-   mkdir /opt/atlas-monitoring-recovery-20261031-2
-   tar --no-same-owner -xzf /home/jetson/project-atlas-migration/monitoring-recovery-transaction-20261031-2.tar.gz -C /opt/atlas-monitoring-recovery-20261031-2
-   cd /opt/atlas-monitoring-recovery-20261031-2
+   mkdir /opt/atlas-monitoring-recovery-20261031-3
+   tar --no-same-owner -xzf /home/jetson/project-atlas-migration/monitoring-recovery-transaction-20261031-3.tar.gz -C /opt/atlas-monitoring-recovery-20261031-3
+   cd /opt/atlas-monitoring-recovery-20261031-3
    sha256sum -c RECOVERY_SHA256SUMS'
    ```
 
@@ -225,7 +255,7 @@ Administrator passwords belong only in the local Jetson terminal.
 2. With the owner present and the rover stationary, run **once** locally:
 
    ```sh
-   cd /opt/atlas-monitoring-recovery-20261031-2 &&
+   cd /opt/atlas-monitoring-recovery-20261031-3 &&
    sha256sum -c RECOVERY_SHA256SUMS &&
    sudo /usr/bin/python3 -I -B recover_once.py start
    ```
@@ -240,7 +270,7 @@ Administrator passwords belong only in the local Jetson terminal.
    after those checks actually pass, use a second local terminal:
 
    ```sh
-   sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031-2/recover_once.py confirm-client
+   sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031-3/recover_once.py confirm-client
    ```
 
    This is an explicit owner attestation, not an automated Grafana browser test.
@@ -257,7 +287,7 @@ Administrator passwords belong only in the local Jetson terminal.
 For an in-progress attempt, stop only its supervisor; ExecStopPost handles cleanup:
 
 ```sh
-sudo systemctl stop atlas-monitoring-recovery-once-20261031-2.service
+sudo systemctl stop atlas-monitoring-recovery-once-20261031-3.service
 ```
 
 If cleanup reports FAILED, do not repeat `start`, remove evidence, reset-failed,
@@ -266,8 +296,8 @@ After confirming the transaction worker and its cleanup have exited, the reviewe
 monitoring-only manual rollback is:
 
 ```sh
-sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031-2/guard.py rollback &&
-sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031-2/recover_once.py cleanup
+sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031-3/guard.py rollback &&
+sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031-3/recover_once.py cleanup
 ```
 
 This stops monitoring, verifies no 9118 listener, removes only the exact owned

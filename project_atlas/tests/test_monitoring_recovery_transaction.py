@@ -381,7 +381,7 @@ def _attempt1_lineage(tmp_path, monkeypatch, original, fault):
     """Retained attempt-1/attempt-2 evidence directories exactly as the real transaction leaves them."""
     a1, a2 = tmp_path/'a1', tmp_path/'a2'
     (a1/'original-state').mkdir(parents=True); a2.mkdir()
-    (a1/'state-manifest.json').write_text(json.dumps(original))
+    (a1/'state-manifest.json').write_text(json.dumps(dict(original, **{'evidence.lock': R.EMPTY_SHA})))
     (a1/'original-state'/'FAULT.json').write_bytes(fault)
     (a1/'result.json').write_text('{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}')
     (a2/'result.json').write_text('{"cleanup": "NO_MUTATION", "result": "FAIL"}')
@@ -431,3 +431,13 @@ def test_attempt2_refusal_reproduced_and_only_verified_post_attempt1_state_accep
     assert not (live/'FAULT.json').exists() and (evidence/'original-state'/'FAULT.json').read_bytes() == fault
     R.restore_latch()
     assert (live/'FAULT.json').read_bytes() == fault
+
+
+def test_attempt3_constants_are_the_owner_verified_jetson_state():
+    """Pinned values from the owner's 13:15 sudo read; the latch hash is the original one."""
+    assert R.VERIFIED_STATE['FAULT.json'] == R.EXPECTED_FAULT == '3715b150b880ed06d9e21f25006b81a699693328bb77a80155cf148dcdb1ae97'
+    assert set(R.VERIFIED_STATE) == {'FAULT.json','evidence.lock','firewall-owned.json','last-health.json','operations.lock','rollback.json'}
+    assert R.ORIGINAL_STATE['FAULT.json'] == R.EXPECTED_FAULT and 'observer-active.json' in R.ORIGINAL_STATE
+    assert R.EXPECTED_STATE is R.VERIFIED_STATE
+    a1 = b'{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}'; a2 = b'{"cleanup": "NO_MUTATION", "result": "FAIL"}'
+    assert R.ATTEMPT1_RESULT_SHA == R.hashlib.sha256(a1).hexdigest() and R.ATTEMPT2_RESULT_SHA == R.hashlib.sha256(a2).hexdigest()
