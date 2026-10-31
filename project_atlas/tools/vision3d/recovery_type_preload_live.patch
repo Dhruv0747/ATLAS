@@ -1,0 +1,23 @@
+--- a/atlas_sensor_recovery.py
++++ b/atlas_sensor_recovery.py
+@@ -612,7 +612,20 @@
+         )
+ 
+ 
++def prepare_message_types():
++    """Load existing type libraries before DDS discovery starts.
++
++    rclpy otherwise imports these lazily while constructing ROS entities.
++    No entities, callbacks or QoS are removed; import failure still aborts.
++    """
++    from rclpy.type_support import check_for_type_support
++    types = dict.fromkeys([String, Twist] + [item.msg_type for item in MONITORS])
++    for message_type in types:
++        check_for_type_support(message_type)
++
++
+ def main():
++    prepare_message_types()
+     rclpy.init()
+     node = AtlasRecovery()
+     try:

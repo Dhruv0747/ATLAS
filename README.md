@@ -1742,3 +1742,5 @@ Exact-live snapshot producer installation preparation: ATLAS_PRODUCTION_SNAPSHOT
 Recovery restoration package prepared offline: [corrected package and single-use command](ATLAS_RECOVERY_CORRECTED_RESTORATION_PACKAGE_20261031.md). Separate execution approval required.
 
 [Corrected Recovery attempt result](ATLAS_RECOVERY_CORRECTED_ATTEMPT_RESULT_20261031.md): FAIL at 86.93% CPU; evidence retained, cleanup verified, Recovery stopped.
+
+[Recovery startup type-loading candidate](ATLAS_RECOVERY_TYPE_PRELOAD_CORRECTION_20261031.md): offline only; Jetson CPU benefit unverified.
