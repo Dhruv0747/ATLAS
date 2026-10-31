@@ -21,11 +21,12 @@ import threading
 import time
 
 BASE = Path(__file__).resolve().parent
-# Attempt 4: the directories and unit names of attempts 1-3 are retained evidence and must never be reused.
-E = Path('/var/lib/atlas-monitoring-recovery-20261031-4')
+# Attempt 5: the directories and unit names of attempts 1-4 are retained evidence and must never be reused.
+E = Path('/var/lib/atlas-monitoring-recovery-20261031-5')
 ATTEMPT1 = Path('/var/lib/atlas-monitoring-recovery-20261031')
 ATTEMPT2 = Path('/var/lib/atlas-monitoring-recovery-20261031-2')
 ATTEMPT3 = Path('/var/lib/atlas-monitoring-recovery-20261031-3')
+ATTEMPT4 = Path('/var/lib/atlas-monitoring-recovery-20261031-4')
 GUARD = Path('/usr/local/libexec/atlas-monitoring-guard.py')
 GUARD_SHA = '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'
 SAMPLER_SHA = 'a25ff2d8c6a516357d61f4a1d70fadf98b36178b9e547d25d1643b937bdd8969'
@@ -59,7 +60,8 @@ STATE_BEFORE_ATTEMPT3 = {
 # FAULT.json. State after attempt 3, read by the owner with sudo at 13:57. Every hash recomputed from the printed
 # bytes; content times 13:20:20.922 (firewall), 13:25:20.215 (watchdog health), 13:25:23.582 (cleanup rollback) lie
 # inside attempt 3; FAULT.json restored 13:25:23.877 and nothing in the directory is newer.
-VERIFIED_STATE = {
+# Attempt 4 archived exactly this state; its manifest must still equal it.
+STATE_BEFORE_ATTEMPT4 = {
     'FAULT.json': EXPECTED_FAULT,                                                            # original latch, byte-identical
     'evidence.lock': EMPTY_SHA,
     'firewall-owned.json': '9a99129e6ffd41f65610e6bd2ed3223378bc0a5e419cea9a65f04319b53bffb5',
@@ -67,13 +69,25 @@ VERIFIED_STATE = {
     'operations.lock': EMPTY_SHA,
     'rollback.json': '9983f96f555886cf5206f2540e892dcdbfc0c841a10f02ec4baec62f4e1f4a6e',
 }
+# Attempt 4 (14:06-14:11) failed only because confirm-client was never run; its verified cleanup again restored only
+# FAULT.json. Owner sudo read at 14:18; hashes recomputed from the printed bytes; content times 14:06:48.798 (firewall),
+# 14:11:48.254 (watchdog health), 14:11:51.562 (cleanup rollback); FAULT.json restored 14:11:51.885, nothing newer.
+VERIFIED_STATE = {
+    'FAULT.json': EXPECTED_FAULT,                                                            # original latch, byte-identical
+    'evidence.lock': EMPTY_SHA,
+    'firewall-owned.json': '595bc54f4926a4fc37109c412ed8f2e28059354b6504210af914caefcca04cf7',
+    'last-health.json': '93ecbdad89f0c14ce5455cab8feb6dca3943f1668290d85128c45ae48a536886',
+    'operations.lock': EMPTY_SHA,
+    'rollback.json': '84ff15985c71d5c86378dc6eed63ddc74d26d8f6438bf3390bd29c65174a2c78',
+}
 EXPECTED_STATE = VERIFIED_STATE
 # Exact bytes of the earlier attempts' terminal results (attempt 1: FAIL/VERIFIED cleanup; attempt 2: FAIL/NO_MUTATION).
 ATTEMPT1_RESULT_SHA = '235d2a6e024e667cbef63009085035ddc7fa13df5c18f3d6f8a8adcef139a045'   # FAIL / cleanup VERIFIED
 ATTEMPT2_RESULT_SHA = '2e2fbbf009f7c1508195eede2be9aa42d6c85f9ddf9be95392b115c35a3b2fb6'   # FAIL / NO_MUTATION
 ATTEMPT3_RESULT_SHA = '235d2a6e024e667cbef63009085035ddc7fa13df5c18f3d6f8a8adcef139a045'   # FAIL / cleanup VERIFIED (same bytes as attempt 1)
+ATTEMPT4_RESULT_SHA = '235d2a6e024e667cbef63009085035ddc7fa13df5c18f3d6f8a8adcef139a045'   # FAIL / cleanup VERIFIED
 NAMES = tuple('atlas-monitoring-'+n+'.service' for n in ('firewall','watchdog','exporter'))
-TX = 'atlas-monitoring-recovery-once-20261031-4'
+TX = 'atlas-monitoring-recovery-once-20261031-5'
 # Exporter start (systemd Starting->Started, incl. its guarded ExecCondition) measured 3.629 s, 3.623 s (2026-10-30)
 # and 3.598 s (2026-10-31 attempt 1, which failed on the old 3 s sub-deadline). 12 s = 3.3x the slowest measured
 # start. The 25 s supervised step bound below is unchanged and remains the hard cap for watchdog + exporter.
@@ -157,6 +171,9 @@ def verify_lineage():
     require(json.loads((ATTEMPT3/'state-manifest.json').read_text()) == STATE_BEFORE_ATTEMPT3, 'attempt-3 archive changed')
     require(digest(ATTEMPT3/'original-state'/'FAULT.json') == EXPECTED_FAULT, 'attempt-3 fault archive changed')
     require(bool(ATTEMPT3_RESULT_SHA) and digest(ATTEMPT3/'result.json') == ATTEMPT3_RESULT_SHA, 'attempt-3 result changed')
+    require(json.loads((ATTEMPT4/'state-manifest.json').read_text()) == STATE_BEFORE_ATTEMPT4, 'attempt-4 archive changed')
+    require(digest(ATTEMPT4/'original-state'/'FAULT.json') == EXPECTED_FAULT, 'attempt-4 fault archive changed')
+    require(bool(ATTEMPT4_RESULT_SHA) and digest(ATTEMPT4/'result.json') == ATTEMPT4_RESULT_SHA, 'attempt-4 result changed')
 
 
 def archive_state():
@@ -474,14 +491,16 @@ def worker():
     write(E/'candidate-pass.json',{'time':time.time(),'local_validation':'PASS'})
 
 
-CONFIRM_BY_S = 240     # operator target; the worker's own check is ~305 s after start (firewall start + 300 s)
+CONFIRM_BY_S = 240     # latest operator confirmation; the worker's own check is ~305 s after start (firewall start + 300 s)
+CONFIRM_TARGET_S = 120 # attempts 3-4: monitoring was healthy; confirmation was late/absent. Confirm once both checks pass.
 
 
 def deadline_message(now):
     """Attempt 3 failed only because confirmation came 34 s late. Information only; no bound changes."""
     t=lambda s: time.strftime('%H:%M:%S',time.localtime(now+s))
-    return ('Observation window closes about %s (start + ~305 s). Run confirm-client by %s (start + %d s). '
-            'Never confirm after the window closes.' % (t(305), t(CONFIRM_BY_S), CONFIRM_BY_S))
+    return ('Observation window closes about %s (start + ~305 s). Target confirm-client at about %s (start + %d s) '
+            'once Prometheus and Grafana pass; latest %s (start + %d s). Never confirm after the window closes.'
+            % (t(305), t(CONFIRM_TARGET_S), CONFIRM_TARGET_S, t(CONFIRM_BY_S), CONFIRM_BY_S))
 
 
 def stop_if_running():

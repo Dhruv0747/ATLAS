@@ -352,7 +352,7 @@ def test_deadline_margin_is_finite_and_step_bound_unchanged():
 def test_new_attempt_never_reuses_attempt_one_identity():
     assert R.E != Path('/var/lib/atlas-monitoring-recovery-20261031')
     assert R.TX != 'atlas-monitoring-recovery-once-20261031'
-    assert R.E not in (R.ATTEMPT1, R.ATTEMPT2, R.ATTEMPT3) and R.TX.endswith('-20261031-4')
+    assert R.E not in (R.ATTEMPT1, R.ATTEMPT2, R.ATTEMPT3, R.ATTEMPT4) and R.TX.endswith('-20261031-5')
 
 
 @pytest.mark.parametrize('show,expect,stopped', [
@@ -391,12 +391,17 @@ def _attempt1_lineage(tmp_path, monkeypatch, original, fault):
     (a3/'original-state'/'FAULT.json').write_bytes(fault)
     (a3/'result.json').write_text('{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}')
     monkeypatch.setattr(R, 'ATTEMPT3', a3); monkeypatch.setattr(R, 'ATTEMPT3_RESULT_SHA', R.digest(a3/'result.json'))
+    a4 = tmp_path/'a4'; (a4/'original-state').mkdir(parents=True)
+    (a4/'state-manifest.json').write_text(json.dumps(R.STATE_BEFORE_ATTEMPT4))
+    (a4/'original-state'/'FAULT.json').write_bytes(fault)
+    (a4/'result.json').write_text('{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}')
+    monkeypatch.setattr(R, 'ATTEMPT4', a4); monkeypatch.setattr(R, 'ATTEMPT4_RESULT_SHA', R.digest(a4/'result.json'))
     monkeypatch.setattr(R, 'ATTEMPT1_RESULT_SHA', R.digest(a1/'result.json'))
     monkeypatch.setattr(R, 'ATTEMPT2_RESULT_SHA', R.digest(a2/'result.json'))
     return a1, a2
 
 
-@pytest.mark.parametrize('tamper', [None, 'last-health', 'fault', 'extra', 'a1-manifest', 'a2-mutated', 'unverified', 'a3-manifest', 'a3-result'])
+@pytest.mark.parametrize('tamper', [None, 'last-health', 'fault', 'extra', 'a1-manifest', 'a2-mutated', 'unverified', 'a3-manifest', 'a3-result', 'a4-manifest', 'a4-fault-archive'])
 def test_attempt2_refusal_reproduced_and_only_verified_post_attempt1_state_accepted(tmp_path, monkeypatch, tamper):
     """2026-10-31 12:57 attempt 2: attempt 1 legitimately changed the state, so the pre-attempt-1 expectation refused."""
     live = tmp_path/'state'; live.mkdir(); evidence = tmp_path/'attempt'; evidence.mkdir()
@@ -430,6 +435,8 @@ def test_attempt2_refusal_reproduced_and_only_verified_post_attempt1_state_accep
     if tamper == 'unverified': monkeypatch.setattr(R, 'EXPECTED_STATE', {})
     if tamper == 'a3-manifest': (tmp_path/'a3'/'state-manifest.json').write_text('{}')
     if tamper == 'a3-result': (tmp_path/'a3'/'result.json').write_text('{"result": "PASS"}')
+    if tamper == 'a4-manifest': (tmp_path/'a4'/'state-manifest.json').write_text('{}')
+    if tamper == 'a4-fault-archive': (tmp_path/'a4'/'original-state'/'FAULT.json').write_bytes(b'{}')
     if tamper:
         with pytest.raises(RuntimeError): R.archive_state()
         assert (live/'FAULT.json').exists() and not (evidence/'reset-intent.json').exists()   # latch kept
@@ -450,20 +457,29 @@ def test_attempt3_constants_are_the_owner_verified_jetson_state():
 
 
 def test_attempt4_state_is_the_owner_verified_post_attempt3_state():
-    """Owner's 13:57 sudo read; FAULT.json still the original latch; every file pinned; attempt 3 chained."""
-    assert R.VERIFIED_STATE['FAULT.json'] == R.EXPECTED_FAULT == R.STATE_BEFORE_ATTEMPT3['FAULT.json'] == R.ORIGINAL_STATE['FAULT.json']
-    assert set(R.VERIFIED_STATE) == set(R.STATE_BEFORE_ATTEMPT3) and R.EXPECTED_STATE is R.VERIFIED_STATE
-    changed = {k for k in R.VERIFIED_STATE if R.VERIFIED_STATE[k] != R.STATE_BEFORE_ATTEMPT3[k]}
-    assert changed == {'firewall-owned.json', 'last-health.json', 'rollback.json'}        # attempt 3's own writes only
+    """Owner's 13:57 sudo read (the state attempt 4 archived); only attempt 3's own writes differ."""
+    assert R.STATE_BEFORE_ATTEMPT4['FAULT.json'] == R.EXPECTED_FAULT == R.STATE_BEFORE_ATTEMPT3['FAULT.json'] == R.ORIGINAL_STATE['FAULT.json']
+    changed = {k for k in R.STATE_BEFORE_ATTEMPT4 if R.STATE_BEFORE_ATTEMPT4[k] != R.STATE_BEFORE_ATTEMPT3[k]}
+    assert changed == {'firewall-owned.json', 'last-health.json', 'rollback.json'}
     assert R.ATTEMPT3_RESULT_SHA == R.hashlib.sha256(b'{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}').hexdigest()
-    assert R.E.name.endswith('-20261031-4') and R.TX.endswith('-20261031-4') and R.EXPIRY == R.TX + '-expiry'
+
+
+def test_attempt5_state_is_the_owner_verified_post_attempt4_state():
+    """Owner's 14:18 sudo read; FAULT.json still the original latch; every file pinned; attempt 4 chained."""
+    assert R.VERIFIED_STATE['FAULT.json'] == R.EXPECTED_FAULT == R.ORIGINAL_STATE['FAULT.json']
+    assert set(R.VERIFIED_STATE) == set(R.STATE_BEFORE_ATTEMPT4) and R.EXPECTED_STATE is R.VERIFIED_STATE
+    changed = {k for k in R.VERIFIED_STATE if R.VERIFIED_STATE[k] != R.STATE_BEFORE_ATTEMPT4[k]}
+    assert changed == {'firewall-owned.json', 'last-health.json', 'rollback.json'}        # attempt 4's own writes only
+    assert R.ATTEMPT4_RESULT_SHA == R.hashlib.sha256(b'{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}').hexdigest()
+    assert R.E.name.endswith('-20261031-5') and R.TX.endswith('-20261031-5') and R.EXPIRY == R.TX + '-expiry'
 
 
 def test_confirm_by_is_well_before_the_window_and_bounds_are_unchanged():
     """Attempt 3: confirm-client at start+~341 s missed the ~305 s check. The operator target is start+240 s."""
     msg = R.deadline_message(1793433014.8)                      # attempt 3's actual start time
     at = lambda d: R.time.strftime('%H:%M:%S', R.time.localtime(1793433014.8 + d))   # 13:25:19 / 13:24:14 IST
-    assert at(305) in msg and at(240) in msg and 'Never confirm after' in msg
+    assert at(305) in msg and at(240) in msg and at(120) in msg and 'Never confirm after' in msg
+    assert R.CONFIRM_TARGET_S == 120 < R.CONFIRM_BY_S
     assert R.CONFIRM_BY_S + 60 <= 305
     src = (ROOT/'monitoring/atlas/persistent/recover_once.py').read_text()
     assert 'while time.monotonic()-start < 300:' in src and "'--on-active=410s'" in src and "'--property=RuntimeMaxSec=330'" in src
