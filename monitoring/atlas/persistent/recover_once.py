@@ -56,13 +56,22 @@ STATE_BEFORE_ATTEMPT3 = {
     'rollback.json': '3bc4ba22f58b9e1173c430e79ae7ee94f23040b4c95d106a63976165bb18204e',
 }
 # Attempt 3 (13:20-13:25) failed only because confirm-client was late; its verified cleanup again restored only
-# FAULT.json. State after attempt 3, read by the owner with sudo. Empty means NOT VERIFIED: the worker refuses.
-VERIFIED_STATE = {}
+# FAULT.json. State after attempt 3, read by the owner with sudo at 13:57. Every hash recomputed from the printed
+# bytes; content times 13:20:20.922 (firewall), 13:25:20.215 (watchdog health), 13:25:23.582 (cleanup rollback) lie
+# inside attempt 3; FAULT.json restored 13:25:23.877 and nothing in the directory is newer.
+VERIFIED_STATE = {
+    'FAULT.json': EXPECTED_FAULT,                                                            # original latch, byte-identical
+    'evidence.lock': EMPTY_SHA,
+    'firewall-owned.json': '9a99129e6ffd41f65610e6bd2ed3223378bc0a5e419cea9a65f04319b53bffb5',
+    'last-health.json': 'd8420183197ebfd3bd283046c77153a5db88f2a005ab05d37ba0f79b9c2c134f',
+    'operations.lock': EMPTY_SHA,
+    'rollback.json': '9983f96f555886cf5206f2540e892dcdbfc0c841a10f02ec4baec62f4e1f4a6e',
+}
 EXPECTED_STATE = VERIFIED_STATE
 # Exact bytes of the earlier attempts' terminal results (attempt 1: FAIL/VERIFIED cleanup; attempt 2: FAIL/NO_MUTATION).
 ATTEMPT1_RESULT_SHA = '235d2a6e024e667cbef63009085035ddc7fa13df5c18f3d6f8a8adcef139a045'   # FAIL / cleanup VERIFIED
 ATTEMPT2_RESULT_SHA = '2e2fbbf009f7c1508195eede2be9aa42d6c85f9ddf9be95392b115c35a3b2fb6'   # FAIL / NO_MUTATION
-ATTEMPT3_RESULT_SHA = ''   # expected FAIL / cleanup VERIFIED; pinned from the owner read
+ATTEMPT3_RESULT_SHA = '235d2a6e024e667cbef63009085035ddc7fa13df5c18f3d6f8a8adcef139a045'   # FAIL / cleanup VERIFIED (same bytes as attempt 1)
 NAMES = tuple('atlas-monitoring-'+n+'.service' for n in ('firewall','watchdog','exporter'))
 TX = 'atlas-monitoring-recovery-once-20261031-4'
 # Exporter start (systemd Starting->Started, incl. its guarded ExecCondition) measured 3.629 s, 3.623 s (2026-10-30)
@@ -465,6 +474,16 @@ def worker():
     write(E/'candidate-pass.json',{'time':time.time(),'local_validation':'PASS'})
 
 
+CONFIRM_BY_S = 240     # operator target; the worker's own check is ~305 s after start (firewall start + 300 s)
+
+
+def deadline_message(now):
+    """Attempt 3 failed only because confirmation came 34 s late. Information only; no bound changes."""
+    t=lambda s: time.strftime('%H:%M:%S',time.localtime(now+s))
+    return ('Observation window closes about %s (start + ~305 s). Run confirm-client by %s (start + %d s). '
+            'Never confirm after the window closes.' % (t(305), t(CONFIRM_BY_S), CONFIRM_BY_S))
+
+
 def stop_if_running():
     try:
         out = subprocess.run(['systemctl','show',TX+'.service','-p','LoadState','-p','ActiveState'],
@@ -510,11 +529,7 @@ def main():
         write(E/'request.json', {'time':time.time(),'original_cause':'UNKNOWN'})
         def stop_request(signum, frame): raise RuntimeError('owner interrupted')
         signal.signal(signal.SIGTERM,stop_request); signal.signal(signal.SIGINT,stop_request)
-        # Attempt 3 failed only because confirmation came 34 s late. Information only; no bound changes.
-        now=time.time()
-        print('Observation window closes about %s (start + ~305 s). Run confirm-client by %s (start + 240 s).'
-              % (time.strftime('%H:%M:%S',time.localtime(now+305)), time.strftime('%H:%M:%S',time.localtime(now+240))),
-              flush=True)
+        print(deadline_message(time.time()), flush=True)
         try:
             run(*expiry_command())
             require(run('systemctl','is-active',EXPIRY+'.timer').strip()=='active', 'expiry not armed')

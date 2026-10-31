@@ -447,3 +447,25 @@ def test_attempt3_constants_are_the_owner_verified_jetson_state():
     assert R.ORIGINAL_STATE['FAULT.json'] == R.EXPECTED_FAULT and 'observer-active.json' in R.ORIGINAL_STATE
     a1 = b'{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}'; a2 = b'{"cleanup": "NO_MUTATION", "result": "FAIL"}'
     assert R.ATTEMPT1_RESULT_SHA == R.hashlib.sha256(a1).hexdigest() and R.ATTEMPT2_RESULT_SHA == R.hashlib.sha256(a2).hexdigest()
+
+
+def test_attempt4_state_is_the_owner_verified_post_attempt3_state():
+    """Owner's 13:57 sudo read; FAULT.json still the original latch; every file pinned; attempt 3 chained."""
+    assert R.VERIFIED_STATE['FAULT.json'] == R.EXPECTED_FAULT == R.STATE_BEFORE_ATTEMPT3['FAULT.json'] == R.ORIGINAL_STATE['FAULT.json']
+    assert set(R.VERIFIED_STATE) == set(R.STATE_BEFORE_ATTEMPT3) and R.EXPECTED_STATE is R.VERIFIED_STATE
+    changed = {k for k in R.VERIFIED_STATE if R.VERIFIED_STATE[k] != R.STATE_BEFORE_ATTEMPT3[k]}
+    assert changed == {'firewall-owned.json', 'last-health.json', 'rollback.json'}        # attempt 3's own writes only
+    assert R.ATTEMPT3_RESULT_SHA == R.hashlib.sha256(b'{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}').hexdigest()
+    assert R.E.name.endswith('-20261031-4') and R.TX.endswith('-20261031-4') and R.EXPIRY == R.TX + '-expiry'
+
+
+def test_confirm_by_is_well_before_the_window_and_bounds_are_unchanged():
+    """Attempt 3: confirm-client at start+~341 s missed the ~305 s check. The operator target is start+240 s."""
+    msg = R.deadline_message(1793433014.8)                      # attempt 3's actual start time
+    at = lambda d: R.time.strftime('%H:%M:%S', R.time.localtime(1793433014.8 + d))   # 13:25:19 / 13:24:14 IST
+    assert at(305) in msg and at(240) in msg and 'Never confirm after' in msg
+    assert R.CONFIRM_BY_S + 60 <= 305
+    src = (ROOT/'monitoring/atlas/persistent/recover_once.py').read_text()
+    assert 'while time.monotonic()-start < 300:' in src and "'--on-active=410s'" in src and "'--property=RuntimeMaxSec=330'" in src
+    assert "observation['cpu'] < 75 and observation['ram'] < 80" in src
+    assert src.index('print(deadline_message(') < src.index('run(*expiry_command())')
