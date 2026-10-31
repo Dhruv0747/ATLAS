@@ -1748,3 +1748,5 @@ Recovery restoration package prepared offline: [corrected package and single-use
 [Recovery kernel-time finding](ATLAS_RECOVERY_KERNEL_TIME_FINDING_20261031.md): saved counters narrow overload category; safe fix remains unproven.
 
 [Recovery incident handover](ATLAS_RECOVERY_INCIDENT_HANDOVER_20261031.md): CPU investigation stopped, cause UNKNOWN; Recovery STOPPED and incident OPEN. Separate localization issue recorded.
+
+[AMCL initial-pose findings](ATLAS_AMCL_INITIAL_POSE_FINDINGS_20261031.md): loaded map, ambiguous startup match, seed safely withheld; separate OPEN localization issue.

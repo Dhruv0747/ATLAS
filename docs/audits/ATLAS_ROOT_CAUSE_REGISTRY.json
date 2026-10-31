@@ -1522,7 +1522,7 @@
       "resolution": "UNRESOLVED",
       "evidence": "Existing journal09:03:40-09:03:53 IST: AMCL requires initial pose; repeated no-motion requests; global costmap waits for absent map transform. Warnings precede Recovery startup. Separate localization issue, not established CPU root cause.",
       "remaining_gap": "Map loading, initial-pose and TF history. No initial pose injected or TF changed; no live test authorized.",
-      "report": "ATLAS_RECOVERY_INCIDENT_HANDOVER_20261031.md"
+      "report": "ATLAS_RECOVERY_INCIDENT_HANDOVER_20261031.md", "follow_up": "Saved startup journal confirms map loaded and AMCL received it Oct30 16:47:47. At16:48:37 verify-mode seeder refused ambiguous matches; final fits0.935/0.931 margin0.004, pose null, same boot. Immediate cause: initial pose intentionally withheld; physical ambiguity unresolved. See ATLAS_AMCL_INITIAL_POSE_FINDINGS_20261031.md."
     }
   ]
 }

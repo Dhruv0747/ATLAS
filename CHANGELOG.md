@@ -3513,3 +3513,5 @@ Reviewed retained original-service CPU rejection, ROS constructor stack and unav
 2026-10-31: Recomputed saved Recovery rejection: kernel-accounted time explains approx96% of interval CPU increase. Documentation only; no unsupported runtime optimization or new diagnostic tool.
 
 2026-10-31: Owner-directed CPU investigation stop documented; evidence retained, Recovery incident remains OPEN with functionality unavailable. Separate AMCL initial-pose/map-TF issue recorded. Documentation only.
+
+2026-10-31: Saved localization startup evidence identifies verify-mode refusal as cause of missing initial pose; no service or safety changes. Documented stale source-text test separately.
