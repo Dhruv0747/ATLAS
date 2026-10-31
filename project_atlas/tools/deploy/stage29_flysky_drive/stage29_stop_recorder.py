@@ -13,6 +13,7 @@ Usage: stage29_stop_recorder.py record --out FILE --seconds N      (N <= 900)
 """
 import argparse
 import json
+import math
 import struct
 import sys
 import threading
@@ -28,6 +29,7 @@ TOPICS = ['/joy', '/atlas/rc/frames', '/cmd_vel_flysky', '/cmd_vel', '/motor_spe
 MAX_RECORD_S = 900
 STILL_S = 0.5
 LATCH_WINDOW_S = 1.5        # a latch later than this is credited to a later event, not this one
+DRIVING_LOOKBACK_S = 0.3    # an event is a stop test only if /cmd_vel was non-zero in this window before it
 # Limits for event -> wheels still. Detection delays by design: receiver silent 0.30 s, Xbox off 0.50 s.
 LIMIT_S = {'xbox_b': 1.0, 'swb_stop': 1.0, 'swa_off': 1.0, 'stick_release': 1.0, 'tx_off': 1.0,
            'rx_silent': 1.3, 'xbox_off': 1.5, 'software_stop': 1.0}
@@ -176,8 +178,40 @@ def events(rows):
     return sorted(ev, key=lambda e: e[1])
 
 
+def _is_cmd(r):
+    return r['topic'] == '/cmd_vel' and isinstance(r['v'], list)
+
+
+def _moving(v):
+    return abs(v[0]) > 1e-6 or abs(v[5]) > 1e-6
+
+
+def driving_before(rows, t0):
+    """Was the rover being commanded to move just before the event? The last /cmd_vel at or before t0 must be
+    non-zero and no older than DRIVING_LOOKBACK_S (an idle mux publishes /cmd_vel only sparsely, 2026-10-30)."""
+    last = None
+    for r in rows:
+        if r['t'] > t0:
+            break
+        if _is_cmd(r):
+            last = r
+    if last is None or len(last['v']) != 6:
+        return None  # no command evidence is not evidence of idle
+    try:
+        if not all(math.isfinite(float(x)) for x in last['v']):
+            return None
+        moving = _moving(last['v'])
+    except (TypeError, ValueError):
+        return None
+    if moving and t0 - last['t'] > DRIVING_LOOKBACK_S:
+        return None  # never discard a potentially real stop because its command is stale
+    return moving
+
+
+
 def measure(rows, kind, t0, horizon=5.0):
     after = [r for r in rows if t0 <= r['t'] <= t0 + horizon]
+    driving = driving_before(rows, t0)
     cmd = next((r['t'] for r in after if r['topic'] == '/cmd_vel' and isinstance(r['v'], list)
                 and r['v'][0] == 0.0 and r['v'][5] == 0.0), None)
     motor = next((r['t'] for r in after if r['topic'] == '/motor_speed' and r['v'] == 0.0), None)
@@ -202,13 +236,24 @@ def measure(rows, kind, t0, horizon=5.0):
     # non-latching event is safe-direction but still a deviation that must be reported, not hidden).
     res['pass'] = (still is not None and still - t0 <= LIMIT_S[kind] and cmd is not None
                    and (latched is not None) == res['latch_expected'])
+    # A switch flipped or stick moved while the rover was NOT being driven is not a stop test: it proves at most
+    # that the latch works. It is reported, never counted as PASS or FAIL (2026-10-30: 42 of 48 'stick releases').
+    res['driving'] = driving
+    if driving is False:
+        res['cmd_zero_s'] = 0.0                    # already zero; do not time the next sparse idle message
+        res['pass'] = None
+    if driving is None:
+        res['pass'] = None
+    res['result'] = ('INSUFFICIENT_EVIDENCE' if driving is None else
+                     'NOT_A_STOP_TEST' if not driving else 'PASS' if res['pass'] else 'FAIL')
     return res
 
 
 def analyze(path):
     rows = load(path)
     out = [measure(rows, k, t) for k, t in events(rows)]
-    return {'events': out, 'pass': bool(out) and all(e['pass'] for e in out),
+    judged = [e for e in out if e['driving']]
+    return {'events': out, 'pass': bool(judged) and all(e['pass'] for e in judged) and all(e['driving'] is not None for e in out), 'stops_under_motion': len(judged),
             'counts': {t: sum(1 for r in rows if r['topic'] == t) for t in TOPICS}}
 
 
@@ -225,7 +270,7 @@ def main(argv=None):
     for e in r['events']:
         print('%-14s cmd0 %-6s motor0 %-6s wheels still %-6s (limit %.1f) latched %-6s %s' % (
             e['event'], e['cmd_zero_s'], e['motor_zero_s'], e['wheels_still_s'], e['limit_s'], e['latched_s'],
-            'PASS' if e['pass'] else 'FAIL'))
+            e['result']))
     print('OVERALL', 'PASS' if r['pass'] else 'FAIL', json.dumps(r['counts']))
     return 0 if r['pass'] else 1
 

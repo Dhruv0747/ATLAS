@@ -3523,3 +3523,13 @@ Reuse established Nano-aware thermal probe; preserve75/80/70 safeguards and null
 2026-10-27 Stage28 profiler guard fix OFFLINE: ongoing bounded policy/telemetry checks,750ms watchdog and >=70C rejection;76 tests PASS. No live profiling or deployment.
 
 2026-10-27 Stage28 Windows CH340/CubeProgrammer original256KB firmware read twice and byte/SHA256 verified. RDPLevel0; settings/options preserved. No flash/erase. B2 NO-GO pending exact modified binary/provenance; host restoration pending.
+
+
+2026-10-30 PR #15 review: development-only skill scope verified; missing or stale nonzero command evidence is INSUFFICIENT_EVIDENCE. No runtime control changes. See docs/PR15_REVIEW.md.
+
+
+2026-10-31: Codex repository discovery manifests in `.agents/skills` link to
+the six unchanged approved `.claude/skills` and ATLAS workflow override.
+No duplicated skill bodies, plugin installation or startup hooks.
+`AGENTS.md` and `CLAUDE.md` require the shared safety overrides.
+See `docs/PR15_CODEX_CLAUDE_INTEGRATION.md` for application validation status.

@@ -133,7 +133,7 @@ def analyze(path=None):
     for e in rep['events']:
         print('%-14s cmd0 %-6s motor0 %-6s wheels still %-6s (limit %.1f) latched %-6s %s' % (
             e['event'], e['cmd_zero_s'], e['motor_zero_s'], e['wheels_still_s'], e['limit_s'], e['latched_s'],
-            'PASS' if e['pass'] else 'FAIL'))
+            e['result']))
     print('OVERALL', 'PASS' if rep['pass'] else 'FAIL', '| report', path + '.report.json')
     return 0 if rep['pass'] else 1
 

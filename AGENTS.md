@@ -19,3 +19,7 @@
 - Keep the master analysis, timeline and blockers consistent when findings materially change. Publish coherent milestones; never publish credentials, raw private conversations or generated logs.
 - This workflow does not authorize movement, flashing, calibration changes, safety bypasses or unattended background work.
 
+
+## Shared development skills
+
+Before using any vendored Superpowers skill, read `.claude/skills/atlas-workflow/SKILL.md` and apply its overrides. Claude Code discovers `.claude/skills`; Codex discovers the linked manifests in `.agents/skills`. Canonical instructions and supporting files stay in `.claude/skills` only. Both directories are development-only and must be excluded from rover deployment packages. No hooks, mandatory brainstorming or full plugin installation is authorized by these manifests.

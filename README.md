@@ -1715,3 +1715,13 @@ Stage28 maintenance retry diagnostics: see [offline safety evidence correction](
 Stage28 CPU evidence: [bounded passive profiler and future validation gate](project_atlas/docs/ATLAS_STAGE28_BOUNDED_CPU_PROFILER_20261027.md). No maintenance retry authorized by profiler preparation.
 
 Stage28 profiler guard correction: [continuous safety checks and timing limits](project_atlas/docs/ATLAS_STAGE28_CPU_PROFILER_GUARD_FIX_20261027.md). New passive-validation approval required.
+
+
+2026-10-30 PR #15 review: development-only skill scope verified; missing or stale nonzero command evidence is INSUFFICIENT_EVIDENCE. No runtime control changes. See docs/PR15_REVIEW.md.
+
+
+2026-10-31: Codex repository discovery manifests in `.agents/skills` link to
+the six unchanged approved `.claude/skills` and ATLAS workflow override.
+No duplicated skill bodies, plugin installation or startup hooks.
+`AGENTS.md` and `CLAUDE.md` require the shared safety overrides.
+See `docs/PR15_CODEX_CLAUDE_INTEGRATION.md` for application validation status.
