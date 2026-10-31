@@ -1,0 +1,39 @@
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'atlas_exporter_observed_timestamp_seconds{instance="fresh"}'
+        values: '0+60x4'
+      - series: 'atlas_exporter_observed_timestamp_seconds{instance="boundary"}'
+        values: '-45+60x4'
+      - series: 'atlas_exporter_observed_timestamp_seconds{instance="stale"}'
+        values: '-45.001+60x4'
+      - series: 'up{job="atlas-jetson",instance="missing"}'
+        values: '0+0x4'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: AtlasTelemetryStale
+        exp_alerts:
+          - exp_labels: {instance: stale, severity: warning}
+            exp_annotations: {summary: "ATLAS exporter data older than 45 s"}
+      - eval_time: 3m
+        alertname: AtlasExporterDown
+        exp_alerts:
+          - exp_labels: {job: atlas-jetson, instance: missing, severity: warning}
+            exp_annotations: {summary: "ATLAS exporter unreachable (rover keeps running; monitoring is blind)"}
+    promql_expr_test:
+      - expr: 'time() - atlas_exporter_observed_timestamp_seconds{instance="fresh"}'
+        eval_time: 3m
+        exp_samples:
+          - labels: '{instance="fresh"}'
+            value: 0
+      - expr: 'time() - atlas_exporter_observed_timestamp_seconds{instance="boundary"}'
+        eval_time: 3m
+        exp_samples:
+          - labels: '{instance="boundary"}'
+            value: 45
+      - expr: 'time() - atlas_exporter_observed_timestamp_seconds{instance="missing"}'
+        eval_time: 3m
+        exp_samples: []

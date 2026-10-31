@@ -1,5 +1,10 @@
 # Project ATLAS - Autonomous Service Rover
 
+Monitoring recovery: [one-attempt transaction and rollback](monitoring/atlas/persistent/RECOVERY_TRANSACTION.md)
+was attempted once on October 31: exporter startup deadline failure, cleanup
+VERIFIED, original latch restored and monitoring stopped. No retry; the original
+watchdog trigger remains UNKNOWN. Transaction correction/review is pending.
+
 ### Ultrasonic validity increment — installed; stationary follow-up open (2026-09-20)
 
 The installed UNO firmware adds atomic sample sequence/age reports; bridge, mux
@@ -608,3 +613,13 @@ This does not reboot or automatically power ATLAS back on.
 `atlas-remote.service` is enabled under `default.target` but must not be ordered
 after that target. Camera joystick units may start after the remote. An explicit
 service stop is not automatically reversed by `Restart=always`.
+
+
+2026-10-30 PR #13: completed cached battery-power/encoder metrics, corrected missing/stale safety-state reporting and Grafana availability mapping, added native alert tests. See monitoring/atlas/README.md. Persistent monitoring activation passed; reboot recovery remains pending. See monitoring/atlas/persistent/FINAL_REVIEW_20261030.md; rover safety controls unchanged.
+
+
+
+2026-10-31: Offline monitoring first-fault preservation correction prepared.
+First latch retained, bounded separate refusal history and sanitized safety
+evidence added; limits unchanged. See monitoring/atlas/persistent/FIRST_FAULT_FIX.md.
+Not deployed; original watchdog rejection remains UNKNOWN.

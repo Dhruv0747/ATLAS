@@ -1,0 +1,78 @@
+# ATLAS health alerts. Evaluated by Prometheus on the monitoring VM only; they notify and NEVER act on the rover.
+# Thresholds come from ATLAS's own limits (CPU 75 %, temperature 70 C) and the topic rates observed on 2026-10-30.
+groups:
+  - name: atlas-observability
+    rules:
+      - alert: AtlasExporterDown
+        expr: up{job="atlas-jetson"} == 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "ATLAS exporter unreachable (rover keeps running; monitoring is blind)"}
+      - alert: AtlasTelemetryStale
+        expr: time() - atlas_exporter_observed_timestamp_seconds > 45
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "ATLAS exporter data older than 45 s"}
+      - alert: AtlasDashboardApiUnavailable
+        expr: atlas_source_available{source="dashboard_api"} == 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "rover-status-web API unavailable: ROS freshness metrics are UNAVAILABLE"}
+  - name: atlas-health
+    rules:
+      - alert: AtlasTemperatureHigh
+        expr: atlas_thermal_max_celsius >= 70
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Jetson at or above the ATLAS 70 C limit for 5 min ({{ $value }} C)"}
+      - alert: AtlasCpuSustainedHigh
+        expr: avg_over_time(atlas_cpu_utilization_percent[10m]) > 75
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Jetson CPU above the ATLAS 75 % limit on average for 10 min"}
+      - alert: AtlasDiskLow
+        expr: atlas_disk_free_bytes / atlas_disk_total_bytes < 0.10
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Jetson disk below 10 % free"}
+      - alert: AtlasLidarStale
+        expr: atlas_topic_stale{topic="lidar"} == 1 or atlas_topic_available{topic="lidar"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "LiDAR data stale or missing for 1 min"}
+      - alert: AtlasMcuTelemetryStale
+        expr: atlas_topic_stale{topic=~"encoder_health|motor_speed|drive_pid"} == 1 or atlas_topic_available{topic=~"encoder_health|motor_speed|drive_pid"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "Base MCU telemetry {{ $labels.topic }} stale or missing for 1 min"}
+      - alert: AtlasEncoderFault
+        expr: atlas_encoder_ready == 0 or atlas_encoder_faults > 0
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "Encoder health not READY or faults reported"}
+      - alert: AtlasCameraStale
+        expr: atlas_topic_stale{topic="camera_info"} == 1 or atlas_topic_available{topic="camera_info"} == 0 or atlas_service_active{service="atlas-camera"} == 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "Raspberry Pi camera metadata stale/missing or atlas-camera not active"}
+      - alert: AtlasServiceRestarting
+        expr: increase(atlas_service_restarts_total[10m]) >= 3
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "{{ $labels.service }} restarted 3+ times in 10 min"}
+      - alert: AtlasServiceFailed
+        expr: atlas_service_failed == 1
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "{{ $labels.service }} is in the failed state"}
+
+      - alert: AtlasMemoryHigh
+        expr: 100 * (1 - atlas_memory_available_bytes / atlas_memory_total_bytes) > 80
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Jetson RAM above 80 percent"}
+      - alert: AtlasControlPolicyUnavailable
+        expr: atlas_source_available{source="control_policy"} == 0
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "Control policy unavailable; do not infer safety state"}

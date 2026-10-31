@@ -1,5 +1,42 @@
 # Changelog
 
+2026-10-31 Monitoring recovery attempt-2 package prepared (offline, not executed): exporter start measured 3.598-3.629 s (three systemd starts) against attempt 1's 3 s sub-deadline; exporter deadline 12 s (outer 25 s bound unchanged); idempotent launcher stop (attempt 1's collected-unit exit 5); new attempt identity -20261031-2. Guard, thresholds, firewall and archive logic byte-identical. 37/37 focused transaction tests. Archive b997bcd4e503. monitoring/atlas/persistent/RECOVERY_TRANSACTION.md
+
+## 2026-10-31 — Dashboard labels; recovery attempt 3 recorded
+
+- Grafana: 11 single-query panels used `legendFormat: __auto` and showed raw `metric{instance=...}` labels. They are now named by their panel title, and multi-query panels must name every query. Queries, thresholds, mappings, the 30 s refresh and the 15 s scrape are unchanged. A config test now blocks `__auto` (10/10 pass). Not deployed.
+- Recovery attempt 3 failed only because `confirm-client` arrived 34 s after the window. There was no watchdog rejection, and cleanup completed. A simpler operator checklist was added; attempt 4 is not built.
+
+## 2026-10-31 — Monitoring recovery attempt 3 (offline; not executed)
+
+- Attempt 2 failed before any change (`retained evidence changed`): its expected state predated attempt 1's legitimate changes.
+- `recover_once.py`: `-20261031-3` identity; owner-verified post-attempt-1 state hashes; original `FAULT.json` still required; lineage pinned to attempt 1's archive and both earlier results; reset tolerates the verified-absent `observer-active.json`.
+- Regression test reproduces the attempt-2 refusal (45/45 pass). Package `monitoring-recovery-transaction-20261031-3.tar.gz` SHA256 `d165261b…fc20`.
+
+## 2026-10-31 — Monitoring recovery attempt failed safely
+
+- One approved da86a6e attempt rejected the exporter 3-second startup sub-deadline;
+  systemd recorded roughly 4 seconds. All 12 captured resource samples were safe.
+- Cleanup verified: archive intact, original fault restored, monitoring stopped,
+  original policies restored and temporary firewall removed. No retry or runtime
+  code changes. Original watchdog fault remains UNKNOWN.
+
+## 2026-10-31 — Offline monitoring recovery transaction
+
+- Added a single-use archive/reset/recovery wrapper around the existing guard and
+  sampler, temporary monitoring-only restart bounds, systemd crash cleanup and
+  independent expiry. Retains old/new fault evidence and exact original policy.
+- Focused simulated and WSL fake-unit validation only; no Jetson changes. Requires
+  separate execution approval; original watchdog cause remains UNKNOWN.
+
+## 2026-10-30 — Monitoring final review
+
+- Verified active monitoring, current firewall restriction and fresh Grafana metrics. Corrected obsolete deployment/rollback guidance. Documented boot-readiness and rendered dashboard issues; no live changes or reboot performed.
+
+## 2026-10-30 — Offline monitoring timestamp fix
+
+- Preserve float64 timestamp precision and use monotonic local cache expiry; retain Unix seconds for Prometheus. Reproduced/eliminated the saved 2301.702-second false age. Focused tests passed; production activation remains separately approval-gated.
+
 ## 2026-09-20 — Stationary ultrasonic/LiDAR comparison and sustained observation
 
 - With motor/servo power kept OFF, briefly SIGSTOP/SIGCONT only the exact sensor
@@ -1352,3 +1389,19 @@ Historical first attempt; the later successful installation is recorded above.
 - Add an opt-in front-channel setting to the existing UNO serial owner. Reapply
   `USENABLE,F,1` on connection with the installed drop-in; preserve rear/left/right
   settings and all navigation safety configuration. No firmware flash required.
+
+
+2026-10-30 PR #13: completed cached battery-power/encoder metrics, corrected missing/stale safety-state reporting and Grafana availability mapping, added native alert tests. See monitoring/atlas/README.md. Optional monitoring deployment remains pending; rover safety controls unchanged.
+# Monitoring preparation — 2026-10-30
+
+- Prepared optional persistent monitoring firewall/safety supervision without changing the trial exporter or rover controls.
+- Added focused offline tests, native isolated packet/fake-systemd validation, inactive Windows startup XML preparation and hashed rollback/deployment instructions. Persistent Jetson activation and reboot validation remain approval-gated.
+
+
+2026-10-30: Grafana controller-label display, explicit unavailable FlySky stats, supported30s refresh; PC dashboard provisioned without restart. Prometheus scrape remains15s.
+
+
+2026-10-31: Offline monitoring first-fault preservation correction prepared.
+First latch retained, bounded separate refusal history and sanitized safety
+evidence added; limits unchanged. See monitoring/atlas/persistent/FIRST_FAULT_FIX.md.
+Not deployed; original watchdog rejection remains UNKNOWN.
