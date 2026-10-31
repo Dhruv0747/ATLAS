@@ -1732,3 +1732,5 @@ Exact-live snapshot producer installation preparation: ATLAS_PRODUCTION_SNAPSHOT
 [Guarded passive Recovery attribution test](ATLAS_RECOVERY_ATTRIBUTION_GUARDED_TEST_20261031.md): offline integration passed; one isolated Jetson overhead test awaits approval. No recovery start.
 
 [Jetson passive attribution result](ATLAS_RECOVERY_ATTRIBUTION_JETSON_RESULT_20261031.md): one approved test PASS; Recovery remains stopped; no startup diagnosis executed.
+
+[Final Recovery startup diagnostic preparation](ATLAS_RECOVERY_STARTUP_DIAGNOSTIC_PACKAGE_20261031.md): integrated attribution and bounded original-service start tested offline; one real attempt awaits separate approval.

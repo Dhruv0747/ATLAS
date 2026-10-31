@@ -3497,3 +3497,5 @@ Reviewed retained original-service CPU rejection, ROS constructor stack and unav
 2026-10-31: integrated passive CPU attribution with independent safety checks, parent-death cleanup and single-use package.13 focused tests PASS including native simulated-safety lifecycle; no live execution.
 
 2026-10-31: documented single approved Jetson attribution test PASS, CPU peak63.12%, observer0.68516CPU-s/20.42MiB;42service identities unchanged. No production source changes.
+
+2026-10-31: prepared original Recovery one-start diagnostic supervisor with dynamic PID/cgroup attribution and independent ExecStopPost cleanup.8 focused tests PASS including native PC fake-unit SIGKILL/timeout. No Jetson operations.
