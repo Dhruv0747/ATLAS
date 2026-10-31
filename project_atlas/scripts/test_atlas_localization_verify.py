@@ -254,7 +254,7 @@ class SeederTests(unittest.TestCase):
         text = ast.get_source_segment(self.source, main)
         unknown_return = text.index('return  # exit 0: an unverified start')
         self.assertLess(unknown_return, text.index('publisher.publish(message)'))
-        self.assertLess(unknown_return, text.index('pose_client.call_async'))
+        self.assertLess(unknown_return, text.index('checkpoint_observer.call(pose_client, request,'))
 
     def test_dry_run_returns_before_any_seed_or_write(self):
         main = next(n for n in ast.parse(self.source).body if isinstance(n, ast.FunctionDef) and n.name == 'main')
@@ -262,7 +262,7 @@ class SeederTests(unittest.TestCase):
         dry = text.index('if args.dry_run:')
         ret = text.index('return', dry)
         self.assertNotIn('write_verdict', text[dry:ret])
-        self.assertLess(ret, text.index('pose_client.call_async'))
+        self.assertLess(ret, text.index('checkpoint_observer.call(pose_client, request,'))
 
     def run_verify(self, verdicts):
         """verify_start_pose with stubbed scans/search returning ``verdicts`` in order."""
