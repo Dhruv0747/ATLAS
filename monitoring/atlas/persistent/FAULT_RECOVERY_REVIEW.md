@@ -4,6 +4,16 @@ Prepared 2026-10-31. **Not executed. Separate execution approval required.**
 This is a supervised procedure using the existing guard and activation sampler,
 not a new observer. Do not rerun either historical installation command.
 
+**Follow-up:** the transaction wrapper is now implemented and offline validated.
+See [RECOVERY_TRANSACTION.md](RECOVERY_TRANSACTION.md) for the exact current
+execution/rollback procedure. The numbered sequence below records the original
+ec28ba9 proposal, not an executable command. Its 360-second expiry is superseded:
+worker RuntimeMaxSec=330, up to 30 seconds stopping the worker and another
+30 seconds for ExecStopPost, independent fallback at 410 seconds with a
+30-second cleanup limit (approximately 440 seconds plus timer scheduling).
+The revised bound must be included in execution approval. The original fault
+cause remains UNKNOWN. No live reset or recovery has occurred.
+
 ## Evidence and current state
 
 - 2026-10-30 20:45:27 IST: exporter started successfully.
@@ -147,7 +157,7 @@ file, original guard, safety configuration or unrelated firewall rule changes.
 If cleanup is interrupted, retain the safer stopped/disabled state and timer;
 do not claim original policy restoration until verified. Never auto-retry.
 
-## Validation and remaining execution risks
+## Historical preparation status at ec28ba9 (superseded by transaction follow-up)
 
 Focused existing tests: `test_monitoring_persistent.py -k 'fault or rollback or
 latch'`: **10 passed, 32 deselected**, Ubuntu 22.04, 2026-10-31. They exercise

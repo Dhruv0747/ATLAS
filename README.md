@@ -1,5 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
+Monitoring recovery: [one-attempt transaction and rollback](monitoring/atlas/persistent/RECOVERY_TRANSACTION.md)
+is offline validated only. It archives retained faults before an owner-approved
+rearm; the original watchdog trigger remains UNKNOWN. No automatic deployment.
+
 ### Ultrasonic validity increment — installed; stationary follow-up open (2026-09-20)
 
 The installed UNO firmware adds atomic sample sequence/age reports; bridge, mux

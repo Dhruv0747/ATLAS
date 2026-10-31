@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-31 — Offline monitoring recovery transaction
+
+- Added a single-use archive/reset/recovery wrapper around the existing guard and
+  sampler, temporary monitoring-only restart bounds, systemd crash cleanup and
+  independent expiry. Retains old/new fault evidence and exact original policy.
+- Focused simulated and WSL fake-unit validation only; no Jetson changes. Requires
+  separate execution approval; original watchdog cause remains UNKNOWN.
+
 ## 2026-10-30 — Monitoring final review
 
 - Verified active monitoring, current firewall restriction and fresh Grafana metrics. Corrected obsolete deployment/rollback guidance. Documented boot-readiness and rendered dashboard issues; no live changes or reboot performed.
