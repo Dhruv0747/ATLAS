@@ -1744,3 +1744,5 @@ Recovery restoration package prepared offline: [corrected package and single-use
 [Corrected Recovery attempt result](ATLAS_RECOVERY_CORRECTED_ATTEMPT_RESULT_20261031.md): FAIL at 86.93% CPU; evidence retained, cleanup verified, Recovery stopped.
 
 [Recovery startup type-loading candidate](ATLAS_RECOVERY_TYPE_PRELOAD_CORRECTION_20261031.md): offline only; Jetson CPU benefit unverified.
+
+[Recovery kernel-time finding](ATLAS_RECOVERY_KERNEL_TIME_FINDING_20261031.md): saved counters narrow overload category; safe fix remains unproven.

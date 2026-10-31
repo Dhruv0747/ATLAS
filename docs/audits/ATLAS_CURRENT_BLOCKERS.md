@@ -1218,3 +1218,5 @@ SIGKILL fake-unit recovery pass. Actual Jetson admission/performance remains gat
 2026-10-31 corrected attempt: FAIL at actual 86.934673% CPU; complete 42.96ms scan retained. Recovery PID374161 reached READY but failed safety, now STOPPED. Recovery cgroup54.71% and localization48.22% of one core; causal hot functions UNKNOWN. Original policy/config restored, 41 unrelated services unchanged. See ATLAS_RECOVERY_CORRECTED_ATTEMPT_RESULT_20261031.md.
 
 2026-10-31 offline candidate: required Recovery message types preloaded before rclpy.init, methods/QoS/safety unchanged. Four tests and native no-node check PASS; PC import16ms only, no measured Jetson saving. Not sufficient evidence to declare86.93% issue resolved. Recovery remains STOPPED. See ATLAS_RECOVERY_TYPE_PRELOAD_CORRECTION_20261031.md.
+
+2026-10-31 saved-counter review: approx96% of66.28->86.93% CPU increase is system/IRQ/softIRQ time, not user time. Existing user-only Nav2 stacks cannot identify kernel hot path. No substantial safe runtime fix established; no new tools/tests/live actions. See ATLAS_RECOVERY_KERNEL_TIME_FINDING_20261031.md.
