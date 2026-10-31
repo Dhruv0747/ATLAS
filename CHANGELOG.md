@@ -3503,3 +3503,5 @@ Reviewed retained original-service CPU rejection, ROS constructor stack and unav
 2026-10-31: recorded one approved diagnostic start; collector150ms deadline failed after first startup attribution sample. Recovery stopped and policy restored;41unrelated units unchanged. No retry or source modification.
 
 2026-10-31: corrected150ms attribution truncation to preserve valid aggregate/partial counters with explicit gaps; unchanged safety gates.8 focused offline tests PASS; no runtime execution.
+
+2026-10-31: Rebuilt existing Recovery restoration package with partial CPU evidence fix; fresh supervisor staging path, nine verified hashes, eight focused built-package tests passed. No live execution.

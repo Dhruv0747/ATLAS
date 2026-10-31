@@ -2,8 +2,8 @@
 Description=One approved Recovery startup diagnostic
 [Service]
 Type=exec
-ExecStart=/usr/bin/python3 -B /home/jetson/project-atlas-migration/recovery-startup-diagnostic-20261031/recovery_startup_diagnostic.py --approved-once
-ExecStopPost=/usr/bin/python3 -B /home/jetson/project-atlas-migration/recovery-startup-diagnostic-20261031/recovery_startup_diagnostic.py --cleanup
+ExecStart=/usr/bin/python3 -B /home/jetson/project-atlas-migration/recovery-restoration-1d81445/recovery_startup_diagnostic.py --approved-once
+ExecStopPost=/usr/bin/python3 -B /home/jetson/project-atlas-migration/recovery-restoration-1d81445/recovery_startup_diagnostic.py --cleanup
 Restart=no
 RuntimeMaxSec=60
 TimeoutStopSec=30
