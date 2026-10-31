@@ -1,5 +1,67 @@
 # One monitoring recovery transaction — offline preparation
 
+## Controlled execution result — 2026-10-31 11:39:53–11:40:09 IST
+
+**FAIL; cleanup VERIFIED. NO-GO for another attempt without correction/review.**
+This supersedes the preparation GO below. Exactly one owner-approved attempt
+used da86a6e and archive SHA256 157b00723d3e4de2847a191f87629cd8fdd8fc9f608963b6a322b2f3b4efc4ff.
+All seven package hashes and exact installed unit/firewall configuration matched.
+
+Timeline from the existing systemd journal:
+
+- 11:39:53 transaction worker started; independent expiry armed.
+- 11:39:59 firewall unit started successfully.
+- 11:40:02 watchdog ready; exporter startup began.
+- 11:40:06 wrapper rejected `startup deadline: atlas-monitoring-exporter.service`.
+  Systemd recorded exporter started at the same second. The wrapper's 3-second
+  exporter sub-deadline was insufficient for this roughly 4-second startup,
+  which includes its existing guarded ExecCondition. This is a transaction
+  startup-deadline failure, not evidence of a CPU safety rejection.
+- 11:40:07 automatic cleanup stopped exporter/watchdog/firewall.
+- 11:40:09 transaction finished with failure; 16.072 s runtime, 1.330 s cgroup
+  CPU time. Launcher then tried to stop its already-collected transient unit,
+  producing an additional exit-status-5 exception. This did not cause the
+  original timeout and did not prevent cleanup.
+
+Owner's root-only evidence summary: result FAIL / cleanup VERIFIED, original
+cause UNKNOWN; all six original-state checksums PASS (including the evidence
+lock). Restored FAULT.json SHA256:
+3715b150b880ed06d9e21f25006b81a699693328bb77a80155cf148dcdb1ae97.
+Root nft table inventory contains metainfo only; no monitoring table remains.
+Evidence directory: `/var/lib/atlas-monitoring-recovery-20261031/`, including
+`original-state/`, `state-manifest.json`, `failure.json`, `result.json`, and
+`samples.jsonl`. Raw private logs were not committed.
+
+Twelve accepted transaction samples (not a 300-second steady-state test):
+
+| Metric | Average | Peak |
+|---|---:|---:|
+| Whole-Jetson CPU | 65.341% | 73.377% |
+| RAM | 59.871% | 60.063% |
+| Maximum trustworthy temperature | 62.059°C | 62.218°C |
+
+Final captured sample: E-STOP latched, manual-only/uncommissioned, zero commands
+and motor speed, unchanged encoders [114,-137,-155,-178], fresh required topics.
+Independent postflight: all monitoring MainPIDs=0, inactive; no 9118 listener;
+no temporary drop-ins; exporter original Restart=on-failure/enabled restored;
+watchdog/firewall Restart=no/static restored; independent expiry inactive.
+Recovery PID1982/NRestarts0, Dashboard2064/0 and MCU3487/1 unchanged. Cleanup's
+protected-service and unrelated-rule comparisons passed.
+
+Prometheus target DOWN/connection refused after cleanup; actual Grafana page
+shows DOWN/UNAVAILABLE. Live-data validation did not pass, no client confirmation
+was issued, and no 300-second observation completed. Exporter steady-state
+overhead cannot be measured from this short startup; the 1.330 s figure belongs
+to the transaction cgroup, not the exporter alone.
+
+Next scoped work, not performed: correct the exporter startup deadline within
+the existing supervised bound, and make post-collection launcher stop handling
+idempotent; focused offline validation before any separately approved attempt.
+No retry, threshold change, unrelated service restart or PR merge. The original
+October 30 watchdog rejection remains UNKNOWN and unresolved.
+
+## Historical preparation status (before the single execution)
+
 Status: **offline PASS; GO for one separately approved execution, subject to
 fresh on-device admission. NOT deployed or executed.** Original October 30
 watchdog rejection remains UNKNOWN; this does not fix or explain that trigger.

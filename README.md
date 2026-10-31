@@ -1,8 +1,9 @@
 # Project ATLAS - Autonomous Service Rover
 
 Monitoring recovery: [one-attempt transaction and rollback](monitoring/atlas/persistent/RECOVERY_TRANSACTION.md)
-is offline validated only. It archives retained faults before an owner-approved
-rearm; the original watchdog trigger remains UNKNOWN. No automatic deployment.
+was attempted once on October 31: exporter startup deadline failure, cleanup
+VERIFIED, original latch restored and monitoring stopped. No retry; the original
+watchdog trigger remains UNKNOWN. Transaction correction/review is pending.
 
 ### Ultrasonic validity increment — installed; stationary follow-up open (2026-09-20)
 

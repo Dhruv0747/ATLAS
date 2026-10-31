@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-31 — Monitoring recovery attempt failed safely
+
+- One approved da86a6e attempt rejected the exporter 3-second startup sub-deadline;
+  systemd recorded roughly 4 seconds. All 12 captured resource samples were safe.
+- Cleanup verified: archive intact, original fault restored, monitoring stopped,
+  original policies restored and temporary firewall removed. No retry or runtime
+  code changes. Original watchdog fault remains UNKNOWN.
+
 ## 2026-10-31 — Offline monitoring recovery transaction
 
 - Added a single-use archive/reset/recovery wrapper around the existing guard and
