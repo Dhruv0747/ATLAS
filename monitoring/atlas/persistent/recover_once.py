@@ -21,10 +21,11 @@ import threading
 import time
 
 BASE = Path(__file__).resolve().parent
-# Attempt 3: the directories and unit names of attempts 1 and 2 are retained evidence and must never be reused.
-E = Path('/var/lib/atlas-monitoring-recovery-20261031-3')
+# Attempt 4: the directories and unit names of attempts 1-3 are retained evidence and must never be reused.
+E = Path('/var/lib/atlas-monitoring-recovery-20261031-4')
 ATTEMPT1 = Path('/var/lib/atlas-monitoring-recovery-20261031')
 ATTEMPT2 = Path('/var/lib/atlas-monitoring-recovery-20261031-2')
+ATTEMPT3 = Path('/var/lib/atlas-monitoring-recovery-20261031-3')
 GUARD = Path('/usr/local/libexec/atlas-monitoring-guard.py')
 GUARD_SHA = '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'
 SAMPLER_SHA = 'a25ff2d8c6a516357d61f4a1d70fadf98b36178b9e547d25d1643b937bdd8969'
@@ -45,7 +46,8 @@ ORIGINAL_STATE = {
 # Verified 2026-10-31 13:15: every hash recomputed from the printed bytes; content times 11:39:59.555 (firewall),
 # 11:40:02.572 (watchdog health) and 11:40:07.851 (cleanup rollback) lie inside attempt 1; nothing newer than 11:40:08.
 EMPTY_SHA = hashlib.sha256(b'').hexdigest()
-VERIFIED_STATE = {
+# Attempt 3 archived exactly this state; its manifest must still equal it (chain to the original latch).
+STATE_BEFORE_ATTEMPT3 = {
     'FAULT.json': EXPECTED_FAULT,                                                            # original latch, byte-identical
     'evidence.lock': EMPTY_SHA,                                                              # attempt-1 lock file, empty
     'firewall-owned.json': '5f3fe2b4c402d0dd7b997193b426932d3db44fa65f87c1b5d33fc06f1ade648b',
@@ -53,12 +55,16 @@ VERIFIED_STATE = {
     'operations.lock': EMPTY_SHA,                                                            # unchanged since 10-30 20:45
     'rollback.json': '3bc4ba22f58b9e1173c430e79ae7ee94f23040b4c95d106a63976165bb18204e',
 }
+# Attempt 3 (13:20-13:25) failed only because confirm-client was late; its verified cleanup again restored only
+# FAULT.json. State after attempt 3, read by the owner with sudo. Empty means NOT VERIFIED: the worker refuses.
+VERIFIED_STATE = {}
 EXPECTED_STATE = VERIFIED_STATE
 # Exact bytes of the earlier attempts' terminal results (attempt 1: FAIL/VERIFIED cleanup; attempt 2: FAIL/NO_MUTATION).
 ATTEMPT1_RESULT_SHA = '235d2a6e024e667cbef63009085035ddc7fa13df5c18f3d6f8a8adcef139a045'   # FAIL / cleanup VERIFIED
 ATTEMPT2_RESULT_SHA = '2e2fbbf009f7c1508195eede2be9aa42d6c85f9ddf9be95392b115c35a3b2fb6'   # FAIL / NO_MUTATION
+ATTEMPT3_RESULT_SHA = ''   # expected FAIL / cleanup VERIFIED; pinned from the owner read
 NAMES = tuple('atlas-monitoring-'+n+'.service' for n in ('firewall','watchdog','exporter'))
-TX = 'atlas-monitoring-recovery-once-20261031-3'
+TX = 'atlas-monitoring-recovery-once-20261031-4'
 # Exporter start (systemd Starting->Started, incl. its guarded ExecCondition) measured 3.629 s, 3.623 s (2026-10-30)
 # and 3.598 s (2026-10-31 attempt 1, which failed on the old 3 s sub-deadline). 12 s = 3.3x the slowest measured
 # start. The 25 s supervised step bound below is unchanged and remains the hard cap for watchdog + exporter.
@@ -139,6 +145,9 @@ def verify_lineage():
     require(bool(ATTEMPT1_RESULT_SHA) and digest(ATTEMPT1/'result.json') == ATTEMPT1_RESULT_SHA, 'attempt-1 result changed')
     require(bool(ATTEMPT2_RESULT_SHA) and digest(ATTEMPT2/'result.json') == ATTEMPT2_RESULT_SHA, 'attempt-2 result changed')
     require(not (ATTEMPT2/'mutation-intent.json').exists(), 'attempt 2 was not mutation-free')
+    require(json.loads((ATTEMPT3/'state-manifest.json').read_text()) == STATE_BEFORE_ATTEMPT3, 'attempt-3 archive changed')
+    require(digest(ATTEMPT3/'original-state'/'FAULT.json') == EXPECTED_FAULT, 'attempt-3 fault archive changed')
+    require(bool(ATTEMPT3_RESULT_SHA) and digest(ATTEMPT3/'result.json') == ATTEMPT3_RESULT_SHA, 'attempt-3 result changed')
 
 
 def archive_state():
@@ -501,6 +510,11 @@ def main():
         write(E/'request.json', {'time':time.time(),'original_cause':'UNKNOWN'})
         def stop_request(signum, frame): raise RuntimeError('owner interrupted')
         signal.signal(signal.SIGTERM,stop_request); signal.signal(signal.SIGINT,stop_request)
+        # Attempt 3 failed only because confirmation came 34 s late. Information only; no bound changes.
+        now=time.time()
+        print('Observation window closes about %s (start + ~305 s). Run confirm-client by %s (start + 240 s).'
+              % (time.strftime('%H:%M:%S',time.localtime(now+305)), time.strftime('%H:%M:%S',time.localtime(now+240))),
+              flush=True)
         try:
             run(*expiry_command())
             require(run('systemctl','is-active',EXPIRY+'.timer').strip()=='active', 'expiry not armed')

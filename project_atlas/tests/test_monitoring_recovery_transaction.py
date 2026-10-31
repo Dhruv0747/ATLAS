@@ -352,7 +352,7 @@ def test_deadline_margin_is_finite_and_step_bound_unchanged():
 def test_new_attempt_never_reuses_attempt_one_identity():
     assert R.E != Path('/var/lib/atlas-monitoring-recovery-20261031')
     assert R.TX != 'atlas-monitoring-recovery-once-20261031'
-    assert R.E not in (R.ATTEMPT1, R.ATTEMPT2) and R.TX.endswith('-20261031-3')
+    assert R.E not in (R.ATTEMPT1, R.ATTEMPT2, R.ATTEMPT3) and R.TX.endswith('-20261031-4')
 
 
 @pytest.mark.parametrize('show,expect,stopped', [
@@ -386,12 +386,17 @@ def _attempt1_lineage(tmp_path, monkeypatch, original, fault):
     (a1/'result.json').write_text('{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}')
     (a2/'result.json').write_text('{"cleanup": "NO_MUTATION", "result": "FAIL"}')
     monkeypatch.setattr(R, 'ATTEMPT1', a1); monkeypatch.setattr(R, 'ATTEMPT2', a2)
+    a3 = tmp_path/'a3'; (a3/'original-state').mkdir(parents=True)
+    (a3/'state-manifest.json').write_text(json.dumps(R.STATE_BEFORE_ATTEMPT3))
+    (a3/'original-state'/'FAULT.json').write_bytes(fault)
+    (a3/'result.json').write_text('{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}')
+    monkeypatch.setattr(R, 'ATTEMPT3', a3); monkeypatch.setattr(R, 'ATTEMPT3_RESULT_SHA', R.digest(a3/'result.json'))
     monkeypatch.setattr(R, 'ATTEMPT1_RESULT_SHA', R.digest(a1/'result.json'))
     monkeypatch.setattr(R, 'ATTEMPT2_RESULT_SHA', R.digest(a2/'result.json'))
     return a1, a2
 
 
-@pytest.mark.parametrize('tamper', [None, 'last-health', 'fault', 'extra', 'a1-manifest', 'a2-mutated', 'unverified'])
+@pytest.mark.parametrize('tamper', [None, 'last-health', 'fault', 'extra', 'a1-manifest', 'a2-mutated', 'unverified', 'a3-manifest', 'a3-result'])
 def test_attempt2_refusal_reproduced_and_only_verified_post_attempt1_state_accepted(tmp_path, monkeypatch, tamper):
     """2026-10-31 12:57 attempt 2: attempt 1 legitimately changed the state, so the pre-attempt-1 expectation refused."""
     live = tmp_path/'state'; live.mkdir(); evidence = tmp_path/'attempt'; evidence.mkdir()
@@ -423,6 +428,8 @@ def test_attempt2_refusal_reproduced_and_only_verified_post_attempt1_state_accep
     if tamper == 'a1-manifest': (a1/'state-manifest.json').write_text('{}')
     if tamper == 'a2-mutated': (a2/'mutation-intent.json').write_text('{}')
     if tamper == 'unverified': monkeypatch.setattr(R, 'EXPECTED_STATE', {})
+    if tamper == 'a3-manifest': (tmp_path/'a3'/'state-manifest.json').write_text('{}')
+    if tamper == 'a3-result': (tmp_path/'a3'/'result.json').write_text('{"result": "PASS"}')
     if tamper:
         with pytest.raises(RuntimeError): R.archive_state()
         assert (live/'FAULT.json').exists() and not (evidence/'reset-intent.json').exists()   # latch kept
@@ -434,10 +441,9 @@ def test_attempt2_refusal_reproduced_and_only_verified_post_attempt1_state_accep
 
 
 def test_attempt3_constants_are_the_owner_verified_jetson_state():
-    """Pinned values from the owner's 13:15 sudo read; the latch hash is the original one."""
-    assert R.VERIFIED_STATE['FAULT.json'] == R.EXPECTED_FAULT == '3715b150b880ed06d9e21f25006b81a699693328bb77a80155cf148dcdb1ae97'
-    assert set(R.VERIFIED_STATE) == {'FAULT.json','evidence.lock','firewall-owned.json','last-health.json','operations.lock','rollback.json'}
+    """Pinned values from the owner's 13:15 sudo read (the state attempt 3 archived); the latch hash is the original one."""
+    assert R.STATE_BEFORE_ATTEMPT3['FAULT.json'] == R.EXPECTED_FAULT == '3715b150b880ed06d9e21f25006b81a699693328bb77a80155cf148dcdb1ae97'
+    assert set(R.STATE_BEFORE_ATTEMPT3) == {'FAULT.json','evidence.lock','firewall-owned.json','last-health.json','operations.lock','rollback.json'}
     assert R.ORIGINAL_STATE['FAULT.json'] == R.EXPECTED_FAULT and 'observer-active.json' in R.ORIGINAL_STATE
-    assert R.EXPECTED_STATE is R.VERIFIED_STATE
     a1 = b'{"cleanup": "VERIFIED", "original_cause": "UNKNOWN", "result": "FAIL"}'; a2 = b'{"cleanup": "NO_MUTATION", "result": "FAIL"}'
     assert R.ATTEMPT1_RESULT_SHA == R.hashlib.sha256(a1).hexdigest() and R.ATTEMPT2_RESULT_SHA == R.hashlib.sha256(a2).hexdigest()
