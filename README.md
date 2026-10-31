@@ -1734,3 +1734,5 @@ Exact-live snapshot producer installation preparation: ATLAS_PRODUCTION_SNAPSHOT
 [Jetson passive attribution result](ATLAS_RECOVERY_ATTRIBUTION_JETSON_RESULT_20261031.md): one approved test PASS; Recovery remains stopped; no startup diagnosis executed.
 
 [Final Recovery startup diagnostic preparation](ATLAS_RECOVERY_STARTUP_DIAGNOSTIC_PACKAGE_20261031.md): integrated attribution and bounded original-service start tested offline; one real attempt awaits separate approval.
+
+[Recovery diagnostic attempt result](ATLAS_RECOVERY_DIAGNOSTIC_ATTEMPT_RESULT_20261031.md): FAIL on collector deadline; original Recovery stopped, policy restored, incident OPEN.
