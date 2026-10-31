@@ -61,12 +61,57 @@ def atomic(name, value):
     finally:
         os.close(fd)
 
+EVIDENCE = {}
+ACTION = 'unknown'
+EVENT_LIMIT = 16
+
 def latch(reason):
-    # Never persist raw API payloads, credentials or arbitrary exception output.
-    atomic('FAULT.json', {'time':time.time(), 'reason':reason[:160]})
+    # Serialize independent guard processes; retain even malformed first evidence.
+    fd = os.open(STATE/'evidence.lock', os.O_CREAT|os.O_WRONLY|os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX|fcntl.LOCK_NB)
+        try:
+            boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+        except OSError:
+            boot = None
+        record = dict(time=time.time(), monotonic=time.monotonic(), boot_id=boot,
+                      action=ACTION, reason=reason[:160], evidence=dict(EVIDENCE))
+        if not os.path.lexists(STATE/'FAULT.json'):
+            atomic('FAULT.json', record)
+            return
+        # Never read/repair/replace the original latch, including corrupt files.
+        path = STATE/'fault-events.json'
+        events = []
+        if os.path.lexists(path):
+            require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 65536,
+                    'invalid subsequent evidence')
+            events = json.loads(path.read_text())
+            require(isinstance(events,list) and len(events)<=EVENT_LIMIT and
+                    all(isinstance(e,dict) for e in events), 'corrupt subsequent evidence')
+        events = (events + [record])[-EVENT_LIMIT:]
+        require(len(json.dumps(events,allow_nan=False).encode())<=65536, 'evidence size limit')
+        atomic('fault-events.json', events)
+
+def evidence_scalar(value):
+    return value if type(value) is bool or (finite(value) and abs(value)<1e15) else None
+
+def safety_evidence(ros):
+    # Whitelist numerical/boolean observations; no raw payloads or private strings.
+    out = {'ages':{k:evidence_scalar(ros.get(k,{}).get('age')) for k in LIMITS}}
+    for key, fields in [('control_policy',('stop_latched','manual_only','commission_armed')),
+                        ('encoder_health',('packet_fresh',))]:
+        try:
+            obj=json.loads(ros.get(key,{}).get('value',''))
+            out[key]={k:evidence_scalar(obj.get(k)) for k in fields}
+        except (ValueError,TypeError,AttributeError):out[key]=None
+    cmd=ros.get('cmd_vel',{}).get('value')
+    out['command']={k:evidence_scalar(cmd.get(k)) for k in ('lin','ang')} if isinstance(cmd,dict) else None
+    out['encoders']=[evidence_scalar(ros.get('enc_m'+str(i),{}).get('value')) for i in range(1,5)]
+    out['motor_speed']=evidence_scalar(ros.get('motor_speed',{}).get('value'))
+    return out
 
 def no_fault():
-    require(not (STATE/'FAULT.json').exists(), 'fault latched; owner review required')
+    require(not os.path.lexists(STATE/'FAULT.json'), 'fault latched; owner review required')
 
 def canonical(document):
     entries = []
@@ -161,22 +206,32 @@ def deadline(signum, frame):
     raise Rejected('observer deadline exceeded')
 
 def observe(previous, counts):
+    EVIDENCE.clear()
+    EVIDENCE.update(observation_started=time.time(), stage='firewall')
     no_fault()
     # Absolute deadline also bounds a slow-drip HTTP response, filesystem stalls and nft inspection.
     signal.setitimer(signal.ITIMER_REAL, 2)
     try:
         verify_firewall()
+        EVIDENCE['stage']='API'
         started = time.monotonic()
         with urllib.request.urlopen('http://127.0.0.1:8088/api/status',timeout=0.5) as response:
             payload = response.read(1048577)
         require(len(payload)<=1048576 and time.monotonic()-started<=0.75, 'API size/deadline')
         ros = json.loads(payload)['ros']
+        EVIDENCE.update(safety_evidence(ros)); EVIDENCE['stage']='resources'
         cur = cpu_counter(); elapsed = cur[0]-previous[0]
         require(0.8 <= elapsed <= 1.5 and cur[1]>previous[1] and cur[2]>=previous[2], 'CPU sampling interval')
         cpu = 100*(1-(cur[2]-previous[2])/(cur[1]-previous[1]))
+        EVIDENCE.update(cpu=evidence_scalar(cpu),sample_interval=evidence_scalar(elapsed))
         mem = {a:int(b.split()[0]) for a,b in (x.split(':',1) for x in Path('/proc/meminfo').read_text().splitlines())}
         ram = 100*(1-mem['MemAvailable']/mem['MemTotal'])
+        EVIDENCE['ram']=evidence_scalar(ram)
         temps, unavailable = read_thermal()
+        EVIDENCE.update(cpu=evidence_scalar(cpu),ram=evidence_scalar(ram),
+                        temperatures=[evidence_scalar(t) for t in temps[:16]],
+                        sample_interval=evidence_scalar(elapsed),
+                        previous_encoders=[evidence_scalar(v) for v in counts] if counts is not None else None,stage='validate')
         counts = validate(ros,cpu,ram,temps,counts)
         return cur,counts,{'time':time.time(),'cpu':cpu,'ram':ram,'temp':max(temps),
                            'sample_interval':elapsed,'unavailable_thermal':unavailable}
@@ -242,8 +297,11 @@ class CleanStop(BaseException):
     pass
 
 def main():
+    global ACTION
+    EVIDENCE.clear()
     parser=argparse.ArgumentParser(); parser.add_argument('action',choices=['firewall','preflight','watchdog','rollback'])
     action=parser.parse_args().action
+    ACTION=action
     require(os.geteuid()==0,'root required')
     STATE.mkdir(mode=0o700,parents=True,exist_ok=True)
     require(STATE.lstat().st_uid==0 and stat.S_ISDIR(STATE.lstat().st_mode)
@@ -264,7 +322,7 @@ def main():
     except CleanStop:
         if action=='watchdog':
             # systemd ordering stops exporter first on a normal dependency stop.
-            if not listeners() and not (STATE/'FAULT.json').exists():
+            if not listeners() and not os.path.lexists(STATE/'FAULT.json'):
                 (STATE/'observer-active.json').unlink(missing_ok=True)
             else:
                 latch('observer stopped with exporter/fault present')

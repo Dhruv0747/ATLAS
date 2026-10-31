@@ -1370,3 +1370,9 @@ Historical first attempt; the later successful installation is recorded above.
 
 
 2026-10-30: Grafana controller-label display, explicit unavailable FlySky stats, supported30s refresh; PC dashboard provisioned without restart. Prometheus scrape remains15s.
+
+
+2026-10-31: Offline monitoring first-fault preservation correction prepared.
+First latch retained, bounded separate refusal history and sanitized safety
+evidence added; limits unchanged. See monitoring/atlas/persistent/FIRST_FAULT_FIX.md.
+Not deployed; original watchdog rejection remains UNKNOWN.

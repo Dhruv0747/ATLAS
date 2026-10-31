@@ -141,3 +141,56 @@ def test_package_is_exact_and_refuses_overwrite(tmp_path):
     assert '/run/user/1234' in (out/'atlas-monitoring-exporter.service').read_text()
     with pytest.raises(FileExistsError):module.prepare(out,1234)
     with pytest.raises(ValueError):module.prepare(tmp_path/'bad',0)
+
+
+def test_first_fault_survives_repeated_refusals_and_reboot(tmp_path,monkeypatch):
+    monkeypatch.setattr(G,'STATE',tmp_path)
+    monkeypatch.setattr(G,'EVIDENCE',{'cpu':81.2,'stage':'validate'})
+    monkeypatch.setattr(G,'ACTION','watchdog')
+    G.latch('CPU limit'); original=(tmp_path/'FAULT.json').read_bytes()
+    first=json.loads(original)
+    assert first['boot_id'] and first['time'] and first['evidence']['cpu']==81.2
+    # Fresh module simulates a new process/boot with only disk state retained.
+    spec2=importlib.util.spec_from_file_location('guard_reboot',ROOT/'monitoring/atlas/persistent/guard.py')
+    new=importlib.util.module_from_spec(spec2);spec2.loader.exec_module(new);new.STATE=tmp_path
+    new.ACTION='firewall'
+    for _ in range(20):
+        with pytest.raises(new.Rejected):new.no_fault()
+        new.latch('fault latched; owner review required')
+    assert (tmp_path/'FAULT.json').read_bytes()==original
+    events=json.loads((tmp_path/'fault-events.json').read_text())
+    assert len(events)==16 and events[-1]['action']=='firewall'
+    assert events[-1]['evidence']=={} and (tmp_path/'fault-events.json').stat().st_size<=65536
+
+@pytest.mark.parametrize('content',[b'',b'{broken',b'null'])
+def test_corrupt_first_fault_preserved_and_blocks(tmp_path,monkeypatch,content):
+    monkeypatch.setattr(G,'STATE',tmp_path);(tmp_path/'FAULT.json').write_bytes(content)
+    with pytest.raises(G.Rejected):G.no_fault()
+    G.latch('fault latched; owner review required')
+    assert (tmp_path/'FAULT.json').read_bytes()==content
+
+def test_broken_latch_symlink_blocks(tmp_path,monkeypatch):
+    monkeypatch.setattr(G,'STATE',tmp_path);(tmp_path/'FAULT.json').symlink_to(tmp_path/'absent')
+    with pytest.raises(G.Rejected):G.no_fault()
+    G.latch('fault latched; owner review required')
+    assert (tmp_path/'FAULT.json').is_symlink() and not (tmp_path/'absent').exists()
+
+def test_corrupt_event_history_is_not_overwritten(tmp_path,monkeypatch):
+    monkeypatch.setattr(G,'STATE',tmp_path);G.latch('first')
+    (tmp_path/'fault-events.json').write_text('{broken')
+    with pytest.raises(ValueError):G.latch('second')
+    assert (tmp_path/'fault-events.json').read_text()=='{broken'
+    assert json.loads((tmp_path/'FAULT.json').read_text())['reason']=='first'
+
+def test_subsequent_atomic_failure_preserves_both_records(tmp_path,monkeypatch):
+    monkeypatch.setattr(G,'STATE',tmp_path);G.latch('first');G.latch('second')
+    before=[(tmp_path/n).read_bytes() for n in ('FAULT.json','fault-events.json')]
+    with mock.patch.object(G.os,'replace',side_effect=OSError('disk failure')),pytest.raises(OSError):G.latch('third')
+    assert before==[(tmp_path/n).read_bytes() for n in ('FAULT.json','fault-events.json')]
+
+def test_safety_evidence_redacts_and_keeps_invalid_unknown():
+    data={'control_policy':{'age':0.1,'value':json.dumps({'stop_latched':False,'manual_only':True,'commission_armed':False,'secret':'password'})},'cmd_vel':{'value':{'lin':0.2,'ang':float('nan'),'secret':'password'}}}
+    evidence=G.safety_evidence(data)
+    assert evidence['control_policy']['stop_latched'] is False
+    assert evidence['command']=={'lin':0.2,'ang':None}
+    assert evidence['encoders']==[None]*4 and 'password' not in json.dumps(evidence)
