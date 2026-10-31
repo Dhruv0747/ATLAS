@@ -1752,3 +1752,10 @@ Recovery restoration package prepared offline: [corrected package and single-use
 [AMCL initial-pose findings](ATLAS_AMCL_INITIAL_POSE_FINDINGS_20261031.md): loaded map, ambiguous startup match, seed safely withheld; separate OPEN localization issue.
 
 [AMCL place-verification plan](ATLAS_AMCL_PLACE_VERIFICATION_PLAN_20261031.md): owner confirms Dhruv Room; exact pose remains unverified. Offline replay explains one-beam ambiguity.
+
+
+2026-10-31: Named-place localization dry-run safety path corrected offline: one
+attempt, bounded processing, independent existing safety utilities and continuous
+sensor/TF freshness checks. 14 focused tests passed. Not deployed or executed;
+localization remains unverified and Recovery remains STOPPED/open. See
+[guard report](docs/audits/ATLAS_LOCALIZATION_DRY_RUN_GUARD_20261031.md).

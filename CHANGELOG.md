@@ -3517,3 +3517,10 @@ Reviewed retained original-service CPU rejection, ROS constructor stack and unav
 2026-10-31: Saved localization startup evidence identifies verify-mode refusal as cause of missing initial pose; no service or safety changes. Documented stale source-text test separately.
 
 2026-10-31: Separate test-only fix ed88556 updates seeder API assertions; five tests PASS. Recorded230/246 vs229/246 replay matches and owner-confirmed Dhruv Room; no localization runtime changes.
+
+
+2026-10-31: Named-place localization dry-run safety path corrected offline: one
+attempt, bounded processing, independent existing safety utilities and continuous
+sensor/TF freshness checks. 14 focused tests passed. Not deployed or executed;
+localization remains unverified and Recovery remains STOPPED/open. See
+[guard report](docs/audits/ATLAS_LOCALIZATION_DRY_RUN_GUARD_20261031.md).

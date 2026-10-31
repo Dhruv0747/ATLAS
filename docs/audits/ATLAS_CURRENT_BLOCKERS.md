@@ -1226,3 +1226,10 @@ SIGKILL fake-unit recovery pass. Actual Jetson admission/performance remains gat
 2026-10-31 separate localization finding: map loaded; verify-mode seeder deliberately withheld initial pose after ambiguous matches (margin0.004). AMCL/map-TF readiness blocked, physical disambiguation unresolved. No pose published or runtime changed. One ambiguity test PASS; old source-text seeder test ERROR due renamed observer call. See ATLAS_AMCL_INITIAL_POSE_FINDINGS_20261031.md.
 
 2026-10-31 AMCL follow-up: saved two candidates match230/246 and229/246 held-out beams,213 common; current room independently confirmed DHRUV ROOM. Heading/movement history pending, no current pose verified. Existing verify-place dry-run needs separate live approval; five focused tests PASS, test-only API fix. Recovery remains STOPPED/open. See ATLAS_AMCL_PLACE_VERIFICATION_PLAN_20261031.md.
+
+
+2026-10-31: Named-place localization dry-run safety path corrected offline: one
+attempt, bounded processing, independent existing safety utilities and continuous
+sensor/TF freshness checks. 14 focused tests passed. Not deployed or executed;
+localization remains unverified and Recovery remains STOPPED/open. See
+[guard report](ATLAS_LOCALIZATION_DRY_RUN_GUARD_20261031.md).

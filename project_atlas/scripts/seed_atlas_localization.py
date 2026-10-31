@@ -202,7 +202,7 @@ def load_place_region(name, path=None):
     return dict(box, place=key, map_yaml_sha256=str(data.get("map_yaml_sha256", "")))
 
 
-def verify_start_pose(node, map_yaml, attempts=VERIFY_ATTEMPTS, budget_s=VERIFY_BUDGET_S, region=None):
+def verify_start_pose(node, map_yaml, attempts=VERIFY_ATTEMPTS, budget_s=VERIFY_BUDGET_S, region=None, strict_inputs=None):
     """Return (pose dict or None, verdict record). Uses no saved pose.
 
     Up to ``attempts`` independent parked-scan checks (people walking past
@@ -225,12 +225,12 @@ def verify_start_pose(node, map_yaml, attempts=VERIFY_ATTEMPTS, budget_s=VERIFY_
         laser = None
         verdict = None
         for _ in range(max(1, attempts)):
-            scans, problem = collect_parked_scans(node)
+            scans, problem = strict_inputs.collect() if strict_inputs is not None else collect_parked_scans(node)
             if problem:
                 record.update(state="UNKNOWN", reason=problem)
                 return None, record
             if laser is None:
-                laser = laser_in_base(node, scans[0].header.frame_id)
+                laser = strict_inputs.check() if strict_inputs is not None else laser_in_base(node, scans[0].header.frame_id)
             ranges = core.median_ranges([list(m.ranges) for m in scans])
             all_pts, held = core.endpoints(scans[0].angle_min, scans[0].angle_increment, ranges, laser, policy)
             # positional: region is None for the normal boot check (whole map, unchanged)
@@ -311,6 +311,10 @@ def main():
     region = load_place_region(args.verify_place) if args.verify_place else None
     verify = (args.mode == "verify" and args.place is None) or region is not None
     pose = None if (verify or args.dry_run) else load_pose(args.place)
+    if args.dry_run and args.verify_place:
+        import sys
+        from atlas_localization_dry_run import run
+        return run(sys.modules[__name__], args, region)
     rclpy.init()
     node = Node("atlas_localization_seeder")
     checkpoint_observer = InitializationObserver(node)
