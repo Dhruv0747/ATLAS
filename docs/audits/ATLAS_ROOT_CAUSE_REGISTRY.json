@@ -1511,7 +1511,7 @@
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
       "evidence": "Original source startup rejected93.624% before custom node subscriptions/timers; recovery lifetime1.828CPU-s, firstPID sample0.69CPU-s; exact rejected process/cgroup window missing. Historical Prometheus19failed scrapes/noCPU series. Recovery stopped.",
-      "candidate": "Offline failure-first raw CPU evidence retention only; no measured runtime optimization.",
+      "candidate": "Offline failure-first raw CPU retention plus passive all-PID/selected-cgroup collector;11 focused tests PASS; PC12s overhead0.045941CPU-s,14.80MiB. Jetson validation and guarded integration pending; no runtime optimization.",
       "remaining_gap": "ROS/DDS/import/concurrent-process attribution and safe original-service restoration unresolved. No restart authorized by investigation.",
       "report": "ATLAS_RECOVERY_STARTUP_ROOT_CAUSE_REVIEW_20261031.md"
     }

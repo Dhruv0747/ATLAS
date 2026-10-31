@@ -1200,3 +1200,5 @@ SIGKILL fake-unit recovery pass. Actual Jetson admission/performance remains gat
 79.15% cause remains UNKNOWN. [Package](../../ATLAS_WEB_RESTART_SAFETY_PACKAGE_20261030.md).
 
 2026-10-31 PRIORITY INCIDENT: original recovery STOPPED after93.624% startup rejection. Original bytes restored; snapshot producer disabled. Saved stack is within ROS Node initialization before custom work. Exact process attribution missing;19 historical Prometheus scrapes failed. Offline rejection evidence retention fixed/tested, not a runtime optimization. Incident OPEN; see ATLAS_RECOVERY_STARTUP_ROOT_CAUSE_REVIEW_20261031.md.
+
+2026-10-31 CPU attribution preparation: stdlib all-PID/selected-cgroup collector;11focused PC tests PASS,12s native PC run0.045941CPU-s/14.80MiB. No live execution. Root cause still UNKNOWN; Recovery restart NO-GO pending guarded collector integration and Jetson overhead validation. See ATLAS_RECOVERY_CPU_ATTRIBUTION_PREPARATION_20261031.md.

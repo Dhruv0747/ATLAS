@@ -3491,3 +3491,5 @@ Added independent HTTP/resource watcher, nonblocking bounded restart flow and sy
 
 ## 2026-10-31 — Priority recovery startup incident investigation
 Reviewed retained original-service CPU rejection, ROS constructor stack and unavailable historical metrics. Added offline failure-first raw CPU evidence retention; no runtime CPU fix or restart. Recovery incident remains open.
+
+2026-10-31: added passive /proc and selected-cgroup startup attribution collector, durable per-sample evidence and11focused offline tests. PC overhead measured; no Jetson execution or service changes.
