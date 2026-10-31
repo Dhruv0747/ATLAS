@@ -1513,7 +1513,16 @@
       "evidence": "Original source startup rejected93.624% before custom node subscriptions/timers; recovery lifetime1.828CPU-s, firstPID sample0.69CPU-s; exact rejected process/cgroup window missing. Historical Prometheus19failed scrapes/noCPU series. Recovery stopped.",
       "candidate": "Offline failure-first raw CPU retention plus passive all-PID/selected-cgroup collector;11 focused tests PASS; PC12s overhead0.045941CPU-s,14.80MiB. Guarded integration now passes13 focused tests including native parent-SIGKILL cleanup; One approved passive Jetson test PASS:0.68516CPU-s through final12s sample,20.42MiB,aggregate peak63.12%;42units unchanged. Recovery remains stopped. No runtime optimization.",
       "remaining_gap": "ROS/DDS/import/concurrent-process attribution and restoration unresolved. One approved start attempted: first sample68.729% with PID/cgroup; next scan failed150ms budget before partial sample persistence. Recovery stopped and original policy restored,41unrelated units unchanged. No retry; failing interval CPU unknown. Offline timeout-evidence correction now passes8 focused tests: partial scan preserves aggregate/acquired records, no raised budget or safety limit. Subsequent approved corrected run rejected actual86.934673% CPU with complete42.96ms scan; Recovery stopped, cleanup verified (a2073b4). Offline type-support preload now separates import work from DDS startup; four tests/native no-node check pass, PC16ms only. Jetson benefit unverified; root cause unresolved.",
-      "report": "ATLAS_RECOVERY_STARTUP_ROOT_CAUSE_REVIEW_20261031.md"
+      "report": "ATLAS_RECOVERY_STARTUP_ROOT_CAUSE_REVIEW_20261031.md",
+      "owner_stop_20261031": "CPU investigation STOPPED at evidence limit. Root cause UNKNOWN. Recovery incident OPEN, service STOPPED and its recovery safety functionality UNAVAILABLE. CPU optimization/restoration NOT COMPLETE. No further tools, retries or speculative fixes. Handover: ATLAS_RECOVERY_INCIDENT_HANDOVER_20261031.md"
+    },
+    {
+      "id": "ATLAS-AMCL-INITIAL-POSE-MAP-TF-20261031",
+      "confidence": "CONFIRMED warnings; underlying cause UNKNOWN",
+      "resolution": "UNRESOLVED",
+      "evidence": "Existing journal09:03:40-09:03:53 IST: AMCL requires initial pose; repeated no-motion requests; global costmap waits for absent map transform. Warnings precede Recovery startup. Separate localization issue, not established CPU root cause.",
+      "remaining_gap": "Map loading, initial-pose and TF history. No initial pose injected or TF changed; no live test authorized.",
+      "report": "ATLAS_RECOVERY_INCIDENT_HANDOVER_20261031.md"
     }
   ]
 }

@@ -1746,3 +1746,5 @@ Recovery restoration package prepared offline: [corrected package and single-use
 [Recovery startup type-loading candidate](ATLAS_RECOVERY_TYPE_PRELOAD_CORRECTION_20261031.md): offline only; Jetson CPU benefit unverified.
 
 [Recovery kernel-time finding](ATLAS_RECOVERY_KERNEL_TIME_FINDING_20261031.md): saved counters narrow overload category; safe fix remains unproven.
+
+[Recovery incident handover](ATLAS_RECOVERY_INCIDENT_HANDOVER_20261031.md): CPU investigation stopped, cause UNKNOWN; Recovery STOPPED and incident OPEN. Separate localization issue recorded.

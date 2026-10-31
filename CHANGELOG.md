@@ -3511,3 +3511,5 @@ Reviewed retained original-service CPU rejection, ROS constructor stack and unav
 2026-10-31: Preload required Recovery ROS type libraries before DDS initialization; four focused tests and native Humble no-node check passed. Exact-live patch preserves maintenance integration; not deployed.
 
 2026-10-31: Recomputed saved Recovery rejection: kernel-accounted time explains approx96% of interval CPU increase. Documentation only; no unsupported runtime optimization or new diagnostic tool.
+
+2026-10-31: Owner-directed CPU investigation stop documented; evidence retained, Recovery incident remains OPEN with functionality unavailable. Separate AMCL initial-pose/map-TF issue recorded. Documentation only.
