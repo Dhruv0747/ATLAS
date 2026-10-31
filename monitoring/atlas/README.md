@@ -1,6 +1,12 @@
 # ATLAS LAN monitoring (Prometheus + Grafana): read-only
 
-**Current status (2026-10-30):** timestamp-fixed persistent monitoring is ENABLED and ACTIVE. The guarded five-minute activation and evidence checksums passed. See [final live review](persistent/FINAL_REVIEW_20261030.md) and [activation measurements](persistent/TIMESTAMP_RETRY_RESULT_20261030.md). Reboot recovery is PENDING; Windows logon task is not registered. Earlier dated trial/preparation sections below are historical, not current deployment instructions.
+**Current status (2026-10-31 12:36 IST, verified):**
+- **PC stack RUNNING:** Prometheus 3.5.0 (`127.0.0.1:9090`) and Grafana 12.1.0 (`127.0.0.1:3000`, health `database: ok`), both in the owner's Windows WSL2 Docker. They are deliberately bound to localhost and not published on the LAN.
+- **Scrape target:** job `atlas-jetson` → `http://192.168.1.16:9118/metrics`, 15 s interval, 3 s timeout, from `/etc/prometheus/targets.json`. Prometheus retention is 1 week / 1 GiB.
+- **Proven path:** Prometheus recorded `up=1` from 2026-10-30 20:50 to 21:45 IST, while the Jetson port-9118 firewall admitted only 192.168.1.6. WSL scrapes therefore reach the Jetson from source 192.168.1.6.
+- **Jetson side STOPPED, target `down`** (connection refused): the monitoring watchdog latched a fault on 2026-10-30. Recovery attempt 1 (`-20261031`) failed closed. The single-use attempt 2 (`-20261031-2`) is approved but not yet executed. See [RECOVERY_TRANSACTION.md](persistent/RECOVERY_TRANSACTION.md).
+
+*Superseded 2026-10-30 status, kept for history:* timestamp-fixed persistent monitoring is ENABLED and ACTIVE. The guarded five-minute activation and evidence checksums passed. See [final live review](persistent/FINAL_REVIEW_20261030.md) and [activation measurements](persistent/TIMESTAMP_RETRY_RESULT_20261030.md). Reboot recovery is PENDING; Windows logon task is not registered. Earlier dated trial/preparation sections below are historical, not current deployment instructions.
 Everything here only *reads*:
 - The Jetson exporter has **no ROS node, no ROS subscriber and no camera access**. It sends no commands and answers 405 to POST, PUT and DELETE.
 - Alerts only notify. Nothing here can move the rover or change its safety state.
@@ -77,7 +83,7 @@ Validation: 24 focused Python tests PASS in PC WSL; Prometheus 3.5.0 native prom
 
 Read-only live schema inspection confirmed cache fields on Jetson 192.168.1.16. No exporter installed, services restarted or camera/motion commands sent during this review. E-STOP was released in the inspected snapshot; no live trial was attempted. Existing trial figures above are historical author evidence, not a measurement of this revised candidate.
 
-Deployment PENDING: no monitoring VM address/access was supplied or verified; PC WSL has no Docker. The checked-in targets file is intentionally a placeholder. Owner must provide the VM endpoint, configure its target/secret and restrict Jetson port 9118 to that VM before a separately approved exporter/stack trial. Native Grafana rendering, Compose startup, authenticated access and end-to-end scraping remain unverified. No notification transport/Alertmanager is configured. Monitoring alerts are informational, never substitutes for production safety guards.
+*Superseded 2026-10-31: the PC stack is deployed and running in Windows WSL2 Docker; see the current status at the top. The original note is kept for history:* Deployment PENDING: no monitoring VM address/access was supplied or verified; PC WSL has no Docker. The checked-in targets file is intentionally a placeholder. Owner must provide the VM endpoint, configure its target/secret and restrict Jetson port 9118 to that VM before a separately approved exporter/stack trial. Native Grafana rendering, Compose startup, authenticated access and end-to-end scraping remain unverified. No notification transport/Alertmanager is configured. Monitoring alerts are informational, never substitutes for production safety guards.
 
 Rollback: revert this candidate commit for repository changes; deployment rollback remains stopping only the optional exporter/monitoring stack as described above. No rover service or safety configuration changes are required.
 # Persistent deployment preparation
