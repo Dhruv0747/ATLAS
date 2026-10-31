@@ -41,6 +41,22 @@
 
 The original October 30 watchdog rejection remains UNKNOWN. The fault latch was not cleared, nothing was started, and the firewall was not changed.
 
+**Final readiness check (2026-10-31 11:48–11:52, read-only):**
+
+| Item | Result |
+|---|---|
+| Archive SHA256 | `b997bcd4…c167` on the PC and on the Jetson (`~/project-atlas-migration/`, copied only) |
+| Archive members | 8, each byte-identical to the repo |
+| Command sections | Use only `-20261031-2` (staging, run, confirm, abort, rollback); attempt-1 history is unchanged |
+| Code identity | `E`, `TX` and the expiry derive `-20261031-2`; the attempt-1 directory is never referenced |
+| Attempt-1 evidence | Present (root 0700) |
+| Monitoring | Units inactive (exporter enabled), no 9118 listener, no recovery units or timers, guard 27d4cacae470 |
+| Rover | E-STOP latched, manual-only, uncommissioned, source STOPPED, XBOX; cmd 0, motor 0; encoders still for 6 s [114,-137,-155,-178]; required topics fresh |
+| Resources | CPU 62.4 / 64.5 / 61.3 %, RAM 62.2 %, 62.1 C |
+
+- **Attempt-1 leftovers:** empty root-only `atlas-monitoring-{exporter,watchdog,firewall}.service.d` directories in /run/systemd/system. Systemd reports no DropInPaths. The transaction's `configurations()` check (DropInPaths) and `prepare_override()` (file `lexists`, `mkdir exist_ok`) accept them. Not a blocker; tmpfs, gone at reboot.
+- **PENDING:** the 4 native fake-systemd tests. The WSL and Windows hosts are not reachable from this session (sandbox VM without systemd). Run them on the PC before execution.
+
 
 ## Controlled execution result — 2026-10-31 11:39:53–11:40:09 IST
 
@@ -179,7 +195,7 @@ Prepared archive: `monitoring-recovery-transaction-20261031.tar.gz`.
 The package is prepared on the PC only, not copied to Jetson. Original file
 owner/group/mode and mtime/ctime are recorded alongside the byte archive.
 
-## Exact execution sequence — NOT authorized by this document
+## Exact execution sequence — attempt 2 (`-20261031-2`); NOT authorized by this document
 
 Approval must cover: one archival/reset accepting UNKNOWN original cause; optional
 monitoring starts; temporary monitoring-only Restart=no/system daemon-reload;
@@ -188,18 +204,18 @@ Administrator passwords belong only in the local Jetson terminal.
 
 1. Confirm the approved package tar/manifest hashes against the review report.
    Copy the verified extracted seven files plus manifest to the new root-owned
-   directory `/opt/atlas-monitoring-recovery-20261031` (0755 directory, root:root
+   directory `/opt/atlas-monitoring-recovery-20261031-2` (0755 directory, root:root
    files 0644). Do not reuse an existing directory or overwrite installed files.
    Installation of this transaction package does not start a service.
    Once the separately approved copy is at the path below, exact staging is:
 
    ```sh
    cd /home/jetson/project-atlas-migration &&
-   printf '%s\n' '157b00723d3e4de2847a191f87629cd8fdd8fc9f608963b6a322b2f3b4efc4ff  monitoring-recovery-transaction-20261031.tar.gz' | sha256sum -c - &&
+   printf '%s\n' 'b997bcd4e503e9bd9900012d52dc3a17091fdc619094afbd7f73354f1da7c167  monitoring-recovery-transaction-20261031-2.tar.gz' | sha256sum -c - &&
    sudo /bin/sh -c 'set -eu; umask 022
-   mkdir /opt/atlas-monitoring-recovery-20261031
-   tar --no-same-owner -xzf /home/jetson/project-atlas-migration/monitoring-recovery-transaction-20261031.tar.gz -C /opt/atlas-monitoring-recovery-20261031
-   cd /opt/atlas-monitoring-recovery-20261031
+   mkdir /opt/atlas-monitoring-recovery-20261031-2
+   tar --no-same-owner -xzf /home/jetson/project-atlas-migration/monitoring-recovery-transaction-20261031-2.tar.gz -C /opt/atlas-monitoring-recovery-20261031-2
+   cd /opt/atlas-monitoring-recovery-20261031-2
    sha256sum -c RECOVERY_SHA256SUMS'
    ```
 
@@ -209,7 +225,7 @@ Administrator passwords belong only in the local Jetson terminal.
 2. With the owner present and the rover stationary, run **once** locally:
 
    ```sh
-   cd /opt/atlas-monitoring-recovery-20261031 &&
+   cd /opt/atlas-monitoring-recovery-20261031-2 &&
    sha256sum -c RECOVERY_SHA256SUMS &&
    sudo /usr/bin/python3 -I -B recover_once.py start
    ```
@@ -224,7 +240,7 @@ Administrator passwords belong only in the local Jetson terminal.
    after those checks actually pass, use a second local terminal:
 
    ```sh
-   sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031/recover_once.py confirm-client
+   sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031-2/recover_once.py confirm-client
    ```
 
    This is an explicit owner attestation, not an automated Grafana browser test.
@@ -241,7 +257,7 @@ Administrator passwords belong only in the local Jetson terminal.
 For an in-progress attempt, stop only its supervisor; ExecStopPost handles cleanup:
 
 ```sh
-sudo systemctl stop atlas-monitoring-recovery-once-20261031.service
+sudo systemctl stop atlas-monitoring-recovery-once-20261031-2.service
 ```
 
 If cleanup reports FAILED, do not repeat `start`, remove evidence, reset-failed,
@@ -250,8 +266,8 @@ After confirming the transaction worker and its cleanup have exited, the reviewe
 monitoring-only manual rollback is:
 
 ```sh
-sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031/guard.py rollback &&
-sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031/recover_once.py cleanup
+sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031-2/guard.py rollback &&
+sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-20261031-2/recover_once.py cleanup
 ```
 
 This stops monitoring, verifies no 9118 listener, removes only the exact owned
