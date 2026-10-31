@@ -15,6 +15,7 @@ from recovery_snapshot_runtime import Transaction
 from recovery_snapshot_validation import Validation
 from snapshot_benchmark_once import ticks,cpu_delta,resources,fetch,validate
 from install_verification import verify_camera_off
+from rejected_cpu_evidence import record_cpu_rejection
 
 LIVE=Path('/home/jetson/project_atlas')
 RUNTIME=Path('/run/user/1000/atlas-restart-safety')
@@ -31,8 +32,11 @@ def watch(root):
             time.sleep(max(0,stamp+1-time.monotonic()))
             now=time.monotonic();current=ticks();interval=now-stamp
             if not .9<=interval<=1.1:raise ValueError('CPU interval')
+            previous,last_stamp=last,stamp
             cpu=cpu_delta(last,current);last=current;stamp=now
-            if cpu>75:raise ValueError('CPU guard '+str(cpu))
+            if cpu>75:
+                record_cpu_rejection(root,previous,current,last_stamp,now,cpu)
+                raise ValueError('CPU guard '+str(cpu))
             ram,temp=resources();began=time.monotonic();status=fetch('/api/status')
             row=validate(status,cpu,ram,temp,time.monotonic()-began)
             row.update(mono=time.monotonic(),safe=True,interval=interval,watcher_cpu=time.process_time())

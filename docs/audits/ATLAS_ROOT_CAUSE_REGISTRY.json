@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-21",
+  "updated_at": "2026-10-31",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -215,7 +215,7 @@
         {
           "date": "2026-10-15",
           "kind": "authorized_readonly_jetson_probe",
-          "description": "Corrected probe read six zones59.625–60.656C and identified cv0/cv1/cv2 temp EAGAIN. CPU5s mean69.87%, max71.43%, RAM66.46%. Full gate blocked before dashboard/service inspection. Separate safety SSH queries timed out over Tailscale and LAN; fresh stop/recorder state unverified. No recording or movement."
+          "description": "Corrected probe read six zones59.625\u201360.656C and identified cv0/cv1/cv2 temp EAGAIN. CPU5s mean69.87%, max71.43%, RAM66.46%. Full gate blocked before dashboard/service inspection. Separate safety SSH queries timed out over Tailscale and LAN; fresh stop/recorder state unverified. No recording or movement."
         }
       ]
     },
@@ -243,7 +243,7 @@
       "subsystem": "dashboard API",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
-      "confirmed_findings": "Native isolated actual-response benchmark shows54–61% serialization CPU savings with compact JSON and equal decoded values. Absolute modeled saving about0.06 whole-machine percentage points for one stated client workload; not sufficient headroom recovery.",
+      "confirmed_findings": "Native isolated actual-response benchmark shows54\u201361% serialization CPU savings with compact JSON and equal decoded values. Absolute modeled saving about0.06 whole-machine percentage points for one stated client workload; not sufficient headroom recovery.",
       "attempted_fix": "Source e364e932b997342214738c6196cf856a4de38132; no deployment. Preserve ages, values, rates, safety and nonfinite sanitization. Minimal live-only candidate required because repository contains undeployed steering integration.",
       "remaining_verification": "Live stack profiler permission denied and sudo requires password. Dominant CPU source, production callback timing and parked-load A/B remain unverified; no service restart authorized.",
       "evidence": [
@@ -1190,7 +1190,7 @@
       "subsystem": "LiDAR / startup / logs",
       "confidence": "CONFIRMED",
       "resolution": "UNRESOLVED",
-      "original_failure_and_evidence": "Current boot recorded stale LiDAR and recovery incomplete twice at 09:13–09:14 IST; service subsequently active, health OK.",
+      "original_failure_and_evidence": "Current boot recorded stale LiDAR and recovery incomplete twice at 09:13\u201309:14 IST; service subsequently active, health OK.",
       "confirmed_findings": "Startup recovery occurred; wall timestamps initially resembled previous evening before clock synchronization.",
       "suspected_causes_and_limits": "Underlying startup delay not localized; active service and device health are not proof of current /scan freshness.",
       "attempted_fix_commits": [],
@@ -1208,7 +1208,7 @@
         {
           "date": "2026-10-09",
           "kind": "earliest_reviewed_evidence",
-          "description": "Current boot recorded stale LiDAR and recovery incomplete twice at 09:13–09:14 IST; service subsequently active, health OK."
+          "description": "Current boot recorded stale LiDAR and recovery incomplete twice at 09:13\u201309:14 IST; service subsequently active, health OK."
         },
         {
           "date": "2026-10-09",
@@ -1505,6 +1505,15 @@
       "remaining_gap": "CPU rejection not attributed; candidate API startup not verified. No deployment retry approved.",
       "report": "ATLAS_OBJECT_TARGET_INSTALL_DIAGNOSIS_20261030.md",
       "shutdown_followup": "Prometheus39/39 scrapes failed; no CPU or process deltas. ROS/Foxglove activity is not causal attribution. Duration UNKNOWN.2 isolated staging/import tests PASS. No CPU fix or restart-free API activation. See ATLAS_WEB_SHUTDOWN_CPU_ASSESSMENT_20261030.md."
+    },
+    {
+      "id": "ATLAS-ORIGINAL-RECOVERY-STARTUP-CPU-20261031",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Original source startup rejected93.624% before custom node subscriptions/timers; recovery lifetime1.828CPU-s, firstPID sample0.69CPU-s; exact rejected process/cgroup window missing. Historical Prometheus19failed scrapes/noCPU series. Recovery stopped.",
+      "candidate": "Offline failure-first raw CPU evidence retention only; no measured runtime optimization.",
+      "remaining_gap": "ROS/DDS/import/concurrent-process attribution and safe original-service restoration unresolved. No restart authorized by investigation.",
+      "report": "ATLAS_RECOVERY_STARTUP_ROOT_CAUSE_REVIEW_20261031.md"
     }
   ]
 }

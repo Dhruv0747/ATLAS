@@ -3488,3 +3488,6 @@ Verified installed hashes and disabled state; six focused offline tests cover in
 
 ## 2026-10-31 — Recovery snapshot runtime safety supervisor
 Added independent HTTP/resource watcher, nonblocking bounded restart flow and systemd ExecStopPost cleanup, validated with PC fake units including SIGKILL/timeout. Runtime activation remains separately approval-gated.
+
+## 2026-10-31 — Priority recovery startup incident investigation
+Reviewed retained original-service CPU rejection, ROS constructor stack and unavailable historical metrics. Added offline failure-first raw CPU evidence retention; no runtime CPU fix or restart. Recovery incident remains open.
