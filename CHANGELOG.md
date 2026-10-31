@@ -3515,3 +3515,5 @@ Reviewed retained original-service CPU rejection, ROS constructor stack and unav
 2026-10-31: Owner-directed CPU investigation stop documented; evidence retained, Recovery incident remains OPEN with functionality unavailable. Separate AMCL initial-pose/map-TF issue recorded. Documentation only.
 
 2026-10-31: Saved localization startup evidence identifies verify-mode refusal as cause of missing initial pose; no service or safety changes. Documented stale source-text test separately.
+
+2026-10-31: Separate test-only fix ed88556 updates seeder API assertions; five tests PASS. Recorded230/246 vs229/246 replay matches and owner-confirmed Dhruv Room; no localization runtime changes.

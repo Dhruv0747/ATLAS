@@ -1750,3 +1750,5 @@ Recovery restoration package prepared offline: [corrected package and single-use
 [Recovery incident handover](ATLAS_RECOVERY_INCIDENT_HANDOVER_20261031.md): CPU investigation stopped, cause UNKNOWN; Recovery STOPPED and incident OPEN. Separate localization issue recorded.
 
 [AMCL initial-pose findings](ATLAS_AMCL_INITIAL_POSE_FINDINGS_20261031.md): loaded map, ambiguous startup match, seed safely withheld; separate OPEN localization issue.
+
+[AMCL place-verification plan](ATLAS_AMCL_PLACE_VERIFICATION_PLAN_20261031.md): owner confirms Dhruv Room; exact pose remains unverified. Offline replay explains one-beam ambiguity.
