@@ -1,0 +1,9 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATLAS pulse view — offline prototype</title>
+<style>
+body{margin:0;background:#10151e;color:#e3eaf4;font:15px system-ui}header,aside{padding:18px;max-width:1100px;margin:auto}h1{font-size:24px;margin:0 0 8px}.warning{color:#ffbd69}svg{display:block;width:100%;min-width:700px}main{overflow:auto;max-width:1200px;margin:auto}text{fill:#dce6f3;font:13px system-ui}.edge{stroke-width:2;fill:none}.node{fill:#182336;stroke:#586f90}.pulse{fill:#50edb3;pointer-events:none}a{color:#8bc2ff}button{padding:7px 14px}#details{min-height:40px} .edge:focus{outline:none;stroke-width:5}
+</style>
+<header><h1>ATLAS live signal pulses</h1><strong class="warning">OFFLINE PROTOTYPE — NOT CONNECTED TO ATLAS</strong><p>Pulses indicate fresh positive cached receipt rates, not individual packets or actuator permission. Unmeasured links never animate. Scroll horizontally on narrow screens.</p><button id="motion">Pause visual motion</button></header>
+<main><svg viewBox="0 0 1100 820" role="img" aria-label="ATLAS observation topology"></svg></main>
+<aside><div id="details">Select a connection for evidence.</div><p>Green: fresh positive · Blue: idle · Amber: stale · Grey: unavailable/unverified</p></aside>
+<script type="module" src="view.mjs"></script></html>

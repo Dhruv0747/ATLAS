@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-02: [Offline pulse-view investigation](monitoring/atlas/pulse-view/README.md). No live dashboard changes; production pulse integration remains NO-GO.
+
 ## 2026-11-02 — Neural data-flow dashboard (offline)
 
 Separate Grafana Node Graph with freshness-gated cache observations and diagnostic links. Health Monitor and runtime/safety configuration unchanged. Browser acceptance passed; production deployment requires separate approval.

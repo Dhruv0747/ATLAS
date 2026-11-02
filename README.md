@@ -1,5 +1,7 @@
 # Project ATLAS - Autonomous Service Rover
 
+2026-11-02: [Offline pulse-view investigation](monitoring/atlas/pulse-view/README.md). No live dashboard changes; production pulse integration remains NO-GO.
+
 Separate offline neural dashboard: [verification and limitations](monitoring/atlas/RELIABILITY_NEURAL_PREPARATION.md). Not deployed.
 
 
