@@ -1233,3 +1233,5 @@ attempt, bounded processing, independent existing safety utilities and continuou
 sensor/TF freshness checks. 14 focused tests passed. Not deployed or executed;
 localization remains unverified and Recovery remains STOPPED/open. See
 [guard report](ATLAS_LOCALIZATION_DRY_RUN_GUARD_20261031.md).
+
+2026-11-02 superseding state: bounded snapshot validation failed CPU77.4461%; no same-window process attribution, causeUNKNOWN. Exact original Recovery script andRestartalways restored; RecoverySTOPPED, snapshotdisabled, incidentOPEN. Original-only restoration prepared/offline8tests, not executed. No restart authorization in overnight sprint. See ATLAS_WEB_BINDING_READY_20261102.md superseding section. AMCL edd6563 mission-start offline15tests PASS; no live localization acceptance.

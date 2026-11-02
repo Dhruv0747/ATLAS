@@ -46,3 +46,17 @@ No camera start, recording or inference is enabled by installation.
 
 Private PC archive: C:\Users\Dhruv\Documents\Codex\2026-07-24\h\tmp\vision-object-target-bound-20261102.tar.gz
 SHA256: 0688e2aaece27009ac21056d79c6f4f642aaf5a9d782dc3faab1a2e964f76782
+
+## 2026-11-02 — Superseding Recovery state and offline completion
+
+The single snapshot validation aborted at 77.4461% CPU. Original Recovery script restored (SHA256 5f44cc1fbd7cdc65b8af17abeb9ecd41cec0a8c8f3ee8274fa9b34362633193a), original Restart=always restored, snapshots DISABLED; Recovery STOPPED/PID0. Do not use earlier ACTIVE/PID2089 observations as current readiness. The rejected 1.00091-second interval has no same-window process counters: CPU cause UNKNOWN, not a proven Recovery/DDS fault. Preserve the failed attempt; no retry performed.
+
+Last read-only follow-up (before this offline sprint): CPU58.15–60.00%, RAM59.68–59.83%, max62.843C; E-STOP latched/manual-only, commissioning false, zero commands, fresh MCU and zero encoder interval deltas. These are historical admission observations, not future approval. Stop reason reported joystick unavailable; RC fallback readiness is not proven by the software latch.
+
+Existing restoration-only procedure adapted to already-restored original script without production file replacement. Eight focused WSL checks and independent review passed. Private PC package recovery-original-restoration-20261102.tar.gz SHA256 7e2fa4758177e2533b874703c1d6321257d898d929fba2b0e32d1775063c08db. One start, 20s validation,60s runtime plus bounded cleanup; no snapshot opt-in. Execution/staging requires separate approval and fresh checks. No service restarted in this sprint. Incident remains OPEN.
+
+Object/Target offline package af50c65 unchanged; live installation remains blocked by absent independent Recovery snapshot and separate deployment approval. Successful original-Recovery restoration will NOT itself supply a snapshot. No feature controls enabled. Face identity storage 7abe734 passed8 focused tests, but no verified embedding extractor/calibrated threshold or authorized camera binding exists; face remains BLOCKED. Gesture/body require real landmark/keypoint model integrations, not YOLO boxes.
+
+AMCL edd6563 preserved.15 focused refresh/actual mission contract tests passed offline: stale pose, inadequate stability coverage, jumps and uncertainty still veto movement. No live localization or mission acceptance claimed.
+
+Reuse Astra M1 historical measurements: remount lens height~0.30m, phone tilt~+0.8deg,0.788m observed at0.790m wall,320x240~29.69fps. Old x/z/pitch draft was explicitly superseded; these results are not full intrinsics, RGB-depth registration or a current six-DoF mount TF. No fabricated calibration or TF, no camera session.

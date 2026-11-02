@@ -373,3 +373,5 @@ Scope: all refs after fetch, non-shallow clone, before this report's publication
 | 2026-10-08T19:07:23+05:30 | [7e35614](https://github.com/Dhruv0747/ATLAS/commit/7e35614ab00a045a157c5ab58cacf8e7d8cf9396) | Gate lifted test entry on continuous readiness and expose feedback timing |
 | 2026-10-08T19:11:11+05:30 | [3d66c38](https://github.com/Dhruv0747/ATLAS/commit/3d66c3812c968796fed70b7f32dae511aadeed45) | Audit repeated lifted commissioning failures and evidence gaps |
 
+
+2026-11-02 superseding state: bounded snapshot validation failed CPU77.4461%; no same-window process attribution, causeUNKNOWN. Exact original Recovery script andRestartalways restored; RecoverySTOPPED, snapshotdisabled, incidentOPEN. Original-only restoration prepared/offline8tests, not executed. No restart authorization in overnight sprint. See ATLAS_WEB_BINDING_READY_20261102.md superseding section. AMCL edd6563 mission-start offline15tests PASS; no live localization acceptance.

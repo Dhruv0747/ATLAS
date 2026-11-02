@@ -309,3 +309,5 @@ For bounded direct topic inspection, source Humble and use the deployed ROS envi
 
 This audit itself is documentation-only. Earlier in this same conversation, before the expanded audit request, a stage-label-only BMS diagnostic was tested (12 passing tests), deployed and its service restarted; failures still recur. Those changes are preserved separately in commit `221af9c`. No motor owner restart or actuator command was issued in this audit. No claim of a full repair is made.
 
+
+2026-11-02 superseding state: bounded snapshot validation failed CPU77.4461%; no same-window process attribution, causeUNKNOWN. Exact original Recovery script andRestartalways restored; RecoverySTOPPED, snapshotdisabled, incidentOPEN. Original-only restoration prepared/offline8tests, not executed. No restart authorization in overnight sprint. See ATLAS_WEB_BINDING_READY_20261102.md superseding section. AMCL edd6563 mission-start offline15tests PASS; no live localization acceptance.

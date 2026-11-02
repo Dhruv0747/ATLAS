@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-31",
+  "updated_at": "2026-11-02",
   "timezone": "Asia/Calcutta",
   "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
   "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
@@ -1523,6 +1523,14 @@
       "evidence": "Existing journal09:03:40-09:03:53 IST: AMCL requires initial pose; repeated no-motion requests; global costmap waits for absent map transform. Warnings precede Recovery startup. Separate localization issue, not established CPU root cause.",
       "remaining_gap": "Map loading, initial-pose and TF history. No initial pose injected or TF changed; no live test authorized.",
       "report": "ATLAS_RECOVERY_INCIDENT_HANDOVER_20261031.md", "follow_up": "Saved startup journal confirms map loaded and AMCL received it Oct30 16:47:47. At16:48:37 verify-mode seeder refused ambiguous matches; final fits0.935/0.931 margin0.004, pose null, same boot. Immediate cause: initial pose intentionally withheld; physical ambiguity unresolved. See ATLAS_AMCL_INITIAL_POSE_FINDINGS_20261031.md."
+    },
+{
+      "id": "ATLAS-RECOVERY-SNAPSHOT-ABORT-20261102",
+      "confidence": "CONFIRMED abort; CPU cause UNKNOWN",
+      "resolution": "UNRESOLVED",
+      "evidence": "CPU77.4461% over1.00091s; no same-window process attribution. One activation attempt, original script/policy restored, RecoverySTOPPED/PID0. No retry.",
+      "remaining_gap": "Separate original-only restoration approval and successful supervised READY acceptance. Snapshot integration remains disabled.",
+      "report": "ATLAS_WEB_BINDING_READY_20261102.md"
     }
   ]
 }
