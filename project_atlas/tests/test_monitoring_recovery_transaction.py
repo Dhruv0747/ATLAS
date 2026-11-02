@@ -355,6 +355,7 @@ def test_new_attempt_never_reuses_attempt_one_identity():
     old = [Path('/var/lib/atlas-monitoring-recovery-20261031'+suffix) for suffix in ('','-2','-3','-4','-5')]
     assert R.E not in old and R.E != Path('/var/lib/atlas-monitoring-recovery-m2-20261102')
     assert R.TX != 'atlas-monitoring-recovery-once-m2-20261102'
+    assert R.TX != 'atlas-monitoring-recovery-once-m2-cpuevidence-20261102'
 
 
 @pytest.mark.parametrize('show,expect,stopped', [
@@ -384,8 +385,8 @@ def test_current_incident_binding():
     assert len(R.EXPECTED_STATE) == 8
     assert R.EXPECTED_STATE['rollback.json'] == '5c3d4e5e63ae80648b5d112388076107733f0694a38dc6b0c89ddf113320508d'
     assert R.EXPECTED_STATE['fault-events.json'] == 'de3ca6e690eadd9819751459ae1d457920923cb03c674c0c1f417c4f52500320'
-    assert R.E.name == 'atlas-monitoring-recovery-m2-cpuevidence-20261102'
-    assert R.TX == 'atlas-monitoring-recovery-once-m2-cpuevidence-20261102'
+    assert R.E.name == 'atlas-monitoring-recovery-m2-permissions-20261102'
+    assert R.TX == 'atlas-monitoring-recovery-once-m2-permissions-20261102'
     R.verify_lineage()
 
 

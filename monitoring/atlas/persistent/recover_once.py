@@ -23,7 +23,7 @@ import time
 BASE = Path(__file__).resolve().parent
 # New M2 incident, owner-read eight-file state verified 2026-11-02.
 # Older October 30 fault/attempt archives remain untouched; they are a separate incident.
-E = Path('/var/lib/atlas-monitoring-recovery-m2-cpuevidence-20261102')
+E = Path('/var/lib/atlas-monitoring-recovery-m2-permissions-20261102')
 GUARD = Path('/usr/local/libexec/atlas-monitoring-guard.py')
 GUARD_SHA = '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'
 SAMPLER_SHA = '9982e13a0c963a5a6783a227d0ca974dccfad3d1cfe95b6e06506a187988f5e5'
@@ -40,7 +40,7 @@ EXPECTED_STATE = {
     'evidence.lock': EMPTY_SHA,
 }
 NAMES = tuple('atlas-monitoring-'+n+'.service' for n in ('firewall','watchdog','exporter'))
-TX = 'atlas-monitoring-recovery-once-m2-cpuevidence-20261102'
+TX = 'atlas-monitoring-recovery-once-m2-permissions-20261102'
 # Exporter start (systemd Starting->Started, incl. its guarded ExecCondition) measured 3.629 s, 3.623 s (2026-10-30)
 # and 3.598 s (2026-10-31 attempt 1, which failed on the old 3 s sub-deadline). 12 s = 3.3x the slowest measured
 # start. The 25 s supervised step bound below is unchanged and remains the hard cap for watchdog + exporter.
