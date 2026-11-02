@@ -1417,3 +1417,6 @@ Not deployed; original watchdog rejection remains UNKNOWN.
 
 
 2026-10-31: Development-only Superpowers skills on `main` (from PR #15, skills only): six unchanged obra/superpowers v7.0.1 skills (MIT) and the `atlas-workflow` ATLAS override in `.claude/skills`, Codex discovery manifests in `.agents/skills`, and `AGENTS.md`/`CLAUDE.md` pointers. No hooks, plugins or mandatory brainstorming; excluded from `git archive HEAD project_atlas` deploy packages. Verified in Windows Claude Code and Codex Desktop; see `docs/PR15_CODEX_CLAUDE_INTEGRATION.md`. The Stage 29 stop-analyzer fix stays in PR #15.
+
+
+Monitoring recovery preparation (2026-11-02): archive validation accepts the existing bounded fault-events list (at most 16 objects); exact hashes and rollback remain required. Offline correction only. Recovery remains BLOCKED pending current-incident package binding and separate execution approval.

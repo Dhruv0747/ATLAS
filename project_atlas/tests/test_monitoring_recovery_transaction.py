@@ -485,3 +485,28 @@ def test_confirm_by_is_well_before_the_window_and_bounds_are_unchanged():
     assert 'while time.monotonic()-start < 300:' in src and "'--on-active=410s'" in src and "'--property=RuntimeMaxSec=330'" in src
     assert "observation['cpu'] < 75 and observation['ram'] < 80" in src
     assert src.index('print(deadline_message(') < src.index('run(*expiry_command())')
+
+
+@pytest.mark.parametrize('events', [[], [{'reason': 'fault latched; owner review required', 'time': 40.4}]])
+def test_event_list_archive_and_exact_rollback(state, monkeypatch, events):
+    live, evidence = state
+    data = json.dumps(events).encode()
+    (live/'fault-events.json').write_bytes(data)
+    monkeypatch.setattr(R, 'EXPECTED_STATE', R.state_hashes())
+    R.archive_state(); R.rearm(); R.restore_latch()
+    assert (live/'fault-events.json').read_bytes() == data
+    assert (evidence/'original-state'/'fault-events.json').read_bytes() == data
+    assert R.verify_archive()['fault-events.json'] == R.digest(live/'fault-events.json')
+    (evidence/'original-state'/'fault-events.json').write_bytes(b'[] changed')
+    with pytest.raises(RuntimeError): R.verify_archive()
+
+
+@pytest.mark.parametrize('name,value', [('fault-events.json', {}), ('fault-events.json', [None]),
+    ('fault-events.json', [{}]*17), ('last-health.json', [])])
+def test_invalid_event_shape_keeps_latch(state, monkeypatch, name, value):
+    live, evidence = state
+    (live/name).write_text(json.dumps(value))
+    monkeypatch.setattr(R, 'EXPECTED_STATE', R.state_hashes())
+    with pytest.raises(RuntimeError, match='invalid retained evidence'): R.archive_state()
+    assert (live/'FAULT.json').exists()
+    assert not (evidence/'reset-intent.json').exists()

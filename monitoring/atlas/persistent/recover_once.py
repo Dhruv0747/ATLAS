@@ -184,7 +184,10 @@ def archive_state():
     require(hashes == expected and hashes.get('FAULT.json') == EXPECTED_FAULT, 'retained evidence changed')
     for p in G.STATE.glob('*.json'):
         value = json.loads(p.read_text())
-        require(isinstance(value, dict), 'invalid retained evidence')
+        # The existing guard retains up to 16 later refusals as a list.
+        valid = (isinstance(value, list) and len(value) <= 16
+                 and all(isinstance(event, dict) for event in value)) if p.name == 'fault-events.json' else isinstance(value, dict)
+        require(valid, 'invalid retained evidence')
     dest = E/'original-state'; dest.mkdir(mode=0o700)
     metadata = {}
     for name in hashes:
