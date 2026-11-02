@@ -60,3 +60,19 @@ Object/Target offline package af50c65 unchanged; live installation remains block
 AMCL edd6563 preserved.15 focused refresh/actual mission contract tests passed offline: stale pose, inadequate stability coverage, jumps and uncertainty still veto movement. No live localization or mission acceptance claimed.
 
 Reuse Astra M1 historical measurements: remount lens height~0.30m, phone tilt~+0.8deg,0.788m observed at0.790m wall,320x240~29.69fps. Old x/z/pitch draft was explicitly superseded; these results are not full intrinsics, RGB-depth registration or a current six-DoF mount TF. No fabricated calibration or TF, no camera session.
+
+## 2026-11-02 — Restoration watcher freshness correction (offline only)
+
+Original-only restoration aborted in3.921s before any service start. Preflight58.60%CPU; only accepted watcher sample62.79%CPU,58.31%RAM,63.343C. No CPU-limit rejection. Recovery remainsSTOPPED/PID0; exact original source/policy unchanged; no override. The consumed recovery-original-restoration-20261102 evidence and marker are preserved.
+
+Confirmed timing defect:1s publication cadence versus1s health expiry, plus PID diagnostics before atomic publication. First health valid; next publication had not completed when consumer rejected freshness. Clock conversion/startup-readiness failure is not supported. Exact scheduler delay contribution UNKNOWN.
+
+Minimal package patch: recovery_watcher_freshness_package.patch applies to the previously reviewed restoration supervisor, not the older generic repository supervisor. Publish every0.5s with overlapping1s CPU windows; startup remains included, interval .9..1.1s, CPU<75/RAM<80/temp<70 and health<=1s unchanged. Timestamp anchors actual CPU observation. Publish validated safety before PID diagnostics; delayed diagnostics still abort safely. Collection older than1s is never published safe.
+
+Eight focused timing tests PASS (startup inclusion/delay, normal cadence, exactCPUlimit, delayed PID, failedHTTP, stale collection, missing/stale/future/failed health). Independent review PASS; actual Jetson timing reliability remainsPENDING. Restoration entrypoint, original/configuration pins and rollback files unchanged byte-for-byte.
+
+New PC-only package: C:/Users/Dhruv/Documents/Codex/2026-07-24/h/tmp/recovery-original-restoration-freshness-20261102.tar.gz
+SHA256 e4fb0eb151ddf18354909445a323d4f041ef8525cd3026cef327aee01e69c215
+All15 internal hashes passed Linuxsha256sum. Tests are inside package; reproduce offline with python3 -B -m unittest test_watcher_freshness. No old suite repeated. Exact future command and cleanup in package RESTORATION.txt; new exclusive stage/unit, no consumed attempt reuse.
+
+GO for separate approval to stage and execute ONE original-only restoration: temporaryRecovery Restart=no and user daemon-reload, one start, max20s validation,60s runtime plus reviewed cleanup. No snapshot enablement, camera, monitoring latch or other service change. Admission must pass anew. IncidentOPEN until realRecoveryREADY acceptance.

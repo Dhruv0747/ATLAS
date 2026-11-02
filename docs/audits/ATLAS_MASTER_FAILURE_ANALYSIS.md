@@ -311,3 +311,5 @@ This audit itself is documentation-only. Earlier in this same conversation, befo
 
 
 2026-11-02 superseding state: bounded snapshot validation failed CPU77.4461%; no same-window process attribution, causeUNKNOWN. Exact original Recovery script andRestartalways restored; RecoverySTOPPED, snapshotdisabled, incidentOPEN. Original-only restoration prepared/offline8tests, not executed. No restart authorization in overnight sprint. See ATLAS_WEB_BINDING_READY_20261102.md superseding section. AMCL edd6563 mission-start offline15tests PASS; no live localization acceptance.
+
+2026-11-02: Original-only restoration failed watcher freshness before start; noCPUviolation (acceptedpeak62.79%). RecoverySTOPPED/PID0, originalpolicy/source intact. Timing cadence/publication ordering corrected offline in existing package,8focusedtests/reviewPASS; newattempt requiresapproval. HardwaretimingPENDING; earlier77.45%CPUcause remainsUNKNOWN. See ATLAS_WEB_BINDING_READY_20261102.md.

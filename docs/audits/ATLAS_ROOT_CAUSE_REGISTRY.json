@@ -1531,6 +1531,14 @@
       "evidence": "CPU77.4461% over1.00091s; no same-window process attribution. One activation attempt, original script/policy restored, RecoverySTOPPED/PID0. No retry.",
       "remaining_gap": "Separate original-only restoration approval and successful supervised READY acceptance. Snapshot integration remains disabled.",
       "report": "ATLAS_WEB_BINDING_READY_20261102.md"
+    },
+{
+      "id": "ATLAS-RESTORATION-WATCHER-FRESHNESS-20261102",
+      "confidence": "CONFIRMED cadence/publication defect; scheduler contribution UNKNOWN",
+      "resolution": "OFFLINE FIX; LIVE PENDING",
+      "evidence": "One-second cadence and freshness deadline; PID diagnostics delayed next publication. First valid sample62.79%CPU; no start or CPU violation.",
+      "remaining_gap": "Separately approved one original-only restoration; fresh safety checks and real timing/READY acceptance.",
+      "report": "ATLAS_WEB_BINDING_READY_20261102.md"
     }
   ]
 }

@@ -3552,3 +3552,6 @@ localization remains unverified and Recovery remains STOPPED/open. See
 - Added consent-gated local identity storage/matching/deletion with model binding, ambiguity rejection, finite-vector checks and storage bounds.
 - Eight focused Linux tests pass, including missing-model-metadata corruption; independent review passed after correction.
 - No feature enabled, model installed, camera started or live deployment performed.
+
+## 2026-11-02 — Offline restoration watcher correction
+- Fixed reviewed package publication cadence/ordering without extending freshness or resource limits. Eight focused timing tests and independent review pass; live reliability pending. No Recovery start or deployment.
