@@ -641,3 +641,5 @@ Monitoring recovery preparation (2026-11-02): archive validation accepts the exi
 2026-11-02 monitoring: optional Linux --freebind avoids exporter startup bind failure while the approved LAN address is absent. No live deployment, fault reset or firewall change. See monitoring/atlas/persistent/RECONNECT_REVIEW_20261102.md for evidence and pending recovery gates.
 
 Pulse View reconnect and freshness validation: [integration evidence](monitoring/atlas/pulse-view/INTEGRATION.md). Reconnection never clears Jetson watchdog faults.
+
+Monitoring M2 recovery preparation and approval-gated command: [procedure](monitoring/atlas/persistent/M2_RECOVERY_READY_20261102.md).

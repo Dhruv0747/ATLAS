@@ -34,3 +34,5 @@ Monitoring remains BLOCKED, not CLOSED. No latch reset or service/firewall mutat
 Next standalone mapping implementation step after this gate: reuse existing onboard_adapter.py/onboard_supervisor.py/onboard_store.py and Jetson-hosted map3d viewer; validate recorded RGB/depth, CameraInfo, synchronization and TF against their existing configuration checks. Missing calibration/recordings remain explicit blockers. Do not activate a camera or imply accurate metric mapping from a depth preview.
 
 Limited preparation completed: bounded event-list validation corrected; all 58 focused transaction tests PASS, including six new list/integrity/rollback cases. Existing attempt identity and fault pins intentionally unchanged. No executable current-incident package issued. Monitoring development stops here per owner scope.
+
+2026-11-02 final binding preparation PASS; see [current procedure](M2_RECOVERY_READY_20261102.md). Recovery remains DOWN pending separate execution approval. Earlier blockers above remain historical evidence.

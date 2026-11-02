@@ -1428,3 +1428,6 @@ Monitoring recovery preparation (2026-11-02): archive validation accepts the exi
 ## 2026-11-02 - Pulse View reconnect correctness
 - Discard late authenticated responses after disconnect; single-flight refresh on reconnect.
 - Keep selected path rate/freshness evidence current; no dashboard, scrape or safety changes.
+
+## 2026-11-02 — M2 monitoring recovery preparation
+- Bind the existing single-use transaction to current eight-file fault evidence; retain old archives. Enforce strict CPU/RAM limits throughout the bounded transaction. No live deployment or recovery.

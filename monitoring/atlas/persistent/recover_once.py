@@ -21,73 +21,26 @@ import threading
 import time
 
 BASE = Path(__file__).resolve().parent
-# Attempt 5: the directories and unit names of attempts 1-4 are retained evidence and must never be reused.
-E = Path('/var/lib/atlas-monitoring-recovery-20261031-5')
-ATTEMPT1 = Path('/var/lib/atlas-monitoring-recovery-20261031')
-ATTEMPT2 = Path('/var/lib/atlas-monitoring-recovery-20261031-2')
-ATTEMPT3 = Path('/var/lib/atlas-monitoring-recovery-20261031-3')
-ATTEMPT4 = Path('/var/lib/atlas-monitoring-recovery-20261031-4')
+# New M2 incident, owner-read eight-file state verified 2026-11-02.
+# Older October 30 fault/attempt archives remain untouched; they are a separate incident.
+E = Path('/var/lib/atlas-monitoring-recovery-m2-20261102')
 GUARD = Path('/usr/local/libexec/atlas-monitoring-guard.py')
 GUARD_SHA = '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'
 SAMPLER_SHA = 'a25ff2d8c6a516357d61f4a1d70fadf98b36178b9e547d25d1643b937bdd8969'
-EXPECTED_FAULT = '3715b150b880ed06d9e21f25006b81a699693328bb77a80155cf148dcdb1ae97'
-# Fault-state directory as it was BEFORE attempt 1 (2026-10-31 11:40). Kept: attempt 1's own archive manifest
-# must still equal it, which ties the post-attempt-1 state below to the original latch.
-ORIGINAL_STATE = {
-    'FAULT.json': EXPECTED_FAULT,
-    'observer-active.json': '574d708ac320bbdce4d5d5c55dfa19158987790b6ccddf6fa982f1edd2d2c52a',
-    'firewall-owned.json': '9f1d631e89ac334313bc3df77f868698574a8b979cd63efb54a8fde55459a8a3',
-    'last-health.json': '2c4e1c31cfe70c4fed2935ca0e3b514cb808f3c8903f9d9099e353d9e0900a02',
-    'operations.lock': hashlib.sha256(b'').hexdigest(),
-}
-# Attempt 2 (2026-10-31 12:57) refused with 'retained evidence changed': attempt 1 legitimately rewrote
-# firewall-owned.json/last-health.json, removed observer-active.json and added rollback.json before its verified
-# cleanup restored only FAULT.json. Exact hashes, read by the owner with sudo after attempt 2's expiry finished.
-# FAULT.json must still be the original latch. Empty means NOT VERIFIED: the worker refuses.
-# Verified 2026-10-31 13:15: every hash recomputed from the printed bytes; content times 11:39:59.555 (firewall),
-# 11:40:02.572 (watchdog health) and 11:40:07.851 (cleanup rollback) lie inside attempt 1; nothing newer than 11:40:08.
+EXPECTED_FAULT = 'fc5479c96fd42ee003a565b0ccb7e63caaf9d29c43a383eff5291a3c938302fd'
 EMPTY_SHA = hashlib.sha256(b'').hexdigest()
-# Attempt 3 archived exactly this state; its manifest must still equal it (chain to the original latch).
-STATE_BEFORE_ATTEMPT3 = {
-    'FAULT.json': EXPECTED_FAULT,                                                            # original latch, byte-identical
-    'evidence.lock': EMPTY_SHA,                                                              # attempt-1 lock file, empty
-    'firewall-owned.json': '5f3fe2b4c402d0dd7b997193b426932d3db44fa65f87c1b5d33fc06f1ade648b',
-    'last-health.json': '8e918d715bba90e526716d3bd0fc5e79effff3c9a902c8162bb77208b5daaa7f',
-    'operations.lock': EMPTY_SHA,                                                            # unchanged since 10-30 20:45
-    'rollback.json': '3bc4ba22f58b9e1173c430e79ae7ee94f23040b4c95d106a63976165bb18204e',
-}
-# Attempt 3 (13:20-13:25) failed only because confirm-client was late; its verified cleanup again restored only
-# FAULT.json. State after attempt 3, read by the owner with sudo at 13:57. Every hash recomputed from the printed
-# bytes; content times 13:20:20.922 (firewall), 13:25:20.215 (watchdog health), 13:25:23.582 (cleanup rollback) lie
-# inside attempt 3; FAULT.json restored 13:25:23.877 and nothing in the directory is newer.
-# Attempt 4 archived exactly this state; its manifest must still equal it.
-STATE_BEFORE_ATTEMPT4 = {
-    'FAULT.json': EXPECTED_FAULT,                                                            # original latch, byte-identical
-    'evidence.lock': EMPTY_SHA,
-    'firewall-owned.json': '9a99129e6ffd41f65610e6bd2ed3223378bc0a5e419cea9a65f04319b53bffb5',
-    'last-health.json': 'd8420183197ebfd3bd283046c77153a5db88f2a005ab05d37ba0f79b9c2c134f',
-    'operations.lock': EMPTY_SHA,
-    'rollback.json': '9983f96f555886cf5206f2540e892dcdbfc0c841a10f02ec4baec62f4e1f4a6e',
-}
-# Attempt 4 (14:06-14:11) failed only because confirm-client was never run; its verified cleanup again restored only
-# FAULT.json. Owner sudo read at 14:18; hashes recomputed from the printed bytes; content times 14:06:48.798 (firewall),
-# 14:11:48.254 (watchdog health), 14:11:51.562 (cleanup rollback); FAULT.json restored 14:11:51.885, nothing newer.
-VERIFIED_STATE = {
-    'FAULT.json': EXPECTED_FAULT,                                                            # original latch, byte-identical
-    'evidence.lock': EMPTY_SHA,
-    'firewall-owned.json': '595bc54f4926a4fc37109c412ed8f2e28059354b6504210af914caefcca04cf7',
-    'last-health.json': '93ecbdad89f0c14ce5455cab8feb6dca3943f1668290d85128c45ae48a536886',
-    'operations.lock': EMPTY_SHA,
+EXPECTED_STATE = {
+    'FAULT.json': EXPECTED_FAULT,
+    'firewall-owned.json': '7e1a7ec6f1fddda84f4bdfb7471139722ee0b15dedb13d5125a7c3beacd53fcb',
     'rollback.json': '84ff15985c71d5c86378dc6eed63ddc74d26d8f6438bf3390bd29c65174a2c78',
+    'fault-events.json': 'fd8448d20e6642e0d8fa7dacd0e0770d945be926fa9755b8d9d333a4c2aa6709',
+    'last-health.json': '118fac5afb8bf33a6e614da7b12fc66fcf41985f71d09b6d543bf057c2193bc4',
+    'observer-active.json': 'b5689e0d582d5b66010996e49c603abb57b63ee497a3e1297d7334214bb19995',
+    'operations.lock': EMPTY_SHA,
+    'evidence.lock': EMPTY_SHA,
 }
-EXPECTED_STATE = VERIFIED_STATE
-# Exact bytes of the earlier attempts' terminal results (attempt 1: FAIL/VERIFIED cleanup; attempt 2: FAIL/NO_MUTATION).
-ATTEMPT1_RESULT_SHA = '235d2a6e024e667cbef63009085035ddc7fa13df5c18f3d6f8a8adcef139a045'   # FAIL / cleanup VERIFIED
-ATTEMPT2_RESULT_SHA = '2e2fbbf009f7c1508195eede2be9aa42d6c85f9ddf9be95392b115c35a3b2fb6'   # FAIL / NO_MUTATION
-ATTEMPT3_RESULT_SHA = '235d2a6e024e667cbef63009085035ddc7fa13df5c18f3d6f8a8adcef139a045'   # FAIL / cleanup VERIFIED (same bytes as attempt 1)
-ATTEMPT4_RESULT_SHA = '235d2a6e024e667cbef63009085035ddc7fa13df5c18f3d6f8a8adcef139a045'   # FAIL / cleanup VERIFIED
 NAMES = tuple('atlas-monitoring-'+n+'.service' for n in ('firewall','watchdog','exporter'))
-TX = 'atlas-monitoring-recovery-once-20261031-5'
+TX = 'atlas-monitoring-recovery-once-m2-20261102'
 # Exporter start (systemd Starting->Started, incl. its guarded ExecCondition) measured 3.629 s, 3.623 s (2026-10-30)
 # and 3.598 s (2026-10-31 attempt 1, which failed on the old 3 s sub-deadline). 12 s = 3.3x the slowest measured
 # start. The 25 s supervised step bound below is unchanged and remains the hard cap for watchdog + exporter.
@@ -159,21 +112,14 @@ def state_hashes():
 
 
 def verify_lineage():
-    """The accepted post-attempt-1 state is only valid as the successor of the original latch."""
-    require(bool(EXPECTED_STATE) and EXPECTED_STATE.get('FAULT.json') == EXPECTED_FAULT, 'expected state not verified')
-    # Attempt 1 archived ORIGINAL_STATE plus its own empty evidence.lock (the same allowance archive_state makes).
-    require(json.loads((ATTEMPT1/'state-manifest.json').read_text()) == dict(ORIGINAL_STATE, **{'evidence.lock': EMPTY_SHA}),
-            'attempt-1 archive changed')
-    require(digest(ATTEMPT1/'original-state'/'FAULT.json') == EXPECTED_FAULT, 'attempt-1 fault archive changed')
-    require(bool(ATTEMPT1_RESULT_SHA) and digest(ATTEMPT1/'result.json') == ATTEMPT1_RESULT_SHA, 'attempt-1 result changed')
-    require(bool(ATTEMPT2_RESULT_SHA) and digest(ATTEMPT2/'result.json') == ATTEMPT2_RESULT_SHA, 'attempt-2 result changed')
-    require(not (ATTEMPT2/'mutation-intent.json').exists(), 'attempt 2 was not mutation-free')
-    require(json.loads((ATTEMPT3/'state-manifest.json').read_text()) == STATE_BEFORE_ATTEMPT3, 'attempt-3 archive changed')
-    require(digest(ATTEMPT3/'original-state'/'FAULT.json') == EXPECTED_FAULT, 'attempt-3 fault archive changed')
-    require(bool(ATTEMPT3_RESULT_SHA) and digest(ATTEMPT3/'result.json') == ATTEMPT3_RESULT_SHA, 'attempt-3 result changed')
-    require(json.loads((ATTEMPT4/'state-manifest.json').read_text()) == STATE_BEFORE_ATTEMPT4, 'attempt-4 archive changed')
-    require(digest(ATTEMPT4/'original-state'/'FAULT.json') == EXPECTED_FAULT, 'attempt-4 fault archive changed')
-    require(bool(ATTEMPT4_RESULT_SHA) and digest(ATTEMPT4/'result.json') == ATTEMPT4_RESULT_SHA, 'attempt-4 result changed')
+    # This is a new fault, not another recovery of the older October 30 latch.
+    # Exact current bytes are verified and archived below; old archives are never touched.
+    require(set(EXPECTED_STATE) == {'FAULT.json','firewall-owned.json','rollback.json',
+        'fault-events.json','last-health.json','observer-active.json','operations.lock','evidence.lock'},
+        'incident state members differ')
+    require(EXPECTED_STATE['FAULT.json'] == EXPECTED_FAULT, 'incident fault differs')
+    require(all(len(v) == 64 and all(c in '0123456789abcdef' for c in v)
+                for v in EXPECTED_STATE.values()), 'incident hash invalid')
 
 
 def archive_state():
@@ -218,7 +164,7 @@ def rearm():
     hashes = verify_archive()
     require(state_hashes() == hashes, 'state changed before reset')
     write(E/'reset-intent.json', {'time':time.time(), 'original_cause':'UNKNOWN'})
-    # observer-active.json is absent after attempt 1's clean watchdog stop; only verified present files are removed.
+    # Remove only the two reviewed markers after archiving every original byte.
     for name in ('FAULT.json','observer-active.json'):
         if name in hashes: (G.STATE/name).unlink()
     sync_dir(G.STATE)
@@ -293,8 +239,8 @@ def config_hashes():
 def sample(admission=False):
     global previous, counts
     previous, counts, observation = A.sample(G,previous,counts,protected)
-    if admission:
-        require(observation['cpu'] < 75 and observation['ram'] < 80, 'admission resource limit')
+    # Strict owner limits apply throughout the transaction, not only admission.
+    require(observation['cpu'] < 75 and observation['ram'] < 80, 'resource limit')
     # Bounded append; the file is private and fsynced after every accepted sample.
     path = E/'samples.jsonl'
     require(not path.exists() or path.stat().st_size < 262144, 'sample quota')
