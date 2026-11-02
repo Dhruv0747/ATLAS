@@ -16,6 +16,8 @@ import ipaddress
 import json
 import math
 import shutil
+import socket
+import sys
 import subprocess
 import threading
 import time
@@ -316,16 +318,35 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+class MonitoringHTTPServer(ThreadingHTTPServer):
+    def __init__(self, address, handler, *, freebind=False):
+        super().__init__(address, handler, bind_and_activate=False)
+        try:
+            if freebind:
+                if sys.platform != 'linux':
+                    raise RuntimeError('freebind requires Linux')
+                # Linux uapi linux/in.h: per-socket IP_FREEBIND=15. No sysctl,
+                # wildcard bind, interface change or additional allowed source.
+                self.socket.setsockopt(socket.SOL_IP, getattr(socket, 'IP_FREEBIND', 15), 1)
+            self.server_bind()
+            self.server_activate()
+        except BaseException:
+            self.server_close()
+            raise
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--bind', required=True, help='Explicit Jetson LAN IPv4')
     parser.add_argument('--port', type=int, default=9118)
+    parser.add_argument('--freebind', action='store_true', help='Linux: retain explicit LAN bind while its address is temporarily absent')
     args = parser.parse_args()
     address = ipaddress.ip_address(args.bind)
     if address.version != 4 or not address.is_private or address.is_loopback or address.is_unspecified:
         parser.error('Bind explicit non-loopback private IPv4 only')
-    threading.Thread(target=worker, daemon=True).start()
-    ThreadingHTTPServer((args.bind, args.port), Handler).serve_forever()
+    with MonitoringHTTPServer((args.bind, args.port), Handler, freebind=args.freebind) as server:
+        threading.Thread(target=worker, daemon=True).start()
+        server.serve_forever()
 
 
 if __name__ == '__main__':

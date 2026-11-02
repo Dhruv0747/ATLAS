@@ -636,3 +636,6 @@ Not deployed; original watchdog rejection remains UNKNOWN.
 
 
 Monitoring recovery preparation (2026-11-02): archive validation accepts the existing bounded fault-events list (at most 16 objects); exact hashes and rollback remain required. Offline correction only. Recovery remains BLOCKED pending current-incident package binding and separate execution approval.
+
+
+2026-11-02 monitoring: optional Linux --freebind avoids exporter startup bind failure while the approved LAN address is absent. No live deployment, fault reset or firewall change. See monitoring/atlas/persistent/RECONNECT_REVIEW_20261102.md for evidence and pending recovery gates.
