@@ -31,7 +31,35 @@ def configuration(c):
     return docs
 
 
-def ns(msg):return msg.header.stamp.sec*10**9+msg.header.stamp.nanosec
+def ns(msg):
+    sec,nano=msg.header.stamp.sec,msg.header.stamp.nanosec
+    if type(sec) is not int or type(nano) is not int or sec<0 or not 0<=nano<10**9:
+        raise ValueError('invalid original timestamp')
+    return sec*10**9+nano
+
+
+def cloud_points(msg):
+    """Validate the existing map output before saving a bounded viewer snapshot."""
+    if any(type(v) is not int or v<=0 for v in (msg.width,msg.height,msg.point_step,msg.row_step)):
+        raise ValueError('invalid cloud dimensions/stride')
+    if msg.row_step<msg.width*msg.point_step or len(msg.data)!=msg.row_step*msg.height:
+        raise ValueError('invalid cloud data length/stride')
+    offsets=[]
+    for name in ('x','y','z'):
+        matches=[f for f in msg.fields if f.name==name]
+        if len(matches)!=1:raise ValueError('missing/duplicate XYZ field')
+        f=matches[0]
+        if f.datatype!=7 or f.count!=1 or type(f.offset) is not int or not 0<=f.offset<=msg.point_step-4:
+            raise ValueError('cloud requires valid float32 XYZ fields')
+        offsets.append(f.offset)
+    if any(abs(a-b)<4 for i,a in enumerate(offsets) for b in offsets[i+1:]):
+        raise ValueError('overlapping XYZ fields')
+    total=msg.width*msg.height;stride=max(1,(total+19999)//20000);points=[]
+    for i in range(0,total,stride):
+        row,col=divmod(i,msg.width);base=row*msg.row_step+col*msg.point_step
+        xyz=[struct.unpack_from(('>' if msg.is_bigendian else '<')+'f',msg.data,base+o)[0] for o in offsets]
+        if all(math.isfinite(v) for v in xyz):points.append(xyz)
+    return points
 
 
 def checked_images(messages,docs,now_ns):
@@ -132,13 +160,7 @@ def main():
         if time.monotonic()-last_cloud<5:return
         try:
             if msg.header.frame_id!='map_3d':raise ValueError('unexpected cloud frame')
-            fields={f.name:f for f in msg.fields};offsets=[fields[k].offset for k in ('x','y','z')]
-            if any(fields[k].datatype!=7 for k in ('x','y','z')):raise ValueError('cloud requires float32 XYZ')
-            total=msg.width*msg.height;stride=max(1,(total+19999)//20000);points=[]
-            for i in range(0,total,stride):
-                row,col=divmod(i,msg.width);base=row*msg.row_step+col*msg.point_step
-                xyz=[struct.unpack_from(('>' if msg.is_bigendian else '<')+'f',msg.data,base+o)[0] for o in offsets]
-                if all(math.isfinite(v) for v in xyz):points.append(xyz)
+            points=cloud_points(msg)
             atomic(out/'cloud.json',dict(label='PROVISIONAL — PHYSICAL ACCURACY NOT VERIFIED',frame=msg.header.frame_id,stamp_ns=ns(msg),points=points))
             last_cloud=time.monotonic()
         except Exception as e:fail(e)

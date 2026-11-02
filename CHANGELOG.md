@@ -3524,3 +3524,6 @@ attempt, bounded processing, independent existing safety utilities and continuou
 sensor/TF freshness checks. 14 focused tests passed. Not deployed or executed;
 localization remains unverified and Recovery remains STOPPED/open. See
 [guard report](docs/audits/ATLAS_LOCALIZATION_DRY_RUN_GUARD_20261031.md).
+
+
+2026-11-02: Onboard mapping validates original timestamps and PointCloud2 layout before local viewer export. Offline only; calibration and real RGB-D evidence remain blocked.

@@ -1759,3 +1759,6 @@ attempt, bounded processing, independent existing safety utilities and continuou
 sensor/TF freshness checks. 14 focused tests passed. Not deployed or executed;
 localization remains unverified and Recovery remains STOPPED/open. See
 [guard report](docs/audits/ATLAS_LOCALIZATION_DRY_RUN_GUARD_20261031.md).
+
+
+2026-11-02 onboard mapping: validate original timestamps and point-cloud layout before local viewer export. Existing isolated Jetson architecture and disabled defaults retained. See docs/ATLAS_ONBOARD_MAPPING_CONTINUATION_20261102.md; real RGB-D recordings/calibration remain required.
