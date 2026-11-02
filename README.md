@@ -1770,3 +1770,5 @@ localization remains unverified and Recovery remains STOPPED/open. See
 RGB-D recording completion and deployment gates: [Jetson-local recording](docs/ASTRA_RGBD_RECORDING_SPRINT_20261102.md). Optional original-message cache is disabled by default; no camera activation or live mapping acceptance.
 
 Mapping installation-only preparation: [live-bound manifest and rollback readiness](docs/MAPPING_INSTALLATION_PREP_20261102.md). No deployment or activation performed.
+
+Object/target Lab readiness: [2026-11-02 report](docs/ATLAS_OBJECT_TARGET_READINESS_20261102.md).

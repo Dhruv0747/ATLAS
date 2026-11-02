@@ -3541,3 +3541,6 @@ localization remains unverified and Recovery remains STOPPED/open. See
 ## 2026-11-02 - Live-bound mapping installation preparation
 - Added installation-only transaction, exact metadata rollback and targeted live web/router patch builder.
 - No installation, service restart, camera activation or safety-setting change.
+
+## 2026-11-02 - Vision feature resource boundary
+- Reject CPU exactly 75% and RAM exactly 80% in the optional feature guard. Offline only; independent safety snapshot still blocks backend activation.

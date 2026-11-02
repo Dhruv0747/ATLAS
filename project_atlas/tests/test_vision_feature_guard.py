@@ -40,6 +40,9 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(command.call_args.kwargs['timeout'],.3)
             with self.assertRaises(ValueError):guard.check(60,{'ros':{},'system':{'ram_percent':81}})
             with self.assertRaises(RuntimeError):guard.check(76,{'ros':{},'system':{'ram_percent':50}})
+            with self.assertRaises((ValueError,RuntimeError)):guard.check(75,{'ros':{},'system':{'ram_percent':50}})
+            with self.assertRaises((ValueError,RuntimeError)):guard.check(60,{'ros':{},'system':{'ram_percent':80}})
+            self.assertLess(guard.check(74.99,{'ros':{},'system':{'ram_percent':79.99}})['ram_percent'],80)
             command.side_effect=TimeoutError('systemctl timeout')
             with self.assertRaises(TimeoutError):guard.check(60,{'ros':{},'system':{'ram_percent':50}})
 

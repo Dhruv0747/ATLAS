@@ -13,7 +13,9 @@ from stationary_gate import require_cpu,validate_policy,ticks,cpu_delta
 def check(cpu,j):
     # Reuse policy/CPU predicates, but bound recorder systemctl instead of the
     # legacy check() helper's unbounded subprocess wait.
-    require_cpu(cpu);policy=validate_policy(j['ros'])
+    require_cpu(cpu)
+    if cpu>=75:raise ValueError('CPU limit failed')
+    policy=validate_policy(j['ros'])
     mem={line.split(':')[0]:int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines()}
     ram=max(100*(1-mem['MemAvailable']/mem['MemTotal']),float(j['system']['ram_percent']))
     required={'cpu-thermal','gpu-thermal','soc0-thermal','soc1-thermal','soc2-thermal','tj-thermal'}
@@ -22,7 +24,7 @@ def check(cpu,j):
         kind=(zone/'type').read_text().strip()
         if kind in required:temps[kind]=float((zone/'temp').read_text())/1000
     if set(temps)!=required or any(not math.isfinite(x) or not 0<x<70 for x in temps.values()):raise ValueError('thermal source unavailable/over limit')
-    if not math.isfinite(ram) or not 0<=ram<=80:raise ValueError('RAM limit failed')
+    if not math.isfinite(ram) or not 0<=ram<80:raise ValueError('RAM limit failed')
     recorder=subprocess.check_output(['systemctl','--user','show','atlas-stage20-public-capture.service','-p','ActiveState','-p','MainPID'],text=True,timeout=.3)
     if 'ActiveState=inactive' not in recorder or 'MainPID=0\n' not in recorder:raise ValueError('recorder not OFF')
     return dict(cpu_percent=cpu,ram_percent=ram,thermal_c=temps,policy=policy)
