@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 import socket
 import statistics
+from atlas_source_provenance import Provenance
 import sys
 import time
 
@@ -300,6 +301,7 @@ def systemd_notify(message: str) -> None:
 
 class YahboomBase(Node):
     def __init__(self):
+        self._provenance = Provenance()
         super().__init__('yahboom_base')
 
         # Validate BEFORE opening the hardware. Missing/bad config must not
@@ -1811,6 +1813,9 @@ class YahboomBase(Node):
         serial_diagnostics = self.bot.get_serial_diagnostics()
         names = ENCODER_NAMES
         payload = {
+            'source_provenance': self._provenance.stamp(now),
+            'encoder_packet_monotonic': self._encoder_packet_stamp,
+            'encoder_update_sequence': self._encoder_update_sequence,
             'state': state,
             'faults': [names[i] for i in faults],
             'excluded_encoders': [i + 1 for i in self._excluded_encoders],

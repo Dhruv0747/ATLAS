@@ -45,7 +45,7 @@ def extracted_mux(clock):
         node
         for node in mux.body
         if isinstance(node, ast.FunctionDef)
-        and node.name in {"moving", "hold_remote_stop", "reset_remote_stop"}
+        and node.name in {"moving", "hold_remote_stop", "reset_remote_stop", "_publish_with_provenance"}
     ]
     scope = dict(
         time=NS(monotonic=clock),
@@ -75,6 +75,7 @@ class RemoteStopHoldTests(unittest.TestCase):
         self.mux.active_name = "NAV2"
         self.mux.last_sent = twist(0.1)
         self.mux.output = Mock()
+        self.mux._provenance = Mock()
         self.mux.safety_output = Mock()
         self.mux.publish_mode = Mock()
         self.mux._remote_stop_hold_latched = None

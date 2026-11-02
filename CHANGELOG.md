@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-02: Source provenance metadata and source-time consumer implemented offline; 33 focused checks PASS. See docs/ATLAS_SOURCE_PROVENANCE_20261102.md. No deployment; overhead UNKNOWN.
+
 2026-10-30: prepared Object/Target-only admission, model-ready handshake, expiring
 safety lease, bounded recorder check and exact-live functional Lab package. Native
 synthetic lifecycle/UI checks passed; camera and inference remain off.

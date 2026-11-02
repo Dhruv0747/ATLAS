@@ -7,6 +7,7 @@ import json
 import os
 import time
 from typing import Dict, Optional
+from atlas_source_provenance import Provenance
 
 import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
@@ -47,6 +48,7 @@ class AtlasCmdVelMux(Node):
 
     def __init__(self):
         super().__init__("atlas_cmd_vel_mux")
+        self._provenance = Provenance()
         self.declare_parameter('remote_reset_button', 4)
         self.declare_parameter('remote_reset_hold_s', 2.0)
         self.remote_stop = RemoteStop(
@@ -384,7 +386,7 @@ class AtlasCmdVelMux(Node):
             or now - self._remote_stop_last_zero
             >= REMOTE_STOP_ZERO_KEEPALIVE_S
         ):
-            self.output.publish(Twist())
+            self._publish_with_provenance(Twist())
             self._remote_stop_last_zero = now
         if (
             state_changed
@@ -454,7 +456,7 @@ class AtlasCmdVelMux(Node):
         channel = self.channels['COMMISSION']
         channel.engaged = False
         channel.command = Twist()
-        self.output.publish(Twist())
+        self._publish_with_provenance(Twist())
         self.last_sent = Twist()
         self.active_name = None
         self.safety_output.publish(String(data=reason))
@@ -739,12 +741,18 @@ class AtlasCmdVelMux(Node):
         ]
         return min(live, key=lambda c: c.priority) if live else None
 
+    def _publish_with_provenance(self, msg):
+        # Timestamp before publication: a blocked publish cannot rejuvenate evidence.
+        stamp = time.monotonic()
+        self.output.publish(msg)
+        self._provenance.sent(msg, stamp)
+
     def publish(self, msg: Twist) -> None:
         self.last_sent = self.copy_twist(msg)
-        self.output.publish(msg)
+        self._publish_with_provenance(msg)
 
     def publish_stop(self, reason: str) -> None:
-        self.output.publish(Twist())
+        self._publish_with_provenance(Twist())
         self.last_sent = Twist()
         self.active_name = None
         self.safety_output.publish(String(data="AUTONOMY IDLE"))
@@ -831,7 +839,7 @@ class AtlasCmdVelMux(Node):
                         f'COMMISSION ABORT: ENCODER {encoder_state} {faults}'
                     )
                     return
-                self.output.publish(Twist())
+                self._publish_with_provenance(Twist())
                 self.last_sent = Twist()
                 self.safety_output.publish(String(data=reason))
                 if reason != self.last_blocked_reason:
@@ -854,7 +862,7 @@ class AtlasCmdVelMux(Node):
                         f'COMMISSION ABORT: {blocked_reason}'
                     )
                     return
-                self.output.publish(Twist())
+                self._publish_with_provenance(Twist())
                 self.last_sent = Twist()
                 self.safety_output.publish(String(data=blocked_reason))
                 if blocked_reason != self.last_blocked_reason:
@@ -902,6 +910,8 @@ class AtlasCmdVelMux(Node):
         mode = self.active_name or "STOPPED"
         self.mode_output.publish(String(data=mode))
         self.policy_output.publish(String(data=json.dumps({
+            'source_provenance': self._provenance.stamp(time.monotonic()),
+            'published_command': self._provenance.command,
             'manual_only': self.manual_only,
             'commission_armed': time.monotonic() < self.commission_until,
             'commission_remaining_s': max(
@@ -919,7 +929,7 @@ class AtlasCmdVelMux(Node):
         if not rclpy.ok():
             return
         for _ in range(3):
-            self.output.publish(Twist())
+            self._publish_with_provenance(Twist())
             time.sleep(0.02)
 
 
