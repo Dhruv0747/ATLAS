@@ -1423,3 +1423,8 @@ Monitoring recovery preparation (2026-11-02): archive validation accepts the exi
 
 
 2026-11-02 monitoring: optional Linux --freebind avoids exporter startup bind failure while the approved LAN address is absent. No live deployment, fault reset or firewall change. See monitoring/atlas/persistent/RECONNECT_REVIEW_20261102.md for evidence and pending recovery gates.
+
+
+## 2026-11-02 - Pulse View reconnect correctness
+- Discard late authenticated responses after disconnect; single-flight refresh on reconnect.
+- Keep selected path rate/freshness evidence current; no dashboard, scrape or safety changes.

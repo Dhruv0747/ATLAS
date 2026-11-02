@@ -39,3 +39,37 @@ Subsequent firewall startup refusals explicitly say `fault latched; owner review
 Some later events have wall-clock values near 40 seconds since epoch, indicating invalid/unset early-boot wall time; their ordering must use boot IDs and monotonic records, not invented calendar dates. All evidence and latch remain untouched. Next recovery gate is owner review of the one-count change and fresh stationary safety verification, followed only by separately authorized monitoring rearm. No automatic reset/restart.
 
 API reference: https://grafana.com/docs/grafana/latest/developer-resources/api-reference/http-api/api-legacy/data_source/
+
+
+## Focused reconnection correction — 2026-11-02 sprint (repository only)
+
+Confirmed browser defect: a request started before an offline event could finish
+later and restore eight moving pulses. The new integration regression reproduced
+that failure before the fix. Each visibility/connectivity transition now
+invalidates the request generation. Late responses cannot revive observations;
+reconnection performs one fresh authenticated request, single-flight, without
+reloading the page. The regular refresh stays 30 seconds; Prometheus scrape rate
+is unchanged. No safety latch or service recovery action exists in this code.
+
+Selected path details now show measured rate, ageing freshness and last observed
+time; they expire while selected. Rendering measures age at execution time rather
+than using a possibly older animation-frame timestamp. Missing data remains
+UNAVAILABLE, never zero. Existing 19 nodes, eight verified paths, twelve
+unverified connections, topology and both Grafana dashboards are unchanged.
+
+Validation: six source/state Node tests PASS; Edge browser integration PASS for
+fresh, idle, stale, exporter down, authorization denial, timeout, offline late
+response, reconnect without reload and reconnect during an in-flight request.
+Desktop 1280x900 and mobile 390x844 layouts PASS. Motion/expiry/pause checks PASS,
+zero page errors. Synthetic 3-second rendering sample: 0.059722 seconds idle,
+0.144938 seconds active, 2.88073 MiB JS heap. No Jetson or live Grafana request was
+made by these intercepted offline browser tests. Live acceptance remains BLOCKED
+by the retained exporter fault; nothing here clears it or proves its cause.
+
+Deployment proposal, after separate approval: back up/hash the installed
+`public/atlas-pulse/pulse-view/view.mjs`, then replace only that reviewed asset and
+verify its hash in the existing PC Grafana container. No restart, provisioning,
+topology, dashboard JSON or scrape change is needed. Preserve the exact-byte
+backup; rollback restores only view.mjs. Verify browser cache refresh, auth denial
+and honest exporter-DOWN display before any live-traffic acceptance. Do not clear
+a Jetson fault latch to make the visualization animate.

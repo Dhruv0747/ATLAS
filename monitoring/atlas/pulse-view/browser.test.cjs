@@ -17,7 +17,7 @@ const fs=require('fs'),path=require('path'),assert=require('assert/strict');
   const visible=()=>page.locator('.pulse[visibility="visible"]').count();
   assert.equal(await visible(),0);
   const sample=await page.evaluate(()=>({up:1,queryTime:100,observedTime:100,requestMs:0,topics:Object.fromEntries(atlasPulseTest.topology.edges.filter(e=>e.verified).map(e=>[e.topic,{available:1,rate:10,age:0}]))}));
-  await page.evaluate(s=>atlasPulseTest.accept(s),sample);await page.waitForTimeout(80);assert.equal(await visible(),8);
+  await page.evaluate(s=>atlasPulseTest.accept(s),sample);await page.waitForFunction(()=>document.querySelectorAll('.pulse[visibility="visible"]').length===8);
   const pulse=page.locator('[data-pulse="odometry"]');const x=await pulse.getAttribute('cx');await page.waitForTimeout(160);assert.notEqual(await pulse.getAttribute('cx'),x);
   await page.waitForTimeout(1000);assert.equal(await pulse.getAttribute('visibility'),'hidden');assert.equal(await page.locator('[data-edge="odometry"]').getAttribute('data-state'),'STALE');
   const idle=structuredClone(sample);idle.queryTime=101;idle.observedTime=101;for(const t of Object.values(idle.topics))t.rate=0;
