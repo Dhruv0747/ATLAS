@@ -1765,3 +1765,6 @@ localization remains unverified and Recovery remains STOPPED/open. See
 
 
 2026-11-02: Added offline existing-session RGB-D recording binding and checksum-verified rosbag conversion. No live route enabled; calibration and bounded host safety/TF providers remain capture blockers. See docs/ATLAS_RGBD_RECORDING_INTEGRATION_20261102.md.
+
+
+RGB-D recording completion and deployment gates: [Jetson-local recording](docs/ASTRA_RGBD_RECORDING_SPRINT_20261102.md). Optional original-message cache is disabled by default; no camera activation or live mapping acceptance.

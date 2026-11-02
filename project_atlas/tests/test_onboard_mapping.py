@@ -69,6 +69,22 @@ class OnboardTests(unittest.TestCase):
             self.assertEqual(payload('/api/map3d/cloud?id='+p.name,root)['points'],[[1,2,3]])
             with self.assertRaises(ValueError):payload('/api/map3d/cloud?id=../../etc/passwd',root)
 
+    def test_cleanup_off_text_does_not_prove_shutdown(self):
+        with tempfile.TemporaryDirectory() as d:
+            c={'storage':d};receipt=Path(d)/'camera-owner.json'
+            atomic(receipt,dict(driver_pid=100,startup=1))
+            with patch('onboard_supervisor.read_json',return_value={'runtime':{'state':'OFF'}}):
+                with self.assertRaises(ValueError):stop_camera(c)
+            self.assertTrue(receipt.exists())
+
+    def test_cleanup_requires_both_owned_children_stopped(self):
+        with tempfile.TemporaryDirectory() as d:
+            c={'storage':d};receipt=Path(d)/'camera-owner.json'
+            atomic(receipt,dict(driver_pid=100,startup=1))
+            state=dict(driver_pid=100,startup_guard_baseline_monotonic_s=1,driver_stopped=True,cloud_stopped=True)
+            with patch('onboard_supervisor.read_json',return_value={'runtime':state}):stop_camera(c)
+            self.assertFalse(receipt.exists())
+
     def test_cleanup_refuses_other_camera_session(self):
         with tempfile.TemporaryDirectory() as d:
             c={'storage':d};atomic(Path(d)/'camera-owner.json',dict(driver_pid=100,startup=1))

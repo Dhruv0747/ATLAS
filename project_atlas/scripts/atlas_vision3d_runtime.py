@@ -6,6 +6,7 @@ changed. No camera frames/logs are persisted. Scalar runtime health is ephemeral
 import atexit
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import signal
@@ -45,6 +46,16 @@ MIN_CPU_WINDOW_S = 1.0
 MAX_CPU_WINDOW_S = 2.0
 LEASE_POLL_S = 0.25
 STARTUP_SEED = 'ATLAS_VISION3D_STARTUP_SAMPLE'
+CAPTURE_DEADLINE = 'ATLAS_VISION3D_CAPTURE_DEADLINE'
+
+def session_deadline(now, value=None):
+    if value is None:return now+MAX_SECONDS
+    if isinstance(value,bool):raise ValueError('invalid capture deadline')
+    end=float(value)
+    if not math.isfinite(end) or not now < end <= now+MAX_SECONDS:
+        raise ValueError('expired/invalid capture deadline')
+    return end
+
 
 
 def startup_sample():
@@ -134,11 +145,11 @@ def process_metrics(pid, previous=None):
     except (OSError,StopIteration,ValueError,IndexError):return {'pid':pid,'state':'unavailable'},None
 
 
-def limits(cpu, ram, hottest):
+def limits(cpu, ram, hottest, *, strict=False):
     import math
     if not all(math.isfinite(x) for x in (cpu, ram, hottest)):
         raise ValueError('RESOURCE BLOCKED: unknown measurement')
-    if cpu > 75 or ram > 80 or hottest > 70:
+    if (cpu >= 75 or ram >= 80 or hottest >= 70) if strict else (cpu > 75 or ram > 80 or hottest > 70):
         raise ValueError('RESOURCE BLOCKED: CPU75% / RAM80% / temperature70C limit')
 
 
@@ -290,11 +301,16 @@ def negotiation_lines(text, limit=40):
 
 class ViewerSession:
     def __init__(self):
-        self.lock=threading.RLock(); self.child=None; self.error=''; self.generation=0
+        self.lock=threading.RLock(); self.child=None; self.error=''; self.generation=0; self.capture_owner=None
 
-    def start(self, mode):
+    def start(self, mode, *, capture_owner=None, deadline=None):
         driver_args(mode)
         with self.lock:
+            if self.capture_owner is not None:raise ValueError('recording ownership not released')
+            if (capture_owner is None)!=(deadline is None):raise ValueError('capture owner/deadline required together')
+            env=dict(os.environ, **{STARTUP_SEED:json.dumps(startup_sample())})
+            env.pop(CAPTURE_DEADLINE,None)
+            if capture_owner is not None:env[CAPTURE_DEADLINE]=str(session_deadline(time.monotonic(),deadline))
             if self.child and self.child.poll() is None:
                 raise ValueError('viewer already running; pause before changing mode')
             self.generation+=1
@@ -304,11 +320,19 @@ class ViewerSession:
             command=['/usr/bin/python3',str(Path(__file__).resolve()),'--worker',mode]
             self.child=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,
                                         stderr=subprocess.DEVNULL,start_new_session=True,
-                                        env=dict(os.environ, **{STARTUP_SEED:json.dumps(startup_sample())}))
-            self.error=''; self.touch()
+                                        env=env)
+            self.capture_owner=capture_owner
+            self.error=''; self.touch(capture_owner=capture_owner)
 
-    def touch(self):
+    def release_capture(self, owner):
         with self.lock:
+            if owner is not self.capture_owner or (self.child and self.child.poll() is None):
+                raise ValueError('recording owner still active or mismatched')
+            self.capture_owner=None
+
+    def touch(self, *, capture_owner=None):
+        with self.lock:
+            if self.capture_owner is not None and capture_owner is not self.capture_owner:return
             if self.child and self.child.poll() is None:
                 try:self.child.stdin.write(b'1\n');self.child.stdin.flush()
                 except (OSError,ValueError):pass
@@ -377,9 +401,9 @@ def worker(mode, startup=None):
             state['failed_resources']=e.evidence
             lifecycle_event(state,'resource_guard_failed',evidence=e.evidence)
             raise ValueError('RESOURCE BLOCKED: '+str(e)) from e
-        limits(cpu,row['ram_percent'],max(row['thermal_c'].values()))
+        limits(cpu,row['ram_percent'],max(row['thermal_c'].values()),strict=os.environ.get(CAPTURE_DEADLINE) is not None)
         P.extra_safety(ros=observation['ros']);rows.append(row)
-        state.update(resources=row,remaining_s=max(0,MAX_SECONDS-(time.monotonic()-started)))
+        state.update(resources=row,remaining_s=max(0,deadline-time.monotonic()))
     def checkpoint():
         nonlocal last_lease
         if os.getppid()!=parent:raise RuntimeError('dashboard owner ended')
@@ -387,9 +411,11 @@ def worker(mode, startup=None):
             if not os.read(sys.stdin.fileno(),4096):raise RuntimeError('viewer paused or closed')
             last_lease=time.monotonic()
         if time.monotonic()-last_lease>4:raise RuntimeError('viewer lease expired')
-        if time.monotonic()-started>=MAX_SECONDS:raise RuntimeError('startup session deadline exceeded')
+        if time.monotonic()>=deadline:raise RuntimeError('startup session deadline exceeded')
         if window.due(time.monotonic()):sample();write()
     try:
+        deadline=session_deadline(started,os.environ.get(CAPTURE_DEADLINE))
+        state['deadline_monotonic_s']=deadline
         write()
         seed_time,last_ticks=validate_startup_sample(startup if startup is not None else startup_sample(),time.monotonic())
         state['startup_guard_baseline_monotonic_s']=seed_time
@@ -427,7 +453,7 @@ def worker(mode, startup=None):
         state['driver_launch_elapsed_s']=time.monotonic()-started
         state['astra_process'],process_last=process_metrics(child.pid)
         state.update(state='ACTIVE',reason='Bounded stationary viewing; accuracy NOT verified',driver_pid=child.pid)
-        while time.monotonic()-started<MAX_SECONDS:
+        while time.monotonic()<deadline:
             if os.getppid()!=parent:raise RuntimeError('dashboard owner ended')
             if select.select([sys.stdin.buffer],[],[],window.wait(time.monotonic()))[0]:
                 lease=os.read(sys.stdin.fileno(),4096)

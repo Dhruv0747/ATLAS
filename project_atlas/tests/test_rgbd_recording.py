@@ -47,10 +47,10 @@ def context(stamp):
 @pytest.fixture
 def rig(monkeypatch):
     clock=[0.];ctrl=N(lock=threading.RLock(),child=None);vision=N(lock=threading.RLock(),transport=None,messages={})
-    def start(mode):
+    def start(mode,**kwargs):
         assert mode=='concurrent';ctrl.child=N(pid=99999999,poll=lambda:None)
     def stop():ctrl.child.poll=lambda:0
-    ctrl.start=Mock(side_effect=start);ctrl.stop=Mock(side_effect=stop)
+    ctrl.start=Mock(side_effect=start);ctrl.stop=Mock(side_effect=stop);ctrl.touch=Mock();ctrl.release_capture=Mock()
     ctrl.status=lambda:dict(worker_pid=ctrl.child.pid,driver_pid=99999998,driver_stopped=True,cloud_stopped=True)
     def touch():vision.messages=messages(int((100+clock[0])*10**9))
     vision.touch=touch;vision.stop=Mock()
@@ -178,3 +178,36 @@ def test_conversion_tamper_rejected(rig,tmp_path):
     with (tmp_path/'run/capture.sqlite').open('ab') as f:f.write(b'tampered')
     with pytest.raises(ValueError,match='checksum'):R.export_bag(tmp_path/'run')
     assert not (tmp_path/'run/replay.db3').exists()
+
+
+def test_real_provider_admission_does_not_expire_first_heartbeat(rig,tmp_path):
+    session,ctrl,vision,clock=rig
+    def sample(cpu,window):
+        clock[0]+=.02  # real resource-read overhead after initial one-second window
+        return dict(observation(clock[0]),cpu=cpu,cpu_window_s=window)
+    session.observer=R.ExistingSafety(sample,clock=lambda:clock[0],sleep=lambda t:clock.__setitem__(0,clock[0]+t),
+        counters=lambda:(int(clock[0]*1000),int(clock[0]*400)))
+    def interrupted(t):raise KeyboardInterrupt('test completed first bundle')
+    session.sleep=interrupted
+    result=session.run(tmp_path/'run',docs(),'test',approved=True)
+    assert result['bundles']==1 and result['reason']=='test completed first bundle'
+    assert result['shutdown_verified'] and clock[0]>1
+    assert ctrl.start.call_args.kwargs['deadline']==60
+
+
+def test_original_tf_batches_preserved(rig,tmp_path,monkeypatch):
+    session,ctrl,vision,clock=rig
+    original=context(100000000000)
+    serialized={};real_metadata=R.metadata
+    def capture(kind,msg,serializer,receipt):
+        row=real_metadata(kind,msg,serializer,receipt);serialized[kind]=row['cdr'];return row
+    monkeypatch.setattr(R,'metadata',capture)
+    session.context=lambda:dict(original,tf=[original['tf']],tf_static=[original['tf_static']])
+    session.sleep=lambda t:(_ for _ in ()).throw(KeyboardInterrupt('bounded test'))
+    session.run(tmp_path/'run',docs(),'test',approved=True)
+    with sqlite3.connect(tmp_path/'run/capture.sqlite') as db:
+        for key in ('tf','tf_static'):
+            from rclpy.serialization import deserialize_message
+            cdr=db.execute('select cdr from messages where stream=?',(key,)).fetchone()[0]
+            assert cdr==serialized[key]
+            assert deserialize_message(cdr,TFMessage)==original[key]

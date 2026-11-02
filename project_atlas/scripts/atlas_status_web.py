@@ -406,6 +406,10 @@ class AtlasRosNode:
         self.previous_amcl_pose = None
         self.last_large_amcl_step_at = 0.0
         self.map_lock = threading.Lock()
+        self.rgbd_context = None
+        if os.environ.get("ATLAS_RGBD_EVIDENCE_CACHE") == "1":
+            from atlas_rgbd_context import ContextCache
+            self.rgbd_context = ContextCache()
         self.tf_buffer = None
         self.tf_listener = None
         self.last_motion_check = 0.0
@@ -464,7 +468,11 @@ class AtlasRosNode:
             rclpy.init(args=None)
             self.node = rclpy.create_node("atlas_web_control")
             self.tf_buffer = Buffer()
-            self.tf_listener = TransformListener(self.tf_buffer, self.node)
+            if self.rgbd_context is None:
+                self.tf_listener = TransformListener(self.tf_buffer, self.node)
+            else:
+                from atlas_rgbd_context import listener_class
+                self.tf_listener = listener_class(TransformListener)(self.tf_buffer,self.node,self.rgbd_context)
             self.pub = self.node.create_publisher(Twist, "/cmd_vel_web", 10)
             self.voice_mute_pub = self.node.create_publisher(Bool, '/atlas/voice/mic_mute', 10)
             # Reuse the existing mux latch; never create a second motor path.
@@ -711,6 +719,7 @@ class AtlasRosNode:
             self.spin_thread.join(timeout=3.0)
 
     def _odom_cb(self, msg):
+        if getattr(self,"rgbd_context",None) is not None:self.rgbd_context.put("odom",msg)
         self._set("odom", {
             "x": msg.pose.pose.position.x,
             "y": msg.pose.pose.position.y,
@@ -823,6 +832,7 @@ class AtlasRosNode:
                 self.data[key] = {"value": value, "ts": now}
 
     def _scan_cb(self, msg):
+        if getattr(self,"rgbd_context",None) is not None:self.rgbd_context.put("scan",msg)
         now = time.time()
         previous = getattr(self, 'surround_scan', None)
         dt = now-previous[1] if previous else 0

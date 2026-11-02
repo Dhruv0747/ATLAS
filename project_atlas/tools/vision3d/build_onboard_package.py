@@ -3,7 +3,7 @@ import argparse,hashlib,json,shutil,subprocess
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
-FILES=['config/onboard_mapping.json','scripts/atlas_map3d_web.py','web/v2/map3d.html','web/v2/map3d.js',
+FILES=['scripts/atlas_rgbd_context.py','scripts/atlas_vision3d_runtime.py','config/onboard_mapping.json','scripts/atlas_map3d_web.py','web/v2/map3d.html','web/v2/map3d.js',
        'tools/vision3d/onboard_adapter.py','tools/vision3d/onboard_store.py','tools/vision3d/onboard_supervisor.py',
        'tools/vision3d/onboard_mapping.yaml','tools/vision3d/atlas-mapping-test.service.in',
        'tools/vision3d/calibration_validation.py','tools/vision3d/calibration_capture.py',

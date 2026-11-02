@@ -3530,3 +3530,9 @@ localization remains unverified and Recovery remains STOPPED/open. See
 
 
 2026-11-02: Added offline existing-session RGB-D recording binding and checksum-verified rosbag conversion. No live route enabled; calibration and bounded host safety/TF providers remain capture blockers. See docs/ATLAS_RGBD_RECORDING_INTEGRATION_20261102.md.
+
+
+## 2026-11-02 - Bounded local RGB-D recording integration
+- Added optional existing-callback TF/odom/scan evidence cache and local safety-provider binding.
+- Bound recording lease to its owner and total startup-inclusive deadline; require owned shutdown evidence.
+- No deployment, camera activation or calibrated mapping acceptance.

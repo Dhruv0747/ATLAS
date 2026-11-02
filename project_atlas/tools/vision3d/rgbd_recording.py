@@ -47,8 +47,9 @@ def validate_context(messages,stamp,camera_frame,now):
     from rclpy.time import Time
     buffer=Buffer()
     for key in ('tf_static','tf'):
-        if not messages[key].transforms:raise ValueError('empty TF evidence')
-        for t in messages[key].transforms:
+        batches=messages[key] if isinstance(messages[key],list) else [messages[key]]
+        if not batches or any(not m.transforms for m in batches):raise ValueError('empty TF evidence')
+        for t in (t for m in batches for t in m.transforms):
             v=t.transform.translation;q=t.transform.rotation
             if not all(math.isfinite(x) for x in (v.x,v.y,v.z,q.x,q.y,q.z,q.w)):
                 raise ValueError('invalid TF geometry')
@@ -112,7 +113,7 @@ class Recording:
     def __init__(self,controller,vision,observer,context,*,clock=time.monotonic,wall_ns=time.time_ns,sleep=time.sleep):
         self.controller,self.vision,self.observer,self.context=controller,vision,observer,context
         self.clock,self.wall_ns,self.sleep=clock,wall_ns,sleep
-        self.used=False;self.owned=None
+        self.used=False;self.owned=None;self.token=object()
 
     def stop_owned(self):
         if self.owned is None:return True
@@ -130,6 +131,7 @@ class Recording:
                 try:os.killpg(pid,0)
                 except ProcessLookupError:continue
                 raise RuntimeError('owned camera process group remains')
+            self.controller.release_capture(self.token)
             return True
 
     def run(self,directory,docs,serial,*,approved=False):
@@ -146,17 +148,21 @@ class Recording:
             now=self.wall_ns();initial=self.context();validate_context(initial,ns(initial['odom']),docs['rgb']['frame_id'],now)
             from rclpy.serialization import serialize_message
             supervisor=Supervisor(start,store,self.stop_owned,expected,docs,serial)
+            # Admission includes a measured CPU interval, not an unattended
+            # recording heartbeat. Keep start for the absolute 60-second bound.
+            supervisor.last_tick=self.clock()
             with self.controller.lock:
                 if self.controller.child is not None and self.controller.child.poll() is None:raise ValueError('camera already owned')
                 if self.vision.transport is not None:raise ValueError('existing viewer transport active')
                 if self.clock()-start>=60:raise TimeoutError('startup deadline')
-                self.controller.start('concurrent');self.owned=self.controller.child
+                self.controller.start('concurrent',capture_owner=self.token,deadline=start+60);self.owned=self.controller.child
             last=None
             while not supervisor.closed:
                 observation=self.observer();now=self.clock()
                 if now-start>=60:
                     supervisor.tick(now,observation);break
-                self.vision.touch()  # existing session lease + existing transport only
+                self.controller.touch(capture_owner=self.token)  # only guarded recorder renews capture lease
+                self.vision.touch()  # reuse existing transport; browser cannot renew capture lease
                 with self.vision.lock:messages={k:self.vision.messages[k] for k in TYPES if k in self.vision.messages}
                 rows=None;receipt=self.wall_ns()
                 if len(messages)==4:
@@ -169,7 +175,9 @@ class Recording:
                         # Preserve context CDR in the same bounded evidence DB.
                         if self.clock()-start>=60:
                             supervisor.tick(self.clock(),observation);break
-                        store.write({k:metadata(k,m,serialize_message,receipt) for k,m in context.items()})
+                        batches={k:(v if isinstance(v,list) else [v]) for k,v in context.items()}
+                        for i in range(max(map(len,batches.values()))):
+                            store.write({k:metadata(k,v[i],serialize_message,receipt) for k,v in batches.items() if i<len(v)})
                         last=stamps
                 supervisor.tick(self.clock(),observation,rows,receipt)
                 if not supervisor.closed:self.sleep(.1)
@@ -196,3 +204,46 @@ def existing_binding(observer,context):
     from atlas_vision3d_runtime import SESSION
     from atlas_vision3d_web import SERVICE
     return Recording(SESSION,SERVICE,observer,context)
+
+
+class ExistingSafety:
+    """Adapt the existing one-second local guard; no thread/node or HTTP needed.
+
+    Initial CPU interval is included in the Recording's total deadline. Cached
+    observations expire after one second; a delayed/failed refresh never renews
+    them. Camera worker independently enforces its existing safety lease.
+    """
+    def __init__(self, observe, *, clock=time.monotonic, sleep=time.sleep, counters=None):
+        from stationary_gate import ticks
+        self.observe=observe;self.clock=clock;self.sleep=sleep;self.counters=counters or ticks
+        self.previous=None;self.previous_at=None;self.cached=None
+
+    def __call__(self):
+        from stationary_gate import cpu_delta
+        now=self.clock()
+        if self.previous is None:
+            self.previous=self.counters();self.previous_at=now
+            self.sleep(1);now=self.clock()
+        if self.cached is not None and now-self.previous_at<1:
+            safety(self.cached,now);return self.cached
+        current=self.counters();window=now-self.previous_at
+        if not .9<=window<=1.1:raise ValueError('CPU sampling interval invalid')
+        sample=self.observe(cpu_delta(self.previous,current),window)
+        # Resource collection time counts towards observation age, not freshened
+        # to completion of potentially slow local reads.
+        sample['received_mono']=now
+        safety(sample,self.clock())
+        self.previous,self.previous_at,self.cached=current,now,sample
+        return sample
+
+
+def host_binding(host):
+    """Bind existing web-node caches; disabled unless explicitly provisioned.
+
+    No route/Start control is enabled. A future approved host call must still
+    supply validated calibration and run(..., approved=True).
+    """
+    from onboard_supervisor import observe
+    cache=getattr(host,'rgbd_context',None)
+    if cache is None:raise ValueError('original-message context cache disabled')
+    return existing_binding(ExistingSafety(lambda cpu,window:observe(cpu,window,ros=host.snapshot())),cache.snapshot)

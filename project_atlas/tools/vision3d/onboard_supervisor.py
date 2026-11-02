@@ -38,8 +38,8 @@ def read_json(url):
         return json.loads(raw)
 
 
-def observe(cpu,window):
-    j=read_json('http://127.0.0.1:8088/api/status');r=j['ros']
+def observe(cpu,window,ros=None):
+    r=read_json('http://127.0.0.1:8088/api/status')['ros'] if ros is None else ros
     def value(k):
         row=r[k]
         if type(row['age']) not in (int,float) or not 0<=row['age']<=1:raise ValueError(k+' stale')
@@ -73,15 +73,19 @@ def stop_camera(c):
     if not receipt.exists():return
     owned=json.loads(receipt.read_text())
     current=read_json('http://127.0.0.1:8088/api/vision3d/status')['runtime']
-    if current.get('driver_stopped') is True or current.get('state')=='OFF':
+    def same(state):
+        return (state.get('driver_pid')==owned['driver_pid'] and
+                state.get('startup_guard_baseline_monotonic_s')==owned['startup'])
+    def stopped(state):
+        return same(state) and state.get('driver_stopped') is True and state.get('cloud_stopped') is True
+    if not same(current):raise ValueError('different camera session; refusing stop')
+    if stopped(current):
         receipt.unlink();return
-    if current.get('driver_pid')!=owned['driver_pid'] or current.get('startup_guard_baseline_monotonic_s')!=owned['startup']:
-        raise ValueError('different camera session; refusing stop')
     req=urllib.request.Request('http://127.0.0.1:8088/api/vision3d/viewer',
         data=b'{"action":"stop"}',headers={'Content-Type':'application/json','Origin':'http://127.0.0.1:8088','X-Atlas-Vision3D':'1'})
     with urllib.request.urlopen(req,timeout=.5) as r:r.read(65536)
     s=read_json('http://127.0.0.1:8088/api/vision3d/status')['runtime']
-    if s.get('state')!='OFF' and s.get('driver_stopped') is not True:raise ValueError('camera shutdown not yet verified')
+    if not stopped(s):raise ValueError('camera shutdown not yet verified')
     receipt.unlink()
 
 
