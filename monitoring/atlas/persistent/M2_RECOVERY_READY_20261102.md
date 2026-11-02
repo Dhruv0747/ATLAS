@@ -1,3 +1,11 @@
+# Post-boot binding update — supersedes package references below
+
+2026-11-02 owner-provided administrator evidence confirms the original FAULT.json and seven of eight state hashes unchanged. fault-events.json appended one refusal for boot c485cc95-d91c-4d4c-8fac-18a691a6b68c; new SHA256 de3ca6e690eadd9819751459ae1d457920923cb03c674c0c1f417c4f52500320. This is the same retained M2 incident, not a new watchdog rejection.
+
+Only that expected hash changed in recover_once.py. Archive/rollback/runtime/firewall/guard code unchanged. Three focused checks PASS (binding, eight-file archive/reset/restore, corrupt archive rejection); prior suites reused. Seven internal Linux SHA checks PASS. Original archive and live evidence preserved.
+
+Use NEW PC archive monitoring-recovery-m2-postboot-20261102.tar.gz SHA256 1b4e62460bb8657dc213712bcd9ed904402d9f7d9c92f1971ff3bec9fbda9b2d. The earlier archive below is superseded; do not execute its old hash command. Existing unused transaction identity is unchanged; never reuse any consumed attempt directory. Separate execution approval and fresh in-transaction safety/firewall/configuration/state checks remain required. No staging, latch reset or restart performed.
+
 # M2 recovery preparation â€” 2026-11-02
 
 Preparation PASS; execution requires separate owner approval. No live mutations.

@@ -33,7 +33,7 @@ EXPECTED_STATE = {
     'FAULT.json': EXPECTED_FAULT,
     'firewall-owned.json': '7e1a7ec6f1fddda84f4bdfb7471139722ee0b15dedb13d5125a7c3beacd53fcb',
     'rollback.json': '84ff15985c71d5c86378dc6eed63ddc74d26d8f6438bf3390bd29c65174a2c78',
-    'fault-events.json': 'fd8448d20e6642e0d8fa7dacd0e0770d945be926fa9755b8d9d333a4c2aa6709',
+    'fault-events.json': 'de3ca6e690eadd9819751459ae1d457920923cb03c674c0c1f417c4f52500320',
     'last-health.json': '118fac5afb8bf33a6e614da7b12fc66fcf41985f71d09b6d543bf057c2193bc4',
     'observer-active.json': 'b5689e0d582d5b66010996e49c603abb57b63ee497a3e1297d7334214bb19995',
     'operations.lock': EMPTY_SHA,

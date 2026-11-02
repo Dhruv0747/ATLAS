@@ -381,7 +381,7 @@ def test_launcher_stop_never_raises_or_masks_the_original_error(monkeypatch):
 def test_current_incident_binding():
     assert R.EXPECTED_FAULT == 'fc5479c96fd42ee003a565b0ccb7e63caaf9d29c43a383eff5291a3c938302fd'
     assert len(R.EXPECTED_STATE) == 8
-    assert R.EXPECTED_STATE['fault-events.json'] == 'fd8448d20e6642e0d8fa7dacd0e0770d945be926fa9755b8d9d333a4c2aa6709'
+    assert R.EXPECTED_STATE['fault-events.json'] == 'de3ca6e690eadd9819751459ae1d457920923cb03c674c0c1f417c4f52500320'
     assert R.E.name == 'atlas-monitoring-recovery-m2-20261102'
     assert R.TX == 'atlas-monitoring-recovery-once-m2-20261102'
     R.verify_lineage()
