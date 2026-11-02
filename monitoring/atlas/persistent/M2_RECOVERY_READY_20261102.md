@@ -68,3 +68,7 @@ sudo /usr/bin/python3 -I -B /opt/atlas-monitoring-recovery-m2-20261102/recover_o
 
 GO for requesting one controlled recovery approval. No live acceptance, reboot recovery,
 ordinary network interruption recovery or fix of encoder physical cause is claimed.
+
+## Overnight preparation follow-up (2026-11-02; no execution)
+Archive SHA256 rechecked unchanged. Reuse the36 passing focused checks; no changed transaction code or repeat suite. Owner later reported manually touching/moving the wheel as the physical explanation. This is an owner statement, not replacement of original M2 evidence or independently proven cause. Original latch remains retained.
+Recovery is now STOPPED after the separate snapshot CPU abort; prior PID2089 observations above are historical. Restore original Recovery first under separate approval. Monitoring recovery still needs its own approval and fresh configuration/evidence/safety checks. No monitoring services restarted or latch cleared. Ordinary reconnect remains live-PENDING; exporter DOWN must not animate pulses.
