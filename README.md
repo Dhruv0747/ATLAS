@@ -1,5 +1,8 @@
 # Project ATLAS - Autonomous Service Rover
 
+Separate offline neural dashboard: [verification and limitations](monitoring/atlas/RELIABILITY_NEURAL_PREPARATION.md). Not deployed.
+
+
 Monitoring recovery: [one-attempt transaction and rollback](monitoring/atlas/persistent/RECOVERY_TRANSACTION.md)
 was attempted once on October 31: exporter startup deadline failure, cleanup
 VERIFIED, original latch restored and monitoring stopped. No retry; the original

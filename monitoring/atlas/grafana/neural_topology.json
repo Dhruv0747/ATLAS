@@ -1,0 +1,257 @@
+{
+  "verified_at": "2026-11-02T08:56:27+05:30",
+  "nodes": [
+    {
+      "id": "jetson",
+      "title": "Jetson CPU/GPU"
+    },
+    {
+      "id": "astra",
+      "title": "Astra RGB/Depth"
+    },
+    {
+      "id": "csi",
+      "title": "CSI IMX708"
+    },
+    {
+      "id": "lidar",
+      "title": "LiDAR + scan filter"
+    },
+    {
+      "id": "imu",
+      "title": "IM10A IMU"
+    },
+    {
+      "id": "uno",
+      "title": "Arduino UNO R4"
+    },
+    {
+      "id": "ultrasonic",
+      "title": "Ultrasonic"
+    },
+    {
+      "id": "radar",
+      "title": "Radar"
+    },
+    {
+      "id": "mcu",
+      "title": "STM32 / Yahboom base"
+    },
+    {
+      "id": "ekf",
+      "title": "EKF"
+    },
+    {
+      "id": "slam",
+      "title": "SLAM Toolbox"
+    },
+    {
+      "id": "amcl",
+      "title": "AMCL"
+    },
+    {
+      "id": "nav2",
+      "title": "Nav2"
+    },
+    {
+      "id": "flysky",
+      "title": "FlySky"
+    },
+    {
+      "id": "xbox",
+      "title": "Xbox"
+    },
+    {
+      "id": "mux",
+      "title": "Control mux"
+    },
+    {
+      "id": "ai",
+      "title": "AI detection"
+    },
+    {
+      "id": "mapping",
+      "title": "RGB-D mapping"
+    },
+    {
+      "id": "cache",
+      "title": "Dashboard ROS cache"
+    }
+  ],
+  "edges": [
+    {
+      "id": "scan",
+      "source": "lidar",
+      "target": "cache",
+      "topic": "lidar",
+      "verified": true,
+      "evidence": "Deployed dashboard /scan subscription; LiDAR service remaps scan_raw. Filter hop separately unmeasured.",
+      "limit": 2
+    },
+    {
+      "id": "wheel",
+      "source": "mcu",
+      "target": "cache",
+      "topic": "encoder_health",
+      "verified": true,
+      "evidence": "yahboom_base.py publishes /atlas/encoder_health; dashboard subscribes.",
+      "limit": 1
+    },
+    {
+      "id": "boardimu",
+      "source": "mcu",
+      "target": "cache",
+      "topic": "board_imu_heading",
+      "verified": true,
+      "evidence": "yahboom_base.py publishes /yahboom/imu/heading; dashboard subscribes.",
+      "limit": 1
+    },
+    {
+      "id": "odometry",
+      "source": "ekf",
+      "target": "cache",
+      "topic": "odom",
+      "verified": true,
+      "evidence": "Deployed EKF unit remaps odometry/filtered to /odom; dashboard subscribes.",
+      "limit": 1
+    },
+    {
+      "id": "us",
+      "source": "uno",
+      "target": "cache",
+      "topic": "us_validity",
+      "verified": true,
+      "evidence": "ultrasonic_arduino_bridge.py /ultrasonic/validity publisher; dashboard subscriber.",
+      "limit": 3
+    },
+    {
+      "id": "joy",
+      "source": "xbox",
+      "target": "cache",
+      "topic": "joy",
+      "verified": true,
+      "evidence": "Dashboard /joy subscription; controller hardware identity is not packet-authenticated.",
+      "limit": 1
+    },
+    {
+      "id": "policy",
+      "source": "mux",
+      "target": "cache",
+      "topic": "control_policy",
+      "verified": true,
+      "evidence": "Mux /atlas/control_policy publisher; dashboard subscriber.",
+      "limit": 1
+    },
+    {
+      "id": "image",
+      "source": "csi",
+      "target": "cache",
+      "topic": "camera_info",
+      "verified": true,
+      "evidence": "Dashboard camera_info is cached preview receipt metadata; NOT ROS CameraInfo intrinsics or per-frame delivery proof.",
+      "limit": 5
+    },
+    {
+      "id": "wheel_ekf",
+      "source": "mcu",
+      "target": "ekf",
+      "topic": "",
+      "verified": false,
+      "evidence": "Configured /yahboom/odom input; no per-EKF receipt metric"
+    },
+    {
+      "id": "imu_ekf",
+      "source": "imu",
+      "target": "ekf",
+      "topic": "",
+      "verified": false,
+      "evidence": "Configured /im10a/imu/bias_corrected_candidate; do not substitute STM32 IMU"
+    },
+    {
+      "id": "flysky_mux",
+      "source": "flysky",
+      "target": "mux",
+      "topic": "",
+      "verified": false,
+      "evidence": "FlySky teleop conditional /cmd_vel_flysky; service observed inactive"
+    },
+    {
+      "id": "xbox_mux",
+      "source": "xbox",
+      "target": "mux",
+      "topic": "",
+      "verified": false,
+      "evidence": "Mux /joy E-STOP subscription; no per-mux receipt metric"
+    },
+    {
+      "id": "uno_us",
+      "source": "ultrasonic",
+      "target": "uno",
+      "topic": "",
+      "verified": false,
+      "evidence": "Physical sensor path not established from topic rate alone"
+    },
+    {
+      "id": "uno_radar",
+      "source": "radar",
+      "target": "uno",
+      "topic": "",
+      "verified": false,
+      "evidence": "UNO /radar/hub/raw_hex output; decoded delivery unmeasured"
+    },
+    {
+      "id": "scan_amcl",
+      "source": "lidar",
+      "target": "amcl",
+      "topic": "",
+      "verified": false,
+      "evidence": "Localization launch active; per-AMCL scan receipt unavailable"
+    },
+    {
+      "id": "scan_slam",
+      "source": "lidar",
+      "target": "slam",
+      "topic": "",
+      "verified": false,
+      "evidence": "SLAM path unavailable; no current receipt evidence"
+    },
+    {
+      "id": "amcl_nav",
+      "source": "amcl",
+      "target": "nav2",
+      "topic": "",
+      "verified": false,
+      "evidence": "Localization relationship; Nav2 observed inactive"
+    },
+    {
+      "id": "astra_ai",
+      "source": "astra",
+      "target": "ai",
+      "topic": "",
+      "verified": false,
+      "evidence": "PENDING Astra AI adapter activation"
+    },
+    {
+      "id": "astra_map",
+      "source": "astra",
+      "target": "mapping",
+      "topic": "",
+      "verified": false,
+      "evidence": "PENDING calibrated mapping"
+    },
+    {
+      "id": "compute",
+      "source": "jetson",
+      "target": "cache",
+      "topic": "",
+      "verified": false,
+      "evidence": "Host relationship, not a measured transport"
+    }
+  ],
+  "source_hashes": {
+    "atlas_status_web.py": "e0809e70b37adad72e5d6d17da4693cd15f750c6f28ab37b9d8ad416a4cac142",
+    "yahboom_base.py": "bb6db3a10c196be55ccd1bcb7bcbbf538643089c1a7bd5fe833f9b45453b473d",
+    "atlas_ekf.yaml": "69dd4479cdf84ea9d878b1d8c4d0e5129fb894b82003126c9c5f19052afc90ed",
+    "ultrasonic_arduino_bridge.py": "34e43322fcf7844d45f6ae272b2de150bc8d8adb53f8cf2a31e798a88faa5eff"
+  }
+}

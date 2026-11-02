@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-02 — Neural data-flow dashboard (offline)
+
+Separate Grafana Node Graph with freshness-gated cache observations and diagnostic links. Health Monitor and runtime/safety configuration unchanged. Browser acceptance passed; production deployment requires separate approval.
+
+
 2026-10-31 Monitoring recovery attempt-2 package prepared (offline, not executed): exporter start measured 3.598-3.629 s (three systemd starts) against attempt 1's 3 s sub-deadline; exporter deadline 12 s (outer 25 s bound unchanged); idempotent launcher stop (attempt 1's collected-unit exit 5); new attempt identity -20261031-2. Guard, thresholds, firewall and archive logic byte-identical. 37/37 focused transaction tests. Archive b997bcd4e503. monitoring/atlas/persistent/RECOVERY_TRANSACTION.md
 
 ## 2026-10-31 — Dashboard labels; recovery attempt 3 recorded

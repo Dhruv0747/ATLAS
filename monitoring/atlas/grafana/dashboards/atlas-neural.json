@@ -1,0 +1,608 @@
+{
+  "templating": {
+    "list": [
+      {
+        "name": "topic",
+        "type": "custom",
+        "query": "unmeasured,lidar,encoder_health,board_imu_heading,odom,us_validity,joy,control_policy,camera_info",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false
+      }
+    ]
+  },
+  "uid": "atlas-live-neural-data-flow",
+  "title": "ATLAS LIVE NEURAL DATA FLOW",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1000,
+      "type": "text",
+      "title": "Evidence and topology",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Read-only observation, not robot control. Topic rates are cached receiver observations, not proof of each connection. Graph colors reflect measured freshness; unmeasured connections remain grey. Missing metrics mean UNAVAILABLE. Windows is optional; all robot operation remains on Jetson."
+      }
+    },
+    {
+      "id": 900,
+      "type": "nodeGraph",
+      "title": "ATLAS LIVE NEURAL DATA FLOW",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "description": "Select a node or connection for evidence and history. Green means fresh measured cache traffic, not actuator permission. Grey edges are unverified or unavailable. No synthetic packet animation. Zoom out twice for overview; pan/zoom to inspect. Full source evidence is in the topology notes below.",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 18
+      },
+      "targets": [
+        {
+          "refId": "nodes",
+          "expr": "label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"jetson\",\"__name__\",\".*\")),\"title\",\"Jetson CPU/GPU\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"astra\",\"__name__\",\".*\")),\"title\",\"Astra RGB/Depth\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"csi\",\"__name__\",\".*\")),\"title\",\"CSI IMX708\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"lidar\",\"__name__\",\".*\")),\"title\",\"LiDAR + scan filter\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"imu\",\"__name__\",\".*\")),\"title\",\"IM10A IMU\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"uno\",\"__name__\",\".*\")),\"title\",\"Arduino UNO R4\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"ultrasonic\",\"__name__\",\".*\")),\"title\",\"Ultrasonic\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"radar\",\"__name__\",\".*\")),\"title\",\"Radar\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"mcu\",\"__name__\",\".*\")),\"title\",\"STM32 / Yahboom base\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"ekf\",\"__name__\",\".*\")),\"title\",\"EKF\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"slam\",\"__name__\",\".*\")),\"title\",\"SLAM Toolbox\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"amcl\",\"__name__\",\".*\")),\"title\",\"AMCL\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"nav2\",\"__name__\",\".*\")),\"title\",\"Nav2\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"flysky\",\"__name__\",\".*\")),\"title\",\"FlySky\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"xbox\",\"__name__\",\".*\")),\"title\",\"Xbox\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"mux\",\"__name__\",\".*\")),\"title\",\"Control mux\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"ai\",\"__name__\",\".*\")),\"title\",\"AI detection\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"mapping\",\"__name__\",\".*\")),\"title\",\"RGB-D mapping\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"cache\",\"__name__\",\".*\")),\"title\",\"Dashboard ROS cache\",\"__name__\",\".*\")),\"subtitle\",\"Component \\u2014 inspect edges\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Topology only\",\"__name__\",\".*\")",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        },
+        {
+          "refId": "edges",
+          "expr": "(label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 2) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} >= 0)) > 0),\"id\",\"scan\",\"__name__\",\".*\")),\"source\",\"lidar\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"lidar\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"FRESH OBSERVED\",\"__name__\",\".*\")),\"color\",\"#32c48d\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 2) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} >= 0)) == 0),\"id\",\"scan\",\"__name__\",\".*\")),\"source\",\"lidar\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"lidar\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"IDLE\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace(((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 2)),\"id\",\"scan\",\"__name__\",\".*\")),\"source\",\"lidar\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"lidar\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"STALE\",\"__name__\",\".*\")),\"color\",\"#ffb357\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0) unless on() ((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 2) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} >= 0)) > 0) or (((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 2) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} >= 0)) == 0) or ((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"lidar\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 2)))),\"id\",\"scan\",\"__name__\",\".*\")),\"source\",\"lidar\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"lidar\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"UNAVAILABLE\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} >= 0)) > 0),\"id\",\"wheel\",\"__name__\",\".*\")),\"source\",\"mcu\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"encoder_health\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"FRESH OBSERVED\",\"__name__\",\".*\")),\"color\",\"#32c48d\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} >= 0)) == 0),\"id\",\"wheel\",\"__name__\",\".*\")),\"source\",\"mcu\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"encoder_health\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"IDLE\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace(((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 1)),\"id\",\"wheel\",\"__name__\",\".*\")),\"source\",\"mcu\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"encoder_health\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"STALE\",\"__name__\",\".*\")),\"color\",\"#ffb357\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0) unless on() ((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} >= 0)) > 0) or (((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} >= 0)) == 0) or ((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"encoder_health\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 1)))),\"id\",\"wheel\",\"__name__\",\".*\")),\"source\",\"mcu\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"encoder_health\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"UNAVAILABLE\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} >= 0)) > 0),\"id\",\"boardimu\",\"__name__\",\".*\")),\"source\",\"mcu\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"board_imu_heading\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"FRESH OBSERVED\",\"__name__\",\".*\")),\"color\",\"#32c48d\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} >= 0)) == 0),\"id\",\"boardimu\",\"__name__\",\".*\")),\"source\",\"mcu\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"board_imu_heading\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"IDLE\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace(((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 1)),\"id\",\"boardimu\",\"__name__\",\".*\")),\"source\",\"mcu\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"board_imu_heading\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"STALE\",\"__name__\",\".*\")),\"color\",\"#ffb357\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0) unless on() ((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} >= 0)) > 0) or (((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} >= 0)) == 0) or ((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"board_imu_heading\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 1)))),\"id\",\"boardimu\",\"__name__\",\".*\")),\"source\",\"mcu\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"board_imu_heading\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"UNAVAILABLE\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} >= 0)) > 0),\"id\",\"odometry\",\"__name__\",\".*\")),\"source\",\"ekf\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"odom\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"FRESH OBSERVED\",\"__name__\",\".*\")),\"color\",\"#32c48d\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} >= 0)) == 0),\"id\",\"odometry\",\"__name__\",\".*\")),\"source\",\"ekf\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"odom\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"IDLE\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace(((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 1)),\"id\",\"odometry\",\"__name__\",\".*\")),\"source\",\"ekf\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"odom\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"STALE\",\"__name__\",\".*\")),\"color\",\"#ffb357\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0) unless on() ((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} >= 0)) > 0) or (((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} >= 0)) == 0) or ((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"odom\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 1)))),\"id\",\"odometry\",\"__name__\",\".*\")),\"source\",\"ekf\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"odom\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"UNAVAILABLE\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 3) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} >= 0)) > 0),\"id\",\"us\",\"__name__\",\".*\")),\"source\",\"uno\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"us_validity\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"FRESH OBSERVED\",\"__name__\",\".*\")),\"color\",\"#32c48d\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 3) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} >= 0)) == 0),\"id\",\"us\",\"__name__\",\".*\")),\"source\",\"uno\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"us_validity\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"IDLE\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace(((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 3)),\"id\",\"us\",\"__name__\",\".*\")),\"source\",\"uno\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"us_validity\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"STALE\",\"__name__\",\".*\")),\"color\",\"#ffb357\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0) unless on() ((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 3) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} >= 0)) > 0) or (((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 3) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} >= 0)) == 0) or ((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"us_validity\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 3)))),\"id\",\"us\",\"__name__\",\".*\")),\"source\",\"uno\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"us_validity\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"UNAVAILABLE\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} >= 0)) > 0),\"id\",\"joy\",\"__name__\",\".*\")),\"source\",\"xbox\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"joy\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"FRESH OBSERVED\",\"__name__\",\".*\")),\"color\",\"#32c48d\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} >= 0)) == 0),\"id\",\"joy\",\"__name__\",\".*\")),\"source\",\"xbox\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"joy\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"IDLE\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace(((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 1)),\"id\",\"joy\",\"__name__\",\".*\")),\"source\",\"xbox\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"joy\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"STALE\",\"__name__\",\".*\")),\"color\",\"#ffb357\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0) unless on() ((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} >= 0)) > 0) or (((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} >= 0)) == 0) or ((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"joy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 1)))),\"id\",\"joy\",\"__name__\",\".*\")),\"source\",\"xbox\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"joy\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"UNAVAILABLE\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} >= 0)) > 0),\"id\",\"policy\",\"__name__\",\".*\")),\"source\",\"mux\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"control_policy\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"FRESH OBSERVED\",\"__name__\",\".*\")),\"color\",\"#32c48d\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} >= 0)) == 0),\"id\",\"policy\",\"__name__\",\".*\")),\"source\",\"mux\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"control_policy\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"IDLE\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace(((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 1)),\"id\",\"policy\",\"__name__\",\".*\")),\"source\",\"mux\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"control_policy\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"STALE\",\"__name__\",\".*\")),\"color\",\"#ffb357\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0) unless on() ((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} >= 0)) > 0) or (((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 1) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} >= 0)) == 0) or ((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"control_policy\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 1)))),\"id\",\"policy\",\"__name__\",\".*\")),\"source\",\"mux\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"control_policy\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"UNAVAILABLE\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 5) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} >= 0)) > 0),\"id\",\"image\",\"__name__\",\".*\")),\"source\",\"csi\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"camera_info\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"FRESH OBSERVED\",\"__name__\",\".*\")),\"color\",\"#32c48d\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 5) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} >= 0)) == 0),\"id\",\"image\",\"__name__\",\".*\")),\"source\",\"csi\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"camera_info\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"IDLE\",\"__name__\",\".*\")),\"color\",\"#5794f2\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace(((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 5)),\"id\",\"image\",\"__name__\",\".*\")),\"source\",\"csi\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"camera_info\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"STALE\",\"__name__\",\".*\")),\"color\",\"#ffb357\",\"__name__\",\".*\") or label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0) unless on() ((((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 5) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} >= 0)) > 0) or (((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) <= 5) and on(job,instance,topic) (atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} >= 0)) == 0) or ((((atlas_topic_rate_hz{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} >= 0) and on(job,instance,topic) (atlas_topic_available{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} == 1)) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))) and on(job,instance,topic) ((atlas_topic_age_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\" ,topic=\"camera_info\"} + on(job,instance) group_left() (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"})) > 5)))),\"id\",\"image\",\"__name__\",\".*\")),\"source\",\"csi\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"camera_info\",\"__name__\",\".*\")),\"detail__evidence\",\"Audited receipt\",\"__name__\",\".*\")),\"secondarystat\",\"UNAVAILABLE\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"wheel_ekf\",\"__name__\",\".*\")),\"source\",\"mcu\",\"__name__\",\".*\")),\"target\",\"ekf\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"imu_ekf\",\"__name__\",\".*\")),\"source\",\"imu\",\"__name__\",\".*\")),\"target\",\"ekf\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"flysky_mux\",\"__name__\",\".*\")),\"source\",\"flysky\",\"__name__\",\".*\")),\"target\",\"mux\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"xbox_mux\",\"__name__\",\".*\")),\"source\",\"xbox\",\"__name__\",\".*\")),\"target\",\"mux\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"uno_us\",\"__name__\",\".*\")),\"source\",\"ultrasonic\",\"__name__\",\".*\")),\"target\",\"uno\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"uno_radar\",\"__name__\",\".*\")),\"source\",\"radar\",\"__name__\",\".*\")),\"target\",\"uno\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"scan_amcl\",\"__name__\",\".*\")),\"source\",\"lidar\",\"__name__\",\".*\")),\"target\",\"amcl\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"scan_slam\",\"__name__\",\".*\")),\"source\",\"lidar\",\"__name__\",\".*\")),\"target\",\"slam\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"amcl_nav\",\"__name__\",\".*\")),\"source\",\"amcl\",\"__name__\",\".*\")),\"target\",\"nav2\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"astra_ai\",\"__name__\",\".*\")),\"source\",\"astra\",\"__name__\",\".*\")),\"target\",\"ai\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"astra_map\",\"__name__\",\".*\")),\"source\",\"astra\",\"__name__\",\".*\")),\"target\",\"mapping\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\")) or (label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((label_replace((vector(0/0)),\"id\",\"compute\",\"__name__\",\".*\")),\"source\",\"jetson\",\"__name__\",\".*\")),\"target\",\"cache\",\"__name__\",\".*\")),\"detail__topic\",\"unmeasured\",\"__name__\",\".*\")),\"detail__evidence\",\"Unverified link\",\"__name__\",\".*\")),\"secondarystat\",\"UNVERIFIED\",\"__name__\",\".*\")),\"color\",\"#8e8e93\",\"__name__\",\".*\"))",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "filter": {
+            "id": "byRefId",
+            "options": "nodes"
+          },
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "mainstat"
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "filter": {
+            "id": "byRefId",
+            "options": "edges"
+          },
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "mainstat"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNAVAILABLE"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Topic diagnostics and history",
+                    "url": "/d/atlas-live-neural-data-flow/atlas-live-neural-data-flow?var-topic=${__data.fields.detail__topic}&from=${__from}&to=${__to}&viewPanel=2",
+                    "targetBlank": true
+                  },
+                  {
+                    "title": "ATLAS Health Monitor",
+                    "url": "/d/atlas-health-monitor/atlas-health-monitor?from=${__from}&to=${__to}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "detail__evidence"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Evidence"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "detail__topic"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Topic"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "subtitle"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Scope"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "secondarystat"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "State"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "nodes": {
+          "mainStatUnit": "short"
+        },
+        "edges": {
+          "mainStatUnit": "hertz"
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Jetson CPU/GPU",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(atlas_cpu_utilization_percent) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))",
+          "legendFormat": "atlas_cpu_utilization_percent",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "(atlas_gpu_load_percent) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))",
+          "legendFormat": "atlas_gpu_load_percent",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNAVAILABLE",
+          "mappings": [],
+          "custom": {
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "ATLAS health history",
+              "url": "/d/atlas-health-monitor/atlas-health-monitor?from=${__from}&to=${__to}",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Observed ROS topic traffic",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(atlas_topic_rate_hz{topic=~\"$topic\"}) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))",
+          "legendFormat": "atlas_topic_rate_hz{topic=~\"$topic\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNAVAILABLE",
+          "mappings": [],
+          "custom": {
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "ATLAS health history",
+              "url": "/d/atlas-health-monitor/atlas-health-monitor?from=${__from}&to=${__to}",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Topic freshness",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(atlas_topic_age_seconds{topic=~\"$topic\"}) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))",
+          "legendFormat": "atlas_topic_age_seconds{topic=~\"$topic\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNAVAILABLE",
+          "mappings": [],
+          "custom": {
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "ATLAS health history",
+              "url": "/d/atlas-health-monitor/atlas-health-monitor?from=${__from}&to=${__to}",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Topic stale flags",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(atlas_topic_stale) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))",
+          "legendFormat": "atlas_topic_stale",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNAVAILABLE",
+          "mappings": [],
+          "custom": {
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "ATLAS health history",
+              "url": "/d/atlas-health-monitor/atlas-health-monitor?from=${__from}&to=${__to}",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Source availability",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(atlas_source_available) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))",
+          "legendFormat": "atlas_source_available",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNAVAILABLE",
+          "mappings": [],
+          "custom": {
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "ATLAS health history",
+              "url": "/d/atlas-health-monitor/atlas-health-monitor?from=${__from}&to=${__to}",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Service state",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 37,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(atlas_service_active) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))",
+          "legendFormat": "atlas_service_active",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNAVAILABLE",
+          "mappings": [],
+          "custom": {
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "ATLAS health history",
+              "url": "/d/atlas-health-monitor/atlas-health-monitor?from=${__from}&to=${__to}",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "FlySky / Xbox",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 44,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(atlas_flysky_frame_age_seconds) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))",
+          "legendFormat": "atlas_flysky_frame_age_seconds",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "(atlas_control_selected) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))",
+          "legendFormat": "atlas_control_selected",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNAVAILABLE",
+          "mappings": [],
+          "custom": {
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "ATLAS health history",
+              "url": "/d/atlas-health-monitor/atlas-health-monitor?from=${__from}&to=${__to}",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "MCU encoder faults",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "atlas-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 44,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(atlas_encoder_faults) and on(job,instance) ((up{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} == 1) and on(job,instance) ((time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} >= 0) and (time() - atlas_exporter_observed_timestamp_seconds{job=\"atlas-jetson\",instance=\"192.168.1.16:9118\"} < 30)))",
+          "legendFormat": "atlas_encoder_faults",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "atlas-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "UNAVAILABLE",
+          "mappings": [],
+          "custom": {
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "ATLAS health history",
+              "url": "/d/atlas-health-monitor/atlas-health-monitor?from=${__from}&to=${__to}",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 1001,
+      "type": "text",
+      "title": "Connections pending verification",
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 24,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Topology candidate: Astra RGB/depth \u2192 AI detection / RGB-D mapping; CSI \u2192 camera preview; LiDAR + IMU + STM32 wheel odometry \u2192 EKF / SLAM / AMCL / Nav2; ultrasonic + radar + UNO R4 \u2192 sensor diagnostics; FlySky / Xbox \u2192 command arbitration. Only the eight explicitly evidenced cache-receipt edges can show measured traffic. Other relationships remain UNVERIFIED; receipt at the cache does not prove delivery to downstream consumers. No raw camera subscriptions, actuator commands or fabricated zero-rate edges. Calibrated mapping remains unverified.\n\n- **scan**: Deployed dashboard /scan subscription; LiDAR service remaps scan_raw. Filter hop separately unmeasured.\n- **wheel**: yahboom_base.py publishes /atlas/encoder_health; dashboard subscribes.\n- **boardimu**: yahboom_base.py publishes /yahboom/imu/heading; dashboard subscribes.\n- **odometry**: Deployed EKF unit remaps odometry/filtered to /odom; dashboard subscribes.\n- **us**: ultrasonic_arduino_bridge.py /ultrasonic/validity publisher; dashboard subscriber.\n- **joy**: Dashboard /joy subscription; controller hardware identity is not packet-authenticated.\n- **policy**: Mux /atlas/control_policy publisher; dashboard subscriber.\n- **image**: Dashboard camera_info is cached preview receipt metadata; NOT ROS CameraInfo intrinsics or per-frame delivery proof.\n- **wheel_ekf**: Configured /yahboom/odom input; no per-EKF receipt metric\n- **imu_ekf**: Configured /im10a/imu/bias_corrected_candidate; do not substitute STM32 IMU\n- **flysky_mux**: FlySky teleop conditional /cmd_vel_flysky; service observed inactive\n- **xbox_mux**: Mux /joy E-STOP subscription; no per-mux receipt metric\n- **uno_us**: Physical sensor path not established from topic rate alone\n- **uno_radar**: UNO /radar/hub/raw_hex output; decoded delivery unmeasured\n- **scan_amcl**: Localization launch active; per-AMCL scan receipt unavailable\n- **scan_slam**: SLAM path unavailable; no current receipt evidence\n- **amcl_nav**: Localization relationship; Nav2 observed inactive\n- **astra_ai**: PENDING Astra AI adapter activation\n- **astra_map**: PENDING calibrated mapping\n- **compute**: Host relationship, not a measured transport"
+      }
+    }
+  ],
+  "tags": [
+    "atlas",
+    "read-only",
+    "cached-traffic"
+  ]
+}
