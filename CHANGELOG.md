@@ -3527,3 +3527,6 @@ localization remains unverified and Recovery remains STOPPED/open. See
 
 
 2026-11-02: Onboard mapping validates original timestamps and PointCloud2 layout before local viewer export. Offline only; calibration and real RGB-D evidence remain blocked.
+
+
+2026-11-02: Added offline existing-session RGB-D recording binding and checksum-verified rosbag conversion. No live route enabled; calibration and bounded host safety/TF providers remain capture blockers. See docs/ATLAS_RGBD_RECORDING_INTEGRATION_20261102.md.

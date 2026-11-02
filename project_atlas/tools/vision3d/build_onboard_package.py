@@ -7,6 +7,8 @@ FILES=['config/onboard_mapping.json','scripts/atlas_map3d_web.py','web/v2/map3d.
        'tools/vision3d/onboard_adapter.py','tools/vision3d/onboard_store.py','tools/vision3d/onboard_supervisor.py',
        'tools/vision3d/onboard_mapping.yaml','tools/vision3d/atlas-mapping-test.service.in',
        'tools/vision3d/calibration_validation.py','tools/vision3d/calibration_capture.py',
+       'tools/vision3d/rgbd_recording.py','tools/vision3d/astra_bag_adapter.py',
+       'tools/vision3d/astra_replay.py','tools/vision3d/rtabmap_offline.py',
        'tools/vision3d/stationary_gate.py','tools/diagnostics/offboard_bridge_preflight.py']
 
 def main():
