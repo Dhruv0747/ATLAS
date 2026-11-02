@@ -13,7 +13,7 @@ const fs=require('fs'),path=require('path'),assert=require('assert/strict');
    await route.fulfill({path:file,contentType:file.endsWith('.mjs')?'application/javascript':file.endsWith('.json')?'application/json':'text/html'});
   });
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto('http://atlas-pulse.test/pulse-view/index.html');await page.waitForFunction(()=>window.atlasPulseTest);
+  await page.goto('http://atlas-pulse.test/pulse-view/index.html?offline=1');await page.waitForFunction(()=>window.atlasPulseTest);
   const visible=()=>page.locator('.pulse[visibility="visible"]').count();
   assert.equal(await visible(),0);
   const sample=await page.evaluate(()=>({up:1,queryTime:100,observedTime:100,requestMs:0,topics:Object.fromEntries(atlasPulseTest.topology.edges.filter(e=>e.verified).map(e=>[e.topic,{available:1,rate:10,age:0}]))}));

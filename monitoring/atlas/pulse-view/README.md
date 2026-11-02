@@ -1,3 +1,5 @@
+Current status: [authenticated integration preparation](INTEGRATION.md) supersedes the prototype-only limitations below. Nothing deployed.
+
 # Pulse visualization: offline only
 
 2026-11-02 investigation: actual installed Grafana query definitions match the reviewed dashboard. Prometheus reports atlas-jetson up=0 and atlas_topic_rate_hz has no series. Installed Grafana 12.1 Edge.tsx renders static SVG lines; no pulse-motion option is present. Missing motion is expected, not evidence of a rendering failure. Exporter outage cause remains UNKNOWN here.

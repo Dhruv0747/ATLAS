@@ -1,4 +1,6 @@
 import {stateFor} from './gates.mjs';
+import {pollOnce} from './source.mjs';
+const offline=new URLSearchParams(location.search).get('offline')==='1';
 const topology=await fetch('../grafana/neural_topology.json').then(r=>{if(!r.ok)throw Error('Topology unavailable');return r.json()});
 const svg=document.querySelector('svg'),ns='http://www.w3.org/2000/svg';
 const colors={FRESH:'#32c48d',IDLE:'#5794f2',STALE:'#ffb357',UNAVAILABLE:'#8e8e93',UNVERIFIED:'#8e8e93'};
@@ -15,9 +17,9 @@ const edges=topology.edges.map((e,i)=>{
  return {e,path,pulse,length:path.getTotalLength()};
 });
 for(const n of topology.nodes){const p=positions.get(n.id);el('rect',{x:p.x-86,y:p.y-24,width:172,height:48,rx:14,class:'node'});const t=el('text',{x:p.x,y:p.y+5,'text-anchor':'middle'});t.textContent=n.title;}
-// Test seam only. No credentials, network poller, live ingress or ROS subscriptions.
+// No credentials in client code. Test injection only in explicitly labelled offline mode.
 // Reject repeated/older responses rather than refreshing their expiry.
-window.atlasPulseTest={accept(s){if(!s || !Number.isFinite(s.queryTime) || s.queryTime<=lastQuery){snapshot=null;return false;}lastQuery=s.queryTime;snapshot=structuredClone(s);received=performance.now();return true;},disconnect(){snapshot=null;},topology};
+const input={accept(s){if(!s || !Number.isFinite(s.queryTime) || s.queryTime<=lastQuery){snapshot=null;return false;}lastQuery=s.queryTime;snapshot=structuredClone(s);received=performance.now();return true;},disconnect(){snapshot=null;},topology};
 const button=document.querySelector('#motion');
 function label(){button.textContent=paused?'Resume visual motion':'Pause visual motion'}
 label();button.onclick=()=>{paused=!paused;label()};
@@ -33,3 +35,19 @@ function render(now){
 }
 document.addEventListener('visibilitychange',()=>{if(document.hidden)for(const {pulse}of edges)pulse.setAttribute('visibility','hidden')});
 requestAnimationFrame(render);
+
+const status=document.querySelector('#connection');
+if(offline){window.atlasPulseTest=input;status.textContent='OFFLINE TEST DATA — NOT LIVE';}
+else{
+ status.textContent='Checking authenticated Grafana data…';
+ async function poll(){
+  try{
+   if(document.hidden){input.disconnect();status.textContent='Paused while hidden';return;}
+   const s=await pollOnce();if(!input.accept(s))throw Error('Repeated/older response');
+   status.textContent=s.up===1?'Authenticated observations received; per-path expiry enforced':'Exporter unavailable';
+  }catch(error){input.disconnect();status.textContent='UNAVAILABLE: '+error.message;}
+  finally{setTimeout(poll,30000);}
+ }
+ poll();
+ window.addEventListener('offline',()=>{input.disconnect();status.textContent='UNAVAILABLE: network offline';});
+}
