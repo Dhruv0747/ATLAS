@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-02: Exact-live publisher reconciliation and source-time transport prepared offline; see docs/ATLAS_PUBLISHER_INTEGRATION_20261102.md. Deployment NO-GO; CPU overhead UNKNOWN.
+
 2026-11-02: Source provenance metadata and source-time consumer implemented offline; 33 focused checks PASS. See docs/ATLAS_SOURCE_PROVENANCE_20261102.md. No deployment; overhead UNKNOWN.
 
 2026-10-30: prepared Object/Target-only admission, model-ready handshake, expiring

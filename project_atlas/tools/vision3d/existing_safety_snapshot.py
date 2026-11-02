@@ -30,6 +30,11 @@ def verify(path,now,boot_id):
     for key,item in data['observations'].items():
         if key not in ('policy','command','encoders') or len(item)!=2:raise ValueError('invalid observation')
         state.receive(key,item[0],item[1])
+    encoder = data['observations'].get('encoders', [None])[0]
+    if isinstance(encoder, dict) and 'encoder_packet_monotonic' in encoder:
+        packet = encoder['encoder_packet_monotonic']
+        if not SourceConsumer.finite(packet) or not 0 <= now-packet <= 1:
+            raise ValueError('raw encoder packet expired')
     result=state.evaluate(now)
     if not result['safe']:raise ValueError(result['reason'])
     return result

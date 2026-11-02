@@ -1,5 +1,7 @@
 # Project ATLAS - Autonomous Service Rover
 
+2026-11-02: Exact-live publisher reconciliation and source-time transport prepared offline; see docs/ATLAS_PUBLISHER_INTEGRATION_20261102.md. Deployment NO-GO; CPU overhead UNKNOWN.
+
 2026-11-02: [Source-provenance metadata and consumer](docs/ATLAS_SOURCE_PROVENANCE_20261102.md) implemented offline; live deployment NO-GO, CPU overhead unmeasured.
 
 [Object/Target test preparation](ATLAS_OBJECT_TARGET_PREPARATION_20261030.md):
