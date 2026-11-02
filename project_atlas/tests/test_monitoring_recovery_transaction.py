@@ -437,7 +437,9 @@ def test_invalid_event_shape_keeps_latch(state, monkeypatch, name, value):
 
 @pytest.mark.parametrize('cpu,ram,ok', [(74.99,79.99,True),(75,60,False),(60,80,False)])
 def test_incident_continuous_strict_limits(state, monkeypatch, cpu, ram, ok):
-    monkeypatch.setattr(R,'A',SimpleNamespace(sample=lambda *args:(None,None,{'cpu':cpu,'ram':ram})))
+    R.G.EVIDENCE={}
+    R.G.evidence_scalar=lambda value:value
+    monkeypatch.setattr(R,'A',SimpleNamespace(sample=lambda *args:((R.time.monotonic(),100,50),None,{'cpu':cpu,'ram':ram})))
     if ok: R.sample(admission=False)
     else:
         with pytest.raises(RuntimeError,match='resource limit'): R.sample(admission=False)

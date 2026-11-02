@@ -57,20 +57,37 @@ def save(name,value):
 def sample(g,prev,counts,protected):
     time.sleep(max(0,prev[0]+1-time.monotonic()))
     if protected:return g.observe(prev,counts)
+    # Clear old successful evidence before a new admission observation.
+    g.EVIDENCE.clear()
+    g.EVIDENCE.update(stage='admission_API', cpu=None, cpu_sample_monotonic=None,
+                      cpu_sample_age=None, cpu_threshold=75, cpu_required_comparison='<')
     # Same safety predicate before firewall installation; never a listener here.
     signal.setitimer(signal.ITIMER_REAL,2)
     try:
         with urllib.request.urlopen('http://127.0.0.1:8088/api/status',timeout=.5) as response:
             body=response.read(1048577)
         g.require(len(body)<=1048576,'API oversized')
-        ros=json.loads(body)['ros'];cur=g.cpu_counter()
+        ros=json.loads(body)['ros']
+        g.EVIDENCE['stage']='admission_CPU_sample'
+        cur=g.cpu_counter()
+        g.EVIDENCE.update(cpu_sample_monotonic=g.evidence_scalar(cur[0]),
+                          sample_interval=g.evidence_scalar(cur[0]-prev[0]))
         g.require(.8<=cur[0]-prev[0]<=1.5 and cur[1]>prev[1],'CPU sampling interval')
         cpu=100*(1-(cur[2]-prev[2])/(cur[1]-prev[1]))
+        g.EVIDENCE.update(cpu=g.evidence_scalar(cpu), cpu_valid=g.finite(cpu) and 0<=cpu<=100,
+                          stage='admission_resources')
         mem={a:int(b.split()[0]) for a,b in (x.split(':',1) for x in Path('/proc/meminfo').read_text().splitlines())}
         ram=100*(1-mem['MemAvailable']/mem['MemTotal']);temps,_=g.read_thermal()
+        g.EVIDENCE.update(ram=g.evidence_scalar(ram),
+                          temperatures=[g.evidence_scalar(t) for t in temps],
+                          stage='admission_validate')
         counts=g.validate(ros,cpu,ram,temps,counts)
         return cur,counts,dict(time=time.time(),cpu=cpu,ram=ram,temp=max(temps),sample_interval=cur[0]-prev[0])
-    finally:signal.setitimer(signal.ITIMER_REAL,0)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL,0)
+        stamp=g.EVIDENCE.get('cpu_sample_monotonic')
+        if g.finite(stamp):
+            g.EVIDENCE['cpu_sample_age']=g.evidence_scalar(time.monotonic()-stamp)
 
 def main():
     assert os.geteuid()==0,'local sudo required'

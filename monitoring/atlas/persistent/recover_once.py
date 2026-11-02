@@ -26,7 +26,7 @@ BASE = Path(__file__).resolve().parent
 E = Path('/var/lib/atlas-monitoring-recovery-m2-20261102')
 GUARD = Path('/usr/local/libexec/atlas-monitoring-guard.py')
 GUARD_SHA = '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'
-SAMPLER_SHA = 'a25ff2d8c6a516357d61f4a1d70fadf98b36178b9e547d25d1643b937bdd8969'
+SAMPLER_SHA = '9982e13a0c963a5a6783a227d0ca974dccfad3d1cfe95b6e06506a187988f5e5'
 EXPECTED_FAULT = 'fc5479c96fd42ee003a565b0ccb7e63caaf9d29c43a383eff5291a3c938302fd'
 EMPTY_SHA = hashlib.sha256(b'').hexdigest()
 EXPECTED_STATE = {
@@ -239,6 +239,10 @@ def config_hashes():
 def sample(admission=False):
     global previous, counts
     previous, counts, observation = A.sample(G,previous,counts,protected)
+    G.EVIDENCE.update(stage='transaction_resource_limit', cpu=G.evidence_scalar(observation['cpu']),
+                      cpu_threshold=75, cpu_required_comparison='<',
+                      cpu_sample_monotonic=G.evidence_scalar(previous[0]),
+                      cpu_sample_age=G.evidence_scalar(time.monotonic()-previous[0]))
     # Strict owner limits apply throughout the transaction, not only admission.
     require(observation['cpu'] < 75 and observation['ram'] < 80, 'resource limit')
     # Bounded append; the file is private and fsynced after every accepted sample.

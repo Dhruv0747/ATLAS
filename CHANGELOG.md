@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-02: [CPU rejection evidence correction](monitoring/atlas/persistent/CPU_REJECTION_EVIDENCE_20261102.md), offline only. Consumed monitoring recovery failed; numerical CPU cause UNKNOWN, recovery BLOCKED. No new execution package.
+
 2026-11-02: [Authenticated pulse integration prepared](monitoring/atlas/pulse-view/INTEGRATION.md); focused tests passed, not deployed. Retained monitoring fault identified as one-count M2 change; physical cause unproven, latch preserved.
 
 2026-11-02: [Offline pulse-view investigation](monitoring/atlas/pulse-view/README.md). No live dashboard changes; production pulse integration remains NO-GO.
