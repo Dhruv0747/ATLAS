@@ -3547,3 +3547,8 @@ localization remains unverified and Recovery remains STOPPED/open. See
 
 ## 2026-11-02 - Web controller binding
 - Bind existing supervisor to its packaged payload and frozen adjacent dependencies. Keep strict resource limits and missing-snapshot refusal. No live activation.
+
+## 2026-11-02 — Offline face identity storage only
+- Added consent-gated local identity storage/matching/deletion with model binding, ambiguity rejection, finite-vector checks and storage bounds.
+- Eight focused Linux tests pass, including missing-model-metadata corruption; independent review passed after correction.
+- No feature enabled, model installed, camera started or live deployment performed.

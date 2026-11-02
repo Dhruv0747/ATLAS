@@ -1774,3 +1774,9 @@ Mapping installation-only preparation: [live-bound manifest and rollback readine
 Object/target Lab readiness: [2026-11-02 report](docs/ATLAS_OBJECT_TARGET_READINESS_20261102.md).
 
 Final web restart binding: [procedure and remaining live gate](docs/ATLAS_WEB_BINDING_READY_20261102.md).
+
+### Offline face identity storage (2026-11-02)
+
+`project_atlas/scripts/atlas_vision_face_store.py` provides opt-in local enrollment, cosine matching, identity listing and deletion for embeddings supplied by a verified model. It stores no frames, downloads nothing, and starts no inference, camera or ROS node. The model hash and embedding dimension are bound to the database; missing/corrupt binding fails closed. A model-calibrated threshold is mandatory (no default); ambiguous matches return unknown. The store is limited to 32 identities and a 1 MiB database plus bounded SQLite journal, with private Linux permissions. SQLite secure deletion does not guarantee forensic erasure from SSDs or external backups.
+
+This component is **not face recognition acceptance**: no approved embedding extractor, calibrated threshold, UI enrollment authorization or real Astra validation is connected. Face controls remain disabled. Gesture/skeleton inference also remains unavailable; YOLO object boxes are not skeletal tracking.
