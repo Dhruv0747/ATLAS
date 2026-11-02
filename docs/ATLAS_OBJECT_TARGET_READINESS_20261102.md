@@ -48,3 +48,5 @@ producer runtime gate (no new ROS node), then finalize the existing controller's
 staging/dependency pins. Web-only activation needs explicit approval. A separate
 stationary camera-inspection approval is required after API activation/readiness;
 no recording, mapping, servos, automatic retry, or other four-feature enablement.
+
+Follow-up: staging/dependency binding is complete in ATLAS_WEB_BINDING_READY_20261102.md. The missing real Recovery snapshot remains the sole live activation gate; this supersedes the earlier packaging blocker, not the historical evidence.

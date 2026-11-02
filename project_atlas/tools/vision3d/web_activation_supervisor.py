@@ -20,8 +20,10 @@ from restart_policy import Policy,save
 from existing_safety_snapshot import Consumer
 
 LIVE=Path('/home/jetson/project_atlas')
-REVIEW=Path('/home/jetson/project-atlas-migration/object-target-staged-7dba9bd/review')
-EXPECTED='a586c2d22276ef4f7385387a79cadd581b2c7a52567d89a8754ee051b9c99e68'
+CONTROL=Path(__file__).resolve().parent
+REVIEW=CONTROL.parent
+EXPECTED='b4818e6c9768c30feda5a12ea2d97b26806577eede67f3b13a89f36970a1bc3b'
+DEPENDENCIES={'bounded_process_cpu.py': 'a93ae9d0a8486a843b1648f764c2e34dda84916d20750712413a81a9f25a7021', 'existing_safety_snapshot.py': 'e37cfd130c716f5bc014b91b6c7cd8c5ebdae85be916718cf07949d9f68f7c9c', 'restart_policy.py': '5efcba6d7b6f22c238673f62bde75b99b1be43308d7fa19c1a09027666d26ad3', 'restart_safety_observer.py': 'a26b364f85df17e4fbbe05ff3174972b42180da3d0f44809cece967065dd47c1'}
 
 def sample_deadline(snapshot):
     stamp=snapshot['cpu_started']
@@ -51,10 +53,21 @@ def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def load(name,path):
     spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 def verify_package():
+    for name, expected in DEPENDENCIES.items():
+        path=CONTROL/name
+        if path.is_symlink() or not path.is_file() or sha(path)!=expected:
+            raise ValueError('controller dependency changed/missing: '+name)
     if sha(REVIEW/'DEPLOYMENT_SHA256SUMS')!=EXPECTED:raise ValueError('review manifest changed')
     for line in (REVIEW/'DEPLOYMENT_SHA256SUMS').read_text().splitlines():
         h,n=line.split('  ',1)
         if Path(n).is_absolute() or '..' in Path(n).parts or sha(REVIEW/n)!=h:raise ValueError('review file mismatch')
+def checked_resources(cpu,aggregate,mem,thermal):
+    resources=cpu.resource_check(aggregate,mem,thermal)
+    if resources['cpu_pct']>=75 or resources['ram_pct']>=80:
+        raise ValueError('strict resource limit')
+    return resources
+
+
 def policy(stage):return Policy(stage,'rover-status-web.service',Path('/run/user')/str(os.getuid())/'systemd/user')
 def restore_files(stage):
     path=stage/'installation-plan.json'
@@ -135,7 +148,7 @@ def run(stage):
                     k=(z/'type').read_text().strip()
                     if k in required:temps[k]=float((z/'temp').read_text())/1000
                 if set(temps)!=required or any(t<=0 for t in temps.values()):raise ValueError('missing/invalid thermal zones: '+str(temps))
-                resources=cpu.resource_check(delta['cpu_pct'],mem,{'thermal_zones_c':temps})
+                resources=checked_resources(cpu,delta['cpu_pct'],mem,{'thermal_zones_c':temps})
                 row={'mono':time.monotonic(),'snapshot':now,'delta':delta,'resources':resources,'monitor_cpu_seconds':time.process_time()}
                 try:row['safety']=safety()
                 except Exception as exc:

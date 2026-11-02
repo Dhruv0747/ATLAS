@@ -3544,3 +3544,6 @@ localization remains unverified and Recovery remains STOPPED/open. See
 
 ## 2026-11-02 - Vision feature resource boundary
 - Reject CPU exactly 75% and RAM exactly 80% in the optional feature guard. Offline only; independent safety snapshot still blocks backend activation.
+
+## 2026-11-02 - Web controller binding
+- Bind existing supervisor to its packaged payload and frozen adjacent dependencies. Keep strict resource limits and missing-snapshot refusal. No live activation.

@@ -1772,3 +1772,5 @@ RGB-D recording completion and deployment gates: [Jetson-local recording](docs/A
 Mapping installation-only preparation: [live-bound manifest and rollback readiness](docs/MAPPING_INSTALLATION_PREP_20261102.md). No deployment or activation performed.
 
 Object/target Lab readiness: [2026-11-02 report](docs/ATLAS_OBJECT_TARGET_READINESS_20261102.md).
+
+Final web restart binding: [procedure and remaining live gate](docs/ATLAS_WEB_BINDING_READY_20261102.md).
