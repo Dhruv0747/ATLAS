@@ -3537,3 +3537,7 @@ localization remains unverified and Recovery remains STOPPED/open. See
 - Bound recording lease to its owner and total startup-inclusive deadline; require owned shutdown evidence.
 - No deployment, camera activation or calibrated mapping acceptance.
 - Capture-only absolute deadline alarm interrupts blocked reads before owned cleanup; reviewed native timeout test.
+
+## 2026-11-02 - Live-bound mapping installation preparation
+- Added installation-only transaction, exact metadata rollback and targeted live web/router patch builder.
+- No installation, service restart, camera activation or safety-setting change.
