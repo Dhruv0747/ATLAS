@@ -3536,3 +3536,4 @@ localization remains unverified and Recovery remains STOPPED/open. See
 - Added optional existing-callback TF/odom/scan evidence cache and local safety-provider binding.
 - Bound recording lease to its owner and total startup-inclusive deadline; require owned shutdown evidence.
 - No deployment, camera activation or calibrated mapping acceptance.
+- Capture-only absolute deadline alarm interrupts blocked reads before owned cleanup; reviewed native timeout test.

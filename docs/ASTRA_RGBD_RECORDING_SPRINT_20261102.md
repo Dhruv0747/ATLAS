@@ -8,7 +8,9 @@ Continues be99d87. No Windows, WSL, Grafana or cloud runtime dependency.
 - Existing ViewerSession now accepts an optional recording owner and absolute
   monotonic deadline. The camera worker counts admission/startup in the same
   maximum 60 seconds; ordinary browser heartbeats cannot renew a recording lease.
-  A stalled recorder loses its existing four-second lease. Existing normal viewer
+  A stalled recorder loses its existing four-second lease. A native worker alarm
+  interrupts blocked reads at the absolute capture deadline; it is disarmed
+  before bounded owned-process cleanup. Existing normal viewer
   calls retain their behavior. Capture worker rejects CPU >=75%, RAM >=80% and
   temperature >=70 C; the recorder's strict safety predicate is unchanged.
 - Optional ATLAS_RGBD_EVIDENCE_CACHE=1 retains original TFMessage batches,
@@ -29,7 +31,7 @@ Continues be99d87. No Windows, WSL, Grafana or cloud runtime dependency.
 
 ## Verification scope
 
-70 focused tests PASS: 18 recorder/replay tests and 52 cache, lease, worker,
+71 focused tests PASS: 18 recorder/replay tests and 53 cache, lease, worker,
 startup/shutdown and mapping cleanup tests. Native ROS 2 Humble tests use
 synthetic messages and mocked hardware. Independent safety review PASS after
 correcting the admission/first-heartbeat timing defect. Changed Python files
@@ -38,7 +40,11 @@ They test original CDR compatibility, cache bounds, lease ownership, deadline,
 strict boundary values, startup admission, missing evidence and cleanup.
 No synthetic fixture is real Astra evidence or physical geometry acceptance.
 Existing mapping/storage/viewer tests and evidence are reused where unchanged.
+The native alarm test interrupts a blocking sleep at 50 ms; it does not prove
+physical camera shutdown timing or interruptibility of every native operation.
 No RTAB-Map map generation or Jetson resource measurement is claimed here.
+The review bundle includes the existing offline RTAB-Map YAML and camera USB/
+guard dependencies; the installed driver runtime is reused, not rebuilt.
 
 ## Deployment and rollback preparation — NOT EXECUTED
 

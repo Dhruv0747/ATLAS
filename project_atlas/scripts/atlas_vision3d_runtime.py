@@ -58,6 +58,15 @@ def session_deadline(now, value=None):
 
 
 
+def arm_capture_deadline(deadline):
+    """Existing single-threaded worker: interrupt blocked reads at the deadline."""
+    remaining=deadline-time.monotonic()
+    if remaining<=0:raise RuntimeError('capture absolute deadline reached')
+    def expired(*_):raise RuntimeError('capture absolute deadline reached')
+    signal.signal(signal.SIGALRM,expired)
+    signal.setitimer(signal.ITIMER_REAL,remaining)
+
+
 def startup_sample():
     # Captured in the existing web process BEFORE shell/Python startup.
     stamp = time.monotonic()
@@ -416,6 +425,7 @@ def worker(mode, startup=None):
     try:
         deadline=session_deadline(started,os.environ.get(CAPTURE_DEADLINE))
         state['deadline_monotonic_s']=deadline
+        if os.environ.get(CAPTURE_DEADLINE) is not None:arm_capture_deadline(deadline)
         write()
         seed_time,last_ticks=validate_startup_sample(startup if startup is not None else startup_sample(),time.monotonic())
         state['startup_guard_baseline_monotonic_s']=seed_time
@@ -482,6 +492,7 @@ def worker(mode, startup=None):
         state.update(state='RESOURCE BLOCKED' if 'CPU' in reason or 'RAM' in reason or 'thermal' in reason or 'RESOURCE' in reason else 'OFF',reason=message or reason)
         if message:state.update(operator_message=message,diagnostic_reason=reason)
     finally:
+        if os.environ.get(CAPTURE_DEADLINE) is not None:signal.setitimer(signal.ITIMER_REAL,0)
         # Cleanup of one child must not prevent cleanup of the other.
         stopped={}
         for role,owned in (('cloud',cloud_child),('driver',child)):

@@ -75,6 +75,23 @@ def test_capture_worker_accepts_below_limits():
 def test_worker_uses_absolute_capture_deadline(monkeypatch):
     from test_vision3d_stage31b_guard import Sim
     monkeypatch.setenv(R.CAPTURE_DEADLINE,'5008.0')
+    alarm=Mock();monkeypatch.setattr(R.signal,'setitimer',alarm)
     s=Sim().run('concurrent')
     assert s.state['driver_stopped'] and s.clock.now()<=5009
     assert s.state['deadline_monotonic_s']==5008
+    assert alarm.call_args_list[0].args==(R.signal.ITIMER_REAL,8.)
+    assert alarm.call_args_list[-1].args==(R.signal.ITIMER_REAL,0)
+
+
+def test_native_deadline_interrupts_blocked_worker_read():
+    import time,signal
+    previous=signal.getsignal(signal.SIGALRM)
+    started=time.monotonic()
+    try:
+        R.arm_capture_deadline(started+.05)
+        with pytest.raises(RuntimeError,match='absolute deadline'):
+            time.sleep(1)  # represents a blocked local read, no hardware
+        assert time.monotonic()-started<.5
+    finally:
+        signal.setitimer(signal.ITIMER_REAL,0)
+        signal.signal(signal.SIGALRM,previous)
