@@ -23,7 +23,7 @@ import time
 BASE = Path(__file__).resolve().parent
 # New M2 incident, owner-read eight-file state verified 2026-11-02.
 # Older October 30 fault/attempt archives remain untouched; they are a separate incident.
-E = Path('/var/lib/atlas-monitoring-recovery-m2-20261102')
+E = Path('/var/lib/atlas-monitoring-recovery-m2-cpuevidence-20261102')
 GUARD = Path('/usr/local/libexec/atlas-monitoring-guard.py')
 GUARD_SHA = '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'
 SAMPLER_SHA = '9982e13a0c963a5a6783a227d0ca974dccfad3d1cfe95b6e06506a187988f5e5'
@@ -32,7 +32,7 @@ EMPTY_SHA = hashlib.sha256(b'').hexdigest()
 EXPECTED_STATE = {
     'FAULT.json': EXPECTED_FAULT,
     'firewall-owned.json': '7e1a7ec6f1fddda84f4bdfb7471139722ee0b15dedb13d5125a7c3beacd53fcb',
-    'rollback.json': '84ff15985c71d5c86378dc6eed63ddc74d26d8f6438bf3390bd29c65174a2c78',
+    'rollback.json': '5c3d4e5e63ae80648b5d112388076107733f0694a38dc6b0c89ddf113320508d',
     'fault-events.json': 'de3ca6e690eadd9819751459ae1d457920923cb03c674c0c1f417c4f52500320',
     'last-health.json': '118fac5afb8bf33a6e614da7b12fc66fcf41985f71d09b6d543bf057c2193bc4',
     'observer-active.json': 'b5689e0d582d5b66010996e49c603abb57b63ee497a3e1297d7334214bb19995',
@@ -40,7 +40,7 @@ EXPECTED_STATE = {
     'evidence.lock': EMPTY_SHA,
 }
 NAMES = tuple('atlas-monitoring-'+n+'.service' for n in ('firewall','watchdog','exporter'))
-TX = 'atlas-monitoring-recovery-once-m2-20261102'
+TX = 'atlas-monitoring-recovery-once-m2-cpuevidence-20261102'
 # Exporter start (systemd Starting->Started, incl. its guarded ExecCondition) measured 3.629 s, 3.623 s (2026-10-30)
 # and 3.598 s (2026-10-31 attempt 1, which failed on the old 3 s sub-deadline). 12 s = 3.3x the slowest measured
 # start. The 25 s supervised step bound below is unchanged and remains the hard cap for watchdog + exporter.
