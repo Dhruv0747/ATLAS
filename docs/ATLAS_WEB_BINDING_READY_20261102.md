@@ -76,3 +76,14 @@ SHA256 e4fb0eb151ddf18354909445a323d4f041ef8525cd3026cef327aee01e69c215
 All15 internal hashes passed Linuxsha256sum. Tests are inside package; reproduce offline with python3 -B -m unittest test_watcher_freshness. No old suite repeated. Exact future command and cleanup in package RESTORATION.txt; new exclusive stage/unit, no consumed attempt reuse.
 
 GO for separate approval to stage and execute ONE original-only restoration: temporaryRecovery Restart=no and user daemon-reload, one start, max20s validation,60s runtime plus reviewed cleanup. No snapshot enablement, camera, monitoring latch or other service change. Admission must pass anew. IncidentOPEN until realRecoveryREADY acceptance.
+
+## 2026-11-02 — Direct process identity correction (preparation only)
+
+Previous corrected cadence worked(0.5005–0.5025s between observations), but watcher systemctlMainPID timed out0.3s during daemon-reload. No Recovery start/CPUviolation. RecoverySTOPPED/PID0; originalpolicy/source restored; consumed freshness transaction untouched.
+
+New original-restoration-only package removes that watcher query in favor of direct cgroupv2/proc evidence. Verify exact cgroup,UID,executable,scriptargv,startticks; pin identity and reject loss/reuse. ABSENT/STARTING never claim Recovery health; parent requires independentlyVERIFIED PID matching systemd for acceptance. Watcher can independently be safety-ready before service start. No new node/framework; existing .5s cadence,1s freshness/resources,stop-only rollback and original filepins retained.
+
+12 focused nativeWSL PID/readiness/cleanup tests PASS; independentreviewPASS. No real startup acceptance or Jetson overhead measurement claimed. Dormant snapshot CLI explicitly unsupported; only restore_original_recovery_once.py is authorized by futureprocedure.
+
+New PC package recovery-original-restoration-procid-20261102.tar.gz SHA256 698e7bf35264eb1cf25bfe423f04aaa8f3a06d21def33e2ffa011c27a993f712
+Exact command/rollback in package RESTORATION.txt. GO to request separate staging+ONE originalRecovery start approval,20svalidation,60sruntime+reviewedcleanup. No deployment/restart this preparation. Original incident remainsOPEN; monitoring/camera separatelygated.

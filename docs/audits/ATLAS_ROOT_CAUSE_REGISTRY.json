@@ -1539,6 +1539,14 @@
       "evidence": "One-second cadence and freshness deadline; PID diagnostics delayed next publication. First valid sample62.79%CPU; no start or CPU violation.",
       "remaining_gap": "Separately approved one original-only restoration; fresh safety checks and real timing/READY acceptance.",
       "report": "ATLAS_WEB_BINDING_READY_20261102.md"
+    },
+{
+      "id": "ATLAS-RESTORATION-PID-QUERY-20261102",
+      "confidence": "CONFIRMED diagnostic systemctl timeout during daemon-reload",
+      "resolution": "OFFLINE FIX; LIVE PENDING",
+      "evidence": "Cadence0.5005-0.5025s;21accepted samples; noCPUviolation/start. WatcherMainPID query timed out0.3s. Cleanupverified.",
+      "remaining_gap": "Separate original-only restoration approval and real readiness/performance verification.",
+      "report": "ATLAS_WEB_BINDING_READY_20261102.md"
     }
   ]
 }

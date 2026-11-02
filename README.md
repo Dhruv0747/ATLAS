@@ -1782,3 +1782,5 @@ Final web restart binding: [procedure and remaining live gate](docs/ATLAS_WEB_BI
 This component is **not face recognition acceptance**: no approved embedding extractor, calibrated threshold, UI enrollment authorization or real Astra validation is connected. Face controls remain disabled. Gesture/skeleton inference also remains unavailable; YOLO object boxes are not skeletal tracking.
 
 Restoration watcher timing: use only the new reviewed restoration-freshness package (see docs/ATLAS_WEB_BINDING_READY_20261102.md). One-second freshness and CPU windows are preserved; no live activation approved by repository code.
+
+2026-11-02: Restoration-only package replaces watcher systemctlPID diagnostics with verified kernel cgroup/proc identity.12focusedtests pass; liveverification pending; no safety limit or snapshot activation changes. See docs/ATLAS_WEB_BINDING_READY_20261102.md.

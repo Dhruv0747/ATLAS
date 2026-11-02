@@ -3555,3 +3555,5 @@ localization remains unverified and Recovery remains STOPPED/open. See
 
 ## 2026-11-02 — Offline restoration watcher correction
 - Fixed reviewed package publication cadence/ordering without extending freshness or resource limits. Eight focused timing tests and independent review pass; live reliability pending. No Recovery start or deployment.
+
+2026-11-02: Restoration-only package replaces watcher systemctlPID diagnostics with verified kernel cgroup/proc identity.12focusedtests pass; liveverification pending; no safety limit or snapshot activation changes. See docs/ATLAS_WEB_BINDING_READY_20261102.md.
