@@ -269,6 +269,6 @@ cases, admission order and the one-transaction check, plus the 43 earlier checks
   it disabled and the file absent. Enabling it is a separately gated Recovery environment change and restart.
   The attempt binding must be captured **after** that change, because it pins Recovery's PID.
 
-Validation: 75 focused Mux checks plus the existing snapshot-validator suites (92 in total), run as uid 1000
+Validation: 73 focused Mux checks plus the existing snapshot-validator suites (92 in total), run as uid 1000
 with the reviewed archive. `test_production_snapshot.py` needs `ATLAS_SNAPSHOT_REVIEW` and errors identically at
 the base commit, so it is unrelated.
