@@ -1,5 +1,7 @@
 # Project ATLAS - Autonomous Service Rover
 
+2026-11-03 — The [offline Mux installation and rollback controller](docs/ATLAS_PROTECTED_PUBLISHER_GATES_20261102.md) passed 35 focused integration checks. Live activation remains blocked on independent maintenance protection and current service binding.
+
 2026-11-02: Exact-live publisher reconciliation and source-time transport prepared offline; see docs/ATLAS_PUBLISHER_INTEGRATION_20261102.md. Deployment NO-GO; CPU overhead UNKNOWN.
 
 2026-11-02: [Source-provenance metadata and consumer](docs/ATLAS_SOURCE_PROVENANCE_20261102.md) implemented offline; live deployment NO-GO, CPU overhead unmeasured.

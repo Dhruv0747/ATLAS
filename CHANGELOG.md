@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-03 â€” The [offline Mux installation and rollback controller](docs/ATLAS_PROTECTED_PUBLISHER_GATES_20261102.md) passed 35 focused integration checks. Live activation remains blocked on independent maintenance protection and current service binding.
+
 2026-11-02: Exact-live publisher reconciliation and source-time transport prepared offline; see docs/ATLAS_PUBLISHER_INTEGRATION_20261102.md. Deployment NO-GO; CPU overhead UNKNOWN.
 
 2026-11-02: Source provenance metadata and source-time consumer implemented offline; 33 focused checks PASS. See docs/ATLAS_SOURCE_PROVENANCE_20261102.md. No deployment; overhead UNKNOWN.
@@ -3467,7 +3469,7 @@ Historical first attempt; the later successful installation is recorded above.
 
 2026-10-30: Add original-CDR Astra bag adapter, isolated replay admission, offline capture supervisor core and measurement sheet. No live adapter activation or Jetson deployment; real Astra replay remains blocked by missing saved image data.
 
-## 2026-10-30 — Vision Lab deployment verifier (not deployed)
+## 2026-10-30 ï¿½ Vision Lab deployment verifier (not deployed)
 
 Bounded HTTP readiness, kernel camera-process checks, preserved resource rejection
 and rollback readiness;13 focused simulated tests. Backend unchanged. Restart CPU
