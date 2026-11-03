@@ -50,3 +50,46 @@ stationary camera-inspection approval is required after API activation/readiness
 no recording, mapping, servos, automatic retry, or other four-feature enablement.
 
 Follow-up: staging/dependency binding is complete in ATLAS_WEB_BINDING_READY_20261102.md. The missing real Recovery snapshot remains the sole live activation gate; this supersedes the earlier packaging blocker, not the historical evidence.
+
+## Offline acceptance — 2026-11-03
+
+No camera, inference, Jetson access or service restart.
+
+- **UI (browser): 21/21 PASS** with `tests/vision_features_ui_acceptance.cjs`. It runs headless Chromium
+  against the existing preview fixture plus sample API data. Verified:
+  - all six cards render, and face/gesture show NOT INSTALLED;
+  - missing metrics show UNAVAILABLE, never 0;
+  - Start is enabled only when the backend allows it, and face stays disabled even if the backend offers Start;
+  - Manual PASS needs READY evidence (at least 2 frames and 1 detection);
+  - the exact source timestamp is shown as a string;
+  - an overlay appears only for a fresh, exactly matching RGB frame (stamped by the real frame path), with
+    the text "2D only, distance UNAVAILABLE"; a mismatched frame shows no overlay;
+  - when the backend fails, every card is UNAVAILABLE and Start is disabled;
+  - only `/api/vision3d/*` was requested. The only POSTs were the operator's Start and the existing
+    fail-safe camera-viewer stop on page hide.
+- **Post-processing: 4/4 PASS.** The real `TensorRTYOLO.infer()` runs with the CUDA calls stubbed:
+  - letterbox inverse at 640×480 and 1280×720 is exact;
+  - the 0.45 confidence threshold, per-class NMS (same class suppressed, other class kept) and edge
+    clamping all hold;
+  - empty and degenerate outputs are handled.
+  There are no real camera still images in the repository, so the model outputs are synthetic YOLOv8
+  tensors. Real-image detection quality is still unverified.
+- **Read-only tracking: 4/4 PASS.** Verified:
+  - IDs persist across moving frames (IoU ≥ 0.3);
+  - a jump or a class change gets a new ID, and two boxes never share one;
+  - expiry is kept at exactly 1.0 s and expires after more than 1.0 s;
+  - a frozen or regressed source frame raises an error, and a new session never resumes old IDs;
+  - the track table is bounded at 100.
+  The Lab's disconnect handling (worker exit or EOF, RGB older than 0.5 s, camera-session change, stale
+  safety lease, 5 s model timeout → FAILED, optional worker killed, no resume) was reviewed and is
+  covered by the existing lifecycle tests.
+- **Command boundary: PASS.** The five feature modules have no rclpy, geometry_msgs, serial or Rosmaster
+  imports, and their code has no publisher, cmd_vel, servo, pan-tilt, motor or navigation identifiers.
+  The one exception is the guard *reading* the cached `cmd_vel` age to require fresh zero commands.
+- The 21 existing feature tests still pass (30 Python checks in total).
+- No product defect was found, and no product code changed.
+- Known limitation: labels are COCO class numbers ("class 56"); there is no name table.
+
+**Live activation stays BLOCKED** on the existing gate: the web restart needs independent supervision
+from the Recovery snapshot producer, which is off by owner decision while its startup CPU risk is open.
+After that come separate web-activation approval and a stationary camera-inspection approval.
