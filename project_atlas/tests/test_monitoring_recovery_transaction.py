@@ -311,6 +311,15 @@ def test_complete_transaction_with_simulated_services(state, monkeypatch, failur
     if failure:
         assert (live/'FAULT.json').read_bytes()==(evidence/'original-state'/'FAULT.json').read_bytes()
         assert all(p['MainPID']=='0' for p in units.values())
+    # 2026-11-02 m2-permissions: CPU rejection inside prepare_override (disable + daemon-reload = two
+    # PID-1 reloads under the strict sampler). Every enable/disable must skip its implicit reload, and
+    # each configuration step reloads exactly once.
+    toggles=[c for c in commands if c[:2] in (('systemctl','enable'),('systemctl','disable'))]
+    assert toggles and all('--no-reload' in c for c in toggles)
+    reloads=[c for c in commands if c==('systemctl','daemon-reload')]
+    if not failure:
+        assert len(reloads)==2                  # one in prepare_override, one in restore_configuration
+    assert len(reloads)<=2
 
 
 # ---- 2026-10-31 attempt 1 failure: exporter start deadline and redundant launcher stop

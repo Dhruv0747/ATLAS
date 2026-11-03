@@ -272,7 +272,10 @@ def supervised(action, seconds=10):
 
 def prepare_override():
     # Disable boot auto-start before rearming. No --now and no unrelated unit.
-    run('systemctl','disable',G.UNIT)
+    # --no-reload: plain disable reloads systemd implicitly; with the explicit reload below that was two
+    # back-to-back PID-1 reloads under the strict CPU sampler (m2-permissions rejected here, 2026-11-02).
+    # One reload after all changes has the same effect.
+    run('systemctl','disable','--no-reload',G.UNIT)
     for unit in NAMES:
         path = drop(unit); path.parent.mkdir(mode=0o755, exist_ok=True)
         require(not os.path.lexists(path), 'override already exists')
@@ -288,8 +291,9 @@ def restore_configuration():
         if os.path.lexists(path):
             require(not path.is_symlink() and path.read_bytes()==DROP_BYTES, 'override changed; retain')
             path.unlink(); sync_dir(path.parent)
+    # Single reload after both changes (plain enable would reload a second time). never --now
+    if before['enabled']=='enabled': run('systemctl','enable','--no-reload',G.UNIT)
     run('systemctl','daemon-reload')
-    if before['enabled']=='enabled': run('systemctl','enable',G.UNIT)  # never --now
     for unit in NAMES:
         require(props(unit)['Restart']==before['units'][unit]['Restart'], 'policy restore failed')
     require(props(G.UNIT)['UnitFileState']==before['enabled'], 'enabled state restore failed')
