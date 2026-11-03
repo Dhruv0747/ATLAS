@@ -139,15 +139,21 @@ class FakePolicy:
         pass
 
 
-def snapshots(policy=SAFE_POLICY, command=(0,) * 6, enc=SAFE_ENC, age=0.0, boot='boot-a', advance=True):
+def snapshots(policy=SAFE_POLICY, command=(0,) * 6, enc=SAFE_ENC, age=0.0, boot='boot-a', advance=True,
+              frozen_receipts=False, packet_age=None):
     import time
-    frozen = time.monotonic()   # a fresh but never-advancing publication time
+    frozen = time.monotonic()   # a fresh but never-advancing time
 
     def read(_path):
         out = time.monotonic() - age if advance else frozen
-        obs = {'policy': [policy, out], 'command': [list(command), out], 'encoders': [enc, out]}
+        pc = frozen if frozen_receipts else out
+        e = dict(enc) if packet_age is None else dict(enc, encoder_packet_monotonic=time.monotonic() - packet_age)
+        obs = {'policy': [policy, pc], 'command': [list(command), pc], 'encoders': [e, out]}
         return json.dumps({'boot_id': boot, 'published_mono': out, 'observations': obs}).encode()
-    return patch.object(tx, 'read', side_effect=read)
+    stack = __import__('contextlib').ExitStack()
+    stack.enter_context(patch.object(tx, 'read', side_effect=read))
+    stack.enter_context(patch.object(tx, 'trusted_snapshot', return_value=None))
+    return stack
 
 
 class PreAdmissionTests(unittest.TestCase):
@@ -164,8 +170,44 @@ class PreAdmissionTests(unittest.TestCase):
                  'link': dict(enc=dict(SAFE_ENC, link_state='STALE')),
                  'stale snapshot': dict(age=0.8), 'other boot': dict(boot='boot-b')}
         for name, kw in cases.items():
-            with self.subTest(name), snapshots(**kw), self.assertRaisesRegex(ValueError, 'pre-admission|invalid'):
+            with self.subTest(name), snapshots(**kw), self.assertRaisesRegex(ValueError, 'unsafe|stale|not zero|motion|wrong boot'):
                 tx.pre_admission(FakePolicy())
+
+    def test_expired_raw_encoder_packet_refuses(self):
+        with snapshots(packet_age=5.0), self.assertRaisesRegex(ValueError, 'raw encoder packet expired'):
+            tx.pre_admission(FakePolicy())
+
+    def test_frozen_policy_and_command_receipts_are_not_admission(self):
+        with snapshots(frozen_receipts=True), self.assertRaisesRegex(ValueError, 'not advancing'):
+            tx.pre_admission(FakePolicy(), window=0.3)
+
+    def test_final_check_before_restart_is_one_fresh_safe_snapshot(self):
+        with snapshots(advance=False):
+            tx.pre_admission(FakePolicy(), final=True)
+        with snapshots(policy=dict(SAFE_POLICY, stop_latched=False)), self.assertRaisesRegex(ValueError, 'unsafe'):
+            tx.pre_admission(FakePolicy(), final=True)
+
+    def test_untrusted_snapshot_file_or_directory_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            runtime = Path(d) / 'atlas-restart-safety'
+            runtime.mkdir(mode=0o700)
+            snap = runtime / 'state.json'
+            snap.write_text('{}')
+            snap.chmod(0o600)
+            with patch.object(tx, 'SNAPSHOT', snap):
+                tx.trusted_snapshot()
+                snap.chmod(0o644)
+                with self.assertRaisesRegex(ValueError, 'untrusted'):
+                    tx.trusted_snapshot()
+                snap.chmod(0o600)
+                runtime.chmod(0o777)
+                with self.assertRaisesRegex(ValueError, 'untrusted'):
+                    tx.trusted_snapshot()
+                runtime.chmod(0o700)
+                snap.unlink()
+                snap.symlink_to(runtime / 'other')
+                with self.assertRaises((ValueError, OSError)):
+                    tx.trusted_snapshot()
 
     def test_non_advancing_snapshot_is_not_admission(self):
         with snapshots(advance=False), self.assertRaisesRegex(ValueError, 'not advancing'):
@@ -193,7 +235,8 @@ class AdmitOrderTests(unittest.TestCase):
                         patch.object(tx, 'PROTECTION', self.mig / 'mux-protection'),
                         patch.object(MuxPolicy, 'boot', return_value='boot-a'),
                         patch.object(MuxPolicy, 'now', return_value=1000.0),
-                        patch.dict(os.environ, ATLAS_MUX_PROTECTION_SHA=self.ppin)]
+                        patch.dict(os.environ, ATLAS_MUX_PROTECTION_SHA=self.ppin),
+                        patch.object(tx, 'snapshot_safe', return_value={})]
         for p in self.patches:
             p.start()
             self.addCleanup(p.stop)
@@ -202,6 +245,13 @@ class AdmitOrderTests(unittest.TestCase):
         p, binding, attempt_bytes, evidence_bytes = tx.admit(1000.0, self.apin, self.root, self.files)
         self.assertEqual(binding['boot_id'], 'boot-a')
         self.assertFalse(self.root.exists())
+
+    def test_missing_or_unsafe_observer_refuses_before_any_journal(self):
+        for exc in (FileNotFoundError('state.json'), ValueError('control policy unsafe')):
+            with self.subTest(exc=type(exc).__name__), patch.object(tx, 'snapshot_safe', side_effect=exc):
+                with self.assertRaises(type(exc)):
+                    tx.admit(1000.0, self.apin, self.root, self.files)
+            self.assertFalse(self.root.exists())
 
     def test_earlier_transaction_blocks_and_unreadable_directory_fails_closed(self):
         (self.mig / 'mux-transaction-f95c9d2-0123456789abcdef').mkdir()

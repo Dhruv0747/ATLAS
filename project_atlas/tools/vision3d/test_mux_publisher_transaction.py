@@ -29,7 +29,7 @@ class MuxTransactionTest(unittest.TestCase):
         self.policy.restart.assert_called_once_with('activation')
         self.files.verify_installed(self.check)
         self.assertEqual(self.identity.before.call_args_list, [((self.binding,),)] * 2)   # around admission
-        self.admission.assert_called_once_with(self.policy)
+        self.assertEqual(self.admission.call_args_list, [((self.policy,),), ((self.policy,), {'final': True})])
         self.accept.assert_called_once_with(self.policy, self.pair)
         self.policy.accept_new_process.assert_called_once_with(str(self.pair[0]))
         self.policy.restore_healthy.assert_called_once_with()
@@ -71,6 +71,19 @@ class MuxTransactionTest(unittest.TestCase):
         self.assertFalse((self.live/HELPER).exists())
         self.assertEqual(self.original.read_bytes(), (self.stage/'rollback'/MUX).read_bytes())
 
+    def test_final_admission_runs_after_install_and_before_restart(self):
+        order=[]
+        self.admission.side_effect=lambda p, final=False: order.append(('admit',final,self.policy.restart.called))
+        self.run_worker()
+        self.assertEqual(order,[('admit',False,False),('admit',True,False)])
+
+    def test_unsafe_final_admission_prevents_restart(self):
+        def admit(p, final=False):
+            if final: raise ValueError('pre-admission unsafe: commands not zero')
+        self.admission.side_effect=admit
+        with self.assertRaisesRegex(ValueError,'pre-admission'):self.run_worker()
+        self.policy.restart.assert_not_called()
+
     def test_unsafe_pre_admission_blocks_every_mutation(self):
         self.admission.side_effect=ValueError('pre-admission unsafe: control policy unsafe')
         with self.assertRaisesRegex(ValueError,'pre-admission'):self.run_worker()
@@ -98,7 +111,7 @@ class MuxTransactionTest(unittest.TestCase):
             manager['safe']=False
             controller.checkpoint()
         with self.assertRaisesRegex(ValueError,'maintenance protection'):
-            worker_body(policy,self.files,self.identity,loss,self.binding,lambda p:None)
+            worker_body(policy,self.files,self.identity,loss,self.binding,lambda p,final=False:None)
         recovered=FakeMux(self.tx,clock,manager)
         recovered.resume_budget(cleanup=True)
         cleanup_body(recovered,MuxFiles(self.stage,self.tx,self.live))

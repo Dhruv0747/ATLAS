@@ -14,11 +14,12 @@ import math
 import os
 from pathlib import Path
 import signal
+import stat
 import subprocess
 import sys
 import time
 
-from existing_safety_snapshot import SourceConsumer
+from existing_safety_snapshot import SourceConsumer, verify_bytes
 from mux_publisher_files import MuxFiles, read, ARCHIVE_SHA, MANIFEST_SHA
 from mux_attempt_binding import load as load_attempt, approved_sha
 from mux_maintenance_protection import AttestedIsolation, UNAVAILABLE
@@ -146,32 +147,48 @@ def check_envelope(consumer, data, now, previous):
     return payload
 
 
-def pre_admission(policy, needed=3, window=2.0):
-    """Before ANY mutation: the original Mux must show E-STOP latched, manual-only, commissioning
-    off, STOPPED source, six zero command components, LIVE stationary encoders, fresh (<=1 s)
-    observations and a fresh (<=0.75 s) snapshot, in >= `needed` consecutive advancing snapshots.
-    The original Mux has no source provenance, so this is the documented pre-operation gate,
-    not the replacement acceptance (verify_replacement), which stays unchanged."""
+def trusted_snapshot():
+    """The observer output must be ours: owner uid, no symlink, private file, non-writable directory."""
+    uid = os.getuid()
+    for path, mask in ((SNAPSHOT.parent, 0o022), (SNAPSHOT, 0o077)):
+        info = path.lstat()
+        require(not stat.S_ISLNK(info.st_mode) and info.st_uid == uid and info.st_mode & mask == 0,
+                'untrusted safety snapshot: ' + str(path))
+
+
+def snapshot_safe(boot):
+    """One snapshot, read once, checked by the existing consumer rules (existing_safety_snapshot):
+    boot, <=0.75 s producer freshness, <=1 s observations, raw encoder packet age, size and shape,
+    E-STOP latched / manual-only / commissioning off / STOPPED, six zero commands, LIVE stationary encoders."""
+    trusted_snapshot()
+    result, data = verify_bytes(read(SNAPSHOT), time.monotonic(), boot)
+    return data
+
+
+def pre_admission(policy, needed=3, window=2.0, final=False):
+    """Before ANY mutation, and again (final=True) immediately before the single restart.
+    Initial: >= `needed` consecutive safe snapshots in which the publication time AND the policy
+    and command receipts each advance, i.e. the original Mux is still publishing.
+    Final: one fresh safe snapshot. The original Mux has no source provenance; replacement
+    acceptance (verify_replacement) is unchanged."""
     boot = policy.boot()
+    policy.checkpoint()
+    if final:
+        snapshot_safe(boot)
+        policy.checkpoint()
+        return
     end = policy.now() + window
-    seen = []
+    first = None
+    published = []
     while policy.now() < end:
         policy.checkpoint()
-        data = json.loads(read(SNAPSHOT))
-        now = time.monotonic()
-        output = data['published_mono']
-        require(data['boot_id'] == boot and SourceConsumer.finite(output) and 0 <= now-output <= .75,
-                'pre-admission snapshot boot/freshness failure')
-        state = Safety()
-        for key in ('policy','command','encoders'):
-            value, receipt = data['observations'][key]
-            require(SourceConsumer.finite(receipt) and receipt <= output, 'invalid callback time')
-            state.receive(key, value, receipt)
-        verdict = state.evaluate(now)
-        require(verdict['safe'], 'pre-admission unsafe: ' + str(verdict['reason']))
-        if not seen or output > seen[-1]:
-            seen.append(output)
-        if len(seen) >= needed:
+        data = snapshot_safe(boot)
+        obs = data['observations']
+        receipts = (obs['policy'][1], obs['command'][1])
+        first = receipts if first is None else first
+        if not published or data['published_mono'] > published[-1]:
+            published.append(data['published_mono'])
+        if len(published) >= needed and all(now > then for now, then in zip(receipts, first)):
             policy.checkpoint()
             return
         time.sleep(.05)
@@ -205,6 +222,7 @@ def worker_body(policy, files, identity, acceptance, binding, admission):
     identity.before(binding)
     policy.prepare()
     files.install(check)
+    admission(policy, final=True)   # still safe immediately before the single restart
     new = policy.restart('activation')
     files.verify_installed(check)
     identity.after(binding,new)
@@ -324,6 +342,9 @@ def admit(start, attempt, root, files):
     protection, evidence_bytes = protection_evidence(start)
     p = MuxPolicy(root,UNIT_ROOT,protection)
     p.independent_check()
+    # Read-only readiness: a missing, untrusted or unsafe observer refuses before any journal,
+    # so it cannot consume the single transaction. The in-worker admission still runs.
+    snapshot_safe(MuxPolicy.boot())
     try:
         attempt_bytes = read(ATTEMPTS / (attempt + '.json'))
     except OSError:

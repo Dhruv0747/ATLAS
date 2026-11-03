@@ -23,6 +23,11 @@ def publish(path,values,now,boot_id):
 
 def verify(path,now,boot_id):
     with Path(path).open('rb') as f:raw=f.read(16385)
+    return verify_bytes(raw,now,boot_id)[0]
+
+
+def verify_bytes(raw,now,boot_id):
+    """Same checks as verify() on bytes already read once; also returns the parsed snapshot."""
     if len(raw)>16384:raise ValueError('oversized snapshot')
     data=json.loads(raw)
     if data['boot_id']!=boot_id or not 0<=now-data['published_mono']<=.75:raise ValueError('wrong boot/stale producer')
@@ -37,7 +42,7 @@ def verify(path,now,boot_id):
             raise ValueError('raw encoder packet expired')
     result=state.evaluate(now)
     if not result['safe']:raise ValueError(result['reason'])
-    return result
+    return result,data
 
 
 class Producer:

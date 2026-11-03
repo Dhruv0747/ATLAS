@@ -250,3 +250,25 @@ pins. Cleanup is still gated by the journal and the origin deadline, so its beha
 Validation: 66 focused offline checks, run as uid 1000 with the reviewed archive. This covers the
 attempt binding, PID-reuse and replacement rejection, the evidence bounds, pre-admission refusal
 cases, admission order and the one-transaction check, plus the 43 earlier checks.
+
+### Re-review fixes (2026-11-03)
+
+- **Pre-admission now uses the existing consumer rules** (`existing_safety_snapshot.verify_bytes`, the same
+  checks as `verify()`): size limit, observation shape, the raw `encoder_packet_monotonic` age of at most 1 s,
+  producer freshness of at most 0.75 s, and the Safety contract.
+- **The original Mux must still be publishing:** across the samples, the publication time **and** both the
+  policy and command receipts must advance.
+- **Second check before the restart:** one fresh safe snapshot is required immediately before the single
+  restart, after the file install. If it is unsafe, the restart does not happen and cleanup rolls back.
+- **Snapshot trust:** the file and its directory must be owned by the transaction uid; the file must have no
+  group/other bits, and the directory must not be group- or other-writable. Symlinks are refused.
+- **Readiness probe before any journal:** a missing, untrusted or unsafe observer refuses before the
+  transaction directory exists, so it cannot consume the single attempt.
+- **Prerequisite (not met today):** the snapshot producer (`/run/user/1000/atlas-restart-safety/state.json`) is
+  written only by `atlas_sensor_recovery` with `ATLAS_RESTART_SNAPSHOT=1`. The 2026-10-31 and 11-02 records show
+  it disabled and the file absent. Enabling it is a separately gated Recovery environment change and restart.
+  The attempt binding must be captured **after** that change, because it pins Recovery's PID.
+
+Validation: 75 focused Mux checks plus the existing snapshot-validator suites (92 in total), run as uid 1000
+with the reviewed archive. `test_production_snapshot.py` needs `ATLAS_SNAPSHOT_REVIEW` and errors identically at
+the base commit, so it is unrelated.
