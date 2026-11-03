@@ -272,3 +272,16 @@ cases, admission order and the one-transaction check, plus the 43 earlier checks
 Validation: 73 focused Mux checks plus the existing snapshot-validator suites (92 in total), run as uid 1000
 with the reviewed archive. `test_production_snapshot.py` needs `ATLAS_SNAPSHOT_REVIEW` and errors identically at
 the base commit, so it is unrelated.
+
+## Status 2026-11-03 23:0x — Mux development CLOSED; live activation BLOCKED
+
+- **Owner decision:** the existing independent-safety contract is unchanged. Measured physical isolation is
+  **not** accepted as a substitute for independent software safety observation. `AttestedIsolation` stays an
+  unused interface, and no evidence file or approval exists.
+- **Live Mux activation:** BLOCKED, pending verified physical protection and an approved maintenance safety
+  procedure.
+- **Recovery:** it is not to be restarted only to enable the snapshot producer while its startup-CPU risk is
+  unresolved.
+- **Preserved:** commits fb0902d, c063a40, 4ce8f69 and 6be3979, the staged payload d297dc75 and its exact-byte
+  rollback. Production Mux (e70df2ba, PID 1909) and Yahboom are unchanged.
+- No further Mux controller redesign or deployment framework.
