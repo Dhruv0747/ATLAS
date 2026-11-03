@@ -26,7 +26,8 @@ REQUIRED_SUPPLIES = {'battery_dcdc', 'jetson_usb_5v'}
 AUTO_RESTART_UNITS = {'atlas-cmd-vel-mux.service', 'atlas-sensor-recovery.service',
                       'rover-status-web.service', 'rover-base-telemetry.service'}
 MAX_OPEN_VOLTS = 0.2
-KEYS = {'schema', 'boot_id', 'valid_from_boottime', 'valid_until_boottime', 'actuators',
+MAX_AGE_S = 900.0     # measurement must be at most 15 min old when the transaction starts
+KEYS = {'schema', 'boot_id', 'measured_boottime', 'valid_from_boottime', 'valid_until_boottime', 'actuators',
         'supply_paths', 'usb_backfeed', 'auto_restart_units', 'owner_confirmation',
         'electrical_verification'}
 UNAVAILABLE = 'verified independent maintenance protection unavailable'
@@ -35,6 +36,15 @@ UNAVAILABLE = 'verified independent maintenance protection unavailable'
 def require(condition, reason):
     if not condition:
         raise ValueError(reason)
+
+
+def strict_json(data):
+    """Reject duplicate keys: the reviewed bytes must mean exactly one thing."""
+    def pairs(items):
+        keys = [k for k, _ in items]
+        require(len(keys) == len(set(keys)), UNAVAILABLE + ': duplicate key in evidence')
+        return dict(items)
+    return json.loads(data, object_pairs_hook=pairs)
 
 
 def finite(value):
@@ -47,15 +57,19 @@ class Unavailable:
 
 
 class AttestedIsolation:
-    def __init__(self, data, approved, boot, window_end):
+    def __init__(self, data, approved, boot, window_start, window_end):
         require(isinstance(approved, str) and len(approved) == 64 and all(c in '0123456789abcdef' for c in approved)
                 and hashlib.sha256(data).hexdigest() == approved, UNAVAILABLE + ': evidence not owner-approved')
-        e = json.loads(data)
+        e = strict_json(data)
         require(isinstance(e, dict) and set(e) == KEYS and e['schema'] == SCHEMA, UNAVAILABLE + ': evidence schema')
         require(e['boot_id'] == boot, UNAVAILABLE + ': evidence for another boot')
-        start, until = e['valid_from_boottime'], e['valid_until_boottime']
-        require(finite(start) and finite(until) and 0 <= start < until and finite(window_end)
-                and until >= window_end, UNAVAILABLE + ': evidence does not cover the whole transaction window')
+        measured, start, until = e['measured_boottime'], e['valid_from_boottime'], e['valid_until_boottime']
+        require(all(finite(v) for v in (measured, start, until, window_start, window_end))
+                and 0 <= measured <= window_start and window_start - measured <= MAX_AGE_S,
+                UNAVAILABLE + ': isolation measurement missing, from the future or too old')
+        require(measured <= start <= window_start < window_end <= until
+                and until - start <= MAX_AGE_S + (window_end - window_start),
+                UNAVAILABLE + ': evidence does not cover the whole transaction window or is unbounded')
         verification = e['electrical_verification']
         require(isinstance(verification, dict) and verification.get('method') == 'measured'
                 and all(isinstance(verification.get(k), str) and verification[k].strip()

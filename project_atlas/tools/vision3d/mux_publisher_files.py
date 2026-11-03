@@ -15,7 +15,6 @@ UNIT = 'atlas-cmd-vel-mux.service'
 ARCHIVE = 'publisher-mux-provenance-prep-20261102.tar.gz'
 ARCHIVE_SHA = '7b24c8792f7a93474be85c7f8c969be225ed9699f78b5c6b3d7bf66657296514'
 MANIFEST_SHA = 'e074a40f881a70066b69cb7f8618a77278ad2b35176258735ffd06f004214063'
-BINDING_SHA = '6a64722838b51954b027d249e0dc260e6e4f7381352a9f8e7af64dfbdee4d8fd'
 
 
 class Conflict(ValueError):
@@ -73,8 +72,16 @@ class MuxFiles:
 
     @property
     def binding(self):
+        """Sealed package binding: publisher bytes/metadata and reviewed unit configuration.
+
+        Pinned through the reviewed manifest (MANIFEST_SHA), not a separate hard-coded hash.
+        Its boot/PID fields are historical; per-boot identity comes from mux_attempt_binding.
+        """
+        manifest = read(self.stage / 'SHA256SUMS')
+        require(sha(manifest) == MANIFEST_SHA, 'manifest drift')
+        pins = dict((name, digest) for digest, name in (line.split('  ') for line in manifest.decode('ascii').splitlines()))
         data = read(self.stage / 'binding.json')
-        require(sha(data) == BINDING_SHA, 'binding drift')
+        require(sha(data) == pins.get('binding.json'), 'binding drift')
         return json.loads(data)
 
     def _package(self, check):

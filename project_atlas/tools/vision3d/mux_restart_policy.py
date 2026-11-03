@@ -13,6 +13,7 @@ import subprocess
 import time
 
 from restart_policy import Policy, save
+from mux_maintenance_protection import Unavailable
 
 UNIT = 'atlas-cmd-vel-mux.service'
 SCRIPT = '/home/jetson/project_atlas/scripts/atlas_cmd_vel_mux.py'
@@ -26,8 +27,9 @@ class MuxPolicy(Policy):
     WORKER_SECONDS = 60
     CLEANUP_SECONDS = 30
 
-    def __init__(self, root, unit_root):
+    def __init__(self, root, unit_root, protection=None):
         super().__init__(root, UNIT, unit_root, user=True)
+        self.protection = Unavailable() if protection is None else protection
         self.deadline = None
         self.cleaning = False
         self._can_queue_restart = False
@@ -50,7 +52,8 @@ class MuxPolicy(Policy):
                 raise ValueError('strict resource admission')
 
     def independent_check(self):
-        raise ValueError('verified independent maintenance protection unavailable')
+        # Fail closed unless reviewed, boot-bound electrical isolation evidence covers now.
+        self.protection.verify(self.now(), self.boot())
 
     def checkpoint(self):
         if self.deadline is None or self.now() >= self.deadline:

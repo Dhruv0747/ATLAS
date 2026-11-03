@@ -18,15 +18,18 @@ class MuxTransactionTest(unittest.TestCase):
         self.policy.restart.return_value = self.pair
         self.identity = Mock()
         self.accept = Mock()
+        self.binding = {'boot_id': 'fixture-attempt', 'services': {}}  # verified per-attempt identity
+        self.admission = Mock()
 
     def run_worker(self):
-        return worker_body(self.policy, self.files, self.identity, self.accept)
+        return worker_body(self.policy, self.files, self.identity, self.accept, self.binding, self.admission)
 
     def test_success_uses_one_restart_and_accepts_the_replacement(self):
         self.run_worker()
         self.policy.restart.assert_called_once_with('activation')
         self.files.verify_installed(self.check)
-        self.identity.before.assert_called_once_with(self.files.binding)
+        self.assertEqual(self.identity.before.call_args_list, [((self.binding,),)] * 2)   # around admission
+        self.admission.assert_called_once_with(self.policy)
         self.accept.assert_called_once_with(self.policy, self.pair)
         self.policy.accept_new_process.assert_called_once_with(str(self.pair[0]))
         self.policy.restore_healthy.assert_called_once_with()
@@ -68,6 +71,14 @@ class MuxTransactionTest(unittest.TestCase):
         self.assertFalse((self.live/HELPER).exists())
         self.assertEqual(self.original.read_bytes(), (self.stage/'rollback'/MUX).read_bytes())
 
+    def test_unsafe_pre_admission_blocks_every_mutation(self):
+        self.admission.side_effect=ValueError('pre-admission unsafe: control policy unsafe')
+        with self.assertRaisesRegex(ValueError,'pre-admission'):self.run_worker()
+        self.policy.prepare.assert_not_called()
+        self.policy.restart.assert_not_called()
+        self.assertFalse((self.live/HELPER).exists())
+        self.files.verify_original(self.check)
+
     def test_service_identity_drift_blocks_unchanged_stage(self):
         self.identity.before.side_effect=Conflict('Mux identity drift')
         with self.assertRaises(Conflict):self.run_worker()
@@ -87,7 +98,7 @@ class MuxTransactionTest(unittest.TestCase):
             manager['safe']=False
             controller.checkpoint()
         with self.assertRaisesRegex(ValueError,'maintenance protection'):
-            worker_body(policy,self.files,self.identity,loss)
+            worker_body(policy,self.files,self.identity,loss,self.binding,lambda p:None)
         recovered=FakeMux(self.tx,clock,manager)
         recovered.resume_budget(cleanup=True)
         cleanup_body(recovered,MuxFiles(self.stage,self.tx,self.live))

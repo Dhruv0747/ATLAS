@@ -196,3 +196,57 @@ cleanup budget is per object, not durable across supervisor reconstruction;
 file rollback and outer timeout integration are not verified. Do not deploy this
 candidate or claim its 30-second cleanup is a verified transaction-wide deadline.
 No old suites rerun, package rebuilt, live write or service restart performed.
+
+
+## Per-attempt binding and maintenance-protection interface (2026-11-03, offline)
+
+**Binding.** The hard-coded `BINDING_SHA` is removed. The sealed `binding.json` stays pinned through
+the reviewed manifest, and still provides the publisher bytes, metadata and unit configuration used for
+exact-byte rollback. Boot and process identity now come from a per-attempt snapshot
+`mux-attempts/<sha256>.json`. It is trusted only when all of these hold:
+- the owner approved that exact SHA256 at launch (`ATLAS_MUX_ATTEMPT_SHA`); a file never vouches for itself;
+- it names the sealed archive and manifest;
+- it is for the current boot and was captured at most 900 s earlier;
+- it lists exactly the sealed services with unchanged unit hash, fragment and `Restart`;
+- it contains no duplicate JSON keys.
+
+PID plus `/proc` start ticks, `NRestarts`, drop-ins, dependencies and file bytes/metadata are re-checked
+live before and after the single restart. Each attempt gets its own transaction directory. A new
+transaction is refused while any earlier `mux-transaction-f95c9d2*` directory exists. The check uses
+`os.listdir`, so an unreadable directory refuses rather than passes.
+
+**Pre-mutation safety admission (new).** Before the first mutation (drop-in, file swap or restart),
+the original Mux must show all of the following in at least 3 consecutive, advancing, fresh snapshots:
+- E-STOP latched, manual-only, commissioning off, source STOPPED;
+- six zero command components;
+- LIVE, stationary encoders.
+
+This uses the existing `Safety` evaluator. The replacement acceptance (`verify_replacement`) is unchanged.
+
+**Maintenance protection interface.** `independent_check()` delegates to a protection object.
+- The default `Unavailable` still always refuses with the original message.
+- `AttestedIsolation` accepts only owner-approved (`ATLAS_MUX_PROTECTION_SHA`) measured evidence:
+  - for this boot, measured at most 900 s before start, with bounded validity covering the whole
+    60 + 30 s window;
+  - M1–M4 and S1/S2 connectors open and measured dead (no more than 0.2 V, no PWM) on battery
+    power and on USB-only power;
+  - USB backfeed checked;
+  - battery DC-DC and Jetson USB 5 V paths isolated;
+  - all four automatic-restart units covered.
+- Owner confirmation alone, a photograph or a single reading is rejected.
+- This is a recorded physical lockout state, not live sensing. Reconnecting an actuator during the
+  window cannot be detected and must be prevented by the lockout procedure.
+
+**Open owner decision (required before any use).** The earlier record treats the missing prerequisite
+as *independent safety observation across Mux downtime*. It says physical disconnection "neither
+generates fresh E-STOP policy nor changes the current safety contract". Accepting measured isolation
+in place of that observation changes the safety contract, so the owner must approve it explicitly.
+Until then the sealed `INSTALL_PLAN.json` stays `BLOCKED_NO_EXECUTION` with restarts unauthorized,
+and no evidence file exists. Activation: **NO-GO.**
+
+**Known limit.** Cleanup does not re-verify its copied attempt and evidence records against the launch
+pins. Cleanup is still gated by the journal and the origin deadline, so its behaviour is unchanged.
+
+Validation: 66 focused offline checks, run as uid 1000 with the reviewed archive. This covers the
+attempt binding, PID-reuse and replacement rejection, the evidence bounds, pre-admission refusal
+cases, admission order and the one-transaction check, plus the 43 earlier checks.

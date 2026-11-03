@@ -1,5 +1,7 @@
 # Project ATLAS - Autonomous Service Rover
 
+2026-11-03 — Mux transaction: per-attempt binding (owner-approved SHA, current boot, live PID/start-tick re-checks) replaces the hard-coded binding pin; pre-mutation E-STOP/command/encoder admission added; maintenance-protection interface accepts only measured, boot-bound, time-bounded isolation evidence (default still refuses). 66 focused checks. Activation remains NO-GO pending the owner decision and evidence in [the gates doc](docs/ATLAS_PROTECTED_PUBLISHER_GATES_20261102.md).
+
 2026-11-03 — The [offline Mux installation and rollback controller](docs/ATLAS_PROTECTED_PUBLISHER_GATES_20261102.md) passed 35 focused integration checks. Live activation remains blocked on independent maintenance protection and current service binding.
 
 2026-11-02: Exact-live publisher reconciliation and source-time transport prepared offline; see docs/ATLAS_PUBLISHER_INTEGRATION_20261102.md. Deployment NO-GO; CPU overhead UNKNOWN.

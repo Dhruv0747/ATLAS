@@ -43,6 +43,15 @@ def approved_sha(value):
     return value
 
 
+def strict_json(data):
+    """Reject duplicate keys: the owner-reviewed bytes must mean exactly one thing."""
+    def pairs(items):
+        keys = [k for k, _ in items]
+        require(len(keys) == len(set(keys)), 'attempt binding duplicate key')
+        return dict(items)
+    return json.loads(data, object_pairs_hook=pairs)
+
+
 def canonical(binding):
     return json.dumps(binding, sort_keys=True, separators=(',', ':'), allow_nan=False).encode() + b'\n'
 
@@ -50,7 +59,7 @@ def canonical(binding):
 def load(data, approved, sealed, package, boot, now):
     """Return {boot_id, services, files} for ServiceBinding.check, or raise ValueError."""
     require(sha(data) == approved_sha(approved), 'attempt binding not owner-approved')
-    b = json.loads(data)
+    b = strict_json(data)
     require(isinstance(b, dict) and set(b) == KEYS and b['schema'] == SCHEMA, 'attempt binding schema')
     require(b['package'] == package, 'attempt binding names a different package')
     require(b['boot_id'] == boot, 'reviewed boot identity changed')

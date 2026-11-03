@@ -38,7 +38,13 @@ t.run_phase(sys.argv[1]=='cleanup')
             run.assert_not_called()
 
     def test_transient_unit_contains_one_cleanup_and_one_origin(self):
-        args=tx.transient_command()
+        a,b='a'*64,'b'*64
+        args=tx.transient_command(a,b)
+        self.assertEqual(sum(x=='--setenv=ATLAS_MUX_ATTEMPT_SHA='+a for x in args),1)
+        self.assertEqual(sum(x=='--setenv=ATLAS_MUX_PROTECTION_SHA='+b for x in args),1)
+        for bad in (None,'','A'*64,'a'*63):
+            with self.assertRaises(ValueError):tx.transient_command(bad,b)
+            with self.assertRaises(ValueError):tx.transient_command(a,bad)
         self.assertIn('--property=Restart=no',args)
         self.assertIn('--property=KillMode=control-group',args)
         self.assertEqual(sum('ExecStopPost=' in a for a in args),1)
