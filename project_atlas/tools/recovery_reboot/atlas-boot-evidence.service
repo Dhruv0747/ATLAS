@@ -1,0 +1,14 @@
+[Unit]
+Description=ATLAS one-shot boot evidence for planned Recovery update (read-only sampler)
+# Ordering only: start the sampler before Recovery so its start window is observed.
+# No Requires/Wants on Recovery; Recovery's own unit is not modified.
+Before=atlas-sensor-recovery.service
+ConditionPathExists=%h/project-atlas-migration/recovery-reboot-4af4ddad/ARMED
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I %h/project-atlas-migration/recovery-reboot-4af4ddad/boot_monitor.py
+Restart=no
+
+[Install]
+WantedBy=default.target
