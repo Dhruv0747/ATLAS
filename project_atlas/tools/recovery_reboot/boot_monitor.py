@@ -52,10 +52,18 @@ def temp_c():
     temps = []
     for z in sorted((ROOT / 'sys/class/thermal').glob('thermal_zone*/temp')):
         try:
-            temps.append(int(z.read_text()) / 1000.0)
-        except (OSError, ValueError):
+            temps.append(int(z.read_bytes()) / 1000.0)
+        except Exception:      # some Jetson zones fail to read (seen: TypeError from the decoder); skip them
             pass
     return max(temps) if temps else None
+
+
+def guarded(read):
+    """A failed RAM/temperature read is recorded as None (evaluation then cannot PASS), never fatal."""
+    try:
+        return read()
+    except Exception:
+        return None
 
 
 def recovery_cgroup():
@@ -97,7 +105,7 @@ def evaluate(rows, mode, recovery_seen, initial=(None, None)):
     for r in rows:
         if start is not None and start <= r['uptime'] <= start + EVAL_S:
             for key, lim in (('cpu', CPU_MAX), ('ram', RAM_MAX), ('temp', TEMP_MAX)):
-                if r[key] is not None and r[key] >= lim:
+                if r[key] is None or r[key] >= lim:          # an unknown reading is never a pass
                     breaches.append({'uptime': r['uptime'], key: r[key]})
     pre = [r for r in rows if start is None or r['uptime'] < start]
     last = rows[-1] if rows else {}
@@ -112,9 +120,9 @@ def evaluate(rows, mode, recovery_seen, initial=(None, None)):
     return {
         'mode': mode, 'verdict': verdict, 'recovery_first_seen_uptime': start,
         'breaches_in_eval_window': breaches,
-        'pre_recovery_peak_cpu': max((r['cpu'] for r in pre), default=None),
-        'peak_cpu': max((r['cpu'] for r in rows), default=None),
-        'peak_ram': max((r['ram'] for r in rows), default=None),
+        'pre_recovery_peak_cpu': max((r['cpu'] for r in pre if r['cpu'] is not None), default=None),
+        'peak_cpu': max((r['cpu'] for r in rows if r['cpu'] is not None), default=None),
+        'peak_ram': max((r['ram'] for r in rows if r['ram'] is not None), default=None),
         'peak_temp': max((r['temp'] for r in rows if r['temp'] is not None), default=None),
         'start_window_observed': covered, 'recovery_at_monitor_start': {'present': present0, 'usage_usec': usage0}, 'eval_window_complete': long_enough,
         'recovery_final_state': last.get('active'), 'nrestarts_final': last.get('nrestarts'),
@@ -150,7 +158,7 @@ def run(show=default_show, sleep=time.sleep, duration=DURATION_S):
             except (OSError, subprocess.SubprocessError, ValueError) as exc:   # e.g. timeout under boot load
                 st = {'error': type(exc).__name__}
             row = {'uptime': float((ROOT / 'proc/uptime').read_text().split()[0]),
-                   'cpu': 100.0 * (dt - didle) / dt if dt > 0 else None, 'ram': ram_pct(), 'temp': temp_c(),
+                   'cpu': 100.0 * (dt - didle) / dt if dt > 0 else None, 'ram': guarded(ram_pct), 'temp': guarded(temp_c),
                    'recovery_usage_usec': usage, 'recovery_pids': pids,
                    'show_error': st.get('error'), 'active': st.get('ActiveState'), 'nrestarts': st.get('NRestarts'), 'main_pid': st.get('MainPID')}
             if seen is None and pids:

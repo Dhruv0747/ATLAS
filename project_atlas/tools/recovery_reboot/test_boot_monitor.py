@@ -185,6 +185,29 @@ class BootMonitorTests(unittest.TestCase):
         self.assertEqual((s['verdict'], s['actions']), ('PASS', []))
         self.assertEqual(self.target.read_bytes(), self.cand)
 
+    def test_unreadable_thermal_zone_skipped_and_missing_reading_never_passes(self):
+        bad = self.tmp / 'root/sys/class/thermal/thermal_zone9'
+        bad.mkdir(parents=True)
+        (bad / 'temp').mkdir()                       # reading it raises (IsADirectoryError), like a broken zone
+        orig = self.m.Path.read_bytes
+        def flaky(path):
+            if path.name == 'temp' and path.parent.name == 'thermal_zone1':
+                raise TypeError("can't concat NoneType to bytes")   # the Jetson failure mode
+            return orig(path)
+        (self.tmp / 'root/sys/class/thermal/thermal_zone1').mkdir(parents=True, exist_ok=True)
+        (self.tmp / 'root/sys/class/thermal/thermal_zone1/temp').write_text('99000')
+        self.m.Path.read_bytes = flaky
+        try:
+            s, _ = self.run_n('baseline', self.live, 10, cpu=[50] * 10, recovery_from=2)
+        finally:
+            self.m.Path.read_bytes = orig
+        self.assertEqual((s['verdict'], s['peak_temp']), ('PASS', 60.0))    # bad zones skipped, real zone used
+        self.tearDown(); self.setUp()
+        self.m.temp_c = lambda: (_ for _ in ()).throw(RuntimeError('sensor gone'))
+        s, _ = self.run_n('baseline', self.live, 10, cpu=[50] * 10, recovery_from=2)
+        self.assertEqual(s['verdict'], 'FAIL')
+        self.assertTrue(all(b.get('temp', 0) is None for b in s['breaches_in_eval_window']))
+
     def test_evidence_written_per_boot(self):
         self.run_n('baseline', self.live, 10, cpu=[50] * 10, recovery_from=2)
         out = self.home / 'project-atlas-migration/boot-evidence-abcdef12'
