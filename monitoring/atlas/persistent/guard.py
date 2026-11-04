@@ -64,6 +64,18 @@ def atomic(name, value):
 EVIDENCE = {}
 ACTION = 'unknown'
 EVENT_LIMIT = 16
+# Verified rover-safety VIOLATIONS latch persistently (owner review), exactly as before. Everything else raised while
+# OBSERVING (stages API/resources/validate) means "cannot verify now": the exporter is stopped at once (fail-closed),
+# the event goes to the journal, and systemd retries the observer later. Limits and checks are unchanged.
+VIOLATIONS = frozenset({'stop/manual/commission policy', 'command/speed not zero', 'encoder movement'})
+OBSERVING = frozenset({'API', 'resources', 'validate'})
+TRANSIENT_EXIT = 75   # EX_TEMPFAIL: retried by systemd; 78 (latched) is never retried
+
+def transient(exc):
+    reason = str(exc) if isinstance(exc, Rejected) else type(exc).__name__
+    return (ACTION in ('watchdog', 'preflight') and EVIDENCE.get('stage') in OBSERVING
+            and not isinstance(exc, Violation) and reason not in VIOLATIONS
+            and not os.path.lexists(STATE/'FAULT.json'))
 
 def latch(reason):
     # Serialize independent guard processes; retain even malformed first evidence.
@@ -178,7 +190,41 @@ def read_thermal(root=Path('/sys/class/thermal')):
     require(bool(values), 'no trustworthy temperature')
     return values, unavailable
 
+class Violation(Rejected):
+    """A verified rover-safety violation: always latched, never retried (classified by type, not text)."""
+
+def check_violations(ros, previous):
+    # Runs FIRST, independent of freshness/MCU/resource checks, so a real violation can never be masked by an
+    # earlier unrelated failure. A value that was never received (absent or None, normal while ATLAS boots) is
+    # unobservable, not a violation; a value that is present but malformed or unsafe IS a violation.
+    def present(key):
+        item = ros.get(key) if isinstance(ros, dict) else None
+        value = item.get('value') if isinstance(item, dict) else None
+        return value is not None, value
+    seen, raw = present('control_policy')
+    if seen:
+        try:
+            policy = json.loads(raw) if isinstance(raw, str) else None
+        except (ValueError, RecursionError):
+            policy = None
+        if not (isinstance(policy, dict) and policy.get('stop_latched') is True and policy.get('manual_only') is True
+                and policy.get('commission_armed') is False):
+            raise Violation('stop/manual/commission policy')
+    seen, cmd = present('cmd_vel')
+    if seen and not (isinstance(cmd, dict) and all(finite(cmd.get(k)) and cmd.get(k) == 0 for k in ('lin', 'ang'))):
+        raise Violation('command/speed not zero')
+    seen, speed = present('motor_speed')
+    if seen and not (finite(speed) and speed == 0):
+        raise Violation('command/speed not zero')
+    # Per wheel: any wheel whose previous AND current counts are both integers and differ is movement, even if
+    # another wheel's count is unreadable (that wheel alone becomes 'invalid encoder counts' later).
+    if previous is not None:
+        for (ok, now), before in zip([present('enc_m'+str(i)) for i in range(1, 5)], previous):
+            if ok and type(now) is int and type(before) is int and now != before:
+                raise Violation('encoder movement')
+
 def validate(ros, cpu, ram, temperatures, previous):
+    check_violations(ros, previous)
     for key, limit in LIMITS.items():
         age = ros[key]['age']
         require(finite(age) and 0 <= age <= limit, 'freshness: '+key)
@@ -233,6 +279,7 @@ def observe(previous, counts):
                         sample_interval=evidence_scalar(elapsed),
                         previous_encoders=[evidence_scalar(v) for v in counts] if counts is not None else None,stage='validate')
         counts = validate(ros,cpu,ram,temps,counts)
+        EVIDENCE['stage']='passed'   # later failures (state write, notify, exporter start) are NOT observing failures
         return cur,counts,{'time':time.time(),'cpu':cpu,'ram':ram,'temp':max(temps),
                            'sample_interval':elapsed,'unavailable_thermal':unavailable}
     finally:
@@ -261,6 +308,10 @@ def stop_exporter():
     # Nonblocking: exporter has After=watchdog; blocking here would deadlock a stop job.
     command('/usr/bin/systemctl','--no-block','stop',UNIT)
 
+def start_exporter():
+    # Only a passing observer (re)starts the read-only exporter, e.g. after a transient retry. No-op if active.
+    command('/usr/bin/systemctl','--no-block','start',UNIT)
+
 def watchdog():
     no_fault()
     require(not (STATE/'observer-active.json').exists(), 'unclean observer exit; owner review required')
@@ -268,6 +319,7 @@ def watchdog():
     previous,counts,summary=two_samples()
     atomic('last-health.json',summary)
     notify('READY=1\nWATCHDOG=1')
+    start_exporter()
     last_saved=time.monotonic()
     try:
         while True:
@@ -328,8 +380,40 @@ def main():
                 latch('observer stopped with exporter/fault present')
         return 0
     except Exception as exc:
+        if transient(exc):
+            try:
+                stop_exporter()
+            except Exception:
+                pass  # BindsTo/WatchdogSec still stop the exporter
+            if action=='watchdog':
+                # stop_exporter() is non-blocking: wait, bounded by wall clock (2.5 s, inside WatchdogSec=5 after a
+                # fresh keepalive), until the port is closed. Only then is this a clean observer exit; otherwise keep
+                # the marker so the next start refuses ("unclean observer exit") and latches. Never unlink while
+                # anything still listens; a failing listener check also keeps the marker (fail-closed).
+                try:
+                    notify('WATCHDOG=1')
+                except Exception:
+                    pass
+                until = time.monotonic() + 2.5
+                while time.monotonic() < until:
+                    try:
+                        busy = listeners()
+                    except Exception:
+                        break
+                    if not busy:
+                        (STATE/'observer-active.json').unlink(missing_ok=True)
+                        break
+                    time.sleep(0.1)
+            print(json.dumps({'monitoring_unavailable': str(exc)[:160] if isinstance(exc,Rejected) else type(exc).__name__,
+                              'stage': EVIDENCE.get('stage'), 'action': action, 'retry': 'systemd',
+                              'evidence': {k: EVIDENCE.get(k) for k in ('cpu','ram','sample_interval','ages')}},
+                             default=str), file=sys.stderr)
+            return TRANSIENT_EXIT
         try:
             latch(str(exc) if isinstance(exc,Rejected) else type(exc).__name__)
+        except Exception as error:
+            # Still exit 78 below (never retried) even if the evidence write itself fails.
+            print('Monitoring latch write failed: '+type(error).__name__, file=sys.stderr)
         finally:
             if action in ('watchdog','preflight'):
                 try:

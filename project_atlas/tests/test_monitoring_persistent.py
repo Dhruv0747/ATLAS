@@ -1,3 +1,4 @@
+import subprocess
 """Persistent monitoring guards: simulated inputs only, no real service/firewall calls."""
 import copy
 import importlib.util
@@ -101,10 +102,13 @@ def test_units_preserve_ordering_and_limits():
     directory=ROOT/'monitoring/atlas/persistent'
     text=(directory/'atlas-monitoring-exporter.service.in').read_text()
     for clause in ('BindsTo=atlas-monitoring-watchdog.service','ExecCondition=+',
-                   'CPUQuota=10%','MemoryMax=64M','StartLimitBurst=3','RestartSec=30','KillMode=control-group'):
+                   'CPUQuota=10%','MemoryMax=64M','StartLimitBurst=12','StartLimitIntervalSec=900','RestartSec=30','KillMode=control-group'):
         assert clause in text
     watch=(directory/'atlas-monitoring-watchdog.service').read_text()
-    assert 'Type=notify' in watch and 'Restart=no' in watch and 'WatchdogSec=5' in watch
+    assert 'Type=notify' in watch and 'WatchdogSec=5' in watch
+    # 2026-11-04: transient observation failures (exit 75) are retried; a latched fault (exit 78) never is.
+    assert 'Restart=on-failure' in watch and 'RestartPreventExitStatus=78' in watch and 'RestartSec=30' in watch
+    assert 'StartLimitIntervalSec=900' in watch and 'StartLimitBurst=12' in watch
     assert 'ExecStop=' not in (directory/'atlas-monitoring-firewall.service').read_text()
 
 def test_unclean_watchdog_marker_refuses_restart(tmp_path,monkeypatch):
@@ -123,9 +127,9 @@ def test_missing_firewall_rejects_before_api():
 
 def test_every_watchdog_sample_must_pass(tmp_path,monkeypatch):
     monkeypatch.setattr(G,'STATE',tmp_path)
-    with mock.patch.object(G,'two_samples',return_value=((0,100,50),[0]*4,{'cpu':50})),mock.patch.object(G,'notify') as notify,mock.patch.object(G.time,'sleep'),mock.patch.object(G,'observe',side_effect=G.Rejected('stop released')),pytest.raises(G.Rejected):
+    with mock.patch.object(G,'two_samples',return_value=((0,100,50),[0]*4,{'cpu':50})),mock.patch.object(G,'notify') as notify,mock.patch.object(G,'start_exporter') as start,mock.patch.object(G.time,'sleep'),mock.patch.object(G,'observe',side_effect=G.Rejected('stop released')),pytest.raises(G.Rejected):
         G.watchdog()
-    assert notify.call_count==1
+    assert notify.call_count==1 and start.call_count==1   # exporter started only after the passing observer
     assert (tmp_path/'observer-active.json').exists()
 
 def test_package_is_exact_and_refuses_overwrite(tmp_path):
@@ -194,3 +198,130 @@ def test_safety_evidence_redacts_and_keeps_invalid_unknown():
     assert evidence['control_policy']['stop_latched'] is False
     assert evidence['command']=={'lin':0.2,'ang':None}
     assert evidence['encoders']==[None]*4 and 'password' not in json.dumps(evidence)
+
+
+# 2026-11-04: separate verified safety violations (persistent latch) from "cannot verify now" (fail-closed stop + retry).
+def _run_main(tmp_path, monkeypatch, action, stage, exc, listening=lambda: []):
+    monkeypatch.setattr(G,'STATE',tmp_path); tmp_path.chmod(0o700)
+    def failing():
+        G.EVIDENCE['stage']=stage; raise exc
+    monkeypatch.setattr(G,{'preflight':'two_samples'}.get(action,action),failing); monkeypatch.setattr(G.sys,'argv',['guard',action])
+    with mock.patch.object(G,'stop_exporter') as stop, mock.patch.object(G,'listeners',side_effect=listening), mock.patch.object(G.time,'sleep'):
+        return G.main(), stop
+
+@pytest.mark.parametrize('stage,exc',[('API',TimeoutError()),('API',G.Rejected('API size/deadline')),
+    ('resources',G.Rejected('CPU sampling interval')),('validate',G.Rejected('CPU limit')),
+    ('validate',G.Rejected('MCU not live')),('validate',G.Rejected('freshness: encoder_health'))])
+def test_unverifiable_observation_stops_exporter_and_retries_without_latch(tmp_path,monkeypatch,stage,exc):
+    (tmp_path/'observer-active.json').write_text('{}')
+    code,stop=_run_main(tmp_path,monkeypatch,'watchdog',stage,exc)
+    assert code==G.TRANSIENT_EXIT and stop.called
+    assert not (tmp_path/'FAULT.json').exists() and not (tmp_path/'observer-active.json').exists()
+
+@pytest.mark.parametrize('reason',sorted(G.VIOLATIONS))
+def test_verified_safety_violation_still_latches(tmp_path,monkeypatch,reason):
+    code,stop=_run_main(tmp_path,monkeypatch,'watchdog','validate',G.Rejected(reason))
+    assert code==78 and stop.called and json.loads((tmp_path/'FAULT.json').read_text())['reason']==reason
+
+@pytest.mark.parametrize('action,stage',[('watchdog','firewall'),('preflight','firewall'),('watchdog','integrity')])
+def test_security_and_firewall_failures_still_latch(tmp_path,monkeypatch,action,stage):
+    code,_=_run_main(tmp_path,monkeypatch,action,stage,G.Rejected('observer deadline exceeded'))
+    assert code==78 and (tmp_path/'FAULT.json').exists()
+
+def test_existing_latch_is_never_bypassed_by_transient_path(tmp_path,monkeypatch):
+    (tmp_path/'FAULT.json').write_text('{"reason":"original"}')
+    code,_=_run_main(tmp_path,monkeypatch,'watchdog','API',TimeoutError())
+    assert code==78 and json.loads((tmp_path/'FAULT.json').read_text())['reason']=='original'
+    assert (tmp_path/'fault-events.json').exists()
+
+
+def test_transient_waits_for_exporter_port_to_close_before_clean_exit(tmp_path,monkeypatch):
+    (tmp_path/'observer-active.json').write_text('{}'); seq=iter([['9118'],['9118'],[]])
+    code,_=_run_main(tmp_path,monkeypatch,'watchdog','API',TimeoutError(),listening=lambda: next(seq))
+    assert code==G.TRANSIENT_EXIT and not (tmp_path/'observer-active.json').exists()
+
+def test_transient_with_port_still_open_keeps_marker_so_next_start_latches(tmp_path,monkeypatch):
+    (tmp_path/'observer-active.json').write_text('{}'); real_watchdog=G.watchdog
+    code,_=_run_main(tmp_path,monkeypatch,'watchdog','API',TimeoutError(),listening=lambda: ['9118'])
+    monkeypatch.setattr(G,'watchdog',real_watchdog)         # second start uses the REAL observer entry path
+    assert code==G.TRANSIENT_EXIT and (tmp_path/'observer-active.json').exists() and not (tmp_path/'FAULT.json').exists()
+    monkeypatch.setattr(G.sys,'argv',['guard','watchdog'])
+    with mock.patch.object(G,'stop_exporter'), mock.patch.object(G,'listeners',return_value=[]):
+        assert G.main()==78                                   # unclean exit -> persistent latch, never a retry loop
+    assert 'unclean observer exit' in json.loads((tmp_path/'FAULT.json').read_text())['reason']
+
+
+# 2026-11-04 independent review (REJECT) required changes: violations first, typed, never masked or misfiled.
+def _released():
+    r = ros(); r['control_policy']['value'] = json.dumps({'stop_latched': False, 'manual_only': True, 'commission_armed': False}); return r
+
+def test_violation_is_detected_even_when_an_earlier_check_would_fail():
+    r = _released(); r['lidar']['age'] = 99                      # stale unrelated field used to mask the release
+    with pytest.raises(G.Violation, match='stop/manual/commission'): G.validate(r, 50, 50, [50], None)
+    r = ros(); r['cmd_vel']['value'] = {'lin': 0.2, 'ang': 0}; r['encoder_health']['value'] = '{}'   # MCU not live too
+    with pytest.raises(G.Violation, match='command/speed'): G.validate(r, 99, 99, [99], None)
+    r = ros(); r['encoder_health']['value'] = '{"link_state":"DOWN"}'
+    with pytest.raises(G.Violation, match='encoder movement'): G.validate(r, 50, 50, [50], [1, 0, 0, 0])
+
+@pytest.mark.parametrize('field,value', [('control_policy', 'not json'), ('control_policy', {'stop_latched': True}),
+    ('control_policy', '[]'), ('cmd_vel', 'zero'), ('cmd_vel', {'lin': float('nan'), 'ang': 0}), ('motor_speed', 'x')])
+def test_malformed_present_safety_value_is_a_violation(field, value):
+    r = ros(); r[field]['value'] = value
+    with pytest.raises(G.Violation): G.validate(r, 50, 50, [50], None)
+
+def test_not_yet_received_safety_value_at_boot_is_unobservable_not_violation():
+    r = ros(); r['control_policy']['value'] = None; r['cmd_vel'] = {'age': None}
+    with pytest.raises(G.Rejected) as e: G.validate(r, 50, 50, [50], None)
+    assert not isinstance(e.value, G.Violation)
+
+def test_violation_classified_by_type_even_with_unlisted_text(tmp_path, monkeypatch):
+    code, _ = _run_main(tmp_path, monkeypatch, 'watchdog', 'validate', G.Violation('future wording'))
+    assert code == 78 and (tmp_path/'FAULT.json').exists()
+
+def test_failure_after_a_passing_observation_is_not_transient(tmp_path, monkeypatch):
+    code, _ = _run_main(tmp_path, monkeypatch, 'watchdog', 'passed', OSError('state write'))
+    assert code == 78 and (tmp_path/'FAULT.json').exists()
+
+def test_latch_write_failure_still_exits_78(tmp_path, monkeypatch):
+    with mock.patch.object(G, 'latch', side_effect=OSError('ENOSPC')):
+        code, _ = _run_main(tmp_path, monkeypatch, 'watchdog', 'validate', G.Violation('encoder movement'))
+    assert code == 78
+
+def test_transient_handler_keeps_systemd_watchdog_alive_and_fails_closed_on_listener_error(tmp_path, monkeypatch):
+    (tmp_path/'observer-active.json').write_text('{}')
+    def broken(): raise subprocess.TimeoutExpired('ss', 1)
+    with mock.patch.object(G, 'notify') as notify:
+        code, _ = _run_main(tmp_path, monkeypatch, 'watchdog', 'API', TimeoutError(), listening=broken)
+    assert code == G.TRANSIENT_EXIT and mock.call('WATCHDOG=1') in notify.call_args_list
+    assert (tmp_path/'observer-active.json').exists()            # unknown listener state -> next start latches
+
+def test_watchdog_unit_never_retries_latch_or_crash():
+    unit = (ROOT/'monitoring/atlas/persistent/atlas-monitoring-watchdog.service').read_text()
+    assert 'RestartPreventExitStatus=78 1' in unit
+
+
+# Re-review conditions (APPROVE WITH CONDITIONS).
+def test_encoder_movement_detected_per_wheel_even_if_another_count_is_unreadable():
+    r = ros(); r['enc_m1']['value'] = 5; r['enc_m3']['value'] = None
+    with pytest.raises(G.Violation, match='encoder movement'): G.validate(r, 50, 50, [50], [0, 0, 0, 0])
+    r = ros(); r['enc_m2']['value'] = 1.5                               # unreadable wheel alone: unobservable
+    with pytest.raises(G.Rejected) as e: G.validate(r, 50, 50, [50], [0, 0, 0, 0])
+    assert not isinstance(e.value, G.Violation)
+
+def test_deeply_nested_policy_is_a_violation_not_a_crash():
+    r = ros(); r['control_policy']['value'] = '[' * 100000 + ']' * 100000
+    with pytest.raises(G.Violation): G.validate(r, 50, 50, [50], None)
+
+def test_dashboard_contract_safety_values_never_become_none_or_restored_from_disk():
+    """check_violations() treats None as 'not received since the dashboard started'. That is only sound while the
+    dashboard sets these keys from live ROS callbacks only and never restores them from a persisted cache.
+    Known conservative case: a stale non-zero cmd_vel cached since before the E-STOP latched can latch falsely."""
+    import ast, re
+    src = (ROOT/'project_atlas/scripts/atlas_status_web.py').read_text(encoding='utf-8')
+    tree = ast.parse(src)
+    cache = [n for n in ast.walk(tree) if isinstance(n, ast.Assign) and any(getattr(t, 'id', '') == 'SENSOR_HUB_CACHE_KEYS' for t in n.targets)]
+    assert cache, 'SENSOR_HUB_CACHE_KEYS not found'
+    cached = {c.value for c in ast.walk(cache[0].value) if isinstance(c, ast.Constant) and isinstance(c.value, str)}
+    assert not cached & {'control_policy', 'cmd_vel', 'motor_speed'}
+    for key in ('control_policy', 'cmd_vel', 'motor_speed'):
+        assert not re.search(r"_set\(\s*['\"]%s['\"]\s*,\s*None" % key, src), key

@@ -3,8 +3,8 @@ Description=ATLAS optional read-only health exporter
 Requires=atlas-monitoring-firewall.service
 BindsTo=atlas-monitoring-watchdog.service
 After=atlas-monitoring-firewall.service atlas-monitoring-watchdog.service network-online.target
-StartLimitIntervalSec=600
-StartLimitBurst=3
+StartLimitIntervalSec=900
+StartLimitBurst=12
 
 [Service]
 Type=simple

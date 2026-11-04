@@ -3,14 +3,17 @@ Description=ATLAS stationary monitoring safety observer
 Requires=atlas-monitoring-firewall.service
 After=atlas-monitoring-firewall.service network-online.target
 Before=atlas-monitoring-exporter.service
-StartLimitIntervalSec=600
-StartLimitBurst=3
+StartLimitIntervalSec=900
+StartLimitBurst=12
 
 [Service]
 Type=notify
 NotifyAccess=main
 ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/atlas-monitoring-guard.py watchdog
-Restart=no
+Restart=on-failure
+RestartSec=30
+# 78 = latched fault, 1 = unexpected crash (e.g. state-trust failure): never retried. Only 75 (cannot verify) is.
+RestartPreventExitStatus=78 1
 WatchdogSec=5
 TimeoutStartSec=10
 TimeoutStopSec=3

@@ -126,7 +126,7 @@ def test_cleanup_restores_latch_before_configuration(state, monkeypatch):
     events=[]
     R.G.rollback = lambda: events.append('rollback')
     monkeypatch.setattr(R, 'verify_cleanup', lambda: events.append('verified'))
-    def restore():
+    def restore(*a, **k):
         assert (live/'FAULT.json').exists()
         events.append('restore')
     monkeypatch.setattr(R, 'restore_configuration', restore)
@@ -249,7 +249,15 @@ def test_complete_transaction_with_simulated_services(state, monkeypatch, failur
         return old_stat(p,*a,**kw)
     monkeypatch.setattr(Path,'lstat',lstat)
     old_digest=R.digest
-    monkeypatch.setattr(R,'digest',lambda p:R.GUARD_SHA if p==R.GUARD else old_digest(p))
+    monkeypatch.setattr(R,'digest',lambda p:R.PREVIOUS_GUARD_SHA if p==R.GUARD else old_digest(p))
+    # 2026-11-04 permanent transaction: install targets are temporary copies of the exact previous files.
+    monkeypatch.setattr(R,'pwd',SimpleNamespace(getpwnam=lambda n:SimpleNamespace(pw_uid=1000)))
+    cfg=evidence.parent/'live-config'; cfg.mkdir()
+    install=[]
+    for key,_,old,new in R.INSTALL:
+        target=cfg/key; target.write_bytes(R.rendered(old)); target.chmod(0o644); install.append((key,target,old,new))
+    monkeypatch.setattr(R,'INSTALL',tuple(install))
+    unit_files={exporter:cfg/'exporter-unit',watchdog:cfg/'watchdog-unit'}
     monkeypatch.setenv('INVOCATION_ID','fake-unit')
     monkeypatch.setattr(R,'configurations',lambda:original)
     monkeypatch.setattr(R,'config_hashes',lambda:{'same':'hash'})
@@ -257,7 +265,9 @@ def test_complete_transaction_with_simulated_services(state, monkeypatch, failur
     monkeypatch.setattr(R,'drop',lambda u:evidence/'dropins'/u/R.DROP_NAME)
     (evidence/'dropins').mkdir()
     def props(u):
-        p=dict(units[u]); p['Restart']='no' if R.drop(u).exists() else original[u]['Restart']; return p
+        p=dict(units[u])
+        on_disk=R.unit_restart(unit_files[u].read_bytes()) if u in unit_files else original[u]['Restart']
+        p['Restart']='no' if R.drop(u).exists() else on_disk; return p
     monkeypatch.setattr(R,'props',props)
     def run(*args):
         commands.append(args)
@@ -311,6 +321,12 @@ def test_complete_transaction_with_simulated_services(state, monkeypatch, failur
     if failure:
         assert (live/'FAULT.json').read_bytes()==(evidence/'original-state'/'FAULT.json').read_bytes()
         assert all(p['MainPID']=='0' for p in units.values())
+    # 2026-11-04: PASS keeps the reviewed guard/units; FAIL restores the exact previous bytes.
+    for key,target,old,new in R.INSTALL:
+        assert target.read_bytes()==R.rendered(old if failure else new), key
+        if (evidence/'config-metadata.json').exists():
+            assert (evidence/'original-config'/key).read_bytes()==R.rendered(old)
+    if failure in (None,'firewall','exporter'): assert (evidence/'config-metadata.json').exists()
     # 2026-11-02 m2-permissions: CPU rejection inside prepare_override (disable + daemon-reload = two
     # PID-1 reloads under the strict sampler). Every enable/disable must skip its implicit reload, and
     # each configuration step reloads exactly once.
@@ -390,12 +406,17 @@ def test_launcher_stop_never_raises_or_masks_the_original_error(monkeypatch):
 
 
 def test_current_incident_binding():
-    assert R.EXPECTED_FAULT == 'fc5479c96fd42ee003a565b0ccb7e63caaf9d29c43a383eff5291a3c938302fd'
-    assert len(R.EXPECTED_STATE) == 8
-    assert R.EXPECTED_STATE['rollback.json'] == '5c3d4e5e63ae80648b5d112388076107733f0694a38dc6b0c89ddf113320508d'
-    assert R.EXPECTED_STATE['fault-events.json'] == 'de3ca6e690eadd9819751459ae1d457920923cb03c674c0c1f417c4f52500320'
-    assert R.E.name == 'atlas-monitoring-recovery-m2-permissions-20261102'
-    assert R.TX == 'atlas-monitoring-recovery-once-m2-permissions-20261102'
+    # Owner's sudo state read 2026-11-04 13:51 IST: eight present files, observer-active.json PRESENT.
+    assert R.EXPECTED_FAULT == '4f04831f22623fad52fa28676348153989291f37ca4b1e4f05069e26e79a7dc5'
+    assert len(R.EXPECTED_STATE) == 8 and R.EXPECTED_ABSENT == ()
+    assert R.EXPECTED_STATE['observer-active.json'] == '3da97cb57e24c8d881e384ab440fa2baf9f5cf25371691eeee658e92a37c3249'
+    assert R.EXPECTED_STATE['rollback.json'] == '1f188cc96e99b4557a1f62503ad33a3fdc3b4cffc495c483d339576409803527'
+    assert R.EXPECTED_STATE['fault-events.json'] == 'f23ce63f51d0f795272cc878790a36d44c88322d7944bbab87ec9c627947391f'
+    assert R.EXPECTED_STATE['firewall-owned.json'] == '2212fe537ee251d867d8d7093effd941ddf5b969b299e3266cf3782358a727e4'
+    assert R.EXPECTED_STATE['last-health.json'] == '35bd5fc4a5fe613a1f636d3f466a4aad3f5244489c9e429c86c65f2a2b91a36a'
+    assert R.E.name == 'atlas-monitoring-recovery-m2-permanent-20261104'
+    assert R.TX == 'atlas-monitoring-recovery-once-m2-permanent-20261104'
+    assert R.GUARD_SHA.startswith('188d53db') and R.PREVIOUS_GUARD_SHA.startswith('27d4caca')
     R.verify_lineage()
 
 
@@ -472,3 +493,82 @@ def test_current_eight_file_archive_reset_restore(tmp_path, monkeypatch):
     assert (live/'fault-events.json').read_bytes()==original['fault-events.json']
     assert {p.name:p.read_bytes() for p in (evidence/'original-state').iterdir()}==original
     assert len(R.verify_archive())==8
+
+
+# ---- 2026-11-04 permanent transaction: reviewed guard/unit installation and exact-byte rollback
+EXPECTED_PACKAGE = {
+    'guard.py': '188d53db127ceb49e4c1c36fed61caacd05b3ab4f70e190f08f83c3b6fba802a',
+    'previous-guard.py': '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'}
+
+
+@pytest.fixture
+def cfg(tmp_path, monkeypatch):
+    monkeypatch.setattr(R,'pwd',SimpleNamespace(getpwnam=lambda n:SimpleNamespace(pw_uid=1000)))
+    e=tmp_path/'attempt'; e.mkdir(); live=tmp_path/'live'; live.mkdir()
+    install=[]
+    for key,_,old,new in R.INSTALL:
+        p=live/key; p.write_bytes(R.rendered(old)); p.chmod(0o644); install.append((key,p,old,new))
+    monkeypatch.setattr(R,'E',e); monkeypatch.setattr(R,'INSTALL',tuple(install))
+    monkeypatch.setattr(R,'G',SimpleNamespace(trusted=lambda p:None),raising=False)
+    monkeypatch.setattr(R,'config_hashes',lambda:{str(p):R.digest(p) for _,p,_,_ in install})
+    return e, install
+
+
+def test_package_guard_and_unit_hashes_are_the_reviewed_files():
+    for name, sha in EXPECTED_PACKAGE.items():
+        assert R.digest(R.BASE/name)==sha
+    assert R.GUARD_SHA==EXPECTED_PACKAGE['guard.py'] and R.PREVIOUS_GUARD_SHA==EXPECTED_PACKAGE['previous-guard.py']
+    assert R.digest(R.BASE/'atlas-monitoring-watchdog.service').startswith('21f8ad39')
+    assert R.digest(R.BASE/'atlas-monitoring-exporter.service.in').startswith('74b22487')
+    assert {'previous-guard.py','previous-atlas-monitoring-watchdog.service',
+            'previous-atlas-monitoring-exporter.service.in'} <= R.PACKAGE_FILES
+
+
+def test_install_backs_up_exact_previous_bytes_then_installs_reviewed(cfg):
+    e,install=cfg; R.install_config()
+    meta=json.loads((e/'config-metadata.json').read_text())
+    for key,p,old,new in install:
+        assert (e/'original-config'/key).read_bytes()==R.rendered(old)
+        assert p.read_bytes()==R.rendered(new) and (p.stat().st_mode & 0o777)==0o644
+        assert meta[key]['previous_sha256']!=meta[key]['new_sha256']
+    assert json.loads((e/'installed-config.json').read_text())=={str(p):R.digest(p) for _,p,_,_ in install}
+    with pytest.raises(FileExistsError): R.install_config()          # never twice in one attempt
+
+
+def test_install_refuses_unreviewed_live_file_and_changes_nothing(cfg):
+    e,install=cfg; install[1][1].write_bytes(b'[Unit]\n# local edit\n')
+    before={str(p):p.read_bytes() for _,p,_,_ in install}
+    with pytest.raises(RuntimeError, match='not the reviewed previous'): R.install_config()
+    assert {str(p):p.read_bytes() for _,p,_,_ in install}==before and not (e/'config-metadata.json').exists()
+
+
+def test_restore_previous_is_exact_and_idempotent(cfg):
+    e,install=cfg; R.install_config()
+    assert R.restore_previous_config() is True
+    for _,p,old,_ in install: assert p.read_bytes()==R.rendered(old) and (p.stat().st_mode & 0o777)==0o644
+    assert R.restore_previous_config() is True
+    for _,p,old,_ in install: assert p.read_bytes()==R.rendered(old)
+
+
+def test_restore_without_install_is_a_no_op(cfg):
+    assert R.restore_previous_config() is False
+
+
+@pytest.mark.parametrize('damage',['third_version','corrupt_backup'])
+def test_restore_refuses_third_version_or_corrupt_backup(cfg,damage):
+    e,install=cfg; R.install_config()
+    if damage=='third_version': install[0][1].write_bytes(b'# someone else\n')
+    else: (e/'original-config'/'exporter-unit').write_bytes(b'x')
+    with pytest.raises(RuntimeError): R.restore_previous_config()
+    if damage=='third_version': assert install[0][1].read_bytes()==b'# someone else\n'
+
+
+def test_expected_policy_comes_from_the_reviewed_unit_files(cfg, monkeypatch):
+    e,_=cfg
+    (e/'before.json').write_text(json.dumps({'units':{u:{'Restart':'no'} for u in R.NAMES}}))
+    new=R.expected_policy(True); old=R.expected_policy(False)
+    assert old=={u:'no' for u in R.NAMES}
+    assert new['atlas-monitoring-firewall.service']=='no'
+    for u,src in (('atlas-monitoring-watchdog.service','atlas-monitoring-watchdog.service'),
+                  ('atlas-monitoring-exporter.service','atlas-monitoring-exporter.service.in')):
+        assert new[u]==R.unit_restart(R.rendered(src)) and new[u]!='no'

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One approved monitoring rearm; reuses guard/sampler, never installs runtime code.
+"""One approved monitoring rearm that also installs the reviewed transient/violation guard (2026-11-04).
 
 Run only from a root-owned reviewed package. systemd owns timeout and cleanup;
 there is no shell retry, ROS participant, guard bypass or second start attempt.
@@ -21,26 +21,29 @@ import threading
 import time
 
 BASE = Path(__file__).resolve().parent
-# Current owner-read state: seven present files; observer-active.json MUST be absent.
-# Older October 30 fault/attempt archives remain untouched; they are a separate incident.
-E = Path('/var/lib/atlas-monitoring-recovery-m2-absence-20261104')
+# Incident 4f04831f (watchdog API TimeoutError, 2026-11-04 10:59:42, boot 33363f37). Owner sudo read 2026-11-04
+# 13:51 IST: eight PRESENT files, including observer-active.json (left by the latched exit). All older
+# fault/attempt archives remain untouched.
+E = Path('/var/lib/atlas-monitoring-recovery-m2-permanent-20261104')
 GUARD = Path('/usr/local/libexec/atlas-monitoring-guard.py')
-GUARD_SHA = '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'
+GUARD_SHA = '188d53db127ceb49e4c1c36fed61caacd05b3ab4f70e190f08f83c3b6fba802a'           # reviewed new guard (package)
+PREVIOUS_GUARD_SHA = '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'  # deployed before this transaction
 SAMPLER_SHA = '9982e13a0c963a5a6783a227d0ca974dccfad3d1cfe95b6e06506a187988f5e5'
-EXPECTED_FAULT = 'fc5479c96fd42ee003a565b0ccb7e63caaf9d29c43a383eff5291a3c938302fd'
+EXPECTED_FAULT = '4f04831f22623fad52fa28676348153989291f37ca4b1e4f05069e26e79a7dc5'
 EMPTY_SHA = hashlib.sha256(b'').hexdigest()
 EXPECTED_STATE = {
     'FAULT.json': EXPECTED_FAULT,
-    'firewall-owned.json': 'e69868aaf05b8062315ceb1b400fb7a4225e6ebcc4f7a6c51db5cf0cb65c6763',
+    'firewall-owned.json': '2212fe537ee251d867d8d7093effd941ddf5b969b299e3266cf3782358a727e4',
     'rollback.json': '1f188cc96e99b4557a1f62503ad33a3fdc3b4cffc495c483d339576409803527',
-    'fault-events.json': '81b9b1e597488beea48fd31cf7e60a2459501d00fc9128ddb834454a1dc14ccf',
-    'last-health.json': '1a38ab41a4de666c76395744c8304019f52156d84b409f83810540a4510c8b18',
+    'fault-events.json': 'f23ce63f51d0f795272cc878790a36d44c88322d7944bbab87ec9c627947391f',   # 11 retained events
+    'last-health.json': '35bd5fc4a5fe613a1f636d3f466a4aad3f5244489c9e429c86c65f2a2b91a36a',
+    'observer-active.json': '3da97cb57e24c8d881e384ab440fa2baf9f5cf25371691eeee658e92a37c3249',  # MUST be present
     'operations.lock': EMPTY_SHA,
     'evidence.lock': EMPTY_SHA,
 }
-EXPECTED_ABSENT = ('observer-active.json',)
+EXPECTED_ABSENT = ()
 NAMES = tuple('atlas-monitoring-'+n+'.service' for n in ('firewall','watchdog','exporter'))
-TX = 'atlas-monitoring-recovery-once-m2-absence-20261104'
+TX = 'atlas-monitoring-recovery-once-m2-permanent-20261104'
 # Exporter start (systemd Starting->Started, incl. its guarded ExecCondition) measured 3.629 s, 3.623 s (2026-10-30)
 # and 3.598 s (2026-10-31 attempt 1, which failed on the old 3 s sub-deadline). 12 s = 3.3x the slowest measured
 # start. The 25 s supervised step bound below is unchanged and remains the hard cap for watchdog + exporter.
@@ -55,7 +58,15 @@ previous = counts = None
 protected = False
 PACKAGE_FILES = {'recover_once.py','guard.py','activate_timestamp_retry_once.py',
                  'atlas-monitor.nft','atlas-monitoring-firewall.service',
-                 'atlas-monitoring-watchdog.service','atlas-monitoring-exporter.service.in'}
+                 'atlas-monitoring-watchdog.service','atlas-monitoring-exporter.service.in',
+                 'previous-guard.py','previous-atlas-monitoring-watchdog.service',
+                 'previous-atlas-monitoring-exporter.service.in'}
+# Live file -> (previous package source, new package source). The firewall unit is unchanged.
+INSTALL = (('guard', GUARD, 'previous-guard.py', 'guard.py'),
+           ('watchdog-unit', Path('/etc/systemd/system/atlas-monitoring-watchdog.service'),
+            'previous-atlas-monitoring-watchdog.service', 'atlas-monitoring-watchdog.service'),
+           ('exporter-unit', Path('/etc/systemd/system/atlas-monitoring-exporter.service'),
+            'previous-atlas-monitoring-exporter.service.in', 'atlas-monitoring-exporter.service.in'))
 
 
 def require(ok, reason):
@@ -114,10 +125,10 @@ def state_hashes():
 def verify_lineage():
     # This is a new fault, not another recovery of the older October 30 latch.
     # Exact current bytes are verified and archived below; old archives are never touched.
-    require(set(EXPECTED_STATE) == {'FAULT.json','firewall-owned.json','rollback.json',
-        'fault-events.json','last-health.json','operations.lock','evidence.lock'},
+    require(set(EXPECTED_STATE) == {'FAULT.json','firewall-owned.json','rollback.json','fault-events.json',
+        'last-health.json','observer-active.json','operations.lock','evidence.lock'},
         'incident state members differ')
-    require(EXPECTED_ABSENT == ('observer-active.json',), 'incident absence differs')
+    require(EXPECTED_ABSENT == (), 'incident absence differs')
     require(EXPECTED_STATE['FAULT.json'] == EXPECTED_FAULT, 'incident fault differs')
     require(all(len(v) == 64 and all(c in '0123456789abcdef' for c in v)
                 for v in EXPECTED_STATE.values()), 'incident hash invalid')
@@ -204,7 +215,8 @@ def load():
         require(stat.S_ISREG(info.st_mode) and info.st_uid==0 and not info.st_mode & 0o022,
                 'untrusted package member')
         require(digest(path)==sha, 'package checksum mismatch')
-    for path, sha in ((BASE/'guard.py',GUARD_SHA),(BASE/'activate_timestamp_retry_once.py',SAMPLER_SHA)):
+    for path, sha in ((BASE/'guard.py',GUARD_SHA),(BASE/'previous-guard.py',PREVIOUS_GUARD_SHA),
+                      (BASE/'activate_timestamp_retry_once.py',SAMPLER_SHA)):
         require(not path.is_symlink() and path.stat().st_uid == 0 and not path.stat().st_mode & 0o022,
                 'untrusted runtime/helper')
         require(digest(path) == sha, 'runtime/helper hash mismatch')
@@ -222,7 +234,8 @@ def configurations():
     result = {}
     for unit in NAMES:
         path = Path('/etc/systemd/system')/unit
-        source = BASE/(unit+'.in' if unit == G.UNIT else unit)
+        source = BASE/{'atlas-monitoring-watchdog.service':'previous-atlas-monitoring-watchdog.service',
+                       'atlas-monitoring-exporter.service':'previous-atlas-monitoring-exporter.service.in'}.get(unit, unit)
         expected = source.read_text().replace('@JETSON_UID@',uid)
         G.trusted(path)
         require(path.read_text() == expected, 'unit differs: '+unit)
@@ -234,6 +247,71 @@ def configurations():
     require(rule.read_text() == (BASE/'atlas-monitor.nft').read_text(), 'firewall config differs')
     require(result[G.UNIT]['UnitFileState'] == 'enabled', 'unexpected exporter enabled state')
     return result
+
+
+def rendered(name):
+    data = (BASE/name).read_bytes()
+    return data.replace(b'@JETSON_UID@', str(pwd.getpwnam('jetson').pw_uid).encode()) if name.endswith('.in') else data
+
+
+def unit_restart(data):
+    lines = [l.split('=',1)[1].strip() for l in data.decode().splitlines() if l.startswith('Restart=')]
+    return lines[-1] if lines else 'no'
+
+
+def expected_policy(new):
+    before = json.loads((E/'before.json').read_text())
+    if not new:
+        return {u: before['units'][u]['Restart'] for u in NAMES}
+    files = {n.removesuffix('.in'): rendered(n) for _, _, _, n in INSTALL if '.service' in n}
+    return {u: unit_restart(files[u]) if u in files else before['units'][u]['Restart'] for u in NAMES}
+
+
+def install_config():
+    # Exact-byte backup of the three previous live files (and their metadata), then atomic replacement with the
+    # reviewed files. Runs inside prepare_override(), before its single daemon-reload. Never twice.
+    dest = E/'original-config'; dest.mkdir(mode=0o700)
+    meta = {}
+    for key, path, old, new in INSTALL:
+        G.trusted(path)
+        live = path.read_bytes()
+        require(live == rendered(old), 'live file is not the reviewed previous version: '+key)
+        info = path.stat()
+        meta[key] = dict(path=str(path), uid=info.st_uid, gid=info.st_gid, mode=stat.S_IMODE(info.st_mode),
+                         previous_sha256=digest(path), new_sha256=hashlib.sha256(rendered(new)).hexdigest())
+        write(dest/key, live); os.chmod(dest/key, stat.S_IMODE(info.st_mode))
+        require(digest(dest/key) == meta[key]['previous_sha256'], 'config backup mismatch: '+key)
+    sync_dir(dest); write(E/'config-metadata.json', meta)
+    for key, path, old, new in INSTALL:
+        replace(path, rendered(new), meta[key])
+    write(E/'installed-config.json', config_hashes())
+
+
+def replace(path, data, m):
+    tmp = path.with_name('.'+path.name+'.atlas-recovery-tmp')
+    require(not os.path.lexists(tmp), 'temporary file exists: '+str(tmp))
+    fd = os.open(tmp, os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW, m['mode'])
+    try:
+        os.write(fd, data); os.fchown(fd, m['uid'], m['gid']); os.fchmod(fd, m['mode']); os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(tmp, path); sync_dir(path.parent)
+    require(path.read_bytes() == data, 'post-write mismatch: '+str(path))
+
+
+def restore_previous_config():
+    # Exact previous bytes and metadata from this attempt's backup. Refuses any third version (retain for review).
+    if not (E/'config-metadata.json').exists():
+        return False
+    meta = json.loads((E/'config-metadata.json').read_text())
+    for key, path, old, new in INSTALL:
+        m = meta[key]; backup = (E/'original-config'/key).read_bytes()
+        require(hashlib.sha256(backup).hexdigest() == m['previous_sha256'], 'config backup corrupt: '+key)
+        current = digest(path)
+        require(current in (m['previous_sha256'], m['new_sha256']), 'config changed by a third party; retain: '+key)
+        if current != m['previous_sha256']:
+            replace(path, backup, m)
+    return True
 
 
 def config_hashes():
@@ -285,12 +363,17 @@ def prepare_override():
         path = drop(unit); path.parent.mkdir(mode=0o755, exist_ok=True)
         require(not os.path.lexists(path), 'override already exists')
         write(path, DROP_BYTES)
+    install_config()                       # reviewed guard + units; picked up by the same single reload
     run('systemctl','daemon-reload')
     require(all(props(u)['Restart']=='no' for u in NAMES), 'Restart=no not effective')
 
 
-def restore_configuration():
+def restore_configuration(keep_new=True):
+    # keep_new: PASS path keeps the installed reviewed guard/units. FAIL path restores the exact previous bytes
+    # first, so the same single reload loads the previous configuration.
     before = json.loads((E/'before.json').read_text())
+    if not keep_new:
+        restore_previous_config()
     for unit in NAMES:
         path = drop(unit)
         if os.path.lexists(path):
@@ -299,8 +382,11 @@ def restore_configuration():
     # Single reload after both changes (plain enable would reload a second time). never --now
     if before['enabled']=='enabled': run('systemctl','enable','--no-reload',G.UNIT)
     run('systemctl','daemon-reload')
+    policy = expected_policy(keep_new)
     for unit in NAMES:
-        require(props(unit)['Restart']==before['units'][unit]['Restart'], 'policy restore failed')
+        require(props(unit)['Restart']==policy[unit], 'policy restore failed')
+    if not keep_new and (E/'config-metadata.json').exists():
+        require(config_hashes()==before['config_hashes'], 'previous config not restored')
     require(props(G.UNIT)['UnitFileState']==before['enabled'], 'enabled state restore failed')
 
 
@@ -315,7 +401,8 @@ def verify_cleanup():
     before = json.loads((E/'before.json').read_text())
     require(baseline_rules()==before['rules'], 'unrelated firewall drift')
     require(A.services()==before['protected'], 'protected service drift')
-    require(config_hashes()==before['config_hashes'], 'live files changed')
+    installed = json.loads((E/'installed-config.json').read_text()) if (E/'installed-config.json').exists() else None
+    require(config_hashes() in (before['config_hashes'], installed), 'live files changed')
 
 
 def verify_success():
@@ -323,7 +410,7 @@ def verify_success():
     before = json.loads((E/'before.json').read_text())
     identities = json.loads((E/'running.json').read_text())
     require(baseline_rules()==before['rules'] and A.services()==before['protected'], 'protected state drift')
-    require(config_hashes()==before['config_hashes'], 'live files changed')
+    require(config_hashes()==json.loads((E/'installed-config.json').read_text()), 'live files changed')
     require(bool(G.listeners()), 'exporter listener missing')
     for unit in NAMES:
         p=props(unit)
@@ -333,8 +420,9 @@ def verify_success():
 
 def verify_restored_policy():
     before=json.loads((E/'before.json').read_text())
-    require(all(props(u)['Restart']==before['units'][u]['Restart'] and not drop(u).exists() for u in NAMES),
-            'original restart policy not restored')
+    policy=expected_policy(True)                      # a PASS keeps the installed reviewed units
+    require(all(props(u)['Restart']==policy[u] and not drop(u).exists() for u in NAMES),
+            'restart policy not restored')
     require(props(G.UNIT)['UnitFileState']==before['enabled'], 'original enabled state not restored')
 
 
@@ -381,8 +469,8 @@ def cleanup():
         G.rollback()
         verify_cleanup()
         restore_latch()
-        restore_configuration()
-        write(E/'result.json', {'result':'FAIL','cleanup':'VERIFIED','original_cause':'UNKNOWN'})
+        restore_configuration(keep_new=False)
+        write(E/'result.json', {'result':'FAIL','cleanup':'VERIFIED','original_cause':'UNKNOWN','config':'PREVIOUS_RESTORED'})
         cancel_expiry()
     except BaseException as exc:
         # Best effort re-latch after failed shutdown; retain override/disabled state.
@@ -410,7 +498,7 @@ def worker():
             'worker must be systemd supervised')
     info=G.STATE.lstat()
     require(stat.S_ISDIR(info.st_mode) and info.st_uid==0 and not info.st_mode & 0o077, 'untrusted state directory')
-    G.trusted(GUARD); require(digest(GUARD)==GUARD_SHA, 'live guard changed')
+    G.trusted(GUARD); require(digest(GUARD)==PREVIOUS_GUARD_SHA, 'live guard is not the reviewed previous version')
     G.integrity(); before_units = configurations()
     require(not G.listeners() and not G.firewall_present(), 'listener/table already present')
     nft = json.loads(run('nft','-j','list','ruleset'))
@@ -498,7 +586,8 @@ def expiry_command():
 
 def main():
     require(os.geteuid()==0, 'local administrator authentication required')
-    require(len(sys.argv)==2 and sys.argv[1] in ('start','worker','cleanup','confirm-client'), 'invalid action')
+    require(len(sys.argv)==2 and sys.argv[1] in ('start','worker','cleanup','confirm-client','restore-previous-config'),
+            'invalid action')
     os.umask(0o077); load()
     action=sys.argv[1]
     if action!='start':
@@ -528,6 +617,14 @@ def main():
         write(E/'client-confirmation.json',{'monotonic':time.monotonic(),
             'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
             'running_sha256':digest(E/'running.json')})
+    elif action=='restore-previous-config':
+        # Owner rollback after a PASS: only with all monitoring stopped and no listener. One reload. Latch untouched.
+        require(all(props(u)['MainPID']=='0' and props(u)['ActiveState'] in ('inactive','failed') for u in NAMES)
+                and not G.listeners(), 'stop monitoring first (systemctl stop the three units)')
+        require(restore_previous_config(), 'no configuration backup in this attempt')
+        run('systemctl','daemon-reload')
+        require(config_hashes()==json.loads((E/'before.json').read_text())['config_hashes'], 'previous config not restored')
+        print('PREVIOUS guard/units restored (exact bytes); monitoring left stopped')
     elif action=='cleanup':
         with (E/'cleanup.lock').open('a') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
