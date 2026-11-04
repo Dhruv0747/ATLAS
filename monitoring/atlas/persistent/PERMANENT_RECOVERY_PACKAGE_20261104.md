@@ -3,6 +3,20 @@
 One new single-use rearm that also installs the reviewed transient/violation guard. OFFLINE PASS only:
 nothing was staged, deployed or run on the Jetson in preparation.
 
+## Archive
+
+`monitoring-recovery-m2-permanent-20261104.tar.gz`, SHA256 `0bf13b84f0ae7096c35b48d14240591170a3cbcf1fc984db47fab812ad4a1b5f`.
+Built from commit 7b8ac524 git blobs: 11 regular members (10 payloads + RECOVERY_SHA256SUMS), all 0644,
+root:root, mtime = commit time, gzip mtime 0. Native tar extraction: 11/11 0644, 10/10 checksums OK,
+byte-identical to the commit.
+
+## Deployed files verified (read-only, 2026-11-04 14:12 IST)
+
+Jetson live guard 27d4caca, watchdog unit 31cf0a56, firewall unit cb7f3734, rendered exporter unit
+efb9dc03 (= previous template with uid 1000) — all exactly the package's previous-* sources, 0644
+root:root, no drop-ins. Installed exporter unit will render to ac991e9d. New evidence and /opt
+directories do not exist. Load average was 5.45 at that read: the CPU admission gate decides at start.
+
 ## Identity (new, never consumed)
 
 - Evidence directory: `/var/lib/atlas-monitoring-recovery-m2-permanent-20261104`
@@ -76,7 +90,7 @@ ExecStopPost cleanup, as in the m2 packages.
 Start (local Jetson terminal, one attempt only):
 
 ```sh
-sudo /bin/sh -c 'set -eu; umask 077; cd /home/jetson/project-atlas-migration; echo "<ARCHIVE_SHA256>  monitoring-recovery-m2-permanent-20261104.tar.gz" | sha256sum -c -; mkdir /opt/atlas-monitoring-recovery-m2-permanent-20261104; tar --no-same-owner -xzf monitoring-recovery-m2-permanent-20261104.tar.gz -C /opt/atlas-monitoring-recovery-m2-permanent-20261104; cd /opt/atlas-monitoring-recovery-m2-permanent-20261104; sha256sum -c RECOVERY_SHA256SUMS; exec /usr/bin/python3 -I -B recover_once.py start'
+sudo /bin/sh -c 'set -eu; umask 077; cd /home/jetson/project-atlas-migration; echo "0bf13b84f0ae7096c35b48d14240591170a3cbcf1fc984db47fab812ad4a1b5f  monitoring-recovery-m2-permanent-20261104.tar.gz" | sha256sum -c -; mkdir /opt/atlas-monitoring-recovery-m2-permanent-20261104; tar --no-same-owner -xzf monitoring-recovery-m2-permanent-20261104.tar.gz -C /opt/atlas-monitoring-recovery-m2-permanent-20261104; cd /opt/atlas-monitoring-recovery-m2-permanent-20261104; sha256sum -c RECOVERY_SHA256SUMS; exec /usr/bin/python3 -I -B recover_once.py start'
 ```
 
 Only after Prometheus shows fresh ATLAS samples, inside the printed 120–240 s window:
