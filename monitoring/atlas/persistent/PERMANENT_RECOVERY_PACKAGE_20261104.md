@@ -5,8 +5,8 @@ nothing was staged, deployed or run on the Jetson in preparation.
 
 ## Archive
 
-`monitoring-recovery-m2-permanent-20261104.tar.gz`, SHA256 `0bf13b84f0ae7096c35b48d14240591170a3cbcf1fc984db47fab812ad4a1b5f`.
-Built from commit 7b8ac524 git blobs: 11 regular members (10 payloads + RECOVERY_SHA256SUMS), all 0644,
+`monitoring-recovery-m2-permanent-20261104.tar.gz`, SHA256 `c8ec1d39380a4a3c4d26d10ff90fbb0c67f6970c9077ba13af5321366359e649`.
+Built (reproducibly) from commit 363d4fa2 git blobs: 11 regular members (10 payloads + RECOVERY_SHA256SUMS), all 0644,
 root:root, mtime = commit time, gzip mtime 0. Native tar extraction: 11/11 0644, 10/10 checksums OK,
 byte-identical to the commit.
 
@@ -104,7 +104,7 @@ next boot (the pre-transaction behaviour).
 Start (local Jetson terminal, one attempt only):
 
 ```sh
-sudo /bin/sh -c 'set -eu; umask 077; cd /home/jetson/project-atlas-migration; echo "0bf13b84f0ae7096c35b48d14240591170a3cbcf1fc984db47fab812ad4a1b5f  monitoring-recovery-m2-permanent-20261104.tar.gz" | sha256sum -c -; mkdir /opt/atlas-monitoring-recovery-m2-permanent-20261104; tar --no-same-owner -xzf monitoring-recovery-m2-permanent-20261104.tar.gz -C /opt/atlas-monitoring-recovery-m2-permanent-20261104; cd /opt/atlas-monitoring-recovery-m2-permanent-20261104; sha256sum -c RECOVERY_SHA256SUMS; exec /usr/bin/python3 -I -B recover_once.py start'
+sudo /bin/sh -c 'set -eu; umask 077; cd /home/jetson/project-atlas-migration; echo "c8ec1d39380a4a3c4d26d10ff90fbb0c67f6970c9077ba13af5321366359e649  monitoring-recovery-m2-permanent-20261104.tar.gz" | sha256sum -c -; mkdir /opt/atlas-monitoring-recovery-m2-permanent-20261104; tar --no-same-owner -xzf monitoring-recovery-m2-permanent-20261104.tar.gz -C /opt/atlas-monitoring-recovery-m2-permanent-20261104; cd /opt/atlas-monitoring-recovery-m2-permanent-20261104; sha256sum -c RECOVERY_SHA256SUMS; exec /usr/bin/python3 -I -B recover_once.py start'
 ```
 
 Only after Prometheus shows fresh ATLAS samples, inside the printed 120–240 s window:
