@@ -1433,3 +1433,6 @@ Monitoring recovery preparation (2026-11-02): archive validation accepts the exi
 
 ## 2026-11-02 — M2 monitoring recovery preparation
 - Bind the existing single-use transaction to current eight-file fault evidence; retain old archives. Enforce strict CPU/RAM limits throughout the bounded transaction. No live deployment or recovery.
+
+## 2026-11-04 — Offline monitoring incident binding
+- Bind a new single-use recovery to seven present evidence files and explicit observer-marker absence; preserve archive-first rollback and existing safety limits. See docs/MONITORING_ABSENT_OBSERVER_PREPARATION_20261104.md. Not executed.

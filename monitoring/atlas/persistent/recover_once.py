@@ -21,9 +21,9 @@ import threading
 import time
 
 BASE = Path(__file__).resolve().parent
-# New M2 incident, owner-read eight-file state verified 2026-11-02.
+# Current owner-read state: seven present files; observer-active.json MUST be absent.
 # Older October 30 fault/attempt archives remain untouched; they are a separate incident.
-E = Path('/var/lib/atlas-monitoring-recovery-m2-permissions-20261102')
+E = Path('/var/lib/atlas-monitoring-recovery-m2-absence-20261104')
 GUARD = Path('/usr/local/libexec/atlas-monitoring-guard.py')
 GUARD_SHA = '27d4cacae47044a1675cf911aad60a69fc78dd5b85de14bdb6d5480288a560e1'
 SAMPLER_SHA = '9982e13a0c963a5a6783a227d0ca974dccfad3d1cfe95b6e06506a187988f5e5'
@@ -31,16 +31,16 @@ EXPECTED_FAULT = 'fc5479c96fd42ee003a565b0ccb7e63caaf9d29c43a383eff5291a3c938302
 EMPTY_SHA = hashlib.sha256(b'').hexdigest()
 EXPECTED_STATE = {
     'FAULT.json': EXPECTED_FAULT,
-    'firewall-owned.json': '7e1a7ec6f1fddda84f4bdfb7471139722ee0b15dedb13d5125a7c3beacd53fcb',
-    'rollback.json': '5c3d4e5e63ae80648b5d112388076107733f0694a38dc6b0c89ddf113320508d',
-    'fault-events.json': 'de3ca6e690eadd9819751459ae1d457920923cb03c674c0c1f417c4f52500320',
-    'last-health.json': '118fac5afb8bf33a6e614da7b12fc66fcf41985f71d09b6d543bf057c2193bc4',
-    'observer-active.json': 'b5689e0d582d5b66010996e49c603abb57b63ee497a3e1297d7334214bb19995',
+    'firewall-owned.json': 'e69868aaf05b8062315ceb1b400fb7a4225e6ebcc4f7a6c51db5cf0cb65c6763',
+    'rollback.json': '1f188cc96e99b4557a1f62503ad33a3fdc3b4cffc495c483d339576409803527',
+    'fault-events.json': '81b9b1e597488beea48fd31cf7e60a2459501d00fc9128ddb834454a1dc14ccf',
+    'last-health.json': '1a38ab41a4de666c76395744c8304019f52156d84b409f83810540a4510c8b18',
     'operations.lock': EMPTY_SHA,
     'evidence.lock': EMPTY_SHA,
 }
+EXPECTED_ABSENT = ('observer-active.json',)
 NAMES = tuple('atlas-monitoring-'+n+'.service' for n in ('firewall','watchdog','exporter'))
-TX = 'atlas-monitoring-recovery-once-m2-permissions-20261102'
+TX = 'atlas-monitoring-recovery-once-m2-absence-20261104'
 # Exporter start (systemd Starting->Started, incl. its guarded ExecCondition) measured 3.629 s, 3.623 s (2026-10-30)
 # and 3.598 s (2026-10-31 attempt 1, which failed on the old 3 s sub-deadline). 12 s = 3.3x the slowest measured
 # start. The 25 s supervised step bound below is unchanged and remains the hard cap for watchdog + exporter.
@@ -115,8 +115,9 @@ def verify_lineage():
     # This is a new fault, not another recovery of the older October 30 latch.
     # Exact current bytes are verified and archived below; old archives are never touched.
     require(set(EXPECTED_STATE) == {'FAULT.json','firewall-owned.json','rollback.json',
-        'fault-events.json','last-health.json','observer-active.json','operations.lock','evidence.lock'},
+        'fault-events.json','last-health.json','operations.lock','evidence.lock'},
         'incident state members differ')
+    require(EXPECTED_ABSENT == ('observer-active.json',), 'incident absence differs')
     require(EXPECTED_STATE['FAULT.json'] == EXPECTED_FAULT, 'incident fault differs')
     require(all(len(v) == 64 and all(c in '0123456789abcdef' for c in v)
                 for v in EXPECTED_STATE.values()), 'incident hash invalid')
@@ -124,6 +125,7 @@ def verify_lineage():
 
 def archive_state():
     verify_lineage()
+    require(all(not os.path.lexists(G.STATE/n) for n in EXPECTED_ABSENT), 'required absent evidence exists')
     hashes = state_hashes()
     expected = dict(EXPECTED_STATE)
     if 'evidence.lock' in hashes: expected['evidence.lock'] = hashlib.sha256(b'').hexdigest()
@@ -145,12 +147,15 @@ def archive_state():
     sync_dir(dest)
     require(state_hashes() == hashes, 'state changed during archive')
     write(E/'state-metadata.json',metadata)
+    write(E/'state-absent.json', list(EXPECTED_ABSENT))
     write(E/'state-manifest.json', hashes)
     verify_archive()
 
 
 def verify_archive():
     hashes = json.loads((E/'state-manifest.json').read_text())
+    require(json.loads((E/'state-absent.json').read_text()) == list(EXPECTED_ABSENT), 'archive absence changed')
+    require(not set(EXPECTED_ABSENT).intersection(hashes), 'absent evidence archived as present')
     require(set(hashes) == {p.name for p in (E/'original-state').iterdir()}, 'archive members changed')
     for name, sha in hashes.items():
         require(Path(name).name == name and not (E/'original-state'/name).is_symlink(), 'invalid archive name')

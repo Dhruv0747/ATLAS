@@ -645,3 +645,5 @@ Monitoring recovery preparation (2026-11-02): archive validation accepts the exi
 Pulse View reconnect and freshness validation: [integration evidence](monitoring/atlas/pulse-view/INTEGRATION.md). Reconnection never clears Jetson watchdog faults.
 
 Monitoring M2 recovery preparation and approval-gated command: [procedure](monitoring/atlas/persistent/M2_RECOVERY_READY_20261102.md).
+
+Monitoring preparation (not deployed): [absent-observer recovery and Pulse reconciliation](docs/MONITORING_ABSENT_OBSERVER_PREPARATION_20261104.md).
