@@ -234,7 +234,7 @@ def test_success_commit_failures_are_not_confused(state, monkeypatch, failure):
         assert json.loads((evidence/'result.json').read_text())['result']=='FAIL'
 
 
-@pytest.mark.parametrize('failure',[None,'firewall','exporter','resource','interruption'])
+@pytest.mark.parametrize('failure',[None,'firewall','exporter','resource','interruption','midinstall'])
 def test_complete_transaction_with_simulated_services(state, monkeypatch, failure):
     import os
     import stat
@@ -260,7 +260,17 @@ def test_complete_transaction_with_simulated_services(state, monkeypatch, failur
     unit_files={exporter:cfg/'exporter-unit',watchdog:cfg/'watchdog-unit'}
     monkeypatch.setenv('INVOCATION_ID','fake-unit')
     monkeypatch.setattr(R,'configurations',lambda:original)
-    monkeypatch.setattr(R,'config_hashes',lambda:{'same':'hash'})
+    # Real hashes over the temporary install targets plus one unrelated file (review defect 3).
+    (cfg/'atlas-monitor.nft').write_bytes(b'table inet atlas {}\n')
+    hashed=[p for _,p,_,_ in install]+[cfg/'atlas-monitor.nft']
+    monkeypatch.setattr(R,'config_hashes',lambda:{str(p):R.digest(p) for p in hashed})
+    if failure=='midinstall':                         # review defect 1: worker dies after the first replace
+        real_replace=R.replace; calls=[0]
+        def flaky(path,data,m):
+            calls[0]+=1
+            if calls[0]==2: raise RuntimeError('CPU limit')
+            real_replace(path,data,m)
+        monkeypatch.setattr(R,'replace',flaky)
     monkeypatch.setattr(R,'baseline_rules',lambda:{'v4':'same','v6':'same'})
     monkeypatch.setattr(R,'drop',lambda u:evidence/'dropins'/u/R.DROP_NAME)
     (evidence/'dropins').mkdir()
@@ -314,7 +324,7 @@ def test_complete_transaction_with_simulated_services(state, monkeypatch, failur
     result=json.loads((evidence/'result.json').read_text())
     assert result['result']==('FAIL' if failure else 'PASS')
     starts=[c[-1] for c in commands if c[:3]==('systemctl','--no-block','start')]
-    assert starts.count(firewall)==1 and starts.count(exporter)<=1
+    assert starts.count(firewall)==(0 if failure=='midinstall' else 1) and starts.count(exporter)<=1
     assert set(starts)<=set(R.NAMES)
     assert all(not R.drop(u).exists() for u in R.NAMES)
     assert units[exporter]['UnitFileState']=='enabled'
@@ -326,7 +336,8 @@ def test_complete_transaction_with_simulated_services(state, monkeypatch, failur
         assert target.read_bytes()==R.rendered(old if failure else new), key
         if (evidence/'config-metadata.json').exists():
             assert (evidence/'original-config'/key).read_bytes()==R.rendered(old)
-    if failure in (None,'firewall','exporter'): assert (evidence/'config-metadata.json').exists()
+    if failure in (None,'firewall','exporter','midinstall'): assert (evidence/'config-metadata.json').exists()
+    if failure: assert result.get('cleanup')=='VERIFIED' and result.get('config')=='PREVIOUS_RESTORED', result
     # 2026-11-02 m2-permissions: CPU rejection inside prepare_override (disable + daemon-reload = two
     # PID-1 reloads under the strict sampler). Every enable/disable must skip its implicit reload, and
     # each configuration step reloads exactly once.
@@ -572,3 +583,74 @@ def test_expected_policy_comes_from_the_reviewed_unit_files(cfg, monkeypatch):
     for u,src in (('atlas-monitoring-watchdog.service','atlas-monitoring-watchdog.service'),
                   ('atlas-monitoring-exporter.service','atlas-monitoring-exporter.service.in')):
         assert new[u]==R.unit_restart(R.rendered(src)) and new[u]!='no'
+
+
+# ---- 2026-11-04 independent review: interrupted install, leftover temp files, real config hash checks
+@pytest.fixture
+def mix(cfg, monkeypatch, tmp_path):
+    e,install=cfg
+    other=tmp_path/'atlas-monitor.nft'; other.write_bytes(b'table inet atlas {}\n')
+    paths=[p for _,p,_,_ in install]+[other]
+    monkeypatch.setattr(R,'config_hashes',lambda:{str(p):R.digest(p) for p in paths})
+    (e/'before.json').write_text(json.dumps({'config_hashes':R.config_hashes()}))
+    return e,install,other
+
+
+@pytest.mark.parametrize('stop_after',[0,1,2,3])
+def test_interrupted_install_is_accepted_by_cleanup_then_restored_exactly(mix,monkeypatch,stop_after):
+    e,install,other=mix; before=json.loads((e/'before.json').read_text())['config_hashes']
+    real=R.replace; n=[0]
+    def flaky(path,data,m):
+        if n[0]==stop_after: raise RuntimeError('CPU limit')          # supervised thread abandoned here
+        n[0]+=1; real(path,data,m)
+    monkeypatch.setattr(R,'replace',flaky)
+    if stop_after<3:
+        with pytest.raises(RuntimeError): R.install_config()
+    else:
+        R.install_config(); (e/'installed-config.json').unlink()        # died before the final write
+    monkeypatch.setattr(R,'replace',real)
+    assert R.config_reviewed_mix(before)                               # cleanup proceeds, no FAILED
+    assert R.restore_previous_config() and R.config_hashes()==before
+    assert not any(R.os.path.lexists(R.tmp_path(p)) for _,p,_,_ in install)
+
+
+def test_cleanup_mix_check_rejects_any_unreviewed_change(mix):
+    e,install,other=mix; before=json.loads((e/'before.json').read_text())['config_hashes']
+    R.install_config(); assert R.config_reviewed_mix(before)
+    other.write_bytes(b'changed\n'); assert not R.config_reviewed_mix(before)
+    other.write_bytes(b'table inet atlas {}\n'); install[0][1].write_bytes(b'# third\n')
+    assert not R.config_reviewed_mix(before)
+
+
+def test_mix_without_metadata_requires_previous_exactly(mix):
+    e,install,other=mix; before=json.loads((e/'before.json').read_text())['config_hashes']
+    assert R.config_reviewed_mix(before)
+    install[1][1].write_bytes(R.rendered(install[1][3])); assert not R.config_reviewed_mix(before)
+
+
+def test_failed_write_leaves_no_temp_file(mix,monkeypatch):
+    e,install,_=mix
+    monkeypatch.setattr(R.os,'fsync',Mock(side_effect=OSError('EIO')))
+    with pytest.raises(OSError): R.replace(install[0][1],b'x',{'uid':0,'gid':0,'mode':0o644})
+    assert not R.os.path.lexists(R.tmp_path(install[0][1]))
+    assert install[0][1].read_bytes()==R.rendered(install[0][2])
+
+
+def test_killed_attempt_temp_file_is_removed_by_restore(mix):
+    e,install,_=mix; before=json.loads((e/'before.json').read_text())['config_hashes']
+    R.install_config(); R.tmp_path(install[0][1]).write_bytes(b'partial')
+    assert R.restore_previous_config() and R.config_hashes()==before
+    assert not R.os.path.lexists(R.tmp_path(install[0][1]))
+
+
+def test_restore_refuses_non_regular_temp_entry(mix):
+    e,install,_=mix; R.install_config(); R.tmp_path(install[0][1]).symlink_to('/etc/passwd')
+    with pytest.raises(RuntimeError, match='unexpected temporary'): R.restore_previous_config()
+    assert R.tmp_path(install[0][1]).is_symlink()
+
+
+def test_install_refuses_pre_existing_temp_file_and_changes_nothing(mix):
+    e,install,_=mix; R.tmp_path(install[2][1]).write_bytes(b'someone else')
+    with pytest.raises(RuntimeError, match='temporary file exists'): R.install_config()
+    assert all(p.read_bytes()==R.rendered(old) for _,p,old,_ in install)
+    assert not (e/'config-metadata.json').exists() and R.tmp_path(install[2][1]).read_bytes()==b'someone else'

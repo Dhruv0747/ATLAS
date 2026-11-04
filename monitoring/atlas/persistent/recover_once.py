@@ -281,21 +281,32 @@ def install_config():
                          previous_sha256=digest(path), new_sha256=hashlib.sha256(rendered(new)).hexdigest())
         write(dest/key, live); os.chmod(dest/key, stat.S_IMODE(info.st_mode))
         require(digest(dest/key) == meta[key]['previous_sha256'], 'config backup mismatch: '+key)
+    # No temp file may pre-exist, so any found later was left by this attempt (killed inside replace()).
+    require(not any(os.path.lexists(tmp_path(p)) for _, p, _, _ in INSTALL), 'temporary file exists')
     sync_dir(dest); write(E/'config-metadata.json', meta)
     for key, path, old, new in INSTALL:
         replace(path, rendered(new), meta[key])
     write(E/'installed-config.json', config_hashes())
 
 
+def tmp_path(path):
+    return path.with_name('.'+path.name+'.atlas-recovery-tmp')
+
+
 def replace(path, data, m):
-    tmp = path.with_name('.'+path.name+'.atlas-recovery-tmp')
+    tmp = tmp_path(path)
     require(not os.path.lexists(tmp), 'temporary file exists: '+str(tmp))
     fd = os.open(tmp, os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW, m['mode'])
     try:
-        os.write(fd, data); os.fchown(fd, m['uid'], m['gid']); os.fchmod(fd, m['mode']); os.fsync(fd)
-    finally:
-        os.close(fd)
-    os.replace(tmp, path); sync_dir(path.parent)
+        try:
+            os.write(fd, data); os.fchown(fd, m['uid'], m['gid']); os.fchmod(fd, m['mode']); os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.lexists(tmp): tmp.unlink()
+        raise
+    sync_dir(path.parent)
     require(path.read_bytes() == data, 'post-write mismatch: '+str(path))
 
 
@@ -304,6 +315,11 @@ def restore_previous_config():
     if not (E/'config-metadata.json').exists():
         return False
     meta = json.loads((E/'config-metadata.json').read_text())
+    for _, path, _, _ in INSTALL:
+        tmp = tmp_path(path)
+        if os.path.lexists(tmp):          # only this attempt's own leftover (install refused any pre-existing)
+            require(stat.S_ISREG(tmp.lstat().st_mode), 'unexpected temporary entry; retain: '+str(tmp))
+            tmp.unlink(); sync_dir(tmp.parent)
     for key, path, old, new in INSTALL:
         m = meta[key]; backup = (E/'original-config'/key).read_bytes()
         require(hashlib.sha256(backup).hexdigest() == m['previous_sha256'], 'config backup corrupt: '+key)
@@ -401,8 +417,19 @@ def verify_cleanup():
     before = json.loads((E/'before.json').read_text())
     require(baseline_rules()==before['rules'], 'unrelated firewall drift')
     require(A.services()==before['protected'], 'protected service drift')
-    installed = json.loads((E/'installed-config.json').read_text()) if (E/'installed-config.json').exists() else None
-    require(config_hashes() in (before['config_hashes'], installed), 'live files changed')
+    require(config_reviewed_mix(before['config_hashes']), 'live files changed')
+
+
+def config_reviewed_mix(previous):
+    # An interrupted install_config() may leave any per-file mix of previous/new reviewed bytes (no
+    # installed-config.json yet). Every other file must be unchanged. restore_configuration(keep_new=False)
+    # then restores the exact previous set and requires it.
+    meta = json.loads((E/'config-metadata.json').read_text()) if (E/'config-metadata.json').exists() else {}
+    allowed = {path: {sha} for path, sha in previous.items()}
+    for key, path, _, _ in INSTALL:
+        if key in meta: allowed[str(path)].add(meta[key]['new_sha256'])
+    live = config_hashes()
+    return set(live) == set(allowed) and all(live[p] in allowed[p] for p in live)
 
 
 def verify_success():

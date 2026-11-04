@@ -68,9 +68,23 @@ Rollback:
 - After a PASS, the owner may roll back with `restore-previous-config` (monitoring must be stopped;
   one reload; the latch is not touched).
 
-Reloads: one in `prepare_override` and one in `restore_configuration` (the reviewed 80b7e0f1 design,
-both under the CPU sampler). A FAIL after the worker's own restore performs one more unsampled reload in
-ExecStopPost cleanup, as in the m2 packages.
+Reloads (independent review 2026-11-04, counted per path):
+- PASS: two, both under the CPU sampler: `prepare_override` and `restore_configuration` (the reviewed
+  80b7e0f1 one-reload-per-step design; `enable` uses `--no-reload`).
+- Any FAIL: cleanup (ExecStopPost, unsampled) runs `G.rollback()`, whose `systemctl disable --now`
+  has an implicit reload, then one explicit reload in `restore_configuration(keep_new=False)`. A FAIL after
+  the worker's own restore therefore totals four. This is the pre-existing cleanup design, unchanged here.
+- `restore-previous-config`: one.
+
+Interrupted installation (review defect 1, fixed): `install_config` runs in a supervised thread that a
+CPU/interrupt failure abandons mid-way, leaving any per-file mix of previous/new reviewed bytes. Cleanup
+accepts exactly that mix (each install path previous or new per `config-metadata.json`, every other file
+unchanged), restores the previous bytes and requires the full set to equal `before.json`. A temp file is
+removed on any raised error; one left by a killed attempt is removed by restore (regular files only; install
+refuses any pre-existing temp file).
+
+After an owner `restore-previous-config`, the exporter stays enabled: the previous guard/units start at the
+next boot (the pre-transaction behaviour).
 
 ## Before any execution (separate owner approval)
 
