@@ -2,7 +2,8 @@
 
 Package dir on Jetson: `~/project-atlas-migration/recovery-reboot-4af4ddad/` (exact path enforced).
 Candidate `4af4ddad…` = live `5f44cc1f…` + reviewed exact-live snapshot patch + type preload.
-Snapshot producer DISABLED (no ATLAS_RESTART_SNAPSHOT anywhere; install aborts if found).
+Snapshot producer DISABLED (no ATLAS_RESTART_SNAPSHOT in unit, drop-ins, the unit's EnvironmentFile
+`~/.config/project-atlas/hardware.env`, or the user manager environment; arm/install abort if found).
 
 ## Pins checked before anything changes (arm.sh / install.sh)
 - Package SHA256SUMS; package location.
@@ -24,6 +25,10 @@ Snapshot producer DISABLED (no ATLAS_RESTART_SNAPSHOT anywhere; install aborts i
 ActiveState/NRestarts. Written to `~/project-atlas-migration/boot-evidence-<boot_id8>/`
 (samples.jsonl fsynced each second, summary.json at end). The monitor is ordered Before= Recovery
 (ordering only), so Recovery's start window is observed.
+
+Start observed = Recovery appeared after sampling began, or had used <= 50 ms CPU when it began (it is
+forked milliseconds after the monitor; its startup is ~1.7 CPU-s). Recovery's start is not delayed.
+systemctl timeouts under boot load are recorded per sample, never fatal, never a restore trigger.
 
 PASS only if: Recovery's start was observed; the full 120 s window after it was recorded; every sample
 in that window had CPU < 75 %, RAM < 80 %, temperature < 70 C; Recovery active with NRestarts=0 at the

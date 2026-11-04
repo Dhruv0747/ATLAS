@@ -29,6 +29,7 @@ CAND = '4af4ddade5bf998d3fbb9012a0ebe50902c83d922a55a3a8e97ebb8f01e19e4d'
 MTIME_NS = 1793532594436767674          # 2026-11-02 15:29:54.436767674 +0530 (original mtime)
 CPU_MAX, RAM_MAX, TEMP_MAX = 75.0, 80.0, 70.0
 DURATION_S, EVAL_S = 300.0, 120.0
+EARLY_USAGE_USEC = 50000   # Recovery CPU already used when sampling begins; its startup is ~1.7 CPU-s
 
 
 def sha(path):
@@ -91,7 +92,7 @@ def restore_original(rollback):
     return 'restored' if sha(TARGET) == LIVE else 'restore-verify-failed'
 
 
-def evaluate(rows, mode, recovery_seen):
+def evaluate(rows, mode, recovery_seen, initial=(None, None)):
     breaches, start = [], recovery_seen
     for r in rows:
         if start is not None and start <= r['uptime'] <= start + EVAL_S:
@@ -101,7 +102,11 @@ def evaluate(rows, mode, recovery_seen):
     pre = [r for r in rows if start is None or r['uptime'] < start]
     last = rows[-1] if rows else {}
     healthy = last.get('active') == 'active' and last.get('nrestarts') == '0'
-    covered = bool(rows) and start is not None and start > rows[0]['uptime']   # start window observed
+    # Start window observed: Recovery appeared after sampling began, or had used <= 50 ms CPU when it began
+    # (it is forked milliseconds after this monitor; its ~1.7 CPU-s startup then lies inside measured windows).
+    present0, usage0 = initial
+    covered = bool(rows) and start is not None and (
+        not present0 or (usage0 is not None and usage0 <= EARLY_USAGE_USEC))
     long_enough = bool(rows) and start is not None and rows[-1]['uptime'] >= start + EVAL_S
     verdict = 'PASS' if covered and long_enough and not breaches and healthy and not any(r.get('action') for r in rows) else 'FAIL'
     return {
@@ -111,7 +116,7 @@ def evaluate(rows, mode, recovery_seen):
         'peak_cpu': max((r['cpu'] for r in rows), default=None),
         'peak_ram': max((r['ram'] for r in rows), default=None),
         'peak_temp': max((r['temp'] for r in rows if r['temp'] is not None), default=None),
-        'start_window_observed': covered, 'eval_window_complete': long_enough,
+        'start_window_observed': covered, 'recovery_at_monitor_start': {'present': present0, 'usage_usec': usage0}, 'eval_window_complete': long_enough,
         'recovery_final_state': last.get('active'), 'nrestarts_final': last.get('nrestarts'),
         'actions': [r['action'] for r in rows if r.get('action')],
         'limits': {'cpu_pct': CPU_MAX, 'ram_pct': RAM_MAX, 'temp_c': TEMP_MAX, 'eval_s': EVAL_S},
@@ -128,6 +133,10 @@ def run(show=default_show, sleep=time.sleep, duration=DURATION_S):
     out = HOME / 'project-atlas-migration' / ('boot-evidence-' + boot[:8])
     out.mkdir(parents=True, exist_ok=True)
     rows, seen, prev = [], None, cpu_ticks()
+    usage0, pids0 = recovery_cgroup()
+    up0 = float((ROOT / 'proc/uptime').read_text().split()[0])
+    if pids0:
+        seen = up0                                   # already forked when sampling began
     t_end = time.monotonic() + duration
     with open(out / 'samples.jsonl', 'a') as log:
         while time.monotonic() < t_end:
@@ -136,11 +145,14 @@ def run(show=default_show, sleep=time.sleep, duration=DURATION_S):
             dt, didle = cur[0] - prev[0], cur[1] - prev[1]
             prev = cur
             usage, pids = recovery_cgroup()
-            st = show()
+            try:
+                st = show()
+            except (OSError, subprocess.SubprocessError, ValueError) as exc:   # e.g. timeout under boot load
+                st = {'error': type(exc).__name__}
             row = {'uptime': float((ROOT / 'proc/uptime').read_text().split()[0]),
                    'cpu': 100.0 * (dt - didle) / dt if dt > 0 else None, 'ram': ram_pct(), 'temp': temp_c(),
                    'recovery_usage_usec': usage, 'recovery_pids': pids,
-                   'active': st.get('ActiveState'), 'nrestarts': st.get('NRestarts'), 'main_pid': st.get('MainPID')}
+                   'show_error': st.get('error'), 'active': st.get('ActiveState'), 'nrestarts': st.get('NRestarts'), 'main_pid': st.get('MainPID')}
             if seen is None and pids:
                 seen = row['uptime']
             # A fresh user manager starts NRestarts at 0; any restart or failed state is unhealthy.
@@ -149,7 +161,7 @@ def run(show=default_show, sleep=time.sleep, duration=DURATION_S):
                 row['action'] = 'fail-closed:' + restore_original(PKG / 'atlas_sensor_recovery.rollback.py')
             rows.append(row)
             log.write(json.dumps(row) + '\n'); log.flush(); os.fsync(log.fileno())
-    summary = evaluate(rows, mode, seen)
+    summary = evaluate(rows, mode, seen, (bool(pids0), usage0))
     if mode == 'candidate' and summary['verdict'] == 'FAIL' and not summary['actions']:
         # Any failed evaluation (including a limit breach) rejects the candidate: restore the original
         # bytes for the next start. The running process is not stopped; a spike already measured cannot be

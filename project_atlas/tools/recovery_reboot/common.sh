@@ -14,7 +14,10 @@ helpers(){
 snapshot_off(){
   # The producer is opt-in only. Refuse if anything would enable it.
   systemctl --user show atlas-sensor-recovery -p Environment | grep -q 'ATLAS_RESTART_SNAPSHOT' && die 'unit environment sets ATLAS_RESTART_SNAPSHOT'
-  grep -rqs ATLAS_RESTART_SNAPSHOT $HOME/.config/systemd/user/atlas-sensor-recovery.service* $HOME/project_atlas/config/hardware.env && die 'snapshot opt-in present in unit/drop-in/env file'
+  # The unit reads EnvironmentFile=-%h/.config/project-atlas/hardware.env; services also inherit the
+  # user manager environment.
+  grep -rqs ATLAS_RESTART_SNAPSHOT $HOME/.config/systemd/user/atlas-sensor-recovery.service $HOME/.config/systemd/user/atlas-sensor-recovery.service.d $HOME/.config/project-atlas/hardware.env && die 'snapshot opt-in present in unit/drop-in/env file'
+  systemctl --user show-environment | grep -q '^ATLAS_RESTART_SNAPSHOT=' && die 'user manager environment sets ATLAS_RESTART_SNAPSHOT'
   return 0
 }
 put(){ # put SRC EXPECTED_SHA : atomic same-directory replace, keep jetson:jetson 644 and original mtime

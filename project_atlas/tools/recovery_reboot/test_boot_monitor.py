@@ -14,8 +14,8 @@ HERE = Path(__file__).resolve().parent
 
 class Fake:
     """Advances a fake /proc tree by one second per sleep()."""
-    def __init__(self, root, cpu, recovery_from=None, restarts_at=None, failed_at=None, ram=60.0, temp=60.0):
-        self.root, self.cpu, self.i = root, cpu, 0
+    def __init__(self, root, cpu, recovery_from=None, restarts_at=None, failed_at=None, ram=60.0, temp=60.0, usage0=0):
+        self.root, self.cpu, self.i, self.usage0 = root, cpu, 0, usage0
         self.recovery_from, self.restarts_at, self.failed_at = recovery_from, restarts_at, failed_at
         self.total = self.busy = 0
         self.ram, self.temp = ram, temp
@@ -37,7 +37,7 @@ class Fake:
         (r / 'proc/uptime').write_text(f'{10 + self.i}.00 0\n')
         present = self.recovery_from is not None and self.i >= self.recovery_from
         (self.cg / 'cgroup.procs').write_text('4242\n' if present else '')
-        (self.cg / 'cpu.stat').write_text(f'usage_usec {self.i * 1000}\n')
+        (self.cg / 'cpu.stat').write_text(f'usage_usec {self.usage0 + self.i * 1000}\n')
 
     def sleep(self, _):
         pct = self.cpu[min(self.i, len(self.cpu) - 1)]
@@ -116,7 +116,12 @@ class BootMonitorTests(unittest.TestCase):
         self.assertGreaterEqual(s['pre_recovery_peak_cpu'], 95)
         self.assertEqual(s['verdict'], 'PASS')
         self.tearDown(); self.setUp()
-        s, _ = self.run_n('baseline', self.live, 10, cpu=[50] * 10, recovery_from=0)   # already running at first sample
+        # Forked just before sampling began (normal Before= ordering): observed when <= 50 ms CPU used.
+        s, _ = self.run_n('baseline', self.live, 10, cpu=[50] * 10, recovery_from=0, usage0=40000)
+        self.assertTrue(s['start_window_observed'])
+        self.assertEqual(s['verdict'], 'PASS')
+        self.tearDown(); self.setUp()
+        s, _ = self.run_n('baseline', self.live, 10, cpu=[50] * 10, recovery_from=0, usage0=60000)  # startup partly missed
         self.assertFalse(s['start_window_observed'])
         self.assertEqual(s['verdict'], 'FAIL')
 
@@ -154,6 +159,31 @@ class BootMonitorTests(unittest.TestCase):
         self.assertEqual(self.target.read_bytes(), self.cand)
         self.assertEqual(s['actions'], [])
         self.assertEqual(s['verdict'], 'FAIL')
+
+    def test_systemctl_timeout_is_recorded_not_fatal_and_never_triggers_restore(self):
+        import subprocess
+        fake_show, n = None, {'i': 0}
+        def flaky():
+            n['i'] += 1
+            if n['i'] in (3, 4):
+                raise subprocess.TimeoutExpired('systemctl', 2)
+            return fake_show()
+        self.target.write_bytes(self.cand)
+        (self.pkg / 'ARMED').write_text('candidate\n')
+        fake, calls, orig = Fake(self.tmp / 'root', cpu=[60] * 10, recovery_from=2), {'n': 0}, self.m.time.monotonic
+        fake_show = fake.show
+        def sleep(x):
+            calls['n'] += 1
+            fake.sleep(x)
+        self.m.time.monotonic = lambda: float(calls['n'])
+        try:
+            s = self.m.run(show=flaky, sleep=sleep, duration=10.0)
+        finally:
+            self.m.time.monotonic = orig
+        rows = [json.loads(l) for l in (self.home / 'project-atlas-migration/boot-evidence-abcdef12/samples.jsonl').read_text().splitlines()]
+        self.assertEqual([r['show_error'] for r in rows].count('TimeoutExpired'), 2)
+        self.assertEqual((s['verdict'], s['actions']), ('PASS', []))
+        self.assertEqual(self.target.read_bytes(), self.cand)
 
     def test_evidence_written_per_boot(self):
         self.run_n('baseline', self.live, 10, cpu=[50] * 10, recovery_from=2)
