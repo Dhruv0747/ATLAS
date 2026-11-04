@@ -1,0 +1,24 @@
+[Unit]
+Description=ATLAS independent read-only Vision Lab (separately approved only)
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -B @VERSION@/project_atlas/scripts/atlas_vision_lab_host.py --socket %t/atlas-vision-lab-host/host.sock --config @VERSION@/project_atlas/config/vision_feature_lab.json
+RuntimeDirectory=atlas-vision-lab-host
+RuntimeDirectoryMode=0700
+UMask=0077
+Restart=no
+KillMode=control-group
+TimeoutStopSec=5
+RuntimeMaxSec=120
+MemoryMax=512M
+TasksMax=16
+LimitNOFILE=64
+LimitCORE=0
+NoNewPrivileges=yes
+Environment=OMP_NUM_THREADS=1
+Environment=OPENBLAS_NUM_THREADS=1
+
+# No Install section: never enable automatically at boot.
+# 120s bounds the first separately approved host validation, not camera permission.
+# CPUQuota is intentionally absent: user CPU controller is unavailable on ATLAS.

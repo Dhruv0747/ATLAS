@@ -25,9 +25,10 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 class Lab:
-    def __init__(self,root=None,config=None):
+    def __init__(self,root=None,config=None,frame_factory=None):
         self.root=Path(root or Path.home()/'.local/share/atlas/vision-tests')
         self.config=config or ROOT/'config/vision_feature_lab.json'
+        self.frame_factory=frame_factory
         self.lock=threading.RLock();self.active=None;self.reports={};self.thread=None
         self.stop_event=threading.Event();self.process=None;self.latest=None
         if self.root.exists() and not self.root.is_symlink():
@@ -130,23 +131,30 @@ class Lab:
 
     def run(self,feature,c,viewer,r):
         p=None;io=None;error=None;completed=False;io_error=[];last_result=[time.monotonic()];last_stamp=[None]
+        provider=None
+        session_deadline=time.monotonic()+c['duration_s']
         try:
             sys.path.insert(0,str(ROOT/'tools/vision3d'))
             from atlas_vision_feature_guard import observe,ticks,cpu_delta
-            from atlas_vision3d_runtime import SESSION
             from atlas_vision_features import rgb_array
-            camera=SESSION.status()
-            if camera.get('state')!='ACTIVE':raise ValueError('Start existing approved RGB camera session first')
-            identity=(camera.get('driver_pid'),camera.get('startup_guard_baseline_monotonic_s'))
-            if not all(identity):raise ValueError('camera identity unavailable')
-            def check_camera():
-                current=SESSION.status()
-                if current.get('state')!='ACTIVE' or identity!=(current.get('driver_pid'),current.get('startup_guard_baseline_monotonic_s')):
-                    raise ValueError('camera session changed or stopped')
-                with viewer.lock:
-                    message=viewer._fresh('rgb')
-                    if viewer.clock()-viewer.received['rgb']>.5:raise ValueError('RGB reception stale')
-                    return rgb_array(message,time.time_ns())
+            if self.frame_factory is not None:
+                provider=self.frame_factory()
+                provider.deadline=min(provider.deadline,session_deadline)
+                check_camera=provider.read
+            else:
+                from atlas_vision3d_runtime import SESSION
+                camera=SESSION.status()
+                if camera.get('state')!='ACTIVE':raise ValueError('Start existing approved RGB camera session first')
+                identity=(camera.get('driver_pid'),camera.get('startup_guard_baseline_monotonic_s'))
+                if not all(identity):raise ValueError('camera identity unavailable')
+                def check_camera():
+                    current=SESSION.status()
+                    if current.get('state')!='ACTIVE' or identity!=(current.get('driver_pid'),current.get('startup_guard_baseline_monotonic_s')):
+                        raise ValueError('camera session changed or stopped')
+                    with viewer.lock:
+                        message=viewer._fresh('rgb')
+                        if viewer.clock()-viewer.received['rgb']>.5:raise ValueError('RGB reception stale')
+                        return rgb_array(message,time.time_ns())
             before=ticks();t=time.monotonic()
             if self.stop_event.wait(1):raise ValueError('operator stopped before admission')
             now=time.monotonic();cur=ticks();r['resources']=observe(cpu_delta(before,cur),now-t)
@@ -162,9 +170,10 @@ class Lab:
                 try:
                     ready=json.loads(p.stdout.readline(4097))
                     if ready!={'ready':True}:raise ValueError('model startup failed: '+str(ready)[:500])
-                    while not self.stop_event.is_set():
+                    while not self.stop_event.is_set() and (provider is None or time.monotonic()<session_deadline):
                         if time.monotonic()-guard_at[0]>1.25:raise ValueError('local safety lease stale')
                         image,stamp=check_camera()
+                        if last_stamp[0] is not None and stamp<last_stamp[0]:raise ValueError('RGB source regressed')
                         if stamp==last_stamp[0]:self.stop_event.wait(.05);continue
                         request=dict(width=image.shape[1],height=image.shape[0],stamp_ns=stamp,
                                      guard_expires_mono=guard_at[0]+2,
@@ -185,8 +194,9 @@ class Lab:
                         self.stop_event.wait(.5)  # at most 2 Hz; no duplicate raw subscribers
                 except Exception as e:io_error.append(str(e))
             io=threading.Thread(target=exchange,daemon=True,name='astra-feature-ipc');io.start()
-            while time.monotonic()-started<c['duration_s'] and not self.stop_event.is_set():
+            while (time.monotonic()<session_deadline if provider else time.monotonic()-started<c['duration_s']) and not self.stop_event.is_set():
                 if self.stop_event.wait(max(0,1-(time.monotonic()-now))):break
+                if provider and time.monotonic()>=session_deadline:break
                 prev=cur;t=now;now=time.monotonic();cur=ticks()
                 obs=observe(cpu_delta(prev,cur),now-t);check_camera()
                 guard_at[0]=time.monotonic()
@@ -203,6 +213,7 @@ class Lab:
             if hasattr(e,'evidence'):r['failed_observation']=e.evidence
         finally:
             self.stop_event.set()
+            if provider:provider.close()
             if p:
                 try:
                     if p.poll() is None:p.kill()

@@ -315,6 +315,7 @@ class VisionService:
             if self.cache.get(kind+'_key')!=key and self.clock()-self.cache_at.get(kind,-1e9)>=.5:
                 png,stats=core.preview(m,kind);self.cache[kind]=png;self.cache[kind+'_key']=key
                 self.cache[kind+'_message']=m
+                self.cache[kind+'_received']=self.received[kind]
                 self.cache[kind+'_stats']=stats;self.cache_at[kind]=self.clock()
             return self.cache[kind]
 
@@ -379,6 +380,16 @@ def serve(handler,service=None,post=False):
         for k,v in (extra or {}).items():handler.send_header(k,v)
         handler.end_headers();handler.wfile.write(body)
     route=p.path[len(API):];q=parse_qs(p.query)
+    if route=='cached-rgb':
+        # Passive boundary for the independent host, before all touch/lease paths.
+        if post or handler.client_address[0] not in ('127.0.0.1','::1'):
+            send(403,{'error':'local read-only cache access required'});return True
+        try:
+            from atlas_vision_cache_only import cached_rgb
+            from atlas_vision3d_runtime import SESSION
+            send(200,cached_rgb(svc,SESSION.status()))
+        except (ValueError,KeyError,TypeError,OSError) as e:send(409,{'error':str(e)})
+        return True
     if route in ('features','feature-report'):
         from atlas_vision_feature_lab import LAB
         try:

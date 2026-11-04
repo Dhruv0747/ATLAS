@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-04 — Independent Vision host prepared offline: passive RGB cache endpoint, SSH-authenticated Unix-socket API, existing Object/Target worker reuse, and bounded fail-closed transport. Not deployed; the running Dashboard cannot acquire the new endpoint without a separately approved load window. See [offline result](docs/ATLAS_VISION_HOST_OFFLINE_RESULT_20261104.md).
+
 2026-11-03 — Mux transaction: per-attempt binding (owner-approved SHA, current boot, live PID/start-tick re-checks) replaces the hard-coded binding pin; pre-mutation E-STOP/command/encoder admission added; maintenance-protection interface accepts only measured, boot-bound, time-bounded isolation evidence (default still refuses). 66 focused checks. Activation remains NO-GO pending the owner decision and evidence in [the gates doc](docs/ATLAS_PROTECTED_PUBLISHER_GATES_20261102.md).
 
 2026-11-03 — The [offline Mux installation and rollback controller](docs/ATLAS_PROTECTED_PUBLISHER_GATES_20261102.md) passed 35 focused integration checks. Live activation remains blocked on independent maintenance protection and current service binding.
