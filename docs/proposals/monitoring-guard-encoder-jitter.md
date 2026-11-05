@@ -1,6 +1,10 @@
 # Proposal: tolerate encoder jitter in the monitoring guard (NOT INSTALLED)
 
-**Status: proposal for the owner's review. Nothing here has been applied to the Jetson.**
+**Status: INSTALLED by the owner on 2026-11-05 at 11:22 IST** via
+`deploy/monitoring-guard-jitter-20261105/install.sh`. The live guard SHA256 is
+`ca007ee2eca9d729fdaec44cc9b7cc8f71979a4bc39008808978b7fc25e075db`; the original `188d53db…` is kept as
+`/usr/local/libexec/atlas-monitoring-guard.py.before-jitter-20261105`. The second latch, at 10:08 on 2026-11-05,
+was reviewed before clearing: wheel 1 moved 6 to 9 (+3 counts) with E-STOP latched and zero command/speed.
 
 ## Problem
 
