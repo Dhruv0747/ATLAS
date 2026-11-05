@@ -1,0 +1,11 @@
+--- guard.original.py	2026-11-05 15:37:53.766332581 +0530
++++ atlas-monitoring-guard.py	2026-11-05 15:37:53.774332898 +0530
+@@ -152,7 +152,7 @@
+         {'chain':{'family':'inet','table':TABLE,'name':'input','type':'filter',
+                   'hook':'input','prio':-10,'policy':'accept'}},
+         {'rule':dict(rule,expr=[port,match({'meta':{'key':'iifname'}},'wlP1p1s0'),
+-               match({'payload':{'protocol':'ip','field':'saddr'}},'192.168.1.6'),
++               match({'payload':{'protocol':'ip','field':'saddr'}},'192.168.1.7'),
+                match({'payload':{'protocol':'ip','field':'daddr'}},'192.168.1.16'),{'return':None}])},
+         {'rule':dict(rule,expr=[port,{'drop':None}])}]
+ 
