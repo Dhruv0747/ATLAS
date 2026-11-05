@@ -12,10 +12,14 @@
  async function action(body){
   if(busy)return;busy=true;
   try{if(body.action==='start'){clearInterval(warmTimer);warmTimer=setInterval(warm,1000);await warm();await new Promise(r=>setTimeout(r,700));await warm();}
-const response=await fetch('/api/vision3d/features',{method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Vision3D':'1'},body:JSON.stringify(body),signal:AbortSignal.timeout(3000)});
+const response=await fetch('/api/vision3d/features',{method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Vision3D':'1'},body:JSON.stringify(body),signal:AbortSignal.timeout(body.action==='prepare'||body.action==='end'?25000:3000)});
    const value=await response.json();if(!response.ok)throw Error(value.error||'Feature request failed');render(value);
   }catch(e){notice.textContent=e.message;}finally{busy=false;}
  }
+ const prepBar=el('div');prepBar.style.cssText='margin:8px 0 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap';
+ const prep=el('button','Prepare Vision Lab (10 min)');prep.className='btn';prep.type='button';prep.onclick=()=>action({action:'prepare'});
+ const endBtn=el('button','End test window now');endBtn.className='btn';endBtn.type='button';endBtn.hidden=true;endBtn.onclick=()=>action({action:'end'});
+ const prepInfo=el('span','');prepBar.append(prep,endBtn,prepInfo);root.before(prepBar);
  for(const [id,name] of Object.entries(names)){
   const card=el('article');card.className='feature-card';card.append(el('h3',name));
   const state=el('strong','UNAVAILABLE'),reason=el('p','Awaiting backend'),metrics=el('pre','Measurements unavailable');card.append(state,reason,metrics);
@@ -33,8 +37,11 @@ const response=await fetch('/api/vision3d/features',{method:'POST',headers:{'Con
  const number=(n,suffix='')=>typeof n==='number'&&Number.isFinite(n)?n.toFixed(2)+suffix:'UNAVAILABLE';
  function render(data){
   const bridgeOff=data.prereq&&data.prereq.foxglove_bridge===false;
+  const left=data.prereq?data.prereq.session_left_s:null;
+  prep.hidden=!(left==null);endBtn.hidden=(left==null);
+  prepInfo.textContent=left==null?'Step 1: press Prepare (turns on the camera bridge and pauses the voice companion, localization monitor, visual-cloud agent, local LLM and shadow LiDAR odometry for 10 min, then restores them automatically).':'Vision Lab ready: '+Math.floor(left/60)+' min '+(left%60)+' s left. Step 2: start the camera above in Infrared + RGB mode. Step 3: Start Test.';
   notice.textContent=(data.active?'Running: '+names[data.active]+' — local guard active':'No feature test running. No automatic starts.')+
-   (bridgeOff?' Foxglove bridge (atlas-foxglove) is OFF: camera frames cannot reach the feature service.':'')+
+   (bridgeOff?' Camera bridge is OFF: press Prepare first.':'')+
    ' Steps: start the camera above in Infrared + RGB mode, keep this page open, then Start Test (30 s).';
   for(const row of data.features){const c=cards.get(row.id);if(!c)continue;const r=row.report,m=row.metrics||{};
    c.state.textContent=row.state;c.reason.textContent=row.reason;c.buttons.start.disabled=!row.start_available||busy||bridgeOff;

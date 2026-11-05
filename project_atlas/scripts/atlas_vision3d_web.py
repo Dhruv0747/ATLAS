@@ -398,8 +398,17 @@ def _feature_offline():
                          start_available=True,report=None,metrics=None))
     return dict(features=rows,active=None,latest=None,host='OFF',pan_tilt_allowed=False,face_enrollment_available=False,max_duration_s=30)
 
+def _session_left():
+    import subprocess,time as _t
+    try:
+        out=subprocess.run(['systemctl','--user','show','atlas-vision-lab-session','-p','ActiveState','-p','ActiveEnterTimestampMonotonic'],capture_output=True,text=True,timeout=2).stdout
+        kv=dict(l.split('=',1) for l in out.strip().splitlines() if '=' in l)
+        if kv.get('ActiveState')!='active':return None
+        return max(0,int(600-(_t.monotonic()-int(kv['ActiveEnterTimestampMonotonic'])/1e6)))
+    except Exception:return None
+
 def _feature_route(route,send,post,handler,q):
-    prereq={'foxglove_bridge':_unit_active('atlas-foxglove')}
+    prereq={'foxglove_bridge':_unit_active('atlas-foxglove'),'session_left_s':_session_left()}
     if route=='feature-report':
         if post:send(405,{'error':'GET only'});return
         f=q.get('feature',[''])[0]
@@ -415,6 +424,19 @@ def _feature_route(route,send,post,handler,q):
     length=int(handler.headers.get('Content-Length','0'))
     if not 0<length<=512 or handler.headers.get_content_type()!='application/json':raise ValueError('invalid feature request')
     raw=handler.rfile.read(length);payload=json.loads(raw)
+    if payload in ({'action':'prepare'},{'action':'end'}):
+        # Owner-started bounded test window: bridge on + two non-safety services paused; unit restores on stop/timeout.
+        import subprocess,time as _t
+        if payload['action']=='prepare':
+            subprocess.run(['systemctl','--user','start','atlas-vision-lab-session'],timeout=20,check=True)
+            end=_t.monotonic()+15
+            while not _unit_active('atlas-foxglove') and _t.monotonic()<end:_t.sleep(.3)
+        else:
+            subprocess.run(['systemctl','--user','stop','atlas-vision-lab-session'],timeout=20,check=True)
+        prereq={'foxglove_bridge':_unit_active('atlas-foxglove'),'session_left_s':_session_left()}
+        try:code,body,_=_feature_host('GET','/api/vision3d/features');data=json.loads(body)
+        except (OSError,ValueError):code,data=200,_feature_offline()
+        data['prereq']=prereq;send(200,data);return
     if not os.path.exists(FEATURE_SOCK):
         if payload.get('action')!='start':send(409,{'error':'feature service is not running'});return
         if not prereq['foxglove_bridge']:raise ValueError('Foxglove bridge (atlas-foxglove) is off: camera frames cannot reach the feature service')

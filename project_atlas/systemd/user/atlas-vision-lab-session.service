@@ -1,0 +1,15 @@
+[Unit]
+Description=ATLAS Vision Lab test window (camera bridge on; voice companion, localization monitor, visual-cloud agent, local LLM, shadow LiDAR odometry paused; auto-restores)
+
+[Service]
+Type=simple
+# Bounded owner-started window from the 3D Vision Lab page. Never enabled at boot (no [Install]).
+ExecStartPre=/usr/bin/systemctl --user stop atlas-voice-companion.service atlas-localization-monitor.service atlas-visual-cloud-agent.service atlas-local-llm.service
+ExecStartPre=/usr/bin/systemctl --user stop atlas-ekf-lidar-candidate.service atlas-lidar-odom-gate.service atlas-lidar-odom.service
+ExecStartPre=/usr/bin/systemctl --user start atlas-foxglove.service
+ExecStart=/bin/sleep 600
+# Always restore, whether the 10 minutes run out, the page ends it early, or anything fails.
+ExecStopPost=/usr/bin/systemctl --user --no-block stop atlas-foxglove.service atlas-vision-lab-host.service
+ExecStopPost=/usr/bin/systemctl --user --no-block start atlas-lidar-odom.service atlas-lidar-odom-gate.service atlas-ekf-lidar-candidate.service
+ExecStopPost=/usr/bin/systemctl --user --no-block start atlas-voice-companion.service atlas-localization-monitor.service atlas-visual-cloud-agent.service atlas-local-llm.service
+Restart=no
