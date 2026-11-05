@@ -13,6 +13,15 @@ import time
 from pathlib import Path
 
 
+# JSON-only IPC: keep a private copy of stdout, then route fd 1 (native TensorRT logs) to stderr.
+_IPC=os.fdopen(os.dup(1),'w',buffering=1)
+os.dup2(2,1)
+
+
+def emit(value):
+    _IPC.write(json.dumps(value,allow_nan=False)+'\n');_IPC.flush()
+
+
 def main():
     parent=os.getppid()
     ctypes.CDLL(None).prctl(1,signal.SIGKILL)  # Linux parent-death cleanup
@@ -26,7 +35,8 @@ def main():
     from atlas_vision_features import detections,Tracker
     import numpy as np
     detector=TensorRTYOLO(model);tracker=Tracker();deadline=time.monotonic()+60
-    print(json.dumps({'ready':True}),flush=True)
+    emit({'ready':True})
+    signal.alarm(0)  # startup deadline met; each frame below arms its own bound
     try:
         while time.monotonic()<deadline:
             if not select.select([sys.stdin],[],[],2)[0]:break
@@ -39,7 +49,7 @@ def main():
             if not math.isfinite(lease) or not 0<lease<=2:raise ValueError('expired/invalid safety lease')
             signal.setitimer(signal.ITIMER_REAL,lease)
             if type(w)!=int or type(h)!=int or not 0<w<=1920 or not 0<h<=1080:raise ValueError('dimensions')
-            if not 0<=time.time_ns()-m['stamp_ns']<=500_000_000:raise ValueError('stale input')
+            if not 0<=time.time_ns()-m['stamp_ns']<=1_000_000_000:raise ValueError('stale input')
             raw=base64.b64decode(m['rgb'],validate=True)
             if len(raw)!=w*h*3:raise ValueError('payload size')
             started=time.process_time();wall=time.monotonic()
@@ -48,12 +58,13 @@ def main():
             result=dict(stamp_ns=m['stamp_ns'],stamp_ns_exact=str(m['stamp_ns']),width=w,height=h,detections=rows,
                         inference_s=time.monotonic()-wall,cpu_s=time.process_time()-started,
                         peak_rss_kib=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
-            print(json.dumps(result,allow_nan=False),flush=True)
+            emit(result)
+            signal.setitimer(signal.ITIMER_REAL,0)  # frame answered: do not let its bound fire while idle
     finally:detector.close()
 
 
 if __name__=='__main__':
     try:main()
     except Exception as e:
-        print(json.dumps({'error':str(e)[:500]}),flush=True)
+        emit({'error':str(e)[:500]})
         sys.exit(1)

@@ -172,7 +172,14 @@ class Lab:
                     if ready!={'ready':True}:raise ValueError('model startup failed: '+str(ready)[:500])
                     while not self.stop_event.is_set() and (provider is None or time.monotonic()<session_deadline):
                         if time.monotonic()-guard_at[0]>1.25:raise ValueError('local safety lease stale')
-                        image,stamp=check_camera()
+                        try:image,stamp=check_camera()
+                        except ValueError as late:
+                            # Late/stale frames are skipped, never inferred; safety lease, camera identity and
+                            # worker errors still abort. No good frame for >3 s fails the test.
+                            if not any(k in str(late) for k in ('stale','expired during decode','fresh cache unavailable','cache unavailable','cache request expired')):raise
+                            if time.monotonic()-last_result[0]>3:raise ValueError('no fresh RGB frame for 3 s: '+str(late))
+                            with self.lock:r['skipped_frames']=r.get('skipped_frames',0)+1
+                            self.stop_event.wait(.25);continue
                         if last_stamp[0] is not None and stamp<last_stamp[0]:raise ValueError('RGB source regressed')
                         if stamp==last_stamp[0]:self.stop_event.wait(.05);continue
                         request=dict(width=image.shape[1],height=image.shape[0],stamp_ns=stamp,
@@ -183,7 +190,7 @@ class Lab:
                         if not raw or len(raw)>65536:raise ValueError('worker output unavailable/oversized')
                         result=json.loads(raw)
                         if result.get('error'):raise ValueError(result['error'])
-                        if result['stamp_ns']!=stamp or not 0<=time.time_ns()-stamp<=1_000_000_000:
+                        if result['stamp_ns']!=stamp or not 0<=time.time_ns()-stamp<=1_500_000_000:
                             raise ValueError('inference frame stale/mismatched')
                         last_stamp[0]=stamp;last_result[0]=time.monotonic()
                         with self.lock:
@@ -198,7 +205,12 @@ class Lab:
                 if self.stop_event.wait(max(0,1-(time.monotonic()-now))):break
                 if provider and time.monotonic()>=session_deadline:break
                 prev=cur;t=now;now=time.monotonic();cur=ticks()
-                obs=observe(cpu_delta(prev,cur),now-t);check_camera()
+                obs=observe(cpu_delta(prev,cur),now-t)
+                try:check_camera()
+                except ValueError as late:
+                    # Same late-frame rule as inference; camera identity/session errors still abort.
+                    if not any(k in str(late) for k in ('stale','expired during decode','fresh cache unavailable','cache unavailable','cache request expired','cache reader busy')):raise
+                    if time.monotonic()-last_result[0]>3:raise ValueError('no fresh RGB frame for 3 s: '+str(late))
                 guard_at[0]=time.monotonic()
                 if io_error:raise ValueError(io_error[0])
                 if p.poll() is not None:raise ValueError('optional inference worker exited')

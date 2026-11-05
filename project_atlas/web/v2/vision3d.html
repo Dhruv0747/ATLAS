@@ -1,7 +1,7 @@
 <!doctype html><html lang="en" class="v2-vision"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATLAS 3D Vision Lab</title><link rel="icon" href="/v2/assets/atlas-logo-96.png">
 <link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/glass.css"><link rel="stylesheet" href="/v2/vision3d.css">
-<script src="/v2/vision3d_state.js" defer></script><script src="/v2/vision3d.js" defer></script></head><body>
+<script src="/v2/vision3d_state.js" defer></script><script src="/v2/vision3d.js" defer></script><link rel="stylesheet" href="/v2/material.css"></head><body>
 <header class="topbar vl-top">
  <a class="brand" href="/v2/" aria-label="Back to ATLAS Home"><picture><source srcset="/v2/assets/atlas-logo-96.webp" type="image/webp"><img src="/v2/assets/atlas-logo-96.png" width="40" height="40" alt=""></picture>
   <span><h1>3D Vision Lab</h1><span class="sub">Orbbec Astra Pro · read-only viewer</span></span></a>
@@ -84,22 +84,19 @@
    <h3 class="vl-sub">Shadow obstacle prototype (camera frame only)</h3><pre id="obstacles">Not active</pre>
   </div>
  </details>
- <section class="vl-state" aria-labelledby="featureHeading">
-  <h2 id="featureHeading">Astra feature tests</h2>
-  <p>One stationary test at a time, at most 30 seconds. Uses the existing approved RGB viewer; these controls never start a camera or move a servo.</p>
-  <p id="featureNotice" role="status">Checking installed feature adapters…</p>
-  <div id="featureCards" class="feature-cards"></div>
-  <p>Face identification: <label><input type="checkbox" disabled> Opt-in enrollment unavailable</label>
-   <button class="btn" disabled>Delete saved identity (not installed)</button></p>
-  <p><label><input type="checkbox" disabled> Pan/tilt tracking — separate approval required</label></p>
-  <p>Shared RGB/depth previews remain above. Detection boxes appear only on an exactly matching RGB frame. Distances remain unavailable without verified registration.</p>
-  <canvas id="featureOverlay" width="640" height="480" aria-label="Matching RGB detection overlay" hidden></canvas>
-  <p id="featureOverlayStatus">No detection overlay available</p>
-  <a class="btn" href="/v2/map3d">Local stored 3D maps — calibration unverified</a>
- </section>
-</main>
+<!-- ATLAS-SIX-FEATURE-UI-BEGIN -->
 <link rel="stylesheet" href="/v2/vision_features.css">
+<section id="astraFeatureUi" class="vl-state" aria-labelledby="afuiTitle" style="display:block;padding:20px;margin:20px 0;max-width:100%;box-sizing:border-box">
+<h2 id="afuiTitle">Astra feature tests</h2>
+<p id="featureNotice" aria-live="polite">Loading feature status…</p>
+<p>Object Detection and Target Tracking are live: read-only 2D boxes, one 30-second test at a time, stopped automatically by the CPU/RAM/temperature and E-STOP guard. No servo or motor commands. Face, Gesture, Body and RGB-D Mapping stay blocked until their models or calibration exist.</p>
+<div id="featureCards" class="feature-cards"></div>
+<figure style="margin:16px 0 0"><canvas id="featureOverlay" hidden></canvas><figcaption id="featureOverlayStatus">Overlay unavailable: no matching fresh RGB result</figcaption></figure>
+<p>Manual PASS needs a READY test with at least one real detection. Reports stay on the Jetson; no images are saved.</p>
+</section>
 <script src="/v2/vision_features.js" defer></script>
+<!-- ATLAS-SIX-FEATURE-UI-END -->
+</main>
 <div class="dock" role="region" aria-label="Emergency stop">
  <button class="estop" id="v2Estop" type="button" title="Sends the same immediate zero-speed command as the Home E-STOP"><svg class="icon"><use href="/v2/assets/icons.svg#i-stop"/></svg> E-STOP</button>
  <span class="dock-note" id="v2EstopMsg">E-STOP sends one zero-speed command to the drive.</span>

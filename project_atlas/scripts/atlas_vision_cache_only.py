@@ -30,8 +30,8 @@ def cached_rgb(service, runtime):
             stamp = msg.header.stamp.sec*1_000_000_000 + msg.header.stamp.nanosec
         except (KeyError, AttributeError):
             raise ValueError('RGB cache unavailable') from None
-        if (type(stamp) is not int or not 0 <= service.wall()-stamp/1e9 <= .5
-                or type(received) not in (float, int) or not 0 <= now-received <= .5):
+        if (type(stamp) is not int or not 0 <= service.wall()-stamp/1e9 <= 1.0
+                or type(received) not in (float, int) or not 0 <= now-received <= 1.0):
             raise ValueError('RGB cache stale or future')
         if not isinstance(png, bytes) or not 0 < len(png) <= 262144:
             raise ValueError('invalid bounded PNG cache')
@@ -47,8 +47,8 @@ def decode_frame(data, now_ns, now_mono):
         if not isinstance(value, str) or not value.isascii() or not value.isdigit():
             raise ValueError('invalid original timestamp')
         stamp = int(value); received = data['received_mono']
-        if (not 0 <= now_ns-stamp <= 500_000_000 or type(received) not in (float, int)
-                or not 0 <= now_mono-received <= .5):
+        if (not 0 <= now_ns-stamp <= 1_000_000_000 or type(received) not in (float, int)
+                or not 0 <= now_mono-received <= 1.0):
             raise ValueError('RGB source or reception stale/future')
         raw = base64.b64decode(data['png'], validate=True)
         if not 0 < len(raw) <= 262144: raise ValueError('PNG size limit')
@@ -129,7 +129,7 @@ class HTTPFrames:
             # Reuse only genuinely fresh source data, not a receipt-based TTL.
             age = max((time.time_ns()-int(self.data['stamp_ns']))/1e9,
                       now-self.data['received_mono']) if self.data else float('inf')
-            if self.data is None or age >= .4:
+            if self.data is None or age >= .8:
                 if now-self.fetched < .25: raise ValueError('fresh cache unavailable within 4 Hz request budget')
                 self.fetched = now
                 self.data = self._fetch()
@@ -138,7 +138,7 @@ class HTTPFrames:
             self.identity = current
             result = decode_frame(self.data, time.time_ns(), time.monotonic())
             if self.closed or time.monotonic() >= self.deadline: raise ValueError('frame deadline expired')
-            if not 0 <= time.time_ns()-result[1] <= 500_000_000: raise ValueError('frame expired during decode')
+            if not 0 <= time.time_ns()-result[1] <= 1_000_000_000: raise ValueError('frame expired during decode')
             return result
         finally:
             self.lock.release()

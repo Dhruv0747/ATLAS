@@ -5,9 +5,14 @@
  const names={face:'Face Recognition',gesture:'Gesture Recognition',body:'Human Body Tracking',target:'Target Tracking',object:'Object Detection',mapping:'RGB-D 3D Mapping'};
  const el=(tag,text)=>{const n=document.createElement(tag);if(text)n.textContent=text;return n;};
  let busy=false,timer;
+ // The guard reads /api/status, whose non-blocking cache is empty right after idle: warm it first
+ // and keep it warm while a test runs. Read-only GETs; no safety logic lives in this page.
+ const warm=()=>fetch('/api/status',{cache:'no-store',signal:AbortSignal.timeout(2000)}).catch(()=>{});
+ let warmTimer=null;
  async function action(body){
   if(busy)return;busy=true;
-  try{const response=await fetch('/api/vision3d/features',{method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Vision3D':'1'},body:JSON.stringify(body),signal:AbortSignal.timeout(3000)});
+  try{if(body.action==='start'){clearInterval(warmTimer);warmTimer=setInterval(warm,1000);await warm();await new Promise(r=>setTimeout(r,700));await warm();}
+const response=await fetch('/api/vision3d/features',{method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Vision3D':'1'},body:JSON.stringify(body),signal:AbortSignal.timeout(3000)});
    const value=await response.json();if(!response.ok)throw Error(value.error||'Feature request failed');render(value);
   }catch(e){notice.textContent=e.message;}finally{busy=false;}
  }
@@ -25,9 +30,12 @@
  }
  const number=(n,suffix='')=>typeof n==='number'&&Number.isFinite(n)?n.toFixed(2)+suffix:'UNAVAILABLE';
  function render(data){
-  notice.textContent=data.active?'Running: '+names[data.active]+' — local guard active':'No feature test running. No automatic starts.';
+  const bridgeOff=data.prereq&&data.prereq.foxglove_bridge===false;
+  notice.textContent=(data.active?'Running: '+names[data.active]+' — local guard active':'No feature test running. No automatic starts.')+
+   (bridgeOff?' Foxglove bridge (atlas-foxglove) is OFF: camera frames cannot reach the feature service.':'')+
+   ' Steps: start the camera above in Infrared + RGB mode, keep this page open, then Start Test (30 s).';
   for(const row of data.features){const c=cards.get(row.id);if(!c)continue;const r=row.report,m=row.metrics||{};
-   c.state.textContent=row.state;c.reason.textContent=row.reason;c.buttons.start.disabled=!row.start_available||busy;
+   c.state.textContent=row.state;c.reason.textContent=row.reason;c.buttons.start.disabled=!row.start_available||busy||bridgeOff;
    c.buttons.stop.disabled=data.active!==row.id;c.buttons.pass.disabled=!!data.active||!r||r.state!=='READY'||r.frames<2||r.detections_seen<1;
    c.buttons.fail.disabled=!!data.active||!r;c.download.hidden=!r;
    if(!['object','target'].includes(row.id))for(const button of Object.values(c.buttons))button.disabled=true;
@@ -48,6 +56,8 @@
   let active=false;
   try{if(!document.hidden&&!busy){const r=await fetch('/api/vision3d/features',{signal:AbortSignal.timeout(2500)});if(!r.ok)throw Error('Feature backend unavailable');const d=await r.json();render(d);active=!!d.active;}}
   catch(e){notice.textContent=e.message;for(const c of cards.values()){c.state.textContent='UNAVAILABLE';c.buttons.start.disabled=true;}}
+  if(active&&!warmTimer)warmTimer=setInterval(warm,1000);
+  if(!active&&warmTimer&&!busy){clearInterval(warmTimer);warmTimer=null;}
   timer=setTimeout(poll,active?1000:3000);
  }
  window.addEventListener('pagehide',()=>clearTimeout(timer));poll();

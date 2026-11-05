@@ -366,6 +366,69 @@ class VisionService:
             return self.cache['cloud']
 
 
+# --- Vision Lab feature proxy (2026-11-05): forwards to the independent atlas-vision-lab-host over its private
+# Unix socket. Read-only inference only; no camera lease, ROS publisher or servo path is added here.
+FEATURE_SOCK='/run/user/%d/atlas-vision-lab-host/host.sock'%os.getuid()
+FEATURE_BLOCKED={'face':('Face Recognition','NOT INSTALLED','Identity model, opt-in enrollment and deletion backend not installed'),
+ 'gesture':('Gesture Recognition','NOT INSTALLED','Hand landmarks and gesture model not installed'),
+ 'body':('Human Body Tracking','UNAVAILABLE','Person-box prototype only; skeletal pose model not installed'),
+ 'mapping':('RGB-D 3D Mapping','UNAVAILABLE','Calibration/registration/TF and onboard mapping activation not verified')}
+
+def _unit_active(unit):
+    import subprocess
+    try:return subprocess.run(['systemctl','--user','is-active',unit],capture_output=True,text=True,timeout=2).stdout.strip()=='active'
+    except Exception:return False
+
+def _feature_host(method,path,body=None):
+    import http.client,socket
+    class C(http.client.HTTPConnection):
+        def connect(self):
+            self.sock=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);self.sock.settimeout(3);self.sock.connect(FEATURE_SOCK)
+    c=C('localhost',8099,timeout=3)
+    headers={'Host':'localhost:8099'}
+    if body is not None:headers.update({'Content-Type':'application/json','Origin':'http://localhost:8099','X-Atlas-Vision3D':'1'})
+    try:
+        c.request(method,path,body=body,headers=headers);r=c.getresponse()
+        return r.status,r.read(1048577),r.getheader('Content-Type','application/json')
+    finally:c.close()
+
+def _feature_offline():
+    rows=[dict(id=k,name=v[0],state=v[1],reason=v[2],start_available=False,report=None,metrics=None) for k,v in FEATURE_BLOCKED.items()]
+    for k,n in (('target','Target Tracking'),('object','Object Detection')):
+        rows.append(dict(id=k,name=n,state='READY TO START',reason='Feature service idle. Start the camera (Depth + RGB) first, then Start Test.',
+                         start_available=True,report=None,metrics=None))
+    return dict(features=rows,active=None,latest=None,host='OFF',pan_tilt_allowed=False,face_enrollment_available=False,max_duration_s=30)
+
+def _feature_route(route,send,post,handler,q):
+    prereq={'foxglove_bridge':_unit_active('atlas-foxglove')}
+    if route=='feature-report':
+        if post:send(405,{'error':'GET only'});return
+        f=q.get('feature',[''])[0]
+        if f not in ('object','target'):send(409,{'error':'unsupported feature'});return
+        try:code,body,ct=_feature_host('GET','/api/vision3d/feature-report?feature='+f)
+        except OSError:send(409,{'error':'feature service off; reports are kept on the Jetson'});return
+        send(code,body,ct,{'Content-Disposition':'attachment; filename="atlas-%s-test.json"'%f} if code==200 else None);return
+    if not post:
+        try:code,body,_=_feature_host('GET','/api/vision3d/features');data=json.loads(body)
+        except (OSError,ValueError):code,data=200,_feature_offline()
+        if isinstance(data,dict):data['prereq']=prereq
+        send(code,data);return
+    length=int(handler.headers.get('Content-Length','0'))
+    if not 0<length<=512 or handler.headers.get_content_type()!='application/json':raise ValueError('invalid feature request')
+    raw=handler.rfile.read(length);payload=json.loads(raw)
+    if not os.path.exists(FEATURE_SOCK):
+        if payload.get('action')!='start':send(409,{'error':'feature service is not running'});return
+        if not prereq['foxglove_bridge']:raise ValueError('Foxglove bridge (atlas-foxglove) is off: camera frames cannot reach the feature service')
+        import subprocess,time as _t
+        subprocess.run(['systemctl','--user','start','atlas-vision-lab-host'],timeout=10,check=True)
+        end=_t.monotonic()+5
+        while not os.path.exists(FEATURE_SOCK) and _t.monotonic()<end:_t.sleep(.1)
+    code,body,_=_feature_host('POST','/api/vision3d/features',raw)
+    data=json.loads(body)
+    if isinstance(data,dict):data['prereq']=prereq
+    send(code,data)
+
+
 SERVICE=VisionService()
 
 
@@ -390,33 +453,15 @@ def serve(handler,service=None,post=False):
             send(200,cached_rgb(svc,SESSION.status()))
         except (ValueError,KeyError,TypeError,OSError) as e:send(409,{'error':str(e)})
         return True
-    if route in ('features','feature-report'):
-        from atlas_vision_feature_lab import LAB
-        try:
-            if post:
-                if route!='features':raise ValueError('report download is read-only')
-                origin=urlsplit(handler.headers.get('Origin',''))
-                if origin.scheme not in ('http','https') or origin.netloc!=handler.headers.get('Host') or handler.headers.get('X-Atlas-Vision3D')!='1':
-                    send(403,{'error':'same-origin request required'});return True
-                length=int(handler.headers.get('Content-Length','0'))
-                if not 0<length<=512 or handler.headers.get_content_type()!='application/json':raise ValueError('invalid request')
-                data=json.loads(handler.rfile.read(length))
-                if not isinstance(data,dict):raise ValueError('object required')
-                if data=={'action':'stop'}:LAB.stop()
-                elif set(data)=={'action','feature'} and data['action']=='start':LAB.start(data['feature'],svc)
-                elif set(data)=={'action','feature','verdict'} and data['action']=='verdict':LAB.verdict(data['feature'],data['verdict'])
-                else:raise ValueError('unsupported feature operation')
-                send(200,LAB.status())
-            elif route=='features':send(200,LAB.status())  # no viewer touch or lease renewal
-            else:
-                raw,digest=LAB.download(q.get('feature',[''])[0])
-                send(200,raw,extra={'Content-Disposition':'attachment; filename="atlas-feature-report.json"','X-Evidence-SHA256':digest})
-        except (ValueError,KeyError,TypeError,OSError) as e:send(409,{'error':str(e)})
-        return True
     if post:
         origin=urlsplit(handler.headers.get('Origin',''))
         if origin.scheme not in ('http','https') or origin.netloc!=handler.headers.get('Host') or handler.headers.get('X-Atlas-Vision3D')!='1':
             send(403,{'error':'same-origin viewer request required'});return True
+        if route in ('features','feature-report'):
+            try:_feature_route(route,send,post,handler,q)
+            except (ValueError,KeyError,TypeError,OSError) as e:send(409,{'error':str(e)[:300]})
+            except Exception as e:send(409,{'error':'feature service error: '+str(e)[:200]})
+            return True
         if route!='viewer':send(404,{'error':'unknown viewer route'});return True
         try:
             length=int(handler.headers.get('Content-Length','0'))
@@ -435,6 +480,11 @@ def serve(handler,service=None,post=False):
     if route=='summary':   # Stage31: Home status card; never touches the viewer lease
         try:send(200,svc.summary())
         except Exception as e:send(503,{'error':'SENSOR ERROR: '+str(e)})
+        return True
+    if route in ('features','feature-report'):
+        try:_feature_route(route,send,post,handler,q)
+        except (ValueError,KeyError,TypeError,OSError) as e:send(409,{'error':str(e)[:300]})
+        except Exception as e:send(409,{'error':'feature service error: '+str(e)[:200]})
         return True
     if route not in ('status','frame','pixel','cloud','raw'):send(404,{'error':'unknown read-only route'});return True
     try:
