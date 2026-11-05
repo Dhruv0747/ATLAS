@@ -17,7 +17,7 @@ const response=await fetch('/api/vision3d/features',{method:'POST',headers:{'Con
   }catch(e){notice.textContent=e.message;}finally{busy=false;}
  }
  const prepBar=el('div');prepBar.style.cssText='margin:8px 0 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap';
- const prep=el('button','Prepare Vision Lab (10 min)');prep.className='btn';prep.type='button';prep.onclick=()=>action({action:'prepare'});
+ const prep=el('button','Prepare Vision Lab (10 min)');prep.className='btn';prep.style.cssText='font-weight:700;border:2px solid #1f8f4e';prep.type='button';prep.onclick=()=>action({action:'prepare'});
  const endBtn=el('button','End test window now');endBtn.className='btn';endBtn.type='button';endBtn.hidden=true;endBtn.onclick=()=>action({action:'end'});
  const prepInfo=el('span','');prepBar.append(prep,endBtn,prepInfo);root.before(prepBar);
  for(const [id,name] of Object.entries(names)){
@@ -44,7 +44,9 @@ const response=await fetch('/api/vision3d/features',{method:'POST',headers:{'Con
    (bridgeOff?' Camera bridge is OFF: press Prepare first.':'')+
    ' Steps: start the camera above in Infrared + RGB mode, keep this page open, then Start Test (30 s).';
   for(const row of data.features){const c=cards.get(row.id);if(!c)continue;const r=row.report,m=row.metrics||{};
-   c.state.textContent=row.state;c.reason.textContent=row.reason;c.buttons.start.disabled=!row.start_available||busy||bridgeOff;
+   const needPrep=bridgeOff&&row.start_available&&!r;
+   c.state.textContent=needPrep?'READY — press Prepare first':row.state;
+   c.reason.textContent=needPrep?'Installed and working. Press “Prepare Vision Lab” above, start the camera (Infrared + RGB), then Start Test.':row.reason;c.buttons.start.disabled=!row.start_available||busy||bridgeOff;
    c.buttons.stop.disabled=data.active!==row.id;c.buttons.pass.disabled=!!data.active||!r||r.state!=='READY'||r.frames<2||r.detections_seen<1;
    c.buttons.fail.disabled=!!data.active||!r;c.download.hidden=!r;
    if(!['object','target','gesture','body','face'].includes(row.id))for(const button of Object.values(c.buttons))button.disabled=true;
