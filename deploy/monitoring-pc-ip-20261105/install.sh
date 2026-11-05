@@ -9,7 +9,7 @@ G=/usr/local/libexec/atlas-monitoring-guard.py; N=/etc/atlas-monitoring/atlas-mo
 [ "$(sha256sum < atlas-monitoring-guard.py | cut -d' ' -f1)" = 9a98a2eabe0865d56b5e4456b9c9cf5a88c66a775447519dd4f03183f30acc66 ] && [ "$(sha256sum < atlas-monitor.nft | cut -d' ' -f1)" = 2aec463e6b2b47bbc8c0ab029fd368be3c75ef7c9f64101a3104dcf6231d0619 ] || { echo "prepared files changed; stopping"; exit 1; }
 if [ -e $ST/FAULT.json ]; then
   echo "===== Current latch (review before clearing) ====="; cat $ST/FAULT.json; echo
-  read -r -p "Is this only CPU/unclean-exit (no real wheel movement)? Clear it? [y/N] " a
+  read -r -p "Was this movement made by you on purpose, and is the rover now parked with E-STOP latched? Clear it? [y/N] " a
   [ "$a" = y ] || [ "$a" = Y ] || { echo "Not cleared. Nothing changed."; exit 1; }
 fi
 systemctl stop atlas-monitoring-exporter atlas-monitoring-watchdog || true
