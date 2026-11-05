@@ -53,10 +53,11 @@ rate/resolution.
 voice, camera tracker and follow-person during mapping, and records and restores them), rather than adding a new
 system. Everything is restored when mapping ends.
 
-## Open decisions for the owner
+## Owner decisions
 
-1. May the IMX708 camera (and its pan-tilt view) pause during 3D mapping? This is option B and gives the most
-   headroom.
+1. **2026-11-05: option B approved.** The IMX708 camera (and its pan-tilt view) may pause during **3D (RGB-D)
+   mapping** sessions only, not during ordinary 2D mapping. Implement in M3 as a 3D-mapping-specific pause list,
+   restored on exit.
 2. M3 needs approval to install RTAB-Map (apt `ros-humble-rtabmap-ros`, about 300 MB).
 
 ## Next
