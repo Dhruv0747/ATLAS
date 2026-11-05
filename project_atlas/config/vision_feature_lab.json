@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "duration_s": 30,
-  "model_path": "/home/jetson/project_atlas/scripts/yolov8n_fp16.engine",
-  "model_sha256": "97cd66586901c75707164e912e609253d1e71705055248b9c83430c3421721df",
-  "note": "Enabled 2026-11-04 for owner-approved Object Detection + Target Tracking tests (stationary, E-STOP latched)"
+  "model_path": "/home/jetson/project_atlas/scripts/yolov8n_fp16_20261105.engine",
+  "model_sha256": "1e7b058a7db2b3a0b898abf89934cbc4956ce23e32e2c2ba0bce8f90ec37b293",
+  "note": "Enabled 2026-11-04 for owner-approved Object Detection + Target Tracking tests (stationary, E-STOP latched) | 2026-11-05: model -> yolov8n_fp16_20261105.engine (rebuilt on this Jetson, no device warning)"
 }
