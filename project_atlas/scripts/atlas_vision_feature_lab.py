@@ -15,12 +15,12 @@ import threading
 import time
 import uuid
 
-NAMES={'face':'Face Recognition','gesture':'Gesture Recognition','body':'Human Body Tracking',
+NAMES={'face':'Face Detection (no identity)','gesture':'Gesture Recognition','body':'Human Body Tracking (pose)',
        'target':'Target Tracking','object':'Object Detection','mapping':'RGB-D 3D Mapping'}
-BLOCKERS={'face':'Identity model, opt-in enrollment and deletion backend not installed',
-          'gesture':'Hand landmarks and gesture model not installed',
-          'body':'Person-box prototype only; not approved for this Object/Target test stage',
-          'mapping':'Calibration/registration/TF and onboard mapping activation not verified'}
+MP_FEATURES=('gesture','body','face')  # MediaPipe worker in the isolated venv; boxes/landmarks only, nothing stored
+REVIEWED_YOLO={'97cd66586901c75707164e912e609253d1e71705055248b9c83430c3421721df',   # 2026-07-24 build
+               '1e7b058a7db2b3a0b898abf89934cbc4956ce23e32e2c2ba0bce8f90ec37b293'}   # 2026-11-05 rebuild on this Jetson
+BLOCKERS={'mapping':'Calibration/registration/TF and onboard mapping activation not verified'}
 ROOT=Path(__file__).resolve().parents[1]
 
 
@@ -45,7 +45,7 @@ class Lab:
     def settings(self):
         c=json.loads(Path(self.config).read_text())
         if c.get('enabled') is not True:raise ValueError('Feature execution disabled; reviewed deployment required')
-        if c.get('model_sha256')!='97cd66586901c75707164e912e609253d1e71705055248b9c83430c3421721df':
+        if c.get('model_sha256') not in REVIEWED_YOLO:
             raise ValueError('unreviewed model hash')
         if type(c.get('duration_s')) is not int or not 1<=c['duration_s']<=30:raise ValueError('invalid bounded test duration')
         return c
@@ -58,8 +58,8 @@ class Lab:
             for key,name in NAMES.items():
                 r=self.reports.get(key)
                 reason=BLOCKERS.get(key,'Read-only adapter prepared; live Astra validation pending')
-                state='NOT INSTALLED' if key in ('face','gesture') else 'UNAVAILABLE'
-                if enabled and key in ('object','target'):reason='Start requires active approved RGB viewer and fresh safety admission'
+                state='UNAVAILABLE' if key in BLOCKERS else 'READY TO START'
+                if enabled and key not in BLOCKERS:reason='Start requires active approved RGB viewer and fresh safety admission'
                 if r:state=r['state'];reason=r['reason']
                 rows.append(dict(id=key,name=name,state=state,reason=reason,
                                  start_available=enabled and key not in BLOCKERS and self.active is None,
@@ -122,7 +122,7 @@ class Lab:
             c=self.settings()
             r=dict(id=uuid.uuid4().hex,feature=feature,state='RUNNING',reason='Fresh admission in progress',
                    started_at=time.time(),frames=0,detections_seen=0,manual_verdict=None,events=[],resources=None,
-                   model_sha256=c['model_sha256'],interpretation='2D person boxes, not skeletal pose' if feature=='body' else '2D boxes; no metric geometry')
+                   model_sha256=c['model_sha256'],interpretation={'body':'2D 33-point pose landmarks; no metric geometry','face':'2D face boxes only; no identity, nothing stored','gesture':'2D hand boxes + gesture label; no metric geometry'}.get(feature,'2D boxes; no metric geometry'))
             self.save(r)  # prove writable bounded evidence before optional work
             self.active=feature;self.reports[feature]=r;self.latest=None;self.stop_event.clear()
             self.thread=threading.Thread(target=self.run,args=(feature,c,viewer,r),daemon=True,name='astra-feature-guard')
@@ -162,7 +162,11 @@ class Lab:
             check_camera()
             if self.stop_event.is_set():raise ValueError('operator stopped before worker launch')
             env=dict(os.environ,OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1')
-            p=subprocess.Popen([sys.executable,str(ROOT/'scripts/atlas_vision_feature_worker.py'),feature,c['model_path'],c['model_sha256']],
+            if feature in MP_FEATURES:
+                mpc=c['mediapipe'];mm=mpc['models'][feature]
+                cmd=[mpc['python'],'-B',str(ROOT/'scripts/atlas_vision_mp_worker.py'),feature,mm['path'],mm['sha256']]
+            else:cmd=[sys.executable,str(ROOT/'scripts/atlas_vision_feature_worker.py'),feature,c['model_path'],c['model_sha256']]
+            p=subprocess.Popen(cmd,
                                stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,env=env)
             with self.lock:self.process=p
             started=time.monotonic();last_result[0]=started

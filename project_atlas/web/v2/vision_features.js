@@ -2,7 +2,7 @@
 (() => {
  'use strict';
  const root=document.getElementById('featureCards'),notice=document.getElementById('featureNotice'),cards=new Map();
- const names={face:'Face Recognition',gesture:'Gesture Recognition',body:'Human Body Tracking',target:'Target Tracking',object:'Object Detection',mapping:'RGB-D 3D Mapping'};
+ const names={face:'Face Detection (no identity)',gesture:'Gesture Recognition',body:'Human Body Tracking (pose)',target:'Target Tracking',object:'Object Detection',mapping:'RGB-D 3D Mapping'};
  const el=(tag,text)=>{const n=document.createElement(tag);if(text)n.textContent=text;return n;};
  let busy=false,timer;
  // The guard reads /api/status, whose non-blocking cache is empty right after idle: warm it first
@@ -25,7 +25,9 @@ const response=await fetch('/api/vision3d/features',{method:'POST',headers:{'Con
    buttons[key]=b;card.append(b);
   }
   const download=el('a','Download local test report');download.className='btn';download.hidden=true;download.href='/api/vision3d/feature-report?feature='+id;card.append(download);
-  if(id==='body')card.append(el('p','Person box tracking only; skeletal pose is not installed.'));
+  if(id==='body')card.append(el('p','MediaPipe 33-point pose (2D). No distance.'));
+  if(id==='face')card.append(el('p','Finds faces only. No identity matching, no face data stored.'));
+  if(id==='gesture')card.append(el('p','Hands + gestures: thumbs up/down, victory, fist, pointing, open palm, I-love-you.'));
   root.append(card);cards.set(id,{state,reason,metrics,buttons,download});
  }
  const number=(n,suffix='')=>typeof n==='number'&&Number.isFinite(n)?n.toFixed(2)+suffix:'UNAVAILABLE';
@@ -38,7 +40,7 @@ const response=await fetch('/api/vision3d/features',{method:'POST',headers:{'Con
    c.state.textContent=row.state;c.reason.textContent=row.reason;c.buttons.start.disabled=!row.start_available||busy||bridgeOff;
    c.buttons.stop.disabled=data.active!==row.id;c.buttons.pass.disabled=!!data.active||!r||r.state!=='READY'||r.frames<2||r.detections_seen<1;
    c.buttons.fail.disabled=!!data.active||!r;c.download.hidden=!r;
-   if(!['object','target'].includes(row.id))for(const button of Object.values(c.buttons))button.disabled=true;
+   if(!['object','target','gesture','body','face'].includes(row.id))for(const button of Object.values(c.buttons))button.disabled=true;
    c.metrics.textContent='FPS: '+number(r?.fps)+'\nWhole Jetson CPU: '+number(m.cpu,'%')+'\nWhole Jetson RAM: '+number(m.ram,'%')+'\nTemperature: '+number(m.temperature,' °C')+
     '\nWorker peak RSS: '+number(r?.last_result?.peak_rss_kib/1024,' MiB')+'\nInference CPU time: '+number(r?.last_result?.cpu_s,' s')+
     '\nFrames: '+(r?.frames??'UNAVAILABLE')+'\nSource timestamp ns: '+(r?.last_result?.stamp_ns_exact??'UNAVAILABLE')+

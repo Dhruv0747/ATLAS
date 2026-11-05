@@ -369,10 +369,9 @@ class VisionService:
 # --- Vision Lab feature proxy (2026-11-05): forwards to the independent atlas-vision-lab-host over its private
 # Unix socket. Read-only inference only; no camera lease, ROS publisher or servo path is added here.
 FEATURE_SOCK='/run/user/%d/atlas-vision-lab-host/host.sock'%os.getuid()
-FEATURE_BLOCKED={'face':('Face Recognition','NOT INSTALLED','Identity model, opt-in enrollment and deletion backend not installed'),
- 'gesture':('Gesture Recognition','NOT INSTALLED','Hand landmarks and gesture model not installed'),
- 'body':('Human Body Tracking','UNAVAILABLE','Person-box prototype only; skeletal pose model not installed'),
- 'mapping':('RGB-D 3D Mapping','UNAVAILABLE','Calibration/registration/TF and onboard mapping activation not verified')}
+FEATURE_STARTABLE=(('face','Face Detection (no identity)'),('gesture','Gesture Recognition'),('body','Human Body Tracking (pose)'),
+ ('target','Target Tracking'),('object','Object Detection'))
+FEATURE_BLOCKED={'mapping':('RGB-D 3D Mapping','UNAVAILABLE','Calibration/registration/TF and onboard mapping activation not verified')}
 
 def _unit_active(unit):
     import subprocess
@@ -394,8 +393,8 @@ def _feature_host(method,path,body=None):
 
 def _feature_offline():
     rows=[dict(id=k,name=v[0],state=v[1],reason=v[2],start_available=False,report=None,metrics=None) for k,v in FEATURE_BLOCKED.items()]
-    for k,n in (('target','Target Tracking'),('object','Object Detection')):
-        rows.append(dict(id=k,name=n,state='READY TO START',reason='Feature service idle. Start the camera (Depth + RGB) first, then Start Test.',
+    for k,n in FEATURE_STARTABLE:
+        rows.append(dict(id=k,name=n,state='READY TO START',reason='Feature service idle. Start the camera in Infrared + RGB mode first, then Start Test.',
                          start_available=True,report=None,metrics=None))
     return dict(features=rows,active=None,latest=None,host='OFF',pan_tilt_allowed=False,face_enrollment_available=False,max_duration_s=30)
 
@@ -404,7 +403,7 @@ def _feature_route(route,send,post,handler,q):
     if route=='feature-report':
         if post:send(405,{'error':'GET only'});return
         f=q.get('feature',[''])[0]
-        if f not in ('object','target'):send(409,{'error':'unsupported feature'});return
+        if f not in dict(FEATURE_STARTABLE):send(409,{'error':'unsupported feature'});return
         try:code,body,ct=_feature_host('GET','/api/vision3d/feature-report?feature='+f)
         except OSError:send(409,{'error':'feature service off; reports are kept on the Jetson'});return
         send(code,body,ct,{'Content-Disposition':'attachment; filename="atlas-%s-test.json"'%f} if code==200 else None);return

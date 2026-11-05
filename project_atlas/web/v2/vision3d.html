@@ -89,7 +89,7 @@
 <section id="astraFeatureUi" class="vl-state" aria-labelledby="afuiTitle" style="display:block;padding:20px;margin:20px 0;max-width:100%;box-sizing:border-box">
 <h2 id="afuiTitle">Astra feature tests</h2>
 <p id="featureNotice" aria-live="polite">Loading feature status…</p>
-<p>Object Detection and Target Tracking are live: read-only 2D boxes, one 30-second test at a time, stopped automatically by the CPU/RAM/temperature and E-STOP guard. No servo or motor commands. Face, Gesture, Body and RGB-D Mapping stay blocked until their models or calibration exist.</p>
+<p>Five features are live: Object Detection, Target Tracking, Gesture Recognition, Body pose and Face Detection (no identity). Read-only 2D results, one 30-second test at a time, stopped automatically by the CPU/RAM/temperature and E-STOP guard. No servo or motor commands, no images or face data stored. RGB-D Mapping stays blocked until the Astra is calibrated.</p>
 <div id="featureCards" class="feature-cards"></div>
 <figure style="margin:16px 0 0"><canvas id="featureOverlay" hidden></canvas><figcaption id="featureOverlayStatus">Overlay unavailable: no matching fresh RGB result</figcaption></figure>
 <p>Manual PASS needs a READY test with at least one real detection. Reports stay on the Jetson; no images are saved.</p>

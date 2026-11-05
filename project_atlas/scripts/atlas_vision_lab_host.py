@@ -104,7 +104,7 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == '/api/vision3d/features': self.reply(200, self.server.lab.status())
             elif self.path.startswith('/api/vision3d/feature-report?feature='):
                 feature = self.path.split('=', 1)[1]
-                if feature not in ('object', 'target'): raise ValueError('unsupported feature')
+                if feature not in ('object', 'target', 'gesture', 'body', 'face'): raise ValueError('unsupported feature')
                 raw, _ = self.server.lab.download(feature); self.reply(200, raw)
             elif self.path in ('/v2/vision_features.js', '/v2/vision_features.css'):
                 path = ROOT/'web'/self.path.lstrip('/')
@@ -131,7 +131,7 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(raw); lab = self.server.lab
             if data == {'action': 'stop'}: lab.stop()
             elif isinstance(data, dict) and set(data) == {'action', 'feature'} and data['action'] == 'start':
-                if data['feature'] not in ('object', 'target'): raise ValueError('feature unavailable')
+                if data['feature'] not in ('object', 'target', 'gesture', 'body', 'face'): raise ValueError('feature unavailable')
                 lab.start(data['feature'], None)
             elif isinstance(data, dict) and set(data) == {'action', 'feature', 'verdict'} and data['action'] == 'verdict':
                 lab.verdict(data['feature'], data['verdict'])
