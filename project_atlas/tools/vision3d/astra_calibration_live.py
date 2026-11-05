@@ -96,11 +96,12 @@ def ir_gray(data, w, h, enc, step):
 
 
 def capture(a):
-    import numpy as np
+    import numpy as np, cv2
+    os.nice(10)   # stay below the camera session's CPU guard
     STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     pattern = tuple(int(x) for x in a.pattern.lower().split('x'))
     cs, frame_id, size = None, None, None
-    last_accept, deadline = 0.0, time.monotonic() + a.minutes * 60
+    last_accept, last_hint, deadline = 0.0, 0.0, time.monotonic() + a.minutes * 60
     say('Hold the board still in each pose for ~1 s, then move it. Need %d distinct views.' % a.views)
     try:
         while len(cs.views if cs else []) < a.views and time.monotonic() < deadline:
@@ -117,14 +118,21 @@ def capture(a):
                 if (w, h) != size or fr != frame_id: raise SystemExit('IR resolution/frame changed mid-capture')
                 g = ir_gray(data, w, h, enc, step)
                 before = len(cs.views)
-                if time.monotonic() - last_accept >= 1.2 and cs.add(g):
+                # Cheap half-size FAST_CHECK first: a full-resolution search with no board in view costs enough CPU to
+                # trip the camera's 75 % resource guard (observed 76.5 % on 2026-11-05, sessions stopped after ~5 s).
+                small = cv2.resize(g, (w // 2, h // 2), interpolation=cv2.INTER_AREA)
+                likely, _ = cv2.findChessboardCorners(small, pattern, cv2.CALIB_CB_ADAPTIVE_THRESH |
+                                                      cv2.CALIB_CB_NORMALIZE_IMAGE | cv2.CALIB_CB_FAST_CHECK)
+                if likely and time.monotonic() - last_accept >= 1.2 and cs.add(g):
                     new = cs.views[-1]
                     if before and min(float(np.mean(np.linalg.norm(new - v, axis=1))) for v in cs.views[:-1]) < a.min_shift_px:
                         cs.views.pop()          # too similar to an earlier pose; corners only, nothing else kept
                     else:
                         last_accept = time.monotonic()
                         say('accepted view %d/%d  coverage %.0f%%' % (len(cs.views), a.views, 100 * cs.coverage()))
-                time.sleep(.35)
+                elif not likely and time.monotonic() - last_hint > 8:
+                    last_hint = time.monotonic(); say('...no board seen yet (IR brightness %.0f)' % float(g.mean()))
+                time.sleep(.8)
     finally:
         viewer('stop')
     if not cs or len(cs.views) < CB.MIN_VIEWS + CB.MIN_HOLDOUT:
