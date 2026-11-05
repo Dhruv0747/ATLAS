@@ -20,6 +20,38 @@ const response=await fetch('/api/vision3d/features',{method:'POST',headers:{'Con
  const prep=el('button','Prepare Vision Lab (10 min)');prep.className='btn';prep.style.cssText='font-weight:700;border:2px solid #1f8f4e';prep.type='button';prep.onclick=()=>action({action:'prepare'});
  const endBtn=el('button','End test window now');endBtn.className='btn';endBtn.type='button';endBtn.hidden=true;endBtn.onclick=()=>action({action:'end'});
  const prepInfo=el('span','');prepBar.append(prep,endBtn,prepInfo);root.before(prepBar);
+ const fig=document.getElementById('featureOverlay').closest('figure');root.before(fig);
+ fig.style.cssText='margin:0 0 16px';
+ const strip=el('div');strip.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;margin-bottom:6px';
+ const mkWin=(title,cv)=>{const box=el('div');const h=el('div',title);h.style.cssText='font-weight:700;font-size:13px;margin:0 0 4px';
+   cv.style.cssText='width:100%;aspect-ratio:4/3;border-radius:10px;background:#05080c;display:block';
+   const note=el('div','');note.style.cssText='font-size:12px;opacity:.75;margin-top:3px;min-height:16px';box.append(h,cv,note);strip.append(box);return note;};
+ const cvRgb=document.getElementById('featureOverlay');cvRgb.hidden=false;
+ const cvIr=document.createElement('canvas'),cvDepth=document.createElement('canvas');
+ const noteRgb=mkWin('Colour + results',cvRgb),noteIr=mkWin('Infrared',cvIr),noteDepth=mkWin('Depth (uncalibrated preview)',cvDepth);
+ fig.prepend(strip);
+ const blank=(cv,msg,note)=>{cv.width=320;cv.height=240;const c=cv.getContext('2d');c.fillStyle='#05080c';c.fillRect(0,0,320,240);note.textContent=msg;};
+ // Small previews refresh once a second while the camera is live (read-only GETs that also keep the viewer lease).
+ let pv=false;
+ async function previews(){
+  if(pv||document.hidden)return;pv=true;
+  try{
+   const st=document.getElementById('runtimeState');const liveCam=st&&/Live/.test(st.textContent);
+   if(!liveCam){blank(cvIr,'Camera off',noteIr);blank(cvDepth,'Camera off',noteDepth);return;}
+   const ir=await fetch('/api/vision3d/raw?kind=ir',{cache:'no-store',signal:AbortSignal.timeout(1500)});
+   if(ir.ok){const w=+ir.headers.get('X-Width'),h=+ir.headers.get('X-Height'),step=+ir.headers.get('X-Step'),enc=ir.headers.get('X-Encoding');
+     const b=new Uint8Array(await ir.arrayBuffer());const sw=w/2|0,sh=h/2|0;cvIr.width=sw;cvIr.height=sh;const c=cvIr.getContext('2d'),im=c.createImageData(sw,sh);
+     const px=(x,y)=>enc==='mono8'?b[y*step+x]:(b[y*step+2*x]|(b[y*step+2*x+1]<<8))/16;
+     let lo=255,hi=0;for(let i=0;i<4000;i++){const v=px((Math.random()*w)|0,(Math.random()*h)|0);if(v<lo)lo=v;if(v>hi)hi=v;}
+     for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){let v=(px(2*x,2*y)-lo)*255/Math.max(1,hi-lo);v=v<0?0:v>255?255:v;const k=(y*sw+x)*4;im.data[k]=im.data[k+1]=im.data[k+2]=v;im.data[k+3]=255;}
+     c.putImageData(im,0,0);noteIr.textContent=w+'×'+h+' '+enc;}
+   else blank(cvIr,'Not in this camera mode (use Infrared + RGB)',noteIr);
+   const dp=await fetch('/api/vision3d/frame?kind=depth',{cache:'no-store',signal:AbortSignal.timeout(1500)});
+   if(dp.ok){const bm=await createImageBitmap(await dp.blob());cvDepth.width=bm.width;cvDepth.height=bm.height;cvDepth.getContext('2d').drawImage(bm,0,0);noteDepth.textContent=bm.width+'×'+bm.height+' · distances not calibrated';}
+   else blank(cvDepth,'Not in this camera mode (Astra IR and depth share one sensor; use a Depth mode)',noteDepth);
+  }catch(e){}finally{pv=false;}
+ }
+ setInterval(previews,1000);
  for(const [id,name] of Object.entries(names)){
   const card=el('article');card.className='feature-card';card.append(el('h3',name));
   const state=el('strong','UNAVAILABLE'),reason=el('p','Awaiting backend'),metrics=el('pre','Measurements unavailable');card.append(state,reason,metrics);
@@ -56,12 +88,21 @@ const response=await fetch('/api/vision3d/features',{method:'POST',headers:{'Con
     '\nResults: '+(r?.last_result?JSON.stringify(r.last_result.detections):'UNAVAILABLE');
   }
   const result=data.latest,img=document.getElementById('rgbImage'),canvas=document.getElementById('featureOverlay'),label=document.getElementById('featureOverlayStatus');
-  canvas.hidden=true;label.textContent='Overlay unavailable: no matching fresh RGB result';
-  if(result&&data.active&&Date.now()/1000-result.received_at<1&&img.complete&&img.naturalWidth===result.width&&img.naturalHeight===result.height&&Math.abs(Number(img.dataset.sourceStamp)-result.stamp_ns/1e9)<.000001){
-   canvas.width=result.width;canvas.height=result.height;const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0);ctx.strokeStyle='#00f080';ctx.fillStyle='#00f080';ctx.font='16px sans-serif';
-   for(const d of result.detections){const [x,y,x2,y2]=d.box;ctx.strokeRect(x,y,x2-x,y2-y);ctx.fillText(d.label+' '+number(d.confidence*100,'%')+(d.track_id?' #'+d.track_id:''),x,Math.max(18,y));}
-   canvas.hidden=false;label.textContent='Matched RGB source frame; 2D detection only, distance UNAVAILABLE';
-  }
+  // Live test window: latest camera picture with the newest result drawn on it. Boxes come from the frame the
+  // model saw (age shown); 2D only, no distance. Nothing is stored.
+  const live=img.complete&&img.naturalWidth>0&&/Live/.test((document.getElementById('runtimeState')||{}).textContent||'');
+  if(!live){canvas.width=320;canvas.height=240;const c0=canvas.getContext('2d');c0.fillStyle='#05080c';c0.fillRect(0,0,320,240);label.textContent=data.active?'Waiting for camera picture (start the camera above).':'Start the camera above to see the live windows. Results are drawn here during a test.';return;}
+  if(!data.active){canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;canvas.getContext('2d').drawImage(img,0,0);label.textContent='Camera live. Press Start Test on a feature to see its results drawn here.';return;}
+  const W=result?result.width:img.naturalWidth,H=result?result.height:img.naturalHeight;
+  canvas.width=W;canvas.height=H;const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,W,H);
+  const age=result?Date.now()/1000-result.received_at:null;
+  if(!result||age>3){label.textContent='Live: '+names[data.active]+' running — waiting for first result…';return;}
+  ctx.lineWidth=2;ctx.font='bold 13px sans-serif';
+  for(const d of result.detections){const [x,y,x2,y2]=d.box;ctx.strokeStyle=ctx.fillStyle='#00e676';ctx.strokeRect(x,y,x2-x,y2-y);
+   const t=(d.label||'')+(d.hand?' ('+d.hand+')':'')+' '+Math.round((d.confidence||0)*100)+'%'+(d.track_id?' #'+d.track_id:'');
+   const tw=ctx.measureText(t).width;ctx.fillStyle='rgba(0,0,0,.65)';ctx.fillRect(x,Math.max(0,y-16),tw+6,16);ctx.fillStyle='#00e676';ctx.fillText(t,x+3,Math.max(12,y-4));
+   if(d.keypoints){ctx.fillStyle='#ffca28';for(const [kx,ky,v] of d.keypoints)if(v>=.5){ctx.beginPath();ctx.arc(kx,ky,2.5,0,6.3);ctx.fill();}}}
+  label.textContent='Live: '+names[data.active]+' — '+(result.detections.length?result.detections.length+' found: '+result.detections.map(d=>d.label).join(', '):'nothing found in this frame')+' · result '+age.toFixed(1)+' s old · '+Math.round(result.inference_s*1000)+' ms per frame';
  }
  async function poll(){
   let active=false;
