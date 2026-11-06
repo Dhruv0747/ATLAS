@@ -35,7 +35,7 @@ LiDAR's layer with inf clearing. Now only one extra apt package is needed (`ros-
 | `config/astra_obstacles_bridge.yaml` | Bridges `/astra/obstacle_scan` only |
 | `config/nav2_astra_obstacles_LIVE_SNIPPET.yaml` | Separate `astra_layer` (G5 only) |
 | `tools/track_a/check_nav2_merge.py` | Proves LiDAR layer/global costmap unchanged; `--write` at G5 |
-| `systemd/user/atlas-astra-{obstacles,bridge}.service.in` | No `[Install]`; preflight gate; no restart loop on refusal; memory caps |
+| `systemd/user/atlas-astra-{obstacles,bridge}.service.in` | No `[Install]`; ExecCondition preflight gate (unit skipped, no restart loop, verified on Jetson); memory caps |
 | `tests/test_track_a.py` | 25 tests (simulated data; isolated ROS domain 91) |
 | `deploy/track_a/{install,verify,rollback,apply_g5}.sh` | Deployment, gate check, undo, G5 merge |
 

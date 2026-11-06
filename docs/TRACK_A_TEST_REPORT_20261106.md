@@ -31,3 +31,10 @@ config; refuses on unmeasured mount. Shell syntax OK for all deploy scripts. Pyt
 
 NOT TESTED on hardware: the real Astra driver in this pipeline, the domain_bridge (not installed), the bridge's
 domain-0 join spike (gate G3), and the Nav2 costmap behaviour with the real layer (gates G4/G5).
+
+## Deployment run (2026-11-06 16:36)
+
+- Owner installed `ros-humble-domain-bridge` (apt).
+- `install.sh` run from bundle `~/ATLAS-track-a`: files in place, units registered as *static* (no [Install]), NOT enabled, NOT started. Backup `track-a-backup-20261106-163609`.
+- `verify.sh`: files PASS, domain_bridge PASS, Nav2 merge dry-run PASS, nav2_params.yaml unchanged; G1/G2 BLOCKED (no calibration, mount unmeasured).
+- Early-start test found a defect: `ExecStartPre` refusal was retried by `Restart=on-failure` (RestartPreventExitStatus only covers the main process). Fixed with `ExecCondition`; retest: unit skipped, 0 restarts, inactive.

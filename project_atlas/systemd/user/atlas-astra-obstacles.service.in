@@ -6,8 +6,9 @@ Description=ATLAS Astra depth -> obstacle scan (Track A, private ROS domain 77) 
 [Service]
 Type=simple
 Environment=ROS_DOMAIN_ID=77
-# Gate first: exits 78 (no restart) on unmeasured mount or unvalidated calibration.
-ExecStartPre=/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_astra_obstacle_scan.py --preflight
+# Gate: exit 78 on unmeasured mount / unvalidated calibration -> systemd SKIPS the unit (ExecCondition),
+# no failure state and no restart loop (ExecStartPre failures would be retried by Restart=on-failure).
+ExecCondition=/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_astra_obstacle_scan.py --preflight
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec ros2 launch /home/jetson/project_atlas/launch/atlas_astra_obstacles.launch.py'
 Restart=on-failure
 RestartSec=10
