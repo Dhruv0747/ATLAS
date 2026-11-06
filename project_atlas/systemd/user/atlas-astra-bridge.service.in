@@ -8,5 +8,6 @@ Type=simple
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec ros2 run domain_bridge domain_bridge /home/jetson/project_atlas/config/astra_obstacles_bridge.yaml'
 Restart=on-failure
 RestartSec=10
+MemoryMax=150M
 # Joining domain 0 makes the existing nodes rediscover one new participant (21 Oct: a full driver join spiked
 # CPU 65 -> 92 % for ~3 s). Measure this bridge's join with the rover parked before activation (gate G3).

@@ -14,7 +14,7 @@ astra:
   depth_height: 120
   depth_fps: 15             # half the viewer's 30 fps: enough for 0.3 m/s driving, half the load
 
-obstacle_scan:              # pointcloud_to_laserscan, evaluated in base_link
+obstacle_scan:              # atlas_astra_obstacle_scan.py, evaluated in base_link
   target_frame: base_link
   min_height_m: 0.04        # ignore floor (and ~4 cm floor noise)
   max_height_m: null        # MEASURE: top of the rover + 5 cm (anything higher cannot hit it)
@@ -23,8 +23,9 @@ obstacle_scan:              # pointcloud_to_laserscan, evaluated in base_link
   angle_increment_rad: 0.0087
   range_min_m: 0.35         # Astra depth is unreliable closer than ~0.4 m
   range_max_m: 3.0          # beyond ~3 m depth noise grows; LiDAR covers far range
-  scan_time_s: 0.0667
-  use_inf: true
+  stale_s: 0.5              # frames older than this are never published
+  min_valid_fraction: 0.3   # <30 % valid depth pixels (blinded/covered/too close): publish nothing
+  max_rate_hz: 10.0         # processing cap; extra frames dropped, never queued
 
 bridge:
   from_domain: 77           # Astra private domain (keeps camera graph off the production domain)

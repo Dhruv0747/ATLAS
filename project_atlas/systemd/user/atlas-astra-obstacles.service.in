@@ -1,11 +1,18 @@
 [Unit]
+StartLimitIntervalSec=300
+StartLimitBurst=5
 Description=ATLAS Astra depth -> obstacle scan (Track A, private ROS domain 77) - STAGED, owner-approved activation only
 
 [Service]
 Type=simple
 Environment=ROS_DOMAIN_ID=77
+# Gate first: exits 78 (no restart) on unmeasured mount or unvalidated calibration.
+ExecStartPre=/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_astra_obstacle_scan.py --preflight
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec ros2 launch /home/jetson/project_atlas/launch/atlas_astra_obstacles.launch.py'
 Restart=on-failure
 RestartSec=10
+# 78 = refused (unmeasured mount / unvalidated calibration): fix config, do not restart-loop.
+RestartPreventExitStatus=78
+MemoryMax=400M
 Nice=5
 # No [Install] section: never starts at boot until the activation gates in docs/TRACK_A_DEPTH_NAV.md pass.
