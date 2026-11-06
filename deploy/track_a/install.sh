@@ -27,7 +27,7 @@ done
 systemctl --user daemon-reload
 echo "$BK" > "$HOME/project-atlas-migration/track-a-last-backup"
 echo "Installed (NOT enabled, NOT started). Backup: $BK"
-if ! ros2 pkg prefix domain_bridge >/dev/null 2>&1; then
+if ! (source /opt/ros/humble/setup.bash >/dev/null 2>&1; ros2 pkg prefix domain_bridge) >/dev/null 2>&1; then
   echo "Still needed for the bridge (needs your password):  sudo apt install ros-humble-domain-bridge"
 fi
 echo "Next: bash deploy/track_a/verify.sh"
