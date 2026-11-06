@@ -95,6 +95,36 @@ def ir_gray(data, w, h, enc, step):
     return np.ascontiguousarray(a, dtype=np.uint8)
 
 
+PROGRESS = 'corners_progress.json'
+
+
+def save_progress(cs, frame_id):
+    """Atomically keep accepted corner views (no images) so a capture can continue in a later session."""
+    STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
+    tmp = STATE / (PROGRESS + '.tmp')
+    tmp.write_text(json.dumps({'pattern': list(cs.pattern), 'size': list(cs.size), 'frame_id': frame_id,
+                               'serial': serial(), 'saved': time.strftime('%Y-%m-%d %H:%M:%S'),
+                               'views': [v.tolist() for v in cs.views]}))
+    tmp.replace(STATE / PROGRESS)
+
+
+def load_progress(cs, frame_id):
+    """Resume only views from the same camera, pattern, resolution and optical frame; otherwise start fresh."""
+    import numpy as np
+    p = STATE / PROGRESS
+    if not p.exists():
+        return
+    d = json.loads(p.read_text())
+    if (tuple(d['pattern']), tuple(d['size']), d['frame_id'], d.get('serial')) != (cs.pattern, cs.size, frame_id, serial()):
+        say('saved views are for a different camera/pattern/resolution - starting fresh'); return
+    for v in d['views']:
+        pts = np.asarray(v, dtype=np.float32)
+        cs.views.append(pts)
+        for x, y in pts:
+            cs.cells.add((min(CB.COVERAGE_GRID - 1, int(x / cs.size[0] * CB.COVERAGE_GRID)),
+                          min(CB.COVERAGE_GRID - 1, int(y / cs.size[1] * CB.COVERAGE_GRID))))
+
+
 def add_sb(cs, gray, pattern):
     """CornerSet.add equivalent using findChessboardCornersSB; same view/coverage bookkeeping."""
     import cv2
@@ -134,6 +164,9 @@ def capture(a):
                 if cs is None:
                     cs, frame_id, size = CB.CornerSet(pattern, w, h), fr, (w, h)
                     say('IR stream %dx%d %s frame=%s' % (w, h, enc, fr))
+                    if a.resume:
+                        load_progress(cs, frame_id)
+                        say('resumed %d saved views, coverage %.0f%%' % (len(cs.views), 100 * cs.coverage()))
                 if (w, h) != size or fr != frame_id: raise SystemExit('IR resolution/frame changed mid-capture')
                 g = ir_gray(data, w, h, enc, step)
                 before = len(cs.views)
@@ -151,6 +184,7 @@ def capture(a):
                         cs.views.pop()          # too similar to an earlier pose; corners only, nothing else kept
                     else:
                         last_accept = time.monotonic()
+                        save_progress(cs, frame_id)   # keep every accepted view across sessions (--resume)
                         say('accepted view %d/%d  coverage %.0f%%' % (len(cs.views), a.views, 100 * cs.coverage()))
                 elif not likely and time.monotonic() - last_hint > 8:
                     last_hint = time.monotonic(); say('...no board seen yet (IR brightness %.0f)' % float(g.mean()))
@@ -245,7 +279,7 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     s = p.add_subparsers(dest='cmd', required=True)
     c = s.add_parser('capture'); c.add_argument('--square-mm', type=float, required=True); c.add_argument('--pattern', default='9x6')
-    c.add_argument('--views', type=int, default=22); c.add_argument('--minutes', type=float, default=6); c.add_argument('--min-shift-px', type=float, default=25)
+    c.add_argument('--views', type=int, default=22); c.add_argument('--resume', action='store_true'); c.add_argument('--minutes', type=float, default=6); c.add_argument('--min-shift-px', type=float, default=25)
     m = s.add_parser('measure'); m.add_argument('--distance-m', type=float, required=True); m.add_argument('--frames', type=int, default=12)
     m.add_argument('--roi-w', type=int, default=40); m.add_argument('--roi-h', type=int, default=30)
     s.add_parser('finalize'); s.add_parser('install')
