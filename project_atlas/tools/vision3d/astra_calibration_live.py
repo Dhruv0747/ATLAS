@@ -95,6 +95,25 @@ def ir_gray(data, w, h, enc, step):
     return np.ascontiguousarray(a, dtype=np.uint8)
 
 
+def add_sb(cs, gray, pattern):
+    """CornerSet.add equivalent using findChessboardCornersSB; same view/coverage bookkeeping."""
+    import cv2
+    import numpy as np
+    found, corners = cv2.findChessboardCornersSB(gray, pattern, cv2.CALIB_CB_NORMALIZE_IMAGE)
+    if not found:
+        cs.rejected += 1
+        return False
+    pts = corners.reshape(-1, 2).astype(np.float32)
+    if pts.shape[0] != pattern[0] * pattern[1]:
+        cs.rejected += 1
+        return False
+    cs.views.append(pts)
+    for x, y in pts:
+        cs.cells.add((min(CB.COVERAGE_GRID - 1, int(x / cs.size[0] * CB.COVERAGE_GRID)),
+                      min(CB.COVERAGE_GRID - 1, int(y / cs.size[1] * CB.COVERAGE_GRID))))
+    return True
+
+
 def capture(a):
     import numpy as np, cv2
     os.nice(10)   # stay below the camera session's CPU guard
@@ -120,10 +139,13 @@ def capture(a):
                 before = len(cs.views)
                 # Cheap half-size FAST_CHECK first: a full-resolution search with no board in view costs enough CPU to
                 # trip the camera's 75 % resource guard (observed 76.5 % on 2026-11-05, sessions stopped after ~5 s).
+                # 2026-11-06: on this Astra's IR image the classic detector found the board in 0/15 frames while
+                # OpenCV's sector-based detector (findChessboardCornersSB, sub-pixel accurate) found it in 12/15.
+                # Cheap half-size SB pre-check first (CPU guard), then full-size SB corners. Quality gates in
+                # checkerboard_calibration.calibrate() are unchanged.
                 small = cv2.resize(g, (w // 2, h // 2), interpolation=cv2.INTER_AREA)
-                likely, _ = cv2.findChessboardCorners(small, pattern, cv2.CALIB_CB_ADAPTIVE_THRESH |
-                                                      cv2.CALIB_CB_NORMALIZE_IMAGE | cv2.CALIB_CB_FAST_CHECK)
-                if likely and time.monotonic() - last_accept >= 1.2 and cs.add(g):
+                likely, _ = cv2.findChessboardCornersSB(small, pattern, cv2.CALIB_CB_NORMALIZE_IMAGE)
+                if likely and time.monotonic() - last_accept >= 1.2 and add_sb(cs, g, pattern):
                     new = cs.views[-1]
                     if before and min(float(np.mean(np.linalg.norm(new - v, axis=1))) for v in cs.views[:-1]) < a.min_shift_px:
                         cs.views.pop()          # too similar to an earlier pose; corners only, nothing else kept
