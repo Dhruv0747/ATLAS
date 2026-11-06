@@ -41,6 +41,9 @@ def checks(before, after):
        a.get('topic') == '/astra/obstacle_scan' and a.get('data_type') == 'LaserScan')
     ok('astra ranges inside local costmap reach', a['obstacle_max_range'] <= a['raytrace_max_range'] <= 3.0)
     ok('astra min range 0.35 matches node', a['obstacle_min_range'] == 0.35 and a['raytrace_min_range'] == 0.35)
+    ok('astra expected_update_rate 0.0 (Astra outage cannot stall LiDAR navigation)',
+       float(a.get('expected_update_rate', -1)) == 0.0)
+    ok('astra observation_persistence 0.0 (latest scan only)', float(a.get('observation_persistence', -1)) == 0.0)
     ok('astra layer frame base_link-compatible (robot_base_frame base_link)',
        la.get('robot_base_frame') == 'base_link')
     ok('global costmap unchanged', before['global_costmap'] == after['global_costmap'])

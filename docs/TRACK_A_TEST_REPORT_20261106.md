@@ -38,3 +38,89 @@ domain-0 join spike (gate G3), and the Nav2 costmap behaviour with the real laye
 - `install.sh` run from bundle `~/ATLAS-track-a`: files in place, units registered as *static* (no [Install]), NOT enabled, NOT started. Backup `track-a-backup-20261106-163609`.
 - `verify.sh`: files PASS, domain_bridge PASS, Nav2 merge dry-run PASS, nav2_params.yaml unchanged; G1/G2 BLOCKED (no calibration, mount unmeasured).
 - Early-start test found a defect: `ExecStartPre` refusal was retried by `Restart=on-failure` (RestartPreventExitStatus only covers the main process). Fixed with `ExecCondition`; retest: unit skipped, 0 restarts, inactive.
+
+## Factory-calibration integration run (2026-11-06 evening)
+
+Changes:
+* Intrinsics now come from the driver's runtime CameraInfo; see `TRACK_A_FACTORY_CALIBRATION.md` (device stored
+  calibration reads all-NaN; the driver's nominal model is used and labelled as such).
+* Mount values from owner records:
+  * x = 0.13 (candidate);
+  * y = 0.0 (prior);
+  * z = 0.30;
+  * pitch = +0.8 nose-down;
+  * max_height = 1.0 m (engineering bound, not a rover height).
+* Range-growing floor cut: 4 cm + r·tan(1°).
+* Driver respawn in the launch.
+* Bridge: parked interlock, Restart=no, binary run directly.
+* Nav2 snippet: `expected_update_rate: 0.0`, so the LiDAR stays independent of the Astra.
+
+### Automated: 32 / 32 PASS on the Jetson (isolated domain 91; live nav2_params read-only, hash unchanged)
+
+New tests:
+* Runtime calibration:
+  * the recorded driver CameraInfo is accepted;
+  * IR inf, all-NaN (as the device params), wrong size, wrong frame, implausible fx, fx/fy mismatch, off-centre
+    principal point, skew, and large or unsupported distortion are all rejected;
+  * the scanner refuses to run without a calibration.
+* Shipped config values and their provenance labels.
+* Null mount values are refused.
+* No phantom floor with depth noise (σ = 1.5e-3·z²) and a configured-vs-true pitch error of −2.6°, 0°, +1.0° and
+  +1.5° (5 seeds each).
+* Detection limits.
+* End to end:
+  * no CameraInfo gives no scans;
+  * a valid CameraInfo gives scans;
+  * a NaN CameraInfo mid-run stops scans;
+  * a valid CameraInfo again recovers;
+  * ranges are only finite or +inf.
+* Bridge interlock: parked, moving, stale and missing telemetry.
+* Nav2 validator rejects a currency check on the Astra source.
+
+Measured detection limits with the configured pitch (10 noise seeds each):
+* 10 cm objects: 10/10 out to 2.4 m, 2/10 at 2.6 m, 0/10 at 2.8 m.
+* 15 cm objects: 10/10 out to 3.0 m.
+
+If the camera really pitches 1.8° up (the old depth hint), a 15 cm object at 1.0 m is still seen, but a 10 cm object
+at 2.0 m is missed.
+
+### Parked shadow run on the real Astra (domain 77, no bridge, nothing consuming the scan)
+
+Preconditions:
+* cmd_vel 0/0, motor speed 0;
+* Nav2 inactive;
+* Track A units inactive;
+* camera free.
+
+| Check | Result |
+|---|---|
+| Calibration loaded at runtime | FACTORY_DRIVER_CAMERAINFO, fx = fy = 142.586, cx 79.5, cy 59.5, D = 0, nominal = true |
+| Scans | 192 in 30 s (6.4 Hz; the driver delivers about 6-7 fps at this setting), frame base_link, 120 bins |
+| Timestamps | scan age vs ROS clock: median 11 ms, max 155 ms (stale limit 500 ms) |
+| Data validity | 0 NaN or negative ranges, 0 ranges outside 0.35-3.0 m; centre-bin jitter 3.3 mm std |
+| TF | base_link->astra_link (0.130, 0.000, 0.300), pitch 0.8 deg; astra_link->astra_depth_optical_frame standard optical rotation |
+| Scene | Structures at 0.89 m (left, 0.38-0.44 m high) and 1.9-2.5 m (0.12-0.97 m high); a horizontal surface about 0.42 m above the floor (furniture underside). No points lie on a floor plane. No floor was visible (only 1 % of the bottom rows had depth), so the pitch/height cross-check is NOT done. |
+| Driver killed (SIGKILL) | Scans stopped at once, status STALE; launch respawned the driver; OK again with scans at 6.1 Hz |
+| CPU / RAM | Whole Jetson 62.4 % (baseline 62.5 %); driver 0.63 % and node 1.34 % of the Jetson; RSS driver 84 MB, node 62 MB; growth over 30 s under 0.6 MB |
+| Production services | 34 active atlas units: identical PIDs and restart counts before and after; nav2_params hash unchanged |
+
+### Bridge, domain-0 join (gate G3) with the rover parked
+
+* **Join spike:** 0.5 s samples went 72, 99, 100 … 96, 85, then back to 62 % baseline. That is about 7 s near 100 %
+  with `ros2 run`; with the binary run directly it is about 4.5 s.
+* **Any new participant causes it:** a minimal rclpy node joining domain 0 caused about 3.5 s at 100 %. Fast DDS
+  simple discovery runs among all production nodes, so this cost is not specific to Track A.
+* **LiDAR rate:** observed rate dipped from 1.86 to 1.58 Hz in the window that included the spike.
+* **Delivery into domain 0:** 6.9 Hz, median age 12 ms, max 0.98 s, 0 NaN; bridge RSS 43 MB.
+* **Production services:** unchanged.
+* **Result:** the original G3 criterion (CPU < 75 % through the join) is **not met**.
+* **Mitigation implemented:** the bridge unit starts only when `atlas_astra_bridge_parked_check.py` confirms that
+  cmd_vel, motor speed and odom are zero and fresh, and it has `Restart=no`. So it can never join, or rejoin, while
+  driving.
+
+### Not done (needs separate authorization or physical access)
+
+* G4: floor-plane pitch/height check (needs open floor in view).
+* G4: tape-measured box position check.
+* G4: 10-minute empty-view phantom check.
+* G5: live Nav2 integration and supervised driving.

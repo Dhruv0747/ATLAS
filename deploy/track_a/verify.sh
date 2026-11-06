@@ -3,8 +3,8 @@
 R="$HOME/project_atlas"; ok(){ printf "PASS     %s\n" "$1"; }; bl(){ printf "BLOCKED  %s\n" "$1"; }
 source /opt/ros/humble/setup.bash 2>/dev/null
 [ -e "$R/scripts/atlas_astra_obstacle_scan.py" ] && ok "files installed" || bl "files not installed (run install.sh)"
-if python3 "$R/scripts/atlas_astra_obstacle_scan.py" --preflight >/tmp/tracka-pre.txt 2>&1; then ok "G1+G2 preflight: calibration validated, mount measured"
-else bl "G1/G2 preflight: $(tail -1 /tmp/tracka-pre.txt | cut -c1-160)"; fi
+if python3 "$R/scripts/atlas_astra_obstacle_scan.py" --preflight >/tmp/tracka-pre.txt 2>&1; then ok "preflight: mount + scan config valid (calibration = runtime driver CameraInfo, checked by the node)"
+else bl "preflight: $(tail -1 /tmp/tracka-pre.txt | cut -c1-160)"; fi
 ros2 pkg prefix domain_bridge >/dev/null 2>&1 && ok "domain_bridge installed" || bl "domain_bridge missing: sudo apt install ros-humble-domain-bridge"
 for u in atlas-astra-obstacles atlas-astra-bridge; do
   e=$(systemctl --user is-enabled $u 2>/dev/null); a=$(systemctl --user is-active $u 2>/dev/null)

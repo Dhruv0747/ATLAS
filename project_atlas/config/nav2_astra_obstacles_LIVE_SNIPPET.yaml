@@ -23,5 +23,8 @@ local_costmap:
           obstacle_min_range: 0.35
           raytrace_max_range: 3.0
           raytrace_min_range: 0.35
-          expected_update_rate: 0.5   # costmap reports the Astra source as late after 2 s; LiDAR layer unaffected
+          expected_update_rate: 0.0   # NO currency check (a period in s, not a rate): an Astra outage must never mark the
+                                      # costmap 'not current' and stall LiDAR navigation. Astra is purely additive;
+                                      # when it stops, its last marks stay at their world position (conservative)
+                                      # until re-observed or out of the rolling window; the LiDAR layer is unaffected.
           observation_persistence: 0.0

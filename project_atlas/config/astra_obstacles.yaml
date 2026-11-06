@@ -1,25 +1,30 @@
 # Track A (STAGED, inactive): Astra depth -> virtual obstacle scan for Nav2.
-# Mount values must be traceable owner measurements (docs/TRACK_A_G2_MEASUREMENTS.md). Reference point: axle
-# midpoint on the floor (owner-confirmed). Launch/preflight refuse while any value is null.
+# Mount provenance: docs/TRACK_A_G2_MEASUREMENTS.md (owner instruction 2026-11-06: use these values, no new
+# measurements). Reference point: axle midpoint on the floor (owner-confirmed). Launch/preflight refuse on null.
+# Calibration: FACTORY / driver CameraInfo at runtime (no calibration file); see docs/TRACK_A_FACTORY_CALIBRATION.md.
 
 mount:                      # base_link -> astra_depth_optical_frame (ROS REP-103: x forward, y left, z up)
-  x_m: null                 # BLOCKED (G2): +0.10 superseded by the 26 Oct 22:48 remount. Derived candidate +0.13
-                            #   (front edge +0.25 minus lens-behind-edge 0.79-0.67) awaits owner confirmation; see docs/TRACK_A_G2_MEASUREMENTS.md
-  y_m: null                 # BLOCKED (G2): '~0 by eye' predates the remount; record says re-verify
+  x_m: 0.13                 # CANDIDATE (derived, not directly measured): front edge +0.25 minus lens 0.12 behind
+                            #   it (owner tape 0.79-0.67 m). Uncertainty ~+-0.02 m. Owner-approved for use 2026-11-06
+  y_m: 0.0                  # PRIOR: owner '~0 by eye' (before the 26 Oct remount). Uncertainty ~+-0.03 m
   z_m: 0.30                 # G2 owner, ruler, IR lens height after remount (issue #12, 26 Oct 2026 22:48 IST)
   pitch_deg: 0.8            # G2 owner, phone +0.8 deg after remount = 0.8 deg nose-down (same app read -10.3
                             #   for the old nose-up mount). Depth hint ~1.8 up: if true, far low objects (2 m, 10 cm) are missed; G4 floor-plane check
   yaw_deg: 0.0              # facing straight ahead
 
 astra:
-  depth_width: 160          # must match the validated calibration (depth_160x120.json)
+  depth_width: 160          # must match the runtime CameraInfo the node validates
   depth_height: 120
   depth_fps: 15             # half the viewer's 30 fps: enough for 0.3 m/s driving, half the load
 
 obstacle_scan:              # atlas_astra_obstacle_scan.py, evaluated in base_link
   target_frame: base_link
-  min_height_m: 0.04        # ignore floor (and ~4 cm floor noise)
-  max_height_m: null        # BLOCKED (G2): rover overall height never recorded; value = rover top + 0.05
+  min_height_m: 0.04        # ignore floor (and ~4 cm floor noise) ...
+  floor_margin_deg: 1.0     # ... plus range * tan(1.0 deg): absorbs up to ~1 deg unmeasured nose-down pitch error
+                            #   (else the far floor becomes phantom obstacles). Cut: 5.7 cm at 1 m, 9.2 cm at 3 m
+  max_height_m: 1.0         # ENGINEERING BOUND, NOT a rover height (never recorded). Recorded LiDAR scan plane is
+                            #   0.40 m; 1.0 m sits well above any plausible ATLAS top, so overhangs the rover could
+                            #   hit are kept (fails safe: may also mark things it could pass under). Ceilings ignored
   angle_min_rad: -0.52      # about +-30 deg; Astra horizontal FOV is about 58 deg
   angle_max_rad: 0.52
   angle_increment_rad: 0.0087

@@ -1,11 +1,12 @@
 """Track A (STAGED, inactive): Astra depth -> /astra/obstacle_scan, entirely in the Astra private ROS domain (77).
 
-Chain: astra_camera_node (depth only, 160x120) -> scripts/atlas_astra_obstacle_scan.py (validated calibration,
-measured mount, floor..rover-height band, fail-safe publishing) -> /astra/obstacle_scan (base_link).
+Chain: astra_camera_node (depth only, 160x120, publishes depth + CameraInfo) -> scripts/atlas_astra_obstacle_scan.py
+(runtime-validated FACTORY/driver CameraInfo intrinsics, configured mount, floor..ceiling band, fail-safe publishing) -> /astra/obstacle_scan (base_link).
 Only that LaserScan is bridged to domain 0 (atlas-astra-bridge.service). Static TFs are published here for
 visualization only; the scan node does its own geometry from the measured mount, so no TF lookup can stall it.
 
-Refuses to launch on: wrong ROS_DOMAIN_ID, unmeasured/implausible mount, or unvalidated calibration.
+Refuses to launch on: wrong ROS_DOMAIN_ID or incomplete/implausible mount/scan config. The scan node additionally
+publishes nothing until the driver's depth CameraInfo passes validation.
 Read-only sensor pipeline: no velocity, servo, map or driver-control output.
 """
 import math
@@ -15,7 +16,8 @@ from pathlib import Path
 
 import yaml
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess
+from launch.actions import EmitEvent, ExecuteProcess
+from launch.events import Shutdown
 from launch_ros.actions import Node
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +31,6 @@ def checked_config():
     cfg = yaml.safe_load((ROOT / 'config/astra_obstacles.yaml').read_text())
     try:
         cfg = core.validate_config(cfg)
-        core.load_validated_calibration(ROOT)
     except Exception as e:
         raise RuntimeError('Track A not activatable: ' + str(e)) from None
     want = str(cfg['bridge'].get('from_domain', 77))
@@ -58,8 +59,10 @@ def generate_launch_description():
                LD_LIBRARY_PATH=f"{RUNTIME/'lib'}:/opt/ros/humble/lib:" + os.environ.get('LD_LIBRARY_PATH', ''),
                AMENT_PREFIX_PATH=f'{RUNTIME}:/opt/ros/humble')
     return LaunchDescription([
+        # Sensor-only process: respawned after 3 s if it dies (the scan node reports STALE meanwhile and publishes
+        # nothing). Motor / odometry / Nav2 processes are never auto-restarted by this launch.
         ExecuteProcess(cmd=driver_command(cfg['astra']), env=env, cwd=str(RUNTIME), output='log',
-                       name='astra_depth_driver'),
+                       name='astra_depth_driver', respawn=True, respawn_delay=3.0),
         Node(package='tf2_ros', executable='static_transform_publisher', name='astra_mount_tf',
              arguments=['--x', str(m['x_m']), '--y', str(m['y_m']), '--z', str(m['z_m']),
                         '--yaw', str(math.radians(m['yaw_deg'])), '--pitch', str(math.radians(m['pitch_deg'])),
@@ -68,5 +71,6 @@ def generate_launch_description():
              arguments=['--yaw', str(-math.pi / 2), '--pitch', '0', '--roll', str(-math.pi / 2),
                         '--frame-id', 'astra_link', '--child-frame-id', 'astra_depth_optical_frame']),
         ExecuteProcess(cmd=[sys.executable, str(ROOT / 'scripts/atlas_astra_obstacle_scan.py')],
-                       output='log', name='atlas_astra_obstacle_scan'),
+                       output='log', name='atlas_astra_obstacle_scan',
+                       on_exit=[EmitEvent(event=Shutdown(reason='scan node exited'))]),   # systemd decides
     ])

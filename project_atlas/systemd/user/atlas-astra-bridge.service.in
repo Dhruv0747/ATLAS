@@ -5,9 +5,11 @@ BindsTo=atlas-astra-obstacles.service
 
 [Service]
 Type=simple
-ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec ros2 run domain_bridge domain_bridge /home/jetson/project_atlas/config/astra_obstacles_bridge.yaml'
-Restart=on-failure
-RestartSec=10
+# Joining production domain 0 costs ~4.5 s of ~100 % CPU (DDS discovery in every existing node; measured
+# 2026-11-06, parked). Start ONLY while parked (interlock below) and never auto-restart (could happen while driving).
+ExecCondition=/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_astra_bridge_parked_check.py
+ExecStart=/bin/bash -c 'source /opt/ros/humble/setup.bash && exec /opt/ros/humble/lib/domain_bridge/domain_bridge /home/jetson/project_atlas/config/astra_obstacles_bridge.yaml'
+Restart=no
 MemoryMax=150M
-# Joining domain 0 makes the existing nodes rediscover one new participant (21 Oct: a full driver join spiked
-# CPU 65 -> 92 % for ~3 s). Measure this bridge's join with the rover parked before activation (gate G3).
+Nice=5
+# No [Install] section: manual start only.
