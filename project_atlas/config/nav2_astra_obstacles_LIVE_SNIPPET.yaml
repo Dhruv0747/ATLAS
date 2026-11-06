@@ -1,0 +1,18 @@
+# Track A step 5 ONLY (owner approval + passed shadow tests). NOT applied anywhere. Merge into nav2_params.yaml
+# local_costmap -> obstacle_layer. The LiDAR source "scan" is unchanged; Astra is ADDED, never replaces it.
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      obstacle_layer:
+        observation_sources: scan astra
+        astra:
+          topic: /astra/obstacle_scan
+          data_type: "LaserScan"
+          marking: true
+          clearing: true
+          inf_is_valid: true          # use_inf: free rays clear old marks
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.35
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.35
+          expected_update_rate: 0.5   # costmap warns if the Astra stops; LiDAR keeps working regardless

@@ -1,0 +1,8 @@
+# Track A (STAGED, inactive): relay ONLY the small obstacle LaserScan from the Astra private domain to production.
+# Depth images and point clouds never enter domain 0.
+name: atlas_astra_obstacle_bridge
+from_domain: 77
+to_domain: 0
+topics:
+  /astra/obstacle_scan:
+    type: sensor_msgs/msg/LaserScan

@@ -1,0 +1,11 @@
+[Unit]
+Description=ATLAS Astra depth -> obstacle scan (Track A, private ROS domain 77) - STAGED, owner-approved activation only
+
+[Service]
+Type=simple
+Environment=ROS_DOMAIN_ID=77
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec ros2 launch /home/jetson/project_atlas/launch/atlas_astra_obstacles.launch.py'
+Restart=on-failure
+RestartSec=10
+Nice=5
+# No [Install] section: never starts at boot until the activation gates in docs/TRACK_A_DEPTH_NAV.md pass.

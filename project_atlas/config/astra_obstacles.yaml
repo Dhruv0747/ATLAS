@@ -1,0 +1,32 @@
+# Track A (STAGED, inactive): Astra depth -> virtual obstacle scan for Nav2.
+# Every value marked MEASURE must come from the owner's tape-measure session (docs/TRACK_A_DEPTH_NAV.md)
+# before activation. Launch refuses to start while any MEASURE value is null.
+
+mount:                      # base_link -> astra_depth_optical_frame (ROS REP-103: x forward, y left, z up)
+  x_m: null                 # MEASURE: forward distance from robot centre (base_link) to the Astra's front glass
+  y_m: null                 # MEASURE: left (+) / right (-) offset from the robot centre line
+  z_m: null                 # MEASURE: height of the Astra lens centre above the floor
+  pitch_deg: null           # MEASURE: downward tilt (+ = looking down). 0 if mounted level.
+  yaw_deg: 0.0              # facing straight ahead
+
+astra:
+  depth_width: 160          # must match the validated calibration (depth_160x120.json)
+  depth_height: 120
+  depth_fps: 15             # half the viewer's 30 fps: enough for 0.3 m/s driving, half the load
+
+obstacle_scan:              # pointcloud_to_laserscan, evaluated in base_link
+  target_frame: base_link
+  min_height_m: 0.04        # ignore floor (and ~4 cm floor noise)
+  max_height_m: null        # MEASURE: top of the rover + 5 cm (anything higher cannot hit it)
+  angle_min_rad: -0.52      # about +-30 deg; Astra horizontal FOV is about 58 deg
+  angle_max_rad: 0.52
+  angle_increment_rad: 0.0087
+  range_min_m: 0.35         # Astra depth is unreliable closer than ~0.4 m
+  range_max_m: 3.0          # beyond ~3 m depth noise grows; LiDAR covers far range
+  scan_time_s: 0.0667
+  use_inf: true
+
+bridge:
+  from_domain: 77           # Astra private domain (keeps camera graph off the production domain)
+  to_domain: 0
+  topic: /astra/obstacle_scan
