@@ -77,8 +77,29 @@ class ConfigGate(unittest.TestCase):
         cfg = yaml.safe_load((ROOT / 'config/astra_obstacles.yaml').read_text())
         with self.assertRaises(core.ConfigError) as e:
             core.validate_config(cfg)
-        for k in ('mount.x_m', 'mount.y_m', 'mount.z_m', 'mount.pitch_deg', 'max_height_m'):
+        for k in ('mount.x_m', 'mount.y_m', 'max_height_m'):          # still BLOCKED after G2 recovery
             self.assertIn(k, str(e.exception))
+        for k in ('mount.z_m', 'mount.pitch_deg'):                       # recovered + accepted (G2 doc)
+            self.assertNotIn(k + ' not measured', str(e.exception))
+
+    def test_g2_recovered_values_are_plausible_and_keep_floor_out(self):
+        cfg = yaml.safe_load((ROOT / 'config/astra_obstacles.yaml').read_text())
+        self.assertEqual((cfg['mount']['z_m'], cfg['mount']['pitch_deg']), (0.30, 0.8))
+        # With the recovered height/pitch (and the derived x candidate only for this simulation), a floor-only
+        # scene must stay out of the obstacle band across the whole 0.35-3.0 m range.
+        s = core.ObstacleScanner(good_cfg(x_m=0.13, z_m=0.30, pitch_deg=0.8), CAL)
+        ranges, st = s.scan(render(s, plane_z(0.0)))
+        self.assertEqual(st['obstacle_bins'], 0)
+        # Sensitivity to the recorded pitch disagreement (phone 0.8 down vs depth hint 1.8 up, 2.6 deg apart).
+        # If the camera really points 1.8 up but config says 0.8 down, points are computed TOO LOW: the floor never
+        # leaks in (no phantom obstacles), but low objects far away can drop below the 4 cm floor cut.
+        true = core.ObstacleScanner(good_cfg(x_m=0.13, z_m=0.30, pitch_deg=-1.8), CAL)
+        _, leak = s.scan(render(true, plane_z(0.0)))
+        self.assertEqual(leak['obstacle_bins'], 0, 'floor must not become phantom obstacles')
+        near, _ = s.scan(render(true, union(plane_z(0.0), box(1.0, 1.3, -0.2, 0.2, 0.10))))
+        far, _ = s.scan(render(true, union(plane_z(0.0), box(2.0, 2.3, -0.2, 0.2, 0.10))))
+        self.assertTrue(np.isfinite(near[s.nbins // 2]), '10 cm box at 1.0 m still detected')
+        self.assertFalse(np.isfinite(far[s.nbins // 2]), 'documented G4 risk: 10 cm box at 2.0 m missed')
 
     def test_good_config_passes(self):
         core.validate_config(good_cfg())

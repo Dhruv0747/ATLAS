@@ -1,12 +1,14 @@
 # Track A (STAGED, inactive): Astra depth -> virtual obstacle scan for Nav2.
-# Every value marked MEASURE must come from the owner's tape-measure session (docs/TRACK_A_DEPTH_NAV.md)
-# before activation. Launch refuses to start while any MEASURE value is null.
+# Mount values must be traceable owner measurements (docs/TRACK_A_G2_MEASUREMENTS.md). Reference point: axle
+# midpoint on the floor (owner-confirmed). Launch/preflight refuse while any value is null.
 
 mount:                      # base_link -> astra_depth_optical_frame (ROS REP-103: x forward, y left, z up)
-  x_m: null                 # MEASURE: forward distance from robot centre (base_link) to the Astra's front glass
-  y_m: null                 # MEASURE: left (+) / right (-) offset from the robot centre line
-  z_m: null                 # MEASURE: height of the Astra lens centre above the floor
-  pitch_deg: null           # MEASURE: downward tilt (+ = looking down). 0 if mounted level.
+  x_m: null                 # BLOCKED (G2): +0.10 superseded by the 26 Oct 22:48 remount. Derived candidate +0.13
+                            #   (front edge +0.25 minus lens-behind-edge 0.79-0.67) awaits owner confirmation; see docs/TRACK_A_G2_MEASUREMENTS.md
+  y_m: null                 # BLOCKED (G2): '~0 by eye' predates the remount; record says re-verify
+  z_m: 0.30                 # G2 owner, ruler, IR lens height after remount (issue #12, 26 Oct 2026 22:48 IST)
+  pitch_deg: 0.8            # G2 owner, phone +0.8 deg after remount = 0.8 deg nose-down (same app read -10.3
+                            #   for the old nose-up mount). Depth hint ~1.8 up: if true, far low objects (2 m, 10 cm) are missed; G4 floor-plane check
   yaw_deg: 0.0              # facing straight ahead
 
 astra:
@@ -17,7 +19,7 @@ astra:
 obstacle_scan:              # atlas_astra_obstacle_scan.py, evaluated in base_link
   target_frame: base_link
   min_height_m: 0.04        # ignore floor (and ~4 cm floor noise)
-  max_height_m: null        # MEASURE: top of the rover + 5 cm (anything higher cannot hit it)
+  max_height_m: null        # BLOCKED (G2): rover overall height never recorded; value = rover top + 0.05
   angle_min_rad: -0.52      # about +-30 deg; Astra horizontal FOV is about 58 deg
   angle_max_rad: 0.52
   angle_increment_rad: 0.0087
