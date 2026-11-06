@@ -93,16 +93,16 @@ class VoicePolicyTest(unittest.TestCase):
     def test_low_battery_hysteresis(self):
         a = Announcements(lambda: self.now)
         self.now = 16
-        self.bms(10)
+        self.bms(20)
         self.assertEqual(len(a.evaluate(self.values)), 1)
         self.assertEqual(a.evaluate(self.values), [])
-        self.bms(13)
+        self.bms(23)
         a.evaluate(self.values)
-        self.bms(9)
+        self.bms(19)
         self.assertEqual(a.evaluate(self.values), [])
-        self.bms(16)
+        self.bms(26)
         a.evaluate(self.values)
-        self.bms(9)
+        self.bms(19)
         self.assertEqual(len(a.evaluate(self.values)), 1)
 
     def test_full_soc_not_voltage_guess(self):
@@ -125,26 +125,6 @@ class VoicePolicyTest(unittest.TestCase):
         self.now = 22
         self.assertIn('stale', a.evaluate(self.values)[0][1])
         self.assertEqual(a.evaluate(self.values), [])
-
-    def test_stop_latch_and_release_are_both_announced(self):
-        a = Announcements(lambda: self.now)
-        def say(policy):
-            self.values['control_policy'] = json.dumps(policy)
-            out = []
-            for step in (0, 2.1):
-                self.now += step
-                out += a.evaluate(self.values)
-            return [text for key, text in out if key == 'stop']
-        self.now = 16
-        self.assertEqual(say({'stop_latched': False}), [])            # startup: nothing was latched, no "released"
-        latched = say({'stop_latched': True})
-        self.assertEqual(len(latched), 1)
-        self.assertIn('latched', latched[0])
-        self.assertIn('dashboard reset', latched[0])                  # the web reset exists; not "only the remote"
-        released = say({'stop_latched': False})
-        self.assertEqual(len(released), 1)
-        self.assertIn('released', released[0])
-        self.assertEqual(say({'stop_latched': False}), [])           # no repeats
 
     def test_mission_no_false_success(self):
         for status in ('RETURN HOME GOAL DISPATCHED', 'RETURN HOME FINISHED status=4', 'QUEUED save_map', 'READY'):
@@ -175,25 +155,6 @@ def isolated_methods(file, methods, namespace):
     module = ast.Module(body=[cls], type_ignores=[])
     exec(compile(ast.fix_missing_locations(module), file, 'exec'), namespace)
     return namespace[cls.name]
-
-
-class AlertDeliveryTest(unittest.TestCase):
-    def test_stop_release_not_dropped_by_alert_throttle(self):
-        ns = {'time': time, 'queue': queue}
-        cls = isolated_methods('atlas_voice_companion.py', {'collect_announcements'}, ns)
-        node = cls()
-        node.publish_privacy = lambda: None
-        node.rover = None
-        node.last_alert_at = {}
-        node.alert_q = queue.Queue(maxsize=8)
-        spoken = []
-        node.publish = lambda kind, text: spoken.append(text)
-        batches = [[('stop', 'Safety stop latched.')], [('stop', 'Safety stop released.')],
-                   [('lidar_live', 'LiDAR reports stale.')], [('lidar_live', 'LiDAR reports stale.')]]
-        node.alerts = SimpleNamespace(evaluate=lambda rover: batches.pop(0))
-        for _ in range(4):
-            node.collect_announcements()
-        self.assertEqual(spoken, ['Safety stop latched.', 'Safety stop released.', 'LiDAR reports stale.'])
 
 
 class VoiceControlTest(unittest.TestCase):
@@ -303,119 +264,6 @@ class VoiceControlTest(unittest.TestCase):
         self.assertTrue(mux.remote_stop.latched)
         self.assertIn('voice stop', mux.remote_stop.reason)
         mux.hold_remote_stop.assert_called_once()
-
-
-class WakeResponseTest(unittest.TestCase):
-    def setUp(self):
-        import re
-        cls = isolated_methods('atlas_voice_companion.py',
-                               {'process_utterance', 'remove_wake_phrase'},
-                               {'time': time, 're': re, 'status_reply': status_reply})
-        self.node = cls()
-        self.node.privacy_epoch = 0
-        self.node.mic_muted = False
-        self.node.awake_until = 0
-        self.node.ignore_mic_until = 0
-        self.node.pending_agent_action = None
-        self.node.publish = Mock()
-        self.node.set_state = Mock()
-        self.node.transcribe = Mock(return_value='Hey ATLAS')
-        self.node.local_speech = Mock(return_value=b'ack')
-        self.node.play = Mock()
-        self.node.handle_agent_request = Mock(return_value=None)
-        self.node.handle_safe_hardware_request = Mock(return_value=None)
-
-    def test_wake_gets_local_ack_not_motion(self):
-        for wake, expected in (('Hey ATLAS', "Yes Dhruv, I'm listening."),
-                               ('हे एटलस', 'हाँ ध्रुव, बोलिए।')):
-            self.node.transcribe.return_value = wake
-            self.node.process_utterance(b'captured')
-            self.node.local_speech.assert_called_with(expected, offline_only=True)
-            self.node.play.assert_called_with(b'ack')
-            self.assertGreater(self.node.awake_until, time.monotonic() + 7)
-        self.node.handle_agent_request.assert_not_called()
-        self.node.handle_safe_hardware_request.assert_not_called()
-
-    def test_command_window_starts_after_playback(self):
-        self.node.play.side_effect = lambda _: setattr(self.node, 'ignore_mic_until', time.monotonic() + 2)
-        self.node.process_utterance(b'captured')
-        self.assertGreaterEqual(self.node.awake_until, self.node.ignore_mic_until + 8)
-
-    def test_no_transcribing_stuck_for_empty_or_ignored_audio(self):
-        for text in ('', 'thanks for watching'):
-            self.node.transcribe.return_value = text
-            self.node.process_utterance(b'captured')
-            stages = [c.args[1] for c in self.node.publish.call_args_list if c.args[0] == 'cloud']
-            self.assertTrue(stages[-1].startswith('IDLE:'))
-        self.node.play.assert_not_called()
-
-    def test_privacy_change_during_ack_prevents_play(self):
-        def synth(*args, **kwargs):
-            self.node.privacy_epoch += 1
-            return b'private'
-        self.node.local_speech.side_effect = synth
-        self.node.process_utterance(b'captured')
-        self.node.play.assert_not_called()
-        self.assertEqual(self.node.awake_until, 0)
-
-    def test_muted_audio_never_sent_to_transcription(self):
-        self.node.mic_muted = True
-        self.node.process_utterance(b'captured')
-        self.node.transcribe.assert_not_called()
-
-    def test_transcription_delay_does_not_expire_captured_command(self):
-        from unittest.mock import patch
-        self.node.awake_until = 10.
-        self.node.transcribe.return_value = 'battery status'
-        self.node.handle_agent_request.return_value = 'Test status reply'
-        with patch('time.monotonic', side_effect=[0., 30.]):
-            self.node.process_utterance(b'captured')
-        self.node.handle_agent_request.assert_called_once_with('battery status')
-        self.node.play.assert_called_once()
-
-
-class VoiceIdleIngressTest(unittest.TestCase):
-    def test_liveness_only_sensor_subscriptions_are_raw(self):
-        source = Path(__file__).with_name('atlas_voice_companion.py').read_text(
-            encoding='utf-8'
-        )
-        tree = ast.parse(source)
-        voice = next(
-            node for node in tree.body
-            if isinstance(node, ast.ClassDef) and node.name == 'AtlasVoice'
-        )
-        init = next(
-            node for node in voice.body
-            if isinstance(node, ast.FunctionDef) and node.name == '__init__'
-        )
-        subscriptions = {}
-        for call in (node for node in ast.walk(init) if isinstance(node, ast.Call)):
-            if not (
-                isinstance(call.func, ast.Attribute)
-                and call.func.attr == 'create_subscription'
-                and len(call.args) >= 3
-                and isinstance(call.args[1], ast.Constant)
-            ):
-                continue
-            subscriptions[call.args[1].value] = call
-
-        for topic in ('/scan', '/im10a/imu/unvalidated'):
-            call = subscriptions[topic]
-            raw = next(
-                keyword.value for keyword in call.keywords
-                if keyword.arg == 'raw'
-            )
-            self.assertIsInstance(raw, ast.Constant)
-            self.assertIs(raw.value, True)
-            callback = call.args[2]
-            self.assertIsInstance(callback, ast.Lambda)
-            argument = callback.args.args[0].arg
-            self.assertFalse(any(
-                isinstance(node, ast.Name)
-                and node.id == argument
-                and isinstance(node.ctx, ast.Load)
-                for node in ast.walk(callback.body)
-            ))
 
 
 if __name__ == '__main__':

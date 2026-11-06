@@ -12,10 +12,11 @@ import atlas_web_v2
 import atlas_location_check_web
 import atlas_testlab_web   # Motor & Encoder Test Lab (additive; own node, read-only unless the lifted gates are open)
 import atlas_flysky_web   # FlySky Remote Test Lab (additive; read-only, lazy subscriber, no publishers)
+import atlas_manual_controller_web   # ATLAS Stage 29 manual controller: Xbox/FlySky selection + FlySky drive status
+import atlas_controller_input_web   # ATLAS Stage 29 controller input view: read-only live Xbox /joy for the page
 import atlas_map3d_web  # Read-only local stored map API
-import atlas_vision3d_web  # Opt-in read-only Astra viewer; no node/driver starts on import
+import atlas_vision3d_web  # Isolated read-only Vision Lab
 import atlas_camera_settings_web  # Camera settings (issue #11; additive)
-from atlas_single_person_steering_web import SinglePersonSteeringService
 import subprocess
 import threading
 SHUTDOWN_PENDING = threading.Event()
@@ -36,6 +37,7 @@ from urllib.parse import parse_qs
 
 import rclpy
 import rclpy.executors
+from atlas_dashboard_executor import create_executor as _atlas_create_executor, spin as _atlas_spin
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
@@ -347,10 +349,6 @@ class AtlasRosNode:
         self.voice_mute_pub = None
         self.commissioning_stop_pub = None
         self.steering_cal_pub = None
-        self.single_person_steering = None
-        self.steering_test_event_pub = None
-        self.steering_test_status_pub = None
-        self.steering_test_speech_pub = None
         self.pan_us = CAMERA_PAN_HOME_US
         self.tilt_us = CAMERA_TILT_HOME_US
         self.camera_home_pan_us = CAMERA_PAN_HOME_US
@@ -450,7 +448,7 @@ class AtlasRosNode:
     def _spin_status(self):
         """Executor thread for the low-rate status node. A failure here fails the same way a
         failure of the single executor did before: record it and stop publishing drive."""
-        executor = rclpy.executors.SingleThreadedExecutor()
+        executor = _atlas_create_executor()
         try:
             executor.add_node(self.status_node)
             executor.spin()
@@ -478,17 +476,15 @@ class AtlasRosNode:
             # Reuse the existing mux latch; never create a second motor path.
             self.commissioning_stop_pub = self.node.create_publisher(Empty, '/atlas/voice/stop', 10)
             self.steering_cal_pub = self.node.create_publisher(String, '/atlas/steering_calibration/request', 10)
-            self.steering_test_event_pub = self.node.create_publisher(String, '/atlas/steering_validation/event', 10)
-            self.steering_test_status_pub = self.node.create_publisher(String, '/atlas/steering_validation/status', 10)
-            self.steering_test_speech_pub = self.node.create_publisher(String, '/atlas/voice/test_speak', 10)
-            self.single_person_steering = SinglePersonSteeringService(
-                self, String, Empty, shutdown_check=SHUTDOWN_PENDING.is_set)
-            self.node.create_timer(.1, self.single_person_steering.tick)
             # Existing mux service; the mux grants it only with the physical remote connected and neutral.
             self.remote_stop_reset_client = self.node.create_client(Trigger, '/atlas/remote_stop/reset')
             self.location_check_clients = {op: self.node.create_client(Trigger, '/atlas/location_check/'+op) for op in ('start','cancel')}
             self.node.create_subscription(String, '/atlas/steering_calibration/status', lambda m: self._set('steering_calibration', m.data), 10)
             self.node.create_subscription(String, '/atlas/control_policy', lambda m: self._set('control_policy', m.data), 10)
+            # ATLAS Stage 29 manual controller: FlySky drive status (read-only) and the mux selection services.
+            self.node.create_subscription(String, '/atlas/flysky/drive_status', lambda m: self._set('flysky_drive', m.data), 10)
+            self.manual_controller_clients = {t: self.node.create_client(Trigger, '/atlas/manual_controller/select_' + t.lower())
+                                              for t in ('XBOX', 'FLYSKY')}
             self.pan_pub = self.node.create_publisher(
                 Int32, "/camera/bottom_servo_cmd_us", 10
             )
@@ -689,16 +685,11 @@ class AtlasRosNode:
             )
             self.ready = True
             threading.Thread(target=self._spin_status, name="atlas-web-status-spin", daemon=True).start()
-            rclpy.spin(self.node)
+            _atlas_spin(self.node)
         except Exception as exc:
             self._set("web_error", str(exc))
             self.ready = False
         finally:
-            if self.single_person_steering is not None:
-                try:
-                    self.single_person_steering.close()
-                except Exception:
-                    pass  # Continue ROS cleanup even if diagnostic persistence fails.
             self.ready = False
             for attr in ("status_node", "node"):
                 try:
@@ -1569,9 +1560,8 @@ class AtlasRosNode:
             now_mono = time.monotonic()
             rates = {}
             for key, times in self.update_times.items():
-                # _set appends monotonic stamps under this same lock. Expired
-                # prefixes cannot become fresh again; avoid rescanning and
-                # allocating a full history list on every HTTP request.
+                # Monotonic timestamps are ordered under this same lock.
+                # Expired prefixes can never become fresh again.
                 while times and now_mono - times[0] >= 10:
                     times.popleft()
                 samples = times
@@ -1971,8 +1961,7 @@ def clean_json(value):
     return value
 
 def json_response(handler, status, payload):
-    # Machine-readable API: retain every value/freshness field, omit only whitespace.
-    body = json.dumps(clean_json(payload), separators=(",", ":"), allow_nan=False).encode()
+    body = json.dumps(clean_json(payload), indent=2, allow_nan=False).encode()
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json")
     handler.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
@@ -2003,6 +1992,10 @@ class Handler(BaseHTTPRequestHandler):
         if atlas_testlab_web.serve(self, ROS):
             return
         if atlas_flysky_web.serve(self, ROS):
+            return
+        if atlas_manual_controller_web.serve(self, ROS):   # ATLAS Stage 29 manual controller
+            return
+        if atlas_controller_input_web.serve(self, ROS):   # ATLAS Stage 29 controller input view (GET, read only)
             return
         if atlas_map3d_web.serve(self):
             return
@@ -2213,15 +2206,17 @@ class Handler(BaseHTTPRequestHandler):
         if not self.client_allowed():
             self.send_error(403)
             return
-        if atlas_vision3d_web.serve(self, post=True):
-            return
-        if atlas_camera_settings_web.serve(self, ROS, post=True):
-            return
         if atlas_location_check_web.serve(self, ROS, post=True):
             return
         if atlas_testlab_web.serve(self, ROS, post=True):
             return
         if atlas_flysky_web.serve(self, ROS, post=True):
+            return
+        if atlas_manual_controller_web.serve(self, ROS, post=True):   # ATLAS Stage 29 manual controller
+            return
+        if atlas_vision3d_web.serve(self, post=True):
+            return
+        if atlas_camera_settings_web.serve(self, ROS, post=True):
             return
         if self.path == '/api/estop/reset':
             self.handle_estop_reset()
@@ -2232,13 +2227,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 length = int(self.headers.get('Content-Length', '0'))
-                if not 0 < length <= 8192 or self.headers.get_content_type() != 'application/json':
+                if not 0 < length <= 1024 or self.headers.get_content_type() != 'application/json':
                     raise ValueError('Invalid request')
                 payload = json.loads(self.rfile.read(length))
                 if not isinstance(payload, dict):
                     raise ValueError('Expected object')
-                if length > 1024 and payload.get('action') != 'single_person_steering':
-                    raise ValueError('Existing commissioning request limit is 1024 bytes')
                 if payload.get('action') == 'stop':
                     if ROS.commissioning_stop_pub is None or not ROS.ready:
                         json_response(self, 503, {'error': 'Stop publisher unavailable; use remote stop'})
@@ -2259,16 +2252,6 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('Shutdown pending')
                     ok, message = ROS.save_camera_home()
                     json_response(self, 200 if ok else 503, {'ok': ok, 'message': message})
-                elif payload.get('action') == 'single_person_steering':
-                    if ROS.single_person_steering is None:
-                        raise ValueError('Single-person steering service unavailable')
-                    command = payload.get('command')
-                    if not isinstance(command, dict):
-                        raise ValueError('Invalid single-person steering request')
-                    if SHUTDOWN_PENDING.is_set() and command.get('op') not in ('cancel', 'emergency'):
-                        raise ValueError('Shutdown pending')
-                    result = ROS.single_person_steering.command(command)
-                    json_response(self, 202, result)
                 elif payload.get('action') == 'steering':
                     if SHUTDOWN_PENDING.is_set() or not ROS.ready or ROS.steering_cal_pub is None:
                         raise ValueError('Steering owner unavailable')

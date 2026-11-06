@@ -106,7 +106,7 @@
 .hm-mission .atlas-location{margin:12px 0 0;background:rgba(5,14,26,.55);border-color:var(--line);font-size:13px}
 
 /* ---- labs ---- */
-.hm-labs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.hm-labs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .hm-lab{display:flex;align-items:center;gap:12px;min-height:58px;padding:10px 14px;border-radius:14px;border:1px solid var(--line-strong);
   background:rgba(34,184,240,.10);color:var(--ink);text-decoration:none}
 .hm-lab:hover{background:rgba(34,184,240,.2)}

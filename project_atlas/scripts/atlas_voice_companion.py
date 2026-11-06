@@ -25,6 +25,7 @@ import requests
 import serial
 
 import rclpy
+from atlas_dashboard_executor import spin as _atlas_voice_spin
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
@@ -1374,7 +1375,7 @@ def main():
     rclpy.init()
     node = AtlasVoice()
     try:
-        rclpy.spin(node)
+        _atlas_voice_spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:

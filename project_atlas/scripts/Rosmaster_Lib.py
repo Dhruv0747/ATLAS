@@ -44,6 +44,9 @@ class Rosmaster(object):
         self.FUNC_REPORT_IMU_ATT = 0x0C
         self.FUNC_REPORT_ENCODER = 0x0D
         self.FUNC_REPORT_ICM_RAW = 0x0E
+        # ATLAS Stage 28 (proposal): raw SBUS report from ATLAS-patched firmware only.
+        # Stored, never acted on; older firmware simply never sends it.
+        self.FUNC_REPORT_RC_SBUS = 0xE1
         
         self.FUNC_RESET_STATE = 0x0F
 
@@ -134,6 +137,8 @@ class Rosmaster(object):
         self.__AKM_SERVO_ID = 0x01
 
         self.__read_car_type = 0
+        self._rc_sbus_report = None   # ATLAS Stage 28: (payload bytes, monotonic stamp)
+        self._rc_sbus_reports = 0
 
         if self.__debug:
             print("cmd_delay=" + str(self.__delay_time) + "s")
@@ -215,6 +220,12 @@ class Rosmaster(object):
             )
             self._serial_diagnostics['encoder_packets'] += 1
             self._serial_diagnostics['last_encoder_packet_stamp'] = self._encoder_sample[1]
+
+        # ATLAS Stage 28: read-only RC telemetry. Store the payload (checksum byte dropped) for the
+        # owner node to decode; no state here influences any command.
+        elif ext_type == self.FUNC_REPORT_RC_SBUS:
+            self._rc_sbus_report = (bytes(ext_data[:-1]), time.monotonic())
+            self._rc_sbus_reports += 1
 
         else:
             if ext_type == self.FUNC_UART_SERVO:
@@ -1193,6 +1204,13 @@ class Rosmaster(object):
     def get_motor_encoder_sample(self):
         """Return the last complete encoder packet and monotonic receipt time."""
         return self._encoder_sample
+
+    def get_rc_sbus_report(self):
+        """ATLAS Stage 28: latest raw RC report as (payload, monotonic stamp, count), or None."""
+        report = self._rc_sbus_report
+        if report is None:
+            return None
+        return report[0], report[1], self._rc_sbus_reports
 
     def get_serial_diagnostics(self):
         """Return a snapshot that distinguishes transport loss from bad wheels."""

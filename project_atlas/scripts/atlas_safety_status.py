@@ -15,7 +15,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32, String
 
-from atlas_scan_geometry import ray_in_base_sector
+from atlas_scan_geometry import ray_in_base_sector, sensor_ray_in_base_degrees, wrap_degrees
 from atlas_clearance_core import clearance_channel
 
 
@@ -149,17 +149,18 @@ class AtlasSafetyStatus(Node):
             if not math.isfinite(value) or not msg.range_min <= value <= msg.range_max:
                 continue
             degrees = math.degrees(angle)
-            if ray_in_base_sector(degrees, 0.0, 15.0, LASER_YAW_DEG):
+            base_angle = sensor_ray_in_base_degrees(degrees, LASER_YAW_DEG)
+            if abs(wrap_degrees(base_angle - 0.0)) <= 15.0:
                 centerline["front"] = min(centerline["front"], value)
-            if ray_in_base_sector(degrees, 180.0, 15.0, LASER_YAW_DEG):
+            if abs(wrap_degrees(base_angle - 180.0)) <= 15.0:
                 centerline["rear"] = min(centerline["rear"], value)
-            if ray_in_base_sector(degrees, 0.0, 35.0, LASER_YAW_DEG):
+            if abs(wrap_degrees(base_angle - 0.0)) <= 35.0:
                 nearest["front"] = min(nearest["front"], value)
-            elif ray_in_base_sector(degrees, 77.5, 42.5, LASER_YAW_DEG):
+            elif abs(wrap_degrees(base_angle - 77.5)) <= 42.5:
                 nearest["left"] = min(nearest["left"], value)
-            elif ray_in_base_sector(degrees, -77.5, 42.5, LASER_YAW_DEG):
+            elif abs(wrap_degrees(base_angle - -77.5)) <= 42.5:
                 nearest["right"] = min(nearest["right"], value)
-            elif ray_in_base_sector(degrees, 180.0, 35.0, LASER_YAW_DEG):
+            elif abs(wrap_degrees(base_angle - 180.0)) <= 35.0:
                 nearest["rear"] = min(nearest["rear"], value)
         clear_value = float(msg.range_max)
         self.front_lidar = (

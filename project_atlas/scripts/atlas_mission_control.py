@@ -22,7 +22,7 @@ from geometry_msgs.msg import (
     PoseWithCovarianceStamped,
     Twist,
 )
-from nav_msgs.msg import OccupancyGrid, Odometry
+from nav_msgs.msg import OccupancyGrid
 from nav2_msgs.action import (
     ComputePathToPose,
     NavigateThroughPoses,
@@ -52,8 +52,6 @@ from atlas_map_acceptance_core import (
     transactionally_promote_map_pair,
 )
 from atlas_map_footprint_sanitizer import sanitize_saved_map
-from atlas_amcl_update_gate import AmclUpdateGate
-from atlas_amcl_processing_health import ProcessingHealth
 from atlas_scan_fit_core import (
     OccupiedIndex,
     ScanFitPolicy,
@@ -62,8 +60,6 @@ from atlas_scan_fit_core import (
     unused_beam_points,
 )
 
-
-from atlas_initialization_observer import InitializationObserver
 
 class AtlasMissionControl(Node):
     """Expose topic and service controls without blocking the ROS executor."""
@@ -88,24 +84,12 @@ class AtlasMissionControl(Node):
 
     def __init__(self):
         super().__init__("atlas_mission_control")
-        self.checkpoint_observer = InitializationObserver(self)
         self.camera_pan_home_us, self.camera_tilt_home_us = self.load_camera_home()
         self.declare_parameter(
             "map_prefix", "/home/jetson/project_atlas/maps/atlas_latest"
         )
         self.declare_parameter("explore_unit", "atlas-explore.service")
         self.declare_parameter("home_verify_delay", 2.0)
-        self.declare_parameter("amcl_guarded_refresh_enabled", False)
-        self.declare_parameter("amcl_motion_gated_updates", False)
-        self.amcl_motion_gated_updates = bool(
-            self.get_parameter("amcl_motion_gated_updates").value)
-        self.amcl_guarded_refresh_enabled = bool(
-            self.get_parameter("amcl_guarded_refresh_enabled").value)
-        self.amcl_processing = ProcessingHealth()
-        self.guarded_refresh_key = None
-        self.create_subscription(String, "/atlas_amcl/processing", self.on_amcl_processing, 1)
-        self.create_subscription(Empty, "/atlas/localization_refresh_request",
-                                 self.on_guarded_localization_refresh, 1)
         self.declare_parameter("home_verify_tolerance", 0.15)
         self.declare_parameter("home_max_retries", 1)
         self.declare_parameter("home_already_reached_distance_m", 0.05)
@@ -306,12 +290,10 @@ class AtlasMissionControl(Node):
         self.nomotion_client = self.create_client(
             EmptyService, "/request_nomotion_update"
         )
-        self.amcl_update_gate = AmclUpdateGate()
-        self.localization_update_future = None
-        self.localization_odom = None
-        self.create_subscription(Odometry, "/odom", self.update_localization_odom, 10)
-        # Never manufacture a heartbeat by repeatedly assimilating stationary
-        # evidence. The explicit pre-motion refresh and mux timeout remain.
+        # AMCL publishes poses after a configured odometry delta rather than
+        # as a fixed-rate heartbeat. Force the next scan update once per
+        # second so the mux can distinguish healthy slow/stationary
+        # localization from a dead AMCL process without relaxing its timeout.
         self.create_timer(1.0, self.request_periodic_localization_update)
 
         self.worker = ThreadPoolExecutor(
@@ -564,63 +546,16 @@ class AtlasMissionControl(Node):
             )
         )
 
-    def update_localization_odom(self, msg: Odometry) -> None:
-        self.localization_odom = msg
-
-    def on_amcl_processing(self, msg: String) -> None:
-        try:
-            data = json.loads(msg.data)
-        except (TypeError, ValueError):
-            data = None
-        self.amcl_processing.ingest(data, self.get_clock().now().nanoseconds/1e9,
-                                    time.monotonic())
-
-    def on_guarded_localization_refresh(self, _msg: Empty) -> None:
-        if (not self.amcl_guarded_refresh_enabled
-                or not self.nomotion_client.service_is_ready()
-                or (self.localization_update_future is not None
-                    and not self.localization_update_future.done())):
-            return
-        health = self.amcl_processing.snapshot(
-            self.get_clock().now().nanoseconds/1e9, time.monotonic())
-        if health['processing_state'] != 'PROCESSING':
-            return
-        key=(health['session'], health['pose_seq'])
-        if key == self.guarded_refresh_key:
-            return
-        self.guarded_refresh_key=key
-        self.localization_update_future=self.checkpoint_observer.call(self.nomotion_client, EmptyService.Request(), '/request_nomotion_update')
-
     def request_periodic_localization_update(self) -> None:
-        """Request at most one update for fresh, accumulated odometry progress.
+        """Keep scan/odometry-backed AMCL health observable at low speed.
 
-        This does not certify localization or relax the motor mux's freshness
-        gate. At very low speed that gate may stop motion; validation is needed
-        before deploying this policy. AMCL's natural scan updates stay enabled.
+        Nav2 AMCL's no-motion service sets ``force_update`` for the next laser
+        callback. Despite the historical service name, AMCL still reads and
+        applies the latest odometry delta. This is therefore safe while moving
+        and prevents an event-driven pose topic from looking dead to the mux.
         """
-        if (not self.nomotion_client.service_is_ready()
-                or (self.localization_update_future is not None
-                    and not self.localization_update_future.done())):
-            return
-        if not self.amcl_motion_gated_updates:
-            # Preserve deployed baseline unless the full experimental contract
-            # is deliberately enabled. Still prevent overlapping requests.
-            self.localization_update_future = self.checkpoint_observer.call(
-                self.nomotion_client, EmptyService.Request(), '/request_nomotion_update')
-            return
-        msg = self.localization_odom
-        if msg is None or msg.header.frame_id.lstrip('/') != 'odom':
-            return
-        p, q = msg.pose.pose.position, msg.pose.pose.orientation
-        norm = q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w
-        if not math.isfinite(norm) or abs(norm - 1.0) > .01:
-            return
-        yaw = math.atan2(2*(q.w*q.z + q.x*q.y), 1-2*(q.y*q.y + q.z*q.z))
-        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-        now = self.get_clock().now().nanoseconds * 1e-9
-        if self.amcl_update_gate.allow(p.x, p.y, yaw, stamp, now):
-            self.localization_update_future = self.checkpoint_observer.call(
-                self.nomotion_client, EmptyService.Request(), '/request_nomotion_update')
+        if self.nomotion_client.service_is_ready():
+            self.nomotion_client.call_async(EmptyService.Request())
 
     def refresh_localization_before_motion(self, timeout_s: float = 5.0) -> None:
         """Force one fresh AMCL sample immediately before releasing motion.
@@ -654,7 +589,7 @@ class AtlasMissionControl(Node):
             self.localization_samples[-1][0]
             if self.localization_samples else 0.0
         )
-        future = self.checkpoint_observer.call(self.nomotion_client, EmptyService.Request(), '/request_nomotion_update')
+        future = self.nomotion_client.call_async(EmptyService.Request())
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
             if future.done() and future.exception() is not None:

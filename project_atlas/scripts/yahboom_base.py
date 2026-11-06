@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 import socket
 import statistics
-from atlas_source_provenance import Provenance
 import sys
 import time
 
@@ -32,6 +31,11 @@ from tf2_ros import TransformBroadcaster
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from Rosmaster_Lib import Rosmaster
 from atlas_usb_identity import open_verified
+try:  # ATLAS Stage 28 RC report: optional, read-only; the base driver runs without it.
+    from atlas_rc_readonly_bridge import FrameForwarder as _RcFrameForwarder
+    from atlas_yahboom_rc_report import RcReportForwarder as _RcReportForwarder
+except Exception:  # pragma: no cover - missing module must never stop the motor driver
+    _RcFrameForwarder = _RcReportForwarder = None
 from atlas_steering_commission import SteeringCommission
 from atlas_encoder_selection import (
     ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator, EncoderLinkMonitor,
@@ -301,7 +305,6 @@ def systemd_notify(message: str) -> None:
 
 class YahboomBase(Node):
     def __init__(self):
-        self._provenance = Provenance()
         super().__init__('yahboom_base')
 
         # Validate BEFORE opening the hardware. Missing/bad config must not
@@ -543,6 +546,14 @@ class YahboomBase(Node):
         self.create_timer(0.1, self._publish_board_state)
         self.create_timer(1.0, self._publish_battery)
         self.create_timer(1.0, self._systemd_watchdog)
+        # ATLAS Stage 28 RC report: publish-only telemetry for the FlySky Test Lab.
+        self._rc_forwarder = None
+        self._rc_last_stamp = None
+        if (_RcReportForwarder is not None and os.environ.get('ATLAS_RC_REPORT', '1') != '0'
+                and hasattr(self.bot, 'get_rc_sbus_report')):
+            self._rc_forwarder = _RcReportForwarder(_RcFrameForwarder('sbus'))
+            self._pub_rc_frames = self.create_publisher(String, '/atlas/rc/frames', 10)
+            self.create_timer(0.1, self._forward_rc_report)
 
         version = self.bot.get_version()
         car_type = self.bot.get_car_type_from_machine()
@@ -599,6 +610,27 @@ class YahboomBase(Node):
                 f"Could not checkpoint same-boot odometry: {exc}",
                 throttle_duration_sec=10.0,
             )
+
+    def _forward_rc_report(self):
+        """ATLAS Stage 28 RC report: read-only. Never raises into the executor."""
+        try:
+            report = self.bot.get_rc_sbus_report()
+            if report is None or report[1] == self._rc_last_stamp:
+                return
+            self._rc_last_stamp = report[1]
+            was_bad = self._rc_forwarder.drive_enabled_seen
+            self._rc_forwarder.handle(report[0], report[1], time.time(), self._publish_rc_frame)
+            if self._rc_forwarder.drive_enabled_seen and not was_bad:
+                self.get_logger().error(
+                    'RC report says the board firmware can DRIVE from SBUS; frames ignored. '
+                    'Disconnect the SBUS lead and restore the approved firmware.')
+        except Exception as exc:  # pragma: no cover - defensive
+            self.get_logger().warning(f'RC report forward skipped: {exc}', throttle_duration_sec=30.0)
+
+    def _publish_rc_frame(self, msg):
+        out = String()
+        out.data = json.dumps(dict(msg, src='yahboom'), separators=(',', ':'))
+        self._pub_rc_frames.publish(out)
 
     def _systemd_watchdog(self):
         # If the ROS executor or DDS participant stalls, this timer also stops.
@@ -1240,14 +1272,7 @@ class YahboomBase(Node):
         now = time.monotonic()
         self._steering_cal.tick(now, self._cal_applied(), self._cal_safe())
         self._apply_steering_calibration()
-        cal_status = self._steering_cal.status()
-        cal_status.update({
-            'applied_motor_outputs': list(self._applied_motor_outputs),
-            'zero_motor_command': all(value == 0 for value in self._applied_motor_outputs),
-            'traction_inhibited': self._steering_cal.locked,
-            'remote_b_stop': self._lifted_remote_b_stop,
-        })
-        self._cal_status_pub.publish(String(data=json.dumps(cal_status)))
+        self._cal_status_pub.publish(String(data=json.dumps(self._steering_cal.status())))
         if time.time() - self._last_cmd_time > CMD_TIMEOUT_S:
             self._last_vx = 0.0
             self._last_vy = 0.0
@@ -1813,9 +1838,6 @@ class YahboomBase(Node):
         serial_diagnostics = self.bot.get_serial_diagnostics()
         names = ENCODER_NAMES
         payload = {
-            'source_provenance': self._provenance.stamp(now),
-            'encoder_packet_monotonic': self._encoder_packet_stamp,
-            'encoder_update_sequence': self._encoder_update_sequence,
             'state': state,
             'faults': [names[i] for i in faults],
             'excluded_encoders': [i + 1 for i in self._excluded_encoders],
@@ -1878,7 +1900,7 @@ class YahboomBase(Node):
         # estimate. The controller reports counts in bursts; integrating the
         # half-second CPS estimate lost the beginning and end of short moves.
         # Deliberate exclusions never rejoin merely because counts reappear.
-        # Eligibility is dynamic; no fallback to rejected channels.
+        # Raw M4 remains diagnostic only. No fallback to rejected channels.
         valid_indexes = [i for i in range(4)
                          if i not in self._excluded_encoders
                          and i not in self._encoder_fault_since]
@@ -1886,10 +1908,7 @@ class YahboomBase(Node):
             valid_indexes = []
         # Normalize the naturally different inside/outside wheel path lengths
         # to body-centre distance before applying three-of-four consensus.
-        # Dimensions are configured; steering deflections below are commanded
-        # PWM values, NOT measured road-wheel angles. The path model assumes
-        # symmetric counter-steering and zero midpoint lateral velocity.
-        # Stage 18 evaluates these assumptions offline; no calibration changes.
+        # This uses measured geometry and does not change steering commands.
         front_delta = math.radians(
             self._front_applied_angle - FRONT_STEER_CENTER
         )

@@ -16,12 +16,11 @@ fi
 
 install -m 0644 "${source_rule}" "${target_rule}"
 udevadm control --reload-rules
-for tty_path in /sys/class/tty/ttyACM*; do
-  [[ -e ${tty_path} ]] || continue
-  udevadm trigger --action=change "${tty_path}"
-done
-udevadm settle
+if [[ -e /sys/class/tty/ttyACM0 ]]; then
+  udevadm trigger --action=change /sys/class/tty/ttyACM0
+  udevadm settle
+fi
 
 echo "Installed ${target_rule}"
-echo "The rule excludes only the commissioned ATLAS UNO native/debug USB identities from ModemManager."
+echo "The rule excludes only Arduino 2341:1002 serial E4B063836708 from ModemManager."
 echo "The SIMCom cellular modem remains managed normally."

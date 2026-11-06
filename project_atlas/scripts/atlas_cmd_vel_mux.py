@@ -7,7 +7,6 @@ import json
 import os
 import time
 from typing import Dict, Optional
-from atlas_source_provenance import Provenance
 
 import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
@@ -17,19 +16,20 @@ from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import Empty, Float32, String
 from sensor_msgs.msg import Joy, LaserScan
 from atlas_lidar_availability import LidarAvailability
-from nav_msgs.msg import Odometry
 from std_srvs.srv import Trigger
 from atlas_remote_stop import RemoteStop
+from atlas_flysky_reset import GATE_ENV as FLYSKY_RESET_ENV, MuxResetGate   # ATLAS Stage 29 FlySky reset
 from atlas_radar_core import guard_scale
 from atlas_ultrasonic_validity import ValidityWindow
-from atlas_amcl_processing_health import ProcessingHealth
-from atlas_localization_refresh_gate import RefreshRequestGate
 
 
 # Keep a latched stop alive well inside yahboom_base.py's 0.45 s command
 # deadman without making every joystick/watchdog callback write another zero.
 REMOTE_STOP_ZERO_KEEPALIVE_S = 0.20
 REMOTE_STOP_STATUS_KEEPALIVE_S = 1.0
+# ATLAS Stage 29 FlySky: hard ceilings equal to the Xbox teleop non-turbo scales (config/joy_config.yaml).
+FLYSKY_HARD_MAX_LINEAR = 0.25
+FLYSKY_HARD_MAX_ANGULAR = 0.80
 
 
 @dataclass
@@ -48,7 +48,6 @@ class AtlasCmdVelMux(Node):
 
     def __init__(self):
         super().__init__("atlas_cmd_vel_mux")
-        self._provenance = Provenance()
         self.declare_parameter('remote_reset_button', 4)
         self.declare_parameter('remote_reset_hold_s', 2.0)
         self.remote_stop = RemoteStop(
@@ -56,6 +55,17 @@ class AtlasCmdVelMux(Node):
             reset_hold_s=max(2.0, float(self.get_parameter('remote_reset_hold_s').value)),
         )
         self.manual_only = os.environ.get('ATLAS_MANUAL_ONLY', '0') == '1'
+        # ATLAS Stage 29 FlySky: exactly one manual controller may drive; XBOX is the boot default.
+        self.manual_controller = 'XBOX'
+        self.flysky_drive_enabled = os.environ.get('ATLAS_FLYSKY_DRIVE_ENABLED', '0') == '1'
+        self.create_service(Trigger, '/atlas/manual_controller/select_xbox',
+                            lambda request, response: self.select_controller_service('XBOX', response))
+        self.create_service(Trigger, '/atlas/manual_controller/select_flysky',
+                            lambda request, response: self.select_controller_service('FLYSKY', response))
+        self.create_subscription(Empty, '/atlas/flysky/stop', self.on_flysky_stop, 10)
+        # ATLAS Stage 29 FlySky reset: second release path, off unless its own gate is set.
+        self.flysky_reset_gate = MuxResetGate(os.environ.get(FLYSKY_RESET_ENV, '0') == '1')
+        self.create_subscription(String, '/atlas/flysky/reset_request', self.on_flysky_reset_request, 10)
         self.commission_until = 0.0
         self.create_subscription(Joy, '/joy', self.on_stop_joy, qos_profile_sensor_data)
         self.create_service(Trigger, '/atlas/remote_stop/reset', self.reset_remote_stop)
@@ -75,6 +85,11 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("foxglove_max_linear", 0.20)
         self.declare_parameter("foxglove_max_angular", 0.45)
         self.declare_parameter("foxglove_steering_expo", 2.0)
+        # ATLAS Stage 29 FlySky: independent clamps, never above the hard ceilings.
+        self.declare_parameter("flysky_max_linear", 0.15)
+        self.declare_parameter("flysky_max_angular", 0.60)
+        self.flysky_max_linear = max(0.0, min(FLYSKY_HARD_MAX_LINEAR, float(self.get_parameter("flysky_max_linear").value)))
+        self.flysky_max_angular = max(0.0, min(FLYSKY_HARD_MAX_ANGULAR, float(self.get_parameter("flysky_max_angular").value)))
         self.declare_parameter("remote_linear_deadband", 0.06)
         self.declare_parameter("remote_angular_deadband", 0.12)
         self.declare_parameter("remote_steer_hold_s", 0.35)
@@ -94,16 +109,6 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter("auto_stop_margin_m", 0.15)
         self.declare_parameter("ultrasonic_timeout", 1.0)
         self.declare_parameter("localization_timeout", 2.5)
-        # Experimental integration is OFF until complete-stack validation.
-        self.declare_parameter("amcl_processing_gate_enabled", False)
-        self.amcl_processing_gate_enabled = bool(
-            self.get_parameter("amcl_processing_gate_enabled").value)
-        self.amcl_processing = ProcessingHealth()
-        self.localization_refresh_gate = RefreshRequestGate()
-        self.localization_refresh_pub = self.create_publisher(
-            Empty, "/atlas/localization_refresh_request", 1)
-        self.create_subscription(String, "/atlas_amcl/processing", self.on_amcl_processing, 1)
-        self.create_subscription(Odometry, "/odom", self.on_refresh_odom, 10)
         self.declare_parameter("localization_max_xy_std_m", 0.25)
         # Recorded Hall/Dhruv routes show 14-17.4 deg reported AMCL yaw
         # standard deviation during valid turns while map->odom correction
@@ -219,6 +224,8 @@ class AtlasCmdVelMux(Node):
         self.ultrasonic_validity = ValidityWindow(self.ultrasonic_timeout)
         self.channels: Dict[str, Channel] = {
             "REMOTE": Channel("REMOTE", "/cmd_vel_joy", 1, manual_timeout),
+            # ATLAS Stage 29 FlySky: same rank as REMOTE; controller_accepts() admits only the selected one.
+            "FLYSKY": Channel("FLYSKY", "/cmd_vel_flysky", 1, manual_timeout),
             # A short, locally armed commissioning lease allows a bounded
             # measurement script to run while the normal manual-only policy
             # remains enabled. The physical remote always has higher priority.
@@ -340,6 +347,8 @@ class AtlasCmdVelMux(Node):
             self.encoder_health = {'state': 'INVALID'}
             self.encoder_health_rx = time.monotonic()
 
+        self.flysky_reset_observe()   # ATLAS Stage 29 FlySky reset: end of on_encoder_health
+
     def on_voice_stop(self, _msg):
         self.remote_stop.latch('REMOTE STOP: voice stop requested')
         self.hold_remote_stop()
@@ -386,7 +395,7 @@ class AtlasCmdVelMux(Node):
             or now - self._remote_stop_last_zero
             >= REMOTE_STOP_ZERO_KEEPALIVE_S
         ):
-            self._publish_with_provenance(Twist())
+            self.output.publish(Twist())
             self._remote_stop_last_zero = now
         if (
             state_changed
@@ -402,6 +411,7 @@ class AtlasCmdVelMux(Node):
             self.publish_mode()
         self._remote_stop_hold_latched = latched
         self._remote_stop_hold_reason = reason
+        self.flysky_reset_observe()   # ATLAS Stage 29 FlySky reset: see every latch transition
 
     def reset_remote_stop(self, request, response):
         # Flush commands before releasing; pre-stop commands never replay.
@@ -456,7 +466,7 @@ class AtlasCmdVelMux(Node):
         channel = self.channels['COMMISSION']
         channel.engaged = False
         channel.command = Twist()
-        self._publish_with_provenance(Twist())
+        self.output.publish(Twist())
         self.last_sent = Twist()
         self.active_name = None
         self.safety_output.publish(String(data=reason))
@@ -474,7 +484,9 @@ class AtlasCmdVelMux(Node):
         # always pre-emptible by the physical remote.  Dropping RECOVERY here
         # made the recovery state machine report attempts while no command
         # ever reached the drivetrain.
-        if self.manual_only and name not in ('REMOTE', 'COMMISSION', 'RECOVERY'):
+        if not self.controller_accepts(name):   # ATLAS Stage 29 FlySky: only the selected manual controller
+            return
+        if self.manual_only and name not in ('REMOTE', 'COMMISSION', 'RECOVERY', 'FLYSKY'):
             return
         if name == 'COMMISSION' and now > self.commission_until:
             return
@@ -538,6 +550,13 @@ class AtlasCmdVelMux(Node):
             # remote priority, encoder guard, obstacle guard and watchdog that
             # protect straight commissioning remain authoritative.
             command.angular.z = max(-0.15, min(0.15, command.angular.z))
+        elif name == "FLYSKY":   # ATLAS Stage 29 FlySky: clamp independently of the teleop node
+            command.linear.x = max(-self.flysky_max_linear, min(self.flysky_max_linear, command.linear.x))
+            command.angular.z = max(-self.flysky_max_angular, min(self.flysky_max_angular, command.angular.z))
+            command.linear.y = 0.0
+            command.linear.z = 0.0
+            command.angular.x = 0.0
+            command.angular.y = 0.0
         elif name == "FOXGLOVE":
             command.linear.x = max(
                 -self.foxglove_max_linear,
@@ -574,6 +593,64 @@ class AtlasCmdVelMux(Node):
             channel.engaged = False
             if self.active_name == name:
                 self.publish_stop(f"{name} released")
+
+    # ---- ATLAS Stage 29 FlySky: manual controller selection (additive)
+    def controller_accepts(self, name: str) -> bool:
+        if name == 'REMOTE':
+            return self.manual_controller == 'XBOX'
+        if name == 'FLYSKY':
+            return self.flysky_drive_enabled and self.manual_controller == 'FLYSKY'
+        return True
+
+    def select_controller(self, target: str):
+        """Handover only while the E-STOP is latched and the rover is stopped: zero motion by construction."""
+        if target not in ('XBOX', 'FLYSKY'):
+            return False, 'unknown controller'
+        if target == 'FLYSKY' and not self.flysky_drive_enabled:
+            return False, 'FlySky driving is disabled on this rover (ATLAS_FLYSKY_DRIVE_ENABLED)'
+        if not self.remote_stop.latched:
+            return False, 'Latch the E-STOP before changing controller'
+        if self.moving(self.last_sent):
+            return False, 'Rover must be stopped before changing controller'
+        previous, self.manual_controller = self.manual_controller, target
+        self.hold_remote_stop()          # flush every channel and publish zero
+        self.publish_mode()
+        self.get_logger().warn('Manual controller %s -> %s' % (previous, target))
+        return True, 'Manual controller is %s. The E-STOP stays latched until the normal reset.' % target
+
+    def select_controller_service(self, target, response):
+        response.success, response.message = self.select_controller(target)
+        return response
+
+    # ---- ATLAS Stage 29 FlySky reset (additive)
+    def flysky_reset_observe(self):
+        gate = getattr(self, 'flysky_reset_gate', None)
+        if gate is not None:
+            gate.observe(time.monotonic(), bool(self.remote_stop.latched), self.moving(self.last_sent),
+                         self.encoder_health, self.encoder_health_rx)
+
+    def on_flysky_reset_request(self, msg):
+        now = time.monotonic()
+        self.remote_stop.check(now)              # an Xbox gap latches first, exactly as in the watchdog
+        ok, why = self.flysky_reset_gate.decide(
+            now, msg.data, drive_enabled=self.flysky_drive_enabled, controller=self.manual_controller,
+            latched=bool(self.remote_stop.latched), commanding=self.moving(self.last_sent),
+            xbox_rx=self.remote_stop.last_rx, xbox_neutral_since=self.remote_stop.neutral_since,
+            enc=self.encoder_health, enc_rx=self.encoder_health_rx)
+        if not ok:
+            self.get_logger().warn('FlySky reset refused: %s' % why)
+            self.publish_mode()
+            return
+        self.hold_remote_stop()                  # flush first: no pre-stop command can replay
+        rs = self.remote_stop
+        rs.latched, rs.reason = False, why
+        rs.reset_armed, rs.reset_since, rs.reset_ready = False, None, False
+        self.hold_remote_stop()                  # publish the release transition immediately
+        self.get_logger().warn(why)
+
+    def on_flysky_stop(self, _msg):
+        self.remote_stop.latch('REMOTE STOP: FlySky stop')
+        self.hold_remote_stop()
 
     def on_ultrasonic(self, sensor: str, msg: Float32) -> None:
         # Legacy display/debug only; bare floats never grant safety validity.
@@ -631,48 +708,6 @@ class AtlasCmdVelMux(Node):
                 )
         self.localization_pose = (float(pose.position.x), float(pose.position.y), yaw)
         self.localization_rx = now
-
-    def on_amcl_processing(self, msg: String) -> None:
-        try:
-            data = json.loads(msg.data)
-        except (ValueError, TypeError):
-            data = None
-        self.amcl_processing.ingest(data, self.get_clock().now().nanoseconds/1e9,
-                                    time.monotonic())
-
-    def on_refresh_odom(self, msg: Odometry) -> None:
-        if msg.header.frame_id.lstrip('/') != 'odom':
-            self.localization_refresh_gate.odom_stamp = None
-            return
-        p,q = msg.pose.pose.position,msg.pose.pose.orientation
-        norm=q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w
-        if not math.isfinite(norm) or abs(norm-1)>.01:
-            self.localization_refresh_gate.odom_stamp = None
-            return
-        self.localization_refresh_gate.observe_odom(p.x,p.y,
-            math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z)),
-            msg.header.stamp.sec+msg.header.stamp.nanosec*1e-9,
-            self.get_clock().now().nanoseconds/1e9)
-
-    def navigation_localization_guard(self, command: Twist, now: float) -> Optional[str]:
-        reason = self.localization_guard(now)
-        if not self.amcl_processing_gate_enabled or self.operating_mode != 'LOCALIZATION':
-            return reason
-        ros_now = self.get_clock().now().nanoseconds/1e9
-        health = self.amcl_processing.snapshot(ros_now, now)
-        if health['processing_state'] != 'PROCESSING':
-            return reason or 'AUTONOMY BLOCKED: AMCL PROCESSING UNAVAILABLE'
-        if reason and reason.startswith('AUTONOMY BLOCKED: LOCALIZATION STALE'):
-            valid = (not self.localization_jump_fault
-                     and math.isfinite(self.localization_xy_std_m)
-                     and math.isfinite(self.localization_yaw_std_deg)
-                     and self.localization_xy_std_m <= self.localization_max_xy_std_m
-                     and self.localization_yaw_std_deg <= self.localization_max_yaw_std_deg)
-            if self.localization_refresh_gate.claim(health, ros_now, self.moving(command), valid):
-                self.localization_refresh_pub.publish(Empty())
-        # A request never clears a fault or permits this command. Only a later
-        # real AMCL pose can pass the unchanged original guard.
-        return reason
 
     def localization_guard(self, now: float) -> Optional[str]:
         """Fail closed when saved-map navigation loses AMCL confidence."""
@@ -741,18 +776,12 @@ class AtlasCmdVelMux(Node):
         ]
         return min(live, key=lambda c: c.priority) if live else None
 
-    def _publish_with_provenance(self, msg):
-        # Timestamp before publication: a blocked publish cannot rejuvenate evidence.
-        stamp = time.monotonic()
-        self.output.publish(msg)
-        self._provenance.sent(msg, stamp)
-
     def publish(self, msg: Twist) -> None:
         self.last_sent = self.copy_twist(msg)
-        self._publish_with_provenance(msg)
+        self.output.publish(msg)
 
     def publish_stop(self, reason: str) -> None:
-        self._publish_with_provenance(Twist())
+        self.output.publish(Twist())
         self.last_sent = Twist()
         self.active_name = None
         self.safety_output.publish(String(data="AUTONOMY IDLE"))
@@ -839,7 +868,7 @@ class AtlasCmdVelMux(Node):
                         f'COMMISSION ABORT: ENCODER {encoder_state} {faults}'
                     )
                     return
-                self._publish_with_provenance(Twist())
+                self.output.publish(Twist())
                 self.last_sent = Twist()
                 self.safety_output.publish(String(data=reason))
                 if reason != self.last_blocked_reason:
@@ -847,7 +876,7 @@ class AtlasCmdVelMux(Node):
                     self.last_blocked_reason = reason
                 return
             blocked_reason = (
-                self.navigation_localization_guard(selected.command, now)
+                self.localization_guard(now)
                 if selected.name == "NAV2"
                 else None
             )
@@ -862,7 +891,7 @@ class AtlasCmdVelMux(Node):
                         f'COMMISSION ABORT: {blocked_reason}'
                     )
                     return
-                self._publish_with_provenance(Twist())
+                self.output.publish(Twist())
                 self.last_sent = Twist()
                 self.safety_output.publish(String(data=blocked_reason))
                 if blocked_reason != self.last_blocked_reason:
@@ -910,8 +939,6 @@ class AtlasCmdVelMux(Node):
         mode = self.active_name or "STOPPED"
         self.mode_output.publish(String(data=mode))
         self.policy_output.publish(String(data=json.dumps({
-            'source_provenance': self._provenance.stamp(time.monotonic()),
-            'published_command': self._provenance.command,
             'manual_only': self.manual_only,
             'commission_armed': time.monotonic() < self.commission_until,
             'commission_remaining_s': max(
@@ -920,6 +947,10 @@ class AtlasCmdVelMux(Node):
             'stop_latched': self.remote_stop.latched,
             'stop_reason': self.remote_stop.reason,
             'source': mode,
+            'manual_controller': getattr(self, 'manual_controller', 'XBOX'),   # ATLAS Stage 29 FlySky
+            'flysky_drive_enabled': getattr(self, 'flysky_drive_enabled', False),
+            'flysky_reset': (self.flysky_reset_gate.status(time.monotonic())
+                             if getattr(self, 'flysky_reset_gate', None) is not None else None),   # ATLAS Stage 29 FlySky reset
             'mapping_remote_limited': self.operating_mode == 'MAPPING',
             'mapping_remote_max_linear_mps': self.mapping_remote_max_linear,
             'mapping_remote_max_angular_radps': self.mapping_remote_max_angular,
@@ -929,7 +960,7 @@ class AtlasCmdVelMux(Node):
         if not rclpy.ok():
             return
         for _ in range(3):
-            self._publish_with_provenance(Twist())
+            self.output.publish(Twist())
             time.sleep(0.02)
 
 

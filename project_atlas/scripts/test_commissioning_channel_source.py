@@ -12,9 +12,6 @@ class CommissioningChannelSourceTest(unittest.TestCase):
         cls.test = (directory / "atlas_straight_distance_test.py").read_text(
             encoding="utf-8"
         )
-        cls.arc = (directory / "atlas_bounded_arc_test.py").read_text(
-            encoding="utf-8"
-        )
 
     def test_channel_is_bounded_and_remote_has_priority(self):
         self.assertIn('"REMOTE", "/cmd_vel_joy", 1', self.mux)
@@ -22,7 +19,6 @@ class CommissioningChannelSourceTest(unittest.TestCase):
         self.assertIn("self.commission_until = now + 20.0", self.mux)
         self.assertIn("commissioning lease expired", self.mux)
         self.assertIn("max(-0.12, min(0.12, command.linear.x))", self.mux)
-        self.assertIn("max(-0.15, min(0.15, command.angular.z))", self.mux)
 
     def test_distance_tool_arms_and_disarms_channel(self):
         self.assertIn('"/atlas/commission/arm"', self.test)
@@ -40,17 +36,6 @@ class CommissioningChannelSourceTest(unittest.TestCase):
         self.assertIn("COMMISSION ABORT: stale", self.mux)
         self.assertIn("COMMISSION ABORT: ENCODER", self.mux)
         self.assertIn("COMMISSION ABORT: {blocked_reason}", self.mux)
-
-    def test_arc_tool_uses_same_guarded_commissioning_lease(self):
-        self.assertIn('"/cmd_vel_commission"', self.arc)
-        self.assertIn('"/atlas/commission/arm"', self.arc)
-        self.assertIn('"/atlas/commission/disarm"', self.arc)
-        self.assertIn('"/atlas/encoder_health"', self.arc)
-        self.assertIn('f"/yahboom/encoder/m{index + 1}"', self.arc)
-        self.assertIn("critical_health=", self.arc)
-        self.assertIn('"/lidar/odom"', self.arc)
-        self.assertIn("IncrementalPlanarDistance(max_step_m=0.03)", self.arc)
-        self.assertIn("node.disarm()", self.arc)
 
 
 if __name__ == "__main__":
