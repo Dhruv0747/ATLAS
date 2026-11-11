@@ -338,3 +338,22 @@ atlas-localization. Verified:
 
 Track A software, config (x 0.21, z 0.23, pitch 0.0) and the G5 snippet stay installed for re-application with
 `apply_g5.sh`.
+
+### Stage 1 re-applied at the owner's request (2026-11-12 00:30-00:34)
+
+The owner's rollback had been an accidental run of the reference commands. Re-applied with the same checks:
+* parked interlock before every step;
+* nav2_params confirmed original before writing.
+
+| Check | Result |
+|---|---|
+| Merge checks | 15/15 PASS |
+| nav2_params | 1ab07b4498fc67ab |
+| Backups | `...before-track-a-20261112-000948` and `...-003043`, both the original 2411371c89751eba |
+| Bridge join | CPU at about 100 % for about 6 s while parked |
+| Nav2 restart | controller_server active after 82 s; plugins `[obstacle_layer, astra_layer, inflation_layer]`; log confirms subscription to the astra topic |
+| Box (flat, about 80 cm from the bumper) | seen by the Astra at -5.9..+3.1 deg, 1.04-1.09 m; lethal in Nav2's local costmap |
+| /scan | 6.94 Hz |
+| CPU / temperature | 62 %, Tj 64.7 C |
+| Units | 34 atlas units active; Astra and bridge running (owner choice) |
+| Localization | still UNKNOWN (ambiguous), as before. Stage 2 blocked. |
