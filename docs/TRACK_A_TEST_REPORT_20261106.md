@@ -140,3 +140,10 @@ The installed unit `atlas-astra-obstacles` was started by hand in domain 77 only
 | 10-min empty view (22:22-22:33, owner confirmed nobody entered) | 4036 scans, 6.73 Hz, status OK 600/600 (no STALE/BLINDED), stable-scene jitter 7.4 mm median. Hits nearer than the stable scene in 191 scans (4.7 %), in two clusters: (1) about -14 deg at 1.30 m: the table edge flickering at a bin boundary (real object). (2) +5 to +12 deg at 0.70-0.72 m, 44 hits, intermittent: a straight line at about 0.45 m in front of the bumper, where the sheet's near edge lies. Probably the sheet edge or near-range noise; **unexplained, so not a clean PASS.** |
 | Resources (10 min) | Whole Jetson 62.6 % CPU (baseline 61-62 %), Tj 63.5 -> 63.9 C |
 | Production | 34 units: identical PIDs and restart counts; nav2_params hash 2411371c89751eba unchanged; Astra and bridge off afterwards, nothing left running |
+| 10-min empty view, RERUN without the sheet (22:35-22:45) | 4075 scans, 6.79 Hz, status OK 600/600, stable-scene jitter 1.8 mm median. **The 0.70 m line is gone, so it was the sheet's edge.** Hits nearer than the bin median, max 3 bins per scan, only at the edges of real objects already in the stable scene: -15/-14 deg at 1.25-1.31 m (table edge; stable scene -14 deg 1.30, -16 deg 1.15) and +27/+28 deg at 1.72/2.44 m (object at the left FOV edge; stable scene +26 deg 1.69). These are edge bins switching between the object and the wall behind it. **No detections anywhere without a real object: PASS (no phantom obstacles).** CPU 62.8 %, Tj 63.8 -> 64.0 C, 0 restarts, 34 production units identical, nav2_params unchanged, Astra and bridge off afterwards. |
+
+G4 status after 2026-11-11:
+* Empty view: **PASS**.
+* Box at a tape-measured spot: **open**.
+* Floor-plane pitch/height: **not possible on this glossy floor** (needs a matte floor area, e.g. a rug, in view). Table-leg evidence supports z and pitch near range.
+* G5 (Nav2 integration) not applied.
