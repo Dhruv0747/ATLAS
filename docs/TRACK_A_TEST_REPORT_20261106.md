@@ -357,3 +357,17 @@ The owner's rollback had been an accidental run of the reference commands. Re-ap
 | CPU / temperature | 62 %, Tj 64.7 C |
 | Units | 34 atlas units active; Astra and bridge running (owner choice) |
 | Localization | still UNKNOWN (ambiguous), as before. Stage 2 blocked. |
+
+### Localization check for stage 2 (2026-11-12 about 00:45), then paused by the owner until the morning
+
+* Owner: ATLAS is in "dhruv room".
+* `seed_atlas_localization.py --verify-place "dhruv room" --dry-run` result:
+  * **VERIFIED**, unique LiDAR match: map (0.075, -2.295), yaw 73 deg.
+  * Fit 0.979, margin 0.146; next hypothesis 0.833.
+* **Nothing was seeded** (dry run). The owner paused here.
+* Next session:
+  1. Re-run the same command without `--dry-run` while the rover is parked in the same spot.
+  2. Confirm Nav2 is ready (map -> base_link, bt_navigator active).
+  3. Do stage 2, supervised driving by the owner.
+* Left running overnight at the owner's choice: Astra and bridge, with Nav2 using the Astra layer. Nothing is
+  boot-enabled. After a reboot the Astra stays off and Nav2 runs LiDAR-only.
