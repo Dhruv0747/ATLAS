@@ -189,3 +189,42 @@ Safety effect of the current config: points compute too low by about 15 cm at 1 
 | Extra object | something at 0.73 m, 17-31 cm left, 18-43 cm high (not in the centre bins) |
 
 Config NOT changed (pitch 0.8 and x 0.13 still in `astra_obstacles.yaml`). Astra and bridge OFF; nav2_params unchanged.
+
+### Forward-position change withdrawn; geometry review (2026-11-11 23:22)
+
+* `x_m` 0.24 was installed at 23:21 and **reverted to 0.13** after the owner asked for geometry verification first.
+* `pitch_deg` stays 0.0 (owner re-levelled; wall lean -0.5 deg).
+* Backup of the pre-change file: `track-a-backup-20261111-232112-mount`.
+* 32/32 tests pass on the installed copy.
+
+The 0.24 m estimate was wrong in method. It compared the turned box's nearest corner (1.139 m) and ignored the -3.7 cm
+the old pitch error added in the square-face test. Corrected, the square-face test gives lens -> face about 1.04 m.
+So the lens is about 4 cm behind the bumper, and x is about 0.21 m. That holds only if bumper -> face was 1.00 m and
+the front edge is at +0.25 m. **Not adopted.**
+
+Measurement at 23:22 (tilt 0 configured; box turned about 20-25 deg; same position):
+
+| Measure | Result |
+|---|---|
+| Wall lean | 0.5 deg (pitch about level) |
+| Box detection | 100/100 scans, range std 0.8 mm. The range sweeps 1.206 to 1.139 m across -4.4..+3.6 deg because the face is angled, so it is not comparable to a front-face distance. |
+| Box face depth from the lens (optical) | 1.03-1.04 m |
+| Box top surface | 0.163 m vs 0.235 m: **-7.2 cm** |
+| Lowest visible box point | -5.6 cm (below the floor, impossible) |
+
+Both height readings are offset by about -6 to -7 cm at 1.02 m. That means one of:
+* the lens is about 0.23 m high rather than 0.30 (possibly changed by the re-level);
+* the camera is tilted about 4 deg up.
+
+The wall lean (0.5 deg) favours the height explanation. Not resolvable without a tape measurement.
+
+Object at 0.73 m (23:16, 17-31 cm left, 18-43 cm high): **absent at 23:22**, so it was transient (most likely the owner
+adjusting the box or camera at that moment). Unconfirmed.
+
+**Needed from the owner (tape):**
+* A: bumper -> box front face, with the box square-on and upright.
+* B: Astra lens -> box front face.
+* C: Astra lens centre height above the floor.
+
+B - A gives the lens-behind-bumper offset (x_m = 0.25 - offset; +x forward, REP-103, origin = floor point at the axle
+midpoint). B is also a direct check of the factory depth scale. C settles the height-vs-pitch question.

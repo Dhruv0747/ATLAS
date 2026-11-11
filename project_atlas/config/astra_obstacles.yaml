@@ -5,11 +5,12 @@
 
 mount:                      # base_link -> astra_depth_optical_frame (ROS REP-103: x forward, y left, z up)
   x_m: 0.13                 # CANDIDATE (derived, not directly measured): front edge +0.25 minus lens 0.12 behind
-                            #   it (owner tape 0.79-0.67 m). Uncertainty ~+-0.02 m. Owner-approved for use 2026-11-06
+                            #   it (owner tape 0.79-0.67 m). Box test 2026-11-11 suggests it is off; change PENDING
+                            #   owner verification of lens->bumper offset (see TRACK_A_TEST_REPORT)
   y_m: 0.0                  # PRIOR: owner '~0 by eye' (before the 26 Oct remount). Uncertainty ~+-0.03 m
   z_m: 0.30                 # G2 owner, ruler, IR lens height after remount (issue #12, 26 Oct 2026 22:48 IST)
-  pitch_deg: 0.8            # G2 owner, phone +0.8 deg after remount = 0.8 deg nose-down (same app read -10.3
-                            #   for the old nose-up mount). Depth hint ~1.8 up: if true, far low objects (2 m, 10 cm) are missed; G4 floor-plane check
+  pitch_deg: 0.0            # OWNER RE-LEVELLED 2026-11-11 to 0; far-wall lean measured -0.3 deg (+-1). Before the
+                            #   re-level the camera pointed ~8-9 deg UP (box top, wall lean, wall base all agreed)
   yaw_deg: 0.0              # facing straight ahead
 
 astra:

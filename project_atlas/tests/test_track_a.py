@@ -82,10 +82,10 @@ class ConfigGate(unittest.TestCase):
     def test_shipped_config_values_and_provenance(self):
         cfg = core.validate_config(yaml.safe_load((ROOT / 'config/astra_obstacles.yaml').read_text()))
         m, sc = cfg['mount'], cfg['obstacle_scan']
-        self.assertEqual((m['x_m'], m['y_m'], m['z_m'], m['pitch_deg'], m['yaw_deg']), (0.13, 0.0, 0.30, 0.8, 0.0))
+        self.assertEqual((m['x_m'], m['y_m'], m['z_m'], m['pitch_deg'], m['yaw_deg']), (0.13, 0.0, 0.30, 0.0, 0.0))
         self.assertEqual((sc['range_min_m'], sc['range_max_m'], sc['max_height_m']), (0.35, 3.0, 1.0))
         text = (ROOT / 'config/astra_obstacles.yaml').read_text()
-        for marker in ('CANDIDATE (derived, not directly measured)', 'PRIOR', 'ENGINEERING BOUND, NOT a rover height'):
+        for marker in ('CANDIDATE (derived, not directly measured)', 'OWNER RE-LEVELLED', 'PRIOR', 'ENGINEERING BOUND, NOT a rover height'):
             self.assertIn(marker, text)
 
     def test_null_mount_or_height_refused(self):
