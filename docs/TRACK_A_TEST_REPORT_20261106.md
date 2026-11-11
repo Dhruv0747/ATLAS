@@ -319,3 +319,5 @@ G5 (Nav2 integration and supervised driving) not applied: needs separate owner a
 * Undo:
   `cp -p <backup> nav2_params.yaml && systemctl --user restart atlas-localization`
   `systemctl --user stop atlas-astra-bridge atlas-astra-obstacles`
+* Owner: box placed about 80 cm from the bumper, so expected x = 0.25 + 0.80 = 1.05 m. The Astra's nearest box range
+  is 1.04 m (-1 cm; the 1.04-1.09 spread is the box's angled faces). Position in Nav2 consistent. **Stage 1 PASS.**
