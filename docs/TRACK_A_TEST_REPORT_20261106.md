@@ -292,3 +292,30 @@ Scene clusters at start, all known objects:
 * Floor-plane check: replaced by tape C, far-wall lean 0.0 deg and box-top height +0.7 cm (glossy floor).
 
 G5 (Nav2 integration and supervised driving) not applied: needs separate owner approval.
+
+## G5 stage 1: Nav2 integration on the parked rover (2026-11-12 00:09-00:20, owner-approved, E-STOP latched per owner)
+
+* Parked interlock passed before every step. No motion commands. Owner's E-STOP state is not readable from telemetry,
+  so we rely on the owner's confirmation.
+* `apply_g5.sh`: all 15 merge checks PASS. nav2_params.yaml 2411371c89751eba -> 1ab07b4498fc67ab.
+* Backup: `nav2_params.yaml.before-track-a-20261112-000948`.
+* Astra unit and bridge started. The bridge join made CPU 98-100 % for about 5 s while parked, then returned to
+  about 62 %.
+* `atlas-localization` restarted (Nav2 + AMCL): controller_server active after 89 s; NRestarts 0.
+  * Local costmap plugins: `[obstacle_layer, astra_layer, inflation_layer]`.
+  * astra topic `/astra/obstacle_scan`, inf_is_valid false, expected_update_rate 0.0.
+  * Log: "Using plugin astra_layer / Subscribed to Topics: astra / Initialized plugin astra_layer".
+* Localization: seeder (verify mode) reports **LOCALIZATION UNKNOWN, ambiguous: two places fit almost equally**.
+  * Identical to the verdict at boot (21:40), so it was pre-existing, not caused by the restart.
+  * No map -> base_link, so the planner waits and bt_navigator stays inactive. **Stage 2 driving is blocked until
+    localization is confirmed.**
+* Box (lying flat, 9.5 cm, below the LiDAR plane):
+  * Astra sees it at -5.9..+3.1 deg, 1.04-1.09 m (about 0.80 m from the bumper).
+  * Nav2 local costmap: that area went from free (LiDAR only, earlier) to lethal plus inscribed inflation.
+  * **PASS: the Astra adds a low obstacle the LiDAR cannot see.**
+* LiDAR: `/scan` measured 6.73 Hz (healthy). The dashboard's 1.58-1.86 "observed_hz" is its own telemetry sampling,
+  not the sensor rate.
+* CPU about 62 %, Tj 64.6 C.
+* Undo:
+  `cp -p <backup> nav2_params.yaml && systemctl --user restart atlas-localization`
+  `systemctl --user stop atlas-astra-bridge atlas-astra-obstacles`
