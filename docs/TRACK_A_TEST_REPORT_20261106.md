@@ -228,3 +228,32 @@ adjusting the box or camera at that moment). Unconfirmed.
 
 B - A gives the lens-behind-bumper offset (x_m = 0.25 - offset; +x forward, REP-103, origin = floor point at the axle
 midpoint). B is also a direct check of the factory depth scale. C settles the height-vs-pitch question.
+
+### Box retest with owner tape values (2026-11-11 23:41; config x 0.21, z 0.23, pitch 0.0)
+
+Owner tape:
+* A: bumper -> box face 1.00 m.
+* B: lens -> box face 1.04 m.
+* C: lens height 0.23 m.
+
+Config backup: `track-a-backup-20261111-234037-tape`. 32/32 tests pass.
+
+| Criterion | Before (0.13 / 0.30 / 0.8 deg) | After (0.21 / 0.23 / 0.0 deg) | Verdict |
+|---|---|---|---|
+| Distance, face centre (straight-ahead bins -0.9..+0.6 deg) vs 1.25 m | 1.14 m (-11 cm) | **1.238-1.250 m (-1.2..0.0 cm)** | PASS |
+| Depth scale: Astra lens -> face centre vs tape B 1.04 | n/a | **1.034 m (-0.6 cm)**, independent of the config | PASS |
+| Repeat stability | 101/101 | **205/205 scans over 2 runs, std <= 1.1 mm, runs identical to 1 mm** | PASS |
+| Box top height | -16.6 cm (upright 0.235) | **0.101-0.103 m**: matches **0.10 m if the box lies flat**; would be -13 cm if upright | PASS if lying flat (owner to confirm) |
+| Tilt (far-wall lean, independent of the box) | ~8-9 deg up | **0.0 deg** | PASS |
+| Unexplained obstacles | object at 0.73 m (transient) | none. Every scan cluster is a known object: right table (-22..-13 deg, 0.97-1.39 m), wall (2.67-2.93 m), box (-3.9..+5.1 deg, 1.22-1.29 m), left table/stool (+13..+22 deg, 1.06-1.64 m) | PASS |
+
+Notes:
+* The box face is angled about 20 deg: range 1.289 m at -3.9 deg to 1.219 m at +3.1 deg. So the comparison uses the
+  straight-ahead (face centre) bins, as the tape was taken straight ahead.
+* Below the floor the depth image shows the box's mirror image (glossy floor). These points are below the floor cut
+  and never become obstacles.
+* The expected 1.25 m still relies on the +0.25 m front-edge record. x 0.21 is derived from A and B, so the distance
+  PASS is partly circular. The truly independent checks are the depth scale (tape B vs Astra, -0.6 cm), the height
+  and the tilt.
+
+Production: 34 units identical, nav2_params unchanged, Astra and bridge off after the test.

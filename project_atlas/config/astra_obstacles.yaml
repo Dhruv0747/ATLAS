@@ -4,11 +4,10 @@
 # Calibration: FACTORY / driver CameraInfo at runtime (no calibration file); see docs/TRACK_A_FACTORY_CALIBRATION.md.
 
 mount:                      # base_link -> astra_depth_optical_frame (ROS REP-103: x forward, y left, z up)
-  x_m: 0.13                 # CANDIDATE (derived, not directly measured): front edge +0.25 minus lens 0.12 behind
-                            #   it (owner tape 0.79-0.67 m). Box test 2026-11-11 suggests it is off; change PENDING
-                            #   owner verification of lens->bumper offset (see TRACK_A_TEST_REPORT)
+  x_m: 0.21                 # OWNER TAPE 2026-11-11: bumper->box face 1.00 m (A), lens->box face 1.04 m (B), so the
+                            #   lens is 0.04 m behind the bumper; front edge +0.25 (owner record) -> 0.25-0.04 = 0.21
   y_m: 0.0                  # PRIOR: owner '~0 by eye' (before the 26 Oct remount). Uncertainty ~+-0.03 m
-  z_m: 0.30                 # G2 owner, ruler, IR lens height after remount (issue #12, 26 Oct 2026 22:48 IST)
+  z_m: 0.23                 # OWNER TAPE 2026-11-11 (C), lens centre height after the camera re-level (was 0.30)
   pitch_deg: 0.0            # OWNER RE-LEVELLED 2026-11-11 to 0; far-wall lean measured -0.3 deg (+-1). Before the
                             #   re-level the camera pointed ~8-9 deg UP (box top, wall lean, wall base all agreed)
   yaw_deg: 0.0              # facing straight ahead
