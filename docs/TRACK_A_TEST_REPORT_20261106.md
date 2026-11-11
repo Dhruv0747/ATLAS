@@ -321,3 +321,20 @@ G5 (Nav2 integration and supervised driving) not applied: needs separate owner a
   `systemctl --user stop atlas-astra-bridge atlas-astra-obstacles`
 * Owner: box placed about 80 cm from the bumper, so expected x = 0.25 + 0.80 = 1.05 m. The Astra's nearest box range
   is 1.04 m (-1 cm; the 1.04-1.09 spread is the box's angled faces). Position in Nav2 consistent. **Stage 1 PASS.**
+
+### Stage 1 rolled back by the owner (2026-11-12 about 00:26)
+
+The owner stopped the Astra and bridge, restored `nav2_params.yaml` from the backup, and restarted
+atlas-localization. Verified:
+
+| Check | Result |
+|---|---|
+| nav2_params.yaml | 2411371c89751eba (original) |
+| Local costmap plugins | `[obstacle_layer, inflation_layer]` |
+| Nav2 lifecycle | controller_server active, amcl active, bt_navigator inactive (same as before stage 1; localization UNKNOWN, ambiguous) |
+| /scan | 6.94 Hz |
+| Track A units | both inactive (static); no Astra or bridge processes |
+| atlas-* units | 34 active; rover parked |
+
+Track A software, config (x 0.21, z 0.23, pitch 0.0) and the G5 snippet stay installed for re-application with
+`apply_g5.sh`.
