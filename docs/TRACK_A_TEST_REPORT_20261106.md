@@ -124,3 +124,19 @@ Preconditions:
 * G4: tape-measured box position check.
 * G4: 10-minute empty-view phantom check.
 * G5: live Nav2 integration and supervised driving.
+
+## G4 shadow checks on the parked rover (2026-11-11, owner present)
+
+The installed unit `atlas-astra-obstacles` was started by hand in domain 77 only, and stopped after each check.
+* Not touched: the bridge, Nav2 and boot settings.
+* Every run: ExecCondition preflight OK, calibration FACTORY_DRIVER_CAMERAINFO (nominal), 0 restarts, clean stop.
+* Tool: `tools/track_a/g4_shadow_check.py`.
+
+| Check | Result |
+|---|---|
+| Floor-plane pitch/height | **NOT POSSIBLE here.** The floor returns no depth: the bottom 15 % of the image is empty, and the far wall appears mirrored up to 0.39 m below floor level (glossy floor). A matte sheet laid in front made no difference. The constrained fit was unreliable (265 inliers, impossible camera height), so no pitch or height value is claimed. |
+| Supporting evidence | A table (owner-confirmed) front-right: its legs' lowest points measure z = -0.9 cm at about 0.73 m from the camera, so the configured z 0.30 m and pitch 0.8 deg are consistent near range (about +-1 deg). Not a substitute for the floor or box check. |
+| Box at a tape-measured spot | **NOT DONE** (no box placed). |
+| 10-min empty view (22:22-22:33, owner confirmed nobody entered) | 4036 scans, 6.73 Hz, status OK 600/600 (no STALE/BLINDED), stable-scene jitter 7.4 mm median. Hits nearer than the stable scene in 191 scans (4.7 %), in two clusters: (1) about -14 deg at 1.30 m: the table edge flickering at a bin boundary (real object). (2) +5 to +12 deg at 0.70-0.72 m, 44 hits, intermittent: a straight line at about 0.45 m in front of the bumper, where the sheet's near edge lies. Probably the sheet edge or near-range noise; **unexplained, so not a clean PASS.** |
+| Resources (10 min) | Whole Jetson 62.6 % CPU (baseline 61-62 %), Tj 63.5 -> 63.9 C |
+| Production | 34 units: identical PIDs and restart counts; nav2_params hash 2411371c89751eba unchanged; Astra and bridge off afterwards, nothing left running |
