@@ -371,3 +371,19 @@ The owner's rollback had been an accidental run of the reference commands. Re-ap
   3. Do stage 2, supervised driving by the owner.
 * Left running overnight at the owner's choice: Astra and bridge, with Nav2 using the Astra layer. Nothing is
   boot-enabled. After a reboot the Astra stays off and Nav2 runs LiDAR-only.
+
+### Localization seeded (2026-11-12 about 00:48, rover parked, owner request)
+
+* `seed_atlas_localization.py --verify-place "dhruv room"` (real run): VERIFIED, "Seeded AMCL from LiDAR-verified
+  pose x=0.075 y=-2.295 via service".
+* map -> base_link available: (0.134, -2.258).
+* AMCL pose (0.125, -2.229, 75.6 deg), std 2.8 cm / 3.4 deg.
+* Nav2 lifecycle: amcl, controller_server, planner_server and bt_navigator all **active**.
+* Still open:
+  * `atlas_localization_monitor` reports DEGRADED: its own global re-check is still ambiguous (two places fit 0.98 vs
+    0.97).
+  * `navigation_authorized: false`.
+  * Mission-control navigation may refuse goals until that gate clears.
+  * Investigate at the start of the next session, before stage 2.
+* The owner removed the box. It is needed again for stage 2.
+* Stopped for the night. Astra and bridge still running (owner choice). No motion commands at any point.
