@@ -267,3 +267,28 @@ Remaining before G5:
 * Floor-plane check: not possible on this glossy floor. Pitch and height are now covered by tape C, the far-wall lean
   (0.0 deg) and the box-top height (+0.7 cm).
 * G5 needs separate owner approval.
+
+### 10-min empty view with the corrected mount (2026-11-11 23:48-23:59; box removed; x 0.21, z 0.23, pitch 0.0)
+
+Scene clusters at start, all known objects:
+* right table: -22..-13 deg, 0.97-1.39 m;
+* far wall/door: -13..+13 deg, 2.67-2.93 m;
+* left table/stool: +13..+25 deg, 1.15-1.66 m;
+* left-edge wall/curtain: +27 deg.
+
+| Measure | Result |
+|---|---|
+| Scans | 4061 (6.77 Hz), status OK 600/600 |
+| Stable-scene jitter | 3.6 mm median |
+| Hits nearer than the bin median | max **2 bins per scan**, only at cluster edges: +27 deg (1286 hits, 2.55 m vs bin median 2.86 m: the outermost bin switching between two real left-side surfaces) and +23..+26 deg (11 hits, 1.58-1.89 m: edge of the left table/stool cluster) |
+| Detections away from a real object | **none** |
+| **Verdict** | **PASS (no phantom obstacles)** |
+| Resources | CPU 62.2 %, Tj 64.2-64.3 C, 0 restarts |
+| Production | 34 units identical; nav2_params unchanged; Astra and bridge off afterwards |
+
+**G4 complete:**
+* Box test: PASS.
+* Empty view with the corrected mount: PASS.
+* Floor-plane check: replaced by tape C, far-wall lean 0.0 deg and box-top height +0.7 cm (glossy floor).
+
+G5 (Nav2 integration and supervised driving) not applied: needs separate owner approval.
