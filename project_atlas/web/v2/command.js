@@ -80,6 +80,14 @@ function renderConstellations(r){$('constellationGrid').innerHTML=diagnosticCons
 function toast(t){let e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>e.style.display='none',2200)}
 async function post(data,loud=true){try{let q=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});let j=await q.json();if(loud)toast(j.message||'done');return j}catch(e){if(loud)toast('CONTROL LINK LOST')}}
 let latestStatus=null,activeDetail='';
+// The server blanks Jetson CPU/RAM/temp/network when its diagnostic cache is >= 2.0 s old. The page polls every
+// 2.0 s, so timer jitter made every few updates blank (values flickered). Hold the last FRESH copy for up to 6 s;
+// after that the server's placeholders are shown. Display only: server-side guards are unchanged.
+let lastGoodDiag=null;
+function holdDiagnostics(d){const c=d&&d.diagnostic_cache;if(!c)return d;const now=Date.now();
+ if(c.fresh){lastGoodDiag={at:now,system:d.system,network:d.network,services:d.services};return d}
+ if(lastGoodDiag&&now-lastGoodDiag.at<=6000){d.system=lastGoodDiag.system;d.network=lastGoodDiag.network;d.services=lastGoodDiag.services;d.diagnostic_cache=Object.assign({},c,{held_ms:now-lastGoodDiag.at})}
+ return d}
 function tile(label,value,unit=''){return `<div class="detailTile"><b>${label}</b><strong>${value}${unit}</strong></div>`}
 function rangeTile(label,value,seconds){let mm=Number(value),valid=Number.isFinite(mm)&&mm>0&&seconds<4,pct=valid?Math.max(0,Math.min(100,mm/30)):0;return `<div class="detailTile"><b>${label}</b><strong>${valid?mm.toFixed(0)+' mm':'UNAVAILABLE'}</strong><div class="rangeBar"><div class="rangeFill" style="width:${pct}%"></div></div><div class="sensorHint">${valid?(mm<250?'NEAR':mm<500?'CAUTION':'VALID ECHO — not a driving clearance approval'):seconds>=4?'STALE / NOT INSTALLED':'NO VALID ECHO / NOT INSTALLED'} • age ${seconds<9999?seconds+'s':'--'}</div></div>`}
 function heatCells(r){let t={};try{t=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}let p=Array.isArray(t.pixels_c)?t.pixels_c:(Array.isArray(t.pixels)?t.pixels:[]),mn=Number(t.min_c),mx=Number(t.max_c);return `<div class="modalHeat">${Array.from({length:64},(_,i)=>{let v=Number(p[i]),q=Number.isFinite(v)?Math.max(0,Math.min(1,(v-mn)/Math.max(.2,mx-mn))):0;return `<i title="${Number.isFinite(v)?v.toFixed(1)+'°C':'--'}" style="background:${Number.isFinite(v)?`hsl(${220-q*220} 88% ${28+q*28}%)`:'#112436'}"></i>`}).join('')}</div><div class="detailGrid" style="margin-top:10px">${tile('MIN',n(t.min_c,1),'°C')}${tile('AVERAGE',n(t.avg_c,1),'°C')}${tile('MAX / HOTSPOT',n(t.max_c,1),'°C')}</div>`}
@@ -243,7 +251,7 @@ function companion(r,s){
  }
 }
 async function voiceMute(muted){try{let res=await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Wifi':'1'},body:JSON.stringify({muted})}),d=await res.json();$('companionPrivacy').textContent=d.message}catch(e){$('companionPrivacy').textContent='Mute request failed. Current microphone state is unknown.'}}
-async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'}).then(x=>x.json()),r=d.ros,net=d.network,s=d.system;latestStatus=d;
+async function refresh(){try{let d=holdDiagnostics(await fetch('/api/status',{cache:'no-store'}).then(x=>x.json())),r=d.ros,net=d.network,s=d.system;latestStatus=d;
  updateBatteryBadge(r);
  let cellGen=cellGeneration(val(r,'cell_tech',''));
  renderHealth(r,net);
