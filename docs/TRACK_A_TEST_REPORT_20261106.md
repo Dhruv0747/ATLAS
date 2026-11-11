@@ -135,7 +135,7 @@ The installed unit `atlas-astra-obstacles` was started by hand in domain 77 only
 | Check | Result |
 |---|---|
 | Floor-plane pitch/height | **NOT POSSIBLE here.** The floor returns no depth: the bottom 15 % of the image is empty, and the far wall appears mirrored up to 0.39 m below floor level (glossy floor). A matte sheet laid in front made no difference. The constrained fit was unreliable (265 inliers, impossible camera height), so no pitch or height value is claimed. |
-| Supporting evidence | A table (owner-confirmed) front-right: its legs' lowest points measure z = -0.9 cm at about 0.73 m from the camera, so the configured z 0.30 m and pitch 0.8 deg are consistent near range (about +-1 deg). Not a substitute for the floor or box check. |
+| ~~Supporting evidence~~ RETRACTED | Table legs' lowest *visible* points measured z = -0.9 cm. The box test below shows the bottom of the view is cut off, so these were not the floor contact. This is not evidence for z or pitch. |
 | Box at a tape-measured spot | **NOT DONE** (no box placed). |
 | 10-min empty view (22:22-22:33, owner confirmed nobody entered) | 4036 scans, 6.73 Hz, status OK 600/600 (no STALE/BLINDED), stable-scene jitter 7.4 mm median. Hits nearer than the stable scene in 191 scans (4.7 %), in two clusters: (1) about -14 deg at 1.30 m: the table edge flickering at a bin boundary (real object). (2) +5 to +12 deg at 0.70-0.72 m, 44 hits, intermittent: a straight line at about 0.45 m in front of the bumper, where the sheet's near edge lies. Probably the sheet edge or near-range noise; **unexplained, so not a clean PASS.** |
 | Resources (10 min) | Whole Jetson 62.6 % CPU (baseline 61-62 %), Tj 63.5 -> 63.9 C |
@@ -147,3 +147,33 @@ G4 status after 2026-11-11:
 * Box at a tape-measured spot: **open**.
 * Floor-plane pitch/height: **not possible on this glossy floor** (needs a matte floor area, e.g. a rug, in view). Table-leg evidence supports z and pitch near range.
 * G5 (Nav2 integration) not applied.
+
+### Box test (2026-11-11 23:06, owner-placed box: front face 1.00 m from the front bumper, centred; 23.5 x 19.3 x 10 cm)
+
+Expected front face x = 1.25 m in base_link (front edge +0.25 m from the axle midpoint, owner record).
+
+| Measure | Result |
+|---|---|
+| Detection | **101 / 101 scans (100 %)**, steady: range std 0.3 mm |
+| Range (scan, centre bins) | **1.140 m vs 1.25 expected: -11.0 cm. FAIL** (limit 3 cm) |
+| Range (depth points, front face) | 1.136 m (-11.4 cm) |
+| Width | 0.189 m in scan, 0.184 m in depth vs 0.193 true (good: lateral geometry and nominal intrinsics consistent) |
+| Lateral position | bins -3.9 to +5.1 deg, face centre y +1.7 cm (centred within placement accuracy) |
+| Height | box face computes at z -0.055..+0.069 m; the true top is 0.235 m. Top computed **16.6 cm too low** at 1.01 m from the lens |
+
+**Diagnosis: the configured pitch (+0.8 deg nose-down) is wrong by about 8-9 deg; the camera actually points nose-UP.**
+Three independent measurements agree:
+
+| Measurement | Implied pitch error |
+|---|---|
+| Box top 16.6 cm low at 1.01 m | 9.3 deg |
+| Far wall leans back in computed coordinates (dx/dz 0.14) | 7.9 deg |
+| Wall base appears 0.39 m below the floor at 2.55 m | 8.7 deg |
+
+The "wall below the floor" seen earlier was this pitch error, not only floor gloss. The pitch error alone explains about -3 to -4 cm of the box range error. The remaining about -7 cm points to the x = 0.13 m candidate (or the front-edge record) being off.
+
+Safety effect of the current config: points compute too low by about 15 cm at 1 m and 31 cm at 2 m. So:
+* Low obstacles are MISSED. The box was seen only because its upper part cleared the floor cut.
+* The floor never turns into phantoms, which matches the empty-view PASS.
+
+**The current config is NOT acceptable for G5.** No config was changed; Astra and bridge OFF; 34 production units identical; nav2_params unchanged.
