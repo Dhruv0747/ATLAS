@@ -177,3 +177,15 @@ Safety effect of the current config: points compute too low by about 15 cm at 1 
 * The floor never turns into phantoms, which matches the empty-view PASS.
 
 **The current config is NOT acceptable for G5.** No config was changed; Astra and bridge OFF; 34 production units identical; nav2_params unchanged.
+
+### Re-test after the owner re-levelled the camera (2026-11-11 23:16; box turned so a side shows)
+
+| Measure | Result |
+|---|---|
+| Pitch from the far wall's lean (independent of the box) | lean dx/dz 0.019, so the configured pitch is off by 1.1 deg. **Estimated true pitch -0.3 deg (level within about 1 deg)**, matching the owner's "set to 0". Before: about 8-9 deg nose-up. |
+| Wall bottom | lowest computed point -0.14 m (was -0.39 m); remaining part is consistent with floor mirroring |
+| Box (turned) | detected in **70 / 70 scans**, range 1.14 m (nearest corner) to 1.20 m across -4..+4 deg |
+| Distance | still **about 11 cm short** of 1.25 m expected. With pitch now about right, this is an **x offset**: the Astra puts the box 1.01 m from its lens, so the lens is about 1 cm behind the bumper point the owner measured from. Config assumes 12 cm (x = 0.13, derived). Box-derived x is about 0.24 m. |
+| Extra object | something at 0.73 m, 17-31 cm left, 18-43 cm high (not in the centre bins) |
+
+Config NOT changed (pitch 0.8 and x 0.13 still in `astra_obstacles.yaml`). Astra and bridge OFF; nav2_params unchanged.
