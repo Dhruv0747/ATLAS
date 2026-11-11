@@ -63,7 +63,7 @@ function renderHealth(r,net){
   ['DALY BMS',bmsLive(r)?'ok':'fail',bmsLive(r)?'Battery telemetry live':'Battery reading invalid or stale • check BMS Bluetooth connection','bms_status'],
   ['ORIN IO BASE',recent(r,'carrier_status',25)&&carrier.ok?'ok':'fail',carrier.ok?`${carrier.power_mode} • NVMe ${carrier.nvme.free_gb}GB free • ${carrier.usb_devices} USB devices`:'Carrier health service offline','carrier_status'],
   [`${cellGen} MODEM`,cellRegistered?'ok':recent(r,'cell_registration',20)?'warn':'fail',`Registration: ${val(r,'cell_registration','NO HEARTBEAT')} • signal report is not an Internet test`,'cell_registration','cellular'],
-  ['VOICE USB',sys.voice_usb?'ok':'fail',sys.voice_usb?'ESP32-S3 enumerated; check voice service for response':(sys.voice_usb_reason||'Voice USB not enumerated'),null,'diagnostics'],
+  ['VOICE USB',typeof sys.voice_usb!=='boolean'?'warn':(sys.voice_usb?'ok':'fail'),typeof sys.voice_usb!=='boolean'?'Waiting for Jetson status data (no USB check result yet)':(sys.voice_usb?'ESP32-S3 enumerated; check voice service for response':(sys.voice_usb_reason||'Voice USB not enumerated')),null,'diagnostics'],
   ['GNSS',gpsCheck.fixed?'ok':gpsCheck.live?'warn':'fail',gpsCheck.fixed?'Current position fix valid':gpsCheck.live?'NMEA communication live, but NO position fix':'No fresh valid NMEA — open diagnostics','gps_diagnostics','gps'],
   ['WEB / TAILSCALE',net&&net.tailscale_ip!='--'?'ok':'warn',net&&net.tailscale_ip!='--'?`Reachable at ${net.tailscale_ip}`:'Tailscale address unavailable',null]
  ];
@@ -230,7 +230,9 @@ function companion(r,s){
  $('companionPrivacy').textContent=age(r,'companion_privacy')<12?val(r,'companion_privacy','Unknown'):'VOICE PRIVACY STATUS STALE — do not assume the microphone is muted';
  $('companionAlert').textContent='LATEST ANNOUNCEMENT: '+val(r,'companion_alert','None');
  if(age(r,'companion_state')>=12){$('companionState').textContent='VOICE SERVICE STALE / POSSIBLY IN CALL'}
- if(!s.voice_usb){
+ if(typeof s.voice_usb!=='boolean'){
+  $('voiceUsbReason').textContent='Waiting for Jetson status data';$('voiceUsbReason').style.color='#ffcc3d';
+ }else if(!s.voice_usb){
   $('companionState').textContent='VOICE USB OFFLINE';$('companionState').style.color='#ff4655';$('companionState').style.borderColor='#ff4655';
   $('voiceUsbReason').textContent=`RED: ${s.voice_usb_reason||'Reconnect the ESP32-S3 USB data cable'} • ${s.voice_usb_path||'NOT ENUMERATED'}`;
   $('voiceUsbReason').style.color='#ff8b94';
