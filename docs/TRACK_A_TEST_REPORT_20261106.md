@@ -243,7 +243,7 @@ Config backup: `track-a-backup-20261111-234037-tape`. 32/32 tests pass.
 | Distance, face centre (straight-ahead bins -0.9..+0.6 deg) vs 1.25 m | 1.14 m (-11 cm) | **1.238-1.250 m (-1.2..0.0 cm)** | PASS |
 | Depth scale: Astra lens -> face centre vs tape B 1.04 | n/a | **1.034 m (-0.6 cm)**, independent of the config | PASS |
 | Repeat stability | 101/101 | **205/205 scans over 2 runs, std <= 1.1 mm, runs identical to 1 mm** | PASS |
-| Box top height | -16.6 cm (upright 0.235) | **0.101-0.103 m**: matches **0.10 m if the box lies flat**; would be -13 cm if upright | PASS if lying flat (owner to confirm) |
+| Box top height (owner: box lying flat, taped 9.5 cm) | -16.6 cm (upright 0.235) | **0.101-0.103 m vs 0.095 m: +0.6..+0.8 cm** | PASS |
 | Tilt (far-wall lean, independent of the box) | ~8-9 deg up | **0.0 deg** | PASS |
 | Unexplained obstacles | object at 0.73 m (transient) | none. Every scan cluster is a known object: right table (-22..-13 deg, 0.97-1.39 m), wall (2.67-2.93 m), box (-3.9..+5.1 deg, 1.22-1.29 m), left table/stool (+13..+22 deg, 1.06-1.64 m) | PASS |
 
@@ -257,3 +257,13 @@ Notes:
   and the tilt.
 
 Production: 34 units identical, nav2_params unchanged, Astra and bridge off after the test.
+
+**Box test: PASS on all four acceptance criteria** (distance within 3 cm, correct height, stable repeated detection,
+no unexplained obstacles), with the owner-taped mount x 0.21, z 0.23, pitch 0.0.
+
+Remaining before G5:
+* Re-run the 10-min empty view with the NEW mount and the box removed. The 22:35 PASS used the old mount while the
+  camera pointed about 8 deg up.
+* Floor-plane check: not possible on this glossy floor. Pitch and height are now covered by tape C, the far-wall lean
+  (0.0 deg) and the box-top height (+0.7 cm).
+* G5 needs separate owner approval.
