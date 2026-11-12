@@ -402,3 +402,27 @@ The owner's rollback had been an accidental run of the reference commands. Re-ap
 * New near object at +16..+20 deg (left), 0.85-0.90 m; not seen in earlier runs.
 * Wall ranges are about 0.2 m shorter than last night, so the rover's view or position differs slightly after the
   reboot.
+
+## Phase 1: boot auto-start + live depth picture (2026-11-12 11:05, owner request)
+
+* **Boot start** (`deploy/track_a/enable_boot.sh`; undo with `disable_boot.sh`):
+  * `atlas-astra-obstacles` is enabled (WantedBy=default.target): Astra driver, obstacle scan and depth picture, all
+    in domain 77.
+  * `atlas-astra-bridge-starter` (oneshot, enabled) starts the bridge **once** after boot, when all of these hold:
+    the Astra unit is active; the rover is verifiably parked twice, 10 s apart; CPU over 10 s is below 72 %.
+  * The starter gives up after 15 min (bridge stays off). The bridge unit keeps no [Install], Restart=no and its own
+    parked ExecCondition.
+  * Tested live: the starter started the bridge after 11 s ("parked twice, CPU 69 %").
+  * systemd also restarts the bridge when the Astra unit restarts (BindsTo). Its ExecCondition still requires
+    parked, so if that happened while moving the bridge stays off and Nav2 runs LiDAR-only.
+* **Depth picture:** `scripts/atlas_astra_depth_preview.py` (in the Track A launch, respawned, nice 10).
+  * About 1 Hz colourized depth (red near, blue far, black = no reading, 0.35-3 m), written atomically to
+    `web/v2/astra_depth_live.webp` plus a status `.txt`. Served by the existing static route; no web restart.
+  * Home "Depth camera" card (home-cards.js; backup `home-cards.js.before-depth-card-*`): shows "Live · Nav2" and the
+    picture only while the status sequence keeps changing (an old file never counts).
+  * Verified in the browser: 320x240 image, refreshing.
+* Installer false "domain_bridge missing" warning fixed (`set +u` before sourcing ROS under `set -u`).
+* Tests: 34/34 on the Jetson (new: colourize invalid/near/far, boot wiring).
+* **Full reboot test still to do** (owner reboots; then check the Astra, bridge starter and picture come up by
+  themselves).
+* While Track A runs, the 3D Vision Lab cannot open the Astra (camera held by Track A).

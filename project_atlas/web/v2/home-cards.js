@@ -127,7 +127,38 @@
       if (r.status === 404) depthMissing = true; else if (r.ok) { depth = await r.json(); depthAt = Date.now(); }
     } catch (e) { /* shown as no reply */ } finally { depthBusy = false; renderDepth(); }
   }
+  // ---------- Track A live depth picture (Astra obstacle pipeline, written about 1 Hz) ----------
+  // Live only after the status file's sequence number is SEEN TO CHANGE (an old file left from a previous run never
+  // counts), and only while it keeps changing (within 5 s). No clock comparison with the Jetson is needed.
+  const ta = { seq: null, changedAt: 0, info: null };
+  async function pollTrackA() {
+    if (document.hidden) return;
+    try {
+      const r = await fetch('/v2/astra_depth_live.txt', { cache: 'no-store', signal: AbortSignal.timeout(2500) });
+      if (r.ok) { const j = await r.json(); if (ta.seq !== null && j.seq !== ta.seq) { ta.changedAt = Date.now(); ta.info = j; } ta.seq = j.seq; }
+    } catch (e) { /* not running */ }
+    renderDepth();
+  }
+  const trackALive = () => !!ta.info && Date.now() - ta.changedAt < 5000;
+  function depthImage(show) {
+    const c = $('cardDepth'); if (!c) return;
+    let img = c.querySelector('img[data-ta]');
+    if (!show) { if (img) img.remove(); return; }
+    if (!img) {
+      img = document.createElement('img'); img.dataset.ta = '1'; img.alt = 'Live Astra depth view: red near, blue far';
+      img.style.cssText = 'display:block;width:100%;max-width:320px;aspect-ratio:4/3;margin:6px 0;border-radius:10px;background:#000;image-rendering:pixelated';
+      const sub = c.querySelector('[data-sub]'); (sub ? sub.parentNode : c).insertBefore(img, sub || null);
+    }
+    img.src = '/v2/astra_depth_live.webp?seq=' + ta.seq;
+  }
   function renderDepth() {
+    if (trackALive()) {
+      depthImage(true);
+      const i = ta.info, near = i.nearest_m != null ? ` · nearest ${fx(i.nearest_m, 2)} m` : '';
+      return setCard('cardDepth', { state: 'ok', pill: 'Live · Nav2', main: 'On', unit: '',
+        sub: `Obstacle layer for Nav2 · red near, blue far (0.35-3 m), black = no reading · ${fx(i.valid_percent, 0)}% valid${near}`, age: '' });
+    }
+    depthImage(false);
     if (depthMissing) return setCard('cardDepth', { state: 'unverified', pill: 'Open lab', main: 'Vision Lab', unit: '', sub: 'Live depth status is shown in the 3D Vision Lab.', age: '' });
     if (!depth || Date.now() - depthAt > 15000) return setCard('cardDepth', { state: 'na', main: '—', unit: '', sub: 'No reply from the Vision Lab service', age: '' });
     const s = String(depth.state || 'OFF'), cpu = depth.blocked_cpu_percent, lim = depth.cpu_limit_percent;
@@ -271,7 +302,7 @@
   // Map preview: the saved map image only (no live pose); refreshed slowly and only while the page is visible.
   setInterval(() => { if (!document.hidden) $('hmMap').src = '/map.png?home=' + Date.now(); }, 60000);
 
-  setInterval(render, 1000); setInterval(pollLidar, 1000); setInterval(pollDepth, 5000);
+  setInterval(render, 1000); setInterval(pollLidar, 1000); setInterval(pollDepth, 5000); setInterval(pollTrackA, 2000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { pollLidar(); pollDepth(); } });
-  render(); pollLidar(); pollDepth();
+  render(); pollLidar(); pollDepth(); pollTrackA();
 })();

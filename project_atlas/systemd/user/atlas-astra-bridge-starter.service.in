@@ -1,0 +1,13 @@
+[Unit]
+Description=ATLAS Track A: start the Astra bridge once after boot, only when parked and CPU has settled
+After=atlas-astra-obstacles.service
+Wants=atlas-astra-obstacles.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/jetson/project_atlas/scripts/atlas_astra_bridge_boot_start.sh
+TimeoutStartSec=1000
+Nice=10
+
+[Install]
+WantedBy=default.target

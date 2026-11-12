@@ -329,6 +329,42 @@ class BridgeInterlock(unittest.TestCase):
         self.assertTrue(self.pc.parked(st))
 
 
+class DepthPreviewAndBoot(unittest.TestCase):
+    """Dashboard depth picture (pure function) and boot-start wiring (static checks; nothing is started)."""
+    def test_colorize_invalid_black_near_red_far_blue(self):
+        try:
+            import cv2  # noqa: F401
+        except ImportError:
+            self.skipTest('OpenCV not installed')
+        import atlas_astra_depth_preview as pv
+        d = np.zeros((120, 160), np.uint16)
+        d[:, 40:80] = 400        # 0.40 m: near
+        d[:, 80:120] = 2900      # 2.90 m: far
+        img = pv.colorize(d)
+        self.assertEqual(img.shape, (240, 320, 3))
+        self.assertTrue((img[:, :80] == 0).all(), 'no reading must be black')
+        b, g, r = img[100, 120].astype(int)
+        self.assertGreater(r, b + 80, 'near must be red')
+        b, g, r = img[100, 200].astype(int)
+        self.assertGreater(b, r + 80, 'far must be blue')
+
+    def test_boot_wiring(self):
+        ob = (ROOT / 'systemd/user/atlas-astra-obstacles.service.in').read_text()
+        br = (ROOT / 'systemd/user/atlas-astra-bridge.service.in').read_text()
+        st = (ROOT / 'systemd/user/atlas-astra-bridge-starter.service.in').read_text()
+        self.assertIn('WantedBy=default.target', ob)
+        self.assertFalse(any(l.strip() == '[Install]' for l in br.splitlines()), 'the bridge itself never starts at boot directly')
+        self.assertIn('Restart=no', br)
+        self.assertIn('ExecCondition=', br, 'bridge keeps its own parked interlock')
+        self.assertIn('Type=oneshot', st)
+        self.assertNotIn('Restart=', st)
+        sh = ROOT / 'scripts/atlas_astra_bridge_boot_start.sh'
+        self.assertEqual(subprocess.run(['bash', '-n', str(sh)]).returncode, 0)
+        body = sh.read_text()
+        for needle in ('atlas_astra_bridge_parked_check.py', '-ge 72', 'LIMIT_S=900'):
+            self.assertIn(needle, body)
+
+
 @unittest.skipUnless(os.environ.get('AMENT_PREFIX_PATH'), 'ROS 2 not sourced')
 class RosEndToEnd(unittest.TestCase):
     """Real node + synthetic depth publisher in an isolated, localhost-only ROS domain (never domain 0 or 77)."""

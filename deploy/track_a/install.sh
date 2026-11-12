@@ -6,6 +6,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"; SRC="$REPO/project_atlas"; DST="$HOME/project_atlas"
 UNITS="$HOME/.config/systemd/user"; BK="$HOME/project-atlas-migration/track-a-backup-$(date +%Y%m%d-%H%M%S)"
 FILES="scripts/atlas_astra_obstacle_core.py scripts/atlas_astra_obstacle_scan.py scripts/atlas_astra_bridge_parked_check.py
+scripts/atlas_astra_depth_preview.py scripts/atlas_astra_bridge_boot_start.sh
 launch/atlas_astra_obstacles.launch.py
 config/astra_obstacles.yaml config/astra_obstacles_bridge.yaml config/nav2_astra_obstacles_LIVE_SNIPPET.yaml
 tools/track_a/check_nav2_merge.py tests/test_track_a.py"
@@ -19,15 +20,15 @@ for f in $FILES; do
   fi
   mkdir -p "$DST/$(dirname $f)"; install -m 0644 "$SRC/$f" "$DST/$f"
 done
-chmod 0755 "$DST/scripts/atlas_astra_obstacle_scan.py" "$DST/scripts/atlas_astra_bridge_parked_check.py"
-for u in atlas-astra-obstacles atlas-astra-bridge; do
+chmod 0755 "$DST/scripts/atlas_astra_obstacle_scan.py" "$DST/scripts/atlas_astra_bridge_parked_check.py" "$DST/scripts/atlas_astra_depth_preview.py" "$DST/scripts/atlas_astra_bridge_boot_start.sh"
+for u in atlas-astra-obstacles atlas-astra-bridge atlas-astra-bridge-starter; do
   [ -e "$UNITS/$u.service" ] && cp -p "$UNITS/$u.service" "$BK/"
   install -m 0644 "$SRC/systemd/user/$u.service.in" "$UNITS/$u.service"
 done
 systemctl --user daemon-reload
 echo "$BK" > "$HOME/project-atlas-migration/track-a-last-backup"
-echo "Installed (NOT enabled, NOT started). Backup: $BK"
-if ! (source /opt/ros/humble/setup.bash >/dev/null 2>&1; ros2 pkg prefix domain_bridge) >/dev/null 2>&1; then
+echo "Installed (NOT enabled, NOT started; boot start: deploy/track_a/enable_boot.sh). Backup: $BK"
+if ! (set +u; source /opt/ros/humble/setup.bash >/dev/null 2>&1; ros2 pkg prefix domain_bridge) >/dev/null 2>&1; then
   echo "Still needed for the bridge (needs your password):  sudo apt install ros-humble-domain-bridge"
 fi
 echo "Next: bash deploy/track_a/verify.sh"

@@ -70,6 +70,9 @@ def generate_launch_description():
         Node(package='tf2_ros', executable='static_transform_publisher', name='astra_optical_tf',
              arguments=['--yaw', str(-math.pi / 2), '--pitch', '0', '--roll', str(-math.pi / 2),
                         '--frame-id', 'astra_link', '--child-frame-id', 'astra_depth_optical_frame']),
+        # Dashboard depth picture (about 1 Hz, read-only). Respawned if it dies; it never affects the obstacle scan.
+        ExecuteProcess(cmd=[sys.executable, str(ROOT / 'scripts/atlas_astra_depth_preview.py')],
+                       output='log', name='atlas_astra_depth_preview', respawn=True, respawn_delay=5.0),
         ExecuteProcess(cmd=[sys.executable, str(ROOT / 'scripts/atlas_astra_obstacle_scan.py')],
                        output='log', name='atlas_astra_obstacle_scan',
                        on_exit=[EmitEvent(event=Shutdown(reason='scan node exited'))]),   # systemd decides

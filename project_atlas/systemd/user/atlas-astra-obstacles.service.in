@@ -17,4 +17,7 @@ RestartSec=10
 RestartPreventExitStatus=78
 MemoryMax=400M
 Nice=5
-# No [Install] section: never starts at boot until the activation gates in docs/TRACK_A_DEPTH_NAV.md pass.
+# Boot start (owner request 2026-11-12): enabled with deploy/track_a/enable_boot.sh. Sensor pipeline in the
+# private domain 77 only; joining production domain 0 is the bridge's job (atlas-astra-bridge-starter).
+[Install]
+WantedBy=default.target
