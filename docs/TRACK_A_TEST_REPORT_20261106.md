@@ -426,3 +426,32 @@ The owner's rollback had been an accidental run of the reference commands. Re-ap
 * **Full reboot test still to do** (owner reboots; then check the Astra, bridge starter and picture come up by
   themselves).
 * While Track A runs, the 3D Vision Lab cannot open the Astra (camera held by Track A).
+
+## Reboot test of the boot auto-start (2026-11-12 11:17), PASS
+
+| Time | Event |
+|---|---|
+| 11:17:10 | Jetson booted (owner reboot) |
+| 11:17:32 | atlas-astra-obstacles active by itself |
+| 11:18:19 | Starter waited ("not verifiably parked or dashboard not up yet"), then "starting bridge: parked twice, CPU 71 %, after 47 s"; bridge active |
+
+* Nav2: "Initialized plugin astra_layer". The seeder gave "Seeded AMCL from LiDAR-verified pose x=0.175 y=-1.935".
+  amcl, controller_server, planner_server and bt_navigator all active about 2 minutes after boot.
+* Astra scan in domain 0 at 6.0-6.3 Hz; depth picture updating. CPU 68 % once settled (about 94 % briefly during
+  boot).
+
+## Dashboard: Jetson CPU/RAM/temp kept disappearing (server fix, 2026-11-12 11:22)
+
+* Cause: `snapshot()` in atlas_status_web.py refreshed the slow diagnostics only inside a request that already
+  found the cache >= 2.0 s old. That request got placeholders, and so did most following ones. With one page
+  polling every 2 s: **11 of 20 responses blank**, often several in a row. The page-side 6 s hold (f16488c) could
+  not bridge that.
+* Fix: a refresher thread re-runs the same refresh about once a second **while someone is viewing** (an
+  /api/status request within 30 s); idle otherwise. Freshness rule unchanged.
+* Backup: `atlas_status_web.py.before-cache-refresher-20261112-112247`.
+* rover-status-web (user unit) restarted while parked. Back in 11 s, NRestarts 0. E-STOP state re-read as
+  latched=True once the ROS link reconnected.
+* After the fix:
+  * polling at 2.0 s, 2.5 s and 5 s gave 0/12, 0/10 and 0/5 blank, ages <= 1.1 s;
+  * dashboard Jetson card blank in **0 of 64** samples;
+  * server sent 0 blank responses of 16.

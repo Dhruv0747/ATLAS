@@ -1878,11 +1878,42 @@ def _refresh_status_cache(started):
             _slow_cache["pending"] = False
 
 
+_cache_viewer = {"last_request": 0.0, "thread": None}
+
+
+def _status_cache_refresher():
+    # 2026-11-12: refresh the slow diagnostics about once a second WHILE someone is viewing (an /api/status request in
+    # the last 30 s), independent of request timing. Before, a refresh only started inside a request that already
+    # found the cache >= 2.0 s old, so a page polling every 2.0 s got blank Jetson CPU/RAM/temp/network in most
+    # responses (measured 11 of 20). Same refresh function, same "never stale-as-fresh" rule; idle when nobody views.
+    while True:
+        time.sleep(1.0)
+        now = time.monotonic()
+        with _slow_cache_lock:
+            if now - _cache_viewer["last_request"] > 30.0 or _slow_cache["pending"]:
+                continue
+            _slow_cache.update(pending=True, attempted=now)
+        _refresh_status_cache(now)
+
+
+def _ensure_cache_refresher():
+    t = _cache_viewer["thread"]
+    if t is None or not t.is_alive():
+        t = threading.Thread(target=_status_cache_refresher, daemon=True, name="atlas-web-status-refresher")
+        _cache_viewer["thread"] = t
+        t.start()
+
+
 def snapshot():
     # Reuse the existing cache, with one owned refresh in flight. Never wait for
     # OS diagnostics in an API request. ROS safety values are NOT cached here.
     now = time.monotonic()
     refresh = False
+    _cache_viewer["last_request"] = now
+    try:
+        _ensure_cache_refresher()
+    except Exception:
+        pass  # the on-request refresh below still works
     with _slow_cache_lock:
         # Refresh ahead of the unchanged two-second diagnostic cache expiry.
         if not _slow_cache["pending"] and now-_slow_cache["attempted"] >= 1.0 and now-_slow_cache["ts"] >= 1.0:
