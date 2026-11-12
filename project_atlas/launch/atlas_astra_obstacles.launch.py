@@ -46,6 +46,13 @@ def driver_command(astra):
               'depth_width': str(astra['depth_width']), 'depth_height': str(astra['depth_height']),
               'depth_fps': str(astra['depth_fps']), 'depth_scale': '1',
               'oni_log_to_file': 'false', 'oni_log_to_console': 'false'}
+    color = astra.get('color') or {}
+    if color.get('enable') is True:   # optional UVC colour stream; depth parameters above stay unchanged
+        params.update({'use_uvc_camera': 'true', 'enable_color': 'true',
+                       'uvc_vendor_id': str(color['uvc_vendor_id']), 'uvc_product_id': str(color['uvc_product_id']),
+                       'uvc_camera_format': str(color.get('uvc_camera_format', 'mjpeg')),
+                       'color_width': str(int(color['width'])), 'color_height': str(int(color['height'])),
+                       'color_fps': str(int(color['fps'])), 'enable_publish_extrinsic': 'true'})
     cmd = [str(RUNTIME / 'lib/astra_camera/astra_camera_node'), '--ros-args', '-r', '__ns:=/astra']
     for k, v in params.items():
         cmd += ['-p', f'{k}:={v}']

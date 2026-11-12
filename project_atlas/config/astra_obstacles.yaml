@@ -16,6 +16,14 @@ astra:
   depth_width: 160          # must match the runtime CameraInfo the node validates
   depth_height: 120
   depth_fps: 15             # half the viewer's 30 fps: enough for 0.3 m/s driving, half the load
+  color:                    # 2026-11-12 owner OK: Astra Pro UVC colour for 3D colour mapping. Depth is untouched
+    enable: true            #   (no depth_registration: the obstacle scan keeps the factory depth CameraInfo).
+    width: 640              #   Set enable: false and restart atlas-astra-obstacles to roll back.
+    height: 480
+    fps: 15
+    uvc_vendor_id: 11205     # 0x2bc5 (decimal: driver parameter is an integer)
+    uvc_product_id: 1281     # 0x0501 'Astra Pro HD Camera' (lsusb 2bc5:0501)
+    uvc_camera_format: mjpeg
 
 obstacle_scan:              # atlas_astra_obstacle_scan.py, evaluated in base_link
   target_frame: base_link
