@@ -133,23 +133,51 @@
   const ta = { seq: null, changedAt: 0, info: null };
   async function pollTrackA() {
     if (document.hidden) return;
-    try {
-      const r = await fetch('/v2/astra_depth_live.txt', { cache: 'no-store', signal: AbortSignal.timeout(2500) });
-      if (r.ok) { const j = await r.json(); if (ta.seq !== null && j.seq !== ta.seq) { ta.changedAt = Date.now(); ta.info = j; } ta.seq = j.seq; }
-    } catch (e) { /* not running */ }
+    // The dashboard server occasionally resets a connection under load; one quick retry keeps the card steady.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const r = await fetch('/v2/astra_depth_live.txt', { cache: 'no-store', signal: AbortSignal.timeout(2500) });
+        if (r.ok) { const j = await r.json(); if (ta.seq !== null && j.seq !== ta.seq) { ta.changedAt = Date.now(); ta.info = j; } ta.seq = j.seq; }
+        break;
+      } catch (e) { if (attempt === 0) await new Promise(res => setTimeout(res, 300)); }
+    }
     renderDepth();
   }
-  const trackALive = () => !!ta.info && Date.now() - ta.changedAt < 5000;
+  const trackALive = () => !!ta.info && Date.now() - ta.changedAt < 8000;   // writer ~1 Hz, poll 2 s: 8 s tolerates resets
   function depthImage(show) {
     const c = $('cardDepth'); if (!c) return;
     let img = c.querySelector('img[data-ta]');
-    if (!show) { if (img) img.remove(); return; }
+    if (!show) { if (img) img.remove(); const lg = c.querySelector('[data-ta-legend]'); if (lg) lg.remove(); return; }
     if (!img) {
       img = document.createElement('img'); img.dataset.ta = '1'; img.alt = 'Live Astra depth view: red near, blue far';
       img.style.cssText = 'display:block;width:100%;max-width:320px;aspect-ratio:4/3;margin:6px 0;border-radius:10px;background:#000;image-rendering:pixelated';
       const sub = c.querySelector('[data-sub]'); (sub ? sub.parentNode : c).insertBefore(img, sub || null);
+      img.after(depthLegend());
     }
     img.src = '/v2/astra_depth_live.webp?seq=' + ta.seq;
+  }
+  // Distance colour scale for the depth picture. Same colours as the picture: OpenCV COLORMAP_JET applied to
+  // (1 - (d - 0.35) / 2.65) * 255 in atlas_astra_depth_preview.py, so 0.35 m = dark red ... 3.0 m = dark blue.
+  function depthLegend() {
+    const NEAR = 0.35, FAR = 3.0, pos = d => 100 * (d - NEAR) / (FAR - NEAR);
+    const box = document.createElement('div'); box.dataset.taLegend = '1';
+    box.style.cssText = 'max-width:320px;margin:2px 0 8px;font-size:11px;line-height:1.2';
+    const bar = document.createElement('div');
+    bar.style.cssText = 'height:12px;border-radius:6px;border:1px solid #0002;background:linear-gradient(to right,' +
+      '#800000 0%,#ff0000 12.5%,#ffff00 37.5%,#00ffff 62.5%,#0000ff 87.5%,#000080 100%)';
+    bar.title = 'Distance from the camera: 0.35 m (dark red) to 3 m (dark blue)';
+    const ticks = document.createElement('div'); ticks.style.cssText = 'position:relative;height:14px;margin-top:2px';
+    for (const d of [0.35, 1, 1.5, 2, 2.5, 3]) {
+      const t = document.createElement('span'); t.textContent = (d === 0.35 ? '0.35' : String(d)) + ' m';
+      const x = pos(d);
+      t.style.cssText = 'position:absolute;top:0;white-space:nowrap;' +
+        (x <= 0 ? 'left:0' : x >= 100 ? 'right:0' : `left:${x.toFixed(1)}%;transform:translateX(-50%)`);
+      ticks.append(t);
+    }
+    const note = document.createElement('div'); note.style.cssText = 'opacity:.75;margin-top:1px';
+    note.textContent = 'Red = near, blue = far. Black = no reading (too close, too far, shiny or dark surface).';
+    box.append(bar, ticks, note);
+    return box;
   }
   function renderDepth() {
     if (trackALive()) {
