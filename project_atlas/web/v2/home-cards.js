@@ -144,17 +144,69 @@
     renderDepth();
   }
   const trackALive = () => !!ta.info && Date.now() - ta.changedAt < 8000;   // writer ~1 Hz, poll 2 s: 8 s tolerates resets
+  // ---------- Full-screen viewer (3D map and depth picture). Close: x button, Esc, or click outside. ----------
+  const fs = { el: null, onClose: null };
+  function openFullscreen(title, body, onClose) {
+    closeFullscreen();
+    const ov = document.createElement('div');
+    ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', title);
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(5,10,18,.95);display:flex;flex-direction:column;padding:12px;box-sizing:border-box';
+    const head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;color:#e8f1ff;font:600 16px system-ui;margin-bottom:8px';
+    const h = document.createElement('span'); h.textContent = title;
+    const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', 'Close full screen');
+    x.style.cssText = 'font:28px/1 system-ui;width:44px;height:44px;border-radius:10px;border:1px solid #ffffff40;background:#ffffff14;color:#fff;cursor:pointer';
+    x.onclick = closeFullscreen; head.append(h, x);
+    const wrap = document.createElement('div'); wrap.style.cssText = 'flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px';
+    wrap.append(body); ov.append(head, wrap);
+    ov.addEventListener('click', e => { if (e.target === ov) closeFullscreen(); });
+    document.body.append(ov); fs.el = ov; fs.onClose = onClose || null;
+  }
+  function closeFullscreen() {
+    if (!fs.el) return;
+    fs.el.remove(); fs.el = null; if (fs.onClose) { const f = fs.onClose; fs.onClose = null; f(); }
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFullscreen(); });
+  function fullscreenButton(onClick) {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = '⤢ Full screen';
+    b.style.cssText = 'font:600 12px system-ui;padding:6px 10px;border-radius:8px;border:1px solid #0002;background:#ffffffcc;cursor:pointer;margin:2px 0 6px';
+    b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); onClick(); });
+    return b;
+  }
+  // Depth picture, full screen: large live image + the same colour scale + live text, refreshed with the card.
+  const depthFs = { img: null, info: null };
+  function openDepthFullscreen() {
+    const box = document.createElement('div'); box.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;height:100%';
+    const img = document.createElement('img'); img.alt = 'Live Astra depth view, full screen';
+    img.style.cssText = 'flex:1;min-height:0;max-width:100%;object-fit:contain;image-rendering:pixelated;border-radius:12px;background:#000';
+    img.src = '/v2/astra_depth_live.webp?seq=' + ta.seq;
+    const lg = depthLegend(); lg.style.maxWidth = '640px'; lg.style.width = '100%'; lg.style.color = '#e8f1ff'; lg.style.fontSize = '13px';
+    const info = document.createElement('div'); info.style.cssText = 'color:#b8c7da;font:13px system-ui';
+    box.append(img, lg, info); depthFs.img = img; depthFs.info = info; updateDepthFullscreen();
+    openFullscreen('Depth camera (Astra) — live', box, () => { depthFs.img = null; depthFs.info = null; });
+  }
+  function updateDepthFullscreen() {
+    if (!depthFs.img) return;
+    depthFs.img.src = '/v2/astra_depth_live.webp?seq=' + ta.seq;
+    const i = ta.info;
+    depthFs.info.textContent = trackALive() && i ? `${fx(i.valid_percent, 0)}% of the image has depth · nearest ${i.nearest_m != null ? fx(i.nearest_m, 2) + ' m' : '—'} · updates about once a second`
+                                                 : 'Depth camera not running (no new picture).';
+  }
   function depthImage(show) {
     const c = $('cardDepth'); if (!c) return;
     let img = c.querySelector('img[data-ta]');
-    if (!show) { if (img) img.remove(); const lg = c.querySelector('[data-ta-legend]'); if (lg) lg.remove(); return; }
+    if (!show) { if (img) img.remove(); const lg = c.querySelector('[data-ta-legend]'); if (lg) lg.remove(); const fb = c.querySelector('[data-ta-fs]'); if (fb) fb.remove(); updateDepthFullscreen(); return; }
     if (!img) {
       img = document.createElement('img'); img.dataset.ta = '1'; img.alt = 'Live Astra depth view: red near, blue far';
       img.style.cssText = 'display:block;width:100%;max-width:320px;aspect-ratio:4/3;margin:6px 0;border-radius:10px;background:#000;image-rendering:pixelated';
       const sub = c.querySelector('[data-sub]'); (sub ? sub.parentNode : c).insertBefore(img, sub || null);
       img.after(depthLegend());
+      img.title = 'Click for full screen'; img.style.cursor = 'zoom-in';
+      img.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); openDepthFullscreen(); });
+      const btn = fullscreenButton(openDepthFullscreen); btn.dataset.taFs = '1'; c.querySelector('[data-ta-legend]').after(btn);
     }
     img.src = '/v2/astra_depth_live.webp?seq=' + ta.seq;
+    updateDepthFullscreen();
   }
   // Distance colour scale for the depth picture. Same colours as the picture: OpenCV COLORMAP_JET applied to
   // (1 - (d - 0.35) / 2.65) * 255 in atlas_astra_depth_preview.py, so 0.35 m = dark red ... 3.0 m = dark blue.
@@ -363,8 +415,9 @@
     const t = Math.max(0, Math.min(1, z / 1.5)), h = 230 - 230 * t;
     return `hsl(${h},90%,${55 - 5 * t}%)`;
   }
-  function drawMap3d() {
-    const c = document.querySelector('#cardMap3d canvas[data-map3d]'); if (!c) return;
+  function drawMap3d(target) {
+    const c = target || document.querySelector('#cardMap3d canvas[data-map3d]'); if (!c) return;
+    const big = !!target, dot = big ? 3 : 2;
     const w = c.clientWidth, h = c.clientHeight; if (!w || !h) return;
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     const g = c.getContext('2d'); g.fillStyle = '#0b1622'; g.fillRect(0, 0, w, h);
@@ -377,7 +430,7 @@
     const proj = (x, y, z) => { x -= cx0; y -= cy0; const xr = cy * x - sy * y, yr = sy * x + cy * y; return [w / 2 + xr * s, h * 0.58 + (sp * yr - cp * z) * s]; };
     for (let i = 0; i < p.length; i += 3) {
       const z = p[i + 2] / 100, q = proj(p[i] / 100, p[i + 1] / 100, z);
-      g.fillStyle = heightColor(z); g.fillRect(q[0], q[1], 2, 2);
+      g.fillStyle = heightColor(z); g.fillRect(q[0], q[1], dot, dot);
     }
     const path = m3.d && m3.d.path_cm;   // driven route (white line), if the feed provides it
     if (path && path.length >= 6) { g.strokeStyle = '#ffffffcc'; g.lineWidth = 2; g.beginPath(); for (let i = 0; i < path.length; i += 3) { const q = proj(path[i] / 100, path[i + 1] / 100, 0); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); } g.stroke(); }
@@ -389,18 +442,34 @@
       g.fillStyle = '#ffffff'; g.strokeStyle = '#0b1622'; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(d[0], d[1]); g.closePath(); g.fill(); g.stroke();
     }
   }
-  (function setupMap3d() {
-    const c = document.querySelector('#cardMap3d canvas[data-map3d]'); if (!c) return;
+  function bindMap3dControls(c, redraw) {   // drag = rotate, wheel = zoom (shared view for card and full screen)
     const stop = e => e.stopPropagation();
     c.addEventListener('click', stop);
     c.addEventListener('pointerdown', e => { stop(e); m3.drag = [e.clientX, e.clientY]; c.setPointerCapture(e.pointerId); c.style.cursor = 'grabbing'; });
-    c.addEventListener('pointermove', e => { if (!m3.drag) return; stop(e); m3.yaw += (e.clientX - m3.drag[0]) * 0.01; m3.pitch = Math.max(0.15, Math.min(1.5, m3.pitch + (e.clientY - m3.drag[1]) * 0.01)); m3.drag = [e.clientX, e.clientY]; drawMap3d(); });
-    const end = e => { m3.drag = null; c.style.cursor = 'grab'; };
+    c.addEventListener('pointermove', e => { if (!m3.drag) return; stop(e); m3.yaw += (e.clientX - m3.drag[0]) * 0.01; m3.pitch = Math.max(0.15, Math.min(1.5, m3.pitch + (e.clientY - m3.drag[1]) * 0.01)); m3.drag = [e.clientX, e.clientY]; redraw(); });
+    const end = () => { m3.drag = null; c.style.cursor = 'grab'; };
     c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
-    c.addEventListener('wheel', e => { e.preventDefault(); stop(e); m3.zoom = Math.max(0.3, Math.min(8, m3.zoom * Math.exp(-e.deltaY * 0.001))); drawMap3d(); }, { passive: false });
+    c.addEventListener('wheel', e => { e.preventDefault(); stop(e); m3.zoom = Math.max(0.3, Math.min(8, m3.zoom * Math.exp(-e.deltaY * 0.001))); redraw(); }, { passive: false });
+  }
+  function openMap3dFullscreen() {
+    const box = document.createElement('div'); box.style.cssText = 'display:flex;flex-direction:column;width:100%;height:100%;gap:6px';
+    const big = document.createElement('canvas'); big.setAttribute('aria-label', '3D map, full screen. Drag to rotate, wheel to zoom.');
+    big.style.cssText = 'flex:1;min-height:0;width:100%;border-radius:12px;background:#0b1622;touch-action:none;cursor:grab';
+    const note = document.createElement('div'); note.style.cssText = 'color:#b8c7da;font:13px system-ui;text-align:center';
+    note.textContent = 'Drag to rotate · scroll to zoom · colour = height (blue floor → red 1.5 m+) · white line = route · ▲ = rover';
+    box.append(big, note); bindMap3dControls(big, () => drawMap3d(big)); m3.big = big;
+    openFullscreen('3D map' + (m3.d && m3.d.name ? ' — ' + m3.d.name : ''), box, () => { m3.big = null; });
+    requestAnimationFrame(() => drawMap3d(big));
+  }
+  (function setupMap3d() {
+    const c = document.querySelector('#cardMap3d canvas[data-map3d]'); if (!c) return;
+    bindMap3dControls(c, () => drawMap3d());
+    c.addEventListener('dblclick', e => { e.stopPropagation(); openMap3dFullscreen(); });
+    c.title = 'Drag to rotate · double-click for full screen';
+    c.after(fullscreenButton(openMap3dFullscreen));
     if ('IntersectionObserver' in window) new IntersectionObserver(es => { for (const x of es) m3.visible = x.isIntersecting; }).observe(c);
     const loop = t => {   // slow auto-rotation (~10 fps) while visible and not being dragged
-      if (!document.hidden && m3.visible && m3.pts && t - m3.lastDraw > 100) { if (!m3.drag) m3.yaw += 0.006; drawMap3d(); m3.lastDraw = t; }
+      if (!document.hidden && (m3.visible || m3.big) && m3.pts && t - m3.lastDraw > 100) { if (!m3.drag) m3.yaw += 0.006; if (m3.visible) drawMap3d(); if (m3.big) drawMap3d(m3.big); m3.lastDraw = t; }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
