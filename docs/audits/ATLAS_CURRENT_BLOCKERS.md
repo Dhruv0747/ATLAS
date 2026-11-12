@@ -1334,3 +1334,12 @@ Conclusion: wheel-based odometry cannot meet the 0.15 m single-step map gate ove
   - return drive (includes the SLAM 1.1 m snap in its reference): live 1.18 m; EKF + ICP 0.46 m.
 - Live CPU test (read-only, 60 s, new topic only): 23 ms/scan, ~14 % of one core, 0 rejected, inliers 0.995. Initially 179 ms/scan; fixed with an early-convergence stop.
 - Proposed live change (needs owner OK): run the node as a user service and add odom1 /lidar/icp_odom (vx, vy) to atlas_ekf.yaml. Restart the EKF while parked with the E-STOP latched, then verify-place.
+2026-11-12 ~22:30 APPLIED (owner OK "Yes, switch it on"):
+- New user unit atlas-icp-odometry.service (enabled at boot) runs scripts/atlas_icp_odometry.py with velocity variance 0.002 and a stationary lock: velocity is zero while fresh wheel odometry is still (|vx| < 3 mm/s, |wz| < 0.01 rad/s, age < 1.5 s).
+- atlas_ekf.yaml gains odom1 /lidar/icp_odom (vx, vy). Backup: config/atlas_ekf.yaml.before-icp-20261112.
+- atlas-ekf restarted while parked with the E-STOP latched.
+- Parked drift: 1.0 cm per 40 s without the lock, 0.0 with it.
+- Node: 16-52 ms/scan under live load (scan period 128 ms), 0 rejected, inliers ~0.99.
+- AMCL re-seeded from a LiDAR-verified pose (0.315, -1.135) in Dhruv Room.
+- Pending: live drive validation, then remap attempt 4.
+- Rollback: copy the EKF backup back, disable --now atlas-icp-odometry, restart atlas-ekf while parked, verify-place.

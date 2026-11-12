@@ -29,7 +29,7 @@ class AtlasIcpOdometry(Node):
     def __init__(self):
         super().__init__('atlas_icp_odometry')
         self.base_frame = self.declare_parameter('base_frame', 'base_link').value
-        self.vel_variance = float(self.declare_parameter('velocity_variance', 0.01).value)
+        self.vel_variance = float(self.declare_parameter('velocity_variance', 0.002).value)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.mount = None
@@ -40,7 +40,19 @@ class AtlasIcpOdometry(Node):
         self.pub = self.create_publisher(Odometry, '/lidar/icp_odom', 10)
         self.health_pub = self.create_publisher(String, '/lidar/icp_odom/health', 10)
         self.create_subscription(LaserScan, '/scan', self.on_scan, qos_profile_sensor_data)
+        # Stationary lock: when fresh wheel odometry says the rover is still, publish zero velocity so
+        # ICP noise (~2 mm/s) cannot creep the EKF pose while parked.
+        self.wheel = None         # (monotonic_s, |vx|, |wz|)
+        self.still_published = 0
+        self.create_subscription(Odometry, '/yahboom/odom', self.on_wheel, 10)
         self.create_timer(1.0, self.publish_health)
+
+    def on_wheel(self, msg: Odometry):
+        self.wheel = (time.monotonic(), abs(msg.twist.twist.linear.x), abs(msg.twist.twist.angular.z))
+
+    def wheels_still(self):
+        w = self.wheel
+        return w is not None and time.monotonic() - w[0] < 1.5 and w[1] < 0.003 and w[2] < 0.01
 
     def lookup_mount(self, frame):
         try:
@@ -71,6 +83,9 @@ class AtlasIcpOdometry(Node):
             return
         vx, vy, wz = body_velocity(self.prev[1], pose, stamp - self.prev[0])
         self.prev = (stamp, pose)
+        if self.wheels_still():
+            vx = vy = wz = 0.0
+            self.still_published += 1
         out = Odometry()
         out.header.stamp = msg.header.stamp
         out.header.frame_id = 'odom'
@@ -88,7 +103,8 @@ class AtlasIcpOdometry(Node):
         self.health_pub.publish(String(data=json.dumps({
             'mount_ok': self.mount is not None, 'scans': self.scans, 'accepted': self.odom.accepted,
             'rejected': self.odom.rejected, 'last_inliers': round(self.odom.last_inliers, 3),
-            'proc_ms': round(self.proc_ms, 1)})))
+            'proc_ms': round(self.proc_ms, 1), 'still_locked': self.still_published,
+            'wheels_still': self.wheels_still()})))
 
 
 def main():

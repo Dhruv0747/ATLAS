@@ -1,0 +1,20 @@
+[Unit]
+Description=Project ATLAS LiDAR keyframe-ICP odometry (read-only; feeds atlas-ekf vx/vy)
+Wants=atlas-lidar.service
+After=atlas-lidar.service
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+Environment=OMP_NUM_THREADS=1
+Environment=OPENBLAS_NUM_THREADS=1
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_icp_odometry.py'
+Restart=always
+RestartSec=3
+TimeoutStopSec=6
+KillMode=control-group
+
+[Install]
+WantedBy=default.target

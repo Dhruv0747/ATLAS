@@ -34,6 +34,19 @@ atlas_ekf:
     odom0_relative: true
     odom0_queue_size: 10
 
+    # 2026-11-12 (owner OK): LiDAR keyframe-ICP odometry (scripts/atlas_icp_odometry.py) body vx/vy, variance 0.002
+    # (wheel vx variance 0.1, so the LiDAR dominates distance; the wheels remain as fallback when ICP rejects a scan).
+    # Offline replay of the remap drive: drift vs SLAM 1.35 m -> 0.30 m over 12.3 m. Heading stays IM10A-only.
+    odom1: /lidar/icp_odom
+    odom1_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
+                   false, false, false,
+                   false, false, false]
+    odom1_differential: false
+    odom1_relative: false
+    odom1_queue_size: 10
+
     # Hiwonder IM10A corrected gyro Z is the commissioned yaw-rate source.
     # 2026-09-20 physical 90-degree tests measured +90.22/-86.45 degrees;
     # corrected gyro-authority shadow EKF measured +87.96 degrees with zero
