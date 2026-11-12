@@ -1306,3 +1306,4 @@ Verification drive 17:39-17:41 (owner; back ~1.1 m then forward, recorded /tmp/c
   - q_vx 0.5: 5.00 m / 0.49 m;
   - q_vx 2.0: 5.69 m / 0.16 m, path 21.71 m vs wheel 21.67 m.
 - Candidate: process_noise_covariance[vx] 0.025 -> 2.0. NOT applied; needs owner OK.
+2026-11-12 ~20:45 APPLIED (owner OK "Yes, apply it"): atlas_ekf.yaml process_noise_covariance vx 0.025 -> 2.0 (all else unchanged). Backup on the Jetson: config/atlas_ekf.yaml.before-qvx2-20261112. atlas-ekf restarted while parked with the E-STOP latched; /odom 9 Hz, at rest 0.0. AMCL re-seeded with verify-place "dhruv room": VERIFIED (fit 1.0, margin 0.229); AMCL (0.215, -1.891). Live drive validation is pending (owner drive with LiDAR comparison), then remap attempt 3. Rollback: copy the backup back, restart atlas-ekf while parked, re-seed with verify-place.
