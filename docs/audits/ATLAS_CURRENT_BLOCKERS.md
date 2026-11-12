@@ -1308,3 +1308,12 @@ Verification drive 17:39-17:41 (owner; back ~1.1 m then forward, recorded /tmp/c
 - Candidate: process_noise_covariance[vx] 0.025 -> 2.0. NOT applied; needs owner OK.
 2026-11-12 ~20:45 APPLIED (owner OK "Yes, apply it"): atlas_ekf.yaml process_noise_covariance vx 0.025 -> 2.0 (all else unchanged). Backup on the Jetson: config/atlas_ekf.yaml.before-qvx2-20261112. atlas-ekf restarted while parked with the E-STOP latched; /odom 9 Hz, at rest 0.0. AMCL re-seeded with verify-place "dhruv room": VERIFIED (fit 1.0, margin 0.229); AMCL (0.215, -1.891). Live drive validation is pending (owner drive with LiDAR comparison), then remap attempt 3. Rollback: copy the backup back, restart atlas-ekf while parked, re-seed with verify-place.
 2026-11-12 21:09-21:12 live check of q_vx 2.0 (owner short drive, about 1 m; /tmp/ekf_check_bag): EKF vx / wheel vx 0.78 mean while moving (before: 0.38). Straight pairs EKF/LiDAR 0.78x (before: 0.40-0.54x). End displacement LiDAR ICP 0.88 m, wheel+IM10A 0.77 m, EKF 0.65 m; path EKF 0.74 vs wheel 0.83 (0.89x). Clearly improved; the drive was too short for a full validation. Next: remap attempt 3 (room->hall->room) as the real test.
+
+2026-11-12 remap attempt 3 (session b852bf94, 21:11-21:35, with EKF q_vx 2.0): REJECTED, accepted map preserved (md5 3b049b9e unchanged).
+- startup stillness 0.000 m; start coverage OK;
+- closure PASSED (0.033 m / 0.96 deg; the owner moved forward 45 cm onto the true start spot, which was 45 cm ahead of the old tape after the test drive);
+- room->hall: SLAM 6.6 m vs EKF about 5.4 m (attempt 2: 3.3 m), so improved but still ~0.8x;
+- failures: map->odom single-step jump 1.112 m at 21:31:06 and yaw 14.8 deg at 21:32:20. Both came early in the return drive, after a 20-min parked wait in the hall. They look like slam_toolbox snapping the accumulated odometry error (~1 m) in one step when it re-recognised the corridor/room.
+- Colour data: maps3d/remap4_colour_20261112-211052 (outbound) and remap4b_colour_return_20261112-213018 (return).
+- Restored as before: rejected_session_b852bf94 kept; named_places from pre-remap2 backup; home not set; atlas-localization restarted; verify-place "dhruv room" VERIFIED (fit 1.0, margin 0.117).
+- Next candidate (not done): wheel+EKF alone remains ~10-20 % short. The existing shadow EKF with rf2o LiDAR odometry (atlas-ekf-lidar-candidate) should be evaluated offline on these bags before any change. The 0.15 m single-step gate is unchanged.
