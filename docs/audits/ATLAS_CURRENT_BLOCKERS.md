@@ -1278,3 +1278,16 @@ Verification drive 17:39-17:41 (owner; back ~1.1 m then forward, recorded /tmp/c
 2026-11-12 18:33: the owner released the E-STOP with the sticks untouched; the bridge parked check passed and atlas-astra-bridge is active. /astra/obstacle_scan is 8.1 Hz in domain 77 and 6.7 Hz in domain 0, the same as the Nov 6 baseline (6.4-6.9 Hz), so colour did not slow the obstacle scan.
 
 2026-11-12 ~18:50 map-acceptance start-coverage fix (owner OK "Yes, fix it"). Root cause: manual teaching deliberately begins the map->odom observation at ready_unix (after ensure_mapping_stack, about 79 s in attempt 1), but evaluate_acceptance_evidence required it within 5 s of started_unix, so manual teaching could never pass. Fix: for mode manual_teaching, the coverage reference is ready_unix, and a NEW fail-closed gate requires /yahboom/odom stillness between the start request and drive-ready (displacement <= 0.02 m, yaw <= 2 deg, odom age <= 2 s at both ends; missing evidence = reject). Exploration sessions are unchanged; all other limits are unchanged. Tests: scripts/test_map_acceptance_startup.py, 8/8 PASS on the Jetson, including a replay of the attempt-1 evidence: old reference reproduces the coverage failure; new reference leaves only the real 0.916 m / 12.0 deg jump; missing stillness rejects. Deployed; atlas-mission-control restarted while parked (READY). Backups: scripts/*.before-startup-gate-20261112. Pre-remap state backup: ~/.config/project_atlas/manual_session_backups/pre-remap2-20261112. Colour side recorder: tools/m3/color_side_record.sh (tested, ~13 MB/s).
+
+2026-11-12 remap attempt 2 (sessions):
+- 18:45-19:04, session 6c954325: ABORTED with no drive. The owner did not drive, and "hall" was saved at the start spot by mistake. The session file was moved aside before stop_exploration, so no candidate map was saved and the accepted map was preserved. Saved places were restored from pre-remap2-20261112 and the session's home pose was set aside.
+- 19:43-19:58, session 348c4a79 (owner drove room -> hall -> room; colour side recording maps3d/remap3_colour_20261112-194252): REJECTED, accepted map preserved (atlas_latest.pgm md5 3b049b9e unchanged).
+  - startup stillness 0.000 m; ready 1.5 s after start;
+  - the start-coverage failure is GONE (the fix works);
+  - closure PASSED (0.092 m / 7.0 deg);
+  - failures: map->odom translation jump 1.392 m at 19:50:21 and yaw jump 20.7 deg at 19:51:52 (around the hall / start of the return).
+  - Report: maps/.atlas_candidate_348c4a79....acceptance.json.
+  - Hall saved at map (-8.40, 2.57), 6.8 m from start.
+  - Place, home and seed files from the session are kept in ~/.config/project_atlas/rejected_session_348c4a79; named_places restored; home NOT set.
+  - Normal localization restored: atlas-localization started (slam-fast/nav2 stopped by its Conflicts), seeded; verify-place "dhruv room" VERIFIED, fit 0.996, margin 0.217.
+  - Open: why EKF /odom moved only 3.3 m vs SLAM 6.8 m room->hall despite wheel 0.97x on a straight drive. Turns / heading are suspected; needs analysis of the base bag.
