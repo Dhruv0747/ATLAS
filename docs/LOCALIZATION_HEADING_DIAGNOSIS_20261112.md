@@ -1,4 +1,9 @@
-# Localization: EKF heading diagnosis (2026-11-12)
+# Localization: EKF heading diagnosis and fix (2026-11-12)
+
+> **CORRECTION (same day):** the first conclusion below ("IM10A sign inverted") was WRONG. The LiDAR keyframe reference
+> had its sign inverted in my analysis code. A sign "fix" was applied at 14:30 and **reverted at about 14:45** (the original IM10A
+> code is restored; the backup of the wrong change is kept as `atlas_im10a_observer.py.wrong-sign-fix-*`). The corrected
+> analysis and the applied fix follow at the end of this file.
 
 Two recorded manual drives (dhruv room -> hall 13:38, 493 s; hall -> dhruv room 14:12, 746 s). Bags are in
 `~/project_atlas/maps3d/m3_session_*_bag`. Tools: `project_atlas/tools/localization/` (`analyze_drive_bag.py`,
@@ -53,3 +58,46 @@ not use an independent heading reference. Unknown.
 * `route_dhruvroom_to_hall_20261112.ply`: 35,596 points, 6.5 m path.
 * `route_hall_to_dhruvroom_20261112.ply`: 47,887 points, 7.9 m path.
 * Both are built on the faulty EKF heading, so their shape is distorted. Rebuild after the fix.
+
+
+## Corrected analysis (LiDAR keyframe sign fixed; AMCL and the owner's reported turn agree)
+
+Drive 2, heading change per stretch (deg):
+
+| Stretch | LiDAR | IM10A = EKF turn rate | EKF heading (live) | AMCL | wheels | Yahboom gyro |
+|---|---|---|---|---|---|---|
+| 189-374 s | **-134.8** | -133.0 | +36.3 | -128.9 | +162.0 | +136.4 |
+| 374-560 s | **+34.9** | +46.5 | -188.0 | -65.4 | -76.6 | -42.8 |
+| 560-745 s | **-98.4** | -98.9 | -60.9 | -168.9 | +79.9 | +107.1 |
+
+* **The IM10A is correct** (correlation +0.93).
+* The **wheel odometry heading (from the Yahboom board) and the Yahboom gyro are inverted**.
+* The EKF fused the wheel x/y POSITION, which is integrated with that inverted heading. That bent the EKF heading away
+  from its own (correct) IM10A turn rate, and AMCL followed it.
+
+Offline replay of drive 2 (isolated domain 92) through robot_localization:
+
+| EKF config | Median heading error vs LiDAR | Max |
+|---|---|---|
+| live config (wheel x, y, vx, vy + IM10A) | 68 deg | 170 deg |
+| wheel vx (+vy) only + IM10A | **1.3 deg** | 20 deg |
+
+## Applied fix (owner-approved, 14:55, E-STOP latched)
+
+* `config/atlas_ekf.yaml` `odom0_config`: wheel **vx only** (x, y and vy no longer fused).
+* IM10A yaw rate is the only heading source (owner instruction: IM10A only, no Yahboom IMU).
+* Backup: `atlas_ekf.yaml.before-vx-only-20261112-145502`. `atlas-ekf` restarted, and AMCL restored to its pose.
+
+Validation:
+
+| Test | LiDAR | IM10A | EKF heading | AMCL | Yahboom | wheels |
+|---|---|---|---|---|---|---|
+| Still, 90 s | +0.3 | 0.0 | 0.0 | +1.4 (std 1.0) | - | - |
+| Turn, 120 s | **-16.9** | -19.6 | **-19.6** | **-14.0** | +15.8 | +14.2 |
+
+The EKF heading now equals the IM10A and agrees with the independent LiDAR within about 3 deg.
+
+Still open:
+* Position accuracy during a full drive (AMCL against the map) is not yet verified.
+* The saved 2D map fits only about 22 % of LiDAR hits, so build a new 2D map with the corrected odometry.
+* Rebuild the two 3D route maps with corrected headings.

@@ -9,7 +9,7 @@ sys.path.insert(0, '/tmp')
 import analyze_drive_bag as A
 
 bag = sys.argv[1]
-topics = ['/scan', '/odom', '/yahboom/odom', '/imu/data', '/im10a/imu/bias_corrected_candidate', '/im10a/imu/unvalidated', '/set_pose']
+topics = ['/scan', '/odom', '/yahboom/odom', '/imu/data', '/im10a/imu/bias_corrected_candidate', '/im10a/imu/unvalidated', '/set_pose', '/amcl_pose']
 d = A.read_bag(bag, topics)
 t0 = d['/odom'][0][0]
 
@@ -36,7 +36,9 @@ kP, kh, rel = scans[0][1], 0.0, (0.0, 0.0, 0.0); heads = [(scans[0][0], 0.0)]; f
 for t, P in scans[1:]:
     r = icp(P, kP, *rel)
     if r is None: fails += 1; continue
-    th, tx, ty, inl = r; rel = (th, tx, ty); h = kh - math.degrees(th); heads.append((t, h))
+    # icp(P=current, Q=keyframe) returns the rotation mapping CURRENT-frame points into the KEYFRAME frame, which is
+    # the rover's own rotation since the keyframe (+ = left). 2026-11-12: an earlier version subtracted it (sign bug).
+    th, tx, ty, inl = r; rel = (th, tx, ty); h = kh + math.degrees(th); heads.append((t, h))
     if abs(math.degrees(th)) > 25 or inl < 0.6 or math.hypot(tx, ty) > 0.6: kP, kh, rel = P, h, (0.0, 0.0, 0.0)
 L = np.array(heads)
 
@@ -78,4 +80,7 @@ for a, b in list(zip(edges, edges[1:])) + [(edges[0], edges[-1])]:
     for k, v in src.items():
         if v is not None: row += f' | {k.split(" (")[0]} {np.interp(b, v[0], v[1]) - np.interp(a, v[0], v[1]):+7.1f}'
     row += f' | EKF heading {np.interp(b, te, ey) - np.interp(a, te, ey):+7.1f}'
+    if d['/amcl_pose']:
+        ta = np.array([x - t0 for x, _ in d['/amcl_pose']]); ya = np.degrees(np.unwrap([A.yaw_of(m.pose.pose.orientation) for _, m in d['/amcl_pose']]))
+        row += f' | AMCL {np.interp(b, ta, ya) - np.interp(a, ta, ya):+7.1f}'
     print(row)

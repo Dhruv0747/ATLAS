@@ -20,9 +20,14 @@ atlas_ekf:
     # turn and overpower the validated IM10A gyro. Do not fuse those two fields.
     # Relative mode removes the controller's arbitrary startup origin.
     odom0: /yahboom/odom
-    odom0_config: [true,  true,  false,
+    # 2026-11-12 (owner-approved): wheel x/y POSITION and vy are NO LONGER fused. Two recorded drives showed the
+    # wheel odometry heading (Yahboom board) turns the wrong way (correlation -0.83 vs an independent LiDAR heading);
+    # its integrated x/y path dragged the EKF heading off by a median 68 deg. Offline replay of the 14:12 drive with
+    # forward speed only + IM10A yaw rate: median heading error 1.3 deg. IM10A is the only heading source.
+    # See docs/LOCALIZATION_HEADING_DIAGNOSIS_20261112.md. Previous: [x, y, vx, vy] fused.
+    odom0_config: [false, false, false,
                    false, false, false,
-                   true,  true,  false,
+                   true,  false, false,
                    false, false, false,
                    false, false, false]
     odom0_differential: false
