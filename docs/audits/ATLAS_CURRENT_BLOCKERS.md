@@ -1325,3 +1325,12 @@ Verification drive 17:39-17:41 (owner; back ~1.1 m then forward, recorded /tmp/c
 - keyframe scan-to-scan ICP alone 0.47 m (max 0.62), but heading error up to 18 deg. Its translation must be rotated by 180 deg: the laser frame points backwards relative to base_link;
 - ICP translation x IM10A heading: 0.20 m final, 0.28 m max (0.17 m per 10 m), about 5x better than the live EKF.
 Conclusion: wheel-based odometry cannot meet the 0.15 m single-step map gate over a room->hall->room loop. A LiDAR scan-matching translation source with IM10A heading is the promising fix; it needs a new real-time node plus EKF fusion, an offline replay first, then owner approval. Tools: project_atlas/tools/localization/{replay_lidar_ekf.sh, compare_odom_to_slam.py, icp_wheelimu_export.py}. Nothing changed live.
+
+2026-11-12 ~22:40 NEW (offline-validated, NOT deployed): LiDAR keyframe-ICP odometry node.
+- Files: scripts/atlas_icp_odometry.py + atlas_icp_odometry_core.py, publishing /lidar/icp_odom with body vx/vy; the laser mount comes from TF (yaw 180 deg).
+- Tests: test_icp_odometry_core.py 5/5 PASS (synthetic room, backwards laser, still/forward/turn+drive/rejection).
+- Replays (tools/localization/replay_icp_ekf.sh, domain 94) against the SLAM pose:
+  - outbound 12.3 m: live EKF 1.35 m; ICP node alone 0.03 m final (0.19 max); EKF + ICP vx/vy (variance 0.002) 0.30 m final (0.32 max);
+  - return drive (includes the SLAM 1.1 m snap in its reference): live 1.18 m; EKF + ICP 0.46 m.
+- Live CPU test (read-only, 60 s, new topic only): 23 ms/scan, ~14 % of one core, 0 rejected, inliers 0.995. Initially 179 ms/scan; fixed with an early-convergence stop.
+- Proposed live change (needs owner OK): run the node as a user service and add odom1 /lidar/icp_odom (vx, vy) to atlas_ekf.yaml. Restart the EKF while parked with the E-STOP latched, then verify-place.
