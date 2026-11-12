@@ -395,7 +395,11 @@
         if (r.ok) {
           const j = await r.json();
           if (m3.seq !== null && j.seq !== m3.seq && j.live !== false) m3.changedAt = Date.now();   // live:false = stored map
-          if (j.seq !== m3.seq || !m3.pts) { m3.d = j; m3.pts = Int16Array.from(j.points_cm || []); }
+          if (j.seq !== m3.seq || !m3.pts) {
+            m3.d = j; m3.pts = Int16Array.from(j.points_cm || []);
+            m3.rgb = Array.isArray(j.rgb) && j.rgb.length * 3 === m3.pts.length
+              ? j.rgb.map(c => '#' + (c >>> 0).toString(16).padStart(6, '0')) : null;   // real colour (colour maps)
+          }
           m3.seq = j.seq;
         }
         break;
@@ -428,9 +432,15 @@
     const s = Math.min(w, h) / (ext * 1.15) * m3.zoom;
     const cy = Math.cos(m3.yaw), sy = Math.sin(m3.yaw), cp = Math.cos(m3.pitch), sp = Math.sin(m3.pitch);
     const proj = (x, y, z) => { x -= cx0; y -= cy0; const xr = cy * x - sy * y, yr = sy * x + cy * y; return [w / 2 + xr * s, h * 0.58 + (sp * yr - cp * z) * s]; };
+    const order = [];   // draw far points first so near ones stay on top
     for (let i = 0; i < p.length; i += 3) {
+      const x = p[i] / 100 - cx0, y = p[i + 1] / 100 - cy0;
+      order.push([sy * x + cy * y, i]);
+    }
+    order.sort((a, b) => a[0] - b[0]);   // smaller yr = farther from the viewer
+    for (const [, i] of order) {
       const z = p[i + 2] / 100, q = proj(p[i] / 100, p[i + 1] / 100, z);
-      g.fillStyle = heightColor(z); g.fillRect(q[0], q[1], dot, dot);
+      g.fillStyle = m3.rgb ? m3.rgb[i / 3] : heightColor(z); g.fillRect(q[0], q[1], dot, dot);
     }
     const path = m3.d && m3.d.path_cm;   // driven route (white line), if the feed provides it
     if (path && path.length >= 6) { g.strokeStyle = '#ffffffcc'; g.lineWidth = 2; g.beginPath(); for (let i = 0; i < path.length; i += 3) { const q = proj(path[i] / 100, path[i + 1] / 100, 0); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); } g.stroke(); }
@@ -456,10 +466,13 @@
     const big = document.createElement('canvas'); big.setAttribute('aria-label', '3D map, full screen. Drag to rotate, wheel to zoom.');
     big.style.cssText = 'flex:1;min-height:0;width:100%;border-radius:12px;background:#0b1622;touch-action:none;cursor:grab';
     const note = document.createElement('div'); note.style.cssText = 'color:#b8c7da;font:13px system-ui;text-align:center';
-    note.textContent = 'Drag to rotate · scroll to zoom · colour = height (blue floor → red 1.5 m+) · white line = route · ▲ = rover';
+    note.textContent = m3.rgb
+      ? 'Drag to rotate · scroll to zoom · real camera colours · white line = route'
+      : 'Drag to rotate · scroll to zoom · colour = height (blue floor → red 1.5 m+) · white line = route · ▲ = rover';
     box.append(big, note); bindMap3dControls(big, () => drawMap3d(big)); m3.big = big;
     openFullscreen('3D map' + (m3.d && m3.d.name ? ' — ' + m3.d.name : ''), box, () => { m3.big = null; });
     requestAnimationFrame(() => drawMap3d(big));
+    setTimeout(() => { if (m3.big === big) drawMap3d(big); }, 250);   // redraw once the overlay has its final size
   }
   (function setupMap3d() {
     const c = document.querySelector('#cardMap3d canvas[data-map3d]'); if (!c) return;

@@ -1343,3 +1343,18 @@ Conclusion: wheel-based odometry cannot meet the 0.15 m single-step map gate ove
 - AMCL re-seeded from a LiDAR-verified pose (0.315, -1.135) in Dhruv Room.
 - Pending: live drive validation, then remap attempt 4.
 - Rollback: copy the EKF backup back, disable --now atlas-icp-odometry, restart atlas-ekf while parked, verify-place.
+
+2026-11-12 ~23:10 colour 3D map v1 (offline, from remap attempt 3 recordings):
+- Built with tools/m3/build_colour_map.py:
+  - Astra depth 160x120 + colour 640x480;
+  - SLAM poses (map->odom ∘ odom), refined by scan-to-map ICP against the session's 2D map (.atlas_candidate_b852bf94);
+  - frames skipped above 8 deg/s turn rate;
+  - 2 cm voxels seen >= 2 times.
+- Result: 327,802 points (maps3d/colour_room_hall_20261112.ply); dashboard copy 52,199 points at 5 cm.
+- Checks (sharpness = 5 cm cells occupied):
+  - depth time offset sweep -0.3..+0.35 s: 0 is best;
+  - camera yaw sweep -6..+6 deg: 0 is best;
+  - map refinement: 6 % sharper.
+- Known limits: some walls in Dhruv Room still show 2-3 copies; the hall is dark (lighting); no depth->colour offset (extrinsic message not recorded); refinement failed for 154 of 267 frames outside the room.
+- Dashboard: web/v2/home-cards.js draws real colours when the feed has "rgb" (far-to-near order) and redraws once the full-screen overlay is sized. map3d_live.txt now holds the stored colour map. Backups: *.before-colour3d-20261112.
+- Next for better quality: a new drive with the ICP odometry live and the lights on.
