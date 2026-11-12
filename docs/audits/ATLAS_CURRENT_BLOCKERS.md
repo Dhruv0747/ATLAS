@@ -1291,3 +1291,18 @@ Verification drive 17:39-17:41 (owner; back ~1.1 m then forward, recorded /tmp/c
   - Place, home and seed files from the session are kept in ~/.config/project_atlas/rejected_session_348c4a79; named_places restored; home NOT set.
   - Normal localization restored: atlas-localization started (slam-fast/nav2 stopped by its Conflicts), seeded; verify-place "dhruv room" VERIFIED, fit 0.996, margin 0.217.
   - Open: why EKF /odom moved only 3.3 m vs SLAM 6.8 m room->hall despite wheel 0.97x on a straight drive. Turns / heading are suspected; needs analysis of the base bag.
+
+2026-11-12 ~20:30 remap attempt 2 jump analysis (offline, maps3d/remap3_colour_20261112-194252/base):
+- Sensors are fine. Wheel vs LiDAR ICP 0.93x (315 straight pairs). Heading: EKF follows IM10A, and both stay within about 3-10 deg of LiDAR keyframe ICP through 350 deg of net turning.
+- Room->hall straight-line distance by estimate:
+  - LiDAR keyframe ICP 6.88 m;
+  - wheel speed x IM10A heading dead reckoning 6.05 m, ending 0.13 m from start;
+  - live EKF 3.32 m, ending 1.38 m from start;
+  - SLAM hall 6.8 m.
+- EKF vx is 0.38x wheel vx while moving (best correlation at 0.2 s lag). The EKF itself throws away distance: wheel twist variance 0.1 vs process noise q_vx 0.025 makes it heavily low-pass vx. Timestamps are fine (lag <10 ms) and the IMU has no acceleration inputs.
+- Replays of this bag (offline, domain 92):
+  - current: 3.32 m / end 1.38 m (reproduces live);
+  - +vy fusion: no change;
+  - q_vx 0.5: 5.00 m / 0.49 m;
+  - q_vx 2.0: 5.69 m / 0.16 m, path 21.71 m vs wheel 21.67 m.
+- Candidate: process_noise_covariance[vx] 0.025 -> 2.0. NOT applied; needs owner OK.
