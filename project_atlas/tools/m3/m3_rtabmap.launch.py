@@ -16,8 +16,14 @@ RTAB = {
 }
 
 
+LIVE = os.path.expanduser('~/project_atlas/scripts/atlas_map3d_live.py')
+
+
 def generate_launch_description():
+    from launch.actions import ExecuteProcess
     return LaunchDescription([
+        # Dashboard live 3D map window feed (read-only, every 3 s).
+        ExecuteProcess(cmd=['python3', LIVE], output='log', name='atlas_map3d_live'),   # no respawn: session tool
         Node(package='rtabmap_util', executable='point_cloud_xyz', name='astra_cloud', output='log',
              parameters=[{'decimation': 1, 'voxel_size': 0.03, 'min_depth': 0.35, 'max_depth': 3.0,
                           'approx_sync': False}],

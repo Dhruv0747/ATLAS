@@ -330,7 +330,81 @@
   // Map preview: the saved map image only (no live pose); refreshed slowly and only while the page is visible.
   setInterval(() => { if (!document.hidden) $('hmMap').src = '/map.png?home=' + Date.now(); }, 60000);
 
-  setInterval(render, 1000); setInterval(pollLidar, 1000); setInterval(pollDepth, 5000); setInterval(pollTrackA, 2000);
+  // ---------- Live 3D map window (RTAB-Map mapping sessions; feed: scripts/atlas_map3d_live.py) ----------
+  // web/v2/map3d_live.txt is rewritten every ~3 s while mapping. "Mapping" only when its sequence number is SEEN to
+  // change (an old file means "last map"). Drawn on a 2D canvas: no external libraries (the rover may be offline).
+  const m3 = { seq: null, changedAt: 0, d: null, pts: null, yaw: 0.7, pitch: 0.95, zoom: 1, drag: null, visible: true, lastDraw: 0 };
+  async function pollMap3d() {
+    if (document.hidden) return;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const r = await fetch('/v2/map3d_live.txt', { cache: 'no-store', signal: AbortSignal.timeout(4000) });
+        if (r.status === 404) { m3.d = null; break; }
+        if (r.ok) {
+          const j = await r.json();
+          if (m3.seq !== null && j.seq !== m3.seq) m3.changedAt = Date.now();
+          if (j.seq !== m3.seq || !m3.pts) { m3.d = j; m3.pts = Int16Array.from(j.points_cm || []); }
+          m3.seq = j.seq;
+        }
+        break;
+      } catch (e) { if (attempt === 0) await new Promise(res => setTimeout(res, 300)); }
+    }
+    renderMap3dCard();
+  }
+  function renderMap3dCard() {
+    const live = !!m3.d && Date.now() - m3.changedAt < 12000;
+    if (!m3.d) return setCard('cardMap3d', { state: 'idle', pill: 'Off', sub: 'No 3D map yet. It appears here live during a 3D mapping session.', age: '' });
+    const n = m3.d.points_shown || 0, tot = m3.d.points_total || 0;
+    const when = m3.d.unix ? new Date(m3.d.unix * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '?';
+    if (live) setCard('cardMap3d', { state: 'ok', pill: 'Mapping', sub: `Live · ${n.toLocaleString()} of ${tot.toLocaleString()} points (5 cm) · drag to rotate`, age: '' });
+    else setCard('cardMap3d', { state: 'idle', pill: 'Last map', sub: `Not mapping now · last map ${when} · ${n.toLocaleString()} points · drag to rotate`, age: '' });
+  }
+  function heightColor(z) {   // 0 m blue -> 0.5 green -> 1.0 yellow -> 1.5+ red
+    const t = Math.max(0, Math.min(1, z / 1.5)), h = 230 - 230 * t;
+    return `hsl(${h},90%,${55 - 5 * t}%)`;
+  }
+  function drawMap3d() {
+    const c = document.querySelector('#cardMap3d canvas[data-map3d]'); if (!c) return;
+    const w = c.clientWidth, h = c.clientHeight; if (!w || !h) return;
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const g = c.getContext('2d'); g.fillStyle = '#0b1622'; g.fillRect(0, 0, w, h);
+    const p = m3.pts; if (!p || p.length < 3) { g.fillStyle = '#7f93a8'; g.font = '12px system-ui'; g.fillText('No 3D map yet', 12, 22); return; }
+    let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+    for (let i = 0; i < p.length; i += 3) { const x = p[i], y = p[i + 1]; if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y; }
+    const cx0 = (minx + maxx) / 200, cy0 = (miny + maxy) / 200, ext = Math.max(1, (maxx - minx) / 100, (maxy - miny) / 100);
+    const s = Math.min(w, h) / (ext * 1.15) * m3.zoom;
+    const cy = Math.cos(m3.yaw), sy = Math.sin(m3.yaw), cp = Math.cos(m3.pitch), sp = Math.sin(m3.pitch);
+    const proj = (x, y, z) => { x -= cx0; y -= cy0; const xr = cy * x - sy * y, yr = sy * x + cy * y; return [w / 2 + xr * s, h * 0.58 + (sp * yr - cp * z) * s]; };
+    for (let i = 0; i < p.length; i += 3) {
+      const z = p[i + 2] / 100, q = proj(p[i] / 100, p[i + 1] / 100, z);
+      g.fillStyle = heightColor(z); g.fillRect(q[0], q[1], 2, 2);
+    }
+    const r = m3.d && m3.d.robot_cm_deg;
+    if (r) {   // rover marker: triangle pointing along its heading
+      const yaw = r[2] * Math.PI / 180, rx = r[0] / 100, ry = r[1] / 100, L = 0.3;
+      const a = proj(rx + L * Math.cos(yaw), ry + L * Math.sin(yaw), 0), b = proj(rx + 0.15 * Math.cos(yaw + 2.5), ry + 0.15 * Math.sin(yaw + 2.5), 0),
+            d = proj(rx + 0.15 * Math.cos(yaw - 2.5), ry + 0.15 * Math.sin(yaw - 2.5), 0);
+      g.fillStyle = '#ffffff'; g.strokeStyle = '#0b1622'; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(d[0], d[1]); g.closePath(); g.fill(); g.stroke();
+    }
+  }
+  (function setupMap3d() {
+    const c = document.querySelector('#cardMap3d canvas[data-map3d]'); if (!c) return;
+    const stop = e => e.stopPropagation();
+    c.addEventListener('click', stop);
+    c.addEventListener('pointerdown', e => { stop(e); m3.drag = [e.clientX, e.clientY]; c.setPointerCapture(e.pointerId); c.style.cursor = 'grabbing'; });
+    c.addEventListener('pointermove', e => { if (!m3.drag) return; stop(e); m3.yaw += (e.clientX - m3.drag[0]) * 0.01; m3.pitch = Math.max(0.15, Math.min(1.5, m3.pitch + (e.clientY - m3.drag[1]) * 0.01)); m3.drag = [e.clientX, e.clientY]; drawMap3d(); });
+    const end = e => { m3.drag = null; c.style.cursor = 'grab'; };
+    c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
+    c.addEventListener('wheel', e => { e.preventDefault(); stop(e); m3.zoom = Math.max(0.3, Math.min(8, m3.zoom * Math.exp(-e.deltaY * 0.001))); drawMap3d(); }, { passive: false });
+    if ('IntersectionObserver' in window) new IntersectionObserver(es => { for (const x of es) m3.visible = x.isIntersecting; }).observe(c);
+    const loop = t => {   // slow auto-rotation (~10 fps) while visible and not being dragged
+      if (!document.hidden && m3.visible && m3.pts && t - m3.lastDraw > 100) { if (!m3.drag) m3.yaw += 0.006; drawMap3d(); m3.lastDraw = t; }
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  })();
+
+  setInterval(render, 1000); setInterval(pollLidar, 1000); setInterval(pollDepth, 5000); setInterval(pollTrackA, 2000); setInterval(pollMap3d, 3000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { pollLidar(); pollDepth(); } });
-  render(); pollLidar(); pollDepth(); pollTrackA();
+  render(); pollLidar(); pollDepth(); pollTrackA(); pollMap3d();
 })();

@@ -53,3 +53,28 @@ Notes:
 
 Mapping mode on, RTAB-Map with `M3_KEEP_UNLINKED=false`, 3-5 min around the room, then export and restore. Measure
 CPU while moving.
+
+## Dashboard "3D map" window (2026-11-12 11:46-12:00)
+
+* Feed `scripts/atlas_map3d_live.py`:
+  * runs in the M3 mapping launch only (domain 77, read-only);
+  * every 3 s, reads RTAB-Map's `/cloud_map`, removes floor-mirror points (z < -0.05 m) and points above 2.5 m,
+    keeps one point per 5 cm voxel, at most 10,000 points;
+  * writes `web/v2/map3d_live.txt` (JSON, integer cm) with the rover position from `/odom`;
+  * rewrites every tick during a session, so the window can tell that mapping is live even when the map is
+    unchanged.
+* Home card `cardMap3d` (index.html + home-cards.js; backups `*.before-map3d-card-20261112-114600`):
+  * points coloured by height (blue floor to red 1.5 m+), rover triangle;
+  * slow auto-rotation, drag to rotate, wheel to zoom; no external libraries;
+  * states: Off / Mapping (sequence seen changing within 12 s) / Last map;
+  * link to the stored-maps page.
+* Verified: window "Last map" before the run, **"Mapping · Live · 971 of 1,138 points"** during it, back to "Last map"
+  after.
+* Test tool fix: the M3 launch survived SIGINT while its feed kept respawning (two leftover launches made the window
+  show "Mapping" falsely).
+  * Leftovers killed.
+  * The script now stops the whole process group (INT, wait 15 s, TERM, KILL), also in the trap.
+  * The feed no longer respawns.
+  * Re-verified: "mapping launch fully stopped after 2 s", "restored: 11 units, not active: none", "leftover mapping
+    processes: 0", live file unchanged afterwards.
+* 35/35 tests (new: feed point reduction).

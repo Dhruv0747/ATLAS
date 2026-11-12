@@ -64,6 +64,10 @@
     <canvas class="hm-scan" data-vis width="220" height="120" aria-label="Top-down LiDAR points around ATLAS"></canvas><p data-sub>Waiting for scan</p><footer data-age></footer></article>
    <article class="hm-card" id="cardDepth" data-href="/v2/vision3d" tabindex="0"><header><h3>Depth camera</h3><span class="hm-pill" data-pill>…</span></header>
     <div class="hm-metric"><b data-main>—</b><span data-unit></span></div><p data-sub>Astra Pro status</p><footer data-age></footer></article>
+   <article class="hm-card" id="cardMap3d" tabindex="0"><header><h3>3D map</h3><span class="hm-pill" data-pill>…</span></header>
+    <canvas data-map3d width="320" height="210" aria-label="Live 3D map. Drag to rotate, wheel to zoom." style="display:block;width:100%;max-width:340px;aspect-ratio:32/21;border-radius:10px;background:#0b1622;touch-action:none;cursor:grab;margin:4px 0"></canvas>
+    <p data-legend style="font-size:11px;margin:2px 0;opacity:.8">Colour = height: <span style="color:#3b6cff">blue floor</span> → <span style="color:#2bd17e">green</span> → <span style="color:#ffcc3d">yellow</span> → <span style="color:#ff4655">red 1.5 m+</span> · ▲ = rover</p>
+    <p data-sub>No 3D map yet</p><footer data-age></footer><a href="/v2/map3d" style="font-size:12px">Stored 3D maps →</a></article>
    <article class="hm-card" id="cardEncoders" data-detail="encoders" tabindex="0"><header><h3>Wheel encoders</h3><span class="hm-pill" data-pill>…</span></header>
     <div class="hm-wheels" data-vis aria-label="Four wheel encoder counts"></div><p data-sub>Waiting for encoder health</p><footer data-age></footer></article>
    <article class="hm-card" id="cardImu" data-detail="imu" tabindex="0"><header><h3>IMU</h3><span class="hm-pill" data-pill>…</span></header>

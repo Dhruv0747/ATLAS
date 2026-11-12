@@ -348,6 +348,20 @@ class DepthPreviewAndBoot(unittest.TestCase):
         b, g, r = img[100, 200].astype(int)
         self.assertGreater(b, r + 80, 'far must be blue')
 
+    def test_map3d_live_reduce_cloud(self):
+        import atlas_map3d_live as ml
+        rng = np.random.default_rng(1)
+        pts = np.c_[rng.uniform(0, 3, 50000), rng.uniform(-1, 1, 50000), rng.uniform(-0.4, 3.0, 50000)]
+        pts[:10] = np.nan
+        out = ml.reduce_cloud(pts)
+        self.assertEqual(out.dtype, np.int16)
+        self.assertLessEqual(len(out), 10000)
+        self.assertGreaterEqual(out[:, 2].min(), -5, 'mirror points below the floor removed')
+        self.assertLessEqual(out[:, 2].max(), 250)
+        dense = ml.reduce_cloud(np.zeros((500, 3)) + [1.0, 0.0, 0.5])
+        self.assertEqual(len(dense), 1, 'one point per 5 cm voxel')
+        self.assertEqual(ml.reduce_cloud(np.zeros((0, 3))).shape, (0, 3))
+
     def test_boot_wiring(self):
         ob = (ROOT / 'systemd/user/atlas-astra-obstacles.service.in').read_text()
         br = (ROOT / 'systemd/user/atlas-astra-bridge.service.in').read_text()

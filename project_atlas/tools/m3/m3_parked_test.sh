@@ -9,13 +9,21 @@ PAUSE="atlas-voice-companion atlas-localization-monitor atlas-lidar-odom atlas-l
 PAUSED=""; BPG=""; LPG=""
 cpu(){ read -r _ a b c d e f g h _ < /proc/stat; t1=$((a+b+c+d+e+f+g+h)); i1=$((d+e)); sleep $1; read -r _ a b c d e f g h _ < /proc/stat; t2=$((a+b+c+d+e+f+g+h)); i2=$((d+e)); echo $(( 100*((t2-t1)-(i2-i1))/(t2-t1) )); }
 pt(){ awk '{print $14+$15}' /proc/$1/stat 2>/dev/null || echo 0; }
+stopgroup(){  # INT, wait up to 15 s for the WHOLE process group to vanish, then TERM, then KILL
+  local g=$1; [ -z "$g" ] && return 0
+  kill -INT -- -$g 2>/dev/null
+  for i in $(seq 1 30); do kill -0 -- -$g 2>/dev/null || return 0; sleep 0.5; done
+  kill -TERM -- -$g 2>/dev/null; sleep 3; kill -KILL -- -$g 2>/dev/null; sleep 1
+  kill -0 -- -$g 2>/dev/null && echo "WARNING: process group $g still alive"
+  return 0
+}
 restore(){
   echo "=== $(date +%T) RESTORE"
-  [ -n "$LPG" ] && kill -INT -- -$LPG 2>/dev/null; [ -n "$BPG" ] && kill -INT -- -$BPG 2>/dev/null
-  sleep 4; [ -n "$LPG" ] && kill -KILL -- -$LPG 2>/dev/null; [ -n "$BPG" ] && kill -KILL -- -$BPG 2>/dev/null
+  stopgroup "$LPG"; stopgroup "$BPG"
   for u in $PAUSED; do systemctl --user start $u; done
   sleep 3; bad=""; for u in $PAUSED; do systemctl --user is-active --quiet $u || bad="$bad $u"; done
   echo "restored: $(echo $PAUSED | wc -w) units | not active:${bad:- none}"
+  echo "leftover mapping processes: $(ps -eo args | grep -cE '[r]tabmap_slam/rtabmap|[a]tlas_map3d_live|[p]oint_cloud_xyz|[m]3_odom_bridge|[m]3_rtabmap.launch')"
 }
 trap restore EXIT
 source /opt/ros/humble/setup.bash
@@ -41,8 +49,7 @@ echo "=== mapping CPU over $W s: whole Jetson $ALL % | rtabmap $(pc $r1 $r2) % |
 echo "RSS: rtabmap $(awk '/VmRSS/{print int($2/1024)}' /proc/$RT/status) MB, cloud $(awk '/VmRSS/{print int($2/1024)}' /proc/$PC/status) MB | tj $(awk '{printf "%.1f", $1/1000}' $(grep -l tj-thermal /sys/class/thermal/thermal_zone*/type | sed 's/type/temp/')) C"
 ROS_DOMAIN_ID=77 timeout 10 ros2 topic hz /astra/depth_cloud --window 10 2>&1 | grep -m1 average | sed 's/^/depth cloud: /'
 grep -iE "error|warn" /tmp/m3_launch.log | grep -viE "invalid type|deprecated" | sort | uniq -c | sort -rn | head -6 | cut -c1-200
-kill -INT -- -$LPG 2>/dev/null; for i in $(seq 1 40); do pgrep -f "rtabmap_slam/rtabmap" >/dev/null || break; sleep 0.5; done; LPG=""
-echo "RTAB-Map closed after $((i/2)) s"
+T1=$(date +%s); stopgroup "$LPG"; echo "mapping launch fully stopped after $(( $(date +%s)-T1 )) s"
 echo "=== database $(ls -la $DB | awk '{print $5}') bytes"
 rtabmap-info $DB 2>/dev/null | grep -iE "Nodes|Total|Map|Links" | head -6
 rtabmap-export --output_dir $OUT --output m3_parked_$TS $DB > /tmp/m3_export.log 2>&1; ls -la $OUT/m3_parked_$TS* 2>/dev/null | awk '{print $5, $9}'
