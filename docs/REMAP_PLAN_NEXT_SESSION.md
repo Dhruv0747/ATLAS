@@ -55,3 +55,15 @@ is untouched.
 
 ## Not in this session
 3D colour / higher-resolution mapping. That follows once the 2D map and localization are solid.
+
+## Attempt 1 result (2026-11-12 16:00-16:16): REJECTED, old map kept
+
+* Closure **passed**: 0.061 m / 1.98 deg.
+* Rejected for:
+  * a SLAM map->odom jump of 0.92 m / 12 deg at about 16:06:18 (just after leaving the Hall);
+  * "observation did not cover session start" (the window starts at stack-ready, 79 s after the session start).
+* Restored normal localization on the old map (VERIFIED). Named places restored with reconstructed headings.
+* **Home pose must be re-saved.**
+* Before attempt 2:
+  1. find the jump cause in `maps3d/remap_20261112-160012_bag` (suspected odometry distance scale);
+  2. confirm whether the start-coverage gate can ever pass for manual teaching, without weakening any gate.

@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+2026-11-12 16:16 remap REJECTED (closure passed 0.06 m/2 deg; SLAM map->odom jump 0.92 m/12 deg at ~16:06:18 and
+"observation did not cover session start" gate). Old map preserved; localization restored and VERIFIED. Named places
+restored to old-map x/y with RECONSTRUCTED headings; home pose moved aside and MUST BE RE-SAVED before return-home.
+Next: analyse side recording for the jump cause (suspected odometry distance scale, ATLAS-001) and the start-coverage gate.
+
 2026-11-12 EKF heading root cause CONFIRMED + scoped fix DEPLOYED: wheel odometry heading and Yahboom gyro are
 sign-inverted vs an independent LiDAR keyframe heading; IM10A correct. EKF now fuses wheel vx only + IM10A yaw
 (previously rejected velocity-only trial re-adopted on new discriminating evidence: replay median heading error 68 -> 1.3
