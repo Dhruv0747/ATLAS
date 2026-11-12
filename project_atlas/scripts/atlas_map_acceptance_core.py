@@ -29,6 +29,11 @@ class MapAcceptancePolicy:
     max_closure_yaw_deg: float = 10.0
     min_tf_samples: int = 2
     max_observation_start_delay_s: float = 5.0
+    # Manual teaching: the observation window starts when SLAM is ready (drive authority), so the
+    # rover must be proven still between the start request and that moment (2026-11-12).
+    max_startup_wheel_motion_m: float = 0.02
+    max_startup_wheel_yaw_deg: float = 2.0
+    max_startup_odom_age_s: float = 2.0
     max_evidence_age_s: float = 5.0
     max_tf_sample_gap_s: float = 5.0
     max_tf_source_age_s: float = 5.0
@@ -745,6 +750,37 @@ def _check_maximum(
         failures.append(f"{label} {value:.3f} exceeds {limit:.3f}")
 
 
+def startup_stillness_failures(stillness: Any, policy: MapAcceptancePolicy) -> List[str]:
+    """Fail closed unless wheel odometry proves no motion from session start to drive-ready."""
+
+    if not isinstance(stillness, dict):
+        return ["startup stillness evidence is missing"]
+    failures: List[str] = []
+    for key in ("start_odom_age_s", "ready_odom_age_s"):
+        age = _finite_number(stillness.get(key))
+        if age is None:
+            failures.append(f"startup stillness {key} is missing")
+        elif age > policy.max_startup_odom_age_s:
+            failures.append(f"startup stillness wheel odometry was stale ({key} {age:.2f}s)")
+    moved = _finite_number(stillness.get("wheel_displacement_m"))
+    if moved is None:
+        failures.append("startup stillness wheel displacement is missing")
+    elif moved > policy.max_startup_wheel_motion_m:
+        failures.append(
+            f"rover moved {moved:.3f} m before mapping was ready "
+            f"(limit {policy.max_startup_wheel_motion_m:.3f} m)"
+        )
+    turned = _finite_number(stillness.get("wheel_yaw_change_deg"))
+    if turned is None:
+        failures.append("startup stillness wheel yaw change is missing")
+    elif abs(turned) > policy.max_startup_wheel_yaw_deg:
+        failures.append(
+            f"rover turned {abs(turned):.1f} deg before mapping was ready "
+            f"(limit {policy.max_startup_wheel_yaw_deg:.1f} deg)"
+        )
+    return failures
+
+
 def evaluate_acceptance_evidence(
     evidence: Any,
     *,
@@ -767,6 +803,9 @@ def evaluate_acceptance_evidence(
         failures.append("map-acceptance evidence belongs to different candidate bytes")
     if evidence.get("motion_dispatched") is not False:
         failures.append("map-acceptance evidence does not prove a no-motion evaluation")
+
+    if evidence.get("session_mode") == "manual_teaching":
+        failures.extend(startup_stillness_failures(evidence.get("startup_stillness"), policy))
 
     tf_jump = evidence.get("tf_jump")
     if not isinstance(tf_jump, dict):

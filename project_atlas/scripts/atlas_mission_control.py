@@ -22,7 +22,7 @@ from geometry_msgs.msg import (
     PoseWithCovarianceStamped,
     Twist,
 )
-from nav_msgs.msg import OccupancyGrid
+from nav_msgs.msg import OccupancyGrid, Odometry
 from nav2_msgs.action import (
     ComputePathToPose,
     NavigateThroughPoses,
@@ -129,6 +129,11 @@ class AtlasMissionControl(Node):
         self.scan_fit_index = None
         self.create_subscription(
             LaserScan, "/scan", self.update_latest_scan, qos_profile_sensor_data)
+        # Wheel odometry snapshot: proves the rover stayed still while a manual
+        # mapping session starts (before the acceptance observation window).
+        self.latest_wheel_odom = None
+        self.create_subscription(
+            Odometry, "/yahboom/odom", self.update_wheel_odom, 10)
         self.map_prefix.parent.mkdir(parents=True, exist_ok=True)
         self.explore_unit = str(self.get_parameter("explore_unit").value)
         self.home_verify_delay = float(
@@ -447,6 +452,32 @@ class AtlasMissionControl(Node):
     def update_mapping_map(self, _msg: OccupancyGrid) -> None:
         """Record receipt of a map produced by the running SLAM node."""
         self.mapping_map_received_at = time.monotonic()
+
+    def update_wheel_odom(self, msg: Odometry) -> None:
+        q = msg.pose.pose.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        self.latest_wheel_odom = (
+            float(msg.pose.pose.position.x), float(msg.pose.pose.position.y), yaw, time.monotonic()
+        )
+
+    def wheel_odom_snapshot(self):
+        """Return (x, y, yaw, age_s) of the latest wheel odometry, or None."""
+        sample = self.latest_wheel_odom
+        if sample is None:
+            return None
+        return (sample[0], sample[1], sample[2], time.monotonic() - sample[3])
+
+    @staticmethod
+    def startup_stillness(start, ready) -> dict:
+        """Wheel motion between the start request and drive-ready (fail-closed if unknown)."""
+        if start is None or ready is None:
+            return {"start_odom_age_s": None if start is None else start[3],
+                    "ready_odom_age_s": None if ready is None else ready[3],
+                    "wheel_displacement_m": None, "wheel_yaw_change_deg": None}
+        dyaw = math.atan2(math.sin(ready[2] - start[2]), math.cos(ready[2] - start[2]))
+        return {"start_odom_age_s": start[3], "ready_odom_age_s": ready[3],
+                "wheel_displacement_m": math.hypot(ready[0] - start[0], ready[1] - start[1]),
+                "wheel_yaw_change_deg": math.degrees(dyaw)}
 
     def begin_map_acceptance_observation(self, session: dict) -> None:
         """Start session-scoped TF evidence only after the session is durable."""
@@ -1109,12 +1140,19 @@ class AtlasMissionControl(Node):
             "full_footprint_connectivity": footprint,
             "bidirectional_plans": plans,
             "motion_dispatched": False,
+            "session_mode": session.get("mode"),
+            "startup_stillness": session.get("startup_stillness"),
         }
+        # Manual teaching observes from drive-ready (after SLAM startup), so the
+        # coverage reference is ready_unix; stillness before it is checked above.
+        reference_unix = float(session["started_unix"])
+        if session.get("mode") == "manual_teaching":
+            reference_unix = float(session.get("ready_unix", session["started_unix"]))
         failures = evaluate_acceptance_evidence(
             evidence,
             expected_session_id=session["id"],
             expected_candidate_map_id=candidate_map_id,
-            session_started_unix=float(session["started_unix"]),
+            session_started_unix=reference_unix,
             evaluated_unix=evaluated_unix,
             policy=self.map_acceptance_policy,
         )
@@ -1307,6 +1345,7 @@ class AtlasMissionControl(Node):
             "started_unix": time.time(),
             "drive_ready": False,
         }
+        start_odom = self.wheel_odom_snapshot()
         self.atomic_write_json(self.mapping_session_file, session)
         self.start_mapping_recording(session["id"])
         self.status(
@@ -1324,6 +1363,8 @@ class AtlasMissionControl(Node):
                     "state": "active",
                     "drive_ready": True,
                     "ready_unix": time.time(),
+                    "startup_stillness": self.startup_stillness(
+                        start_odom, self.wheel_odom_snapshot()),
                 }
             )
             self.atomic_write_json(self.mapping_session_file, session)
