@@ -9,9 +9,13 @@ python3 - "$T" <<'PY'
 import sys, yaml
 from pathlib import Path
 T = Path(sys.argv[1]); base = yaml.safe_load(Path('/home/jetson/project_atlas/config/atlas_ekf.yaml').read_text())['atlas_ekf']['ros__parameters']
-for name, cfg in (('current', None), ('candidate', [False, False, False, False, False, False, True, True, False, False, False, False, False, False, False])):
-    p = dict(base); p['use_sim_time'] = True; p['publish_tf'] = False
-    if cfg: p['odom0_config'] = cfg
+VX_ONLY = [False, False, False, False, False, False, True, False, False, False, False, False, False, False, False]
+import os
+qvx = float(os.environ.get('CAND_QVX', '0.5'))
+for name, cfg, q in (('current', VX_ONLY, None), ('candidate', VX_ONLY, qvx)):
+    p = dict(base); p['use_sim_time'] = True; p['publish_tf'] = False; p['odom0_config'] = cfg
+    if q is not None:
+        pn = list(p['process_noise_covariance']); pn[6 * 15 + 6] = q; p['process_noise_covariance'] = pn
     (T / f'{name}.yaml').write_text(yaml.safe_dump({f'ekf_{name}': {'ros__parameters': p}}))
 print('configs written')
 PY

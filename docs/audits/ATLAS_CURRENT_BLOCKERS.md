@@ -1317,3 +1317,11 @@ Verification drive 17:39-17:41 (owner; back ~1.1 m then forward, recorded /tmp/c
 - Colour data: maps3d/remap4_colour_20261112-211052 (outbound) and remap4b_colour_return_20261112-213018 (return).
 - Restored as before: rejected_session_b852bf94 kept; named_places from pre-remap2 backup; home not set; atlas-localization restarted; verify-place "dhruv room" VERIFIED (fit 1.0, margin 0.117).
 - Next candidate (not done): wheel+EKF alone remains ~10-20 % short. The existing shadow EKF with rf2o LiDAR odometry (atlas-ekf-lidar-candidate) should be evaluated offline on these bags before any change. The 0.15 m single-step gate is unchanged.
+
+2026-11-12 ~22:00 offline odometry comparison on the remap attempt 3 outbound bag (remap4_colour_20261112-211052/base; 12.3 m SLAM path, 416 s). Each track is aligned to the SLAM pose (map->odom ∘ odom) at motion start; error vs SLAM at the end:
+- live /odom (q_vx 2.0) 1.35 m (replay "current" reproduces it exactly: 1.35 m);
+- existing LiDAR shadow EKF (rf2o -> lidar_odom_gate -> atlas_ekf_lidar_candidate, replayed in domain 93) 2.28 m, i.e. WORSE; NOT a candidate;
+- wheel speed x IM10A dead reckoning 1.09 m;
+- keyframe scan-to-scan ICP alone 0.47 m (max 0.62), but heading error up to 18 deg. Its translation must be rotated by 180 deg: the laser frame points backwards relative to base_link;
+- ICP translation x IM10A heading: 0.20 m final, 0.28 m max (0.17 m per 10 m), about 5x better than the live EKF.
+Conclusion: wheel-based odometry cannot meet the 0.15 m single-step map gate over a room->hall->room loop. A LiDAR scan-matching translation source with IM10A heading is the promising fix; it needs a new real-time node plus EKF fusion, an offline replay first, then owner approval. Tools: project_atlas/tools/localization/{replay_lidar_ekf.sh, compare_odom_to_slam.py, icp_wheelimu_export.py}. Nothing changed live.
