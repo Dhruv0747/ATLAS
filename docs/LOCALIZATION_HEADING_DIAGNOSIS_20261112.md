@@ -101,3 +101,24 @@ Still open:
 * Position accuracy during a full drive (AMCL against the map) is not yet verified.
 * The saved 2D map fits only about 22 % of LiDAR hits, so build a new 2D map with the corrected odometry.
 * Rebuild the two 3D route maps with corrected headings.
+
+## Real drive with the fix (15:13, dhruv room -> hall), and the 2D map attempt
+
+* Heading per stretch:
+  * LiDAR -91.6 / -88.4 deg; EKF heading -91.0 / -98.6 deg.
+  * The EKF heading now equals its IM10A turn rate.
+* Parked in the Hall, AMCL rotated +53.7 deg on its own. Scan fit at the AMCL pose was 0.20 on the existing map, and
+  the monitor reported LOST, 4.47 m / 65 deg from the LiDAR place search.
+  * Cause class: map mismatch in the Hall. No longer odometry heading.
+* dhruv room: before the drive, AMCL was 1.4 m off (it had been restored to a pose that was already wrong). The
+  owner-confirmed verify-place re-seed fixed it (fit 0.51).
+* Candidate 2D map (`maps/atlas_candidate_20261112`, offline slam_toolbox, both legs, AMCL map->odom dropped):
+  **REJECTED**.
+  * Partial: 1077 vs 1920 occupied cells.
+  * Ragged walls.
+  * Place test ambiguous (0.99 vs 0.99) where the existing map gives VERIFIED (1.0, margin 0.131).
+  * The existing map stays active.
+* Round-trip 3D map with corrected heading: `maps3d/round_trip_dhruvroom_hall_fixed_20261112.ply`, 47,984 points.
+  The leg-2 end lies 0.7 m from the leg-1 start.
+* Next: a dedicated, slow, full-coverage remap (Hall included, loop closures), now that odometry heading is fixed. Then
+  re-test Hall localization.

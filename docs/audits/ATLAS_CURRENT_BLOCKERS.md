@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+2026-11-12 EKF heading root cause CONFIRMED + scoped fix DEPLOYED: wheel odometry heading and Yahboom gyro are
+sign-inverted vs an independent LiDAR keyframe heading; IM10A correct. EKF now fuses wheel vx only + IM10A yaw
+(previously rejected velocity-only trial re-adopted on new discriminating evidence: replay median heading error 68 -> 1.3
+deg; live turn and drive agree). A wrong IM10A sign change was applied then reverted. Hall localization on the existing
+map still FAILS (fit 0.20, AMCL jumped while parked); candidate 2D map rejected. Full-drive position NOT verified.
+See docs/LOCALIZATION_HEADING_DIAGNOSIS_20261112.md; registry ATLAS-011/ATLAS-010 events.
+
 2026-10-21 remaining CPU: two-thread lifetime pattern persists; existing untagged
 executor samples cannot identify a safe dominant-cost fix. Exact-live compact
 JSON candidate prepared,6+60tests pass; historical expected saving only~0.06
