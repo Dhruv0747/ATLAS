@@ -387,3 +387,18 @@ The owner's rollback had been an accidental run of the reference commands. Re-ap
   * Investigate at the start of the next session, before stage 2.
 * The owner removed the box. It is needed again for stage 2.
 * Stopped for the night. Astra and bridge still running (owner choice). No motion commands at any point.
+
+### Morning of 2026-11-12: re-start after the Jetson reboot (10:43)
+
+* At boot the seeder gave localization **VERIFIED** (unique LiDAR match), and the monitor says "LiDAR confirms the AMCL
+  pose". Last night's DEGRADED state has cleared.
+* Astra and bridge started while parked; the bridge join kept CPU near 100 % for about 9 s.
+* Astra scan in domain 0 at 6.3 Hz. Nav2 local costmap subscribers: 1. /scan 6.6 Hz. All four Nav2 lifecycle nodes
+  active. CPU 67 %, Tj 58.4 C.
+* Box placed by the owner, flat, about 1 m from the bumper:
+  * Astra cluster at -2.9..+6.1 deg, 1.21-1.29 m.
+  * Nav2 box region **54/54 cells lethal**.
+  * PASS.
+* New near object at +16..+20 deg (left), 0.85-0.90 m; not seen in earlier runs.
+* Wall ranges are about 0.2 m shorter than last night, so the rover's view or position differs slightly after the
+  reboot.
