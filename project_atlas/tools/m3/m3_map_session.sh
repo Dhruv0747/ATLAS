@@ -9,7 +9,7 @@ OUT=$HOME/project_atlas/maps3d; mkdir -p $OUT; DB=$OUT/m3_session_$TS.db
 # Default (2026-11-12 localization drive): keep the LiDAR-odometry trio and the localization monitor RUNNING so their
 # output is recorded; pause only non-safety extras. Override with M3_PAUSE="unit unit ...".
 PAUSE=${M3_PAUSE:-"atlas-voice-companion atlas-camera-joystick atlas-gnss atlas-agent-supervisor atlas-local-llm atlas-visual-cloud-agent atlas-camera"}
-BAG_TOPICS="/scan /odom /tf /tf_static /amcl_pose /particle_cloud /map /initialpose /set_pose /cmd_vel /imu/data /yahboom/imu/data_calibrated /yahboom/odom /yahboom/encoder/m1 /yahboom/encoder/m2 /yahboom/encoder/m3 /yahboom/encoder/m4 /atlas/encoder_health /lidar/odom /lidar/odom_raw /odom/lidar_fused_candidate /lidar/odom/health /astra/obstacle_scan"
+BAG_TOPICS="/scan /odom /tf /tf_static /amcl_pose /particle_cloud /map /initialpose /set_pose /cmd_vel /imu/data /yahboom/imu/data_calibrated /yahboom/odom /yahboom/encoder/m1 /yahboom/encoder/m2 /yahboom/encoder/m3 /yahboom/encoder/m4 /atlas/encoder_health /lidar/odom /lidar/odom_raw /odom/lidar_fused_candidate /lidar/odom/health /astra/obstacle_scan /im10a/imu/bias_corrected_candidate /im10a/imu/unvalidated /im10a/status /diagnostics"
 PAUSED=""; BPG=""; LPG=""; RPG=""; BAG=$OUT/m3_session_${TS}_bag; rm -f /tmp/m3_stop
 cpu(){ read -r _ a b c d e f g h _ < /proc/stat; t1=$((a+b+c+d+e+f+g+h)); i1=$((d+e)); sleep $1; read -r _ a b c d e f g h _ < /proc/stat; t2=$((a+b+c+d+e+f+g+h)); i2=$((d+e)); echo $(( 100*((t2-t1)-(i2-i1))/(t2-t1) )); }
 stopgroup(){ local g=$1; [ -z "$g" ] && return 0; kill -INT -- -$g 2>/dev/null
@@ -25,7 +25,18 @@ restore(){
 }
 trap restore EXIT
 source /opt/ros/humble/setup.bash
-python3 $HOME/project_atlas/scripts/atlas_astra_bridge_parked_check.py || { echo "ABORT: not parked at start"; exit 1; }
+# Start gate: strict parked check (E-STOP latched streams zero cmd_vel), OR physically still: motor speed 0 and
+# odometry still, both fresh (with the E-STOP released and the remote idle, cmd_vel is simply not published).
+STILL=$(curl -s -m 4 http://127.0.0.1:8088/api/status | python3 -c "
+import sys,json
+try:
+    r=json.load(sys.stdin)['ros'];o=r['odom'];m=r['motor_speed']
+    ok=o['age']<2 and m['age']<2 and abs(float(m['value']))<1e-3 and abs(o['value']['vx'])<0.01 and abs(o['value']['wz'])<0.02
+    print('yes' if ok else 'no')
+except Exception: print('no')")
+if python3 $HOME/project_atlas/scripts/atlas_astra_bridge_parked_check.py >/dev/null 2>&1; then echo "start gate: parked (strict)"
+elif [ "$STILL" = yes ]; then echo "start gate: physically still (motor 0, odometry still)"
+else echo "ABORT: rover not verifiably still at start"; exit 1; fi
 systemctl --user is-active --quiet atlas-astra-obstacles || { echo "ABORT: Astra (Track A) not running"; exit 1; }
 for u in $PAUSE; do systemctl --user is-active --quiet $u && { systemctl --user stop $u && PAUSED="$PAUSED $u"; }; done
 echo "$(date +%T) paused:$PAUSED"

@@ -342,7 +342,7 @@
         if (r.status === 404) { m3.d = null; break; }
         if (r.ok) {
           const j = await r.json();
-          if (m3.seq !== null && j.seq !== m3.seq) m3.changedAt = Date.now();
+          if (m3.seq !== null && j.seq !== m3.seq && j.live !== false) m3.changedAt = Date.now();   // live:false = stored map
           if (j.seq !== m3.seq || !m3.pts) { m3.d = j; m3.pts = Int16Array.from(j.points_cm || []); }
           m3.seq = j.seq;
         }
@@ -352,12 +352,12 @@
     renderMap3dCard();
   }
   function renderMap3dCard() {
-    const live = !!m3.d && Date.now() - m3.changedAt < 12000;
+    const live = !!m3.d && m3.d.live !== false && Date.now() - m3.changedAt < 12000;
     if (!m3.d) return setCard('cardMap3d', { state: 'idle', pill: 'Off', sub: 'No 3D map yet. It appears here live during a 3D mapping session.', age: '' });
     const n = m3.d.points_shown || 0, tot = m3.d.points_total || 0;
     const when = m3.d.unix ? new Date(m3.d.unix * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '?';
     if (live) setCard('cardMap3d', { state: 'ok', pill: 'Mapping', sub: `Live · ${n.toLocaleString()} of ${tot.toLocaleString()} points (5 cm) · drag to rotate`, age: '' });
-    else setCard('cardMap3d', { state: 'idle', pill: 'Last map', sub: `Not mapping now · last map ${when} · ${n.toLocaleString()} points · drag to rotate`, age: '' });
+    else setCard('cardMap3d', { state: 'idle', pill: m3.d.name ? 'Stored map' : 'Last map', sub: `${m3.d.name ? m3.d.name + ' · ' : 'Not mapping now · last map ' + when + ' · '}${n.toLocaleString()} points · drag to rotate`, age: '' });
   }
   function heightColor(z) {   // 0 m blue -> 0.5 green -> 1.0 yellow -> 1.5+ red
     const t = Math.max(0, Math.min(1, z / 1.5)), h = 230 - 230 * t;
@@ -379,6 +379,8 @@
       const z = p[i + 2] / 100, q = proj(p[i] / 100, p[i + 1] / 100, z);
       g.fillStyle = heightColor(z); g.fillRect(q[0], q[1], 2, 2);
     }
+    const path = m3.d && m3.d.path_cm;   // driven route (white line), if the feed provides it
+    if (path && path.length >= 6) { g.strokeStyle = '#ffffffcc'; g.lineWidth = 2; g.beginPath(); for (let i = 0; i < path.length; i += 3) { const q = proj(path[i] / 100, path[i + 1] / 100, 0); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); } g.stroke(); }
     const r = m3.d && m3.d.robot_cm_deg;
     if (r) {   // rover marker: triangle pointing along its heading
       const yaw = r[2] * Math.PI / 180, rx = r[0] / 100, ry = r[1] / 100, L = 0.3;
