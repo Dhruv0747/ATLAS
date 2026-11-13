@@ -1378,3 +1378,12 @@ Conclusion: wheel-based odometry cannot meet the 0.15 m single-step map gate ove
 - LiDAR rate stayed normal (6.5-6.8 Hz every minute, scan delay <= 0.54 s). The SLAM TF delay was ~3.8 s all session, also when calm, so it is not specific to the jump. CPU overload is therefore NOT the primary cause.
 - Main cause: aggressive driving/spinning at the start of the return smeared LiDAR scans (148 deg/s = ~22 deg per scan at 6.7 Hz) beyond what scan matching tracks, and SLAM corrected in large steps. The room<->hall connectivity failure follows from the resulting smeared map.
 - Fix to try: a mapping-mode speed limit (e.g. <= 0.3 m/s, <= 30 deg/s) or strict slow driving. Any limit is a config change needing owner OK.
+
+2026-11-13 ~11:40 CORRECTION to the 11:10 entry (new discriminating evidence from independent sensors, same window 10:32:19-10:33:25):
+- Turn rate: IM10A max 53 deg/s (95 % 34 deg/s). The 148 deg/s figure was WHEEL-reported and wrong: wheel yaw is unreliable (swapped rear labels, faulty M3). The existing mux mapping limits (mapping_remote_max_linear 0.30 m/s, mapping_remote_max_angular 1.20 rad/s, active in operating mode MAPPING) held for turning.
+- Linear speed (LiDAR ICP): 0.61 m/s 95 %, 0.77 max, about 2x the commanded 0.30 m/s cap. The open-loop PWM drive (drive PID disabled) moves ~2x faster than the commanded value since the CPR fix.
+- ICP odometry: 0 rejected scans in the window; EKF /odom stayed smooth.
+- SLAM (map->odom) oscillated within ~40 s: (-0.22,0.19,1.4 deg) -> (-0.51,0.29,3.8) -> (+0.64,-0.24,-7.8) -> (-1.51,0.30,9.4) -> (-1.15,0.18,5.2) -> (-1.52,0.38,10.4) -> (-0.90,0.36,4.3) -> (-0.55,0.20,0.4) -> (-1.08,0.26,8.4).
+- So the jumps come from slam_toolbox scan matching bouncing, not from odometry. SLAM TF stamps lag receipt by ~3.8 s all session (scan_queue_size 20, minimum_travel_distance 0.05 m, minimum_time_interval 0.1 s): SLAM is running ~4 s behind.
+- Revised suspects: (1) the SLAM processing backlog and its default correlative search accepting wrong matches during faster motion; (2) real speed ~0.6 m/s.
+- Candidate fixes (not applied): lower mapping_remote_max_linear to ~0.15 (real ~0.3 m/s); offline replay of slam_toolbox parameter variants (larger minimum travel, smaller scan queue, stronger odometry trust) on this bag before any live change.
