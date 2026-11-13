@@ -1578,3 +1578,12 @@ B. atlas-ptz-home.service (system unit, /home/jetson/home.py) fails every boot: 
 C. GPS: the hub reports GPS_BYTES=0 since boot (UART at 9600 baud receives nothing). Wiring/power/module check; indoors alone would still give NMEA bytes.
 D. AMCL particle collapse persists (covariance ~1e-15, perfect confidence). Already registered (issues 33/36: 1 Hz forced no-motion updates + resample_interval 1 + zero recovery alphas). No new tuning without the reviewed change. LiDAR start verification and the scan-fit gate remain the real checks.
 Watch: cellular modem USB re-enumerated 6x between 14:34 and 14:47 (overload window), none since. rover-base-telemetry "USB discovery busy" at startup 3x in 2 days (auto-retried).
+
+2026-11-13 23:53 power mode changed by the owner: sudo nvpmodel -m 2 (MAXN_SUPER), no reboot needed. Was ID 1 "25W" (CPU cap 1.344 GHz).
+- Now: all 6 cores max 1.728 GHz; temperatures unchanged at cpu 68 C / tj 67-68 C (trip 99 C); fan PWM 132; remote stop latched; no failed units; dashboard 200.
+- Localization idle (30 s profiles):
+  - process total 396.9 % (before the evening deploy) -> 379.1 % (batching) -> 359.0 % (MAXN_SUPER);
+  - idle 29 % -> 32 % -> 35 %;
+  - load average 14-18 -> ~10.
+- /var/lib/nvpmodel/status records the mode for boot (/etc/nvpmodel.conf DEFAULT is still 1; the status file takes precedence).
+- Watch the temperature during the next mapping drive.
