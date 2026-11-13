@@ -1422,3 +1422,9 @@ Proposal (not applied; needs owner OK): lighter SLAM settings in atlas-slam-fast
 - Bug found and fixed: pause_mapping_background stopped the voice companion, but "Job for atlas-ai-annotator.service canceled" raised before the record was written, so voice was not restored. Voice restarted manually; ai-annotator removed from the list; units are now stopped one by one with a per-unit record. Deployed (mission control restarted, no session).
 - Localization restored (seeded from a LiDAR-verified pose (0.115, -1.995)); named_places from pre-remap6-20261113; rejected_session_57941c0d kept.
 - Next candidates (offline replay on this bag first): stricter scan-match acceptance (link_match_minimum_response_fine, smaller search window); odometry-led mapping (scan matching off) with closure checked against ICP drift.
+
+2026-11-13 ~14:30 offline replays on the attempt 5 bag (remap6_colour_20261113-134122/base):
+- current lighter params: max step 0.525 m at 13:49:35 (live had 1.12 m at 13:49:34); 14 steps > 0.15 m; total correction 7.33 m.
+- strict matching (link response 0.3, loop response 0.6, search 0.3 m, loop distance 2 m): 0.515 m at the same moment, 14 steps, i.e. no effect (like the penalty/search variants earlier).
+- odometry-only (scan matching off) checked directly from /odom: start vs parked end 0.610 m / 5.2 deg over a 27.1 m path. Fails the 0.15 m closure, so it is ruled out.
+LiDAR data: while parked, only 207/360 bins are valid; the 153 empty bins are spread evenly over all directions, so it is not an obstruction. Driver: rplidar_ros scan_mode Standard (2 kHz sample rate) at ~7-8 Hz with angle_compensate into 360 bins (fw 1.29, hw rev 7). Leading hypothesis: sparse scans give ambiguous matches in the corridor. Candidate (needs owner OK, parked restart): a denser RPLIDAR scan mode (Express/Boost, if supported), then measure valid bins and replay.
