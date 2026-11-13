@@ -1428,3 +1428,12 @@ Proposal (not applied; needs owner OK): lighter SLAM settings in atlas-slam-fast
 - strict matching (link response 0.3, loop response 0.6, search 0.3 m, loop distance 2 m): 0.515 m at the same moment, 14 steps, i.e. no effect (like the penalty/search variants earlier).
 - odometry-only (scan matching off) checked directly from /odom: start vs parked end 0.610 m / 5.2 deg over a 27.1 m path. Fails the 0.15 m closure, so it is ruled out.
 LiDAR data: while parked, only 207/360 bins are valid; the 153 empty bins are spread evenly over all directions, so it is not an obstruction. Driver: rplidar_ros scan_mode Standard (2 kHz sample rate) at ~7-8 Hz with angle_compensate into 360 bins (fw 1.29, hw rev 7). Leading hypothesis: sparse scans give ambiguous matches in the corridor. Candidate (needs owner OK, parked restart): a denser RPLIDAR scan mode (Express/Boost, if supported), then measure valid bins and replay.
+2026-11-13 ~14:30 APPLIED (owner OK "Yes, test LiDAR mode", kept after test): atlas-lidar.service scan_mode Standard -> Boost.
+- RPLIDAR A1 fw 1.29 hw rev 7 accepts Boost: 8 kHz sample rate.
+- Backup: atlas-lidar.service.before-scanmode-20261113. Restarted while parked with the E-STOP latched.
+- /scan now 1080 beams at 0.33 deg, 1040 valid (96 %), 7.2 Hz. Standard mode gave 207/360 valid (57 %).
+- Downstream: atlas_scan_self_filter uses angle_increment (no fixed 360).
+- ICP odometry: scan_to_points now subsamples to max_points 400. 92 ms/scan -> 20 ms/scan; core tests 5/5 pass.
+- Localization on the old map with Boost scans: verify-place "dhruv room" VERIFIED, fit 0.987, margin 0.205.
+- CPU: atlas-localization (AMCL + Nav2) ~53 % of a core during the check.
+- Next: remap attempt 6 with denser scans.

@@ -33,13 +33,17 @@ class IcpConfig:
     keyframe_translation_m: float = 0.6
     max_step_translation_m: float = 0.25   # per scan; ~2 m/s at 8 Hz, far above ATLAS speeds
     max_step_yaw_deg: float = 20.0
+    max_points: int = 400                 # uniform subsample (2026-11-13: LiDAR Boost mode gives ~1040 points)
 
 
 def scan_to_points(ranges, angle_min, angle_increment, mount_x, mount_y, mount_yaw, cfg: IcpConfig):
     r = np.asarray(ranges, dtype=float)
     a = angle_min + np.arange(len(r)) * angle_increment
     ok = np.isfinite(r) & (r > cfg.range_min_m) & (r < cfg.range_max_m)
-    lx, ly = r[ok] * np.cos(a[ok]), r[ok] * np.sin(a[ok])
+    idx = np.nonzero(ok)[0]
+    if len(idx) > cfg.max_points:
+        idx = idx[np.linspace(0, len(idx) - 1, cfg.max_points).astype(int)]
+    lx, ly = r[idx] * np.cos(a[idx]), r[idx] * np.sin(a[idx])
     c, s = math.cos(mount_yaw), math.sin(mount_yaw)
     return np.c_[mount_x + c * lx - s * ly, mount_y + s * lx + c * ly]
 
