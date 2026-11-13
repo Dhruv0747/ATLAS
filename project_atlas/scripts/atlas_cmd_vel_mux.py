@@ -98,7 +98,9 @@ class AtlasCmdVelMux(Node):
         # per metre, but preserve the commissioned remote steering authority.
         # Clipping angular input to 0.45 rad/s made tight indoor steering feel
         # heavy and forced the operator to fight the route through doorways.
-        self.declare_parameter("mapping_remote_max_linear", 0.30)
+        # 2026-11-13 (owner OK): 0.30 -> 0.15. The open-loop PWM drive moved ~2x the commanded speed after the
+        # 2026-11-12 encoder CPR fix (LiDAR: 0.61 m/s at the 0.30 cap), and remap attempt 4 failed during fast motion.
+        self.declare_parameter("mapping_remote_max_linear", 0.15)
         self.declare_parameter("mapping_remote_max_angular", 1.20)
         self.declare_parameter("auto_front_stop_m", 0.30)
         self.declare_parameter("auto_rear_stop_m", 0.30)
