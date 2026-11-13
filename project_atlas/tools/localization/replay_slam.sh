@@ -14,24 +14,29 @@ src, dst = sys.argv[1], sys.argv[2]
 r = rosbag2_py.SequentialReader(); r.open(rosbag2_py.StorageOptions(uri=src, storage_id='sqlite3'), rosbag2_py.ConverterOptions('cdr', 'cdr'))
 types = {t.name: t.type for t in r.get_all_topics_and_types()}
 keep = ['/scan', '/tf', '/tf_static']
-r.set_filter(rosbag2_py.StorageFilter(topics=keep))
+r.set_filter(rosbag2_py.StorageFilter(topics=['/scan', '/tf_static', '/odom']))   # odom->base_link TF rebuilt from /odom
 w = rosbag2_py.SequentialWriter(); w.open(rosbag2_py.StorageOptions(uri=dst, storage_id='sqlite3'), rosbag2_py.ConverterOptions('cdr', 'cdr'))
 for i, n in enumerate(keep):
     w.create_topic(rosbag2_py.TopicMetadata(name=n, type=types[n], serialization_format='cdr',
                    offered_qos_profiles=('- history: 3\n  depth: 0\n  reliability: 1\n  durability: 1\n  deadline: {sec: 2147483647, nsec: 4294967295}\n  lifespan: {sec: 2147483647, nsec: 4294967295}\n  liveliness: 1\n  liveliness_lease_duration: {sec: 2147483647, nsec: 4294967295}\n  avoid_ros_namespace_conventions: false\n' if n == '/tf_static' else '')))
-T = get_message(types['/tf'])
-n_drop = 0
+from tf2_msgs.msg import TFMessage
+from geometry_msgs.msg import TransformStamped
+O = get_message(types['/odom'])
+n_tf = 0
 while r.has_next():
     name, data, t = r.read_next()
-    if name == '/tf':
-        m = deserialize_message(data, T)
-        keep_tf = [x for x in m.transforms if not (x.header.frame_id == 'map')]
-        n_drop += len(m.transforms) - len(keep_tf)
-        if not keep_tf: continue
-        m.transforms = keep_tf; data = serialize_message(m)
+    if name == '/odom':
+        # The recorded /tf odom->base_link arrived ~11 s late (overload); rebuild it from /odom at its own stamp.
+        m = deserialize_message(data, O); ts = TransformStamped()
+        ts.header = m.header; ts.header.frame_id = 'odom'; ts.child_frame_id = 'base_link'
+        ts.transform.translation.x = m.pose.pose.position.x; ts.transform.translation.y = m.pose.pose.position.y
+        ts.transform.rotation = m.pose.pose.orientation
+        stamp_ns = m.header.stamp.sec * 1000000000 + m.header.stamp.nanosec
+        w.write('/tf', serialize_message(TFMessage(transforms=[ts])), max(stamp_ns, t - 200000000)); n_tf += 1
+        continue
     w.write(name, data, t)
 del w
-print('filtered bag written; dropped map transforms:', n_drop)
+print('filtered bag written; odom->base_link TF rebuilt from /odom:', n_tf)
 PY
 fi
 setsid /opt/ros/humble/lib/slam_toolbox/async_slam_toolbox_node --ros-args -r __node:=slam_toolbox -r /map:=/map_raw \

@@ -1390,3 +1390,11 @@ Conclusion: wheel-based odometry cannot meet the 0.15 m single-step map gate ove
 
 2026-11-13 ~12:00 APPLIED (owner OK "Yes, do both"): atlas_cmd_vel_mux.py default mapping_remote_max_linear 0.30 -> 0.15. It applies only in operating mode MAPPING and can only reduce speed. Live parameter read back as 0.15. Backup: scripts/atlas_cmd_vel_mux.py.before-mapcap-20261113. The mux restarted while parked; RemoteStop starts latched by design. The angular cap stays 1.20 rad/s (the real turn rate stayed below it).
 Started: offline slam_toolbox replays (tools/localization/replay_slam.sh, domain 95) of the attempt 4 bag with three variants: live params; lighter processing (0.2 m / 0.17 rad / 0.5 s, queue 1); lighter + stronger odometry trust (variance penalties 1.0/2.0, search 0.3 m).
+
+2026-11-13 ~13:00 offline slam_toolbox replays of the attempt 4 bag (tools/localization/replay_slam.sh; odom->base_link TF rebuilt from /odom because the recorded /tf odom->base_link arrived ~11 s late, 1.6 Hz, which made the first replay attempt invalid):
+- live params: max single step 0.757 m at 10:32:55 (reproduces live); 63 steps > 0.15 m; 6 > 5 deg; total correction 28.7 m.
+- lighter (min travel 0.2 m / 0.17 rad, interval 0.5 s, queue 1, map update 3 s): max 1.019 m at 10:33:20; 32 steps > 0.15 m; total 14.9 m.
+- lighter + variance penalties 1.0/2.0 + search 0.3 m: same as lighter (no effect).
+- lighter + loop closing off: same max 1.019 m at 10:33:20, so the big jump is scan matching, NOT loop closure.
+At 10:33:15-29 the rover moved up to 0.87 m/s (0.19 m and 11.5 deg between consecutive odom samples) in a narrow spot: 170/360 valid beams, median range 0.58 m. Conclusion: lighter processing halves the bouncing; the remaining large jump comes from fast motion through a tight, feature-poor place. The new 0.15 mapping cap (real ~0.3 m/s) targets it directly; slower driving cannot be proven by replay.
+Proposal (not applied; needs owner OK): lighter SLAM settings in atlas-slam-fast.service.
