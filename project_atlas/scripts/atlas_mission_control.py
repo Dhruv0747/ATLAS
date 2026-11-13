@@ -69,6 +69,11 @@ class AtlasMissionControl(Node):
         "atlas-follow-person.service",
         "atlas-foxglove.service",
         "atlas-voice-companion.service",
+        # 2026-11-13: also paused while mapping (not needed to map; ~25 % of a core together). Load average reached
+        # 40-47 during remap attempt 4. The Pi camera stays (sensor recovery restarts it if its stream goes stale).
+        "atlas-ai-annotator.service",
+        "atlas-agent-team.service",
+        "atlas-person-sensor-fusion.service",
     )
     CAMERA_PAN_MIN_US = 700
     CAMERA_PAN_MAX_US = 2300
@@ -1348,6 +1353,11 @@ class AtlasMissionControl(Node):
         start_odom = self.wheel_odom_snapshot()
         self.atomic_write_json(self.mapping_session_file, session)
         self.start_mapping_recording(session["id"])
+        try:
+            # 2026-11-13: manual teaching previously paused nothing (only exploration did).
+            self.pause_mapping_background()
+        except Exception as exc:
+            self.get_logger().warning(f"mapping CPU profile not applied: {exc}")
         self.status(
             f"MANUAL MAPPING PREPARING session={session['id'][:8]}; "
             "KEEP ATLAS STOPPED until MANUAL MAPPING ACTIVE"
@@ -1373,6 +1383,7 @@ class AtlasMissionControl(Node):
         except Exception:
             self.stop_mapping_recording()
             self.mapping_session_file.unlink(missing_ok=True)
+            self.restore_mapping_background()
             raise
         self.status(
             f"MANUAL MAPPING ACTIVE session={session['id'][:8]}; "

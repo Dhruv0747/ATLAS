@@ -1,0 +1,6 @@
+[Unit]
+Description=Project ATLAS dashboard watchdog (restarts rover-status-web if it stops answering)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/jetson/project_atlas/scripts/atlas_status_web_watchdog.sh

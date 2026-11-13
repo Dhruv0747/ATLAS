@@ -1402,3 +1402,12 @@ Proposal (not applied; needs owner OK): lighter SLAM settings in atlas-slam-fast
 - minimum_time_interval 0.10 -> 0.5; minimum_travel_distance 0.05 -> 0.2; minimum_travel_heading 0.10 -> 0.17; map_update_interval 1.5 -> 3.0; scan_queue_size 20 -> 1.
 - Only ExecStart changed. Backup: ~/.config/systemd/user/atlas-slam-fast.service.before-lighter-20261113. daemon-reload done; the unit was inactive (localization mode), so it takes effect at the next mapping session.
 - Together with the mapping speed cap 0.15, ready for remap attempt 5.
+
+2026-11-13 ~13:40 owner-approved fixes ("Yes, deploy all"):
+- Dashboard deadlock: rover-status-web was found hung (27 threads in futex wait, ~2 % CPU, CLOSE-WAIT sockets with unread requests), so CPU was not the cause.
+  - atlas_status_web.py now registers faulthandler on SIGUSR1, which dumps all thread stacks to the journal.
+  - New atlas-status-web-watchdog.timer (every 20 s, enabled at boot) curls /v2/; after 2 failed checks it sends SIGUSR1 and restarts rover-status-web only.
+  - The root-cause lock is still unknown; the next hang will produce the stack dump.
+- Mapping CPU: manual teaching paused nothing (only exploration called pause_mapping_background). start_manual_mapping now pauses MAPPING_BACKGROUND_UNITS, extended with ai-annotator, agent-team and person-sensor-fusion (~25 % of a core), and restores them on start failure and at stop (existing finally). The Pi camera is kept: atlas_sensor_recovery restarts atlas-camera when its stream is stale.
+- Backups: scripts/*.before-20261113-cpu-dash.
+- CORRECTION to the 13:10 SLAM change: scan_queue_size 1 broke live SLAM. The tf message filter discarded every scan ("queue is full"), so no map frame was produced; that is why the 13:08 mapping start failed after 90 s. The offline replay did not show this. Set scan_queue_size 5 (other lighter settings unchanged); after the restart the map frame appeared within 10 s with 0 drops. Dashboard /api/map now returns the live SLAM map and the rover pose (map->base_link).

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the ATLAS dashboard watchdog every 20 s
+
+[Timer]
+OnBootSec=120
+OnUnitActiveSec=20
+AccuracySec=2
+
+[Install]
+WantedBy=timers.target

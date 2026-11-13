@@ -2976,6 +2976,10 @@ refresh();setInterval(refresh,2000);
 
 
 def main():
+    # 2026-11-13: the server was found deadlocked (all threads in futex wait, CLOSE-WAIT sockets). SIGUSR1 now dumps
+    # every thread's Python stack to the journal so the lock can be identified; the watchdog sends it before restarting.
+    import faulthandler
+    faulthandler.register(signal.SIGUSR1, all_threads=True)
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     server.daemon_threads = True
 
