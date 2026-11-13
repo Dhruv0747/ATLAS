@@ -9,7 +9,22 @@ _lock = threading.Lock()
 _module = None
 
 
-def create_executor(**kwargs):
+def _batched(executor, batch_s):
+    """2026-11-13: wait batch_s before each wait-set rebuild so every message that arrived meanwhile is
+    dispatched in one pass (the executor otherwise rebuilds its wait set per message: ~190/s, ~40 % of a core)."""
+    if not batch_s or batch_s <= 0:
+        return executor
+    import time
+    inner = executor._wait_for_ready_callbacks
+
+    def wait_batched(*args, **kwargs):
+        time.sleep(batch_s)
+        yield from inner(*args, **kwargs)
+    executor._wait_for_ready_callbacks = wait_batched
+    return executor
+
+
+def create_executor(batch_s=0.0, **kwargs):
     global _module
     with _lock:
         if _module is None:
@@ -22,12 +37,12 @@ def create_executor(**kwargs):
             exec(compile(source, str(path), 'exec'), module.__dict__)
             _module = module
         executor_class = _module.SingleThreadedExecutor
-    return executor_class(**kwargs)
+    return _batched(executor_class(**kwargs), batch_s)
 
 
-def spin(node):
+def spin(node, batch_s=0.0):
     import rclpy
-    executor = create_executor(context=node.context)
+    executor = create_executor(batch_s=batch_s, context=node.context)
     try:
         rclpy.spin(node, executor=executor)
     finally:

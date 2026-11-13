@@ -1447,3 +1447,14 @@ LiDAR data: while parked, only 207/360 bins are valid; the 153 empty bins are sp
 - Localization restarted; seeded at the hall (6.475, -2.375) before the owner drove back. Load fell to ~14 by 14:49.
 - Remote input priority: atlas-remote.service (joy_node + teleop) had default CPU weight while the base and mux have CPUWeight=1000. joy gaps under load latch the remote stop. Applied `systemctl --user set-property atlas-remote.service CPUWeight=1000` (live, persistent in ~/.config/systemd/user.control, no restart).
 - Boost needs scan thinning first: one decimating node (1080 -> ~360 bins) for all consumers, keeping full density only where needed.
+
+2026-11-13 ~15:05 CPU reduction (owner chose "Pause AI extras" and "Lighten the dashboard"):
+- Baseline per service (% of one core, localization mode): atlas-localization 55, rover-status-web 40, atlas-camera 34, rover-base-telemetry 30, voice 22, astra 22, sensor-recovery 16, mux 16, mission-control 15, localization-monitor 14, safety-status 13, icp-odometry 13, rf2o 10, ai-annotator 10, agent-team 9. Total ~430 % of 600 %.
+- Dashboard: stack sampling (SIGUSR1) showed the time going into executor wait-set rebuilds (wait_for_ready_callbacks), one per message, ~190 msg/s on the hot node.
+  - atlas_dashboard_executor.create_executor/spin gained batch_s: sleep before each wait-set rebuild so pending messages are dispatched in one pass.
+  - Hot node (web drive/E-STOP path) 30 ms; status node 100 ms. The integrity-hashed impl file is unchanged.
+  - Result: rover-status-web 40 % -> 17 %; /v2/ answers in 0.01 s; /api/map OK.
+  - Tests on the Jetson are identical before and after: idle_camera 11 pass, smart_panels 7 pass, executor_split 4 pass/1 fail/1 skip. estop_reset, estop_safety, no_reboot and executor_profile ERROR at collection (missing module calibration_validation, pre-existing); snapshot_cost 5 fail (pre-existing). So the web E-STOP path is NOT covered by a passing test.
+  - Backups: scripts/*.before-batching-20261113.
+- AI extras: stopped, but atlas-feature-on-demand restarted them within ~1 min. The design is fail-open: mission_status != READY counts as autonomy demand, and after the abort the status stayed "MAPPING NOT ACTIVE; ACCEPTED MAP PRESERVED". Mission control restarted (no session), status READY, so the manager stops them after idle_s 300. They were already "disabled" at boot; boot state recorded in ~/.config/project_atlas/ai_extras_paused_20261113.txt.
+- Follow-up: mission control should publish READY after a stop/abort finishes.

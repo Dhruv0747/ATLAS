@@ -303,6 +303,10 @@ def sensor_hub_cache_snapshot():
 # executor thread. Topic names, types, QoS and callbacks are unchanged; only which executor dispatches
 # them changes. rclpy's executor scans every entity of its node on each wake, so separating the two
 # groups cuts the per-message cost (isolated benchmark: 55.7% -> 39.6% of one core).
+# 2026-11-13: executor batching (see atlas_dashboard_executor._batched). The hot node also serves the web
+# drive/E-STOP path, so it waits only 30 ms; the low-rate status node waits 100 ms.
+HOT_EXECUTOR_BATCH_S = 0.03
+STATUS_EXECUTOR_BATCH_S = 0.10
 HOT_STATUS_TOPICS = frozenset({
     '/radar/hub/status', '/radar/targets', '/joy', '/ultrasonic/status', '/scan', '/odom',
     '/im10a/dashboard_json', '/atlas/drive_pid/diagnostics', '/atlas/encoder_health',
@@ -448,7 +452,7 @@ class AtlasRosNode:
     def _spin_status(self):
         """Executor thread for the low-rate status node. A failure here fails the same way a
         failure of the single executor did before: record it and stop publishing drive."""
-        executor = _atlas_create_executor()
+        executor = _atlas_create_executor(batch_s=STATUS_EXECUTOR_BATCH_S)
         try:
             executor.add_node(self.status_node)
             executor.spin()
@@ -685,7 +689,7 @@ class AtlasRosNode:
             )
             self.ready = True
             threading.Thread(target=self._spin_status, name="atlas-web-status-spin", daemon=True).start()
-            _atlas_spin(self.node)
+            _atlas_spin(self.node, batch_s=HOT_EXECUTOR_BATCH_S)
         except Exception as exc:
             self._set("web_error", str(exc))
             self.ready = False
