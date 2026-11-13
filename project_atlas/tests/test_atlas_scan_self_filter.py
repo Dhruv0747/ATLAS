@@ -169,6 +169,64 @@ class AtlasScanSelfFilterTests(unittest.TestCase):
         self.assertEqual(target.ranges[1], 1.0)
         self.assertEqual(node.filtered_pub.messages[-1].data, 1)
 
+    def boost_scan(self):
+        import math
+        source = LaserScan()
+        source.header.stamp = Stamp(sec=5, nanosec=6)
+        source.angle_min = -math.pi
+        source.angle_increment = 2 * math.pi / 1080
+        source.angle_max = source.angle_min + 1079 * source.angle_increment
+        source.time_increment = 0.0001
+        source.range_min = 0.15
+        source.range_max = 12.0
+        source.ranges = [float("inf")] * 1080
+        source.intensities = [0.0] * 1080
+        return source
+
+    def test_boost_scan_thinned_to_nearest_per_bin(self):
+        import math
+        node = self.make_filter()
+        source = self.boost_scan()
+        source.ranges[30:33] = [2.0, float("inf"), 1.5]      # bin 10: nearest valid = 1.5
+        source.intensities[32] = 47.0
+        source.ranges[60:63] = [float("inf")] * 3            # bin 20: no return stays inf
+        source.ranges[90:93] = [0.1, 3.0, 0.0]               # bin 30: below range_min / zero ignored -> 3.0
+        node._scan(source)
+        t = node.publisher.messages[-1]
+        self.assertEqual(len(t.ranges), 360)
+        self.assertAlmostEqual(t.angle_increment, 3 * source.angle_increment)
+        self.assertAlmostEqual(t.angle_min, source.angle_min + source.angle_increment)
+        self.assertAlmostEqual(t.angle_max, t.angle_min + 359 * t.angle_increment)
+        self.assertAlmostEqual(t.time_increment, 3 * source.time_increment)
+        self.assertEqual(t.ranges[10], 1.5)
+        self.assertEqual(t.intensities[10], 47.0)
+        self.assertTrue(math.isinf(t.ranges[20]))
+        self.assertEqual(t.ranges[30], 3.0)
+        self.assertEqual((t.header.stamp.sec, t.header.stamp.nanosec), (5, 6))
+
+    def test_self_returns_removed_before_thinning(self):
+        import math
+        node = self.make_filter()
+        source = self.boost_scan()
+        # laser faces backwards: a laser beam at angle 0 points to base -x; 0.2 m is inside the body box
+        i0 = int(round((0.0 - source.angle_min) / source.angle_increment))
+        g = i0 - i0 % 3
+        source.ranges[g:g + 3] = [0.2, 0.2, 2.5]
+        node._scan(source)
+        t = node.publisher.messages[-1]
+        self.assertEqual(t.ranges[g // 3], 2.5)
+        self.assertEqual(node.filtered_pub.messages[-1].data, 2)
+
+    def test_standard_scan_not_thinned(self):
+        node = self.make_filter()
+        source = self.boost_scan()
+        source.angle_increment *= 3
+        source.ranges = [1.0] * 360
+        source.intensities = [0.0] * 360
+        node._scan(source)
+        self.assertEqual(len(node.publisher.messages[-1].ranges), 360)
+        self.assertEqual(node.publisher.messages[-1].angle_increment, source.angle_increment)
+
     def test_service_keeps_single_filter_boundary(self):
         source = FILTER_PATH.read_text(encoding="utf-8")
         service = SERVICE_PATH.read_text(encoding="utf-8")

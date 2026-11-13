@@ -1459,3 +1459,14 @@ LiDAR data: while parked, only 207/360 bins are valid; the 153 empty bins are sp
 - AI extras: stopped, but atlas-feature-on-demand restarted them within ~1 min. The design is fail-open: mission_status != READY counts as autonomy demand, and after the abort the status stayed "MAPPING NOT ACTIVE; ACCEPTED MAP PRESERVED". Mission control restarted (no session), status READY, so the manager stops them after idle_s 300. They were already "disabled" at boot; boot state recorded in ~/.config/project_atlas/ai_extras_paused_20261113.txt.
 - Follow-up: mission control should publish READY after a stop/abort finishes.
 2026-11-13 ~15:15 parked in Dhruv Room: verify-place VERIFIED (fit 0.996, margin 0.22), AMCL (0.20, -1.80). Normal localization healthy after today's changes.
+
+2026-11-13 ~16:00 APPLIED (owner OK "Thin dense scans"): LiDAR Boost + thinning in atlas_scan_self_filter.
+- Filter rewritten with numpy; self-box logic unchanged. When the raw scan has >= 1.5x TARGET_BINS (360) beams, each output bin is the NEAREST valid return of its consecutive raw beams (conservative for obstacles). angle_min is the group centre, angle_increment and time_increment are x factor, and the header stamp is unchanged. Standard-mode scans pass through unthinned.
+- tests/test_atlas_scan_self_filter.py: 3 new tests (nearest-per-bin with empty and below-min bins; self-returns removed before thinning; Standard not thinned). 6/6 pass on the Jetson.
+- Recorded Boost scans: 1080 -> 360, valid 88 % -> 90 %, 0.4 ms/scan.
+- Live after deploy (parked; atlas-scan-filter restarted, then atlas-lidar.service scan_mode Boost again):
+  - /scan 7.2 Hz, 360 bins, 98 % valid (Standard was 57 %);
+  - load average ~15-17 (Standard ~12-13; Boost without thinning 50-59);
+  - ICP node 15 % CPU, 0 rejected;
+  - verify-place "dhruv room" VERIFIED fit 0.99 margin 0.236.
+- Backups: scripts/atlas_scan_self_filter.py.before-thinning-20261113; atlas-lidar.service.before-scanmode-20261113 (Standard).
