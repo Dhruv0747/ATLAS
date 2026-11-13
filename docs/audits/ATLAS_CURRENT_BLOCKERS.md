@@ -1624,3 +1624,9 @@ LEAD (strong, not yet reproduced): stopping ONLY the session's recorder dropped 
 - Side effect: my probes left the system in that state: 481 % CPU, 10 % idle, 29 % system time, load 48, atlas-localization 122 %. Rover parked, stop latched, READY. A reboot is recommended to clear it.
 - Next: (1) reboot; (2) the owner installs strace and linux-tools; (3) parked, start mapping and catch the syscall mix in EKF and SLAM; (4) candidate fixes for a reviewed change: SLAM transform_publish_period, discovery / lease settings, or the participant churn at mapping start. No change made yet.
 - Also: use `ros2 topic pub --once -w 1` (the first stop without -w was lost).
+
+2026-11-14 01:05 Jetson rebooted (owner ran sudo reboot) to clear the sticky /tf state left by the probes.
+- After boot: pmode 0002 (MAXN_SUPER, 1.728 GHz) kept; all core units active; remote stop latched; mission READY. Only atlas-ptz-home failed (obsolete unit, audit item B).
+- Localization: AMCL (0.211, -1.850); LiDAR verify-place "dhruv room" unique match (0.175, -1.855, 69 deg), margin 0.22. No reseed needed.
+- CPU (30 s): 354.5 % total, idle 36 %, system 13 %; atlas-localization 54 %; EKF ~2 % (was 37 % in the stuck state, 481 % total).
+- Confirms that the expensive state is cleared by a full restart of the DDS graph.
