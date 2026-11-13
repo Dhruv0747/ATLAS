@@ -1630,3 +1630,9 @@ LEAD (strong, not yet reproduced): stopping ONLY the session's recorder dropped 
 - Localization: AMCL (0.211, -1.850); LiDAR verify-place "dhruv room" unique match (0.175, -1.855, 69 deg), margin 0.22. No reseed needed.
 - CPU (30 s): 354.5 % total, idle 36 %, system 13 %; atlas-localization 54 %; EKF ~2 % (was 37 % in the stuck state, 481 % total).
 - Confirms that the expensive state is cleared by a full restart of the DDS graph.
+
+2026-11-14 ~01:20 diagnostic tools installed by the owner: sudo apt-get install strace linux-tools-generic.
+- strace 5.16.
+- perf 5.15.223 at /usr/lib/linux-tools/5.15.0-203-generic/perf. There is no linux-tools package for the 5.15.148-tegra kernel; the generic 5.15 binary works. Call it by full path (the /usr/bin/perf wrapper rejects the tegra kernel name). No kernel was installed.
+- Both work on processes they start themselves.
+- Attaching to running ATLAS services is blocked by the stock security settings ptrace_scope=1 and perf_event_paranoid=2, which were NOT changed. For the parked syscall capture, either the owner runs the capture with sudo, or the owner temporarily relaxes them until the next reboot (sudo sysctl kernel.yama.ptrace_scope=0 kernel.perf_event_paranoid=1). This is the owner's decision.
