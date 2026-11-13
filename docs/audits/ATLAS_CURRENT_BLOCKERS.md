@@ -1398,3 +1398,7 @@ Started: offline slam_toolbox replays (tools/localization/replay_slam.sh, domain
 - lighter + loop closing off: same max 1.019 m at 10:33:20, so the big jump is scan matching, NOT loop closure.
 At 10:33:15-29 the rover moved up to 0.87 m/s (0.19 m and 11.5 deg between consecutive odom samples) in a narrow spot: 170/360 valid beams, median range 0.58 m. Conclusion: lighter processing halves the bouncing; the remaining large jump comes from fast motion through a tight, feature-poor place. The new 0.15 mapping cap (real ~0.3 m/s) targets it directly; slower driving cannot be proven by replay.
 Proposal (not applied; needs owner OK): lighter SLAM settings in atlas-slam-fast.service.
+2026-11-13 ~13:10 APPLIED (owner OK "Yes, switch on"): atlas-slam-fast.service lighter settings.
+- minimum_time_interval 0.10 -> 0.5; minimum_travel_distance 0.05 -> 0.2; minimum_travel_heading 0.10 -> 0.17; map_update_interval 1.5 -> 3.0; scan_queue_size 20 -> 1.
+- Only ExecStart changed. Backup: ~/.config/systemd/user/atlas-slam-fast.service.before-lighter-20261113. daemon-reload done; the unit was inactive (localization mode), so it takes effect at the next mapping session.
+- Together with the mapping speed cap 0.15, ready for remap attempt 5.
