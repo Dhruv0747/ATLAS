@@ -1483,3 +1483,12 @@ LiDAR data: while parked, only 207/360 bins are valid; the 153 empty bins are sp
   - Backups: *.before-mappause-20261113.
 - Side effect noted: restarting atlas-feature-on-demand runs restore-all (ExecStopPost), which starts every managed unit (incl. follow-person, camera-tracker, active-vision) until idle. Those three were stopped manually; the rest stop after boot grace + idle.
 - Also: after an aborted/stopped session the mapping stack stays up; atlas-localization must be started explicitly. Done: seeded in Dhruv Room (0.135, -1.835); run queue 18, 24 % idle, system time 12 %.
+
+2026-11-13 remap attempt 8 (session c7c28ee9, 16:37-17:31; Boost + thinning, mapping speed cap, feature-manager pause fix). REJECTED; accepted map preserved.
+- The cold start failed again; the retry after restarting atlas-slam-fast reached ACTIVE.
+- Load stayed 29-54 throughout (run queue 24-37, 2-4 % idle, 37-39 % system time) with the AI extras off. The mapping stack itself (slam_toolbox + full Nav2 + session bag + EKF at ~29 %) plus the camera, Astra, rf2o, base and Python monitors oversubscribe the 6 cores.
+- The remote stop latched ("joystick unavailable") under this load, so the owner's first drive attempt did not move the rover. The owner then reset it and drove.
+- Hall saved (0.60, -6.64), 6.6 m from start. Closure PASSED 0.082 m / 0.3 deg.
+- Failures: map->odom jump 1.710 m (17:28:40, start of return); yaw jump 16.4 deg; footprint not connected between places; reverse Nav2 plan failed.
+- Restored as before (rejected_session_c7c28ee9; named places from pre-remap9; localization seeded (0.175, -1.675)).
+- Conclusion: on this Jetson, manual-teaching mapping with the full stack is CPU-bound. Next design step before any further drive: a lighter mapping mode (e.g. Nav2 started only for the acceptance plan checks, no session bag or a lighter one, and the Astra/rf2o paused), measured parked first.
