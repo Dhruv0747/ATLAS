@@ -1458,3 +1458,4 @@ LiDAR data: while parked, only 207/360 bins are valid; the 153 empty bins are sp
   - Backups: scripts/*.before-batching-20261113.
 - AI extras: stopped, but atlas-feature-on-demand restarted them within ~1 min. The design is fail-open: mission_status != READY counts as autonomy demand, and after the abort the status stayed "MAPPING NOT ACTIVE; ACCEPTED MAP PRESERVED". Mission control restarted (no session), status READY, so the manager stops them after idle_s 300. They were already "disabled" at boot; boot state recorded in ~/.config/project_atlas/ai_extras_paused_20261113.txt.
 - Follow-up: mission control should publish READY after a stop/abort finishes.
+2026-11-13 ~15:15 parked in Dhruv Room: verify-place VERIFIED (fit 0.996, margin 0.22), AMCL (0.20, -1.80). Normal localization healthy after today's changes.
