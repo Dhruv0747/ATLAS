@@ -69,9 +69,9 @@ class AtlasMissionControl(Node):
         "atlas-follow-person.service",
         "atlas-foxglove.service",
         "atlas-voice-companion.service",
-        # 2026-11-13: also paused while mapping (not needed to map; ~25 % of a core together). Load average reached
+        # 2026-11-13: also paused while mapping (not needed to map). ai-annotator was removed: its stop job is
+        # cancelled by dependent vision units. Units are stopped one by one so one failure never loses the record. Load average reached
         # 40-47 during remap attempt 4. The Pi camera stays (sensor recovery restarts it if its stream goes stale).
-        "atlas-ai-annotator.service",
         "atlas-agent-team.service",
         "atlas-person-sensor-fusion.service",
     )
@@ -1458,15 +1458,17 @@ class AtlasMissionControl(Node):
             )
             if check.returncode == 0:
                 active.append(unit)
-        if active:
+        stopped = []
+        for unit in active:
             result = subprocess.run(
-                ["systemctl", "--user", "stop", *active],
+                ["systemctl", "--user", "stop", unit],
                 check=False, timeout=15, capture_output=True, text=True,
             )
-            if result.returncode:
-                raise RuntimeError(
-                    result.stderr.strip() or "could not pause mapping background"
-                )
+            if result.returncode == 0:
+                stopped.append(unit)
+            else:
+                self.get_logger().warning(f"could not pause {unit}: {result.stderr.strip()[:120]}")
+        active = stopped
         self.paused_services_file.parent.mkdir(parents=True, exist_ok=True)
         self.paused_services_file.write_text(
             json.dumps(active, indent=2), encoding="utf-8"

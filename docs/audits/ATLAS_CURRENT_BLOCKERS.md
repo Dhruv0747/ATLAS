@@ -1411,3 +1411,14 @@ Proposal (not applied; needs owner OK): lighter SLAM settings in atlas-slam-fast
 - Mapping CPU: manual teaching paused nothing (only exploration called pause_mapping_background). start_manual_mapping now pauses MAPPING_BACKGROUND_UNITS, extended with ai-annotator, agent-team and person-sensor-fusion (~25 % of a core), and restores them on start failure and at stop (existing finally). The Pi camera is kept: atlas_sensor_recovery restarts atlas-camera when its stream is stale.
 - Backups: scripts/*.before-20261113-cpu-dash.
 - CORRECTION to the 13:10 SLAM change: scan_queue_size 1 broke live SLAM. The tf message filter discarded every scan ("queue is full"), so no map frame was produced; that is why the 13:08 mapping start failed after 90 s. The offline replay did not show this. Set scan_queue_size 5 (other lighter settings unchanged); after the restart the map frame appeared within 10 s with 0 drops. Dashboard /api/map now returns the live SLAM map and the rover pose (map->base_link).
+
+2026-11-13 remap attempt 5 (session 57941c0d, 13:41-13:52; speed cap 0.15, lighter SLAM with queue 5, ICP odometry). REJECTED; accepted map preserved.
+- Passed: startup stillness 0.000 m; closure 0.051 m / 8.6 deg; room<->hall connectivity and Nav2 plans (they failed in attempt 4).
+- Failed: map->odom single-step jumps 1.120 m (13:49:34, return) and yaw 12.0 deg (13:45:43, room lap).
+- Other large steps, often paired back-and-forth: 0.89 m at 13:46:31/33 and 0.80-0.89 m at 13:49:02/08.
+- The SLAM TF is now timely (stamp ahead of receipt; it was ~3.8 s behind in attempt 4).
+- At every jump window: real speed median 0.04-0.14 m/s (scan-pair max 0.52-0.66), IM10A turn <= 38 deg/s, ICP odometry 0 rejections. Only 130-173 of 360 beams were valid, median range 1.0-1.5 m.
+- Conclusion: the bouncing persists at walking speed with good odometry. slam_toolbox scan matching accepts wrong matches with this sparse RPLIDAR data.
+- Bug found and fixed: pause_mapping_background stopped the voice companion, but "Job for atlas-ai-annotator.service canceled" raised before the record was written, so voice was not restored. Voice restarted manually; ai-annotator removed from the list; units are now stopped one by one with a per-unit record. Deployed (mission control restarted, no session).
+- Localization restored (seeded from a LiDAR-verified pose (0.115, -1.995)); named_places from pre-remap6-20261113; rejected_session_57941c0d kept.
+- Next candidates (offline replay on this bag first): stricter scan-match acceptance (link_match_minimum_response_fine, smaller search window); odometry-led mapping (scan matching off) with closure checked against ICP drift.
