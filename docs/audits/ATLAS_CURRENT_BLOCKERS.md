@@ -1358,3 +1358,16 @@ Conclusion: wheel-based odometry cannot meet the 0.15 m single-step map gate ove
 - Known limits: some walls in Dhruv Room still show 2-3 copies; the hall is dark (lighting); no depth->colour offset (extrinsic message not recorded); refinement failed for 154 of 267 frames outside the room.
 - Dashboard: web/v2/home-cards.js draws real colours when the feed has "rgb" (far-to-near order) and redraws once the full-screen overlay is sized. map3d_live.txt now holds the stored colour map. Backups: *.before-colour3d-20261112.
 - Next for better quality: a new drive with the ICP odometry live and the lights on.
+
+2026-11-13 remap attempt 4 (session 00c9e957, 10:24-10:48, first drive with the ICP odometry live). REJECTED; accepted map preserved (md5 3b049b9e).
+- First start attempt (10:21) failed: "mapping stack did not become ready within 90 s" (CPU ~8 % idle after boot). Retry with the stack up: ready in 1 s.
+- Startup stillness 0.000 m; closure PASSED (0.036 m / 1.3 deg, after the owner backed up 20 cm).
+- Room->hall: map->odom correction only 0.29 m / 1.4 deg on reaching the hall (attempt 3: ~1.2 m), so the ICP odometry helped.
+- Failures:
+  - map->odom jump 1.456 m at 10:32:39 and yaw 11.0 deg at 10:32:49, at the start of the return drive;
+  - max SLAM TF source age 2.1 s;
+  - candidate map not connected room<->hall (no inflated path, footprint path or Nav2 plans).
+- Context: the Jetson was overloaded during the return. Load average reached 40-47 with ~2 % CPU idle (two bag recorders, mapping stack, IMX708 camera node, Nav2). The dashboard (rover-status-web) stopped answering; it was restarted at 10:42 after the colour recorder stopped.
+- Suspected: CPU starvation delayed slam_toolbox (2.1 s source age), then a large correction. Not yet proven.
+- Restored: rejected_session_00c9e957 kept; named_places from pre-remap5-20261113; home not set. atlas-localization failed its first start ("AMCL is not subscribed to /initialpose"; lifecycle timeouts under load) and came up on retry; seeded from a LiDAR-verified pose (0.235, -1.535).
+- Colour data: maps3d/remap5b_colour_20261113-102354 (outbound and return until ~10:40).
