@@ -1470,3 +1470,16 @@ LiDAR data: while parked, only 207/360 bins are valid; the 153 empty bins are sp
   - ICP node 15 % CPU, 0 rejected;
   - verify-place "dhruv room" VERIFIED fit 0.99 margin 0.236.
 - Backups: scripts/atlas_scan_self_filter.py.before-thinning-20261113; atlas-lidar.service.before-scanmode-20261113 (Standard).
+
+2026-11-13 ~16:20-16:35 remap attempt 7 ABORTED (Boost + thinning live):
+- The cold start failed again (no map frame in 90 s); the automatic retry after restarting atlas-slam-fast reached ACTIVE (session d8a4d0ff).
+- Load average then rose to 50-57: run queue 67-120, 0 % idle, ~50 % system time, ~70k context switches/s.
+- Cause: mission control paused the AI extras at session start, but atlas_feature_on_demand restarted them within one tick. "Autonomy" demand comes from mission_status != READY, and its MAPPING_PAUSED only listed the camera tracker and follow-person. Startups (heavy imports) on top of SLAM + Nav2 + session bag + camera overloaded the Jetson.
+- Session aborted without a map (session file moved; accepted map preserved; named places from pre-remap8).
+- Fix:
+  - MAPPING_PAUSED now also lists vision-lidar-fusion, person-sensor-fusion, ai-annotator and agent-team.
+  - Mission control pauses the same units, dependents before ai-annotator.
+  - tests/test_feature_on_demand_mapping.py 3/3 pass on the Jetson (not started while mapping; started when not mapping; lists match). Deployed.
+  - Backups: *.before-mappause-20261113.
+- Side effect noted: restarting atlas-feature-on-demand runs restore-all (ExecStopPost), which starts every managed unit (incl. follow-person, camera-tracker, active-vision) until idle. Those three were stopped manually; the rest stop after boot grace + idle.
+- Also: after an aborted/stopped session the mapping stack stays up; atlas-localization must be started explicitly. Done: seeded in Dhruv Room (0.135, -1.835); run queue 18, 24 % idle, system time 12 %.

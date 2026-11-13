@@ -69,11 +69,14 @@ class AtlasMissionControl(Node):
         "atlas-follow-person.service",
         "atlas-foxglove.service",
         "atlas-voice-companion.service",
-        # 2026-11-13: also paused while mapping (not needed to map). ai-annotator was removed: its stop job is
-        # cancelled by dependent vision units. Units are stopped one by one so one failure never loses the record. Load average reached
-        # 40-47 during remap attempt 4. The Pi camera stays (sensor recovery restarts it if its stream goes stale).
-        "atlas-agent-team.service",
+        # 2026-11-13: also paused while mapping (not needed to map; load average reached 40-57 during remaps).
+        # Stopped one by one, dependents before atlas-ai-annotator (vision/person fusion require it), so no stop job
+        # is cancelled. atlas_feature_on_demand.MAPPING_PAUSED lists the same units so it does not restart them.
+        # The Pi camera stays (sensor recovery restarts it if its stream goes stale).
+        "atlas-vision-lidar-fusion.service",
         "atlas-person-sensor-fusion.service",
+        "atlas-ai-annotator.service",
+        "atlas-agent-team.service",
     )
     CAMERA_PAN_MIN_US = 700
     CAMERA_PAN_MAX_US = 2300

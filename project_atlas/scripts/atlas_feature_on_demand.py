@@ -52,7 +52,11 @@ MANAGED = {   # unit -> default triggers / idle seconds / replay topic. HARD ALL
     'atlas-camera-tracker': {'triggers': ['tracking'], 'idle_s': 120, 'replay': 'tracking'},
     'atlas-active-vision': {'triggers': ['active_vision'], 'idle_s': 120, 'replay': 'active_vision'},
 }
-MAPPING_PAUSED = {'atlas-camera-tracker', 'atlas-follow-person'}   # mission control owns these during mapping
+MAPPING_PAUSED = {'atlas-camera-tracker', 'atlas-follow-person',   # mission control owns these during mapping
+                  # 2026-11-13: also the AI extras mission control now pauses for mapping; otherwise this manager
+                  # restarted them seconds later ("autonomy" demand from mission_status != READY) and the
+                  # pause/start fight pushed the load average to 40-57 during remap attempts.
+                  'atlas-vision-lidar-fusion', 'atlas-person-sensor-fusion', 'atlas-ai-annotator', 'atlas-agent-team'}
 TRIGGERS = ('autonomy', 'ai_object', 'follow', 'tracking', 'active_vision')
 SYSTEMCTL = os.environ.get('ATLAS_SYSTEMCTL', 'systemctl')
 DEFAULTS = {'boot_grace_s': 300, 'min_on_s': 60, 'state_check_s': 15, 'policy_stale_s': 5.0, 'mission_stale_s': 10.0,
