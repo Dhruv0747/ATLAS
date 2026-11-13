@@ -8,6 +8,7 @@ import math
 import time
 
 import rclpy
+import atlas_batched_spin
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
@@ -174,7 +175,7 @@ def main() -> None:
     rclpy.init()
     node = AtlasLidarOdomGateNode()
     try:
-        rclpy.spin(node)
+        atlas_batched_spin.spin(node)  # ATLAS_EXECUTOR_BATCH_S (2026-11-13)
     finally:
         node.destroy_node()
         rclpy.shutdown()

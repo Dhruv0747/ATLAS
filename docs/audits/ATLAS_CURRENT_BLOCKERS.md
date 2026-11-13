@@ -1492,3 +1492,65 @@ LiDAR data: while parked, only 207/360 bins are valid; the 153 empty bins are sp
 - Failures: map->odom jump 1.710 m (17:28:40, start of return); yaw jump 16.4 deg; footprint not connected between places; reverse Nav2 plan failed.
 - Restored as before (rejected_session_c7c28ee9; named places from pre-remap9; localization seeded (0.175, -1.675)).
 - Conclusion: on this Jetson, manual-teaching mapping with the full stack is CPU-bound. Next design step before any further drive: a lighter mapping mode (e.g. Nav2 started only for the acceptance plan checks, no session bag or a lighter one, and the Astra/rf2o paused), measured parked first.
+
+2026-11-13 evening (21:20-22:40), owner away, rover parked in Dhruv Room, E-STOP latched. Read-only measurements and offline replays only; no motion, no service restarts. All code changes are STAGED (repo + ~/atlas_staging_20261113), NOT deployed.
+1. CPU profile (tools/profiling/atlas_cpu_profile.py; 30 s, localization mode, idle; data/diagnostics/cpu_profile/localization_idle_20261113.json):
+   - Services total 396 % of 600 %, load 13-18, system time 12 %.
+   - Largest units: atlas-localization (Nav2 + AMCL) 51 %, camera 30 %, rover-base-telemetry 30 %, voice companion 20 %, Astra 20 %, cmd-vel-mux 17 %, localization-monitor 17 %, dashboard 16 %, sensor-recovery 16 %, rf2o 15 %, mission-control 14 %, safety-status 13 %, ICP odometry 13 %.
+   - Topic rates are low (/scan 7.5 Hz, /odom 10 Hz, camera 11 Hz). The small Python nodes' cost is rclpy's executor rebuilding its wait set per message, not their callbacks (sensor recovery already reads raw bytes and still uses 16 %).
+2. SLAM's own cost (offline replay of session c7c28ee9, 54 min at 1x, live parameters): slam_toolbox mean 3.9 % / max 31 % of one core, RSS 39 MB. SLAM is NOT the CPU hog; the load during mapping comes from everything around it.
+   - The same replay still had map->odom steps: max 0.645 m (live 1.710 m), 29 steps > 0.15 m, max yaw step 8.6 deg.
+   - So overload made the jumps ~2.6x worse, but odometry drift that SLAM corrects in steps remains. See 4.
+3. LiDAR validation (tools/lidar/lidar_scan_validation.py; data/diagnostics/lidar_validation/), first 600 s of each bag, Standard (00c9e957) vs Boost + thinning (c7c28ee9):
+   - Timing: Boost scan period p95 0.154 s vs 0.261 s; gaps > 0.3 s 0 vs 3; time_increment x beams / scan_time = 1.001 (consistent per-point timing); latency median 0.14 s for both.
+   - Geometry: /scan 360 beams for both; valid 98.0 % vs 47.2 %.
+   - Range resolution: Boost 1-4 mm steps vs 0.25 mm Standard (56 % of beams repeat the previous value). Negligible against 5 cm map cells.
+   - Accuracy proxy (scan-to-scan ICP residual RMS on /scan): 3.5 mm median (p90 8.0 mm) Boost vs 15.5 mm (p90 22.8 mm) Standard, with 353 vs 181 points/scan. Boost + thinning gives more consistent geometry. A map-level check still needs an accepted Boost map.
+4. EKF tuning offline (tools/localization/ekf_variants.sh; isolated domain 92):
+   - Method: ICP node + EKF variants replayed on two drives that ended on the start mark (SLAM closure 3.6 cm / 5.1 cm). Score = start->end closure. Repeatability ±0.02 m.
+   - Results (57941c0d / 00c9e957):
+     - live 0.45-0.47 / 0.50-0.51 m;
+     - wheel + IMU only 0.40 / 0.49;
+     - ICP without wheel 0.32 / 0.56;
+     - q_vx 0.5: 0.45 / 0.49; q_vx 8: 0.48 / 0.49;
+     - + ICP yaw rate 0.49 / 0.48;
+     - ICP yaw rate instead of IMU 1.06 / 0.68 (yaw -18 / -11 deg);
+     - ICP pose differential, no IMU 1.28 / 1.33;
+     - raw wheel 2.26 / 8.11.
+   - The ICP node's own integrated pose: 0.31 / 0.09-0.10 m.
+   - Decision: NO EKF change (live is the best EKF variant; IM10A heading confirmed; q_vx insensitive).
+   - Open lead: raw ICP translation closes 2-4x better than any EKF output. Next offline test: SLAM replay with odom->base_link built from the ICP pose, to see whether the map->odom steps in 2 shrink.
+5. Dashboard: no restart since 16:35, watchdog never fired, HTTP 2-140 ms, 114 MB. Staged: listen backlog 5 -> 64 (several tabs/phones polling could get connections refused).
+6. Light manual-mapping mode (staged; mission control parameter mapping_profile, default "light"; "full" = previous behaviour):
+   - Also pauses Astra obstacles, the rf2o gate, the candidate EKF, tight recovery, rf2o and the experience store. Consumers checked: Nav2 astra_layer / autonomy only; the live EKF uses /lidar/icp_odom. The experience store is added to the feature manager's MAPPING_PAUSED.
+   - Starts SLAM only. Nav2 starts when the session is stopped, before the goal cancel, plan checks and footprint evidence (ensure_nav2_for_acceptance, 120 s).
+   - Records a lighter bag: ATLAS_RECORD_PROFILE=mapping_light drops camera JPEGs, AMCL topics and /map; /lidar/icp_odom is now recorded too.
+   - Expected saving vs the idle profile: ~54 % (paused units) + ~35 % (Nav2 deferred) + the bag's camera stream, on top of the AI extras already paused (~47 %).
+7. Mapping safeguard (scripts/atlas_mapping_guard_core.py + mission control + mux; 6 unit tests):
+   - Armed only during a drive-ready manual session; trips on any of:
+     - /scan age > 1.5 s;
+     - /yahboom/odom age > 1.5 s;
+     - map->odom TF gap > 4 s;
+     - CPU idle < 4 % with load/core > 4 sustained for 20 s.
+   - A trip publishes /atlas/mapping_guard/stop. A new latch-only mux input latches the existing remote stop ("REMOTE STOP: mapping guard"); the normal LB 3 s release applies.
+   - The trip is recorded in the session (guard_trips), and accept_saved_map rejects that session's map. Suspended while the session is being stopped.
+8. Executor batching for monitoring nodes (scripts/atlas_batched_spin.py; opt-in through ATLAS_EXECUTOR_BATCH_S drop-ins):
+   - 100 ms: localization monitor, sensor recovery. 50 ms: mission control, safety status, rf2o gate.
+   - Not used for the base, mux, remote or any stop path. Revert = delete the drop-in.
+9. Regression suite (tools/regression/atlas_regression.py):
+   - quick: unit tests minus the known-failure list; old map (map id = places, room->hall connected); gate history (all 11 stored rejected candidates still rejected).
+   - --full adds the return-to-start replay (limit 0.60 m).
+   - Quick run on staging: ALL PASS.
+   - The 11 mux test failures are pre-existing (same set on unmodified HEAD; fixtures lack controller_accepts / flysky_reset_observe), listed in tests/regression_known_failures.txt.
+Deploy (needs the owner's OK; rover parked + E-STOP latched): copy the changed scripts + drop-ins; daemon-reload; restart mission-control, cmd-vel-mux, feature-on-demand, sensor-recovery, safety-status, localization-monitor, lidar-odom-gate and rover-status-web. Then profile again (localization idle), then a parked light-mode CPU measurement before any drive.
+
+2026-11-13 22:47 DEPLOYED the evening changes (owner: "ok deeploy"), with the remote stop latched, wheels at 0 and no mapping session.
+- Ran ~/atlas_staging_20261113/deploy_20261113_evening.sh: backups *.before-evening-20261113, rollback with --rollback. All 8 restarted units are active.
+- Remote stop stayed latched. The guard topic /atlas/mapping_guard/stop has 1 publisher (mission control) and 1 subscriber (mux).
+- Batched executor confirmed in the logs: 100 ms for localization monitor and sensor recovery; 50 ms for mission control, safety status and the rf2o gate.
+- The feature-manager restart started follow-person, camera-tracker and active-vision again (known restore-all side effect); stopped them.
+- CPU, localization idle, 30 s profiles:
+  - total 396.9 % -> 379.1 %; idle 29 % -> 32 %;
+  - mission control 14.6 -> 7.4 %; sensor recovery 16.4 -> 4.4 %; safety status 13.3 -> 6.9 %; localization monitor 16.8 -> 11.2 %; rf2o gate 4.8 -> 3.9 %.
+- Quick regression on live: ALL PASS (unit, old map, gate history). Mission status READY.
+- Not yet measured: light mapping mode live (parked).

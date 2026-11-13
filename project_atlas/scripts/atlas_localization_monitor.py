@@ -292,6 +292,7 @@ def append_history(records, path=HISTORY_FILE, max_bytes=HISTORY_MAX_BYTES):
 
 def main():
     import rclpy
+    import atlas_batched_spin
     from geometry_msgs.msg import PoseWithCovarianceStamped
     from nav_msgs.msg import Odometry
     from nav2_msgs.srv import SetInitialPose
@@ -432,7 +433,7 @@ def main():
     rclpy.init()
     node = Monitor()
     try:
-        rclpy.spin(node)
+        atlas_batched_spin.spin(node)  # ATLAS_EXECUTOR_BATCH_S (2026-11-13)
     finally:
         node.destroy_node()
         rclpy.shutdown()

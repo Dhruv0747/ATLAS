@@ -8,7 +8,8 @@ spec = importlib.util.spec_from_file_location('fod_under_test', PATH)
 F = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(F)
 
-AI = ['atlas-vision-lidar-fusion', 'atlas-person-sensor-fusion', 'atlas-ai-annotator', 'atlas-agent-team']
+AI = ['atlas-vision-lidar-fusion', 'atlas-person-sensor-fusion', 'atlas-ai-annotator', 'atlas-agent-team',
+      'atlas-experience-store']   # experience store: light mapping profile (2026-11-13 evening)
 
 
 class MappingPause(unittest.TestCase):
@@ -23,7 +24,6 @@ class MappingPause(unittest.TestCase):
         started = {u for a, u in acts if a == 'start'}
         for u in AI:
             self.assertNotIn(u, started)
-        self.assertIn('atlas-experience-store', started)   # unrelated feature still follows demand
 
     def test_ai_extras_started_when_not_mapping(self):
         d = self.deciders()

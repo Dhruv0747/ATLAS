@@ -5,8 +5,9 @@
 BAG=$1; NAME=$2; EXTRA=$3; W=/tmp/slam_replay; mkdir -p $W
 export ROS_DOMAIN_ID=95 ROS_LOCALHOST_ONLY=1
 source /opt/ros/humble/setup.bash
-if [ ! -d $W/filtered ]; then
-python3 - "$BAG" "$W/filtered" <<'PY'
+F=$W/filtered_$(basename $BAG)
+if [ ! -d $F ]; then
+python3 - "$BAG" "$F" <<'PY'
 import sys, rosbag2_py
 from rclpy.serialization import deserialize_message, serialize_message
 from rosidl_runtime_py.utilities import get_message
@@ -60,7 +61,7 @@ rclpy.spin(n)
 PY
 REC=$!
 sleep 6
-ros2 bag play $W/filtered --clock 100 > $W/$NAME.play.log 2>&1
+ros2 bag play $F --clock 100 > $W/$NAME.play.log 2>&1
 sleep 5
 kill -INT -- -$SLAM -$REC 2>/dev/null; sleep 3; kill -KILL -- -$SLAM -$REC 2>/dev/null
 python3 - "$W/$NAME.csv" <<'PY'

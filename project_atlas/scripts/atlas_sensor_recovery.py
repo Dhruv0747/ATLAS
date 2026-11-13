@@ -16,6 +16,7 @@ import time
 from dataclasses import dataclass
 
 import rclpy
+import atlas_batched_spin
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import OccupancyGrid, Odometry
 from rclpy.executors import ExternalShutdownException
@@ -616,7 +617,7 @@ def main():
     rclpy.init()
     node = AtlasRecovery()
     try:
-        rclpy.spin(node)
+        atlas_batched_spin.spin(node)  # ATLAS_EXECUTOR_BATCH_S (2026-11-13)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:

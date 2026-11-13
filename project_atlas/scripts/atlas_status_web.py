@@ -2984,6 +2984,9 @@ def main():
     # every thread's Python stack to the journal so the lock can be identified; the watchdog sends it before restarting.
     import faulthandler
     faulthandler.register(signal.SIGUSR1, all_threads=True)
+    # 2026-11-13: listen backlog 64 (stdlib default 5): several dashboard tabs/phones polling at once could fill
+    # a 5-deep queue while a slow request was served, and new connections were refused ("dashboard not loading").
+    ThreadingHTTPServer.request_queue_size = 64
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     server.daemon_threads = True
 

@@ -11,10 +11,17 @@ mkdir -p "${root}"
 source /opt/ros/humble/setup.bash
 source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null || true
 
-echo "Recording ATLAS demonstration to ${output}"
+# 2026-11-13: ATLAS_RECORD_PROFILE=mapping_light (set by mission control's light mapping profile) drops the
+# heavy topics a manual-mapping replay does not need: Pi camera JPEGs (~11 Hz), AMCL particles/pose (AMCL is off
+# while mapping) and the repeated full /map grids. Everything SLAM/EKF/ICP replay uses is kept.
+heavy=(/camera/image_raw/compressed /amcl_pose /particle_cloud /map)
+if [[ "${ATLAS_RECORD_PROFILE:-full}" == "mapping_light" ]]; then
+  heavy=()
+fi
+echo "Recording ATLAS demonstration to ${output} (profile ${ATLAS_RECORD_PROFILE:-full})"
 exec ros2 bag record --storage sqlite3 -o "${output}" \
-  /camera/image_raw/compressed \
-  /scan /scan_raw /imu/data /odom /yahboom/odom /amcl_pose /particle_cloud /map /tf /tf_static \
+  "${heavy[@]}" \
+  /scan /scan_raw /imu/data /odom /yahboom/odom /lidar/icp_odom /lidar/icp_odom/health /tf /tf_static \
   /cmd_vel /cmd_vel_joy /cmd_vel_web /cmd_vel_teleop /cmd_vel_nav \
   /cmd_vel_commission /cmd_vel_recovery \
   /joy \

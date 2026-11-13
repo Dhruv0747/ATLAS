@@ -14,6 +14,7 @@ from threading import Lock
 from typing import Callable, Optional
 
 import rclpy
+import atlas_batched_spin
 from action_msgs.msg import GoalStatus
 from action_msgs.srv import CancelGoal
 from geometry_msgs.msg import (
@@ -52,6 +53,7 @@ from atlas_map_acceptance_core import (
     transactionally_promote_map_pair,
 )
 from atlas_map_footprint_sanitizer import sanitize_saved_map
+from atlas_mapping_guard_core import GuardPolicy, GuardSample, MappingGuard, cpu_idle_fraction
 from atlas_scan_fit_core import (
     OccupiedIndex,
     ScanFitPolicy,
@@ -78,6 +80,19 @@ class AtlasMissionControl(Node):
         "atlas-ai-annotator.service",
         "atlas-agent-team.service",
     )
+    # 2026-11-13 light manual-mapping profile (parameter mapping_profile:=light): also pause units that only serve
+    # autonomous driving, so SLAM gets the CPU while the operator drives. Dependents are listed before what they
+    # need (rf2o gate/candidate EKF before rf2o). None of them is used by the remote, the mux, SLAM or the EKF:
+    # Astra depth feeds only the Nav2 astra_layer; rf2o /lidar/odom feeds only the gate, the candidate EKF and tight
+    # recovery (the live EKF fuses /lidar/icp_odom); the experience store and tight recovery are autonomy-only.
+    MAPPING_LIGHT_EXTRA_UNITS = (
+        "atlas-astra-obstacles.service",
+        "atlas-lidar-odom-gate.service",
+        "atlas-ekf-lidar-candidate.service",
+        "atlas-tight-recovery.service",
+        "atlas-lidar-odom.service",
+        "atlas-experience-store.service",
+    )
     CAMERA_PAN_MIN_US = 700
     CAMERA_PAN_MAX_US = 2300
     CAMERA_PAN_HOME_US = 1628
@@ -97,6 +112,10 @@ class AtlasMissionControl(Node):
             "map_prefix", "/home/jetson/project_atlas/maps/atlas_latest"
         )
         self.declare_parameter("explore_unit", "atlas-explore.service")
+        # 2026-11-13: "light" = pause MAPPING_LIGHT_EXTRA_UNITS, start Nav2 only for the final acceptance checks of a
+        # manual session, record a lighter bag. "full" = the previous behaviour.
+        self.declare_parameter("mapping_profile", "light")
+        self.declare_parameter("mapping_guard_enabled", True)
         self.declare_parameter("home_verify_delay", 2.0)
         self.declare_parameter("home_verify_tolerance", 0.15)
         self.declare_parameter("home_max_retries", 1)
@@ -124,6 +143,8 @@ class AtlasMissionControl(Node):
         self.places_file = Path.home() / ".config/project_atlas/named_places.json"
         self.taught_routes_dir = Path("/home/jetson/project_atlas/config/routes")
         self.map_prefix = Path(str(self.get_parameter("map_prefix").value))
+        self.mapping_light = str(self.get_parameter("mapping_profile").value).strip().lower() == "light"
+        self.mapping_guard_enabled = bool(self.get_parameter("mapping_guard_enabled").value)
         # Mission-start LiDAR/map agreement (2026-10-10). Only ever refuses.
         self.declare_parameter("scan_fit_gate_enabled", True)
         self.declare_parameter("scan_fit_min_fraction", 0.85)
@@ -142,6 +163,14 @@ class AtlasMissionControl(Node):
         self.latest_wheel_odom = None
         self.create_subscription(
             Odometry, "/yahboom/odom", self.update_wheel_odom, 10)
+        # Manual-mapping safeguard (2026-11-13): stale scan/odom/SLAM TF or sustained CPU overload during a
+        # drive-ready session latches the mux remote stop and marks the session so the map is rejected.
+        self.last_map_odom_tf_at = None
+        self.mapping_guard = MappingGuard(GuardPolicy())
+        self.mapping_guard_cpu_prev = None
+        self.mapping_guard_stop_pub = self.create_publisher(Empty, "/atlas/mapping_guard/stop", 10)
+        self.mapping_finishing = False   # set while stop_exploration runs (Nav2 start/map save load the CPU)
+        self.create_timer(1.0, self.mapping_guard_tick)
         self.map_prefix.parent.mkdir(parents=True, exist_ok=True)
         self.explore_unit = str(self.get_parameter("explore_unit").value)
         self.home_verify_delay = float(
@@ -501,11 +530,13 @@ class AtlasMissionControl(Node):
         if not self.mapping_recorder_script.exists():
             raise RuntimeError("mapping recorder script is missing")
         label = f"manual_mapping_{session_id[:12]}"
+        env = dict(os.environ, ATLAS_RECORD_PROFILE="mapping_light" if self.mapping_light else "full")
         self.mapping_recorder_process = subprocess.Popen(
             ["bash", str(self.mapping_recorder_script), label],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.STDOUT,
             start_new_session=True,
+            env=env,
         )
 
     def stop_mapping_recording(self) -> None:
@@ -530,6 +561,7 @@ class AtlasMissionControl(Node):
                 child = transform.child_frame_id.strip("/")
                 if parent != "map" or child != "odom":
                     continue
+                self.last_map_odom_tf_at = time.monotonic()
                 rotation = transform.transform.rotation
                 yaw = math.atan2(
                     2.0 * (
@@ -1178,6 +1210,11 @@ class AtlasMissionControl(Node):
 
     def accept_saved_map(self, candidate_prefix: Path, session: dict) -> str:
         """Validate and atomically promote a candidate map; YAML is committed last."""
+        trips = session.get("guard_trips") or []
+        if trips:
+            raise RuntimeError(
+                f"mapping guard tripped {len(trips)}x during the session (first: {trips[0].get('reason')}); "
+                "accepted map preserved")
         candidate_yaml = candidate_prefix.with_suffix(".yaml")
         candidate_image = candidate_prefix.with_suffix(".pgm")
         if (
@@ -1366,7 +1403,7 @@ class AtlasMissionControl(Node):
             "KEEP ATLAS STOPPED until MANUAL MAPPING ACTIVE"
         )
         try:
-            self.ensure_mapping_stack()
+            self.ensure_mapping_stack(with_nav2=not self.mapping_light)
             # Do not let a saved-map localization transform or the stack-change
             # discontinuity enter this session's quality evidence.  The
             # observation window starts only after fresh SLAM and Nav2 have
@@ -1404,8 +1441,11 @@ class AtlasMissionControl(Node):
             "Camera centered for LiDAR-confirmed semantic navigation"
         )
 
-    def ensure_mapping_stack(self) -> None:
-        """Enter mapping mode without allowing explore_lite to move early."""
+    def ensure_mapping_stack(self, with_nav2: bool = True) -> None:
+        """Enter mapping mode without allowing explore_lite to move early.
+
+        with_nav2=False (light manual teaching): start SLAM only; Nav2 is started by ensure_nav2_for_acceptance()
+        when the session ends, for the plan-only connectivity checks and goal cancellation."""
         stop = subprocess.run(
             ["systemctl", "--user", "stop", "atlas-localization.service"],
             check=False, timeout=35, capture_output=True, text=True,
@@ -1418,11 +1458,9 @@ class AtlasMissionControl(Node):
         # in this node's TF buffer. Require a map received after this new SLAM
         # start request so that stale transform cannot become the session home.
         mapping_started_at = time.monotonic()
+        units = ["atlas-slam-fast.service"] + (["atlas-nav2.service"] if with_nav2 else [])
         start = subprocess.run(
-            [
-                "systemctl", "--user", "start",
-                "atlas-slam-fast.service", "atlas-nav2.service",
-            ],
+            ["systemctl", "--user", "start", *units],
             check=False, timeout=35, capture_output=True, text=True,
         )
         if start.returncode:
@@ -1439,13 +1477,13 @@ class AtlasMissionControl(Node):
                     ["systemctl", "--user", "is-active", "--quiet", unit],
                     check=False, timeout=4,
                 ).returncode == 0
-                for unit in ("atlas-slam-fast.service", "atlas-nav2.service")
+                for unit in units
             )
             fresh_slam_map = self.mapping_map_received_at >= mapping_started_at
             if (
                 ready
                 and fresh_slam_map
-                and self.nav.wait_for_server(timeout_sec=1.0)
+                and (not with_nav2 or self.nav.wait_for_server(timeout_sec=1.0))
             ):
                 return
             time.sleep(1.0)
@@ -1454,7 +1492,8 @@ class AtlasMissionControl(Node):
     def pause_mapping_background(self) -> None:
         """Free CPU for SLAM/Nav2 while preserving the live raw camera."""
         active = []
-        for unit in self.MAPPING_BACKGROUND_UNITS:
+        units = self.MAPPING_BACKGROUND_UNITS + (self.MAPPING_LIGHT_EXTRA_UNITS if self.mapping_light else ())
+        for unit in units:
             check = subprocess.run(
                 ["systemctl", "--user", "is-active", "--quiet", unit],
                 check=False, timeout=3,
@@ -1701,6 +1740,78 @@ class AtlasMissionControl(Node):
             )
         self.tracker_paused_for_goal = False
 
+    def ensure_nav2_for_acceptance(self, timeout_s: float = 120.0) -> None:
+        """Light profile: start Nav2 on the live SLAM map for the end-of-session checks (no goals are sent)."""
+        active = subprocess.run(
+            ["systemctl", "--user", "is-active", "--quiet", "atlas-nav2.service"],
+            check=False, timeout=4,
+        ).returncode == 0
+        if not active:
+            self.status("MANUAL MAPPING FINISHING: starting Nav2 for the acceptance checks; KEEP ATLAS STOPPED")
+            result = subprocess.run(
+                ["systemctl", "--user", "start", "atlas-nav2.service"],
+                check=False, timeout=35, capture_output=True, text=True,
+            )
+            if result.returncode:
+                raise RuntimeError(result.stderr.strip() or "could not start Nav2 for map acceptance")
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            if (self.nav.wait_for_server(timeout_sec=1.0)
+                    and self.path_planner.wait_for_server(timeout_sec=1.0)
+                    and self.cancel_nav.wait_for_service(timeout_sec=1.0)):
+                return
+            time.sleep(1.0)
+        raise RuntimeError(f"Nav2 did not become ready within {timeout_s:.0f} s; accepted map preserved")
+
+    def mapping_guard_sample(self) -> GuardSample:
+        now = time.monotonic()
+        try:
+            with open("/proc/stat", encoding="ascii") as handle:
+                cpu = [int(v) for v in handle.readline().split()[1:]]
+            idle = cpu_idle_fraction(self.mapping_guard_cpu_prev, cpu)
+            self.mapping_guard_cpu_prev = cpu
+            load_per_core = os.getloadavg()[0] / max(1, os.cpu_count() or 1)
+        except (OSError, ValueError):
+            idle, load_per_core = None, None
+        wheel = self.latest_wheel_odom
+        return GuardSample(
+            now=now,
+            scan_age_s=None if self.latest_scan_received_at is None else now - self.latest_scan_received_at,
+            wheel_odom_age_s=None if wheel is None else now - wheel[3],
+            slam_tf_age_s=None if self.last_map_odom_tf_at is None else now - self.last_map_odom_tf_at,
+            cpu_idle_fraction=idle,
+            load1_per_core=load_per_core,
+        )
+
+    def mapping_guard_tick(self) -> None:
+        """1 Hz: arm during a drive-ready manual session; on a new trip latch the remote stop and record it."""
+        try:
+            if self.mapping_finishing:
+                return
+            session = self.active_mapping_session() if self.mapping_guard_enabled else None
+            ready = bool(session and session.get("mode") == "manual_teaching" and session.get("drive_ready"))
+            if not ready:
+                if self.mapping_guard.armed_at is not None:
+                    self.mapping_guard.disarm()
+                return
+            if self.mapping_guard.armed_at is None:
+                self.mapping_guard.arm(time.monotonic())
+            sample = self.mapping_guard_sample()
+            reason = self.mapping_guard.update(sample)
+            if reason is None:
+                return
+            self.mapping_guard_stop_pub.publish(Empty())
+            self.zero_pub.publish(Twist())
+            trips = list(session.get("guard_trips") or [])
+            trips.append({"unix": time.time(), "reason": reason})
+            session["guard_trips"] = trips
+            self.atomic_write_json(self.mapping_session_file, session)
+            self.status(
+                f"MAPPING GUARD STOP: {reason}. Remote stop latched; this session's map will be rejected. "
+                "Stop mapping when parked.")
+        except Exception as exc:   # the guard must never take the executor down
+            self.get_logger().error(f"mapping guard tick failed: {exc}")
+
     def restore_mapping_background(self) -> None:
         """Restore only services that were active before mapping began."""
         if not self.paused_services_file.exists():
@@ -1751,6 +1862,7 @@ class AtlasMissionControl(Node):
         return True
 
     def stop_exploration(self) -> None:
+        self.mapping_finishing = True
         try:
             self.zero_pub.publish(Twist())
             session = self.active_mapping_session()
@@ -1766,6 +1878,9 @@ class AtlasMissionControl(Node):
                 self.zero_pub.publish(Twist())
                 self.status("MAPPING NOT ACTIVE; ACCEPTED MAP PRESERVED")
                 return
+            self.mapping_guard.disarm()
+            if manual_session:
+                self.ensure_nav2_for_acceptance()
             if explore_active:
                 result = subprocess.run(
                     ["systemctl", "--user", "stop", self.explore_unit],
@@ -1803,6 +1918,7 @@ class AtlasMissionControl(Node):
         finally:
             self.stop_mapping_recording()
             self.restore_mapping_background()
+            self.mapping_finishing = False
 
     def cancel_navigation(self) -> None:
         """Cancel active Nav2 goals without changing mapping or saving a map."""
@@ -1935,7 +2051,7 @@ def main(args=None):
     rclpy.init(args=args)
     node = AtlasMissionControl()
     try:
-        rclpy.spin(node)
+        atlas_batched_spin.spin(node)  # ATLAS_EXECUTOR_BATCH_S (2026-11-13)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:

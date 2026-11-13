@@ -6,6 +6,7 @@ import math
 import time
 
 import rclpy
+import atlas_batched_spin
 from action_msgs.msg import GoalStatusArray
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
@@ -521,7 +522,7 @@ def main():
     rclpy.init()
     node = AtlasSafetyStatus()
     try:
-        rclpy.spin(node)
+        atlas_batched_spin.spin(node)  # ATLAS_EXECUTOR_BATCH_S (2026-11-13)
     except KeyboardInterrupt:
         pass
     finally:

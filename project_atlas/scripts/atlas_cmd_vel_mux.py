@@ -63,6 +63,8 @@ class AtlasCmdVelMux(Node):
         self.create_service(Trigger, '/atlas/manual_controller/select_flysky',
                             lambda request, response: self.select_controller_service('FLYSKY', response))
         self.create_subscription(Empty, '/atlas/flysky/stop', self.on_flysky_stop, 10)
+        # 2026-11-13: mission-control mapping guard (stale scan/odom/SLAM TF or CPU overload). Latch-only input.
+        self.create_subscription(Empty, '/atlas/mapping_guard/stop', self.on_mapping_guard_stop, 10)
         # ATLAS Stage 29 FlySky reset: second release path, off unless its own gate is set.
         self.flysky_reset_gate = MuxResetGate(os.environ.get(FLYSKY_RESET_ENV, '0') == '1')
         self.create_subscription(String, '/atlas/flysky/reset_request', self.on_flysky_reset_request, 10)
@@ -652,6 +654,10 @@ class AtlasCmdVelMux(Node):
 
     def on_flysky_stop(self, _msg):
         self.remote_stop.latch('REMOTE STOP: FlySky stop')
+        self.hold_remote_stop()
+
+    def on_mapping_guard_stop(self, _msg):
+        self.remote_stop.latch('REMOTE STOP: mapping guard (stale data or CPU overload)')
         self.hold_remote_stop()
 
     def on_ultrasonic(self, sensor: str, msg: Float32) -> None:
