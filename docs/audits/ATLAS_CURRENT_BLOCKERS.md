@@ -1587,3 +1587,24 @@ Watch: cellular modem USB re-enumerated 6x between 14:34 and 14:47 (overload win
   - load average 14-18 -> ~10.
 - /var/lib/nvpmodel/status records the mode for boot (/etc/nvpmodel.conf DEFAULT is still 1; the status file takes precedence).
 - Watch the temperature during the next mapping drive.
+
+2026-11-13 23:59 - 2026-11-14 00:30 PARKED light-mapping-mode test (owner request), session d29d7b23. Remote stop latched throughout; nothing moved; MAXN_SUPER.
+Worked:
+- Cold start reached MANUAL MAPPING ACTIVE in 22 s on the first try. Before, cold starts often missed the 90 s check; Nav2 is no longer started.
+- Startup stillness 0.0 m / 0.0 deg. Paused: voice, Astra, rf2o gate, candidate EKF, tight recovery, rf2o. Nav2 inactive.
+- Light bag (no camera) recorded.
+- Mapping guard armed ~20 min with 0 trips (no false positives, including the high-load period).
+- Stop: QUEUED -> "MANUAL MAPPING FINISHING: starting Nav2" -> acceptance evaluated 40 s later -> REJECTED as expected (no hall / no drive). Accepted map unchanged (pgm sha 4beb26d5a999).
+- Restore: session files moved to rejected_session_d29d7b23 / *.rejected-session-d29d7b23.json; atlas-localization started; seeded LiDAR-verified "dhruv room" (0.215, -1.795); Nav2 active; mission control restarted -> READY (known: status stays ERROR after a rejection). Regression ALL PASS (12 rejected candidates still rejected).
+FIXED during the test:
+- The feature manager restarted ai-annotator, agent-team and experience-store in the ~20 s while SLAM was "activating" (mapping was detected only as slam-fast == active). They then stayed on for the whole session; this probably also contributed to earlier remap overloads.
+  - Now mapping = a session file in "starting"/"active" OR slam-fast active/activating (once per tick).
+  - Running MAPPING_PAUSED units are stopped while mapping.
+  - 3 new tests (6/6). Deployed mid-session: 7 units stopped within 12 s.
+  - Backup atlas_feature_on_demand.py.before-mapenforce-20261114.
+- Still open: atlas-active-vision is not in MAPPING_PAUSED (it was only started by restore-all).
+CPU in light mapping (60 s, parked): 386 % total, but 27 % system time + 8 % irq. Biggest: mission-control cgroup 72 % (incl. session ros2 bag record 45 %), EKF 48 % (2.7 % in localization; main thread 37 % sys, "Failed to meet update rate, took 0.11-0.23 s"), slam_toolbox 44 % (4 % offline), dashboard 39 %, mode manager 17 %.
+LEAD (strong, not yet reproduced): stopping ONLY the session's recorder dropped EKF 46 -> 3.4 %, SLAM 44 -> 2.2 %, dashboard 40 -> 25 %, mode manager 17 -> 6.6 % within 15 s.
+- Fresh recorders started from a shell did NOT reproduce it: /tf alone (reliable or best-effort), scans + odom, and the exact light-profile script for 4.5 min all left EKF/SLAM at 2-4 %; the recorder itself uses ~35 %.
+- Difference to test next: the session recorder starts while localization is being stopped and SLAM started (publishers churn during its discovery).
+- Next discriminating test, parked: start a session and compare EKF/SLAM sys time with the recorder started (a) at session start (now) vs (b) after MANUAL MAPPING ACTIVE.

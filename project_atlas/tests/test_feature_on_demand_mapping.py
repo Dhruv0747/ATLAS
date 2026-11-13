@@ -39,5 +39,28 @@ class MappingPause(unittest.TestCase):
             self.assertIn(u, F.MAPPING_PAUSED)
 
 
+    def test_running_extras_are_stopped_while_mapping(self):
+        """2026-11-14: units already running when mapping begins are stopped even if demand says on."""
+        d = self.deciders()
+        acts = d.decide({'autonomy': True}, {u: 'active' for u in F.MANAGED}, lambda: True)
+        stopped = {u for a, u in acts if a == 'stop'}
+        for u in AI:
+            self.assertIn(u, stopped)
+
+    def test_running_extras_kept_when_not_mapping(self):
+        d = self.deciders()
+        acts = d.decide({'autonomy': True}, {u: 'active' for u in F.MANAGED}, lambda: False)
+        self.assertFalse({u for a, u in acts if a == 'stop'} & set(AI))
+
+    def test_session_file_counts_as_mapping(self):
+        import json, tempfile, os
+        with tempfile.TemporaryDirectory() as d:
+            f = os.path.join(d, 's.json')
+            self.assertFalse(F.mapping_session_open(f))
+            for state, expect in (('starting', True), ('active', True), ('closed', False)):
+                open(f, 'w').write(json.dumps({'state': state}))
+                self.assertEqual(F.mapping_session_open(f), expect)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -196,6 +196,11 @@ class Planner:
         for u, f in self.features.items():
             need = f.get('always_on') or any(active.get(t) for t in f['triggers'])
             running = state.get(u) == 'active'
+            if running and u in MAPPING_PAUSED and mapping_active():
+                # 2026-11-14: enforce the mapping pause. Units started in the window before SLAM was up stayed on
+                # for the whole session (parked light-mode test d29d7b23: ai-annotator, agent-team, experience-store).
+                actions.append(('stop', u))
+                continue
             if need:
                 self.unused_since.pop(u, None)
                 if not running and not (u in MAPPING_PAUSED and mapping_active()):
@@ -208,6 +213,17 @@ class Planner:
         return actions
 
     def note_started(self, u): self.on_since[u] = self.clock()
+
+
+MAPPING_SESSION_FILE = Path.home() / '.config/project_atlas/mapping_session.json'
+
+
+def mapping_session_open(path=None):
+    """True while mission control has a manual/exploration mapping session starting or active."""
+    try:
+        return json.loads(Path(path or MAPPING_SESSION_FILE).read_text()).get('state') in ('starting', 'active')
+    except (OSError, ValueError, AttributeError):
+        return False
 
 
 def systemctl(*args, timeout=60):
@@ -255,7 +271,15 @@ def run(config):
         if dem.held != was_held:
             log('inputs_stale_held' if dem.held else 'inputs_stale_hold_end', reason='authorised restart (lease)')
             was_held = dem.held
-        mapping = lambda: unit_state('atlas-slam-fast') == 'active'     # checked only before starting a mapping-paused unit
+        memo = {}
+
+        def mapping():
+            # 2026-11-14: a session counts from its first write ("starting") and SLAM counts while still activating;
+            # checking only slam-fast == active left a ~20 s window in which the AI extras were (re)started.
+            # Evaluated lazily, at most once per tick.
+            if 'v' not in memo:
+                memo['v'] = mapping_session_open() or unit_state('atlas-slam-fast') in ('active', 'activating')
+            return memo['v']
         for action, u in plan.decide(active, state, mapping):
             r = systemctl(action, u + '.service')
             state[u] = unit_state(u)
