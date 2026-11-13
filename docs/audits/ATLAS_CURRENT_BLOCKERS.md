@@ -1371,3 +1371,10 @@ Conclusion: wheel-based odometry cannot meet the 0.15 m single-step map gate ove
 - Suspected: CPU starvation delayed slam_toolbox (2.1 s source age), then a large correction. Not yet proven.
 - Restored: rejected_session_00c9e957 kept; named_places from pre-remap5-20261113; home not set. atlas-localization failed its first start ("AMCL is not subscribed to /initialpose"; lifecycle timeouts under load) and came up on retry; seeded from a LiDAR-verified pose (0.235, -1.535).
 - Colour data: maps3d/remap5b_colour_20261113-102354 (outbound and return until ~10:40).
+
+2026-11-13 ~11:10 attempt 4 jump analysis (tools/localization/slam_jump_timeline.py on remap5b_colour_20261113-102354/base):
+- The big corrections (1.95 m / 14.6 deg at 10:32:52, 1.30 m at 10:32:50, 1.32 m / 18.9 deg at 10:33:24, plus 0.8-0.9 m steps to 10:33:25) all fall in the first ~45 s of the return.
+- During that window the wheels report the rover driven fast: up to 0.78-1.02 m/s and 82-148 deg/s turn rate. Over the whole return, speed 95th percentile was 0.65 m/s (outbound 0.52), turn rate max 148 deg/s (outbound 86).
+- LiDAR rate stayed normal (6.5-6.8 Hz every minute, scan delay <= 0.54 s). The SLAM TF delay was ~3.8 s all session, also when calm, so it is not specific to the jump. CPU overload is therefore NOT the primary cause.
+- Main cause: aggressive driving/spinning at the start of the return smeared LiDAR scans (148 deg/s = ~22 deg per scan at 6.7 Hz) beyond what scan matching tracks, and SLAM corrected in large steps. The room<->hall connectivity failure follows from the resulting smeared map.
+- Fix to try: a mapping-mode speed limit (e.g. <= 0.3 m/s, <= 30 deg/s) or strict slow driving. Any limit is a config change needing owner OK.
