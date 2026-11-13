@@ -6,6 +6,7 @@ import math
 import time
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
@@ -108,6 +109,8 @@ def main():
     node = PersonSensorFusion()
     try:
         rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass  # 2026-11-13: systemctl stop is a normal exit, not a failure
     finally:
         node.destroy_node()
         if rclpy.ok():

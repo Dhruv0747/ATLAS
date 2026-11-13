@@ -434,9 +434,15 @@ def main():
     node = Monitor()
     try:
         atlas_batched_spin.spin(node)  # ATLAS_EXECUTOR_BATCH_S (2026-11-13)
+    except KeyboardInterrupt:
+        pass
+    except Exception as exc:
+        if type(exc).__name__ != 'ExternalShutdownException':
+            raise
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

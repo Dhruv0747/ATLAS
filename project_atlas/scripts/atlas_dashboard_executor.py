@@ -19,6 +19,9 @@ def _batched(executor, batch_s):
 
     def wait_batched(*args, **kwargs):
         time.sleep(batch_s)
+        context = getattr(executor, '_context', None)     # 2026-11-13: stop during the sleep = normal shutdown
+        if context is not None and not context.ok():
+            raise _module.ExternalShutdownException()
         yield from inner(*args, **kwargs)
     executor._wait_for_ready_callbacks = wait_batched
     return executor

@@ -5,6 +5,7 @@ import math
 from atlas_serial_lines import CameraReplyGuard
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Joy
@@ -128,6 +129,8 @@ def main():
     node = CameraJoystick()
     try:
         rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass  # 2026-11-13: systemctl stop is a normal exit, not a failure
     finally:
         node.destroy_node()
         if rclpy.ok():

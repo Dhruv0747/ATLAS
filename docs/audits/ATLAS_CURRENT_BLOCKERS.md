@@ -1554,3 +1554,27 @@ Deploy (needs the owner's OK; rover parked + E-STOP latched): copy the changed s
   - mission control 14.6 -> 7.4 %; sensor recovery 16.4 -> 4.4 %; safety status 13.3 -> 6.9 %; localization monitor 16.8 -> 11.2 %; rf2o gate 4.8 -> 3.9 %.
 - Quick regression on live: ALL PASS (unit, old map, gate history). Mission status READY.
 - Not yet measured: light mapping mode live (parked).
+
+2026-11-13 23:00-23:45 live-system audit (owner request "audit running ATLAS, find problems and fix"). Rover parked, remote stop latched the whole time (verified before and after).
+Healthy:
+- No crash loops.
+- Sensors: /scan 7.3 Hz, /odom 10, wheel odom 10, IM10A 10, IMU 10.6, ICP 7.3, rf2o 5.3, camera 8.8, radar 20, ultrasonic 7.3, joy 16, BMS every 5 s (14.6 V, 100 %).
+- Recovery monitor: all HEALTHY.
+- TF map->base_link (0.195, -1.762, 72.8 deg) agrees with the LiDAR-verified seed.
+- Disk 35 %; RAM 2.4 GB available; swap 26 MB; temperatures 67-68 C (trip 99 C); fan PWM 138.
+FIXED (deployed; backups *.before-shutdownfix-20261113 / *.before-grace-20261113):
+1. Services ended "failed" on every normal systemctl stop (2 days: voice 11, visual-cloud 11, camera-joystick 11, person-fusion 8, localization-monitor 8, rf2o gate 8, follow-person 2).
+   - Causes: ExternalShutdownException not caught; the voice overlay raises its own exception class; rclpy.shutdown() called twice; follow-person publishing a final zero on an invalid context.
+   - A race I introduced at 22:47: a stop during the batch sleep made the wait-set rebuild raise RCLError. atlas_batched_spin and atlas_dashboard_executor now turn it into the normal shutdown signal; new unit test, 4/4 pass.
+   - Verified with two stop/start cycles each: localization-monitor, rf2o gate, safety-status, sensor-recovery, mission-control, dashboard, camera-joystick, visual-cloud and follow-person all stop with Result=success.
+   - Voice companion fixed in the file but not restarted (night); the fix applies on its next start.
+2. Dashboard watchdog killed the dashboard during deliberate restarts (22:48:45, 23:37:05, 23:37:45): no startup grace, so SIGUSR1 arrived before faulthandler was registered.
+   - Added a 60 s grace after the unit starts (a first version overflowed in awk and effectively disabled the watchdog; replaced with integer seconds).
+   - Tested: healthy -> no action; simulated hang -> USR1 + restart on the 2nd miss.
+3. reset-failed for update-notifier-crash (crash-report notifier). Crash reports in /var/crash: rplidar_composition 13 Nov 14:25 (during the Boost overload, not recurred), ros2 CLI, nmcli, rtabmap (old).
+NEEDS THE OWNER (sudo or hardware):
+A. Power mode is "25W" (nvpmodel ID 1): CPU capped at 1.344 GHz, lower than 15W mode (1.498 GHz). MAXN_SUPER (ID 2) runs at 1.728 GHz, +29 % CPU, with the CPU-bound mapping problem in mind. No earlier decision about the power mode is recorded. Suggested: sudo nvpmodel -m 2, watch the temperature (now 68 C at 1.344 GHz).
+B. atlas-ptz-home.service (system unit, /home/jetson/home.py) fails every boot: PCA9685 at 0x40 is no longer on Jetson I2C bus 7 (the pan/tilt now goes through the UNO R4 hub, PCA=1). Obsolete. Suggested: sudo systemctl disable atlas-ptz-home && sudo systemctl reset-failed atlas-ptz-home.
+C. GPS: the hub reports GPS_BYTES=0 since boot (UART at 9600 baud receives nothing). Wiring/power/module check; indoors alone would still give NMEA bytes.
+D. AMCL particle collapse persists (covariance ~1e-15, perfect confidence). Already registered (issues 33/36: 1 Hz forced no-motion updates + resample_interval 1 + zero recovery alphas). No new tuning without the reviewed change. LiDAR start verification and the scan-fit gate remain the real checks.
+Watch: cellular modem USB re-enumerated 6x between 14:34 and 14:47 (overload window), none since. rover-base-telemetry "USB discovery busy" at startup 3x in 2 days (auto-retried).

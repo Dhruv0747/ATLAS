@@ -29,6 +29,12 @@ def make_batched(executor, batch_s: float):
 
     def wait_batched(*args, **kwargs):
         time.sleep(batch_s)
+        # A systemctl stop during the sleep invalidates the context; report it as the normal shutdown signal
+        # instead of letting the wait-set rebuild raise RCLError ("context is not valid") as a crash.
+        context = getattr(executor, "_context", None)
+        if context is not None and not context.ok():
+            from rclpy.executors import ExternalShutdownException
+            raise ExternalShutdownException()
         yield from inner(*args, **kwargs)
 
     executor._wait_for_ready_callbacks = wait_batched
@@ -48,5 +54,11 @@ def spin(node, batch_s=None):
     node.get_logger().info(f"batched executor: {batch_s * 1000:.0f} ms")
     try:
         rclpy.spin(node, executor=executor)
+    except Exception as exc:
+        # Same race, narrowed: shutdown landing between the context check and the wait-set build.
+        if node.context.ok() or type(exc).__name__ not in ("RCLError", "ExternalShutdownException"):
+            raise
+        from rclpy.executors import ExternalShutdownException
+        raise ExternalShutdownException() from None
     finally:
         executor.shutdown(timeout_sec=1)

@@ -525,6 +525,9 @@ def main():
         atlas_batched_spin.spin(node)  # ATLAS_EXECUTOR_BATCH_S (2026-11-13)
     except KeyboardInterrupt:
         pass
+    except Exception as exc:   # 2026-11-13: systemctl stop is a normal exit, not a failure
+        if type(exc).__name__ != 'ExternalShutdownException':
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():

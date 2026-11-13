@@ -8,6 +8,7 @@ import math
 import time
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 import atlas_batched_spin
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
@@ -176,9 +177,12 @@ def main() -> None:
     node = AtlasLidarOdomGateNode()
     try:
         atlas_batched_spin.spin(node)  # ATLAS_EXECUTOR_BATCH_S (2026-11-13)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass  # 2026-11-13: systemctl stop is a normal exit, not a failure
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ import math
 import time
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
@@ -154,10 +155,17 @@ def main():
     node = AtlasFollowPerson()
     try:
         rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass   # systemctl stop: normal shutdown, not a failure
     finally:
-        node.stop()
+        # 2026-11-13: on SIGTERM rclpy has already invalidated the context, so publishing the final zero raised
+        # RCLError and the unit ended 'failed' on every stop. Publish only while the context is valid; the mux
+        # drops this source on its own command timeout either way.
+        if rclpy.ok():
+            node.stop()
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

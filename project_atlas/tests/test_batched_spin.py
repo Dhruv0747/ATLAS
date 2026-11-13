@@ -40,3 +40,19 @@ def test_batched_yields_all_ready_callbacks_after_one_sleep(monkeypatch):
     ex = B.make_batched(FakeExecutor(), 0.05)
     assert list(ex._wait_for_ready_callbacks()) == ["cb1", "cb2"]
     assert slept == [0.05]
+
+
+class DeadContext:
+    def ok(self):
+        return False
+
+
+def test_shutdown_during_batch_sleep_is_external_shutdown(monkeypatch):
+    import pytest
+    from rclpy.executors import ExternalShutdownException
+    monkeypatch.setattr(B.time, "sleep", lambda s: None)
+    ex = FakeExecutor(); ex._context = DeadContext()
+    ex = B.make_batched(ex, 0.05)
+    with pytest.raises(ExternalShutdownException):
+        list(ex._wait_for_ready_callbacks())
+    assert ex.calls == 0          # the wait set is never rebuilt on a dead context

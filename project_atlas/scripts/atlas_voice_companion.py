@@ -1378,6 +1378,10 @@ def main():
         _atlas_voice_spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except Exception as exc:
+        # 2026-11-13: the dashboard executor overlay raises its own ExternalShutdownException class
+        if type(exc).__name__ != 'ExternalShutdownException':
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():
