@@ -1437,3 +1437,13 @@ LiDAR data: while parked, only 207/360 bins are valid; the 153 empty bins are sp
 - Localization on the old map with Boost scans: verify-place "dhruv room" VERIFIED, fit 0.987, margin 0.205.
 - CPU: atlas-localization (AMCL + Nav2) ~53 % of a core during the check.
 - Next: remap attempt 6 with denser scans.
+
+2026-11-13 ~14:35-14:50 remap attempt 6 ABORTED, Boost REVERTED:
+- Session 1e570a39 started only after a manual atlas-slam-fast restart. Cold switches from localization to mapping have failed three times today (10:21, 13:08, 14:29: no map frame within 90 s); a restart always fixes it. Cause not yet found.
+- The remote stop latched ("REMOTE STOP: joystick unavailable"). The owner reset it.
+- With LiDAR Boost (1080 beams) + mapping + recorders, load average reached 50-59. TF odom->base_link stopped arriving (map and base_link not connected) and the EKF missed its update rate.
+- Session aborted without a map: the session file was moved aside before stop_exploration. Accepted map preserved; background profile restored.
+- LiDAR restored to Standard from atlas-lidar.service.before-scanmode-20261113. Named places from pre-remap7.
+- Localization restarted; seeded at the hall (6.475, -2.375) before the owner drove back. Load fell to ~14 by 14:49.
+- Remote input priority: atlas-remote.service (joy_node + teleop) had default CPU weight while the base and mux have CPUWeight=1000. joy gaps under load latch the remote stop. Applied `systemctl --user set-property atlas-remote.service CPUWeight=1000` (live, persistent in ~/.config/systemd/user.control, no restart).
+- Boost needs scan thinning first: one decimating node (1080 -> ~360 bins) for all consumers, keeping full density only where needed.
