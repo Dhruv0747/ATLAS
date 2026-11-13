@@ -1608,3 +1608,19 @@ LEAD (strong, not yet reproduced): stopping ONLY the session's recorder dropped 
 - Fresh recorders started from a shell did NOT reproduce it: /tf alone (reliable or best-effort), scans + odom, and the exact light-profile script for 4.5 min all left EKF/SLAM at 2-4 %; the recorder itself uses ~35 %.
 - Difference to test next: the session recorder starts while localization is being stopped and SLAM started (publishers churn during its discovery).
 - Next discriminating test, parked: start a session and compare EKF/SLAM sys time with the recorder started (a) at session start (now) vs (b) after MANUAL MAPPING ACTIVE.
+
+2026-11-14 00:26-01:00 recorder-timing test (owner: "Yes, test it"), parked, stop latched throughout; session cadee163, restored after (localization seeded (0.175, -1.855), READY, map unchanged).
+- Localization baseline: EKF 2.9 %.
+- A, session recorder: EKF 21-23 % (sys 14-16 %), SLAM 28-30 % (sys 21-22 %). Mapping-mode overhead reproduced (smaller than last night's 45 %).
+- B0, session recorder killed: EKF 18 %, SLAM 29 %. Unchanged.
+- B1/B2, same recorder script started after ACTIVE: unchanged.
+- => The recorder is NOT the cause. Last night's drop after killing it is now treated as coincidental or as an indirect reset. The 2026-11-14 00:30 "recorder lead" above is WITHDRAWN.
+- C, SLAM SIGSTOP 20 s then SIGCONT: costs fell (EKF 3 %, SLAM 2 %). INVALID as a fix: after the resume, mission control never received SLAM's map->odom again (guard: "SLAM map->odom stale 180.4s"; stop failed with "localization seed requires a live map-frame pose"); restored manually. Do not use SIGSTOP on DDS nodes.
+- Reproduced WITHOUT mapping: in localization, adding one dummy /tf publisher (unrelated frames, rclpy, UDPv4 or default transports, 10 or 50 Hz) raised EKF sys 1 % -> 23-30 % and every /tf subscriber by ~4-6 % sys. The cost does not depend on the rate.
+- The state PERSISTS after the extra publisher exits and survives an EKF restart (a fresh EKF picks it up at once). /tf traffic itself is normal (odom->base_link 6.9/s, map->odom 6.0/s).
+- /tf has a publisher "_NODE_NAME_UNKNOWN_" (GID 01.0f.9f.1f.07.d8.3a.02...) with no matching live PID, a stale or unidentified participant.
+- Working hypothesis: churn of /tf participants (SLAM appearing at mapping start, killed or paused processes) leaves the Fast DDS (Humble default RMW) graph in a state where every /tf reader and writer burns kernel time. This would explain the mapping-mode overload behind the rejected remaps.
+- Not confirmed at syscall level: no strace or perf on the Jetson (installing them needs sudo).
+- Side effect: my probes left the system in that state: 481 % CPU, 10 % idle, 29 % system time, load 48, atlas-localization 122 %. Rover parked, stop latched, READY. A reboot is recommended to clear it.
+- Next: (1) reboot; (2) the owner installs strace and linux-tools; (3) parked, start mapping and catch the syscall mix in EKF and SLAM; (4) candidate fixes for a reviewed change: SLAM transform_publish_period, discovery / lease settings, or the participant churn at mapping start. No change made yet.
+- Also: use `ros2 topic pub --once -w 1` (the first stop without -w was lost).
