@@ -1692,3 +1692,22 @@ LEAD (strong, not yet reproduced): stopping ONLY the session's recorder dropped 
   - eece59aa loses only the predate failure (7 -> 6; still rejected);
   - d29d7b23, c7c28ee9 and 57941c0d unchanged (6 / 5 / 2; still rejected).
 - Backups: *.before-sourcefloor-20261114. Mission control restarted -> READY, stop latched, no errors.
+
+2026-11-14 ~10:00-10:25 small code jobs (owner: "do the small code jobs first"); rover parked, stop latched.
+DEPLOYED (backups *.before-smalljobs-20261114; mission control + feature manager restarted; follow/camera-tracker/active-vision stopped after the restore-all; READY, latched):
+1. atlas_feature_on_demand MAPPING_PAUSED += atlas-active-vision (it moves the camera; not needed while mapping). +1 test.
+2. Mission status returns to READY when idle. A FINISHED or FAILED status (allow-list: ERROR, PLACE/HOME SAVED, GOAL FINISHED/REJECTED, RETURN HOME FINISHED/VERIFIED/INACCURATE/REJECTED/RETRY BLOCKED, NAVIGATION CANCELED, MAPPING NOT ACTIVE, MAP ACCEPTED, SCAN CHECK OK, BUSY) stays visible for 120 s (errors) or 60 s (others), then reverts to READY.
+   - Only if no operation holds the lock, no mapping session is open and exploration is inactive.
+   - In-progress or unknown statuses (QUEUED, *DISPATCHED, *ACCEPTED, MANUAL MAPPING *, EXPLORATION ACTIVE, RETURN HOME RETRY, TAUGHT ROUTE DISPATCHED) never revert. Navigation is asynchronous, so the lock alone is not enough.
+   - Why: the feature manager reads mission != READY as autonomy demand and restarted every AI extra after rejected maps; the camera settings page refused changes; both needed a mission-control restart.
+   - tests/test_mission_status_idle_revert.py: 6 tests.
+   - Live test: "MAPPING NOT ACTIVE" 10:23:34 -> READY 10:24:34.
+TESTS FIXED (test files only):
+3. 11 remote-stop mux tests (stop_hold, mapping_limit): the fixtures now extract flysky_reset_observe / controller_accepts (Stage 29 additions) and set manual_controller=XBOX. 11/11 pass. tests/regression_known_failures.txt emptied.
+4. Dashboard E-STOP tests: the "missing module calibration_validation" collection error was an incomplete test tree (tools/vision3d and tools/diagnostics absent on the Jetson's live and staging trees), not a missing module. With the full tree:
+   - estop_safety needed the same Stage 29 fixture addition;
+   - executor_split expected rclpy.spin(self.node), which the 13 Nov batched dashboard executor replaced (my change);
+   - now 41 passed, 1 skipped (estop_reset, estop_safety, no_reboot, executor_profile, executor_split).
+NOT DONE (not small, or not allowed):
+- Automatic localization restore after a session. After a rejection the session stays active by design; automating needs decisions (archive the session, set aside session-bound home/seed, reseed without a known place). Proposed separately.
+- Rear encoder label swap: this is the motor/encoder driver mapping (hardware driver / calibration), outside this workflow without an explicit, separate owner decision.

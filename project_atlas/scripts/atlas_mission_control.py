@@ -475,13 +475,53 @@ class AtlasMissionControl(Node):
         self.camera_pan_pub.publish(Int32(data=self.camera_pan_us))
         self.camera_tilt_pub.publish(Int32(data=self.camera_tilt_us))
 
+    # 2026-11-14: a finished or failed operation's message stays visible this long, then the status returns to
+    # READY if mission control is idle. Other nodes read "!= READY" as busy (the feature manager started every AI
+    # extra after a rejected map; the camera settings page refused changes) until mission control was restarted.
+    STATUS_HOLD_ERROR_S = 120.0
+    STATUS_HOLD_RESULT_S = 60.0
+    # Only statuses that report a FINISHED operation may revert. Anything in progress (QUEUED, *DISPATCHED,
+    # *ACCEPTED, MANUAL MAPPING *, EXPLORATION ACTIVE, RETURN HOME RETRY, TAUGHT ROUTE DISPATCHED) or unknown never does.
+    TERMINAL_STATUS_PREFIXES = (
+        "ERROR ", "BUSY", "SCAN CHECK OK", "PLACE SAVED", "HOME SAVED", "HOME ALREADY REACHED",
+        "NAVIGATION CANCELED", "NAMED GOAL REJECTED", "NAMED GOAL FINISHED",
+        "RETURN HOME REJECTED", "RETURN HOME FINISHED", "RETURN HOME VERIFIED", "RETURN HOME INACCURATE",
+        "RETURN HOME RETRY BLOCKED", "MAPPING NOT ACTIVE", "EXPLORATION STOPPED; MAP ACCEPTED",
+    )
+
     def status(self, text: str) -> None:
         self.current_status = text
+        self.current_status_since = time.monotonic()
         self.status_pub.publish(String(data=text))
         self.get_logger().info(text)
 
     def publish_current_status(self) -> None:
+        self.revert_idle_status_to_ready()
         self.status_pub.publish(String(data=self.current_status))
+
+    def revert_idle_status_to_ready(self) -> None:
+        text = self.current_status or ""
+        if not text.startswith(self.TERMINAL_STATUS_PREFIXES):
+            return
+        hold = self.STATUS_HOLD_ERROR_S if text.startswith("ERROR") else self.STATUS_HOLD_RESULT_S
+        since = getattr(self, "current_status_since", None)
+        if since is None or time.monotonic() - since < hold:
+            return
+        if not self.operation_lock.acquire(blocking=False):
+            return                                   # an operation is running: its status is live
+        try:
+            if self.active_mapping_session() is not None:
+                return
+            explore_active = subprocess.run(
+                ["systemctl", "--user", "is-active", "--quiet", self.explore_unit],
+                check=False, timeout=4,
+            ).returncode == 0
+            if explore_active:
+                return
+            self.get_logger().info(f"mission idle; status returns to READY (was: {text[:120]})")
+            self.status("READY")
+        finally:
+            self.operation_lock.release()
 
     def update_safety_status(self, msg: String) -> None:
         self.safety_status = msg.data.strip()
@@ -752,6 +792,7 @@ class AtlasMissionControl(Node):
     def error(self, operation: str, exc: Exception) -> None:
         message = f"ERROR {operation}: {exc}"
         self.current_status = message
+        self.current_status_since = time.monotonic()
         self.status_pub.publish(String(data=message))
         self.get_logger().error(message)
 

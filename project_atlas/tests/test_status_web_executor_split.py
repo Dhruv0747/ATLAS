@@ -78,7 +78,8 @@ class ExecutorSplit(unittest.TestCase):
         spin = ast.unparse(METHODS['_spin'])
         self.assertIn('rclpy.create_node("atlas_web_status")', spin.replace("'", '"'))
         self.assertIn('_SubscriptionRouter(self.node, self.status_node)', spin)
-        self.assertIn('rclpy.spin(self.node)', spin)
+        # 2026-11-13 the hot node spins through the batched dashboard executor (_atlas_spin(..., batch_s=...)).
+        self.assertTrue('rclpy.spin(self.node)' in spin or '_atlas_spin(self.node' in spin, spin[:200])
         self.assertIn('self._spin_status', spin)
         self.assertIn('executor.add_node(self.status_node)', ast.unparse(METHODS['_spin_status']))
 

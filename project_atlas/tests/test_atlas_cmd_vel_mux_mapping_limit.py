@@ -31,7 +31,7 @@ def extracted_mux(clock):
         node
         for node in mux.body
         if isinstance(node, ast.FunctionDef)
-        and node.name in {"copy_twist", "moving", "on_command"}
+        and node.name in {"copy_twist", "moving", "on_command", "controller_accepts"}  # 2026-11-14: Stage 29 controller selection
     ]
     scope = {
         "time": NS(monotonic=clock),
@@ -64,6 +64,8 @@ class MappingRemoteLimitTests(unittest.TestCase):
         self.mux._remote_raw_steer_rx = 0.0
         self.mux.active_name = None
         self.mux.publish_stop = Mock()
+        self.mux.manual_controller = 'XBOX'        # Stage 29 default: the Xbox remote drives
+        self.mux.flysky_drive_enabled = False
 
     def test_mapping_caps_speed_but_keeps_commissioned_steering(self):
         self.mux.operating_mode = "MAPPING"

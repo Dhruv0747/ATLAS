@@ -52,6 +52,13 @@ class MappingPause(unittest.TestCase):
         acts = d.decide({'autonomy': True}, {u: 'active' for u in F.MANAGED}, lambda: False)
         self.assertFalse({u for a, u in acts if a == 'stop'} & set(AI))
 
+    def test_active_vision_paused_while_mapping(self):
+        d = self.deciders()
+        acts = d.decide({'active_vision': True}, {u: 'inactive' for u in F.MANAGED}, lambda: True)
+        self.assertNotIn(('start', 'atlas-active-vision'), acts)
+        acts = d.decide({'active_vision': True}, {u: 'active' for u in F.MANAGED}, lambda: True)
+        self.assertIn(('stop', 'atlas-active-vision'), acts)
+
     def test_session_file_counts_as_mapping(self):
         import json, tempfile, os
         with tempfile.TemporaryDirectory() as d:

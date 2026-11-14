@@ -206,7 +206,8 @@ class MuxHonoursWebEStop(unittest.TestCase):
         cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'AtlasCmdVelMux')
         cls.bases, cls.decorator_list = [], []
         cls.body = [n for n in cls.body if isinstance(n, ast.FunctionDef)
-                    and n.name in {'moving', 'copy_twist', 'hold_remote_stop', 'on_voice_stop', 'on_stop_joy'}]
+                    and n.name in {'moving', 'copy_twist', 'hold_remote_stop', 'on_voice_stop', 'on_stop_joy',
+                                 'flysky_reset_observe'}]  # 2026-11-14: Stage 29 hook, no-op without a gate
         self.now = 100.0
         tw = lambda x=0.0, z=0.0: NS(linear=NS(x=x, y=0.0, z=0.0), angular=NS(x=0.0, y=0.0, z=z))
         scope = dict(time=NS(monotonic=lambda: self.now), Twist=tw, String=lambda data='': NS(data=data), **consts)

@@ -1,14 +1,2 @@
-# Pre-existing failures (verified 2026-11-13 against the unmodified HEAD mux): the test fixtures build
-# AtlasCmdVelMux without attributes added later (controller_accepts, flysky_reset_observe). Fix the fixtures,
-# then delete these lines. tools/regression/atlas_regression.py fails only on failures NOT listed here.
-tests/test_atlas_cmd_vel_mux_mapping_limit.py::MappingRemoteLimitTests::test_manual_only_preserves_commissioned_remote_response
-tests/test_atlas_cmd_vel_mux_mapping_limit.py::MappingRemoteLimitTests::test_manual_only_rejects_general_autonomous_and_web_sources
-tests/test_atlas_cmd_vel_mux_mapping_limit.py::MappingRemoteLimitTests::test_mapping_caps_speed_but_keeps_commissioned_steering
-tests/test_atlas_cmd_vel_mux_mapping_limit.py::MappingRemoteLimitTests::test_mapping_limit_preserves_small_deliberate_commands
-tests/test_atlas_cmd_vel_mux_mapping_limit.py::MappingRemoteLimitTests::test_mapping_limits_are_symmetric_in_reverse_and_turn_direction
-tests/test_atlas_cmd_vel_mux_stop_hold.py::RemoteStopHoldTests::test_40_hz_callback_churn_is_capped
-tests/test_atlas_cmd_vel_mux_stop_hold.py::RemoteStopHoldTests::test_first_latch_stops_immediately_and_flushes_all_sources
-tests/test_atlas_cmd_vel_mux_stop_hold.py::RemoteStopHoldTests::test_motion_reappearing_during_latch_gets_immediate_zero
-tests/test_atlas_cmd_vel_mux_stop_hold.py::RemoteStopHoldTests::test_reason_and_release_changes_publish_immediately
-tests/test_atlas_cmd_vel_mux_stop_hold.py::RemoteStopHoldTests::test_service_reset_records_release_before_returning
-tests/test_atlas_cmd_vel_mux_stop_hold.py::RemoteStopHoldTests::test_unchanged_latch_rate_limits_zero_status_and_mode
+# Pre-existing test failures tolerated by tools/regression/atlas_regression.py (one test id per line).
+# 2026-11-14: emptied - the 11 mux fixture failures were fixed (tests now extract controller_accepts / flysky_reset_observe).

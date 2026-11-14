@@ -58,7 +58,9 @@ MAPPING_PAUSED = {'atlas-camera-tracker', 'atlas-follow-person',   # mission con
                   # pause/start fight pushed the load average to 40-57 during remap attempts.
                   'atlas-vision-lidar-fusion', 'atlas-person-sensor-fusion', 'atlas-ai-annotator', 'atlas-agent-team',
                   # 2026-11-13 light mapping profile (mission control MAPPING_LIGHT_EXTRA_UNITS) also pauses this one.
-                  'atlas-experience-store'}
+                  'atlas-experience-store',
+                  # 2026-11-14: active vision moves the camera and runs detection; not needed while mapping.
+                  'atlas-active-vision'}
 TRIGGERS = ('autonomy', 'ai_object', 'follow', 'tracking', 'active_vision')
 SYSTEMCTL = os.environ.get('ATLAS_SYSTEMCTL', 'systemctl')
 DEFAULTS = {'boot_grace_s': 300, 'min_on_s': 60, 'state_check_s': 15, 'policy_stale_s': 5.0, 'mission_stale_s': 10.0,

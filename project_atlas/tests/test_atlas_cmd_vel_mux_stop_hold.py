@@ -45,7 +45,8 @@ def extracted_mux(clock):
         node
         for node in mux.body
         if isinstance(node, ast.FunctionDef)
-        and node.name in {"moving", "hold_remote_stop", "reset_remote_stop", "_publish_with_provenance"}
+        and node.name in {"moving", "hold_remote_stop", "reset_remote_stop", "_publish_with_provenance",
+                          "flysky_reset_observe"}  # 2026-11-14: Stage 29 hook (no-op without a gate)
     ]
     scope = dict(
         time=NS(monotonic=clock),
