@@ -1812,3 +1812,22 @@ OPEN BUGS (to fix):
 (3) The mapping page draws the SLAM pose as a faded "ATLAS ESTIMATE" and shows old-map place labels while mapping.
 (4) Periodic dashboard socket drop bursts.
 (5) `ros2 topic pub --once -w 1` lost the stop request once (re-sent; it was received).
+
+2026-11-14 14:15-15:30 HALL TURNAROUND ANALYSIS (offline; recording manual_mapping_de55c1d35092-20261114-134350; isolated domain 95; rover parked).
+- Odometry is NOT the cause.
+  - During the multi-point turn (13:50:26-13:50:42) IMU, ICP and EKF yaw rates agree (-0.12 to -0.37 rad/s).
+  - map->odom alternated between about (1.46,-0.25,-17) and (0.18,-0.01,-4) (1.3 m / 13 deg apart), ending at (0.72,-0.17,-9).
+  - SIDE FINDING: wheel-odometry yaw rate has the WRONG SIGN during this 4WS multi-point turn (+0.3..+0.5 vs IMU -0.2). Not fused (EKF uses IMU yaw rate). To fix later.
+- Scan at 13:50:36 against the candidate map: solution B fit 96 %, A 79 %, where SLAM settled 88 % (docs/colour_3d_20261114/hall_overlay_remap10.png). The hall view is dominated by one long straight wall with large openings, so matching is under-constrained along the wall.
+- Offline replays (live parameters reproduce it: max step 0.68 m at 13:48:17/13:48:33 entering the hall and 13:50:27-40 at the turnaround). First 9 min unless noted:
+  - loop closure OFF (full bag): 0.68 m, 19 steps > 0.15 in the hall window (live: 20). Loop closure is NOT the cause.
+  - distance/angle variance penalty x2: 0.72 m, 21 steps. No help.
+  - more frequent scans (0.1 m / 5 deg / 0.2 s): 0.66 m, 30 steps. No help.
+  - correlation_search_space_dimension 0.25 and 0.35: slam_toolbox CRASHES ("Mapper FATAL ERROR - unable to get pointer in probability search"). Not usable without further parameter work.
+- Conclusion: the jumps come from local scan matching in the hall geometry, not from CPU, odometry, loop closure or scan rate.
+- Next options:
+  (a) Physical: place 1-2 distinctive static objects in the hall (e.g. a box or chair near the long wall, off the path) to break the sliding ambiguity, then remap.
+  (b) Driving: avoid the multi-point turnaround inside the hall (turn where geometry is rich, or reverse out along the same path).
+  (c) Build the map offline from the recording with heavier processing, plus a reviewed acceptance route.
+  (d) Reviewed change of the jump gate to judge final-map accuracy.
+- Tooling: replay_slam.sh gains RATE and T_END (filtered copy until a time). Lesson: never edit a running bash script, and kill leftover sim-time SLAM nodes by PID (pattern kills matched the ssh command itself).

@@ -5,9 +5,9 @@
 BAG=$1; NAME=$2; EXTRA=$3; W=/tmp/slam_replay; mkdir -p $W
 export ROS_DOMAIN_ID=95 ROS_LOCALHOST_ONLY=1
 source /opt/ros/humble/setup.bash
-F=$W/filtered_$(basename $BAG)
+F=$W/filtered_$(basename $BAG)${T_END:+_until_$T_END}
 if [ ! -d $F ]; then
-python3 - "$BAG" "$F" <<'PY'
+T_END=${T_END:-0} python3 - "$BAG" "$F" <<'PY'
 import sys, rosbag2_py
 from rclpy.serialization import deserialize_message, serialize_message
 from rosidl_runtime_py.utilities import get_message
@@ -24,8 +24,12 @@ from tf2_msgs.msg import TFMessage
 from geometry_msgs.msg import TransformStamped
 O = get_message(types['/odom'])
 n_tf = 0
+import os
+T_END = float(os.environ.get('T_END') or 0)   # optional: stop the filtered copy at this unix time
 while r.has_next():
     name, data, t = r.read_next()
+    if T_END and t * 1e-9 > T_END:
+        break
     if name == '/odom':
         # The recorded /tf odom->base_link arrived ~11 s late (overload); rebuild it from /odom at its own stamp.
         m = deserialize_message(data, O); ts = TransformStamped()
@@ -61,7 +65,7 @@ rclpy.spin(n)
 PY
 REC=$!
 sleep 6
-ros2 bag play $F --clock 100 > $W/$NAME.play.log 2>&1
+ros2 bag play $F --rate ${RATE:-1.0} --clock 100 > $W/$NAME.play.log 2>&1
 sleep 5
 kill -INT -- -$SLAM -$REC 2>/dev/null; sleep 3; kill -KILL -- -$SLAM -$REC 2>/dev/null
 python3 - "$W/$NAME.csv" <<'PY'
