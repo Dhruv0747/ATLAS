@@ -1782,3 +1782,33 @@ IM10A: fully integrated for a 2D indoor rover.
 - Offline 2026-11-13: IM10A heading beat ICP heading (ICP yaw instead of IMU 0.68-1.06 m closure vs live 0.45-0.51 m).
 - The "candidate" topic name is legacy; renaming it would change the EKF interface for no functional gain, so it is kept.
 ASTRA MOUNT: the recorded owner tape values stay authoritative (config/astra_obstacles.yaml: x 0.21, y 0.0, z 0.23, pitch 0.0 re-levelled, yaw 0.0). The +2 deg from the offline 3D fit stays a 3D-build parameter only; not applied to the live mount.
+
+2026-11-14 11:25-14:15 REMAP 9 and REMAP 10 (owner at the rover, driving with the remote; stop latched at every start and end).
+ROOT CAUSE FOUND AND FIXED - DDS packet storm. After a fresh reboot, parked manual mapping showed udp_in 107,726/s (healthy 3-7k), RcvbufErrors 1,627/s, EKF 44 % (35 % sys), SLAM 38 % (28 % sys).
+- Per-socket /proc/net/udp drops: recorder 6,917/5 s, dashboard 3,550, localization monitor 573, SLAM 534 (rx queue 149,760 B against the 212,992 B default limit), EKF 169.
+- Reliable DDS repairs every dropped fragment and the repairs are dropped again -> storm. This is the mapping-mode "sticky overload" of 13-14 Nov.
+- FIX (owner sudo; persistent /etc/sysctl.d/60-atlas-dds-buffers.conf): net.core.rmem_default=4194304, rmem_max=8388608, wmem_max=8388608, net.ipv4.ipfrag_high_thresh=33554432, ipfrag_time=3; reboot.
+- After the fix, light mapping parked: udp_in 3,159/s, drops 0, EKF 3 %, SLAM 2 %, idle 46 %.
+- During both drives: idle 37-47 %, no guard trips. Short drop bursts (150-1,550/s for ~15 s) about every 90 s, attributed to the dashboard's socket (3,698 drops in one 45 s window). Not yet fixed; cosmetic for mapping.
+REMAP 9 (session 2f57dfa7). REJECTED.
+- Passed: connectivity, footprint, Nav2 plans both ways (8.34 m).
+- Failed: map->odom jump 1.344 m / 12.8 deg at 12:26:28 (start of return from the hall); closure 0.197 m; source predates session. The last one was caused by my start script retrying while the first start was still preparing (two sessions 8dec1c9a -> 2f57dfa7; the second overwrote the paused-services list with []; services restored by hand).
+REMAP 10 (session de55c1d3; owner stop-and-go: short moves, wait for LiDAR GO; slow stepwise hall turnaround). REJECTED.
+- Passed: connectivity, plans both ways, source timestamps (source_floor fix verified live).
+- Failed: jump 1.460 m / 14.2 deg at 13:50:40 (hall turnaround); closure 0.230 m / 4.4 deg.
+- A live map->odom watcher showed SLAM FLIP-FLOPPING at the hall turnaround: 0.36, 0.63, 1.30, 1.46, 1.31, 0.44 m within 13 s (13:50:26-13:50:39); more 0.5-1.1 m steps while leaving the hall; smaller ones (0.1-0.45 m) on re-entering Dhruv Room.
+- Three attempts now jump at the same place (1.71 m 13 Nov, 1.34 m, 1.46 m) with the CPU healthy => the hall is AMBIGUOUS to SLAM (scan matching or loop closure alternating between two hypotheses). NEXT: offline replay of manual_mapping_de55c1d35092-20261114-134350 around 13:50:20-13:50:45: compare the scan matcher's candidate poses, loop-closure events and the hall geometry (glass, mirror, open space).
+- By eye the new map is cleaner than the accepted one: straighter walls, hall fully covered, free area 26.6 vs 23.9 m² (docs/colour_3d_20261114/map_compare_remap10.png). The candidate stays rejected: the jump rule is not changed without a reviewed analysis of the final-map accuracy.
+OTHER FIXES / TOOLS TODAY:
+- tools/drive/stop_and_go_coach.py (read-only), per second MOVING/WAIT/GO.
+  - Localization: GO = stopped >= 1.5 s, pose steady, scan-fit >= 85 % (the mission-control gate), plus the dashboard strict check (VERIFIED / LOCAL only).
+  - Mapping: SLAM adds scans only after ~0.2 m, so GO = settled + fit >= 60 % on the growing map.
+- Dashboard /api/map hides a nav plan older than 30 s. The map-acceptance plan-only check in a candidate frame had been drawn over the live map ("blue line wrong orientation"). Owner: "path line is correct" now.
+- Live LiDAR checks in localization: corridor fit 90-95 % (local OK) but strict unique-place 90-92 % < 0.93, because the accepted map is stale there (moved furniture; an object ~1 m in front of the room spot; an opening behind-right). Dhruv Room start spot VERIFIED (fit 0.983). The 0.93 bar is NOT lowered: a true pose on the stale map now scores like the best wrong place of Oct (0.897).
+- Corrected a claim made in passing: a "+2 deg LiDAR mount" fit gain is indistinguishable from a 2 deg heading error (the global search already optimizes yaw). No mount change.
+OPEN BUGS (to fix):
+(1) The light mapping profile does not start atlas-map-footprint-filter, so there is no /map for the dashboard (started by hand in both remaps).
+(2) Mission control accepts start_manual_mapping while a session is preparing or active; it should refuse.
+(3) The mapping page draws the SLAM pose as a faded "ATLAS ESTIMATE" and shows old-map place labels while mapping.
+(4) Periodic dashboard socket drop bursts.
+(5) `ros2 topic pub --once -w 1` lost the stop request once (re-sent; it was received).

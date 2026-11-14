@@ -957,7 +957,11 @@ class AtlasRosNode:
             result = {
                 "map": meta, "map_age": map_age,
                 "pose": item("map_pose"), "goal": item("nav_goal"),
-                "plan": item("nav_plan"), "mission": item("mission_status"),
+                # 2026-11-14: hide a plan older than 30 s. Nav2 replans about every second while navigating; an old
+                # plan (e.g. the map-acceptance plan-only check, in a rejected candidate map's frame) was drawn
+                # over the live map pointing the wrong way.
+                "plan": (lambda p: p if p and p["age"] <= 30.0 else None)(item("nav_plan")),
+                "mission": item("mission_status"),
                 "localization": item("amcl_quality"),
             }
         result["markers"] = map_markers(meta)
