@@ -1904,3 +1904,16 @@ Replay of remap 10 (de55c1d3) through the staged path (`tools/localization/repla
 Open review points: sample cap (1200, about 4.8 MB, ~10 s evaluation) vs a 30-min drive; whether 10 deg is the right
 live-heading limit; closure 0.23 m on remap 10 is still a real reject (owner tape measures pending).
 Enabling needs the owner's OK plus a deploy with the rover parked and the E-STOP latched.
+
+## 2026-11-14 16:37 — Final-map acceptance check DEPLOYED and ON (owner: "depay kar do")
+
+- Pre-checks: no mapping session file, wheel odom twist 0, motion blocked ("REMOTE STOP: joystick unavailable"),
+  live mission control / acceptance core identical to commit 2e21270 (md5) before replacing.
+- `tools/deploy/deploy_20261114_final_map.sh`: backed up as *.before-finalmap-20261114, copied the 3 scripts + tests,
+  added drop-in ~/.config/systemd/user/atlas-mission-control.service.d/final-map-mode.conf
+  (`-p map_acceptance_final_map_mode:=true`), restarted ONLY atlas-mission-control. Rollback: `bash <script> --rollback`.
+- Verified: service active, READY, `ros2 param get ... map_acceptance_final_map_mode` = True; 49 focused tests pass in
+  ~/project_atlas; atlas_regression ALL PASS (55 unit, old map connected, 17 rejected candidates re-checked: none
+  accepted now — the stored ones lack scan samples, so the new path cannot accept them).
+- Limits unchanged (strict version that passed the tests). Next remap is the first real use; watch the heading-offset
+  margin (remap 10 was 9.97 / 10 deg) and the closure (must be <= 0.15 m).
