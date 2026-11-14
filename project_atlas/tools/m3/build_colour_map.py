@@ -32,6 +32,10 @@ ZMIN, ZMAX = 0.3, 3.5          # trusted depth range (m)
 MAX_TURN_RATE = math.radians(float(__import__('os').environ.get('MAX_TURN_DEG', '8')))   # rad/s
 DEPTH_TIME_OFFSET = float(__import__('os').environ.get('DEPTH_DT', '0'))   # s added to depth stamps
 T_END = float(__import__('os').environ.get('T_END', '1e18'))
+# 2026-11-14: only frames with KEEP_FROM <= t <= KEEP_TO add points; all frames still drive the pose/alignment chain.
+KEEP_FROM = float(__import__('os').environ.get('KEEP_FROM', '0'))
+KEEP_TO = float(__import__('os').environ.get('KEEP_TO', '1e18'))
+DEPTH_GATE_M = float(__import__('os').environ.get('DEPTH_GATE_CM', '0')) / 100.0   # 0 = off
 
 
 def reader(bag, topics):
@@ -210,7 +214,10 @@ def build(pairs, out, name):
                             align = (pyaw - raw_key[2], px, py, raw_key[0], raw_key[1])
                     else:
                         stats['refine_failed'] = stats.get('refine_failed', 0) + 1
-            last_key = raw_key; stats['keyframes'] += 1; path.append((px, py))
+            last_key = raw_key
+            if not (KEEP_FROM <= t <= KEEP_TO):
+                continue
+            stats['keyframes'] += 1; path.append((px, py))
             depth = image_array(m); rgb = image_array(cm)
             fx, fy, cx, cy = ci_d.k[0], ci_d.k[4], ci_d.k[2], ci_d.k[5]
             valid = (depth > ZMIN) & (depth < ZMAX)
@@ -229,6 +236,16 @@ def build(pairs, out, name):
             bz = bz + mz
             c, s = math.cos(pyaw), math.sin(pyaw)
             wx, wy = px + c * bx - s * by, py + s * bx + c * by
+            if DEPTH_GATE_M > 0 and mtree is not None:
+                # 2026-11-14 frame gate: this frame's depth points near the LiDAR plane must agree with the 2D map walls.
+                # Frames placed slightly wrong (seen after the hall turnaround) otherwise draw a second copy of a wall.
+                band = (bz > 0.15) & (bz < 0.35)
+                if band.sum() >= 50:
+                    dd, _ = mtree.query(np.c_[wx[band], wy[band]])
+                    dd = dd[dd < 0.6]                              # ignore furniture far from mapped walls
+                    if len(dd) >= 30 and float(np.median(dd)) > DEPTH_GATE_M:
+                        stats['gated'] = stats.get('gated', 0) + 1
+                        continue
             keys = np.floor(np.c_[wx, wy, bz] / VOXEL).astype(np.int32)
             keys_all.append(keys); cols_all.append(col.astype(np.uint32))
             if len(keys_all) >= 40:

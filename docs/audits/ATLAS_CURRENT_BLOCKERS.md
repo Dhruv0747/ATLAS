@@ -1738,3 +1738,22 @@ NOT DONE (not small, or not allowed):
   - Output maps3d/colour_v2_dryrun_remap6_20261114.{ply,json}; render docs/colour_3d_20261114/colour_v2_dryrun_render.png.
 - Conclusion: once remap 9 is accepted, 3D v2 can be built from the existing recordings (remap6, optionally + remap5b / remap3) without a colour drive.
 - Visual limits: depth is 160x120; colour/depth centres are assumed equal (v1 limitation); some doubled walls near the hall (x 6-7.5 m). Not yet investigated.
+
+2026-11-14 ~10:40-11:10 3D v2 doubled walls investigated (owner: "look into the doubled walls"). Offline only, recording remap6 on the accepted map.
+- New tool tools/m3/wall_check.py: distance from 3D points (z 0.15-1.2 m, or the LiDAR band 0.15-0.35 m) to the nearest occupied cell of the 2D map; reports median, p75, p90, % within 5 cm and % at 10-30 cm (the doubled-wall signature).
+- Baseline (dry run): median 6.7 cm, 41 % within 5 cm.
+- Outbound vs return passes (KEEP_FROM/KEEP_TO; the pose chain runs through all frames):
+  - outbound 3.8 cm / 57 %; return 9.6 cm / 29 %.
+  - Both lock onto the 2D map equally (inliers 0.955), so the error is in placing the depth points and depends on direction: the doubled walls.
+  - The room area is worse in both passes partly because of furniture above the LiDAR plane; that is not doubling.
+- Sweep (median / within 5 cm):
+  - DEPTH_DT -0.2: 6.0 / 44; -0.1: 6.4 / 44; 0: 6.7 / 41; +0.1: 7.4 / 38; +0.2: 7.5 / 37.
+  - MOUNT_YAW_DEG -4: 9.6 / 33; -2: 8.3 / 37; +2: 6.5 / 42; +4: 7.0 / 39.
+  - Combined DEPTH_DT=-0.2 + MOUNT_YAW_DEG=+2: all 5.5 / 48; outbound 3.5 / 65; return 7.6 / 35.
+  - Hall at the LiDAR band: outbound 3.5 cm vs return 5.7 cm. A residual error remains in some return frames (after the hall turnaround).
+- FIX: frame gate DEPTH_GATE_CM. A frame is skipped when its depth points in the LiDAR band (0.15-0.35 m) are a median of more than N cm from the 2D map walls.
+  - Gate 6 cm: 146/375 frames gated; all 3.8 cm / 57 %; hall 2.9 cm / 74 %, 10-30 cm 7 % (return was 26 %).
+  - Gate 4 cm: 238/375 gated; all 2.9 / 69; hall 2.9 / 79; sparser.
+  - Render docs/colour_3d_20261114/colour_v2_gate6_render.png: the hall wall is single.
+- Recommended for 3D v2: DEPTH_DT=-0.2 MOUNT_YAW_DEG=2 DEPTH_GATE_CM=6, merging remap6 + remap5b + remap3 to refill the gated coverage.
+- The build-tool values (-0.2 s, +2 deg) are offline estimates for the 3D tool only; config/astra_obstacles.yaml (live Astra mount) is NOT changed. A +2 deg mount yaw is a calibration question for the owner.
