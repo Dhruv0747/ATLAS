@@ -1831,3 +1831,14 @@ OPEN BUGS (to fix):
   (c) Build the map offline from the recording with heavier processing, plus a reviewed acceptance route.
   (d) Reviewed change of the jump gate to judge final-map accuracy.
 - Tooling: replay_slam.sh gains RATE and T_END (filtered copy until a time). Lesson: never edit a running bash script, and kill leftover sim-time SLAM nodes by PID (pattern kills matched the ssh command itself).
+
+2026-11-14 15:27-15:45 REMAP 11 (session 2902fe9a). Owner placed objects in the hall, used no turnaround inside the hall, stop-and-go with the coach. Start: one request, ACTIVE first try (start_once.sh now matches "]: MANUAL MAPPING ACTIVE" only). REJECTED.
+- Jump 1.511 m / 17.1 deg at 15:37:07 (leaving the hall); closure 0.389 m; exact candidate connectivity FAILED ("no inflated path"; the hall objects probably narrowed the passage); Nav2 plans both ways passed.
+- Live corrections: 0.44-0.66 m already in the corridor/hall entry (15:33:54, 15:34:54), 0.6-1.05 m inside the hall (15:35:16-15:35:32), then 0.9-1.5 m while leaving (15:36:53-15:37:08).
+- So the objects and the no-turnaround route did NOT help; the hall itself triggers it.
+- NEW EVIDENCE (remap-10 bag, 235 hall scans 13:48:00-13:50:45 against the remap-10 candidate):
+  - 8.7 % of returns land BEHIND mapped walls, up to 115/294 (39 %) at the turnaround spot (-0.22, -6.35);
+  - concentrated at world bearings 90-120 deg (0.7-2.5 m) and 150-180 deg (up to 6.2 m).
+  - Hypothesis: see-through or reflective surfaces in the hall (glass, mirror, shiny surfaces, open space under furniture at LiDAR height), so phantom geometry moves with the rover. Owner asked to inspect.
+- Restored: localization seeded (0.235, -1.775), READY, latched, accepted map unchanged (4beb26d5a999), places from pre-remap11.
+- Dashboard: web/v2/mapping.html in mapping mode (live /map, no AMCL) now hides saved-map places and draws the SLAM pose as a green "ATLAS (SLAM)" arrow. Static file, no restart; verified in the browser.
