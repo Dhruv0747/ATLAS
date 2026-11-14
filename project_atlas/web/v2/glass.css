@@ -114,7 +114,7 @@ header.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;g
 .selfTestStamp{font-size:11px;color:var(--mute);margin:0 0 8px}
 .healthgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .healthitem{border:1px solid var(--line);border-left:4px solid var(--mute);border-radius:12px;background:rgba(5,14,26,.55);padding:8px 9px;min-width:0}
-.healthitem.ok{border-left-color:var(--terrain)}.healthitem.warn{border-left-color:var(--amber)}.healthitem.fail{border-left-color:var(--signal);background:rgba(80,10,20,.45)}
+.healthitem.ok{border-left-color:var(--terrain)}.healthitem.warn{border-left-color:var(--amber)}.healthitem.off{border-left-color:var(--mute);opacity:.82}/* 2026-11-14 OFF = disabled by configuration, not a fault */.healthitem.fail{border-left-color:var(--signal);background:rgba(80,10,20,.45)}
 .healthname{font-size:12px;font-weight:700;display:flex;justify-content:space-between;gap:6px}
 .healthstate{font-size:10.5px;color:var(--mute)}
 .healthhint{font-size:10.5px;color:#A9BDCF;margin-top:3px;line-height:1.3}

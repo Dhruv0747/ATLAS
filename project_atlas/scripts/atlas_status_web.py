@@ -2747,18 +2747,22 @@ function renderHealth(r,net){
  let encoderHealth={};try{encoderHealth=JSON.parse(val(r,'encoder_health','{}')||'{}')}catch(e){}
  let drivePid={};try{drivePid=JSON.parse(val(r,'drive_pid','{}')||'{}')}catch(e){}
  let ultrasonicEnabled=brain.ultrasonic_enabled!==false;
+ // 2026-11-14: only sides the UNO hub reports as enabled count (USTAT,F=ONLINE,L=DISABLED,...).
+ let usRaw=String(val(r,'us_status',''));if(usRaw.startsWith('USTAT'))window.atlasLastUstat=usRaw; // the topic alternates HEARTBEAT/USTAT
+ let usStat=window.atlasLastUstat||usRaw,usMap=[['us_front','front','F'],['us_left','left','L'],['us_right','right','R'],['us_rear','rear','B']],usDisabled=c=>new RegExp('(^|,)'+c+'=DISABLED(,|$)').test(usStat),usSides=usMap.filter(x=>!usDisabled(x[2])).map(x=>[x[0],x[1]]),usOff=usMap.filter(x=>usDisabled(x[2])).map(x=>x[1]);
+ let imuFusedNav=(()=>{const f=val(r,'imu_full',{})||{};return f.qualified_for_navigation===true&&String(f.navigation_fusion||'').startsWith('ENABLED')})();
  let cellGen=cellGeneration(val(r,'cell_tech',''));
  const gpsCheck=gnssInfo(r);
  let i2c=i2cInfo(r);
  let items=[
   ['CAMERA',recent(r,'camera_info',4)?'ok':'fail',recent(r,'camera_info',4)?'IMX708 video frames live':'No frames: check CSI ribbon and camera service','camera_info','camera'],
   ['DRIVE FEEDBACK • ALL 4 WHEELS',recent(r,'encoder_health',3)?(encoderHealth.autonomy_ready===true?'ok':(['DEGRADED','QUALIFYING','READY','HEALTHY'].includes(encoderHealth.state)?'warn':'fail')):'fail',recent(r,'encoder_health',3)&&encoderHealth.packet_fresh===true?`${encoderHealth.state||'UNKNOWN'} • selected ${(encoderHealth.selected_encoders||[]).map(i=>'M'+i).join(', ')||'NONE'} • excluded ${(encoderHealth.excluded_encoders||[]).map(i=>'M'+i).join(', ')||'NONE'} • counts ${val(r,'enc_m1')} / ${val(r,'enc_m2')} / ${val(r,'enc_m3')} / ${val(r,'enc_m4')}`:'No fresh motor-board/encoder packets: check board power and serial link','encoder_health','encoders'],
-  ['DRIVE PID',recent(r,'drive_pid',3)?(drivePid.active?'ok':(drivePid.state==='FAULT_STOP'?'fail':'warn')):'warn',recent(r,'drive_pid',3)?`${drivePid.state||'UNKNOWN'} • ${drivePid.fault_reason||drivePid.inhibited_reason||'active'}`:'No PID diagnostic yet; controller remains safely disabled until commissioned','drive_pid','drive_pid'],
+  ['DRIVE PID',recent(r,'drive_pid',3)?(drivePid.active?'ok':(drivePid.state==='FAULT_STOP'?'fail':(drivePid.state==='DISABLED'&&drivePid.inhibited_reason==='controller_disabled'?'off':'warn'))):'warn',recent(r,'drive_pid',3)?`${drivePid.state||'UNKNOWN'} • ${drivePid.fault_reason||drivePid.inhibited_reason||'active'}`:'No PID diagnostic yet; controller remains safely disabled until commissioned','drive_pid','drive_pid'],
   ['XBOX REMOTE',recent(r,'joy',8)?'ok':'warn',recent(r,'joy',8)?'Controller input received':'Wake controller, then press a stick or button','joy'],
-  ['IMU / COMPASS',recent(r,'imu_heading',4)?'warn':'fail',recent(r,'imu_heading',4)?'Hiwonder IM10A live — navigation fusion not validated':'IM10A USB data stale or disconnected','imu_heading','imu'],
+  ['IMU / COMPASS',recent(r,'imu_heading',4)?(imuFusedNav?'ok':'warn'):'fail',recent(r,'imu_heading',4)?(imuFusedNav?'Hiwonder IM10A live • gyro Z fused in EKF (heading) • compass diagnostics-only':'Hiwonder IM10A live — EKF gyro fusion not enabled'):'IM10A USB data stale or disconnected','imu_heading','imu'],
   ['RPLIDAR',recent(r,'lidar',4)?'ok':'fail',recent(r,'lidar',4)?'Laser scan live':'Check LiDAR USB, motor and cable','lidar','lidar'],
   ['RD-03D RADAR',radarFrameHealthy(r,3)?'ok':'fail',radarFrameHealthy(r,3)?(Number(val(r,'radar_count',0))>0?'Valid 30-byte target frames live':'Valid frames live • no current target'):(recent(r,'radar_link',3)?`UNO bytes received, but no valid target frame • ${val(r,'radar_decoder_status','decoder checking')}`:'No radar UART bytes: check power, GND, TX → D12 and RX → D11'),'radar_decoder_status','radar'],
-  ['ULTRASONIC',!ultrasonicEnabled?'warn':(['us_front','us_left','us_right','us_rear'].every(k=>recent(r,k,4)&&Number(val(r,k,-1))>0)?'ok':'warn'),'Each range checked separately; -1 means no valid echo, NOT clear space. Uninstalled sensors are expected to be unavailable.','us_status','ultrasonic'],
+  ['ULTRASONIC',!ultrasonicEnabled||!usSides.length?'off':(usSides.every(([k])=>recent(r,k,4)&&Number(val(r,k,-1))>0)?'ok':'warn'),`${usSides.length?usSides.map(([k,n])=>n+' '+(Number(val(r,k,-1))>0?Math.round(Number(val(r,k,-1)))+' mm':'no echo')).join(' • '):'all sides disabled'}${usOff.length?' • '+usOff.join('/')+' not installed (disabled in hub)':''} • -1 = no valid echo, NOT clear space`,'us_status','ultrasonic'],
   ['I2C SENSOR BUS',i2c.liveCount?'ok':(i2c.bridgeLive?'warn':'fail'),i2c.liveCount?`${i2c.liveCount}/3 sensor${i2c.liveCount===1?'':'s'} live through ${i2c.route}`:(i2c.bridgeLive?'UNO R4 bridge live, but sensor data is stale':'No live I2C sensor telemetry'),i2c.freshestKey,'i2c'],
   ['INSIDE IR 8x8',thermal.ok&&recent(r,'thermal_json',5)?'ok':'fail',thermal.ok?'AMG8833 heatmap live':'Not detected: check 3.3V, GND, SDA pin 3, SCL pin 5','thermal_json','thermal'],
   ['OUTSIDE TEMP',recent(r,'outside_temperature',9)?'ok':'fail',recent(r,'outside_temperature',9)?'BME680 ambient temperature live':'Check BME680 wiring/address 0x77','outside_temperature','environment'],
@@ -2770,12 +2774,12 @@ function renderHealth(r,net){
   ['GNSS',gpsCheck.fixed?'ok':gpsCheck.live?'warn':'fail',gpsCheck.fixed?'Current position fix valid':gpsCheck.live?'NMEA communication live, but NO position fix':'No fresh valid NMEA — open diagnostics','gps_diagnostics','gps'],
   ['WEB / TAILSCALE',net&&net.tailscale_ip!='--'?'ok':'warn',net&&net.tailscale_ip!='--'?`Reachable at ${net.tailscale_ip}`:'Tailscale address unavailable',null]
  ];
- let ok=items.filter(x=>x[1]=='ok').length,warn=items.filter(x=>x[1]=='warn').length,fail=items.filter(x=>x[1]=='fail').length;
- $('healthSummary').textContent=`${ok} OK / ${warn} WARN / ${fail} FAULT`;
+ let ok=items.filter(x=>x[1]=='ok').length,warn=items.filter(x=>x[1]=='warn').length,fail=items.filter(x=>x[1]=='fail').length,off=items.filter(x=>x[1]=='off').length;
+ $('healthSummary').textContent=`${ok} OK${off?` / ${off} OFF`:''} / ${warn} WARN / ${fail} FAULT`;
  $('healthSummary').style.color=fail?'#ff4655':warn?'#ffcc3d':'#34e58b';
  let elapsed=(Date.now()-dashboardStarted)/1000;
  $('selfTestStamp').textContent=elapsed<8?`TELEMETRY CHECK • collecting messages for ${Math.ceil(8-elapsed)} more seconds`:`LIVE TELEMETRY ONLY • no physical motor test • ${items.length} channels • ${new Date().toLocaleTimeString()}`;
- let banner=$('bootBannerState');banner.textContent=elapsed<8?`RUNNING • ${Math.ceil(8-elapsed)}s • ${ok} LIVE`:`COMPLETE • ${ok} OK / ${warn} WARN / ${fail} FAULT`;banner.style.color=fail?'#ff4655':warn?'#ffcc3d':'#34e58b';
+ let banner=$('bootBannerState');banner.textContent=elapsed<8?`RUNNING • ${Math.ceil(8-elapsed)}s • ${ok} LIVE`:`COMPLETE • ${ok} OK${off?` / ${off} OFF`:''} / ${warn} WARN / ${fail} FAULT`;banner.style.color=fail?'#ff4655':warn?'#ffcc3d':'#34e58b';
  $('healthGrid').innerHTML=items.map(x=>healthItem(x[0],x[1],x[2],x[3]?age(r,x[3]):null,x[4]||(x[3]?'telemetry:'+x[3]:'diagnostics'))).join('');
 }
 function renderConstellations(r){$('constellationGrid').innerHTML=diagnosticConstellations(r)}

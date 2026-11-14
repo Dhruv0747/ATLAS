@@ -1757,3 +1757,28 @@ NOT DONE (not small, or not allowed):
   - Render docs/colour_3d_20261114/colour_v2_gate6_render.png: the hall wall is single.
 - Recommended for 3D v2: DEPTH_DT=-0.2 MOUNT_YAW_DEG=2 DEPTH_GATE_CM=6, merging remap6 + remap5b + remap3 to refill the gated coverage.
 - The build-tool values (-0.2 s, +2 deg) are offline estimates for the 3D tool only; config/astra_obstacles.yaml (live Astra mount) is NOT changed. A +2 deg mount yaw is a calibration question for the owner.
+
+2026-11-14 ~11:20-12:00 dashboard warnings, M3 encoder, IM10A, Astra mount (owner request). Rover parked, stop latched.
+DASHBOARD "13 OK / 4 WARN / 1 FAULT" -> now "15 OK / 1 OFF / 1 WARN / 1 FAULT" (verified in the browser).
+- Edits in web/v2/command.js and the identical V1 source in scripts/atlas_status_web.py (tools/ui_v2/build_command_js.py builds command.js from it); glass.css adds .healthitem.off. Backups *.before-tiles-20261114; rover-status-web restarted.
+- IMU / COMPASS was WARN "navigation fusion not validated" (hard-coded whenever live). Now OK when the IM10A's own dashboard_json says qualified_for_navigation=true and navigation_fusion "ENABLED: corrected gyro Z only" (live: LIVE_FUSED_GYRO_Z). Text: "gyro Z fused in EKF (heading) • compass diagnostics-only".
+- DRIVE PID was WARN for DISABLED/controller_disabled; config/drive_pid.yaml ships enabled:false by design. Now OFF (grey, counted separately, never colours the summary). FAULT_STOP is still a FAULT.
+- ULTRASONIC was WARN because it required all four sides. The UNO hub reports USTAT,F=ONLINE,L=DISABLED,R=DISABLED,B=ONLINE (left/right not installed) and the topic alternates HEARTBEAT/USTAT. Now only hub-enabled sides count (last USTAT remembered): OK "front 633 mm • rear 749 mm • left/right not installed".
+- Still WARN (real): DRIVE FEEDBACK. Autonomy is not qualified (encoder_selection.yaml navigation_validated:false because of M3).
+- Still FAULT (real): GNSS, no NMEA (GPS hardware).
+M3 ENCODER: cannot be corrected in software.
+- Replay of sessions 57941c0d and c7c28ee9, 1 s windows while moving:
+  - net M3 count -659 / -1452 vs about ±50k for M1/M2/M4; |sum| about 28k vs about 85k;
+  - per-window M3/others 0.08-0.97 (median 0.19); corr(|M3|,|M4|) 0.38-0.44 vs corr(|M1|,|M4|) 0.92-0.99; sign agrees with M4 in 1 % of windows.
+  - M3 counts back and forth (direction lost): the signature of a quadrature channel (A or B wire, connector or encoder disk) failing while the motor works. No scale or CPR value can fix it.
+- Offline replay through the live EncoderDeltaEstimator (dynamic 3-of-4 consensus, median):
+  - all 4: path 22.12 / 21.84 m, consensus failed in 2.1 % / 3.7 % of moving intervals, M3 accepted 39 % / 35 %;
+  - M3 statically excluded: 22.26 / 21.93 m (+0.6 / +0.4 %), failures 3.7 % / 6.0 %.
+  - DECISION: keep the dynamic consensus (M3 rarely biases distance; excluding it nearly doubles fail-closed intervals). encoder_selection.yaml unchanged.
+  - Hardware follow-up: check the M3 encoder channel A/B wire and connector.
+IM10A: fully integrated for a 2D indoor rover.
+- Bias-corrected gyro Z is the EKF's yaw-rate input (imu0 /im10a/imu/bias_corrected_candidate in base_link, navigation_qualified per config/im10a_gyro_bias.json).
+- Magnetic heading deliberately excluded (indoor magnetic distortion from motors and steel); accelerometer not needed in 2D.
+- Offline 2026-11-13: IM10A heading beat ICP heading (ICP yaw instead of IMU 0.68-1.06 m closure vs live 0.45-0.51 m).
+- The "candidate" topic name is legacy; renaming it would change the EKF interface for no functional gain, so it is kept.
+ASTRA MOUNT: the recorded owner tape values stay authoritative (config/astra_obstacles.yaml: x 0.21, y 0.0, z 0.23, pitch 0.0 re-levelled, yaw 0.0). The +2 deg from the offline 3D fit stays a 3D-build parameter only; not applied to the live mount.
