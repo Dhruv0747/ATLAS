@@ -789,8 +789,16 @@ def evaluate_acceptance_evidence(
     session_started_unix: float,
     evaluated_unix: float,
     policy: MapAcceptancePolicy = MapAcceptancePolicy(),
+    source_floor_unix: Optional[float] = None,
 ) -> List[str]:
-    """Return every fail-closed reason that prevents candidate promotion."""
+    """Return every fail-closed reason that prevents candidate promotion.
+
+    session_started_unix is the coverage reference (manual teaching: drive-ready). source_floor_unix (default: the
+    same) is the earliest instant a map->odom source stamp may carry and still belong to this session. 2026-11-14:
+    manual teaching passes the real session start here. SLAM's first transform carries the stamp of the last scan
+    it processed, which parked can precede drive-ready by more than 1 s (session eece59aa: 1.51 s) although SLAM
+    only started inside the session; the jump/closure windows still start at drive-ready.
+    """
 
     failures: List[str] = []
     if not isinstance(evidence, dict):
@@ -880,7 +888,8 @@ def evaluate_acceptance_evidence(
             failures.append("map->odom raw source timestamp end is missing")
         if source_started is None:
             failures.append("map->odom source timestamp start is missing")
-        elif source_started < session_started_unix - 1.0:
+        elif source_started < (session_started_unix if source_floor_unix is None
+                                else float(source_floor_unix)) - 1.0:
             failures.append("map->odom source timestamps predate the mapping session")
         if source_ended is None:
             failures.append("map->odom source timestamp end is missing")

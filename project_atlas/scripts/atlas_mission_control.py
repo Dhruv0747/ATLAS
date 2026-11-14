@@ -1195,6 +1195,9 @@ class AtlasMissionControl(Node):
             session_started_unix=reference_unix,
             evaluated_unix=evaluated_unix,
             policy=self.map_acceptance_policy,
+            # 2026-11-14: "source predates the session" is judged against the real session start (SLAM was not
+            # running before it); coverage and the jump window keep the drive-ready reference above.
+            source_floor_unix=float(session["started_unix"]),
         )
         evidence["decision"] = "rejected" if failures else "passed_pre_promotion"
         evidence["failures"] = failures

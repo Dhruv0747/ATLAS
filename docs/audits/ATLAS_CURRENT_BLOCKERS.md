@@ -1679,3 +1679,16 @@ LEAD (strong, not yet reproduced): stopping ONLY the session's recorder dropped 
   - Since 2026-11-13 mission control passes session_started_unix = ready_unix for manual teaching (to keep startup jumps out of the evidence). The core then also checks source_started >= ready_unix - 1.0.
   - SLAM's first transform carries the stamp of the last scan it processed. Parked, that predates ready by 0.25-0.9 s in earlier sessions (pass) and by 1.51 s here (fail). The lighter SLAM settings make the margin smaller.
   - PROPOSED (needs the owner's OK): keep the observation/jump window referenced to ready_unix, but check "source predates the session" against started_unix (the real session start, when SLAM was not yet running). Jump and closure gates unchanged.
+
+2026-11-14 ~09:15 FIX DEPLOYED (owner: "Yes, fix it"): map-acceptance source-stamp floor. Stop latched, no session open.
+- atlas_map_acceptance_core.evaluate_acceptance_evidence gains source_floor_unix (default = session_started_unix, so other callers keep their behaviour). The "map->odom source timestamps predate the mapping session" check uses it.
+- Mission control passes source_floor_unix = session["started_unix"]. Coverage, observation start and the jump window keep the drive-ready reference.
+- Not weakened: TF jump (0.15 m / 5 deg), closure (0.15 m / 10 deg), connectivity, plans, startup stillness, observation-start coverage. A source stamp from before the session started still fails (new test).
+- Tests:
+  - tests/test_atlas_map_acceptance_core.py +3 (between start and ready passes; before start fails; default unchanged).
+  - The transform-timeout test now falls back to ~/.config/systemd/user on the Jetson's installed layout.
+  - Staging 33 passed / 3 skipped (incl. scripts/test_map_acceptance_startup.py); live regression ALL PASS (40 unit, old map, 13 rejected candidates still rejected).
+- Re-evaluation of stored sessions with the new floor:
+  - eece59aa loses only the predate failure (7 -> 6; still rejected);
+  - d29d7b23, c7c28ee9 and 57941c0d unchanged (6 / 5 / 2; still rejected).
+- Backups: *.before-sourcefloor-20261114. Mission control restarted -> READY, stop latched, no errors.

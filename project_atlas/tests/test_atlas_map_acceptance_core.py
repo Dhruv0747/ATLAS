@@ -86,6 +86,24 @@ def evaluate(evidence):
 
 
 class MapAcceptanceCoreTests(unittest.TestCase):
+    # 2026-11-14 (session eece59aa): manual teaching uses drive-ready as the coverage reference, but SLAM's first
+    # source stamp may precede it by >1 s while still being inside the session.
+    def _manual(self, source_started, floor):
+        evidence = passing_evidence()
+        evidence["tf_jump"]["source_stamp_started_unix"] = source_started
+        return MODULE.evaluate_acceptance_evidence(
+            evidence, expected_session_id="session-1", expected_candidate_map_id="map-1",
+            session_started_unix=100.0, evaluated_unix=200.0, source_floor_unix=floor)
+
+    def test_source_between_session_start_and_ready_passes_with_floor(self):
+        self.assertNotIn("map->odom source timestamps predate the mapping session", self._manual(98.4, 81.0))
+
+    def test_source_before_session_start_still_fails_with_floor(self):
+        self.assertIn("map->odom source timestamps predate the mapping session", self._manual(79.5, 81.0))
+
+    def test_default_floor_keeps_old_behaviour(self):
+        self.assertIn("map->odom source timestamps predate the mapping session", self._manual(98.4, None))
+
     def test_complete_evidence_passes(self):
         self.assertEqual(evaluate(passing_evidence()), [])
 
@@ -260,11 +278,14 @@ class MapAcceptanceCoreTests(unittest.TestCase):
 
     def test_mission_offset_matches_slam_toolbox_transform_timeout(self):
         project = Path(__file__).parents[1]
+        units = project / "systemd" / "user"
+        if not (units / "atlas-slam-fast.service").exists():
+            units = Path.home() / ".config" / "systemd" / "user"   # 2026-11-14: installed layout on the Jetson
         slam_unit = (
-            project / "systemd" / "user" / "atlas-slam-fast.service"
+            units / "atlas-slam-fast.service"
         ).read_text(encoding="utf-8")
         mission_unit = (
-            project / "systemd" / "user" / "atlas-mission-control.service"
+            units / "atlas-mission-control.service"
         ).read_text(encoding="utf-8")
         slam_offset = float(
             re.search(r"transform_timeout:=(\d+(?:\.\d+)?)", slam_unit).group(1)
