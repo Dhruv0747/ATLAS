@@ -1667,3 +1667,15 @@ LEAD (strong, not yet reproduced): stopping ONLY the session's recorder dropped 
   - profile once at MANUAL MAPPING ACTIVE (CPU + dds/udp);
   - avoid killing ROS processes;
   - if overload appears anyway, capture strace/perf at once (attach allowed until the next reboot only).
+
+2026-11-14 08:52-09:01 parked start check (owner: "do it"), session eece59aa; stop latched; uptime 7.8 h after the 01:05 reboot.
+- Start: ACTIVE on the FIRST attempt in 15 s (QUEUED 08:52:17 -> ACTIVE 08:52:37). The 08:20 "SLAM pose is not settled (0.20 m)" refusal did not recur. set_home's settle check (5 samples / 1.6 s / 5 cm) remains as is. A retry is the documented response if it happens again.
+- Light mapping CPU (30 s at ACTIVE and +2 min): total 302 % / 292 %, idle 45-47 %, system 10 %; EKF 3 %, SLAM 2 %, session recorder 33 %, mission-control cgroup 41 %; dds/udp noports 0, icmp unreachable 0.
+  - AI extras, Astra and Nav2 all inactive. Guard armed, 0 trips, startup wheel displacement 0.0 m.
+  - FIRST clean measurement of the light profile. The overload did not appear on this clean system.
+- Stop: Nav2 started at the end -> rejected after 57 s (expected: parked, no hall). Accepted map unchanged (4beb26d5a999). Restored: seeded (0.215, -1.795); READY.
+- NEW GATE ISSUE (would also reject a real remap): "map->odom source timestamps predate the mapping session".
+  - first normalized SLAM map->odom source stamp = started_unix + 17.41 s = ready_unix - 1.51 s.
+  - Since 2026-11-13 mission control passes session_started_unix = ready_unix for manual teaching (to keep startup jumps out of the evidence). The core then also checks source_started >= ready_unix - 1.0.
+  - SLAM's first transform carries the stamp of the last scan it processed. Parked, that predates ready by 0.25-0.9 s in earlier sessions (pass) and by 1.51 s here (fail). The lighter SLAM settings make the margin smaller.
+  - PROPOSED (needs the owner's OK): keep the observation/jump window referenced to ready_unix, but check "source predates the session" against started_unix (the real session start, when SLAM was not yet running). Jump and closure gates unchanged.
