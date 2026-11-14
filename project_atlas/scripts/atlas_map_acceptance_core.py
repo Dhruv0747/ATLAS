@@ -43,6 +43,17 @@ class MapAcceptancePolicy:
     min_footprint_width_m: float = 0.35
     min_candidate_clearance_m: float = 0.18
     min_path_poses: int = 2
+    # 2026-11-14 PROPOSAL (off by default; needs the owner's OK to enable): when True, passing final-map
+    # consistency evidence (every sampled scan fits the FINAL map and the live pose stayed near the best fit,
+    # see atlas_final_map_consistency) stands in for the map->odom translation/yaw jump limits. Closure,
+    # connectivity, plans, stillness and every tf_jump integrity check still apply unchanged.
+    final_map_replaces_tf_jump: bool = False
+    final_map_min_scans: int = 100
+    final_map_min_fraction_good: float = 0.95
+    final_map_min_scan_fit: float = 0.85
+    final_map_tolerance_m: float = 0.15
+    final_map_max_pose_offset_m: float = 0.30
+    final_map_max_pose_offset_deg: float = 10.0
 
 
 def angle_delta(first: float, second: float) -> float:
@@ -750,6 +761,45 @@ def _check_maximum(
         failures.append(f"{label} {value:.3f} exceeds {limit:.3f}")
 
 
+def final_map_consistency_failures(
+    consistency: Any, expected_session_id: str, policy: MapAcceptancePolicy
+) -> List[str]:
+    """Fail closed unless the final map explains every sampled scan of this session (2026-11-14 proposal).
+
+    Re-checks the evidence numbers against this policy; the evidence's own ``passed`` flag is not trusted alone.
+    """
+
+    if not isinstance(consistency, dict):
+        return ["final-map consistency evidence is missing"]
+    out: List[str] = []
+    if consistency.get("session_id") != expected_session_id:
+        out.append("final-map consistency belongs to a different mapping session")
+    if consistency.get("passed") is not True:
+        reasons = consistency.get("failures") or []
+        out.append("final-map consistency failed: " + "; ".join(str(r) for r in reasons[:3]))
+    scans = consistency.get("scans")
+    matched = consistency.get("matched")
+    if not isinstance(scans, int) or scans < policy.final_map_min_scans:
+        out.append(f"final-map consistency has too few scans (need {policy.final_map_min_scans})")
+    elif matched != scans:
+        out.append("final-map consistency: not every scan matched the final map")
+    policy_used = consistency.get("policy") or {}
+    used_fit = _finite_number(policy_used.get("min_scan_fit"))
+    if used_fit is None or used_fit < policy.final_map_min_scan_fit:
+        out.append("final-map consistency used a weaker per-scan fit threshold than this policy")
+    used_tol = _finite_number(policy_used.get("tolerance_m"))
+    if used_tol is None or used_tol > policy.final_map_tolerance_m:
+        out.append("final-map consistency used a looser wall tolerance than this policy")
+    good = _finite_number(consistency.get("fraction_good"))
+    if good is None or good < policy.final_map_min_fraction_good:
+        out.append(f"final-map consistency fraction of fitting scans is below {policy.final_map_min_fraction_good:.2f}")
+    _check_maximum(out, consistency, "pose_offset_max_m", policy.final_map_max_pose_offset_m,
+                   "final-map live-pose offset")
+    _check_maximum(out, consistency, "pose_offset_max_deg", policy.final_map_max_pose_offset_deg,
+                   "final-map live-heading offset")
+    return out
+
+
 def startup_stillness_failures(stillness: Any, policy: MapAcceptancePolicy) -> List[str]:
     """Fail closed unless wheel odometry proves no motion from session start to drive-ready."""
 
@@ -988,20 +1038,30 @@ def evaluate_acceptance_evidence(
                 else " is invalid"
             )
             failures.append("map->odom normalized source future skew" + detail)
+        jump_failures: List[str] = []
         _check_maximum(
-            failures,
+            jump_failures,
             tf_jump,
             "max_translation_m",
             policy.max_tf_translation_jump_m,
             "map->odom translation jump",
         )
         _check_maximum(
-            failures,
+            jump_failures,
             tf_jump,
             "max_yaw_deg",
             policy.max_tf_yaw_jump_deg,
             "map->odom yaw jump",
         )
+        if jump_failures and policy.final_map_replaces_tf_jump:
+            consistency_failures = final_map_consistency_failures(
+                evidence.get("final_map_consistency"), expected_session_id, policy
+            )
+            if consistency_failures:
+                jump_failures.extend(consistency_failures)
+            else:
+                jump_failures = []
+        failures.extend(jump_failures)
 
     closure = evidence.get("round_trip_closure")
     if not isinstance(closure, dict):

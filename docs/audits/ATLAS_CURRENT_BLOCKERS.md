@@ -1871,3 +1871,36 @@ OPEN BUGS (to fix):
   - live-pose vs best-fit <= 0.30 m;
   - plus the unchanged closure <= 0.15 m / 10 deg, connectivity and Nav2 plans.
   - Remap 10 would still fail closure (0.230 m).
+
+## 2026-11-14 — Final-map acceptance check written for review (STAGED, OFF BY DEFAULT, NOT DEPLOYED)
+
+Owner asked to write the change proposed after the remap-10 accuracy check. Nothing on the running rover changed.
+
+What it does when enabled (`map_acceptance_final_map_mode: true`, default `false`):
+- Mission control keeps ~2 LiDAR scans/s during a manual mapping session with SLAM's live map->base_link pose at the
+  scan stamp (cap 1200 samples, halved density when full so the whole drive stays covered; read-only).
+- At acceptance it ICP-matches every sample to the exact candidate map bytes (`scripts/atlas_final_map_consistency.py`).
+- If the map->odom translation/yaw JUMP limits fail, passing final-map evidence may replace those two checks only:
+  >= 100 samples, every sample matched, >= 95 % of samples with >= 85 % of returns within 0.15 m of a final-map wall,
+  live pose never > 0.30 m / 10 deg from the best fit. `atlas_map_acceptance_core.final_map_consistency_failures`
+  re-checks the numbers and thresholds; the evidence's own `passed` flag is not trusted alone.
+- Unchanged: closure (0.15 m / 10 deg), exact-candidate connectivity, full-footprint connectivity, both Nav2 plans,
+  startup stillness, guard trips, and every tf_jump integrity/timestamp check.
+
+Tests (Jetson staging ~/atlas_staging_20261113): test_final_map_consistency (10), test_mission_final_map_sampling (5),
+test_atlas_map_acceptance_core, test_mission_status_idle_revert: 49 passed.
+
+Replay of remap 10 (de55c1d3) through the staged path (`tools/localization/replay_final_map.py`):
+- 903 samples (thinned 3x), 903 matched, fit median 100 %, p10 100 %, fraction good 100 %, pose offset median 3 cm /
+  max 17 cm, heading offset max 9.97 deg (limit 10), evaluation 10.5 s.
+- switch OFF: REJECT (jump 1.46 m, yaw 14.2 deg, closure 0.23 m) — identical to the stored decision.
+- switch ON: REJECT, only "round-trip translation closure 0.230 exceeds 0.150". The closure gate still decides.
+- Heading note (do not loosen to fit this data): 49/903 samples had the live heading > 5 deg off the best fit, max
+  10.0 deg at 13:50:31 in the hall and ~9 deg at 13:46:20-24 while PARKED in Dhruv Room. So SLAM's live heading really
+  was ~9 deg wrong early in the drive and was corrected later (that correction is the 14 deg yaw jump). Remap 10 passes
+  the 10 deg limit by 0.03 deg; a similar remap may fail it. Mapping is owner-driven (no Nav2 while mapping), so
+  this measures how wrong the live pose was, not a risk to the accepted map.
+
+Open review points: sample cap (1200, about 4.8 MB, ~10 s evaluation) vs a 30-min drive; whether 10 deg is the right
+live-heading limit; closure 0.23 m on remap 10 is still a real reject (owner tape measures pending).
+Enabling needs the owner's OK plus a deploy with the rover parked and the E-STOP latched.

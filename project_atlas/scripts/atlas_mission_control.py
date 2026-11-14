@@ -13,6 +13,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Callable, Optional
 
+import numpy as np
 import rclpy
 import atlas_batched_spin
 from action_msgs.msg import GoalStatus
@@ -53,12 +54,14 @@ from atlas_map_acceptance_core import (
     transactionally_promote_map_pair,
 )
 from atlas_map_footprint_sanitizer import sanitize_saved_map
+import atlas_final_map_consistency as final_map
 from atlas_mapping_guard_core import GuardPolicy, GuardSample, MappingGuard, cpu_idle_fraction
 from atlas_scan_fit_core import (
     OccupiedIndex,
     ScanFitPolicy,
     evaluate as evaluate_scan_fit,
     load_occupied_index,
+    load_occupied_points,
     unused_beam_points,
 )
 
@@ -136,6 +139,11 @@ class AtlasMissionControl(Node):
         )
         self.declare_parameter("map_acceptance_start_place", "dhruv room")
         self.declare_parameter("map_acceptance_goal_place", "hall")
+        # 2026-11-14 PROPOSAL, off by default (owner OK needed): judge the FINAL map by sampled scans instead of
+        # mid-drive map->odom corrections. Closure, connectivity, plans and stillness gates are unchanged.
+        self.declare_parameter("map_acceptance_final_map_mode", False)
+        self.final_map_mode = bool(self.get_parameter("map_acceptance_final_map_mode").value)
+        self.final_map_samples = final_map.ScanSampleBuffer()
         self.home_file = Path.home() / ".config/project_atlas/home_pose.json"
         self.localization_seed_file = (
             Path.home() / ".config/project_atlas/localization_seed_pose.json"
@@ -222,6 +230,7 @@ class AtlasMissionControl(Node):
                     self.get_parameter("map_acceptance_max_closure_yaw_deg").value
                 ),
             ),
+            final_map_replaces_tf_jump=self.final_map_mode,
         )
         self.map_acceptance_slam_tf_future_offset_s = float(
             self.get_parameter(
@@ -562,6 +571,8 @@ class AtlasMissionControl(Node):
             self.map_tf_tracker.begin(
                 session["id"], session["started_unix"], time.time()
             )
+        if self.final_map_mode:
+            self.final_map_samples.begin(session["id"])
 
     def start_mapping_recording(self, session_id: str) -> None:
         """Record the complete mapping run, including the SLAM startup boundary."""
@@ -930,6 +941,47 @@ class AtlasMissionControl(Node):
     def update_latest_scan(self, msg: LaserScan) -> None:
         self.latest_scan = msg
         self.latest_scan_received_at = time.monotonic()
+        if self.final_map_mode and self.final_map_samples.session_id is not None:
+            self.sample_scan_for_final_map(msg)
+
+    def sample_scan_for_final_map(self, msg: LaserScan) -> None:
+        """Keep ~2 scans/s with SLAM's live map->base_link pose (read-only; for final-map consistency)."""
+        stamp = float(msg.header.stamp.sec) + float(msg.header.stamp.nanosec) * 1e-9
+        buf = self.final_map_samples
+        if buf.samples and stamp - buf.samples[-1].stamp < buf.policy.sample_period_s:
+            return
+        try:
+            t = self.tf_buffer.lookup_transform("map", "base_link", msg.header.stamp)
+        except Exception:
+            return
+        q = t.transform.rotation
+        yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+        buf.add(stamp, (t.transform.translation.x, t.transform.translation.y, yaw),
+                msg.ranges, msg.angle_min, msg.angle_increment)
+
+    def final_map_consistency_evidence(self, candidate_yaml: Path, candidate_image: Path, session: dict) -> dict:
+        """Stop sampling and match every sample to the exact candidate bytes (no motion, no publishing)."""
+        buf = self.final_map_samples
+        samples, sampled_session = list(buf.samples), buf.session_id
+        buf.session_id = None
+        if sampled_session != session["id"]:
+            return {"session_id": sampled_session, "passed": False,
+                    "failures": ["scan samples belong to a different mapping session"]}
+        try:
+            laser_tf = self.tf_buffer.lookup_transform(
+                "base_link", "laser_frame", rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=1.0))
+            q = laser_tf.transform.rotation
+            laser = (laser_tf.transform.translation.x, laser_tf.transform.translation.y,
+                     math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)))
+            occupied = np.asarray(load_occupied_points(candidate_yaml, candidate_image), dtype=float)
+            started = time.monotonic()
+            evidence = final_map.evaluate(samples, occupied, laser, buf.policy, session_id=session["id"])
+            evidence["evaluation_s"] = round(time.monotonic() - started, 2)
+            evidence["thinned"] = buf.dropped
+            return evidence
+        except Exception as exc:
+            return {"session_id": session["id"], "passed": False, "failures": [f"evaluation failed: {exc}"]}
 
     def scan_fit_map_index(self) -> OccupiedIndex:
         yaml_path = self.map_prefix.with_suffix(".yaml")
@@ -1224,6 +1276,9 @@ class AtlasMissionControl(Node):
             "session_mode": session.get("mode"),
             "startup_stillness": session.get("startup_stillness"),
         }
+        if self.final_map_mode:
+            evidence["final_map_consistency"] = self.final_map_consistency_evidence(
+                candidate_yaml, candidate_image, session)
         # Manual teaching observes from drive-ready (after SLAM startup), so the
         # coverage reference is ready_unix; stillness before it is checked above.
         reference_unix = float(session["started_unix"])
