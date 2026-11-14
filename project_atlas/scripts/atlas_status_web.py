@@ -1562,6 +1562,25 @@ class AtlasRosNode:
             self.logged_latch = state
             self.estop_log.write('latch_state', latched=state[0], reason=state[1])
 
+    ATTITUDE_KEYS = ("imu_roll", "imu_pitch", "imu_yaw", "imu_full", "front_steer", "rear_steer", "odom")
+
+    def attitude_snapshot(self):
+        """Small, cheap payload for the IMU flight instruments (polled ~5 Hz only while that panel is open)."""
+        now = time.time()
+        with self.lock:
+            out = {}
+            for key in self.ATTITUDE_KEYS:
+                item = self.data.get(key)
+                if item is None:
+                    continue
+                value = item["value"]
+                if key == "imu_full" and isinstance(value, dict):
+                    value = {"gz": value.get("gz")}
+                elif key == "odom" and isinstance(value, dict):
+                    value = {"vx": value.get("vx"), "wz": value.get("wz")}
+                out[key] = {"value": value, "age": round(max(0.0, now - item["ts"]), 2)}
+        return {"ros": out, "time": now}
+
     def snapshot(self):
         with self.lock:
             data = {key: dict(item) for key, item in self.data.items()}
@@ -2129,6 +2148,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             except OSError:
                 self.send_error(404)
+            return
+        if self.path.split('?')[0] == '/api/attitude':
+            json_response(self, 200, ROS.attitude_snapshot())
             return
         if self.path.startswith("/api/status"):
             json_response(self, 200, snapshot())

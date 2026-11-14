@@ -2056,3 +2056,16 @@ after seeing the deviation below. Tools/evidence: project_atlas/tools/maps/remap
 - Open concern: with M3 excluded, consensus breaks during low-speed steering (left side has only M1); the mux would
   stop autonomy on CRITICAL (fail-safe, but autonomy may be unusable in turns). Needs the arc tests next.
 - navigation_validated stays false. Wheel-odometry yaw sign in 4WS turns (known) seen again.
+
+## 2026-11-14 19:30 — Dashboard IMU panel: aircraft-style instruments (DEPLOYED, owner request)
+
+- web/v2/flight-instruments.js (new): attitude indicator (roll/pitch), heading indicator (IMU yaw shown aircraft-style:
+  right turn increases the number, plus the front-steering drive direction), turn indicator (IM10A gyro Z deg/s,
+  left/right), and a 4WS steering top view (front/rear servo angles, 90 = centre, higher = left).
+- IMU detail view (command.js) keeps the existing tiles below the instruments; instruments are built once and redrawn
+  (no flicker). New light endpoint /api/attitude (atlas_status_web.py AtlasRosNode.attitude_snapshot) polled every
+  200 ms only while the IMU panel is open; /api/status stays at 2 s.
+- Tested: local mock page (animated values) and the live dashboard (values match /api/status; no console errors).
+- Deployed 19:25 (backups *.before-flightinst-20261114; rover-status-web restarted, dashboard only).
+- To confirm physically: pitch sign (lift the front: horizon should move down) and heading direction (turn right:
+  HDG number should increase). Not yet checked on the rover.
