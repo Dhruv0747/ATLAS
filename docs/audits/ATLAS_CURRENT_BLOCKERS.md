@@ -1938,3 +1938,6 @@ Enabling needs the owner's OK plus a deploy with the rover parked and the E-STOP
   read that lagged TF (only refuses or saves while stopped, but it is wrong). Candidate fix: TransformListener
   spin_thread=True or excluding /tf-heavy nodes from batching. Not changed yet.
 - Rover parked at the mark, session still open, SLAM running. Nothing else changed.
+- 17:05 owner latched E-STOP; session 22776983 ended with end_restore (files in rejected_session_22776983, bag kept,
+  81 MB). AMCL active, accepted map unchanged (atlas_latest.pgm 4beb26d5a999), dashboard localization check VERIFIED.
+  The deferred-lookup sampler edit in the working tree is NOT committed/deployed (does not solve the TF lag).
