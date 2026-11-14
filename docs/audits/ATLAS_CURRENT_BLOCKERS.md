@@ -1651,3 +1651,19 @@ LEAD (strong, not yet reproduced): stopping ONLY the session's recorder dropped 
 - The capture needs the bad state. It can be triggered deliberately (the dummy /tf publisher reproduced it at 00:5x) but then needs a reboot to clear.
 - Also: my wait loop matched "MANUAL MAPPING ACTIVE" inside the PREPARING text again; scripts must match '^data: .?MANUAL MAPPING ACTIVE'.
 - Open: set_home's settle check vs a cold SLAM start (0.20 m shift); a retry after a few seconds may pass.
+
+2026-11-14 08:44-08:48 deliberate trigger + capture (owner: "trigger it"); localization mode, stop latched.
+- The dummy /tf publisher (UDPv4, 10 Hz, 40 s) did NOT trigger the state this time: EKF 1 % user / 1 % sys before, after and 10 s later.
+- The trigger only worked after the 13 Nov's many restarts/kills, so the cause ACCUMULATES with participant churn and a reboot clears it. No reboot needed now.
+- Healthy EKF strace (15 s; data/diagnostics/dds_capture_20261114/strace_ekf_healthy.txt): recvfrom 48 % / futex 46 % of syscall time; 5670 sendto, each preceded by a FAILING setsockopt.
+  - Detail: setsockopt(SOL_SOCKET, SO_SNDTIMEO_OLD, timeval with tv_usec out of range) = -1 EDOM on every send, so Fast DDS's UDP send timeout is NEVER applied and a send can block without limit.
+  - Defect in the Humble Fast DDS / aarch64 stack (not ATLAS code). It may explain the 0.11-0.23 s EKF "Failed to meet update rate" stalls seen while stuck. Not proven.
+- /dev/shm: 36 Fast DDS segments, 34 mapped by live processes, 3 stale from boot. Not the accumulating factor.
+- Kernel counters since the 01:05 reboot: 318,187 ICMP destination-unreachable sent and received (UDP sends to ports nobody listens on). The healthy rate now is 0/s, so these came in bursts, most likely around restarts, the failed session start and the probes.
+- Hypothesis (unproven): after churn, writers keep sending to UDP locators of dead participants (e.g. the "_NODE_NAME_UNKNOWN_" /tf publisher seen at 00:5x), and every send costs kernel + ICMP work in all /tf processes.
+- tools/profiling/atlas_cpu_profile.py now prints "dds/udp per s" (udp_noports, icmp_out_unreach; healthy 0). The next time overload appears, one profile confirms or rejects this.
+- Practical plan for remap 9:
+  - reboot shortly before the drive;
+  - profile once at MANUAL MAPPING ACTIVE (CPU + dds/udp);
+  - avoid killing ROS processes;
+  - if overload appears anyway, capture strace/perf at once (attach allowed until the next reboot only).

@@ -46,6 +46,19 @@ def node_name(cmd):
     return (cmd.split() or ['?'])[0][:48]
 
 
+def net_counters():
+    """(UDP InDatagrams, NoPorts, InErrors, RcvbufErrors, ICMP OutDestUnreachs) from /proc/net/snmp."""
+    rows = {}
+    with open('/proc/net/snmp') as f:
+        lines = f.read().splitlines()
+    for h, v in zip(lines[::2], lines[1::2]):
+        k = h.split()[0]
+        rows[k] = dict(zip(h.split()[1:], map(int, v.split()[1:])))
+    u, i = rows.get('Udp:', {}), rows.get('Icmp:', {})
+    return (u.get('InDatagrams', 0), u.get('NoPorts', 0), u.get('InErrors', 0), u.get('RcvbufErrors', 0),
+            i.get('OutDestUnreachs', 0))
+
+
 def stat_cpu():
     with open('/proc/stat') as f:
         v = list(map(int, f.readline().split()[1:]))
@@ -59,9 +72,9 @@ def main():
     ap.add_argument('--label', default='')
     ap.add_argument('--top', type=int, default=40)
     a = ap.parse_args()
-    c0, p0, t0 = stat_cpu(), procs(), time.time()
+    c0, p0, n0, t0 = stat_cpu(), procs(), net_counters(), time.time()
     time.sleep(a.seconds)
-    c1, p1, t1 = stat_cpu(), procs(), time.time()
+    c1, p1, n1, t1 = stat_cpu(), procs(), net_counters(), time.time()
     dt = t1 - t0
     d = [y - x for x, y in zip(c0, c1)]
     tot = sum(d) or 1
@@ -85,6 +98,11 @@ def main():
     total = round(sum(u['cpu_pct'] for u in ulist), 1)
     print(f'ATLAS CPU profile {a.label} {time.strftime("%Y-%m-%d %H:%M:%S")}  window {dt:.0f} s  load {" ".join(load)}')
     print('system: ' + '  '.join(f'{k} {v*100:.1f}%' for k, v in sysw.items()) + f'   process total {total}% of 600%')
+    # 2026-11-14: DDS health. Sends to UDP ports nobody listens on (dead participants) show up as NoPorts and
+    # ICMP port-unreachable; healthy = 0/s. Suspected cause of the sticky mapping-mode kernel-time overload.
+    net = dict(zip(('udp_in', 'udp_noports', 'udp_inerrors', 'udp_rcvbuferrors', 'icmp_out_unreach'),
+                   (round((b - a_) / dt, 1) for a_, b in zip(n0, n1))))
+    print('dds/udp per s: ' + '  '.join(f'{k} {v:g}' for k, v in net.items()))
     print(f'\n{"unit":46s} {"CPU%":>6s} {"RSS MB":>7s} procs')
     for u in ulist[:a.top]:
         if u['cpu_pct'] >= 0.5:
@@ -94,7 +112,7 @@ def main():
         print(f'{r["node"][:40]:40s} {r["unit"][:36]:36s} {r["cpu_pct"]:6.1f} {r["rss_mb"]:6.0f}')
     if a.json:
         with open(a.json, 'w') as f:
-            json.dump({'label': a.label, 'time': t1, 'window_s': dt, 'load': load, 'system': sysw,
+            json.dump({'label': a.label, 'time': t1, 'window_s': dt, 'load': load, 'system': sysw, 'net_per_s': net,
                        'process_total_pct': total, 'units': ulist, 'processes': rows}, f, indent=1)
 
 
