@@ -2069,3 +2069,20 @@ after seeing the deviation below. Tools/evidence: project_atlas/tools/maps/remap
 - Deployed 19:25 (backups *.before-flightinst-20261114; rover-status-web restarted, dashboard only).
 - To confirm physically: pitch sign (lift the front: horizon should move down) and heading direction (turn right:
   HDG number should increase). Not yet checked on the rover.
+
+## 2026-11-14 20:45 — Pre-autonomy status from the records + combined round-trip check tool (planned 2026-11-15 morning)
+
+Records checked on the owner's request:
+- Box test: DONE 2026-11-11 (docs/TRACK_A_TEST_REPORT_20261106.md, G4 PASS: Astra detects the box 101/101, range within
+  3 cm, empty view no phantoms). nav2_params now has a local-costmap astra_layer (/astra/obstacle_scan). At 20:40
+  atlas-astra-bridge is INACTIVE (starts only after the E-STOP is released with sticks untouched, by design), so Nav2
+  currently receives no camera obstacles. A Nav2-level "plan goes around the box" check is not in the records.
+- Localization round trips: 2026-10-09/10 on the OLD map d12a1f18 failed (wrong AMCL pose after return). On the new
+  map 38253aab only the parked check (VERIFIED) exists. A moving round trip is still needed.
+- Encoders: 2026-10-02 four-encoder ground qualification passed but was revoked 2026-10-10 (M3). With M3 excluded:
+  straight 12/12 PASS today; moving turn arcs not yet done.
+Owner plan: do encoder turns + localization round trip + Astra bridge check in ONE stop-and-go drive Dhruv Room ->
+hall -> Dhruv Room tomorrow morning; autonomous drives only after reviewing it and the owner's OK for navigation_validated.
+Tool: tools/drive/round_trip_check.py (read-only): per stop wheel vs LiDAR distance, IMU-EKF (/odom) vs LiDAR turn
+(wheel yaw informational), worst encoder state, localization verdict after the stop, Astra bridge state, tally of
+left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jetson.
