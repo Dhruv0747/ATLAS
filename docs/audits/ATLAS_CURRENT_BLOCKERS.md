@@ -1711,3 +1711,16 @@ TESTS FIXED (test files only):
 NOT DONE (not small, or not allowed):
 - Automatic localization restore after a session. After a rejection the session stays active by design; automating needs decisions (archive the session, set aside session-bound home/seed, reseed without a known place). Proposed separately.
 - Rear encoder label swap: this is the motor/encoder driver mapping (hardware driver / calibration), outside this workflow without an explicit, separate owner decision.
+
+2026-11-14 ~10:40 survey of existing colour recordings for 3D map v2 (read-only; /tmp/colour_survey.py). maps3d/ holds 8 colour recordings. Each has an Astra bag (/astra/color 640x480 rgb8 ~27 Hz, /astra/depth 160x120, camera_info, depth_to_color extrinsic) and a base bag (/scan /odom /yahboom/odom /tf /tf_static IM10A /amcl_pose /map).
+- Full room->hall->room drives (wheel/EKF path, end-start gap):
+  - remap6_colour_20261113-134122: 629 s, 27.1 m, 0.61 m (session 57941c0d drive). BEST.
+  - remap5b_colour_20261113-102354: 1037 s, 26.5 m, 0.93 m.
+  - remap3_colour_20261112-194252: 756 s, 19.7 m, 1.37 m.
+  - remap4 + remap4b (outbound 7.1 m + return 17.1 m).
+  - remap7: 9.5 m, one way.
+- Still-rover only (no use for 3D): remap2_colour_20261112-184531 (14 GB, 0.8 m) and remap5_colour_20261113-102057 (1.3 GB, 0.0 m). Deletion candidates, 15.3 GB, owner's decision.
+- Sampled frames: colour exposure normal (mean 76-134); depth 36-70 % valid, median ~1.8-2.1 m.
+- Conclusion: a 3D v2 can very likely be built WITHOUT a new colour drive: localize each recording's /scan against the accepted 2D map (scan-to-map, as build_colour_map.py already refines), then project colour+depth.
+  - Not proven yet: needs an accepted map, or a dry run against the current accepted map (d12a1f).
+  - Risk: furniture or layout changes since 13 Nov.
