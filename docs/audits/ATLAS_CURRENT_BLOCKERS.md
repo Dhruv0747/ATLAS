@@ -2086,3 +2086,15 @@ hall -> Dhruv Room tomorrow morning; autonomous drives only after reviewing it a
 Tool: tools/drive/round_trip_check.py (read-only): per stop wheel vs LiDAR distance, IMU-EKF (/odom) vs LiDAR turn
 (wheel yaw informational), worst encoder state, localization verdict after the stop, Astra bridge state, tally of
 left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jetson.
+
+## 2026-11-14 21:00 — Astra bridge boot auto-start: already exists; does not come back after a mapping session
+
+- Boot auto-start exists since 2026-11-12 (atlas-astra-bridge-starter, oneshot, enabled; parked twice + CPU < 72 %).
+  Today it started the bridge 43 s after boot ("parked twice, CPU 62 %").
+- CPU (records 2026-11-06/11/12): bridge join = one-time ~100 % CPU for 5-9 s; settled total 62-68 %. Steady cost of
+  the always-on Astra stack now: camera node 12 %, obstacle scan 6.5 %, depth preview 4.3 % of one core.
+- FINDING: the feature manager pauses atlas-astra-obstacles during mapping (17:21 stop, 17:30 start); the bridge stopped
+  with it and was never started again (Restart=no; the starter is boot-only). Nav2 has had no camera obstacles since the
+  first mapping session today. Fix proposal (not applied): re-run the starter (same parked + CPU checks) whenever the
+  Astra unit becomes active again after a mapping session. Tomorrow's test: start atlas-astra-bridge-starter by hand
+  after the owner releases the E-STOP.
