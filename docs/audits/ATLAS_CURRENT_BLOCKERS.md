@@ -1958,3 +1958,20 @@ Enabling needs the owner's OK plus a deploy with the rover parked and the E-STOP
   AMCL active, localization check VERIFIED, accepted map unchanged (4beb26d5a999).
 - Still open: other batched nodes that read /tf (localization monitor, lidar odom gate, safety status, sensor recovery)
   have the same ~20 msg/s per-topic cap; not changed. Remap 13 must save "dhruv room" at start and "hall" in the hall.
+
+## 2026-11-14 17:21-17:30 — Remap 13 (session 21ed0671): REJECTED, but map quality and closure pass
+
+- Places saved in-session: "dhruv room" (-0.77, 0.17) at the start mark, "hall" (1.47, -5.91). Sampler worked:
+  946 samples, 0 lookup failures.
+- PASS: closure 0.135 m / 1.3 deg; final map 946/946 matched, fit median 100 %, p10 98.4 %, 100 % of scans good,
+  live position offset max 0.256 m (limit 0.30).
+- FAIL 1: live heading offset 13.84 deg (limit 10). Offline (latest-TF, inflates in turns): 2/972 samples > 10 deg,
+  all > 8 deg samples in the corridor end / hall (y < -3); while still (< 3 deg/s, n=858) max 8.2. 17:27:22 at
+  (1.89, -4.64) +13.1 deg at only 6 deg/s -> a real transient SLAM live-heading error in the hall, not a timing effect.
+- FAIL 2: "candidate start is not clear for the inflated rover": nearest final-map wall 0.24 m from the "dhruv room"
+  place (rover half-width 0.175 + 0.18 inflation). The start mark is too close to furniture for Nav2 — needs an open
+  start/place spot (>= ~0.5 m from walls). This is a real gate, not changed.
+- map->odom jump 1.274 m / 13.6 deg (remap 12: 1.274 / 15.6) — the same corridor/hall corrections.
+- Decision needed from owner: keep the 10 deg live-heading limit (hall remaps keep failing) or raise it (e.g. 15 deg;
+  position limit 0.30 m stays). Not changed. Note: a re-stop of the same session cannot re-use samples (buffer is
+  released at the first evaluation), so this session cannot be salvaged.
