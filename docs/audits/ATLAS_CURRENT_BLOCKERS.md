@@ -1855,3 +1855,19 @@ OPEN BUGS (to fix):
   (4) M3 wire -> Drive PID -> supervised autonomy.
 - Also shown to the owner: remap-10 drive path image (docs/colour_3d_20261114/drive_path_remap10.png). Plan-only Nav2 route dhruv room -> hall on the accepted map: 7.31 m, 89 poses (docs/colour_3d_20261114/planned_path_room_to_hall.png), republished plan-only for 10 min for the dashboard. No goal sent, rover latched.
 - Owner asked ATLAS to drive itself. Declined: autonomy gate (navigation_validated false / M3), no Drive PID, stale corridor/hall map. Not bypassed.
+
+2026-11-14 ~16:20 OFFLINE ACCURACY CHECK of the remap-10 candidate map (de55c1d3); /tmp/map_accuracy.py, owner: "Yes, check it".
+- Method: each recorded scan after drive-ready (every 3rd, 3,603 scans) ICP-matched to the FINAL candidate map, seeded with SLAM's live pose.
+- Results:
+  - all 3,603 matched;
+  - fit within 15 cm: median 100 %, p10 99 %, 100 % of scans >= 85 %;
+  - within 5 cm: median 99 %;
+  - by area (room 2,243, corridor 764, hall 596 scans): median 100 %, p10 98-100 %; worst scan 92 % (13:48:32 hall entry; 14:05:33 room);
+  - best fit vs SLAM live pose: median 3 cm, p90 14 cm, max 24 cm.
+- Interpretation: the final map is internally consistent along the whole drive, including the hall (no bends or doubled walls). The 1.3-1.5 m map->odom "jumps" were frame corrections (map vs odom); the robot pose itself was never more than about 24 cm from the final-map best fit.
+- Caveats: self-consistency is not absolute scale, so the owner will tape-measure Dhruv Room width (map 3.05 m) and hall depth (map 2.20 m) (docs/colour_3d_20261114/map_sizes_remap10.png). Repeatable glass/mirror reflections may appear as phantom features.
+- Proposal (for the owner's review; NOT implemented): add a final-map consistency evidence path to map acceptance:
+  - >= 95 % of session scans fit the final map >= 85 % within 15 cm;
+  - live-pose vs best-fit <= 0.30 m;
+  - plus the unchanged closure <= 0.15 m / 10 deg, connectivity and Nav2 plans.
+  - Remap 10 would still fail closure (0.230 m).
