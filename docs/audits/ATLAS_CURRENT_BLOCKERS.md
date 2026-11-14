@@ -1640,3 +1640,14 @@ LEAD (strong, not yet reproduced): stopping ONLY the session's recorder dropped 
 2026-11-14 ~08:20, owner via sudo:
 - kernel.yama.ptrace_scope=0 and kernel.perf_event_paranoid=1 until the next reboot (not persistent). strace and perf now attach to running ATLAS services (checked on the EKF).
 - atlas-ptz-home.service disabled + reset-failed (audit item B closed). No failed system units remain.
+
+2026-11-14 08:20 parked capture attempt (owner: "capture now"); stop latched throughout. Uptime 7 h since the 01:05 reboot, few restarts since.
+- Localization baseline: EKF 1 % user / 1 % sys.
+- The manual-mapping start FAILED at set_home: "SLAM pose is not settled (shift=0.20m)". The new SLAM pose moved 20 cm while starting.
+  - Mission control cleaned up correctly (no session file, places unchanged, extras restored) but left atlas-slam-fast running without localization (known "stack stays up").
+  - Restored: SLAM stopped; localization started; seeded LiDAR-verified (0.195, -1.675); mission control restarted -> READY.
+- NO overload with SLAM running ~3 min (no session or recorder): EKF 1/1 %, SLAM 1/0 %, total 326 %, idle 42 %.
+- Every overloaded session on 13-14 Nov started after many service restarts (deploys, tests). This fits the sticky-state hypothesis (participant churn builds it up; a reboot clears it). Practical mitigation to test: reboot before a mapping drive.
+- The capture needs the bad state. It can be triggered deliberately (the dummy /tf publisher reproduced it at 00:5x) but then needs a reboot to clear.
+- Also: my wait loop matched "MANUAL MAPPING ACTIVE" inside the PREPARING text again; scripts must match '^data: .?MANUAL MAPPING ACTIVE'.
+- Open: set_home's settle check vs a cold SLAM start (0.20 m shift); a retry after a few seconds may pass.
