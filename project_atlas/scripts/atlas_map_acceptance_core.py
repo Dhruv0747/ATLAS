@@ -53,7 +53,7 @@ class MapAcceptancePolicy:
     final_map_min_scan_fit: float = 0.85
     final_map_tolerance_m: float = 0.15
     final_map_max_pose_offset_m: float = 0.30
-    final_map_max_pose_offset_deg: float = 10.0
+    final_map_max_pose_offset_deg: float = 15.0   # 2026-11-14 owner decision (was 10; remap 13 hall: 13.8)
 
 
 def angle_delta(first: float, second: float) -> float:

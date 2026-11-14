@@ -1975,3 +1975,24 @@ Enabling needs the owner's OK plus a deploy with the rover parked and the E-STOP
 - Decision needed from owner: keep the 10 deg live-heading limit (hall remaps keep failing) or raise it (e.g. 15 deg;
   position limit 0.30 m stays). Not changed. Note: a re-stop of the same session cannot re-use samples (buffer is
   released at the first evaluation), so this session cannot be salvaged.
+
+## 2026-11-14 17:35-17:45 — Live-heading limit 10 -> 15 deg DEPLOYED (owner: "15 digera kar do"); places finding
+
+- Owner decision after remap 13. FinalMapConsistencyPolicy.max_pose_offset_deg and
+  MapAcceptancePolicy.final_map_max_pose_offset_deg = 15.0; position limit 0.30 m and every other gate unchanged.
+  Re-evaluating remap 13's stored evidence with 15 deg leaves ONLY the start-clearance / plan failures.
+- Owner asked to approve remap 13 instead: NOT done. The "dhruv room" place is 0.24 m from a wall in that map; Nav2
+  cannot plan from it (real safety gate). The session also cannot be re-validated (samples released at evaluation,
+  lost on the restart needed for the new limit). Remap 14 needed: same route and start mark, but save "dhruv room" at an
+  open spot (>= 0.5 m clear on every side).
+- Session 21ed0671 ended with end_restore (E-STOP latched by owner); bag kept (97 MB); AMCL active, check VERIFIED.
+- Deployed 17:40 (backups *.before-heading15-20261114), mission control restart only: active, READY, final-map mode
+  True, 46 focused tests pass. atlas_regression: unit PASS, gate_history PASS, old_map FAIL
+  ("candidate goal is not clear for the inflated rover").
+- FINDING (pre-existing since remap 9, exposed now): saving "dhruv room"/"hall" during a mapping session OVERWRITES
+  ~/.config/project_atlas/named_places.json, and a rejected session does not restore them. Saved places came from
+  remaps 9, 10, 11 and 13 in their own SLAM frames; the accepted map d12a1f18 has had places from rejected sessions
+  (the owner's earlier "map says Dhruv Room but it is the kitchen" fits this). old_map passed before only because
+  remap 11's coordinates happened to be clear. No backup holds verified accepted-map places. Navigation to places is
+  blocked anyway (navigation_validated false). An accepted remap 14 rewrites the places correctly. Code fix proposal:
+  keep in-session places in the session (or back up and restore on rejection). Not changed.

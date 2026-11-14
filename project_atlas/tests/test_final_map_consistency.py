@@ -74,7 +74,7 @@ class CoreTests(unittest.TestCase):
 
     def test_live_pose_far_from_best_fit_fails(self):
         occ = room_points()
-        ev = F.evaluate(samples(occ, POSES, (0.0, 0.0, math.radians(14))), occ, LASER)
+        ev = F.evaluate(samples(occ, POSES, (0.0, 0.0, math.radians(19))), occ, LASER)
         self.assertFalse(ev["passed"])
 
     def test_too_few_scans_fails(self):
@@ -135,7 +135,7 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_enabled_but_consistency_bad_or_missing_rejects(self):
         mutations = [("passed", False), ("session_id", "other"), ("scans", 50), ("matched", 3000),
-                     ("fraction_good", 0.90), ("pose_offset_max_m", 0.31), ("pose_offset_max_deg", 11.0),
+                     ("fraction_good", 0.90), ("pose_offset_max_m", 0.31), ("pose_offset_max_deg", 15.5),
                      ("policy", {"min_scan_fit": 0.5, "tolerance_m": 0.15}),
                      ("policy", {"min_scan_fit": 0.85, "tolerance_m": 0.30})]
         for field, value in mutations:
@@ -147,6 +147,14 @@ class AcceptanceTests(unittest.TestCase):
         ev = jumpy()
         del ev["final_map_consistency"]
         self.assertIn("final-map consistency evidence is missing", run(ev, True))
+
+    def test_heading_limit_is_15_deg(self):
+        """2026-11-14 owner decision after remap 13 (hall live heading 13.8 deg, final map 946/946 fit)."""
+        self.assertEqual(A.MapAcceptancePolicy().final_map_max_pose_offset_deg, 15.0)
+        self.assertEqual(F.FinalMapConsistencyPolicy().max_pose_offset_deg, 15.0)
+        ev = jumpy()
+        ev["final_map_consistency"]["pose_offset_max_deg"] = 13.84
+        self.assertEqual(run(ev, True), [])
 
     def test_tf_integrity_checks_still_apply_when_enabled(self):
         ev = jumpy()

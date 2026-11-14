@@ -35,7 +35,7 @@ class FinalMapConsistencyPolicy:
     min_scan_fit: float = 0.85
     min_fraction_good: float = 0.95
     max_pose_offset_m: float = 0.30
-    max_pose_offset_deg: float = 10.0
+    max_pose_offset_deg: float = 15.0               # 2026-11-14 owner decision (was 10; remap 13 hall: 13.8)
     sample_period_s: float = 0.5
     max_samples: int = 1200
 
