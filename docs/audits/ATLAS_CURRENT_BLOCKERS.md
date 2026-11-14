@@ -1917,3 +1917,24 @@ Enabling needs the owner's OK plus a deploy with the rover parked and the E-STOP
   accepted now — the stored ones lack scan samples, so the new path cannot accept them).
 - Limits unchanged (strict version that passed the tests). Next remap is the first real use; watch the heading-offset
   margin (remap 10 was 9.97 / 10 deg) and the closure (must be <= 0.15 m).
+
+## 2026-11-14 16:44-17:00 — Remap 12 (session 22776983): REJECTED; final-map sampler collected 0 scans (my bug)
+
+- Owner drove Dhruv Room -> hall -> back to the tape mark, stop-and-go. Closure 0.100 m / 0.1 deg: PASSES (first remap
+  under 0.15 m). Jump 1.274 m / 15.6 deg (same corridor/hall SLAM corrections as before).
+- Rejected also because named places "dhruv room"/"hall" were not saved in this session (in remap 10 I saved them on
+  the owner's call-outs; this time I did not remind/save — process miss, mine).
+- final_map_consistency: scans 0. Cause: under the batched executor (ATLAS_EXECUTOR_BATCH_S=0.05, deployed 11-13)
+  rclpy takes at most ONE message per subscription per wait cycle (~20 msg/s per topic). /tf arrives at ~30 Hz, so
+  mission control's TF buffer lags by seconds and an immediate lookup at the scan stamp always failed
+  (reproduced: 0/80 ok with batching). tf_jump sample_count 7429 over ~380 s (= 19.5/s) confirms the cap.
+  Also: parked, slam_toolbox's map->odom stamp stops advancing, so exact-stamp map->base_link lookups fail too.
+  Unit test missed it because the fake TF answered immediately.
+- Offline replay of this bag through the staged evaluation (latest-TF method): 799/799 scans matched, fit median 100 %,
+  p10 97.8 %, pose offset max 0.23 m, heading max 13.6 deg -> would FAIL the 10 deg limit. Both > 10 deg samples were
+  during fast turns (24 and 11 deg/s, where replay TF latency inflates heading); while still (< 3 deg/s, n=648) max 9.4.
+- WIDER FINDING (needs review): every batched node subscribed to /tf (mission control, localization monitor, ...)
+  sees TF capped at ~20 msg/s and seconds late. Mission control's current_pose / scan-fit gate / named-place saves
+  read that lagged TF (only refuses or saves while stopped, but it is wrong). Candidate fix: TransformListener
+  spin_thread=True or excluding /tf-heavy nodes from batching. Not changed yet.
+- Rover parked at the mark, session still open, SLAM running. Nothing else changed.
