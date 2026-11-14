@@ -2009,3 +2009,28 @@ Enabling needs the owner's OK plus a deploy with the rover parked and the E-STOP
 - old_map regression still FAILS: named_places.json still holds remap-13 coordinates for "dhruv room"/"hall"
   (session 21ed0671, no map_id; navigation fails closed on them). No verified accepted-map places exist to restore;
   an accepted remap 14 binds correct ones. Left as is deliberately.
+
+## 2026-11-14 18:13 — REMAP 13 ACCEPTED after owner-approved parked review (new map 38253aab42e9e97304aa)
+
+Owner would not drive again ("i drive 10 time ... you have enaf data") and approved "Yes, accept it", then "Yes, accept"
+after seeing the deviation below. Tools/evidence: project_atlas/tools/maps/remap13_review/ (review_report.json).
+- Dhruv Room place moved on the candidate map from the start mark (-0.77, 0.17; 0.24 m from furniture) to (0.08, 0.54):
+  nearest point within 1 m with >= 0.45 m clearance that connects to the hall; owner confirmed from a picture.
+  Marked selected_offline in named_places.json.
+- final_map_consistency recomputed from the recording against the candidate bytes (latest-TF method): 972/972 matched,
+  fit 100 %, offset max 0.185 m / 13.05 deg (limit 0.30 m / 15 deg). Live exact-stamp run before had 946/946, 13.84 deg.
+- Parked review (E-STOP latched, no goal sent): localized AMCL on a COPY of the candidate, live LiDAR fit 100 % at the
+  rover's real pose; Nav2 ComputePathToPose dhruv room->hall 7.20 m (87 poses), hall->dhruv room 7.73 m (93);
+  footprint 0.50 x 0.36. Exact connectivity connected (3165 cells). Guard trips none. Closure 0.135 m / 1.3 deg.
+- Official evaluate_acceptance_evidence: at the session evaluation time (17:37:42) NO FAILURES; at the review time
+  (18:08:21) only "map->odom evidence/source stale". DEVIATION: the single-moment freshness rule cannot hold offline;
+  each evidence set passes at its own time. Shown to the owner before promotion.
+- Promoted with transactionally_promote_map_pair (backup tag 20261114-181314-21ed0671-review in maps/accepted_backups;
+  old map d12a1f18 recoverable). home/seed/places bound to 38253aab.
+- Mistake during review: first attempt started atlas-nav2 on top of the localization launch (which already includes Nav2)
+  -> two Nav2 stacks, plans ABORTED, 3 orphan lifecycle managers left. Killed by PID, rerun with process-group cleanup.
+- After promotion: atlas-localization restarted on the new map, AMCL at (-0.84, 0.28) = final session pose.
+  atlas-localization-monitor still held the OLD map in memory (LOST, "2.06 m" = old-map Dhruv Room pose) -> restarted
+  it: VERIFIED, AMCL fit 1.0, 0.11 m / 3.1 deg. atlas_regression ALL PASS (old_map now 38253aab connected).
+- Still open: navigation_validated false (M3 encoder, Drive PID); the localization monitor does not reload a promoted
+  map by itself (needs a fix or a restart after promotion).
