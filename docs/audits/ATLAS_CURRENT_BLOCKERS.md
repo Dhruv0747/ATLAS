@@ -2098,3 +2098,13 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
   first mapping session today. Fix proposal (not applied): re-run the starter (same parked + CPU checks) whenever the
   Astra unit becomes active again after a mapping session. Tomorrow's test: start atlas-astra-bridge-starter by hand
   after the owner releases the E-STOP.
+- 21:10 FIX DEPLOYED (owner "Yes, fix it"): drop-in atlas-astra-obstacles.service.d/restart-bridge-starter.conf
+  (ExecStartPost=-systemctl --user --no-block start atlas-astra-bridge-starter) so every Astra (re)start, including
+  after a mapping pause, queues the same safe starter; starter give-up 15 min -> 2 h (ATLAS_BRIDGE_START_LIMIT_S).
+  Bridge unit unchanged (Restart=no, parked ExecCondition). enable_boot.sh installs the drop-in. Backup
+  atlas_astra_bridge_boot_start.sh.before-restarthook-20261114.
+  Live test: restarted atlas-astra-obstacles with the rover still -> starter started by itself and is waiting:
+  "cmd_vel telemetry stale/missing" (remote off / E-STOP latched) = designed fail-closed; bridge not started yet.
+  Tomorrow: start atlas-astra-bridge-starter by hand when the owner releases the E-STOP (the 2 h wait ends ~23:15).
+  Note: the 11-12 report's "systemd also restarts the bridge when the Astra unit restarts (BindsTo)" was wrong —
+  BindsTo only stops it.
