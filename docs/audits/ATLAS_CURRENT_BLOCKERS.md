@@ -1636,3 +1636,7 @@ LEAD (strong, not yet reproduced): stopping ONLY the session's recorder dropped 
 - perf 5.15.223 at /usr/lib/linux-tools/5.15.0-203-generic/perf. There is no linux-tools package for the 5.15.148-tegra kernel; the generic 5.15 binary works. Call it by full path (the /usr/bin/perf wrapper rejects the tegra kernel name). No kernel was installed.
 - Both work on processes they start themselves.
 - Attaching to running ATLAS services is blocked by the stock security settings ptrace_scope=1 and perf_event_paranoid=2, which were NOT changed. For the parked syscall capture, either the owner runs the capture with sudo, or the owner temporarily relaxes them until the next reboot (sudo sysctl kernel.yama.ptrace_scope=0 kernel.perf_event_paranoid=1). This is the owner's decision.
+
+2026-11-14 ~08:20, owner via sudo:
+- kernel.yama.ptrace_scope=0 and kernel.perf_event_paranoid=1 until the next reboot (not persistent). strace and perf now attach to running ATLAS services (checked on the EKF).
+- atlas-ptz-home.service disabled + reset-failed (audit item B closed). No failed system units remain.
