@@ -1842,3 +1842,16 @@ OPEN BUGS (to fix):
   - Hypothesis: see-through or reflective surfaces in the hall (glass, mirror, shiny surfaces, open space under furniture at LiDAR height), so phantom geometry moves with the rover. Owner asked to inspect.
 - Restored: localization seeded (0.235, -1.775), READY, latched, accepted map unchanged (4beb26d5a999), places from pre-remap11.
 - Dashboard: web/v2/mapping.html in mapping mode (live /map, no AMCL) now hides saved-map places and draws the SLAM pose as a green "ATLAS (SLAM)" arrow. Static file, no restart; verified in the browser.
+
+2026-11-14 ~16:05 OFFLINE range-limit tests (remap-10 recording, start -> hall turnaround, isolated domain).
+- max_laser_range 8 m (live): max step 0.68 m, 19 steps > 0.15 m.
+- 5.0 m: 0.70 m / 19. 4.0 m: 0.75 m / 19. 3.5 m: 0.75 m / 19.
+- No help, so the confusing returns are near the rover (owner confirmed glass door/window, mirror or shiny surface, and open space under furniture in the hall; they must stay).
+- RPLIDAR Boost intensities are binary (0/47): no intensity filtering possible.
+- Owner's hall context: cannot be covered. Proposed next:
+  (1) offline accuracy check of the remap-10 final map (all scans vs the final map, plus tape-measured room sizes);
+  (2) if accurate, a reviewed acceptance change that judges final-map consistency instead of mid-drive map->odom corrections (owner decision);
+  (3) the 3D v2 map;
+  (4) M3 wire -> Drive PID -> supervised autonomy.
+- Also shown to the owner: remap-10 drive path image (docs/colour_3d_20261114/drive_path_remap10.png). Plan-only Nav2 route dhruv room -> hall on the accepted map: 7.31 m, 89 poses (docs/colour_3d_20261114/planned_path_room_to_hall.png), republished plan-only for 10 min for the dashboard. No goal sent, rover latched.
+- Owner asked ATLAS to drive itself. Declined: autonomy gate (navigation_validated false / M3), no Drive PID, stale corridor/hall map. Not bypassed.
