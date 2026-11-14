@@ -2034,3 +2034,25 @@ after seeing the deviation below. Tools/evidence: project_atlas/tools/maps/remap
   it: VERIFIED, AMCL fit 1.0, 0.11 m / 3.1 deg. atlas_regression ALL PASS (old_map now 38253aab connected).
 - Still open: navigation_validated false (M3 encoder, Drive PID); the localization monitor does not reload a promoted
   map by itself (needs a fix or a restart after promotion).
+
+## 2026-11-14 18:30-19:00 — M3 encoder EXCLUDED (live) and 3-encoder ground qualification STARTED (incomplete)
+
+- Evidence (remap-13 bag, 557 s ground drive): counts range M1 ~52.7k, M2 ~57.2k, M3 ~7.3k, M4 ~51.4k (M3 loses most
+  pulses); direction vs LiDAR ICP: M1 94 %, M2 100 %, M3 89 %, M4 100 % (M2/M4 opposite raw sign by design); consensus
+  rejected M3 575x vs 22-27x for the others.
+- Owner: "Yes, exclude M3". config/encoder_selection.yaml excluded_encoders: [3] (backup
+  *.before-excludeM3-20261114); rover-base-telemetry restarted with E-STOP latched. Live: DEGRADED, selected [1,2,4],
+  scale 0.5, navigation_validated false, autonomy_ready false. Localization VERIFIED. Drive PID unchanged (disabled;
+  it requires all four encoders).
+- Code finding: autonomy gating (mux) uses encoder autonomy_ready = navigation_validated and scale > 0; it does not
+  require Drive PID.
+- Qualification tool: tools/drive/encoder_segment_check.py (read-only; wheel /yahboom/odom vs /lidar/icp_odom per
+  stop-to-stop segment). Owner remote drives, 18:40-19:00:
+  * forward 6/6 PASS (wheel 2.12 m vs LiDAR 2.26 m total; per segment 1-3 cm low), reverse 6/6 PASS
+    (~2.2 m; -0.40/-0.43, -0.44/-0.47, -0.61/-0.66 incl. +11/+7 deg, -0.41/-0.45, -0.24/-0.25, -0.11/-0.11).
+  * FAIL #13: 6-8 cm move while steering: consensus unavailable (M1, M2, M4 all rejected), wheel yaw -7 vs LiDAR +3.
+    Earlier run FAIL: reverse -0.61/-0.69 m with turn +8 vs -5 and CRITICAL (reason not captured then).
+  * Turn arcs (left/right ~90 deg moving) and the stopping test NOT done; owner stopped for today.
+- Open concern: with M3 excluded, consensus breaks during low-speed steering (left side has only M1); the mux would
+  stop autonomy on CRITICAL (fail-safe, but autonomy may be unusable in turns). Needs the arc tests next.
+- navigation_validated stays false. Wheel-odometry yaw sign in 4WS turns (known) seen again.
