@@ -125,6 +125,11 @@ def build(pairs, out, name):
     keys_all, cols_all, path = [], [], []
     acc = None
     stats = dict(depth=0, keyframes=0, no_pose=0, no_colour=0)
+    # 2026-11-14: ALIGN_INIT="x,y,yaw_deg" (with REFINE_MAP) places a recording made in ANOTHER map frame (a rejected
+    # session's SLAM) onto REFINE_MAP. The first scan is matched to the map from that guess (the start mark); every
+    # later successful refinement re-anchors the offset, so drift between the two frames never exceeds one step.
+    align_init = os.environ.get('ALIGN_INIT')
+    align = None                     # (dx, dy, dyaw): session pose -> REFINE_MAP pose
     for base_bag, astra_bag in pairs:
         t_from = 0.0
         if '@' in astra_bag:
@@ -157,16 +162,52 @@ def build(pairs, out, name):
             ct, cm = min(colours, key=lambda c: abs(c[0] - t_raw))
             if abs(ct - t_raw) > 0.12: stats['no_colour'] += 1; continue
             raw_key = (px, py, pyaw)
+            if align_init and mtree is not None:
+                if align is None:                          # first frame: match the scan at the start-mark guess
+                    gx, gy, gyaw = [float(v) for v in align_init.split(',')]; gyaw = math.radians(gyaw)
+                    k = int(np.argmin(np.abs(st - t))); sc = scans[k]
+                    P0 = scan_to_points(sc[1], sc[2], sc[3], -0.05, 0.0, math.pi, icfg)
+                    best = None
+                    for dyaw in np.radians(np.arange(-20, 21, 5)):        # coarse yaw search around the guess
+                        r = icp(P0, mpts, (gyaw + dyaw, gx, gy), IcpConfig(coarse_match_m=0.6, fine_match_m=0.10,
+                                                                            min_matches=30), mtree)
+                        if r and (best is None or r[3] > best[3]):
+                            best = r
+                    if best is None or best[3] < 0.6:
+                        raise SystemExit(f'ALIGN_INIT: start scan does not match the map (inliers {best and best[3]})')
+                    stats['align_start_inliers'] = round(best[3], 3)
+                    stats['align_start_pose'] = (round(best[1], 3), round(best[2], 3), round(math.degrees(best[0]), 1))
+                    align = (best[0] - pyaw, best[1], best[2], px, py)   # yaw offset, anchor map xy, anchor session xy
+                da, ax, ay, sx, sy = align
+                c0, s0 = math.cos(da), math.sin(da)
+                px, py, pyaw = ax + c0 * (px - sx) - s0 * (py - sy), ay + s0 * (px - sx) + c0 * (py - sy), pyaw + da
             if mtree is not None:          # refine the SLAM pose: this moment's LiDAR scan vs the 2D map
                 k = int(np.argmin(np.abs(st - t)))
+                if abs(st[k] - t) >= 0.08:
+                    stats['refine_no_scan'] = stats.get('refine_no_scan', 0) + 1
                 if abs(st[k] - t) < 0.08:
                     sc = scans[k]
                     P = scan_to_points(sc[1], sc[2], sc[3], -0.05, 0.0, math.pi, icfg)
                     r = icp(P, mpts, (pyaw, px, py), icfg, mtree)
+                    if r:   # 2026-11-14: icp() returns yaw in (-pi, pi]; pyaw is unwrapped. Compare and keep it unwrapped.
+                        dth = math.atan2(math.sin(r[0] - pyaw), math.cos(r[0] - pyaw))
+                        r = (pyaw + dth, r[1], r[2], r[3])
+                    why = ('icp_none' if not r else 'inliers' if r[3] <= 0.7 else
+                           'shift' if math.hypot(r[1] - px, r[2] - py) >= 0.4 else
+                           'yaw' if abs(r[0] - pyaw) >= math.radians(8) else None)
+                    if why:
+                        stats['fail_' + why] = stats.get('fail_' + why, 0) + 1
+                        if r and why == 'inliers':
+                            stats.setdefault('fail_inlier_values', []).append(round(r[3], 2))
                     if r and r[3] > 0.7 and math.hypot(r[1] - px, r[2] - py) < 0.4 and abs(r[0] - pyaw) < math.radians(8):
                         stats['refined'] = stats.get('refined', 0) + 1
-                        stats['shift_sum'] = stats.get('shift_sum', 0.0) + math.hypot(r[1] - px, r[2] - py)
+                        shift = math.hypot(r[1] - px, r[2] - py)
+                        stats['shift_sum'] = stats.get('shift_sum', 0.0) + shift
+                        stats['shift_max'] = max(stats.get('shift_max', 0.0), shift)
+                        stats.setdefault('inliers', []).append(r[3])
                         px, py, pyaw = r[1], r[2], r[0]
+                        if align is not None:                       # re-anchor: absorb drift between the frames
+                            align = (pyaw - raw_key[2], px, py, raw_key[0], raw_key[1])
                     else:
                         stats['refine_failed'] = stats.get('refine_failed', 0) + 1
             last_key = raw_key; stats['keyframes'] += 1; path.append((px, py))
@@ -200,6 +241,14 @@ def build(pairs, out, name):
     keep = cnt >= 3                                              # drop rarely-seen voxels (noise, people)
     P = (uniq[keep] + 0.5) * VOXEL; RGB = rgb[keep]
     k5 = np.unique(np.floor(P / 0.05).astype(np.int32), axis=0)
+    fv = stats.pop('fail_inlier_values', [])
+    if fv:
+        stats['fail_inliers_median'] = float(np.median(fv))
+    inl = stats.pop('inliers', [])
+    if inl:
+        stats['inliers_median'] = round(float(np.median(inl)), 3); stats['inliers_p10'] = round(float(np.percentile(inl, 10)), 3)
+    if stats.get('refined'):
+        stats['shift_mean'] = round(stats['shift_sum'] / stats['refined'], 3)
     print(f'stats {stats}; voxels {len(uniq)}, kept {keep.sum()}; sharpness: 5 cm cells occupied {len(k5)} (fewer = sharper)', flush=True)
     with open(f'{out}.ply', 'wb') as f:
         f.write((f'ply\nformat binary_little_endian 1.0\nelement vertex {len(P)}\nproperty float x\nproperty float y\n'

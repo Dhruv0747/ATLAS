@@ -1724,3 +1724,17 @@ NOT DONE (not small, or not allowed):
 - Conclusion: a 3D v2 can very likely be built WITHOUT a new colour drive: localize each recording's /scan against the accepted 2D map (scan-to-map, as build_colour_map.py already refines), then project colour+depth.
   - Not proven yet: needs an accepted map, or a dry run against the current accepted map (d12a1f).
   - Risk: furniture or layout changes since 13 Nov.
+
+2026-11-14 ~11:00 3D v2 DRY RUN from an old recording, no drive (owner: "Yes, dry run"). Offline at nice 15; nothing restarted.
+- tools/m3/build_colour_map.py gains ALIGN_INIT="x,y,yaw_deg" (used with REFINE_MAP). It places a recording made in another map frame (a rejected session's SLAM) onto REFINE_MAP: the first scan is matched at the start-mark guess (±20 deg search), and every later successful scan-to-map refinement re-anchors the frame offset.
+- FIXED a refinement bug: icp() returns yaw in (-pi, pi] while the trajectory yaw is unwrapped, so after a full turn every good match failed the 8 deg check (180 of 202 failures). This affected the first colour map (12 Nov) too.
+- Failure reasons are now counted.
+- Run: remap6_colour_20261113-134122 onto the current accepted map atlas_latest (d12a1f), ALIGN_INIT=0.2,-1.8,70:
+  - start match (0.170, -1.956, 78.9 deg), 85 % inliers;
+  - 340/341 keyframes refined (27 without a scan within 80 ms use the anchored prediction);
+  - inliers median 0.955, p10 0.902; correction mean 2.8 cm, max 23 cm;
+  - path covers room -> hall (x 6.45 m; hall place at 6.28) -> back, ending 5 cm from the start;
+  - 344,576 points (2 cm), 53,664 occupied 5 cm cells.
+  - Output maps3d/colour_v2_dryrun_remap6_20261114.{ply,json}; render docs/colour_3d_20261114/colour_v2_dryrun_render.png.
+- Conclusion: once remap 9 is accepted, 3D v2 can be built from the existing recordings (remap6, optionally + remap5b / remap3) without a colour drive.
+- Visual limits: depth is 160x120; colour/depth centres are assumed equal (v1 limitation); some doubled walls near the hall (x 6-7.5 m). Not yet investigated.
