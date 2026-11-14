@@ -55,9 +55,17 @@ class ScanSampleBuffer:
     session_id: Optional[str] = None
     samples: List[ScanSample] = field(default_factory=list)
     dropped: int = 0
+    lookup_failures: int = 0
+    first_lookup_error: Optional[str] = None
 
     def begin(self, session_id: str) -> None:
         self.session_id, self.samples, self.dropped = session_id, [], 0
+        self.lookup_failures, self.first_lookup_error = 0, None
+
+    def note_lookup_failure(self, error: str) -> None:
+        self.lookup_failures += 1
+        if self.first_lookup_error is None:
+            self.first_lookup_error = error[:200]
 
     def add(self, stamp, pose, ranges, angle_min, angle_increment) -> bool:
         if self.session_id is None:

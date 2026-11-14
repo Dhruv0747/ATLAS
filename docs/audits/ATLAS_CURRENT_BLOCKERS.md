@@ -1941,3 +1941,20 @@ Enabling needs the owner's OK plus a deploy with the rover parked and the E-STOP
 - 17:05 owner latched E-STOP; session 22776983 ended with end_restore (files in rejected_session_22776983, bag kept,
   81 MB). AMCL active, accepted map unchanged (atlas_latest.pgm 4beb26d5a999), dashboard localization check VERIFIED.
   The deferred-lookup sampler edit in the working tree is NOT committed/deployed (does not solve the TF lag).
+
+## 2026-11-14 17:10-17:20 — Mission-control TF lag FIXED and final-map sampler verified live (DEPLOYED, owner: "Yes, fix it")
+
+- Probe (batched main node + a SEPARATE tf node on its own SingleThreadedExecutor thread): 95/100 exact-stamp
+  map->base_link lookups ok (5 = startup), wait p50 0.05 s / max 2 s. (Same-node spin_thread=True variant did not help.)
+- atlas_mission_control.py: TransformListener now on node `atlas_mission_control_tf` with its own executor thread
+  (all mission-control TF lookups see current transforms, not the ~20 msg/s capped /tf). Sampler queues ~2 scans/s and
+  resolves the exact scan-stamp pose on a 0.25 s timer (give up after 3 s, counted as lookup_failures, first error
+  kept in the evidence). Logs "FINAL-MAP SAMPLES n=.. lookup_failures=.." every 30 s while sampling.
+- Tests: 51 focused pass (new: late-TF and never-TF cases, own-executor check); atlas_regression ALL PASS.
+- Deployed 17:11 (backups *.before-tffix-20261114), E-STOP latched by owner, mission control restart only.
+- Live parked test session 2a84f36b (no drive, 60 s): 228 samples, 228 matched, fit median 100 %, pose offset max
+  0.035 m / 0.2 deg, lookup_failures 2 (SLAM startup), evaluation 1.6 s -> final_map_consistency PASSED. Rejected only
+  for named places (expected). Session ended with end_restore; its 60 s parked test bag deleted (throwaway, no drive).
+  AMCL active, localization check VERIFIED, accepted map unchanged (4beb26d5a999).
+- Still open: other batched nodes that read /tf (localization monitor, lidar odom gate, safety status, sensor recovery)
+  have the same ~20 msg/s per-topic cap; not changed. Remap 13 must save "dhruv room" at start and "hall" in the hall.

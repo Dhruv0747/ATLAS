@@ -10,6 +10,7 @@ import subprocess
 import time
 import uuid
 from pathlib import Path
+import threading
 from threading import Lock
 from typing import Callable, Optional
 
@@ -31,7 +32,7 @@ from nav2_msgs.action import (
     NavigateToPose,
 )
 from rclpy.action import ActionClient
-from rclpy.executors import ExternalShutdownException
+from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
@@ -144,6 +145,7 @@ class AtlasMissionControl(Node):
         self.declare_parameter("map_acceptance_final_map_mode", False)
         self.final_map_mode = bool(self.get_parameter("map_acceptance_final_map_mode").value)
         self.final_map_samples = final_map.ScanSampleBuffer()
+        self.final_map_pending = deque()
         self.home_file = Path.home() / ".config/project_atlas/home_pose.json"
         self.localization_seed_file = (
             Path.home() / ".config/project_atlas/localization_seed_pose.json"
@@ -179,6 +181,8 @@ class AtlasMissionControl(Node):
         self.mapping_guard_stop_pub = self.create_publisher(Empty, "/atlas/mapping_guard/stop", 10)
         self.mapping_finishing = False   # set while stop_exploration runs (Nav2 start/map save load the CPU)
         self.create_timer(1.0, self.mapping_guard_tick)
+        if self.final_map_mode:
+            self.create_timer(0.25, self.resolve_final_map_samples)
         self.map_prefix.parent.mkdir(parents=True, exist_ok=True)
         self.explore_unit = str(self.get_parameter("explore_unit").value)
         self.home_verify_delay = float(
@@ -267,8 +271,16 @@ class AtlasMissionControl(Node):
             "record_atlas_demonstration.sh"
         )
 
+        # 2026-11-14 (remap 12): under the batched executor rclpy takes at most one message per subscription per
+        # 50 ms wait, so /tf (~30 Hz) reached this node's buffer seconds late. The TF listener now runs on its own
+        # small node and plain executor thread, so every TF lookup in mission control sees current transforms.
         self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_node = rclpy.create_node("atlas_mission_control_tf", context=self.context)
+        self.tf_listener = TransformListener(self.tf_buffer, self.tf_node)
+        self.tf_executor = SingleThreadedExecutor(context=self.context)
+        self.tf_executor.add_node(self.tf_node)
+        self.tf_thread = threading.Thread(target=self.spin_tf, name="atlas-mission-tf", daemon=True)
+        self.tf_thread.start()
         self.nav = ActionClient(self, NavigateToPose, "/navigate_to_pose")
         self.path_planner = ActionClient(
             self, ComputePathToPose, "/compute_path_to_pose"
@@ -573,6 +585,7 @@ class AtlasMissionControl(Node):
             )
         if self.final_map_mode:
             self.final_map_samples.begin(session["id"])
+            self.final_map_pending.clear()
 
     def start_mapping_recording(self, session_id: str) -> None:
         """Record the complete mapping run, including the SLAM startup boundary."""
@@ -944,28 +957,55 @@ class AtlasMissionControl(Node):
         if self.final_map_mode and self.final_map_samples.session_id is not None:
             self.sample_scan_for_final_map(msg)
 
+    FINAL_MAP_TF_WAIT_S = 0.0      # retry each tick until the transform for the scan stamp has arrived
+    FINAL_MAP_TF_GIVE_UP_S = 3.0
+
     def sample_scan_for_final_map(self, msg: LaserScan) -> None:
-        """Keep ~2 scans/s with SLAM's live map->base_link pose (read-only; for final-map consistency)."""
+        """Queue ~2 scans/s; their pose is resolved later at the exact scan stamp (read-only)."""
         stamp = float(msg.header.stamp.sec) + float(msg.header.stamp.nanosec) * 1e-9
+        last = (self.final_map_pending[-1][1] if self.final_map_pending
+                else self.final_map_samples.samples[-1].stamp if self.final_map_samples.samples else None)
+        if last is not None and stamp - last < self.final_map_samples.policy.sample_period_s:
+            return
+        self.final_map_pending.append((time.monotonic(), stamp, msg))
+
+    def resolve_final_map_samples(self) -> None:
+        """2026-11-14 fix: an immediate lookup at the scan stamp always failed (remap 12: 0 samples)."""
         buf = self.final_map_samples
-        if buf.samples and stamp - buf.samples[-1].stamp < buf.policy.sample_period_s:
-            return
-        try:
-            t = self.tf_buffer.lookup_transform("map", "base_link", msg.header.stamp)
-        except Exception:
-            return
-        q = t.transform.rotation
-        yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
-        buf.add(stamp, (t.transform.translation.x, t.transform.translation.y, yaw),
-                msg.ranges, msg.angle_min, msg.angle_increment)
+        now = time.monotonic()
+        while self.final_map_pending and now - self.final_map_pending[0][0] >= self.FINAL_MAP_TF_WAIT_S:
+            received, stamp, msg = self.final_map_pending[0]
+            if buf.session_id is None:
+                self.final_map_pending.clear()
+                return
+            try:
+                t = self.tf_buffer.lookup_transform("map", "base_link", msg.header.stamp)
+            except Exception as exc:
+                if now - received < self.FINAL_MAP_TF_GIVE_UP_S:
+                    return                      # TF not there yet: retry on the next tick
+                self.final_map_pending.popleft()
+                buf.note_lookup_failure(f"{type(exc).__name__}: {exc}")
+                continue
+            self.final_map_pending.popleft()
+            q = t.transform.rotation
+            yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+            buf.add(stamp, (t.transform.translation.x, t.transform.translation.y, yaw),
+                    msg.ranges, msg.angle_min, msg.angle_increment)
+        if buf.session_id is not None and now - getattr(self, "final_map_logged_at", 0.0) >= 30.0:
+            self.final_map_logged_at = now
+            self.get_logger().info(
+                f"FINAL-MAP SAMPLES n={len(buf.samples)} pending={len(self.final_map_pending)} "
+                f"lookup_failures={buf.lookup_failures} thinned={buf.dropped}")
 
     def final_map_consistency_evidence(self, candidate_yaml: Path, candidate_image: Path, session: dict) -> dict:
         """Stop sampling and match every sample to the exact candidate bytes (no motion, no publishing)."""
         buf = self.final_map_samples
         samples, sampled_session = list(buf.samples), buf.session_id
         buf.session_id = None
+        self.final_map_pending.clear()
+        diagnostics = {"lookup_failures": buf.lookup_failures, "first_lookup_error": buf.first_lookup_error}
         if sampled_session != session["id"]:
-            return {"session_id": sampled_session, "passed": False,
+            return {"session_id": sampled_session, "passed": False, **diagnostics,
                     "failures": ["scan samples belong to a different mapping session"]}
         try:
             laser_tf = self.tf_buffer.lookup_transform(
@@ -979,9 +1019,11 @@ class AtlasMissionControl(Node):
             evidence = final_map.evaluate(samples, occupied, laser, buf.policy, session_id=session["id"])
             evidence["evaluation_s"] = round(time.monotonic() - started, 2)
             evidence["thinned"] = buf.dropped
+            evidence.update(diagnostics)
             return evidence
         except Exception as exc:
-            return {"session_id": session["id"], "passed": False, "failures": [f"evaluation failed: {exc}"]}
+            return {"session_id": session["id"], "passed": False, **diagnostics,
+                    "failures": [f"evaluation failed: {exc}"]}
 
     def scan_fit_map_index(self) -> OccupiedIndex:
         yaml_path = self.map_prefix.with_suffix(".yaml")
@@ -2139,10 +2181,20 @@ class AtlasMissionControl(Node):
         )
         self.dispatch_home_goal(home, attempt + 1)
 
+    def spin_tf(self) -> None:
+        try:
+            self.tf_executor.spin()
+        except Exception:      # shutdown races (context invalid) must not print a crash; the node is stopping
+            pass
+
     def destroy_node(self):
         if rclpy.ok():
             self.zero_pub.publish(Twist())
         self.worker.shutdown(wait=False, cancel_futures=True)
+        tf_executor = getattr(self, "tf_executor", None)
+        if tf_executor is not None:
+            tf_executor.shutdown(timeout_sec=1)
+            self.tf_node.destroy_node()
         return super().destroy_node()
 
 
