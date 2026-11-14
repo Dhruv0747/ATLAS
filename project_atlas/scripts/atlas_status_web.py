@@ -622,6 +622,9 @@ class AtlasRosNode:
             n.create_subscription(String, "/atlas/encoder_health", lambda m: self._set("encoder_health", m.data), 10)
             n.create_subscription(String, "/atlas/drive_pid/diagnostics", lambda m: self._set("drive_pid", m.data), 10)
             n.create_subscription(LaserScan, "/scan", self._scan_cb, qos_profile_sensor_data)
+            # 2026-11-14: the Astra obstacle scan exactly as Nav2 sees it (domain 0, via the bridge).
+            n.create_subscription(LaserScan, "/astra/obstacle_scan",
+                                  lambda m: self._set("astra_nav2", {"beams": len(m.ranges)}), qos_profile_sensor_data)
             map_qos = QoSProfile(
                 depth=1,
                 reliability=ReliabilityPolicy.RELIABLE,

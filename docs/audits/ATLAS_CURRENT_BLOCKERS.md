@@ -2108,3 +2108,19 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
   Tomorrow: start atlas-astra-bridge-starter by hand when the owner releases the E-STOP (the 2 h wait ends ~23:15).
   Note: the 11-12 report's "systemd also restarts the bridge when the Astra unit restarts (BindsTo)" was wrong —
   BindsTo only stops it.
+
+## 2026-11-14 21:40 — Autonomy requires live camera obstacles (DEPLOYED, owner: "yes add it")
+
+- Mission control: parameter autonomy_require_camera_obstacles (default True). Subscribes /astra/obstacle_scan in
+  domain 0 (what Nav2's astra_layer receives). Start gate require_camera_obstacles() in dispatch_pose_goal,
+  dispatch_route_goal, return_home and the return-home retry: refuses when never received or older than 1.5 s
+  ("navigation blocked: camera obstacles OFF ..."). Watchdog (0.5 s timer): while an accepted named/home goal is active
+  and the scan is > 2.0 s stale, publish zero once and cancel all Nav2 goals ("NAVIGATION STOPPED: camera obstacles
+  lost"). Only ever refuses or stops.
+- Dashboard: status web records astra_nav2 from /astra/obstacle_scan (domain 0); the home "Depth camera" card now says
+  "Live · Nav2" only when that scan is < 2 s old, else "Nav2 OFF" (warn) with "Autonomous driving is blocked". Before,
+  it said "Live · Nav2" whenever the domain-77 picture was live, even with the bridge off (misleading).
+- Tests: test_camera_obstacle_gate (6) + focused suites: 29 pass on the Jetson. Deployed 21:35 (backups
+  *.before-cameragate-20261114; mission control + rover-status-web restarted, rover parked, nobody driving).
+  Live: param True; card shows "Nav2 OFF" (bridge off since 17:21 — correct). Not tested by sending a goal (no motion
+  from me); unit tests cover refuse/stop paths.

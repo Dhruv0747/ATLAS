@@ -235,6 +235,10 @@
     if (trackALive()) {
       depthImage(true);
       const i = ta.info, near = i.nearest_m != null ? ` · nearest ${fx(i.nearest_m, 2)} m` : '';
+      // 2026-11-14: "Nav2" only when the obstacle scan really reaches Nav2 (domain 0, via the Astra bridge).
+      const d = fresh(), r = d && d.ros, nav2Age = r ? ageOf(r, 'astra_nav2') : Infinity;
+      if (!(nav2Age < 2)) return setCard('cardDepth', { state: 'warn', pill: 'Nav2 OFF', main: 'On', unit: '',
+        sub: 'Camera works, but its obstacles are NOT reaching Nav2 (Astra bridge off). Autonomous driving is blocked until it is back.', age: '' });
       return setCard('cardDepth', { state: 'ok', pill: 'Live · Nav2', main: 'On', unit: '',
         sub: `Obstacle layer for Nav2 · red near, blue far (0.35-3 m), black = no reading · ${fx(i.valid_percent, 0)}% valid${near}`, age: '' });
     }

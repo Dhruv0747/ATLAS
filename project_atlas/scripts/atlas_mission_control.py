@@ -172,6 +172,22 @@ class AtlasMissionControl(Node):
         self.scan_fit_index = None
         self.create_subscription(
             LaserScan, "/scan", self.update_latest_scan, qos_profile_sensor_data)
+        # 2026-11-14 (owner): autonomy must never run without the Astra camera obstacles (Nav2 astra_layer).
+        # Start gate: refuse autonomous goals while /astra/obstacle_scan (bridged into domain 0) is stale.
+        # Watchdog: cancel active autonomous goals if it stays stale while driving. Only ever refuses or stops.
+        self.declare_parameter("autonomy_require_camera_obstacles", True)
+        self.declare_parameter("camera_obstacle_max_age_s", 1.5)
+        self.declare_parameter("camera_obstacle_lost_stop_s", 2.0)
+        self.require_camera_obstacles_enabled = bool(
+            self.get_parameter("autonomy_require_camera_obstacles").value)
+        self.camera_obstacle_max_age_s = float(self.get_parameter("camera_obstacle_max_age_s").value)
+        self.camera_obstacle_lost_stop_s = float(self.get_parameter("camera_obstacle_lost_stop_s").value)
+        self.camera_obstacle_received_at = None
+        self.autonomy_goals_active = 0
+        self.camera_lost_stop_sent = False
+        self.create_subscription(
+            LaserScan, "/astra/obstacle_scan", self.update_camera_obstacles, qos_profile_sensor_data)
+        self.create_timer(0.5, self.camera_obstacle_watchdog)
         # Wheel odometry snapshot: proves the rover stayed still while a manual
         # mapping session starts (before the acceptance observation window).
         self.latest_wheel_odom = None
@@ -954,6 +970,48 @@ class AtlasMissionControl(Node):
             raise RuntimeError(
                 f"{label} belongs to a different map; set it again on the current map"
             )
+
+    def update_camera_obstacles(self, _msg: LaserScan) -> None:
+        self.camera_obstacle_received_at = time.monotonic()
+
+    def camera_obstacle_age(self) -> Optional[float]:
+        if self.camera_obstacle_received_at is None:
+            return None
+        return time.monotonic() - self.camera_obstacle_received_at
+
+    def require_camera_obstacles(self) -> None:
+        """Refuse autonomous motion unless Nav2 is receiving fresh Astra camera obstacles."""
+        if not self.require_camera_obstacles_enabled:
+            return
+        age = self.camera_obstacle_age()
+        if age is None or age > self.camera_obstacle_max_age_s:
+            seen = "never received" if age is None else f"last {age:.1f}s ago"
+            raise RuntimeError(
+                f"navigation blocked: camera obstacles OFF (/astra/obstacle_scan {seen}; "
+                "Astra bridge not running?)")
+
+    def camera_obstacle_watchdog(self) -> None:
+        """While an autonomous goal is active, stop it if the camera obstacles stay stale."""
+        if not self.require_camera_obstacles_enabled or self.autonomy_goals_active <= 0:
+            self.camera_lost_stop_sent = False
+            return
+        age = self.camera_obstacle_age()
+        if age is not None and age <= self.camera_obstacle_lost_stop_s:
+            self.camera_lost_stop_sent = False
+            return
+        if self.camera_lost_stop_sent:
+            return
+        self.camera_lost_stop_sent = True
+        self.zero_pub.publish(Twist())
+        self.worker.submit(self.stop_for_camera_loss, age)
+
+    def stop_for_camera_loss(self, age) -> None:
+        self.zero_pub.publish(Twist())
+        acknowledged = self.cancel_all_nav_goals()
+        self.zero_pub.publish(Twist())
+        seen = "never received" if age is None else f"{age:.1f}s stale"
+        self.status(f"NAVIGATION STOPPED: camera obstacles lost ({seen}); "
+                    f"cancel {'acknowledged' if acknowledged else 'NOT acknowledged'}")
 
     def update_latest_scan(self, msg: LaserScan) -> None:
         self.latest_scan = msg
@@ -1806,6 +1864,7 @@ class AtlasMissionControl(Node):
         self.refresh_localization_before_motion()
         self.require_known_saved_map_start()
         self.require_scan_map_agreement()
+        self.require_camera_obstacles()
         self.center_camera_for_navigation()
         if not self.nav_through.wait_for_server(timeout_sec=10.0):
             raise RuntimeError("Nav2 NavigateThroughPoses action is unavailable")
@@ -1836,6 +1895,7 @@ class AtlasMissionControl(Node):
         self.refresh_localization_before_motion()
         self.require_known_saved_map_start()
         self.require_scan_map_agreement()
+        self.require_camera_obstacles()
         # Nav2 semantic fusion assumes the optical axis stays aligned with the
         # calibrated forward camera/LiDAR geometry. Person-follow mode may
         # move the camera, so pause tracking only for the duration of a goal.
@@ -1874,6 +1934,7 @@ class AtlasMissionControl(Node):
                 self.status(f"NAMED GOAL REJECTED name={label}")
                 return
             self.status(f"NAMED GOAL ACCEPTED name={label}")
+            self.autonomy_goals_active += 1
             result = handle.get_result_async()
             result.add_done_callback(lambda done: self.named_goal_finished(done, label))
         except Exception as exc:
@@ -1884,6 +1945,7 @@ class AtlasMissionControl(Node):
         try:
             self.status(f"NAMED GOAL FINISHED name={label} status={future.result().status}")
         finally:
+            self.autonomy_goals_active = max(0, self.autonomy_goals_active - 1)
             self.restore_goal_tracker()
 
     def restore_goal_tracker(self) -> None:
@@ -2096,6 +2158,7 @@ class AtlasMissionControl(Node):
         self.refresh_localization_before_motion()
         self.require_known_saved_map_start()
         self.require_scan_map_agreement()
+        self.require_camera_obstacles()
         if not self.nav.wait_for_server(timeout_sec=10.0):
             raise RuntimeError("Nav2 NavigateToPose action is unavailable")
         pose = json.loads(self.home_file.read_text(encoding="utf-8"))
@@ -2148,6 +2211,7 @@ class AtlasMissionControl(Node):
                 self.status("RETURN HOME REJECTED")
                 return
             self.status("RETURN HOME ACCEPTED")
+            self.autonomy_goals_active += 1
             result = handle.get_result_async()
             result.add_done_callback(
                 lambda done: self.home_goal_result(done, pose, attempt)
@@ -2156,6 +2220,7 @@ class AtlasMissionControl(Node):
             self.error("return-home action", exc)
 
     def home_goal_result(self, future, pose, attempt: int) -> None:
+        self.autonomy_goals_active = max(0, self.autonomy_goals_active - 1)
         try:
             status = future.result().status
             self.status(f"RETURN HOME FINISHED status={status}")
@@ -2192,6 +2257,12 @@ class AtlasMissionControl(Node):
         if attempt >= self.home_max_retries:
             self.status(f"RETURN HOME INACCURATE error={error:.2f}m; STOPPED")
             self.zero_pub.publish(Twist())
+            return
+        try:
+            self.require_camera_obstacles()
+        except RuntimeError as exc:
+            self.zero_pub.publish(Twist())
+            self.status(f"RETURN HOME RETRY BLOCKED error={error:.2f}m; {exc}")
             return
         self.status(
             f"RETURN HOME RETRY error={error:.2f}m attempt={attempt + 2}"
