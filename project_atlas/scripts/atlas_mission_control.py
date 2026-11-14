@@ -50,6 +50,7 @@ from atlas_map_acceptance_core import (
     evaluate_acceptance_evidence,
     exact_candidate_connectivity,
     map_pair_id,
+    merge_session_places,
     polygon_dimensions,
     prepare_map_bound_metadata_values,
     transactionally_promote_map_pair,
@@ -151,6 +152,9 @@ class AtlasMissionControl(Node):
             Path.home() / ".config/project_atlas/localization_seed_pose.json"
         )
         self.places_file = Path.home() / ".config/project_atlas/named_places.json"
+        # 2026-11-14: places saved during a mapping session (candidate frame) are kept here until that candidate is
+        # accepted; a rejected session no longer overwrites the accepted map's places.
+        self.session_places_file = Path.home() / ".config/project_atlas/mapping_session_places.json"
         self.taught_routes_dir = Path("/home/jetson/project_atlas/config/routes")
         self.map_prefix = Path(str(self.get_parameter("map_prefix").value))
         self.mapping_light = str(self.get_parameter("mapping_profile").value).strip().lower() == "light"
@@ -1113,7 +1117,9 @@ class AtlasMissionControl(Node):
 
         home = json.loads(self.home_file.read_text(encoding="utf-8"))
         seed = json.loads(self.localization_seed_file.read_text(encoding="utf-8"))
-        places = json.loads(self.places_file.read_text(encoding="utf-8"))
+        places = merge_session_places(
+            json.loads(self.places_file.read_text(encoding="utf-8")),
+            self.load_session_places(), session["id"])
         prepared_home, prepared_seed, prepared_places = (
             prepare_map_bound_metadata_values(
                 home=home,
@@ -1248,7 +1254,7 @@ class AtlasMissionControl(Node):
             "inflation_radius_m": self.map_acceptance_policy.min_candidate_clearance_m,
         }
         try:
-            places = self.load_named_places()
+            places = merge_session_places(self.load_named_places(), self.load_session_places(), session["id"])
             start_pose = places[self.map_acceptance_start_place]
             goal_pose = places[self.map_acceptance_goal_place]
             for name, pose in (
@@ -1668,6 +1674,13 @@ class AtlasMissionControl(Node):
         except (OSError, ValueError):
             return {}
 
+    def load_session_places(self) -> dict:
+        try:
+            data = json.loads(self.session_places_file.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
     def save_named_place(self, name: str) -> None:
         pose = self.current_pose()
         if pose.get("frame_id") != "map":
@@ -1680,14 +1693,18 @@ class AtlasMissionControl(Node):
             # previously accepted map. Defer binding until that candidate is
             # validated and atomically promoted by accept_saved_map().
             pose["mapping_session_id"] = session["id"]
+            target = self.session_places_file
+            places = {k: v for k, v in self.load_session_places().items()
+                      if isinstance(v, dict) and v.get("mapping_session_id") == session["id"]}
         else:
             pose["map_id"] = self.current_map_id()
-        places = self.load_named_places()
+            target = self.places_file
+            places = self.load_named_places()
         places[name] = pose
-        self.places_file.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.places_file.with_suffix(".tmp")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_suffix(".tmp")
         temporary.write_text(json.dumps(places, indent=2, sort_keys=True), encoding="utf-8")
-        temporary.replace(self.places_file)
+        temporary.replace(target)
         self.status(f"PLACE SAVED name={name} frame={pose['frame_id']} x={pose['x']:.2f} y={pose['y']:.2f}")
 
     def navigate_named_place(self, name: str) -> None:

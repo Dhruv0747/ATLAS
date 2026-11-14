@@ -563,6 +563,21 @@ def exact_candidate_connectivity(
     }
 
 
+def merge_session_places(accepted: Any, session_places: Any, session_id: str) -> Dict[str, Any]:
+    """Accepted-map places overlaid with the places saved in THIS mapping session (2026-11-14).
+
+    In-session saves live in a separate file so a rejected session can never overwrite the accepted map's places
+    (remaps 9-13 did). Entries from any other session are ignored; non-dict accepted entries (e.g. map_id) are kept.
+    """
+
+    merged: Dict[str, Any] = dict(accepted) if isinstance(accepted, dict) else {}
+    if isinstance(session_places, dict):
+        for name, pose in session_places.items():
+            if isinstance(pose, dict) and pose.get("mapping_session_id") == session_id:
+                merged[name] = dict(pose)
+    return merged
+
+
 def prepare_map_bound_metadata_values(
     *,
     home: Any,

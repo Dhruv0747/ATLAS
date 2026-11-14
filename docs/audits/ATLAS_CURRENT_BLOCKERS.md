@@ -1996,3 +1996,16 @@ Enabling needs the owner's OK plus a deploy with the rover parked and the E-STOP
   remap 11's coordinates happened to be clear. No backup holds verified accepted-map places. Navigation to places is
   blocked anyway (navigation_validated false). An accepted remap 14 rewrites the places correctly. Code fix proposal:
   keep in-session places in the session (or back up and restore on rejection). Not changed.
+
+## 2026-11-14 17:50 — In-session places no longer overwrite accepted-map places (DEPLOYED, owner: "Yes, fix it")
+
+- save_named_place during a mapping session now writes ~/.config/project_atlas/mapping_session_places.json (entries of
+  other sessions dropped). The acceptance check and promotion use merge_session_places(accepted, session, id); on
+  acceptance the session places are bound to the new map id and written into named_places.json in the same
+  transaction as before. A rejected session leaves named_places.json untouched. Outside a session, unchanged.
+- Tests: test_session_places (5, incl. routing and promotion binding); 57 focused pass; regression unit PASS.
+- Deployed 17:50 (backups *.before-sessionplaces-20261114, named_places.json also backed up), mission control restart
+  only. end_restore.sh (scratch) now moves mapping_session_places.json into rejected_session_<id>/.
+- old_map regression still FAILS: named_places.json still holds remap-13 coordinates for "dhruv room"/"hall"
+  (session 21ed0671, no map_id; navigation fails closed on them). No verified accepted-map places exist to restore;
+  an accepted remap 14 binds correct ones. Left as is deliberately.
