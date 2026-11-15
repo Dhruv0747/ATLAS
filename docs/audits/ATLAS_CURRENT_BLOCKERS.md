@@ -2607,3 +2607,26 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
   Live checklist: mux, encoders, E-STOP, localization, camera, waypoints all OK; ONLY blocker = speed ("run the Speed
   check at 0.10 and 0.15 m/s"); the ground check tool is not yet installed on the rover (speed-loop session).
   Mux arm_blockers now read the same message.
+
+## 2026-11-15 ~17:00 — Speed loop takeover (main session): fixes deployed, ground check still FAIL (ultrasonic backlog)
+
+- Deployed (parked, E-STOP latched): atlas_speed_loop.py (breakaway needs window speed >= 0.03 m/s for 2 ticks;
+  ff 44, release_drop 6), tool evaluates against the base-reported target + peak after 1.5 s + runaway floor 0.35,
+  gate = 2 PASS at requested 0.15 (atlas_autonomy_arm), readiness texts; mux ATLAS_SPEED_LOOP_CLOSED=1 (drop-in 47)
+  keeps the full command while DEGRADED (CRITICAL still stops). Backups *.before-speedfix-/before-speedclosed-20261115.
+- Runs: at half speed (0.06) the rover rolled 0.37 / 0.6 / ~0.4 m with mean 0.052-0.062 but stop-go peaks
+  0.20-0.22 (FAIL). At full speed (16:58, base target 0.12) it rolled smoothly 0.2 m (0.17 -> 0.10 m/s) until the mux
+  aborted the commission lease: "AUTONOMY BLOCKED: FRONT ULTRASONIC SERIAL_BACKLOG" (FAIL, STATUS_STALE).
+- OPEN: the ultrasonic bridge's intermittent SERIAL_BACKLOG invalidation aborts every commission/autonomy run within
+  seconds; fix that next (bridge should publish the newest complete report instead of invalidating, or the mux
+  should tolerate one short invalid sample), then rerun 2 x Speed check. Base target 0.12 vs 0.15 also unexplained.
+- 2026-11-15 ~17:10 Speed check PASS x2 (owner-run from the dashboard, after the full-speed mux change): requested
+  0.15, base target 0.12; run A mean 0.116 / peak 0.183 / DISTANCE; run B mean 0.096 / peak 0.148 / DISTANCE.
+  speed_evidence ok -> mux arm_blockers empty, Readiness "ready_to_switch_on" true (self-service unlock worked).
+  Two other runs ended STOP_RUNAWAY: breakaway this time needed PWM ~66-69 and the rover surged 0.31 m/s at release
+  (> 0.35 floor for 2 samples) — guard stopped it as designed; breakaway PWM varies run to run (floor/battery).
+  Base target 0.12 instead of 0.15 still unexplained (mux radar/limit factor suspected).
+- ~17:15 DEPLOYED owner request "front/back ultrasonic only for close range": atlas_ultrasonic_validity veto returns
+  no block for a missing/backlogged report when ATLAS_ULTRASONIC_ADVISORY=1 (drop-in 48); a VALID close reading
+  still blocks. Backup *.before-advisory-20261115. Mux restarted parked + latched. Localization needs a fresh
+  "Check my location" before the first autonomous goal.

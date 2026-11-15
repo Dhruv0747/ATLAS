@@ -972,6 +972,12 @@ class AtlasCmdVelMux(Node):
             scale = max(0.0, min(0.5, float(
                 self.encoder_health.get('scale', 0.5)
             )))
+            # 2026-11-15 (owner: "you do the test", option 1): with the base's closed-loop speed control the
+            # commanded speed IS the measured wheel speed, so halving it only pushed Nav2's 0.15 m/s below the
+            # rover's steady crawl (stop-go surges to 0.2 m/s). ATLAS_SPEED_LOOP_CLOSED=1 keeps the full command
+            # while DEGRADED; a zero scale (CRITICAL / not autonomy-ready) still stops.
+            if scale > 0.0 and os.environ.get('ATLAS_SPEED_LOOP_CLOSED', '0') == '1':
+                scale = 1.0
             command.linear.x *= scale
             command.angular.z *= scale
             faults = ','.join(self.encoder_health.get('faults', []))

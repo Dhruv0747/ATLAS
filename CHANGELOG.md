@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-15 (late night) — DEPLOYED closed-loop speed control with 3 encoders (atlas_speed_loop in yahboom_base, config/speed_loop.yaml enabled; breakaway needs real window motion, ff 44 PWM) and ground-validated from the dashboard: Speed check PASS x2 (requested 0.15, mean 0.116 / 0.096 m/s, peak 0.183 / 0.148). The mux keeps the full command while DEGRADED when the speed loop is closed (drop-in 47) and treats front/rear ultrasonic data loss as advisory (drop-in 48; a valid close reading still blocks). Autonomous mode unlocked by itself via the Readiness gate.
+
 2026-11-15 (night) — DEPLOYED self-service Autonomy Readiness: /v2/readiness lists every blocker with its live reason, Hindi fix steps and a button to the matching test; the Speed check (owner-run, PIN) unlocks Autonomous mode by itself once 0.10 and 0.15 m/s both PASS (evidence newer than the speed-loop config/code). No override for safety items (owner decision). Live: only the speed check remains; its tool is installed by the speed-loop work.
 
 2026-11-15 (evening 2) — DEPLOYED: map tap "Move here" (mission control /atlas/navigate_to_point, same spot checks and navigation gates; web go_at), obstacle detour tree config/atlas_ackermann_replan_if_blocked.xml (replans once per second when the committed path becomes blocked; passed per goal, not yet ground-tested), spoken Hindi stop/replan reasons (atlas-autonomy-voice, listen-only narrator -> voice companion), and a Manual / Autonomous mode switch on the home panel and map card. Autonomous mode stays blocked by the speed gate.

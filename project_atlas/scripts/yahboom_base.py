@@ -44,6 +44,12 @@ from atlas_encoder_selection import (
 )
 from atlas_encoder_calibration import load_encoder_calibration
 from atlas_closed_loop_control import AtlasClosedLoopController, load_drive_config
+try:  # 2026-11-15 closed-loop autonomous speed (3 encoders); see config/speed_loop.yaml
+    from atlas_speed_loop import SpeedFeedback, load_speed_loop_config, turn_split
+    _SPEED_LOOP_IMPORT_ERROR = ''
+except Exception as _exc:  # pragma: no cover - non-REMOTE traction fails closed, REMOTE unaffected
+    SpeedFeedback = load_speed_loop_config = turn_split = None
+    _SPEED_LOOP_IMPORT_ERROR = f'module_unavailable:{_exc}'
 from atlas_drive_pid_lifted import (
     MAX_BMS_AGE_S,
     MAX_BMS_CELL_SPREAD_V,
@@ -222,6 +228,11 @@ DRIVE_PID_CONFIG = Path(os.environ.get(
     'ATLAS_DRIVE_PID_CONFIG',
     '/home/jetson/project_atlas/config/drive_pid.yaml',
 ))
+SPEED_LOOP_CONFIG = Path(os.environ.get(
+    'ATLAS_SPEED_LOOP_CONFIG',
+    str(Path(__file__).resolve().parents[1] / 'config' / 'speed_loop.yaml'),
+))
+SPEED_LOOP_STATUS_IDLE_PERIOD_S = 1.0
 ENCODER_CALIBRATION_CONFIG = Path(os.environ.get(
     'ATLAS_ENCODER_CALIBRATION_CONFIG',
     str(Path(__file__).resolve().parents[1] / 'config' / 'encoder_calibration.yaml'),
@@ -407,6 +418,7 @@ class YahboomBase(Node):
             self._drive_pid_config = None
             self._drive_pid = None
             self._drive_pid_error = f'configuration_error:{exc}'
+        self._init_speed_loop()
 
         # This source-only commissioning interface is deliberately off after
         # install/restart.  Enabling it grants only short raw, single-channel
@@ -504,6 +516,9 @@ class YahboomBase(Node):
         )
         self._pub_drive_pid = self.create_publisher(
             String, '/atlas/drive_pid/diagnostics', 10
+        )
+        self._pub_speed_loop = self.create_publisher(
+            String, '/atlas/speed_loop', 10
         )
         lifted_status_qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
@@ -1431,7 +1446,18 @@ class YahboomBase(Node):
         # combined forward/reverse + steering nearly unusable.  Keep a bounded
         # breakaway-speed crawl while the operator holds both sticks, allowing
         # the wheels and steering servos to move simultaneously.
-        if pwm and steering_error > 8 and self._drive_source == 'REMOTE':
+        speed_loop_owned = (
+            self._speed_loop_enabled and self._drive_source != 'REMOTE'
+        )
+        if self._speed_loop_enabled and not speed_loop_owned:
+            self._speed_loop_idle()
+        if speed_loop_owned:
+            # Closed-loop autonomous speed replaces the open-loop 60-PWM floor.
+            # A misaligned steering target is a zero speed target (same gate).
+            self._applied_pwm = self._slew_motor_pwm(
+                self._speed_loop_pwm(vx, steering_error <= 8)
+            )
+        elif pwm and steering_error > 8 and self._drive_source == 'REMOTE':
             sign = 1 if pwm > 0 else -1
             self._applied_pwm = self._slew_motor_pwm(sign * MIN_RUN_PWM)
         elif pwm and steering_error > 8:
@@ -1444,8 +1470,11 @@ class YahboomBase(Node):
         left_pwm = self._applied_pwm
         if self._applied_pwm and abs(wz) > 0.02:
             magnitude = abs(self._applied_pwm)
-            inside = max(MIN_RUN_PWM, magnitude - TURN_PWM_BIAS)
-            outside = min(MAX_PWM, magnitude + TURN_PWM_BIAS)
+            if speed_loop_owned:
+                inside, outside = turn_split(magnitude, TURN_PWM_BIAS, MAX_PWM)
+            else:
+                inside = max(MIN_RUN_PWM, magnitude - TURN_PWM_BIAS)
+                outside = min(MAX_PWM, magnitude + TURN_PWM_BIAS)
             sign = 1 if self._applied_pwm > 0 else -1
             # Curvature is wz/vx.  Reverse motion swaps which side follows the
             # inside arc even when the requested yaw-rate sign is unchanged.
@@ -1457,6 +1486,72 @@ class YahboomBase(Node):
         self._pub_front_steer.publish(Float32(data=float(self._front_applied_angle)))
         self._pub_rear_steer.publish(Float32(data=float(self._rear_applied_angle)))
         self._pub_steer_mode.publish(String(data='four_wheel_opposite'))
+
+    def _init_speed_loop(self):
+        """Load config/speed_loop.yaml. Disabled/missing keeps the legacy map;
+        enabled-but-broken fails closed for every non-REMOTE source."""
+        self._speed_loop = None
+        self._speed_feedback = None
+        self._speed_loop_error = ''
+        self._speed_loop_status_t = float('-inf')
+        if _SPEED_LOOP_IMPORT_ERROR:
+            self._speed_loop_enabled = True
+            self._speed_loop_error = _SPEED_LOOP_IMPORT_ERROR
+        else:
+            enabled, loop, error = load_speed_loop_config(SPEED_LOOP_CONFIG)
+            self._speed_loop_enabled = bool(enabled)
+            self._speed_loop = loop
+            self._speed_loop_error = error
+            if enabled:
+                self._speed_feedback = SpeedFeedback()
+        if self._speed_loop_enabled:
+            state = 'FAIL CLOSED: ' + self._speed_loop_error if self._speed_loop is None else 'ENABLED'
+            self.get_logger().warning(f'closed-loop autonomous speed {state}')
+
+    def _speed_loop_idle(self):
+        """REMOTE owns traction: discard feedback so no stale distance carries over."""
+        if self._speed_feedback is not None:
+            self._speed_feedback.take(time.monotonic())
+        if self._speed_loop is not None:
+            self._speed_loop.reset()
+
+    def _speed_loop_pwm(self, vx, steering_aligned):
+        """Signed PWM for a non-REMOTE command from measured 3-encoder speed."""
+        now = time.monotonic()
+        loop = self._speed_loop
+        if loop is None or self._speed_feedback is None:
+            pwm, reason, measured = 0, f'fail_closed:{self._speed_loop_error}', None
+        else:
+            delta, dt, ok, has_sample = self._speed_feedback.take(now)
+            target = float(vx) if steering_aligned else 0.0
+            last = loop.last_output
+            if not has_sample:
+                # timer jitter: no new odometry sample this tick but the last one
+                # is fresh. Hold, unless the command now asks for zero/reverse.
+                if abs(target) <= 0.02 or (last and (last > 0) != (target > 0)):
+                    loop.reset()
+                    pwm, reason = 0, 'zero/reverse while holding'
+                else:
+                    pwm, reason = last, 'hold (no new encoder sample)'
+            else:
+                pwm = loop.update(target, delta, dt, ok)
+                reason = loop.last_reason
+            if not steering_aligned and abs(float(vx)) > 0.02:
+                reason = 'steering alignment wait'
+            measured = loop.measured_speed()
+        active = abs(float(vx)) > 0.02 or pwm != 0
+        if active or now - self._speed_loop_status_t >= SPEED_LOOP_STATUS_IDLE_PERIOD_S:
+            self._speed_loop_status_t = now
+            self._pub_speed_loop.publish(String(data=json.dumps({
+                'schema': 1, 't': round(now, 3), 'source': self._drive_source,
+                'target_mps': round(float(vx), 3),
+                'measured_mps': None if measured is None else round(measured, 3),
+                'pwm': int(pwm), 'applied_pwm_prev': int(self._applied_pwm),
+                'reason': reason,
+                'rolling': bool(loop.rolling) if loop is not None else False,
+                'learned_start_pwm': None if loop is None else loop.learned_start_pwm,
+            }, separators=(',', ':'))))
+        return int(pwm)
 
     def _closed_loop_update(self, vx, wz, steering_aligned):
         """Return a result only when PID owns output; otherwise legacy remains owner."""
@@ -1938,6 +2033,12 @@ class YahboomBase(Node):
             self._wheel_distance_m, valid_indexes, path_scales
         )
         accepted_indexes = list(self._encoder_delta_estimator.last_accepted)
+        if self._speed_loop_enabled and self._speed_feedback is not None:
+            self._speed_feedback.feed(
+                distance_delta,
+                self._encoder_packet_fresh and len(accepted_indexes) >= 2,
+                now,
+            )
         self._dynamic_encoder_rejected = set(
             self._encoder_delta_estimator.last_rejected
         )

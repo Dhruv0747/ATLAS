@@ -33,13 +33,12 @@ pre{white-space:pre-wrap;word-break:break-word;background:#020a12;border:1px sol
   <ol>
    <li>Rover को खुली जगह रखें: आगे कम से कम 1.5 m खाली, 0.6 m के अंदर कुछ न हो। कोई आगे न खड़ा हो।</li>
    <li>Mode: <b>Manual</b> रखें। Remote हाथ में, sticks बीच में, फिर E-STOP छोड़ें (LB दबाकर छोड़ें)।</li>
-   <li>PIN डालें और <b>0.10</b> दबाएँ। Rover धीरे चलेगा और खुद रुकेगा। गड़बड़ लगे तो तुरंत <b>B</b>।</li>
-   <li>Rover वापस लाकर <b>0.15</b> करें। दोनों PASS = Speed वाली रुकावट अपने आप हट जाएगी।</li>
+   <li>PIN डालें और <b>Speed check</b> दबाएँ। Rover धीरे (~0.075 m/s) चलेगा और खुद रुकेगा। गड़बड़ लगे तो तुरंत <b>B</b>।</li>
+   <li>Rover वापस लाकर एक बार और करें। <b>2 PASS</b> = Speed वाली रुकावट अपने आप हट जाएगी।</li>
   </ol>
   <div class="speedRow">
    <input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN" aria-label="Operator PIN">
-   <button id="s010" type="button">Speed check 0.10 m/s</button>
-   <button id="s015" type="button">Speed check 0.15 m/s</button>
+   <button id="s015" type="button">Speed check (Nav2 speed 0.15 m/s)</button>
   </div>
   <div id="speedState" class="unlock"></div>
   <div class="res" id="results"></div>

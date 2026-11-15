@@ -22,7 +22,8 @@ STATE_DIR = Path.home() / '.local/state/project_atlas'
 SPEED_LOOP_CFG = Path(__file__).resolve().parents[1] / 'config' / 'speed_loop.yaml'
 SPEED_LOOP_CODE = (Path(__file__).resolve().parent / 'atlas_speed_loop.py',
                    Path(__file__).resolve().parent / 'yahboom_base.py')
-SPEED_TARGETS = (0.10, 0.15)
+SPEED_TARGETS = (0.15,)      # requested speed = Nav2 desired_linear_vel (mux scales it to 0.075 while DEGRADED)
+REQUIRED_PASSES = 2          # 2026-11-15: two independent PASS runs (0.05 m/s after scaling is below the crawl floor)
 EVIDENCE_MAX_AGE_S = 30 * 86400
 
 
@@ -45,7 +46,7 @@ def speed_evidence(state_dir=STATE_DIR, cfg=SPEED_LOOP_CFG, code=SPEED_LOOP_CODE
         try:
             r = json.loads(f.read_text(encoding='utf-8'))
             mtime = f.stat().st_mtime
-            target = float(r.get('target_mps'))
+            target = float(r.get('requested_mps', r.get('target_mps')))
         except (OSError, ValueError, TypeError):
             continue
         for t in SPEED_TARGETS:
@@ -55,9 +56,10 @@ def speed_evidence(state_dir=STATE_DIR, cfg=SPEED_LOOP_CFG, code=SPEED_LOOP_CODE
                                     'steady_mean_mps': r.get('steady_mean_mps'), 'peak_mps': r.get('peak_mps'),
                                     'end_reason': r.get('end_reason'),
                                     'failed_checks': [k for k, v in (r.get('checks') or {}).items() if not v]}
-                if fresh and r.get('verdict') == 'PASS' and t not in out['passed']:
+                if fresh and r.get('verdict') == 'PASS':
                     out['passed'].append(t)
-    out['missing'] = [t for t in SPEED_TARGETS if t not in out['passed']]
+    out['missing'] = [t for t in SPEED_TARGETS if out['passed'].count(t) < REQUIRED_PASSES]
+    out['passes_needed'] = REQUIRED_PASSES
     out['ok'] = out['enabled'] and not out['missing']
     return out
 
@@ -85,7 +87,9 @@ def read_gate(path=GATE_FILE, evidence=None):
         elif not ev.get('enabled'):
             out['note'] = 'speed loop not enabled'
         else:
-            out['note'] = 'run the Speed check at ' + ' and '.join(f'{t:.2f}' for t in ev.get('missing', [])) + ' m/s'
+            have = len([t for t in ev.get('passed', []) if t in ev.get('missing', [])])
+            out['note'] = ('run the Speed check at ' + ' and '.join(f'{t:.2f}' for t in ev.get('missing', []))
+                           + f' m/s ({have}/{REQUIRED_PASSES} PASS)')
     return out
 
 

@@ -33,7 +33,7 @@ class ReadinessTests(unittest.TestCase):
     def test_speed_blocker_explains_and_links(self):
         r = run(speed_ev=EV_MISS, gate={'speed_validated': False})
         s = item(r, 'speed')
-        self.assertFalse(s['ok']); self.assertIn('0.15', s['why']); self.assertIn('FAIL', s['why'])
+        self.assertFalse(s['ok']); self.assertIn('0.15', s['why']); self.assertIn('FAIL', s['why']); self.assertIn('0/', s['why'])
         self.assertEqual(s['action']['href'], '/v2/readiness#speed')
         self.assertTrue(s['steps']); self.assertFalse(r['ready_to_switch_on'])
 

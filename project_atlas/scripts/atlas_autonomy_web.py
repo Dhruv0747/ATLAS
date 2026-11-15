@@ -268,7 +268,8 @@ def _latest_speed_results(n=4):
     for f in sorted(STATE_DIR.glob('speed_loop_check_*.json'))[-n:]:
         try:
             r = json.loads(f.read_text(encoding='utf-8'))
-            out.append({'file': f.name, 'target_mps': r.get('target_mps'), 'verdict': r.get('verdict'),
+            out.append({'file': f.name, 'target_mps': r.get('target_mps'), 'requested_mps': r.get('requested_mps'),
+                        'verdict': r.get('verdict'),
                         'steady_mean_mps': r.get('steady_mean_mps'), 'peak_mps': r.get('peak_mps'),
                         'end_reason': r.get('end_reason'),
                         'failed_checks': [k for k, v in (r.get('checks') or {}).items() if not v]})
@@ -303,6 +304,7 @@ def readiness(ros):
     out = atlas_readiness.checklist(pol, enc, enc_age, loc, loc_age, astra_age, bridge, ev, gate, len(plist),
                                     speedcheck_running())
     out['speed'] = {'enabled': ev.get('enabled'), 'passed': ev.get('passed'), 'missing': ev.get('missing'),
+                    'passes_needed': ev.get('passes_needed'),
                     'tool_installed': GROUND_CHECK.is_file(), 'results': _latest_speed_results()}
     out['mode'] = 'AUTONOMOUS' if ((pol or {}).get('autonomy') or {}).get('armed') else 'MANUAL'
     return out
@@ -352,7 +354,8 @@ def start_speedcheck(ros, speed, pin):
                                         env=dict(os.environ, PYTHONUNBUFFERED='1'))
         _RUN['speed'], _RUN['started'] = speed, time.time()
     ros.estop_log.write('speedcheck_start', speed=speed)
-    return 202, f'speed check {speed:.2f} m/s started: rover moves ~0.6 m forward slowly. B on the remote stops it.'
+    return 202, (f'speed check started (requested {speed:.2f} m/s; the rover gets the mux-scaled speed): it moves '
+                 '~0.6 m forward slowly and stops. B on the remote stops it.')
 
 
 def serve_readiness(handler, ros, post=False):

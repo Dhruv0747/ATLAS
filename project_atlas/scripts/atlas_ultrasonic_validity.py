@@ -5,6 +5,7 @@ host_monotonic_s is meaningful ONLY to consumers on the same Jetson boot.
 This is sample validity, not physical qualification or a PATH CLEAR guarantee.
 """
 import math
+import os
 
 SIDES = ('front', 'left', 'right', 'rear')
 CODES = ('F', 'L', 'R', 'B')
@@ -148,6 +149,11 @@ class ValidityWindow:
         if required:
             distance, state = self.reading(required, now)
             if state != 'VALID':
+                # 2026-11-15 owner: front/rear ultrasonic are a CLOSE-RANGE backup only ("not too much reliance").
+                # With ATLAS_ULTRASONIC_ADVISORY=1 a missing/backlogged report no longer blocks (LiDAR availability,
+                # costmaps and the camera gate stay in force); a VALID close reading still blocks below.
+                if os.environ.get('ATLAS_ULTRASONIC_ADVISORY', '0') == '1':
+                    return None
                 return f'AUTONOMY BLOCKED: {required.upper()} ULTRASONIC {state}'
             limit = front_stop if required == 'front' else rear_stop
             if distance <= limit:

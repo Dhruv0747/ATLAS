@@ -24,12 +24,12 @@
     }).join('');
     const sp = d.speed || {};
     const running = d.speed_check_running;
-    $('s010').disabled = $('s015').disabled = running || !sp.enabled || !sp.tool_installed;
+    $('s015').disabled = running || !sp.enabled || !sp.tool_installed;
     $('speedState').textContent = !sp.enabled ? 'Speed control (closed loop) अभी बंद है।' : !sp.tool_installed ? 'Speed check tool अभी rover पर install नहीं है।'
       : running ? 'Speed check चल रहा है… remote तैयार रखें (B = रुको)।'
-      : 'PASS: ' + ((sp.passed || []).map(x => x.toFixed(2)).join(', ') || 'कोई नहीं') + ' • बाकी: ' + ((sp.missing || []).map(x => x.toFixed(2)).join(', ') || 'कोई नहीं');
+      : `PASS: ${(sp.passed || []).filter(x => Math.abs(x - 0.15) < 0.005).length}/${sp.passes_needed || 2}` + ((sp.missing || []).length ? '' : ' ✅ unlocked');
     $('results').innerHTML = (sp.results || []).slice().reverse().map(r => `<div class="${r.verdict === 'PASS' ? 'pass' : 'fail'}">
-      ${esc(Number(r.target_mps).toFixed(2))} m/s → ${esc(r.verdict)} • औसत ${r.steady_mean_mps == null ? '—' : Number(r.steady_mean_mps).toFixed(3)} • peak ${r.peak_mps == null ? '—' : Number(r.peak_mps).toFixed(3)} • ${esc(r.end_reason)}${r.failed_checks && r.failed_checks.length ? ' • fail: ' + esc(r.failed_checks.join(', ')) : ''}</div>`).join('');
+      ${esc(Number(r.requested_mps || r.target_mps).toFixed(2))} m/s (rover target ${esc(Number(r.target_mps).toFixed(3))}) → ${esc(r.verdict)} • औसत ${r.steady_mean_mps == null ? '—' : Number(r.steady_mean_mps).toFixed(3)} • peak ${r.peak_mps == null ? '—' : Number(r.peak_mps).toFixed(3)} • ${esc(r.end_reason)}${r.failed_checks && r.failed_checks.length ? ' • fail: ' + esc(r.failed_checks.join(', ')) : ''}</div>`).join('');
   }
   async function poll() {
     if (document.hidden) return;
@@ -40,7 +40,7 @@
     } catch (e) { /* keep last */ }
   }
   $('items').onclick = async e => { const b = e.target.closest('[data-api]'); if (b) { await post(b.dataset.api, {}); setTimeout(poll, 1500); } };
-  for (const [id, v] of [['s010', 0.10], ['s015', 0.15]]) {
+  for (const [id, v] of [['s015', 0.15]]) {
     $(id).onclick = async () => {
       if (!confirm(`Speed check ${v.toFixed(2)} m/s शुरू करें?\n\nRover ~0.6 m आगे अपने आप चलेगा। आगे 1.5 m खाली है? Remote हाथ में है?`)) return;
       await post('/api/readiness/speedcheck', { speed: v, pin: $('pin').value }); $('pin').value = ''; setTimeout(poll, 800);

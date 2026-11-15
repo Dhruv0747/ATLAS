@@ -1,0 +1,10 @@
+# Closed-loop AUTONOMOUS (non-REMOTE) drive speed from the 3-encoder consensus. scripts/atlas_speed_loop.py.
+# 2026-11-15: ENABLED and ground-validated (owner-run Speed check PASS x2 at requested 0.15 m/s, 17:00-17:10).
+# Was: NOT ground-validated. Keep enabled: false until the owner-driven ground check
+# (docs/audits/ATLAS_CURRENT_BLOCKERS.md, "speed loop ground check") passes.
+#   enabled: false / file missing -> legacy open-loop map (AUTONOMOUS_MIN_RUN_PWM 60).
+#   enabled: true + bad params    -> non-REMOTE traction FAILS CLOSED (0 PWM); REMOTE is never affected.
+# Takes effect only on a rover-base-telemetry restart (rover parked, E-STOP latched).
+speed_loop:
+  enabled: true
+  params: {}        # optional overrides of atlas_speed_loop.DEFAULTS, e.g. max_pwm: 70

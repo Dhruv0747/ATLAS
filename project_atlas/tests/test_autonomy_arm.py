@@ -102,22 +102,31 @@ class SpeedEvidenceTests(unittest.TestCase):
         from atlas_autonomy_arm import speed_evidence
         return speed_evidence(self.dir, self.cfg, (self.code,))
 
-    def test_needs_both_speeds(self):
-        self.result('1', 0.10, 'PASS')
+    def test_needs_two_passes_at_015(self):
+        self.result('1', 0.15, 'PASS')
         e = self.ev(); self.assertFalse(e['ok']); self.assertEqual(e['missing'], [0.15])
-        self.result('2', 0.15, 'PASS')
+        self.result('2', 0.10, 'PASS')                           # other speeds do not count
+        self.assertFalse(self.ev()['ok'])
+        self.result('3', 0.15, 'PASS')
+        self.assertTrue(self.ev()['ok'])
+
+    def test_requested_speed_key_preferred(self):
+        import json as j
+        for n in ('a', 'b'):
+            f = self.dir / f'speed_loop_check_{n}.json'
+            f.write_text(j.dumps({'target_mps': 0.075, 'requested_mps': 0.15, 'verdict': 'PASS', 'checks': {}}))
         self.assertTrue(self.ev()['ok'])
 
     def test_fail_does_not_count(self):
-        self.result('1', 0.10, 'PASS'); self.result('2', 0.15, 'FAIL')
+        self.result('1', 0.15, 'PASS'); self.result('2', 0.15, 'FAIL')
         e = self.ev(); self.assertFalse(e['ok']); self.assertEqual(e['latest'][0.15]['failed_checks'], ['a'])
 
     def test_older_than_config_change_is_stale(self):
-        self.result('1', 0.10, 'PASS', age_s=500); self.result('2', 0.15, 'PASS', age_s=500)
+        self.result('1', 0.15, 'PASS', age_s=500); self.result('2', 0.15, 'PASS', age_s=500)
         self.assertFalse(self.ev()['ok'])
 
     def test_disabled_loop_never_ok(self):
-        self.result('1', 0.10, 'PASS'); self.result('2', 0.15, 'PASS')
+        self.result('1', 0.15, 'PASS'); self.result('2', 0.15, 'PASS')
         self.cfg.write_text('speed_loop:\n  enabled: false\n')
         old = self.time.time() - 100; self.os.utime(self.cfg, (old, old))
         self.assertFalse(self.ev()['ok'])
@@ -125,8 +134,8 @@ class SpeedEvidenceTests(unittest.TestCase):
     def test_gate_uses_evidence(self):
         no = gate('speed_validated: false\n')
         self.assertTrue(read_gate(no, evidence={'ok': True, 'enabled': True, 'missing': []})['speed_validated'])
-        g = read_gate(no, evidence={'ok': False, 'enabled': True, 'missing': [0.15]})
-        self.assertFalse(g['speed_validated']); self.assertIn('0.15', g['note'])
+        g = read_gate(no, evidence={'ok': False, 'enabled': True, 'missing': [0.15], 'passed': [0.15]})
+        self.assertFalse(g['speed_validated']); self.assertIn('0.15', g['note']); self.assertIn('1/2', g['note'])
         a = AutonomyArm(True, no, evidence_override={'ok': True, 'enabled': True, 'missing': []})
         self.assertTrue(a.arm(True, False, READY, 0.1)[0])
 

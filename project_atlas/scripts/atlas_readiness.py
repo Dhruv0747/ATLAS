@@ -44,15 +44,18 @@ def checklist(policy, encoder_health, encoder_age_s, loc_check, loc_age_s, astra
         steps = ['यह setting developer/deploy से चालू होती है (config/speed_loop.yaml).',
                  'चालू होने के बाद नीचे का Speed check करें।']
     else:
-        why = 'Speed check बाकी है: ' + ', '.join(_fmt(t) for t in missing) + (' • पिछला: ' + '; '.join(fails) if fails else '')
+        need = int((speed_ev or {}).get('passes_needed', 1))
+        have = len([t for t in (speed_ev or {}).get('passed', []) if t in missing])
+        why = (f'Speed check बाकी है: {", ".join(_fmt(t) for t in missing)} पर {have}/{need} PASS'
+               + (' • पिछला: ' + '; '.join(fails) if fails else ''))
         steps = ['Rover को खुली जगह रखें: आगे कम से कम 1.5 m खाली, आगे 0.6 m के अंदर कुछ न हो।',
                  'Remote हाथ में रखें, sticks बीच में; E-STOP (B) छोड़ दें।',
-                 'Readiness page पर PIN डालकर "Speed check 0.10" दबाएँ। Rover ~0.6 m धीरे आगे चलेगा और रुकेगा।',
-                 'फिर rover वापस लाकर "Speed check 0.15" करें।',
-                 'दोनों PASS होते ही यह रुकावट अपने आप हट जाएगी। कुछ गड़बड़ लगे तो B दबाएँ।']
+                 'Readiness page पर PIN डालकर "Speed check" दबाएँ। Rover ~0.6 m धीरे आगे चलेगा और खुद रुकेगा।',
+                 'Rover वापस लाकर एक बार और "Speed check" करें (2 PASS चाहिए)।',
+                 'दो PASS होते ही यह रुकावट अपने आप हट जाएगी। कुछ गड़बड़ लगे तो B दबाएँ।']
     add('speed', bool(gate.get('speed_validated')), 'Speed sahi (commanded = actual)', why, steps,
         {'label': 'Speed check page खोलें', 'href': '/v2/readiness#speed'} if enabled else None,
-        'दोनों speeds पर PASS होते ही अपने आप (config या code बदलने पर फिर से check चाहिए)।')
+        '2 PASS होते ही अपने आप (config या code बदलने पर फिर से check चाहिए)।')
 
     # 3. encoders
     enc_ok = encoder_age_s is not None and 0 <= encoder_age_s <= 2 and bool((encoder_health or {}).get('autonomy_ready'))
