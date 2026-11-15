@@ -24,7 +24,7 @@ def mux(source='NAV2',msg=None):
     m=NS(remote_stop=NS(check=lambda now:False),channels={'COMMISSION':NS(engaged=False)},
         commission_until=0.,active_name=None,encoder_health_rx=10.,encoder_health={'state':'HEALTHY','autonomy_ready':True},
         last_blocked_reason=None,output=Mock(),safety_output=Mock(),last_sent=twist(),
-        navigation_localization_guard=lambda *a:None,autonomous_guard=lambda *a:None,
+        navigation_localization_guard=lambda *a:None,localization_guard=lambda *a:None,autonomous_guard=lambda *a:None,
         get_clock=lambda:NS(now=lambda:NS(nanoseconds=100100000000)),lidar_availability=LidarAvailability(),
         ultrasonic_validity=NS(reading=lambda *a:(None,'UNKNOWN')),ultrasonic_enabled=False,
         radar_gate_enabled=False,copy_twist=copy.deepcopy,publish=Mock(),hold_remote_stop=Mock(),
@@ -55,10 +55,33 @@ class Availability(unittest.TestCase):
         g=LidarAvailability();g.update(s,10.)
         self.assertIsNotNone(g.reason(-.15,0.,100.1,10.1))
         self.assertIsNone(g.reason(.15,0.,100.1,10.1))
+    # index i of these scans = robot-frame bearing i deg (laser yaw 180, angle_min -pi)
     def test_unknown_side_blocks_turn(self):
+        # 2026-11-15 swept-path policy: a right-turn arc sweeps the LEFT side (rear half bulges out)
         s=scan();s.ranges[85:96]=[math.nan]*11
         g=LidarAvailability();g.update(s,10.)
-        self.assertIsNotNone(g.reason(.15,.2,100.1,10.1))
+        self.assertIsNotNone(g.reason(.15,-.2,100.1,10.1))
+    def test_arc_ignores_unswept_side_but_not_swept_side(self):
+        s=scan();s.ranges[230:251]=[math.nan]*21     # rear-right gap seen live 2026-11-15
+        g=LidarAvailability();g.update(s,10.)
+        self.assertIsNone(g.reason(.15,.05,100.1,10.1))   # gentle left arc (R 3 m): rear-right not swept
+        self.assertIsNone(g.reason(.15,-.2,100.1,10.1))   # right arc: right side not swept outward
+        self.assertIsNotNone(g.reason(.15,.2,100.1,10.1)) # left arc R 0.75 m: rear-right bulges ~3 cm
+    def test_arc_always_needs_travel_cone(self):
+        s=scan();s.ranges[20:31]=[math.nan]*11
+        g=LidarAvailability();g.update(s,10.)
+        self.assertIsNotNone(g.reason(.15,.02,100.1,10.1))
+        self.assertIsNotNone(g.reason(.15,0.,100.1,10.1))
+    def test_spin_and_tight_arc_need_all_bins(self):
+        s=scan();s.ranges[180:186]=[math.nan]*6        # directly behind
+        g=LidarAvailability();g.update(s,10.)
+        self.assertIsNotNone(g.reason(0.,.5,100.1,10.1))
+        self.assertIsNotNone(g.reason(.15,.6,100.1,10.1))  # R 0.25 m < spin radius
+        self.assertIsNone(g.reason(.15,.05,100.1,10.1))
+    def test_reverse_arc_needs_rear_cone(self):
+        s=scan();s.ranges[175:186]=[math.nan]*11
+        g=LidarAvailability();g.update(s,10.)
+        self.assertIsNotNone(g.reason(-.15,.05,100.1,10.1))
     def test_close_returns_not_filtered_or_interpreted_as_direction_block(self):
         s=scan();s.ranges[315]=.51;before=list(s.ranges)
         g=LidarAvailability();g.update(s,10.)

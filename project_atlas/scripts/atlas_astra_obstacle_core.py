@@ -210,8 +210,26 @@ class ObstacleScanner:
         if keep.any():
             idx = np.clip(((ang[keep] - self.amin) / self.inc).astype(np.int64), 0, self.nbins - 1)
             np.minimum.at(ranges, idx, rng[keep].astype(np.float32))
-        return ranges, {'valid_fraction': valid_fraction, 'obstacle_points': int(keep.sum()),
-                        'obstacle_bins': int(np.isfinite(ranges).sum())}
+        stats = {'valid_fraction': valid_fraction, 'obstacle_points': int(keep.sum()),
+                 'obstacle_bins': int(np.isfinite(ranges).sum())}
+        # 2026-11-15 coverage (for the mux LiDAR-availability guard, never for Nav2 clearing): per bin, the distance
+        # out to which valid depth was actually seen. Obstacle bins: the obstacle range (an observation). Other bins:
+        # FLOOR_SEEN_FACTOR x the farthest valid FLOOR point in that bearing (capped at range_max). Seeing the floor
+        # at distance d from a 0.23 m high lens means the sight line to it is unobstructed, so nothing taller than
+        # the 4 cm floor cut stands before ~0.83 d. Walls/ceilings are NOT used (they can be seen over a low black
+        # obstacle). Bins with no valid floor depth are NaN (no evidence). Ranges are never changed by this.
+        cover = np.full(self.nbins, np.nan, dtype=np.float32)
+        lens_z = float(self.t[2])
+        factor = max(0.0, 1.0 - float(self.s['min_height_m']) / lens_z) if lens_z > 0 else 0.0
+        floor = (base[:, 2] < floor_cut) & (base[:, 2] > -0.05) & (ang >= self.amin) & (ang <= self.amax)
+        if floor.any() and factor > 0:
+            idx = np.clip(((ang[floor] - self.amin) / self.inc).astype(np.int64), 0, self.nbins - 1)
+            far = np.full(self.nbins, -1.0)
+            np.maximum.at(far, idx, np.minimum(rng[floor], self.s['range_max_m']) * factor)
+            cover = np.where(far > 0, far, np.nan).astype(np.float32)
+        cover = np.where(np.isfinite(ranges), ranges, cover).astype(np.float32)
+        self.last_coverage = cover
+        return ranges, stats
 
     def decide(self, stats, age_s):
         """'OK' (publish) or a reason not to publish. Age must be finite and within [0, stale_s]."""
