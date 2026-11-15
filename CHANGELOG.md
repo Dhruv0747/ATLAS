@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-15 (evening) — DEPLOYED: RPLIDAR scan mode Sensitivity (drive no-echo 14.0 % -> 8.2 %) and the swept-path LiDAR availability rule. First autonomous motion (1 m goal): the rover moved ~0.5 m but at ~0.5 m/s for a 0.07 m/s command (open-loop PWM floor 60), overshot and stopped 0.16 m from an obstacle via the guards. The manual-only lock was RESTORED (supervised-autonomy drop-in removed); autonomy needs a speed calibration first.
+
 2026-11-15 — LiDAR availability: swept-path arc/straight sectors and LiDAR+Astra floor-coverage fusion designed and replayed offline (source only, NOT deployed; replay shows autonomy would still be vetoed on ~40-75 % of scans). Offline root-cause study: most LiDAR no-echo rays point at ordinary walls and drop out in 13-23 deg runs (suspected driver/link dropouts, not verified); parked scan-mode test inconclusive. See docs/audits/ATLAS_CURRENT_BLOCKERS.md (2026-11-15 entries).
 
 2026-11-15 — DEPLOYED: three-encoder consensus rule (coherent pair when only 3 channels are valid; encoder CRITICAL 2 single ticks in ~26 m vs ~half of all stops before), navigation_validated true (M3 excluded), and the mux manual-only lock opened for supervised autonomy (45-supervised-autonomy.conf). Round-trip ground checks: EKF vs LiDAR 19.74/19.75 m and 6.40/6.44 m, left and right arcs covered. First supervised autonomous goal was vetoed by the mux LiDAR availability guard (rover did not move); goal cancelled.

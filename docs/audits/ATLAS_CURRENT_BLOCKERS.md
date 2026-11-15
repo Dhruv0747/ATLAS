@@ -2305,3 +2305,87 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
   to be better than the deployed Boost. Not adopted. Restored: one /scan_raw publisher (atlas-lidar), 7.2 Hz,
   localization VERIFIED.
 - Parked static scene: Boost no-echo 8.8 % vs 14 % while driving (remap-13) — dropouts are larger in motion.
+
+## 2026-11-15 ~14:45 — Parked LiDAR scan-mode test THROUGH the service (owner: "service se karo")
+
+- /tmp/lidar_mode_service_test.sh: temporary atlas-lidar drop-in 90-modetest (ExecStart with scan_mode), restart,
+  12 s settle, 30 s /scan_raw; order Boost, Sensitivity, Standard, Boost; drop-in removed and Boost restored on exit
+  (verified: only priority.conf left, service active, "current scan mode: Boost"; localization VERIFIED 0.016 m).
+- Clue: the service has priority.conf CPUWeight=1000; the earlier hand-started driver did not, and showed 24 % vs 9 %
+  no-echo in the same mode -> CPU starvation of the serial reader is a plausible contributor (suspected).
+- Results (same static scene; 225-255 deg = this spot's dark rear-right object):
+  * Boost #1: 7.3 Hz, 1080 samples, no-echo 9.0 % (outside 225-255: 2.2 %), runs >= 13 deg 1.5/scan
+  * Sensitivity: 7.3 Hz, 1080 samples, no-echo 6.8 % (outside: 1.5 %), runs >= 13 deg 0.2/scan
+  * Standard: 7.6 Hz, 360 samples, no-echo 43.8 % — not comparable (2 kHz at ~7.5 Hz < 360 samples/rev, so the
+    angle-compensated 1-deg array has many empty slots)
+  * Boost #2: 7.3 Hz, no-echo 8.7 % (outside: 1.7 %), runs >= 13 deg 1.4/scan (repeatable with #1)
+- Evidence gap: the owner reported moving the rover by hand by mistake during the test (time unknown); the final pose
+  equals the starting pose (-1.61, 0.03) and Boost #1/#2 agree, so the scene appears unchanged, but not proven.
+- Reading: Sensitivity (designed for low-reflectivity targets) removed most long gaps here, incl. the dark
+  rear-right object. Parked only; the driving dropouts (14 %) are untested in Sensitivity. Not adopted.
+
+## 2026-11-15 ~16:00 — LiDAR Sensitivity mode DEPLOYED (owner: "Yes, switch and test") + ground drive
+
+- Drop-in systemd/user/atlas-lidar.service.d/50-scan-mode-sensitivity.conf (scan_mode Sensitivity; rollback: delete,
+  daemon-reload, restart atlas-lidar). Switched parked with the E-STOP latched; live: "current scan mode: Sensitivity,
+  8 Khz", /scan 7.2 Hz, localization VERIFIED 0.06 m.
+- Owner drive Dhruv Room -> hall -> Dhruv Room, recorded (data/lidar_tests/sensitivity_drive_20261115, 306 s;
+  /scan_raw, /scan, /tf, /odom, /cmd_vel, ICP, encoder health). Final localization VERIFIED 0.158 m.
+- No-echo study on the same accepted map (atlas_latest == remap-13 candidate map): no-echo 14.0 % (Boost, remap 13)
+  -> 8.2 % (Sensitivity). Walls < 1 m 8.3 -> 4.1 %, 1-3 m 13.8 -> 4.9 %; median wall-cell miss 13 -> 5 %.
+  Remaining no-echo is mostly far walls > 3 m and open space (expected), not near walls.
+- Guard replay (same two drives; deployed rule vs swept-path rule, source only):
+  * Boost/remap13: real driven commands vetoed 74 % (deployed) / 63 % (swept-path); straight 46 / 35 %.
+  * Sensitivity/today: real driven commands 45 % (deployed) / 32 % (swept-path); straight 24 / 21 %;
+    gentle arcs (R 1.5 m) 80 % (deployed) / 21 % (swept-path); tight arcs (R 0.5 m) 80 / 64 %.
+- Caveat: different days/routes are only approximately comparable; one drive per mode. The guard is still the
+  deployed (old) rule; swept-path and Astra fusion remain undeployed.
+
+## 2026-11-15 ~16:20 — Swept-path LiDAR availability rule DEPLOYED (owner: "Yes, deploy it")
+
+- scripts/atlas_lidar_availability.py (commit b9b9a01 version) installed; backup
+  atlas_lidar_availability.py.before-swept-20261115. Live mux file unchanged (md5 = repo). tests/test_lidar_availability
+  16 OK on the Jetson against the live mux. Rover parked, E-STOP latched; only atlas-cmd-vel-mux restarted; after
+  restart: manual_only false, stop_latched true, source STOPPED, no errors in the journal.
+- Astra coverage fusion code is present but INACTIVE (nothing publishes/subscribes the coverage topic yet).
+- Read-only dry probe of live /scan at the parked spot (-1.6, 0.03), 108 scans, nothing published: straight forward,
+  R 1.5 m arcs both ways and straight reverse 0 % veto; R 0.5 m arc and spin-in-place 100 % veto (all-bins rule).
+- Rollback: copy the .before-swept-20261115 backup back, restart the mux (parked, E-STOP latched).
+
+## 2026-11-15 13:41-13:43 — Supervised goal #2 ("dhruv room", ~1.8 m): blocked by the REAR ultrasonic guard (rover did not move)
+
+- A first send attempt at 13:41:33 happened while the dashboard still showed the E-STOP latched (my chain did not
+  stop on the failed latch check); mission control logged nothing (no goal received); cancel sent anyway.
+  Fixed procedure: second send used `set -e` with the release/parked/Astra/VERIFIED assertions (13:42:17).
+- Mission: SCAN CHECK OK 99 %, goal dispatched/accepted; the swept-path LiDAR guard did NOT block this time.
+- Nav2 RPP (allow_reversing: true) commanded REVERSE the whole time: /cmd_vel_nav = (-0.11 m/s, +0.67 rad/s) for
+  370 of 372 messages (bag data/lidar_tests/auto2_goal_20261115). The mux vetoed every one: "AUTONOMY BLOCKED: REAR
+  0.18-0.21 m (stop 0.30 m)" (rear ultrasonic required for linear < 0). Controller "Failed to make progress" ->
+  recovery -> retry. Goal cancelled 13:43 (status 5). Rover never moved.
+- Open: why the planned path starts behind the rover for a goal ~30 deg left-ahead (front ultrasonic 0.58-0.77 m,
+  LiDAR nearest ~0.36 m at this spot; /plan was not recorded). Suspected: the start pose is boxed in by furniture
+  so the planner/RPP chooses a reverse-turn manoeuvre. Not verified.
+
+## 2026-11-15 13:51 — Supervised 1 m goal: FIRST AUTONOMOUS MOTION; speed ~6x the command (SAFETY FINDING)
+
+- Temporary place "test 1m" (current pose + 1 m along heading; map checked free; places file backed up
+  .before-test1m-20261115 and restored afterwards). One goal via mission control (all gates). Bag
+  data/lidar_tests/auto3_1m_20261115 (incl. /plan, /cmd_vel_nav, /cmd_vel, /odom, safety/mission status).
+- Plan 16 poses (-1.47,-0.02) -> (-0.39,0.38). Nav2 /cmd_vel_nav 0.15 m/s; mux output /cmd_vel 0.07 m/s (encoder
+  DEGRADED scale 0.5). MEASURED /odom vx 0.47-0.51 m/s within 0.6 s (odom x -0.25 -> 0.37 in ~1.2 s) — about 6-7x
+  the 0.07 command. After the controller sent zero (110.36 s) odom still read 0.51 m/s at 110.71 s and travelled
+  ~0.1 m more. Then RPP "collision ahead", mux "AUTONOMY BLOCKED: FRONT 0.16 m (stop 0.30 m)", backup recovery
+  (-0.06 command, odom -0.38 m/s), second approach, "LIDAR AVAILABILITY STOP (3 bins)", and mission control's camera
+  watchdog cancelled the goal ("camera obstacles lost (2.3 s stale)"). Net ~0.5 m forward. No contact reported.
+- Cause (code, yahboom_base._drive_pwm, open loop because Drive PID needs 4 encoders): any non-remote command above
+  0.02 maps to PWM >= AUTONOMOUS_MIN_RUN_PWM = 60 (+40 x |v|); 0.07 -> PWM ~63, which on this floor drives ~0.45 m/s.
+  The 2026-10 note validated this floor for 10 cm Nav2 nudges, not for continuous following.
+- Consequences: Nav2 believes 0.07-0.15 m/s while the rover moves ~0.5 m/s; stopping distance and obstacle margins
+  are invalid. Camera bridge staleness (2.3 s) under load is a second, separate finding.
+- Status: no further goals sent. Owner decision needed (speed calibration / closed-loop speed, and whether to restore
+  manual-only meanwhile).
+- 2026-11-15 ~14:05 (owner: "Yes, lock it"): manual-only lock RESTORED. 45-supervised-autonomy.conf moved to
+  ~/.config/systemd/user/45-supervised-autonomy.conf.disabled-20261115 (removed from the repo), daemon-reload, mux
+  restarted with the rover still. Live: ATLAS_MANUAL_ONLY=1, control_policy manual_only true, stop_latched true.
+  navigation_validated, the 3-encoder rule, the swept-path guard and LiDAR Sensitivity stay deployed. Autonomy
+  re-opening requires the autonomous speed calibration (commanded vs measured) first.
