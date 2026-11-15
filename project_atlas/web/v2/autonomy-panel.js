@@ -6,10 +6,10 @@
   if (!box) return;
   box.innerHTML = `
    <div class="apHead">
-    <span class="apState warn" id="apState">AUTONOMY …</span>
-    <input id="apPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN" aria-label="Operator PIN for autonomy ON">
-    <button class="btn" id="apOn" type="button">Autonomy ON</button>
-    <button class="btn apOffBtn" id="apOff" type="button">Autonomy OFF</button>
+    <span class="apState warn" id="apState">MODE …</span>
+    <input id="apPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN (for Autonomous)" aria-label="Operator PIN to switch to Autonomous mode">
+    <button class="btn apOffBtn" id="apOff" type="button" aria-pressed="false">Manual mode</button>
+    <button class="btn" id="apOn" type="button" aria-pressed="false">Autonomous mode</button>
    </div>
    <div class="apWhy" id="apWhy"></div>
    <div class="apSave">
@@ -33,19 +33,21 @@
     last = d;
     const a = d.autonomy || {}, st = $('apState');
     const on = a.armed === true;
-    st.textContent = !d.policy_fresh ? 'AUTONOMY STATE UNKNOWN' : on ? 'AUTONOMY ON' : 'AUTONOMY OFF (manual only)';
+    st.textContent = !d.policy_fresh ? 'MODE UNKNOWN' : on ? 'MODE: AUTONOMOUS' : 'MODE: MANUAL (remote only)';
+    $('apOn').classList.toggle('apSel', on); $('apOff').classList.toggle('apSel', d.policy_fresh && !on);
+    $('apOn').setAttribute('aria-pressed', String(on)); $('apOff').setAttribute('aria-pressed', String(!on));
     st.className = 'apState ' + (!d.policy_fresh ? 'bad' : on ? 'ok' : 'warn');
     const blockers = a.arm_blockers || [];
     $('apWhy').textContent = !d.policy_fresh ? 'No fresh state from the mux.' : on
-      ? (d.stop_latched ? 'E-STOP latched: release it with the remote, then press Go.' : 'Nav2 may drive. Keep the remote in hand; B stops and turns autonomy OFF.')
-      : (blockers.length ? 'ON blocked: ' + blockers.join(' • ') : 'Ready to switch ON with the PIN.');
+      ? (d.stop_latched ? 'E-STOP latched: release it with the remote, then press Go.' : 'Nav2 may drive. Keep the remote in hand; B stops and switches back to Manual.')
+      : (blockers.length ? 'Autonomous blocked: ' + blockers.join(' • ') : 'Ready: enter the PIN and press Autonomous mode.');
     $('apOn').disabled = !d.policy_fresh || on || blockers.length > 0;
-    $('apOff').disabled = !on;
+    $('apOff').disabled = false;
     const canGo = on && d.stop_latched === false;
     $('apList').innerHTML = (d.places || []).map(p => `
       <div class="apPlace${p.current_map ? '' : ' old'}">
        <div><b>${esc(p.name)}</b><small>${p.x.toFixed(2)}, ${p.y.toFixed(2)}${p.current_map ? '' : ' • other map'}</small></div>
-       <button class="btn" data-go="${esc(p.name)}" ${canGo && p.current_map ? '' : 'disabled'} title="${canGo ? 'Navigate here' : 'Needs AUTONOMY ON and E-STOP released'}">Go</button>
+       <button class="btn" data-go="${esc(p.name)}" ${canGo && p.current_map ? '' : 'disabled'} title="${canGo ? 'Navigate here' : 'Needs Autonomous mode and E-STOP released'}">Go</button>
        <button class="btn ghost" data-del="${esc(p.name)}">Delete</button>
       </div>`).join('') || '<div class="apEmpty">No waypoints yet</div>';
   }
@@ -55,7 +57,7 @@
     catch (e) { render({ policy_fresh: false, places: (last && last.places) || [] }); }
   }
   $('apOn').onclick = async () => {
-    if (!confirm('Switch AUTONOMY ON?\n\nNav2 may then drive the rover after you release the E-STOP. Keep the remote in hand.')) return;
+    if (!confirm('Switch to AUTONOMOUS mode?\n\nNav2 may then drive the rover after you release the E-STOP. Keep the remote in hand.')) return;
     await send('/api/autonomy', { action: 'on', pin: $('apPin').value }); $('apPin').value = ''; poll();
   };
   $('apOff').onclick = async () => { await send('/api/autonomy', { action: 'off' }); poll(); };

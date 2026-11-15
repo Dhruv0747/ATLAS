@@ -4,7 +4,7 @@ All authority stays where it was: the cmd_vel mux decides ON (atlas_autonomy_arm
 encoder autonomy-ready, speed gate) and mission control runs every navigation check before a waypoint goal.
   GET  /api/autonomy          -> {autonomy, stop_latched, places[], map_id}
   POST /api/autonomy          {action: on|off, pin}   ON needs the operator PIN (same store/lockout as E-STOP reset)
-  POST /api/places            {action: save|save_at|go|delete, name[, x, y]}  save_at = map tap (map frame)
+  POST /api/places            {action: save|save_at|go|go_at|delete, name[, x, y]}  *_at = map tap (map frame)
 "Go" is refused here unless autonomy is ON and the E-STOP is released, so a queued goal can never start by itself
 when someone later releases the stop.
 """
@@ -69,6 +69,18 @@ def places():
             out.append({'name': name, 'x': round(float(p.get('x', 0.0)), 2), 'y': round(float(p.get('y', 0.0)), 2),
                         'current_map': map_id is None or p.get('map_id') == map_id})
     return sorted(out, key=lambda p: p['name']), map_id
+
+
+def go_refusal(ros):
+    """None when a goal may be sent: fresh mux state, autonomy ON, E-STOP released."""
+    pol = policy(ros)
+    if pol is None:
+        return 'no fresh mux state'
+    if not ((pol.get('autonomy') or {}).get('armed')):
+        return 'AUTONOMOUS mode is OFF (switch to Autonomous first)'
+    if pol.get('stop_latched'):
+        return 'E-STOP is latched; release it with the remote first'
+    return None
 
 
 def state(ros):
@@ -165,6 +177,24 @@ def serve(handler, ros, post=False):
         json_response(handler, 200 if ok else 409, {'ok': ok, 'message': msg})
         return True
     # /api/places
+    if action == 'go_at':                                   # map tap "Move here" (no saved place)
+        why = go_refusal(ros)
+        if why:
+            json_response(handler, 409, {'ok': False, 'message': 'MOVE refused: ' + why})
+            return True
+        try:
+            x, y = float(payload.get('x')), float(payload.get('y'))
+            if not (abs(x) < 1000 and abs(y) < 1000):
+                raise ValueError
+        except (TypeError, ValueError):
+            json_response(handler, 400, {'ok': False, 'message': 'invalid map point'})
+            return True
+        ok = publish(pubs.get('go_at'), json.dumps({'x': x, 'y': y}))
+        ros.estop_log.write('map_point_go', client=handler.client_address[0], x=x, y=y, ok=ok)
+        json_response(handler, 202 if ok else 503, {'ok': ok, 'message': (
+            f'moving to {x:.2f}, {y:.2f} (mission control checks the spot, localization, camera and safety first)'
+            if ok else 'ROS link not ready')})
+        return True
     try:
         name = clean_name(payload.get('name'))
     except ValueError as exc:
@@ -190,16 +220,7 @@ def serve(handler, ros, post=False):
         ok = publish(pubs.get('delete'), name)
         json_response(handler, 202 if ok else 503, {'ok': ok, 'message': f'deleting waypoint "{name}"' if ok else 'ROS link not ready'})
     elif action == 'go':
-        pol = policy(ros)
-        auto = (pol or {}).get('autonomy') or {}
-        if pol is None:
-            why = 'no fresh mux state'
-        elif not auto.get('armed'):
-            why = 'AUTONOMY is OFF'
-        elif pol.get('stop_latched'):
-            why = 'E-STOP is latched; release it with the remote first'
-        else:
-            why = None
+        why = go_refusal(ros)
         if why:
             json_response(handler, 409, {'ok': False, 'message': 'GO refused: ' + why})
             return True

@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-15 (evening 2) — DEPLOYED: map tap "Move here" (mission control /atlas/navigate_to_point, same spot checks and navigation gates; web go_at), obstacle detour tree config/atlas_ackermann_replan_if_blocked.xml (replans once per second when the committed path becomes blocked; passed per goal, not yet ground-tested), spoken Hindi stop/replan reasons (atlas-autonomy-voice, listen-only narrator -> voice companion), and a Manual / Autonomous mode switch on the home panel and map card. Autonomous mode stays blocked by the speed gate.
+
 2026-11-15 (late) — DEPLOYED dashboard AUTONOMY ON/OFF + waypoints: mux runtime arm (/atlas/autonomy/arm|disarm; boot OFF; ON needs E-STOP latched, still, encoders autonomy-ready, operator PIN and config/autonomy_gate.yaml speed_validated — currently false; any E-STOP turns it OFF), mission control /atlas/delete_named_place and /atlas/save_named_place_at (map tap, 0.35 m clearance on the accepted map), web /api/autonomy and /api/places, home-page panel and a tap-the-map waypoint card on /v2/mapping. Go is refused unless autonomy is ON and the E-STOP released.
 
 2026-11-15 (evening) — DEPLOYED: RPLIDAR scan mode Sensitivity (drive no-echo 14.0 % -> 8.2 %) and the swept-path LiDAR availability rule. First autonomous motion (1 m goal): the rover moved ~0.5 m but at ~0.5 m/s for a 0.07 m/s command (open-loop PWM floor 60), overshot and stopped 0.16 m from an obstacle via the guards. The manual-only lock was RESTORED (supervised-autonomy drop-in removed); autonomy needs a speed calibration first.

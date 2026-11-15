@@ -1807,4 +1807,8 @@ Restoration watcher timing: use only the new reviewed restoration-freshness pack
   Any E-STOP or mux restart turns autonomy OFF. Go is refused unless autonomy is ON and the E-STOP released.
   The mux drop-in `46-autonomy-runtime-switch.conf` enables the runtime switch; `40-manual-commissioning.conf`
   (manual-only) stays the default.
-
+- Later the same day: map tap offers "Move here" (`/atlas/navigate_to_point`, web `go_at`); goals use
+  `config/atlas_ackermann_replan_if_blocked.xml` (replan when the path becomes blocked; mission control parameter
+  `nav_behavior_tree`); `atlas-autonomy-voice` speaks stop and replan reasons in Hindi through the voice companion
+  (`/atlas/voice/test_speak`, speech only) while Autonomous mode is on or a goal runs; both pages show a
+  Manual / Autonomous mode switch.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Project ATLAS autonomy narrator (speaks stop/replan reasons; listen-only, never commands motion)
+After=atlas-voice-companion.service
+
+[Service]
+Type=simple
+Nice=10
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null; cd /home/jetson/project_atlas/scripts; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_autonomy_voice.py'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

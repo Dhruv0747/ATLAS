@@ -2481,3 +2481,103 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
   test" (1.47, -5.60) saved with the map-tap note, then deleted via /atlas/delete_named_place (PLACE DELETED);
   "bad spot" (-1.47, 0.00) refused "too close to a wall/obstacle (occupied within 0.35 m)". Places file back to
   dhruv room + hall (backup .before-maptaptest-20261115). Map page serves the waypoint card. Autonomy still OFF.
+
+## 2026-11-15 ~17:30 — Owner requests: tap->Move here, detour around obstacles, spoken stop reasons, Manual/Autonomous switch (built + tested, NOT deployed)
+
+- Move here: mission control /atlas/navigate_to_point (JSON x, y) -> same map-tap validation (free, 0.35 m
+  clearance, accepted map) -> dispatch_pose_goal (all existing gates: localization refresh, scan/map agreement,
+  camera obstacles). Web POST /api/places {action: go_at, x, y} refused unless Autonomous mode ON + E-STOP released.
+  Map card: tap -> "Move here" / Cancel / optional save as waypoint.
+- Detour: new tree config/atlas_ackermann_replan_if_blocked.xml (fail_stop tree unchanged): PipelineSequence with
+  RateController 1 Hz {keep the committed path while IsPathValid on the global costmap, else ComputePathToPose}
+  + FollowPath, same recovery branch (clear costmaps, 0.18 m back-up, wait, 6 retries). Mission control passes it
+  per goal (NavigateToPose.behavior_tree, param nav_behavior_tree) so no Nav2 restart is needed; missing file ->
+  default tree. Node IDs all exist in Humble's stock trees; NOT yet loaded by bt_navigator (needs a goal) and NOT
+  ground-tested (autonomy blocked by the speed gate). Mux guards remain the last-resort stop.
+- Spoken reasons: scripts/atlas_autonomy_voice_core.py + atlas_autonomy_voice.py (new unit atlas-autonomy-voice,
+  listen-only) -> /atlas/voice/test_speak (voice companion speech-only path, Hindi Piper voice). Speaks only in
+  Autonomous mode or during a goal; 15 s repeat / 4 s gap limits. Covers mode changes, E-STOP, front/rear/side
+  ultrasonic stops, ultrasonic data loss, LiDAR availability stop, goal accepted/arrived/canceled/no path, camera
+  loss, refused spots, and each new Nav2 recovery ("raste mein kuch hai, naya rasta dhoondh raha hoon").
+- Mode switch: home panel and map card show MODE: MANUAL / AUTONOMOUS with "Manual mode" / "Autonomous mode"
+  buttons (Autonomous = PIN + all arm gates; Manual always allowed).
+- Tests on the Jetson: test_autonomy_arm, test_autonomy_web (11), test_autonomy_voice (9), test_map_waypoint,
+  camera gate, session places, final-map sampling, idle revert, mux stop-hold — all OK.
+
+## 2026-11-15 (later) — Speed loop wired into yahboom_base behind a flag; parked deploy + ground check prepared (NOT deployed)
+
+**What changed (candidate, uncommitted):**
+- `project_atlas/scripts/yahboom_base.py`. The new loop applies only when `config/speed_loop.yaml` has `enabled: true`, and only to non-REMOTE sources:
+  - In `_drive_pwm`, the speed loop sets the PWM. It still goes through `_slew_motor_pwm`.
+  - Misaligned steering (> 8°) counts as a zero speed target, which is the same gate as before.
+  - 4WS arcs use `turn_split`, meaning ±8 PWM with **no 80-PWM inside floor**. That floor would otherwise force any autonomous turn to ≥ 80 PWM.
+  - REMOTE is identical to before; a test compares the outputs.
+  - Feedback: `_publish_yahboom_odom` feeds the consensus `distance_delta` into `SpeedFeedback`. "ok" requires a fresh encoder packet and ≥ 2 accepted channels.
+  - A drive tick with no new sample holds its output only while the newest sample is ≤ 0.25 s old. Beyond that the PWM is 0. A zero or reverse command always gives 0.
+  - Status topic `/atlas/speed_loop` (JSON): target, measured, pwm, reason, learned breakaway. It publishes at 10 Hz while active and 1 Hz while idle.
+- `config/speed_loop.yaml`: ships `enabled: false`. Missing file or disabled → legacy map, unchanged. Enabled with bad parameters, or the module missing → **non-REMOTE fails closed (0 PWM)**. It never falls back to the 60-PWM floor.
+- `scripts/atlas_speed_loop.py`: adds `SpeedFeedback`, `turn_split` and `load_speed_loop_config`.
+- Tests:
+  - `tests/test_speed_loop_base.py` has 15 tests. They run the real `_drive_pwm` and slew code extracted from the source.
+  - `tests/test_speed_loop_ground_check.py` has 5 tests.
+  - Jetson (candidate tree `/tmp/speedloop_cand`): 31/31 speed-loop tests OK. The existing base tests (steering geometry, lifted owner, diagnostic cadence) pass 19/19.
+  - `test_stage28_yahboom_hooks` fails 6 times in the candidate tree. The original `yahboom_base.py` fails the same 6 there, so this is the test environment, not this change.
+- Simulation through the base path (breakaway 45–60, target 0.10 or 0.15, straight or wz 0.2):
+
+  | Measure | Result |
+  |---|---|
+  | Start | 0.5–1.4 s |
+  | Mean speed | 0.088–0.096 (target 0.10); 0.128–0.133 (target 0.15) |
+  | Peak | ≤ 0.21 m/s |
+  | Max PWM | ≤ 72 (arc, outside wheels) |
+
+- Live Jetson unchanged: md5 `09fcf38e…` is the deployed `yahboom_base.py`. No speed_loop files are installed.
+
+**Parked deploy (owner OK each step):** `tools/deploy/deploy_20261115_speed_loop.sh`. It refuses to run without `ATLAS_OWNER_CONFIRM=parked-estop-latched` and the parked check.
+1. `install`: runs the candidate tests, backs up the live files with tag `before-speedloop-20261115`, installs, and restarts the base with the loop **disabled**. This is behaviour-neutral.
+2. `--enable`: sets `enabled: true` and restarts the base. The journal must show "closed-loop autonomous speed ENABLED".
+3. `--disable` and `--rollback` are available at any time.
+
+**Owner-driven ground check (speed loop ground check):** `tools/drive/speed_loop_ground_check.py`. It uses the mux COMMISSION lease (20 s), so manual-only stays ON and the remote pre-empts.
+- Command: forward only, 0.05–0.15 m/s, ≤ 1.0 m, ≤ 15 s.
+- It stops on any of:
+  - LiDAR front clearance < 0.60 m, front sector blind, or `/scan` stale;
+  - `/yahboom/odom` or `/atlas/speed_loop` stale;
+  - measured speed > target + 0.15;
+  - `fail_closed`;
+  - Ctrl-C.
+- It needs ≥ 1.0 m clearance to start.
+- PASS criteria:
+  - starts ≤ 2 s;
+  - mean speed after 1.5 s within ±0.04 of the target;
+  - peak < max(1.5t, t + 0.08) + 0.05;
+  - ICP and wheel distance agree within 25 %;
+  - ended by distance or timeout.
+- Plan, rover on open floor with ≥ 1.5 m clear and the owner holding the remote:
+  1. `--speed 0.10 --distance 0.6` ×3;
+  2. `--speed 0.15 --distance 0.8` ×2;
+  3. `--speed 0.05 --distance 0.4` ×1 (expected to be slow or jerky; information only).
+- Results go to `~/.local/state/project_atlas/speed_loop_check_*.json`.
+- Only after 5/5 PASS at 0.10 and 0.15 may the owner decide to set `autonomy_gate.yaml speed_validated: true`, with the evidence recorded here.
+
+**Not covered yet:**
+- reverse and arcs on the ground;
+- the real breakaway PWM;
+- whether the mux LiDAR availability guard vetoes COMMISSION runs, as it did NAV2;
+- the effect of the 3-tick measurement window at 0.05 m/s.
+- 2026-11-15 ~17:50 DEPLOYED (owner: "Yes, deploy"), parked + E-STOP latched: mission control (navigate_to_point,
+  per-goal replan tree), atlas_ackermann_replan_if_blocked.xml, status web + autonomy web (go_at), v2 panels (mode
+  switch, Move here), atlas_autonomy_voice(+core) as new enabled unit atlas-autonomy-voice. Backups
+  *.before-v3-20261115. Live: /atlas/navigate_to_point and /atlas/save_named_place_at subscribed; mission control
+  param nav_behavior_tree = the replan tree (loads on the first goal; not yet exercised); narrator node running;
+  Autonomous mode still blocked by the speed gate.
+- Speaker finding (pre-existing, voice companion, not changed): a test sentence on /atlas/voice/test_speak produced
+  no speech and no log line; the boot greeting earlier took ~315 s to play (14:24:27 -> 14:29:42) for ~6 s of
+  audio (ESP32 USB audio transport pacing / buffer). The narrator publishes correctly, but spoken output depends on
+  fixing the voice companion's playback path. Not investigated further yet.
+- 2026-11-15 ~18:10 speaker check (owner: "Yes, fix speaker"): NOT a speaker fault. A single
+  `ros2 topic pub --times 1` from a short-lived CLI is lost (the voice companion has not matched the brand-new
+  publisher yet; volatile QoS). Publishing at 1 Hz: "Voice test." spoken (BUFFERING -> SPEAKING in 0.05 s, done in
+  1.2 s) and the Hindi narrator sentence spoken via the hi_IN Piper voice (~3.7 s). The narrator node is long-lived,
+  so its publisher stays matched. The 315 s boot greeting remains unexplained (likely ESP32/USB at boot); no code
+  changed.

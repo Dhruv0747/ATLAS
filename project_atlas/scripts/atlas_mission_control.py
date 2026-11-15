@@ -157,6 +157,12 @@ class AtlasMissionControl(Node):
         self.session_places_file = Path.home() / ".config/project_atlas/mapping_session_places.json"
         self.taught_routes_dir = Path("/home/jetson/project_atlas/config/routes")
         self.map_prefix = Path(str(self.get_parameter("map_prefix").value))
+        # 2026-11-15 replan-around-obstacles tree, passed per goal (NavigateToPose.behavior_tree) so bt_navigator loads
+        # it without a Nav2 restart. Empty or missing file -> Nav2's default tree (atlas_ackermann_fail_stop.xml).
+        self.declare_parameter(
+            "nav_behavior_tree", "/home/jetson/project_atlas/config/atlas_ackermann_replan_if_blocked.xml"
+        )
+        self.nav_behavior_tree = str(self.get_parameter("nav_behavior_tree").value or "")
         self.mapping_light = str(self.get_parameter("mapping_profile").value).strip().lower() == "light"
         self.mapping_guard_enabled = bool(self.get_parameter("mapping_guard_enabled").value)
         # Mission-start LiDAR/map agreement (2026-10-10). Only ever refuses.
@@ -406,6 +412,7 @@ class AtlasMissionControl(Node):
                 self.create_subscription(String, "/atlas/navigate_named_place", self.request_navigate_named_place, 10),
                 self.create_subscription(String, "/atlas/delete_named_place", self.request_delete_named_place, 10),
                 self.create_subscription(String, "/atlas/save_named_place_at", self.request_save_named_place_at, 10),
+                self.create_subscription(String, "/atlas/navigate_to_point", self.request_navigate_to_point, 10),
                 self.create_subscription(Empty, "/atlas/camera/pan_left", self.camera_pan_left, 10),
                 self.create_subscription(Empty, "/atlas/camera/pan_right", self.camera_pan_right, 10),
                 self.create_subscription(Empty, "/atlas/camera/tilt_up", self.camera_tilt_up, 10),
@@ -906,11 +913,21 @@ class AtlasMissionControl(Node):
         except Exception as exc:
             self.error("save named place at map point", exc)
 
-    def save_named_place_at(self, name: str, x: float, y: float) -> None:
+    def request_navigate_to_point(self, msg: String) -> None:
+        """2026-11-15 dashboard map tap "Move here": {"x", "y"} in the accepted map frame, no saved place needed."""
+        try:
+            data = json.loads(msg.data)
+            x, y = float(data["x"]), float(data["y"])
+            self.submit(f"navigate to map point {x:.2f},{y:.2f}", lambda: self.navigate_to_point(x, y))
+        except Exception as exc:
+            self.error("navigate to map point", exc)
+
+    def map_tap_point(self, name: str, x: float, y: float) -> dict:
+        """Validated map-frame pose for a tapped point (free, 0.35 m clearance, accepted map), heading from here."""
         from atlas_map_acceptance_core import _map_yaml_values, _read_pgm
         from atlas_map_waypoint import check_point, heading_towards
         if self.active_mapping_session():
-            raise RuntimeError("map-tap waypoints are disabled during a mapping session")
+            raise RuntimeError("map-tap targets are disabled during a mapping session")
         map_id = self.current_map_id()
         if not map_id:
             raise RuntimeError("no accepted map identity")
@@ -920,16 +937,28 @@ class AtlasMissionControl(Node):
         image = image if image.is_absolute() else yaml_path.parent / image
         why = check_point(x, y, _read_pgm(image), meta)
         if why:
-            raise RuntimeError(f"waypoint {name!r} refused: {why}")
+            raise RuntimeError(f"{name} refused: {why}")
         try:
             here = self.current_pose()
             yaw = heading_towards((here["x"], here["y"]), (x, y)) if here.get("frame_id") == "map" else 0.0
         except Exception:
             yaw = 0.0
+        return {"frame_id": "map", "x": x, "y": y, "z": 0.0, "qx": 0.0, "qy": 0.0,
+                "qz": math.sin(yaw / 2.0), "qw": math.cos(yaw / 2.0), "map_id": map_id}
+
+    def navigate_to_point(self, x: float, y: float) -> None:
+        if self.safety_blocks_autonomy():
+            raise RuntimeError(f"safety blocks navigation: {self.safety_status}")
+        self.require_confident_localization()
+        pose = self.map_tap_point("map point", x, y)
+        self.require_matching_map(pose, "map point")
+        self.dispatch_pose_goal(pose, f"map point {x:.2f},{y:.2f}")
+
+    def save_named_place_at(self, name: str, x: float, y: float) -> None:
+        place = self.map_tap_point(f"waypoint {name!r}", x, y)
+        place["note"] = "set by map tap on the dashboard"
         places = self.load_named_places()
-        places[name] = {"frame_id": "map", "x": x, "y": y, "z": 0.0, "qx": 0.0, "qy": 0.0,
-                        "qz": math.sin(yaw / 2.0), "qw": math.cos(yaw / 2.0), "map_id": map_id,
-                        "note": "set by map tap on the dashboard"}
+        places[name] = place
         temporary = self.places_file.with_suffix(".tmp")
         temporary.write_text(json.dumps(places, indent=2, sort_keys=True), encoding="utf-8")
         temporary.replace(self.places_file)
@@ -1984,6 +2013,8 @@ class AtlasMissionControl(Node):
         goal.pose.pose.orientation.y = float(pose["qy"])
         goal.pose.pose.orientation.z = float(pose["qz"])
         goal.pose.pose.orientation.w = float(pose["qw"])
+        if self.nav_behavior_tree and Path(self.nav_behavior_tree).is_file():
+            goal.behavior_tree = self.nav_behavior_tree
         future = self.nav.send_goal_async(goal)
         future.add_done_callback(lambda done: self.named_goal_response(done, label))
         self.status(f"NAMED GOAL DISPATCHED name={label}")
@@ -2259,6 +2290,8 @@ class AtlasMissionControl(Node):
         goal.pose.pose.orientation.y = float(pose["qy"])
         goal.pose.pose.orientation.z = float(pose["qz"])
         goal.pose.pose.orientation.w = float(pose["qw"])
+        if self.nav_behavior_tree and Path(self.nav_behavior_tree).is_file():
+            goal.behavior_tree = self.nav_behavior_tree
         future = self.nav.send_goal_async(goal)
         future.add_done_callback(
             lambda done: self.home_goal_response(done, pose, attempt)

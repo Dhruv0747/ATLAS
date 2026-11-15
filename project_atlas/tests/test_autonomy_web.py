@@ -56,7 +56,7 @@ class Lockout:
 
 def ros(policy):
     r = types.SimpleNamespace(estop_log=Log(), reset_pins=Pins(), reset_lockout=Lockout(),
-                              place_pubs={k: Pub() for k in ('save', 'go', 'delete', 'save_at')}, autonomy_clients={})
+                              place_pubs={k: Pub() for k in ('save', 'go', 'delete', 'save_at', 'go_at')}, autonomy_clients={})
     r._item = lambda key: {'value': json.dumps(policy), 'ts': time.time()} if policy is not None else None
     return r
 
@@ -108,6 +108,17 @@ class AutonomyWebTests(unittest.TestCase):
             h = Handler('/api/places', dict(bad, action='save_at', name='x'))
             web.serve(h, r, post=True)
             self.assertEqual(h.code, 400, bad)
+
+    def test_go_at_needs_on_and_released(self):
+        r = ros({'autonomy': {'armed': False}, 'stop_latched': False})
+        h = Handler('/api/places', {'action': 'go_at', 'x': 1.0, 'y': 2.0})
+        web.serve(h, r, post=True)
+        self.assertEqual(h.code, 409); self.assertEqual(r.place_pubs['go_at'].sent, [])
+        r = ros({'autonomy': {'armed': True}, 'stop_latched': False})
+        h = Handler('/api/places', {'action': 'go_at', 'x': 1.0, 'y': 2.0})
+        web.serve(h, r, post=True)
+        self.assertEqual(h.code, 202)
+        self.assertEqual(json.loads(r.place_pubs['go_at'].sent[0]), {'x': 1.0, 'y': 2.0})
 
     def test_on_needs_pin(self):
         r = ros({'autonomy': {'armed': False}, 'stop_latched': True})
