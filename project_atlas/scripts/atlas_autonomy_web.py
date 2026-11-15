@@ -251,6 +251,7 @@ GROUND_CHECK = Path('/home/jetson/project_atlas/tools/drive/speed_loop_ground_ch
 SPEEDCHECK_LOG = STATE_DIR / 'speedcheck_dashboard.log'
 SPEEDS = (0.10, 0.15)
 _RUN = {'proc': None, 'speed': None, 'started': None, 'lock': threading.Lock()}
+_LAST_VERIFIED = {'unix': None}       # last LiDAR VERIFIED seen (written_unix), for the AMCL-estimate path
 
 
 def _item_age(ros, key):
@@ -291,8 +292,12 @@ def readiness(ros):
     try:
         loc = json.loads(LOC_FILE.read_text(encoding='utf-8'))
         loc_age = time.time() - float(loc.get('written_unix', 0))
+        if loc.get('state') == 'VERIFIED':
+            _LAST_VERIFIED['unix'] = max(_LAST_VERIFIED['unix'] or 0.0, float(loc.get('written_unix', 0)))
     except (OSError, ValueError, TypeError):
         loc, loc_age = None, None
+    amcl_item, amcl_age = _item_age(ros, 'amcl_quality')
+    last_ver_age = None if _LAST_VERIFIED['unix'] is None else time.time() - _LAST_VERIFIED['unix']
     try:
         bridge = subprocess.run(['systemctl', '--user', 'is-active', '--quiet', 'atlas-astra-bridge.service'],
                                 timeout=3).returncode == 0
@@ -302,7 +307,8 @@ def readiness(ros):
     gate = arm.read_gate(evidence=ev)
     plist = [p for p in places()[0] if p['current_map']]
     out = atlas_readiness.checklist(pol, enc, enc_age, loc, loc_age, astra_age, bridge, ev, gate, len(plist),
-                                    speedcheck_running())
+                                    speedcheck_running(), amcl=(amcl_item or {}).get('value'), amcl_age_s=amcl_age,
+                                    last_verified_age_s=last_ver_age)
     out['speed'] = {'enabled': ev.get('enabled'), 'passed': ev.get('passed'), 'missing': ev.get('missing'),
                     'passes_needed': ev.get('passes_needed'),
                     'tool_installed': GROUND_CHECK.is_file(), 'results': _latest_speed_results()}

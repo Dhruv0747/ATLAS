@@ -2630,3 +2630,85 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
   no block for a missing/backlogged report when ATLAS_ULTRASONIC_ADVISORY=1 (drop-in 48); a VALID close reading
   still blocks. Backup *.before-advisory-20261115. Mux restarted parked + latched. Localization needs a fresh
   "Check my location" before the first autonomous goal.
+
+## 2026-11-15 ~21:37 — First autonomous goal in Autonomous mode (waypoint "test v2"): moved ~0.25 m, then stopped
+
+- Readiness all green (localization VERIFIED), mode AUTONOMOUS, owner released E-STOP and pressed Go on waypoint
+  "test v2". Mission: SCAN CHECK OK 99 %, goal dispatched/accepted; narrator spoke "theek hai, test v2 ki taraf ja
+  raha hoon". Rover moved (-1.07, 0.24) -> (-0.84, 0.34).
+- Then: mux "AUTONOMY STOP: ENCODER CRITICAL M1_REAR_LEFT,M2_REAR_RIGHT,M4_FRONT_RIGHT" (and again M2,M4) — the
+  base freeze detector (traction applied, no count change for ENCODER_FREEZE_S 1.2 s after 0.8 s grace) fires while
+  the speed loop is still in its low-PWM breakaway search: suspected false fault, NOT yet verified. Nav2 recovery ran
+  (narrator: "naya rasta dhoondh raha hoon"), then "AUTONOMY BLOCKED: LOCALIZATION XY UNCERTAINTY" grew 0.33 -> 0.99 m
+  and decayed; narrator: "mujhe apni jagah pakki nahi pata". Goal cancelled by me (status 5). No contact.
+- Next: (1) make the freeze detector count traction only above the speed loop's breakaway (or pause it during the
+  breakaway search, bounded); (2) find why AMCL XY std jumped to ~1 m during this short move.
+- 2026-11-15 ~21:50 diagnosis from logs (epoch 1794754617-650): mux "AUTONOMY STOP: ENCODER CRITICAL M1/M2/M4" six
+  times in 18 s (stop-go) — the base freeze detector (traction > 0, no count change > 1.2 s after 0.8 s grace) firing
+  during the speed loop's breakaway search; then RPP "Failed to make progress" / "collision ahead", costmap clears,
+  backup refused ("Collision Ahead"), and AMCL XY std 0.33 -> 0.99 m within ~5 s. Root cause of the AMCL growth NOT
+  established (no recording of that run); suspected odometry disturbance from the stop-go.
+- Fix (built, base tests OK on the Jetson; NOT deployed): yahboom_base freeze check ignores the speed loop's
+  'breakaway search' while applied PWM < FREEZE_CHECK_SEARCH_PWM (70); above it, and in tracking, freeze detection
+  is unchanged. Deploying changes yahboom_base.py -> the speed-check evidence becomes stale by design (2 new PASS
+  needed). Next autonomous run will be recorded (odom, amcl_pose, tf, scan, cmd_vel(_nav), encoder_health,
+  speed_loop) to settle the AMCL question.
+- 2026-11-15 20:38 DEPLOYED freeze-check fix (yahboom_base, backup *.before-freezefix-20261115) after the owner
+  latched B; speed evidence now stale by design (0/2 PASS). ~20:45 DEPLOYED readiness localization (owner: "LiDAR
+  confirm takes long while the estimate is right"): green on a fresh LiDAR VERIFIED OR (AMCL fresh <= 3 s,
+  xy_std <= 0.15 m, yaw_std <= 10 deg, no jump in 30 s AND a LiDAR VERIFIED within 30 min — remembered by the web
+  process since its start). Backups *.before-locest-20261115. Mission control was already using AMCL + a 1 s scan
+  check per goal; only the dashboard waited.
+- Owner report from a second goal (20:3x): "thoda sahi tha but steering nahi dekha, right side ho gaya" — drifted
+  right, then RPP "collision ahead" and abort. Not recorded; causes to test with a recording next: steering centre
+  trim, stop-go of the speed loop, 4WS servo lag vs RPP angular command.
+
+## 2026-11-15 ~21:10 — Closed-loop yaw rate (owner: "self adjustment — weight imbalance or tilted surface") — built, NOT deployed
+
+- scripts/atlas_heading_loop.py: PI on yaw-rate error (Nav2 wz - IM10A gyro z from /im10a/imu/bias_corrected_candidate,
+  the EKF's yaw input): kp 0.8, ki 1.2, |correction| <= 0.35 rad/s, active only while rolling (measured speed >= 0.04
+  m/s), keeps the learned drift across short stops, stale IMU (> 0.3 s) or bad input -> plain Nav2 command.
+- yahboom_base: subscribes to the IM10A topic when config/heading_loop.yaml enabled; adds the correction to wz in the
+  autonomous kinematic-steering branch only (REMOTE untouched). Turn split uses the corrected wz.
+- Tests: test_heading_loop 6 (constant drift -0.08..+0.05 rad/s with unknown steering gain 0.6-1.4 -> residual mean
+  yaw rate < 0.012 rad/s, final heading error < 35 % of open loop; tracks a commanded turn with drift; bounded;
+  stale-IMU fallback), test_speed_loop_base 16 incl. new autonomous-only check; all OK on the Jetson.
+- Deploy restarts rover-base-telemetry (parked, E-STOP latched) and makes speed evidence stale again (already 0/2).
+- 2026-11-15 ~21:21 DEPLOYED heading loop (owner "Yes, deploy"; parked + latched): yahboom_base + atlas_heading_loop +
+  config/heading_loop.yaml enabled; base log "heading loop ENABLED". Backup yahboom_base.py.before-heading-20261115.
+  Readiness: only the speed check (0/2) remains.
+
+## 2026-11-15 ~21:35 — ROOT CAUSE of "drifts right": autonomous steering sign inverted (not weight imbalance)
+
+- Recorded autonomous goal (bag data/lidar_tests/auto4_heading_20261115; IM10A, odom, AMCL, steering, speed loop,
+  cmd_vel): Nav2 wz +0.08 -> +1.2 rad/s (LEFT), front servo 94 -> 121 (code "LEFT"), but IM10A gz -0.04 -> -0.38 and
+  odom/AMCL yaw +11 -> -40 deg: the rover turned RIGHT. 34 of 39 moving samples opposite sign. The heading loop
+  (bounded 0.35 rad/s) pushed the same wrong way; Nav2 kept raising wz. Owner pressed B. Mission control also stopped
+  it once for "camera obstacles lost (2.1 s stale)".
+- Owner's earlier remote drive (sensitivity_drive bag): commanded wz vs measured yaw rate opposite in 82 of 115
+  samples — the mapping is physically mirrored for ROS +wz; the operator steers by feel so REMOTE was never noticed.
+- Fix (built; base tests incl. a new sign test OK on the Jetson; NOT deployed — deploy needs the owner's explicit OK):
+  yahboom_base AUTONOMOUS_STEER_SIGN = -1 mirrors only the autonomous kinematic-steering branch; REMOTE unchanged.
+  Deploying changes yahboom_base.py -> speed check 0/2 again by design.
+- 2026-11-15 ~21:40 DEPLOYED steering-sign fix (owner "Yes, deploy"; parked + latched): AUTONOMOUS_STEER_SIGN = -1 live,
+  heading loop enabled, backup yahboom_base.py.before-steersign-20261115. Readiness: speed 0/2 (by design) and camera:
+  atlas-astra-obstacles reports "obstacle scan not published: BLINDED" (< 30 % valid depth pixels) — camera covered,
+  facing something closer than ~0.4 m, or a dark surface at the parked spot.
+- 2026-11-15 ~21:50 owner: "remote mein bhi sahi kar do" — REMOTE_STEER_SIGN = -1 mirrors the remote steering branch
+  too, and the zero-speed autonomous steering branch uses AUTONOMOUS_STEER_SIGN. Built, base tests OK on the Jetson
+  (sign test now expects both paths front-below-centre for +wz). NOT deployed yet: after deploy the remote will feel
+  reversed compared with before (stick left = physical left from now on).
+- 2026-11-15 21:06 DEPLOYED remote steering mirror (owner "Yes, deploy", B latched): REMOTE_STEER_SIGN = -1 live;
+  heading loop enabled; backup yahboom_base.py.before-remotesign-20261115. Speed evidence stale (0/2) by design.
+- 2026-11-15 ~21:20 Speed check PASS x2 again after the steering fixes (mean 0.132 / 0.123 m/s, peak 0.21 / 0.174);
+  ground-check clearance now uses the straight driving corridor (|y| <= 0.28 m) instead of a +-18 deg cone (an object
+  0.31 m to the side at 1 m blocked starts). Then a goal was refused: mux "LOCALIZATION JUMP 0.21 m/4.3 deg (allowed
+  0.20 m)" — the jump fault latched until a mux restart. DEPLOYED 21:19 (owner choice "clear on B + restart now"):
+  a new E-STOP latch clears the jump fault (logged); every goal still runs mission control's scan/map check.
+  Backup atlas_cmd_vel_mux.py.before-jumpclear-20261115. Readiness all green after restart (mode MANUAL).
+
+### 2026-11-15 ~21:25 — first successful autonomous goal (owner supervised, remote + E-STOP in hand)
+- Goal "test v2" after the steering-sign fix + jump-clear deploy: `NAMED GOAL FINISHED name=test v2 status=4` (SUCCEEDED), ~12 s.
+- Bag `data/lidar_tests/auto5_steerfix_20261115`: commanded wz vs IM10A gz sign — same 104, opposite 0 (before fix they were opposite).
+- AMCL start (0.03, 0.50, 4°) → end (0.06, 0.48, 1°).
+- Still open: AMCL XY uncertainty spikes during drives, LiDAR availability stops, breakaway PWM variance, base reaching 0.12 instead of 0.15 m/s, Astra stale/BLINDED once, detour (replan) tree not ground-tested with a real obstacle.

@@ -420,6 +420,11 @@ class AtlasCmdVelMux(Node):
             self.publish_mode()
         self._remote_stop_hold_latched = latched
         self._remote_stop_hold_reason = reason
+        # 2026-11-15 owner: a new E-STOP latch acknowledges a latched LOCALIZATION JUMP fault (it used to need a
+        # mux restart). Every new goal still runs mission control's scan/map agreement check before motion.
+        if state_changed and latched and getattr(self, 'localization_jump_fault', None):
+            self.get_logger().warn('LOCALIZATION JUMP fault cleared by E-STOP latch: ' + self.localization_jump_fault)
+            self.localization_jump_fault = None
         arm = getattr(self, 'autonomy_arm', None)      # absent only in partial test fixtures
         if arm is not None and arm.observe_latch(latched):
             self.get_logger().warn('AUTONOMY OFF: E-STOP latched')

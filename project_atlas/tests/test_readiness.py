@@ -56,6 +56,19 @@ class ReadinessTests(unittest.TestCase):
         self.assertFalse(item(r, 'waypoints')['ok']); self.assertTrue(item(r, 'waypoints')['optional'])
         self.assertTrue(r['ready_to_drive'])                 # waypoints never block (Move here works without)
 
+    def test_confident_amcl_after_recent_verified_is_enough(self):
+        good = {'xy_std_m': 0.05, 'yaw_std_deg': 3, 'uncertain': False, 'large_step': False, 'recent_jump_s': None}
+        r = run(loc_check={'state': 'PARKED_SETTLING'}, loc_age_s=1, amcl=good, amcl_age_s=0.5, last_verified_age_s=300)
+        self.assertTrue(item(r, 'localization')['ok'])
+        self.assertFalse(item(run(loc_check={'state': 'PARKED_SETTLING'}, amcl=good, amcl_age_s=0.5,
+                                  last_verified_age_s=3600), 'localization')['ok'])        # no recent VERIFIED
+        self.assertFalse(item(run(loc_check={'state': 'PARKED_SETTLING'}, amcl=dict(good, xy_std_m=0.4),
+                                  amcl_age_s=0.5, last_verified_age_s=60), 'localization')['ok'])
+        self.assertFalse(item(run(loc_check={'state': 'PARKED_SETTLING'}, amcl=dict(good, recent_jump_s=5),
+                                  amcl_age_s=0.5, last_verified_age_s=60), 'localization')['ok'])
+        self.assertFalse(item(run(loc_check={'state': 'PARKED_SETTLING'}, amcl=good, amcl_age_s=9,
+                                  last_verified_age_s=60), 'localization')['ok'])          # stale AMCL
+
     def test_estop_needed_only_to_switch_on(self):
         r = run(policy={'autonomy': {'armed': False}, 'stop_latched': False})
         self.assertFalse(item(r, 'estop')['ok']); self.assertFalse(r['ready_to_switch_on'])

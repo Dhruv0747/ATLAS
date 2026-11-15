@@ -1,0 +1,6 @@
+# 2026-11-15 closed-loop autonomous yaw rate (scripts/atlas_heading_loop.py, IM10A gyro). Owner request: keep heading
+# straight despite weight imbalance or a tilted surface. Autonomous (non-REMOTE) commands only; stale IMU or a stopped
+# rover = plain Nav2 command. Rollback: enabled: false and restart rover-base-telemetry (parked, E-STOP latched).
+heading_loop:
+  enabled: true
+  params: {}        # optional overrides of atlas_heading_loop.DEFAULTS, e.g. max_correction: 0.25

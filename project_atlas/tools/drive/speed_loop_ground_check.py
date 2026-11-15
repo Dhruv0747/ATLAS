@@ -34,6 +34,9 @@ RUNAWAY_MARGIN = 0.15
 RUNAWAY_FLOOR_MPS = 0.35     # 2026-11-15: below the ~0.37 m/s manual driving speed; above the breakaway surge
 STEADY_AFTER_S = 1.5
 LASER_YAW_DEG = 180.0
+LASER_X_M = -0.05              # base_link -> laser_frame (tf)
+FRONT_BUMPER_X_M = 0.25        # footprint front edge
+CORRIDOR_HALF_WIDTH_M = 0.28   # half footprint width 0.18 + 0.10 margin
 
 
 def bounded_args(speed, distance, timeout):
@@ -129,14 +132,22 @@ def main():
                 pass
 
         def on_scan(self, m):
-            vals, ang = [], m.angle_min
+            # 2026-11-15 (owner: "front is clear but..."): a +-18 deg cone also caught an object 0.31 m to the side
+            # at 1 m, outside the rover's path. Clearance is now the distance ahead inside the straight driving
+            # CORRIDOR (|y| <= CORRIDOR_HALF_WIDTH_M in base_link); the front-blind guard keeps the +-18 deg cone.
+            vals, corridor, ang = [], [], m.angle_min
             for r in m.ranges:
-                if (ray_in_base_sector(math.degrees(ang), 0.0, 18.0, LASER_YAW_DEG)
-                        and math.isfinite(r) and r >= m.range_min):
-                    vals.append(r)
+                if math.isfinite(r) and r >= m.range_min:
+                    a = math.radians(math.degrees(ang) + LASER_YAW_DEG)
+                    x, y = LASER_X_M + r * math.cos(a), r * math.sin(a)
+                    if x > 0 and abs(y) <= CORRIDOR_HALF_WIDTH_M:
+                        corridor.append(x - FRONT_BUMPER_X_M + 0.3)   # same reference as before (~laser origin)
+                    if ray_in_base_sector(math.degrees(ang), 0.0, 18.0, LASER_YAW_DEG):
+                        vals.append(r)
                 ang += m.angle_increment
             self.blind = 0 if vals else self.blind + 1
-            self.clear = min(vals) if vals else self.clear
+            if vals or corridor:
+                self.clear = min(corridor) if corridor else math.inf
             self.scan_t = time.monotonic()
 
         def call(self, client, timeout):

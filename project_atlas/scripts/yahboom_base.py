@@ -44,6 +44,10 @@ from atlas_encoder_selection import (
 )
 from atlas_encoder_calibration import load_encoder_calibration
 from atlas_closed_loop_control import AtlasClosedLoopController, load_drive_config
+try:  # 2026-11-15 closed-loop autonomous yaw rate (IM10A gyro); see config/heading_loop.yaml
+    from atlas_heading_loop import HeadingLoop
+except Exception:  # pragma: no cover - module missing -> heading loop off (plain Nav2 wz)
+    HeadingLoop = None
 try:  # 2026-11-15 closed-loop autonomous speed (3 encoders); see config/speed_loop.yaml
     from atlas_speed_loop import SpeedFeedback, load_speed_loop_config, turn_split
     _SPEED_LOOP_IMPORT_ERROR = ''
@@ -109,6 +113,7 @@ CMD_ODOM_WZ_SCALE = 0.45
 ODOM_STATE_SAVE_PERIOD_S = 0.20
 ENCODER_FREEZE_S = 1.20
 ENCODER_START_GRACE_S = 0.80
+FREEZE_CHECK_SEARCH_PWM = 70   # speed-loop breakaway search below this PWM is not 'traction' for the freeze check
 ENCODER_SINGLE_GRACE_S = 5.0
 ENCODER_LINK_QUALIFY_S = 3.0
 # Dashboard-only wheel/motor telemetry does not need the board-state loop's
@@ -233,6 +238,13 @@ SPEED_LOOP_CONFIG = Path(os.environ.get(
     str(Path(__file__).resolve().parents[1] / 'config' / 'speed_loop.yaml'),
 ))
 SPEED_LOOP_STATUS_IDLE_PERIOD_S = 1.0
+HEADING_LOOP_CONFIG = Path(os.environ.get(
+    'ATLAS_HEADING_LOOP_CONFIG',
+    str(Path(__file__).resolve().parents[1] / 'config' / 'heading_loop.yaml'),
+))
+HEADING_IMU_TOPIC = '/im10a/imu/bias_corrected_candidate'
+AUTONOMOUS_STEER_SIGN = -1.0   # see the kinematic branch in _drive_pwm (2026-11-15 sign evidence)
+REMOTE_STEER_SIGN = -1.0       # 2026-11-15 owner: remote fixed the same way (stick left -> physical left)
 ENCODER_CALIBRATION_CONFIG = Path(os.environ.get(
     'ATLAS_ENCODER_CALIBRATION_CONFIG',
     str(Path(__file__).resolve().parents[1] / 'config' / 'encoder_calibration.yaml'),
@@ -419,6 +431,7 @@ class YahboomBase(Node):
             self._drive_pid = None
             self._drive_pid_error = f'configuration_error:{exc}'
         self._init_speed_loop()
+        self._init_heading_loop()
 
         # This source-only commissioning interface is deliberately off after
         # install/restart.  Enabling it grants only short raw, single-channel
@@ -1387,9 +1400,12 @@ class YahboomBase(Node):
             # made the target jump near zero speed and reverse direction while
             # backing up.  Use direct, speed-independent four-wheel steering
             # for the operator; the servo slew limiter below keeps it smooth.
-            steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
+            # 2026-11-15 (owner: "remote mein bhi sahi kar do"): mirrored like the autonomous path so ROS +wz
+            # (stick left) physically turns LEFT on the remote too.
+            steer_norm = REMOTE_STEER_SIGN * max(-1.0, min(1.0, wz / MAX_WZ))
             front_angle, rear_angle = opposite_steering_targets(steer_norm)
         elif abs(vx) > 0.02:
+            wz = self._heading_corrected_wz(vx, wz)
             # Four-wheel opposite steering kinematics:
             #   wz = 2 * vx * tan(delta) / wheelbase
             # The former wz/MAX_WZ mapping produced only ~3-6 degrees at
@@ -1400,7 +1416,11 @@ class YahboomBase(Node):
             steer_delta = math.degrees(math.atan(
                 (self._wheelbase_m * wz) / (2.0 * vx)
             ))
-            steer_delta = max(-35.0, min(35.0, steer_delta))
+            # 2026-11-15 recordings: with this servo mapping a positive (ROS left) wz turned the rover RIGHT —
+            # autonomous goal (Nav2 wz +0.08..+1.2, IM10A gz -0.04..-0.38, AMCL yaw +11 -> -40 deg; 34 of 39
+            # samples opposite) and the owner's remote drive (82 of 115 opposite; the operator steers by feel, so
+            # the REMOTE path is left unchanged). Autonomous kinematic steering is therefore mirrored here.
+            steer_delta = AUTONOMOUS_STEER_SIGN * max(-35.0, min(35.0, steer_delta))
             front_angle, rear_angle = opposite_steering_targets(
                 steer_delta / 35.0
             )
@@ -1408,7 +1428,7 @@ class YahboomBase(Node):
             # Steering-only operator command: no kinematic curvature exists
             # at zero speed, so retain proportional wheel positioning. A full
             # zero command therefore returns both axles to their home centres.
-            steer_norm = max(-1.0, min(1.0, wz / MAX_WZ))
+            steer_norm = AUTONOMOUS_STEER_SIGN * max(-1.0, min(1.0, wz / MAX_WZ))
             front_angle, rear_angle = opposite_steering_targets(steer_norm)
         front_angle = max(FRONT_STEER_RIGHT, min(FRONT_STEER_LEFT, front_angle))
         rear_angle = max(REAR_STEER_RIGHT, min(REAR_STEER_LEFT, rear_angle))
@@ -1514,6 +1534,43 @@ class YahboomBase(Node):
             self._speed_feedback.take(time.monotonic())
         if self._speed_loop is not None:
             self._speed_loop.reset()
+
+    def _init_heading_loop(self):
+        """config/heading_loop.yaml {heading_loop: {enabled: bool, params: {}}}; missing/disabled/bad -> off."""
+        self._heading_loop = None
+        self._imu_gz = None
+        self._imu_gz_t = 0.0
+        self._heading_t = None
+        try:
+            import yaml
+            raw = yaml.safe_load(HEADING_LOOP_CONFIG.read_text(encoding='utf-8')) or {}
+            cfg = raw.get('heading_loop', {}) if isinstance(raw, dict) else {}
+            if HeadingLoop is not None and cfg.get('enabled') is True:
+                self._heading_loop = HeadingLoop(cfg.get('params') or {})
+        except Exception as exc:  # fail safe: plain Nav2 command
+            self.get_logger().warning(f'heading loop disabled: {exc}')
+            self._heading_loop = None
+        if self._heading_loop is not None:
+            self.create_subscription(Imu, HEADING_IMU_TOPIC, self._on_heading_imu, 20)
+            self.get_logger().info('heading loop ENABLED (IM10A yaw-rate closed loop, autonomous only)')
+
+    def _on_heading_imu(self, msg):
+        self._imu_gz = float(msg.angular_velocity.z)
+        self._imu_gz_t = time.monotonic()
+
+    def _heading_corrected_wz(self, vx, wz):
+        """Autonomous (non-REMOTE) only: add the IM10A yaw-rate correction to Nav2's wz."""
+        loop = getattr(self, '_heading_loop', None)
+        if loop is None or self._drive_source == 'REMOTE':
+            return wz
+        now = time.monotonic()
+        last = getattr(self, '_heading_t', None)
+        self._heading_t = now
+        dt = 0.1 if last is None else now - last
+        speed_loop = getattr(self, '_speed_loop', None)
+        speed = abs(speed_loop.measured_speed()) if speed_loop is not None else abs(vx)
+        age = now - self._imu_gz_t if self._imu_gz is not None else None
+        return loop.update(float(wz), self._imu_gz, speed, dt, age)
 
     def _speed_loop_pwm(self, vx, steering_aligned):
         """Signed PWM for a non-REMOTE command from measured 3-encoder speed."""
@@ -1892,7 +1949,17 @@ class YahboomBase(Node):
     def _publish_encoder_health(self, now):
         """Detect frozen wheel feedback while traction is actually applied."""
         traction = abs(self._applied_pwm) > 0
-        if traction:
+        # 2026-11-15 first autonomous goal: the freeze detector declared M1/M2/M4 CRITICAL while the closed-loop
+        # speed controller was still in its breakaway search (low PWM, wheels legitimately still). Do not count that
+        # as traction for the freeze check until the search reaches FREEZE_CHECK_SEARCH_PWM; a frozen encoder under
+        # a real breakaway effort is still caught (the search reaches it within ~1.3 s) and consensus/stale checks
+        # are unchanged.
+        loop = getattr(self, '_speed_loop', None)
+        freeze_traction = traction and not (
+            loop is not None and self._drive_source != 'REMOTE'
+            and getattr(loop, 'last_reason', '') == 'breakaway search'
+            and abs(self._applied_pwm) < FREEZE_CHECK_SEARCH_PWM)
+        if freeze_traction:
             if self._encoder_motion_started <= 0.0:
                 self._encoder_motion_started = now
                 # Begin every traction interval with a fresh per-wheel timing

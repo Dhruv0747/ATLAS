@@ -90,7 +90,9 @@
   $('mwpMove').onclick = async () => {
     if (!tap || $('mwpMove').disabled) return;
     if (!confirm(`Drive autonomously to x ${tap.x.toFixed(2)}, y ${tap.y.toFixed(2)}?\n\nB on the remote stops immediately.`)) return;
-    await post({ action: 'go_at', x: tap.x, y: tap.y });
+    const d = await post({ action: 'go_at', x: tap.x, y: tap.y });
+    // 2026-11-15: once the goal is accepted the Nav2 goal marker (red) shows the target; drop the tap crosshair
+    if (d && d.ok) { tap = null; $('mwpTap').hidden = true; if (typeof draw === 'function') draw(); }
   };
   $('mwpCancel').onclick = () => { tap = null; $('mwpTap').hidden = true; if (typeof draw === 'function') draw(); };
   $('mwpSave').onclick = async () => {

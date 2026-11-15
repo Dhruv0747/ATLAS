@@ -21,12 +21,12 @@ from test_speed_loop import Rover  # noqa: E402
 SOURCE = SCRIPTS / 'yahboom_base.py'
 CONSTS = {'MAX_VX', 'MAX_WZ', 'MAX_PWM', 'MIN_RUN_PWM', 'REMOTE_MAX_PWM', 'REMOTE_BOOST_THRESHOLD',
           'REMOTE_BOOST_MIN_PWM', 'REMOTE_BOOST_MAX_PWM', 'AUTONOMOUS_MIN_RUN_PWM', 'LOW_SPEED_HOLD_PWM',
-          'PWM_RAMP_STEP', 'TURN_PWM_BIAS', 'SPEED_LOOP_STATUS_IDLE_PERIOD_S',
+          'PWM_RAMP_STEP', 'TURN_PWM_BIAS', 'SPEED_LOOP_STATUS_IDLE_PERIOD_S', 'AUTONOMOUS_STEER_SIGN', 'REMOTE_STEER_SIGN',
           'FRONT_STEER_CENTER', 'REAR_STEER_CENTER', 'FRONT_STEER_RIGHT', 'FRONT_STEER_LEFT',
           'REAR_STEER_RIGHT', 'REAR_STEER_LEFT'}
 FUNCS = {'motor_outputs', '_clamp_servo', 'opposite_steering_targets'}
 METHODS = {'_drive_pwm', '_slew_motor_pwm', '_step_toward', '_init_speed_loop', '_speed_loop_idle',
-           '_speed_loop_pwm'}
+           '_speed_loop_pwm', '_heading_corrected_wz'}
 
 
 class Clock:
@@ -255,6 +255,34 @@ class FeedbackTests(unittest.TestCase):
         # 2026-11-15: ground-validated (Speed check PASS x2) and deployed enabled; the repo matches the rover.
         en, loop, err = sl.load_speed_loop_config(SCRIPTS.parent / 'config' / 'speed_loop.yaml')
         self.assertTrue(en); self.assertIsNotNone(loop); self.assertEqual(err, '')
+
+    def test_heading_loop_corrects_autonomous_only(self):
+        from atlas_heading_loop import HeadingLoop
+        clock = Clock()
+        b, _ = make_base(ENABLED, clock)
+        b._heading_loop = HeadingLoop(); b._imu_gz = -0.08; b._imu_gz_t = clock.monotonic()
+        b._heading_t = None
+        out = b._heading_corrected_wz(0.15, 0.0)
+        self.assertEqual(out, 0.0)                     # speed loop not rolling yet -> measured 0 -> no correction
+        b._speed_loop.measured_speed = lambda: 0.15
+        clock.t += 0.1
+        out = b._heading_corrected_wz(0.15, 0.0)
+        self.assertGreater(out, 0.0)                   # drifting right (gz < 0) -> steer left
+        b._drive_source = 'REMOTE'
+        self.assertEqual(b._heading_corrected_wz(0.15, 0.0), 0.0)
+        b._drive_source = 'NAV'; b._heading_loop = None
+        self.assertEqual(b._heading_corrected_wz(0.15, 0.2), 0.2)
+
+    def test_autonomous_left_turn_uses_mirrored_servo_side(self):
+        # 2026-11-15: ROS +wz (left) must command the servo side that physically turned the rover LEFT, i.e. the
+        # mirror of the old mapping (front below centre). 2026-11-15 owner: REMOTE mirrored the same way.
+        clock = Clock()
+        b, ns = make_base(ENABLED, clock)
+        b._drive_pwm(0.15, 0.3)
+        self.assertLess(b._front_target_angle, ns['FRONT_STEER_CENTER'])
+        r, ns = make_base(ENABLED, Clock(), source='REMOTE')
+        r._drive_pwm(0.3, 0.3)
+        self.assertLess(r._front_target_angle, ns['FRONT_STEER_CENTER'])
 
     def test_turn_split(self):
         self.assertEqual(sl.turn_split(0, 8, 100), (0, 0))

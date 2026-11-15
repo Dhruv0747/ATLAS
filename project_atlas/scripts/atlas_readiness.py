@@ -8,14 +8,32 @@ E-STOP, localization, camera); each is cleared only by its owner-run test/check.
 """
 
 LOC_FRESH_S = 120.0
+# 2026-11-15 owner: "LiDAR confirm takes long while the estimate is right". Mission control itself uses AMCL + a 1 s
+# scan check per goal; the dashboard now also accepts a confident AMCL estimate after a recent LiDAR VERIFIED.
+AMCL_MAX_XY_STD_M = 0.15
+AMCL_MAX_YAW_STD_DEG = 10.0
+AMCL_MAX_AGE_S = 3.0
+VERIFIED_WITHIN_S = 30 * 60.0
 
 
 def _fmt(t):
     return f'{t:.2f} m/s'
 
 
+def amcl_confident(amcl, amcl_age_s):
+    a = amcl or {}
+    try:
+        return (amcl_age_s is not None and 0 <= amcl_age_s <= AMCL_MAX_AGE_S and not a.get('uncertain')
+                and not a.get('large_step') and float(a.get('xy_std_m', 9)) <= AMCL_MAX_XY_STD_M
+                and float(a.get('yaw_std_deg', 999)) <= AMCL_MAX_YAW_STD_DEG
+                and (a.get('recent_jump_s') is None or float(a['recent_jump_s']) > 30.0))
+    except (TypeError, ValueError):
+        return False
+
+
 def checklist(policy, encoder_health, encoder_age_s, loc_check, loc_age_s, astra_age_s, bridge_active,
-              speed_ev, gate, places_count, speed_check_running=False):
+              speed_ev, gate, places_count, speed_check_running=False, amcl=None, amcl_age_s=None,
+              last_verified_age_s=None):
     items = []
     auto = (policy or {}).get('autonomy') or {}
     latched = (policy or {}).get('stop_latched')
@@ -79,9 +97,16 @@ def checklist(policy, encoder_health, encoder_age_s, loc_check, loc_age_s, astra
 
     # 5. localization (needed for every goal)
     state = (loc_check or {}).get('state')
-    loc_ok = state == 'VERIFIED' and loc_age_s is not None and loc_age_s <= LOC_FRESH_S
+    fresh_verified = state == 'VERIFIED' and loc_age_s is not None and loc_age_s <= LOC_FRESH_S
+    est_ok = (amcl_confident(amcl, amcl_age_s) and last_verified_age_s is not None
+              and last_verified_age_s <= VERIFIED_WITHIN_S)
+    loc_ok = fresh_verified or est_ok
+    xy = (amcl or {}).get('xy_std_m')
     add('localization', loc_ok, 'Rover को अपनी जगह पता है (localization)',
-        f'Localization: {state or "कोई check नहीं"}' + (f' ({int(loc_age_s)} s पुराना)' if loc_age_s else ''),
+        f'LiDAR check: {state or "कोई check नहीं"}' + (f' ({int(loc_age_s)} s पुराना)' if loc_age_s else '')
+        + (f' • AMCL ±{float(xy):.2f} m' if xy is not None else '')
+        + ('' if last_verified_age_s is not None and last_verified_age_s <= VERIFIED_WITHIN_S
+           else ' • पिछले 30 min में VERIFIED नहीं'),
         ['Rover को खड़ा रखें (B latched)।', 'Home page पर "CHECK MY LOCATION" दबाएँ और ~30 s रुकें।',
          'VERIFIED न आए तो rover को किसी पहचानी जगह (जैसे dhruv room) ले जाकर फिर check करें।'],
         {'label': 'Check my location (Home)', 'href': '/v2/#hmLocSlot'}, 'VERIFIED आते ही अपने आप।')
