@@ -94,6 +94,39 @@ class EncoderSelectionTests(unittest.TestCase):
         )
         self.assertEqual(estimator.last_accepted, ())
 
+    def test_three_channel_rule_accepts_coherent_pair(self):
+        # 2026-11-15: M3 excluded; one bursty channel must not drop the whole interval (was CRITICAL / speed 0).
+        estimator = EncoderDeltaEstimator()
+        estimator.update([0.0] * 4, [0, 1, 3])
+        self.assertAlmostEqual(estimator.update([0.010, 0.0105, 0.0, 0.025], [0, 1, 3]), 0.01025)
+        self.assertEqual(estimator.last_accepted, (0, 1))
+        self.assertEqual(estimator.last_rejected, (3,))
+
+    def test_three_channel_rule_two_stalled_do_not_outvote_moving(self):
+        estimator = EncoderDeltaEstimator()
+        estimator.update([0.0] * 4, [0, 1, 3])
+        self.assertEqual(estimator.update([0.0, 0.0, 0.0, 0.03], [0, 1, 3]), 0.0)
+        self.assertEqual(estimator.last_accepted, ())
+        self.assertEqual(estimator.last_rejected, (0, 1, 3))
+
+    def test_three_channel_rule_pair_may_outvote_stalled(self):
+        estimator = EncoderDeltaEstimator()
+        estimator.update([0.0] * 4, [0, 1, 3])
+        self.assertAlmostEqual(estimator.update([0.03, 0.0, 0.0, 0.031], [0, 1, 3]), 0.0305)
+        self.assertEqual(estimator.last_accepted, (0, 3))
+
+    def test_three_channel_rule_still_at_rest(self):
+        estimator = EncoderDeltaEstimator()
+        estimator.update([0.0] * 4, [0, 1, 3])
+        self.assertEqual(estimator.update([0.0] * 4, [0, 1, 3]), 0.0)
+        self.assertEqual(len(estimator.last_accepted), 3)
+
+    def test_four_channels_still_need_three(self):
+        estimator = EncoderDeltaEstimator()
+        estimator.update([0.0] * 4, range(4))
+        self.assertEqual(estimator.update([0.01, 0.0105, 0.03, -0.02], range(4)), 0.0)
+        self.assertEqual(estimator.last_accepted, ())
+
     def test_reverse(self):
         estimator = EncoderDeltaEstimator()
         estimator.update([0]*4, [0, 1, 2])

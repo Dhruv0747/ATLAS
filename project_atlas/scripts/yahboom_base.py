@@ -1886,7 +1886,7 @@ class YahboomBase(Node):
                 round(max(0.0, now - stamp), 2)
                 for stamp in self._wheel_last_change_t
             ],
-            'policy': 'dynamic_3of4_consensus;fewer_than_3=stop;validation_required',
+            'policy': 'dynamic_3of4_consensus;3_channels=coherent_pair;no_agreement=stop;validation_required',
         }
         self._pub_encoder_health.publish(
             String(data=json.dumps(payload, separators=(',', ':')))
@@ -1959,7 +1959,7 @@ class YahboomBase(Node):
             vy = 0.0
             vz = 0.0
             curvature = 0.0
-            source = 'feedback_unavailable' if len(accepted_indexes) < 3 else (
+            source = 'feedback_unavailable' if len(accepted_indexes) < 2 else (
                 'stopped_' + '_'.join(
                     f'M{i + 1}' for i in accepted_indexes
                 ) + '_consensus' if len(accepted_indexes) < 4 else 'stopped'
@@ -1998,7 +1998,8 @@ class YahboomBase(Node):
         msg.twist.covariance[35] = 0.20
         if len(accepted_indexes) < 4:
             # Conservative provisional uncertainty, not a measured accuracy.
-            factor = 4.0 if len(accepted_indexes) == 3 else 1000.0
+            # 2026-11-15: a coherent pair (three-channel rule) is trusted less than three, not ignored.
+            factor = {3: 4.0, 2: 9.0}.get(len(accepted_indexes), 1000.0)
             # Zero velocity stays a trusted observation after 1 s of verified
             # stillness (WheelStillnessDetector); inflating it lets a velocity-
             # fusing EKF coast while parked. Pose uncertainty stays inflated

@@ -2124,3 +2124,184 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
   *.before-cameragate-20261114; mission control + rover-status-web restarted, rover parked, nobody driving).
   Live: param True; card shows "Nav2 OFF" (bridge off since 17:21 — correct). Not tested by sending a goal (no motion
   from me); unit tests cover refuse/stop paths.
+
+## 2026-11-15 10:30-10:55 — Combined stop-and-go round trip, Dhruv Room -> hall -> Dhruv Room (M3 excluded)
+
+- Read-only tools/drive/round_trip_check.py while the owner drove with the remote. Astra bridge started by the starter
+  at 10:29:54 (needed the E-STOP latched: the mux publishes /cmd_vel only while an input is active, so with the remote
+  idle the parked check saw stale cmd_vel). Log on the Jetson: ~/.local/state/project_atlas/round_trip_20261115.log.
+- Tool fixes during the run (first 3 segments re-counted): distance now EKF (/odom, wheel vx + IM10A yaw, what navigation
+  uses) vs LiDAR ICP — the wheel-only pose integrates the known wrong 4WS yaw sign (e.g. +117 vs -88 deg) so its
+  projected distance was meaningless in arcs; localization wait 45 s (monitor search alone ~20 s); short stops are
+  "loc not checked", not failures.
+- Result, 25 stops: EKF 14.26 m vs LiDAR 14.46 m (-1.4 %), every segment within tolerance; IMU-EKF vs LiDAR yaw agreed
+  on every segment (incl. -101/-100, -66/-66, -44/-44, +32/+31 deg); localization VERIFIED 16/16 checked (final stop
+  VERIFIED, 0.124 m); Astra bridge ACTIVE throughout. Turns >= 30 deg: left 1, right 5.
+- FAIL 12/25, all for one reason: /atlas/encoder_health CRITICAL "encoder consensus unavailable; fewer than three wheel
+  channels agree" during motion — in arcs AND on near-straight segments (#24 -0.92 m, #25 +0.37 m, turn ~2 deg).
+- Root cause (code read, yahboom_base._publish_encoder_health + atlas_encoder_selection.EncoderDeltaEstimator): with M3
+  excluded only 3 channels remain, so a "group of >= 3 coherent deltas" needs ALL of M1/M2/M4 to agree in every sample
+  interval (45 % / 4 mm). One bursty interval rejects all three -> that interval integrates 0 distance and the health
+  state is CRITICAL with speed scale 0.0 for that tick. This was predicted on 2026-11-13 (line ~1777: excluding M3
+  "nearly doubles fail-closed intervals").
+- Owner observation: twice in turns they had to push the stick harder ("increase the speed because it's a turn") —
+  consistent with scale 0.0 / 0.5 cutting commanded speed when consensus drops in arcs.
+- Consequence: with navigation_validated=true the mux would cut autonomy speed every time consensus drops (fail-safe
+  but stuttering/stalling in turns). navigation_validated stays FALSE. No config or code changed.
+- Options (owner decision): (A) repair M3 wiring -> 3-of-4 consensus regains slack (preferred); (B) a 3-encoder-mode
+  rule, e.g. 2-of-3 agreement with LiDAR/IMU cross-check, or CRITICAL only after consensus is lost for > N s, with
+  offline replay of this run's bag/log before any deploy.
+
+## 2026-11-15 11:30 — Three-encoder consensus rule (owner chose "Try 3-encoder rule"; NOT deployed yet)
+
+- Change (scripts/atlas_encoder_selection.py EncoderDeltaEstimator): when exactly 3 channels are valid and no group of 3
+  agrees, accept the tightest coherent PAIR (same 45 % / 4 mm tolerance) and integrate its mean. Fail closed when the
+  pair is stalled (< 0.5 mm) while the third moves (> 4 mm), and on opposite-sign pairs. With 4 valid channels the
+  3-of-4 rule is unchanged. yahboom_base.py: pair intervals get twist/pose covariance x9 (x4 for three, x1000 none),
+  stationary label allows 2, policy string updated. Health CRITICAL logic unchanged (still fires when no pair agrees).
+- First guard (pair <= 4 mm treated as stalled) rejected normal bursts like [3.0, 7.6, 2.1] mm; replaced by < 0.5 mm.
+- Offline replay (tools/drive/replay_three_encoder_rules.py; /atlas/encoder_health interval deltas, M3 dropped):
+  remap 13 bag 30/518 -> 1/518 failing moving intervals (5.8 % -> 0.2 %); 2902fe9a 24/626 -> 0/626; 8dec1c9a 28/606 ->
+  0/606. Integrated distance +1-2 % (intervals no longer dropped). Absolute distance vs LiDAR in this replay is not
+  meaningful (health samples do not cover every encoder interval; ICP path includes parked jitter).
+- Tests: test_encoder_selection 28 OK (5 new), test_motor_mapping OK, on the Jetson with the candidate files.
+  Live files equal git HEAD before the change. Deploy: tools/deploy/deploy_20261115_three_encoder_rule.sh (parked +
+  E-STOP latched; restarts rover-base-telemetry only; --rollback). Then one short owner drive with round_trip_check.
+- navigation_validated stays false until that drive passes.
+
+## 2026-11-15 ~11:45-12:20 — Three-encoder rule DEPLOYED and ground-checked
+
+- Deployed with the rover parked and the E-STOP latched (mux streaming zero cmd_vel): tools/deploy/
+  deploy_20261115_three_encoder_rule.sh; backups *.before-3enc-20261115; only rover-base-telemetry restarted. Live
+  policy "dynamic_3of4_consensus;3_channels=coherent_pair;no_agreement=stop;validation_required", DEGRADED, [3] excluded.
+- Owner drive Dhruv Room -> hall -> Dhruv Room with round_trip_check (log round_trip_20261115b.log):
+  39 stops, 36 PASS / 3 FAIL; EKF 19.74 m vs LiDAR 19.75 m; IMU-EKF vs LiDAR yaw agreed on every stop; right turns
+  >= 30 deg: 8 (-30 ... -61 deg, forward and reverse) all with encoders DEGRADED (not CRITICAL); left turns: max +22 deg
+  (no >= 30 deg left arc yet). Final stop localization VERIFIED (0.165 m, 2.2 deg). Astra bridge ACTIVE throughout.
+- Encoder CRITICAL: 1 of 39 stops (#3, -21 deg arc, before a CRITICAL capture was started). A /atlas/encoder_health
+  CRITICAL capture from stop #5 to the end recorded ZERO CRITICAL messages (previous rule: 12 of 25 stops).
+- The other 2 FAILs were localization: #6 INPUT_STALE (odometry stale) right when I started that capture — a new
+  domain-0 participant (known ~100 % CPU discovery spike) — my process error, not the rover; #24 DEGRADED "no unique
+  LiDAR place" at one spot, next stop VERIFIED.
+- Owner observation (old rule): had to push the stick harder in turns. Not reported with the new rule.
+- Remaining before navigation_validated: one >= 30 deg LEFT arc (M1 is the only left channel; left arcs make it the
+  inner wheel). navigation_validated still false.
+
+## 2026-11-15 ~12:30-12:50 — Left-arc test, three-encoder rule (log round_trip_20261115c.log)
+
+- 11 stops, 9 PASS / 2 FAIL; EKF 6.40 m vs LiDAR 6.44 m. Left arcs: +89/+85 deg (1.05/1.09 m) and +90/+93 deg
+  (1.04/0.96 m); right/reverse arcs -96/-96, -40/-40 deg. Final stop VERIFIED (0.014 m, 6.1 deg). Astra ACTIVE.
+- Encoder CRITICAL: exactly ONE health message in the whole run (capture covered all of it), during the first left arc:
+  normalized deltas M1 -2.7 / M2 -18.0 / M4 -8.9 mm — no pair within 45 % / 4 mm (a single bursty 0.1 s interval).
+  The second 90 deg left arc stayed DEGRADED throughout.
+- FAIL #3 = that single CRITICAL tick; FAIL #6 = localization DEGRADED "AMCL near the LiDAR answer but not confirmed
+  (0.12 m, 5 deg)" right after the second 90 deg left arc.
+- Combined with the 39-stop run: left and right arcs >= 30 deg now covered; distance/yaw agree everywhere; encoder
+  CRITICAL is now rare single ticks (2 ticks in ~26 m) instead of ~half of all stops. navigation_validated still false —
+  owner decision pending.
+
+## 2026-11-15 ~12:55 — navigation_validated ENABLED (owner: "Yes, enable it"); manual-only gate still ON
+
+- config/encoder_selection.yaml navigation_validated: true (backup .before-navvalid-20261115), rover parked, E-STOP
+  latched, rover-base-telemetry restarted. Live /atlas/encoder_health: DEGRADED, scale 0.5, navigation_validated true,
+  autonomy_ready true.
+- Found while checking the autonomy path: the mux runs with ATLAS_MANUAL_ONLY=1 (drop-in
+  atlas-cmd-vel-mux.service.d/40-manual-commissioning.conf, since 2026-10-15), which drops NAV commands. The
+  2026-10-15 report says: do NOT restore manual-only=0 without a separate safety decision. NOT changed; owner decision.
+- Nav2 (amcl, bt_navigator, planner/controller servers) and mission control are running; Astra bridge active.
+- 2026-11-15 ~13:00 (owner: "Yes, open it"): manual-only lock opened for supervised autonomy via new drop-in
+  systemd/user/atlas-cmd-vel-mux.service.d/45-supervised-autonomy.conf (ATLAS_MANUAL_ONLY=0; 40-manual-commissioning
+  kept). Rover parked, E-STOP latched; daemon-reload + mux restart only. Verified: mux starts with the software stop
+  latched (RemoteStop.latched=True at construction); live control_policy manual_only false, stop_latched true,
+  source STOPPED. Rollback: delete the 45 drop-in, daemon-reload, restart the mux. No goal sent; no motion.
+
+## 2026-11-15 11:48-11:52 — First supervised autonomous goal: blocked by the mux guards (rover did NOT move)
+
+- Owner chose "I send, owner holds E-STOP". One goal: /atlas/navigate_named_place "dhruv room" (~1.8 m from
+  (-1.62, 0.03)). Mission: SCAN CHECK OK fit 100 %, goal dispatched + accepted; Nav2 planned and the controller
+  published /cmd_vel_nav (x 0.15, alternating with 0). The mux sent ZERO the whole time; rover stayed still.
+- Mux reasons (journal since 11:48): "LIDAR AVAILABILITY STOP: unobserved motion sector (4-5 bins)" x105 and
+  "AUTONOMY BLOCKED: FRONT/REAR ULTRASONIC SERIAL_BACKLOG" x3/x3. Nav2 looped "Failed to make progress" -> backup
+  recovery (did not move) -> retry. I cancelled both Nav2 actions at ~11:51 (NAMED GOAL FINISHED status=5).
+- Root cause of the LiDAR veto (atlas_lidar_availability.py, deployed 2026-10-11): any angular command requires a
+  valid return in ALL 72 five-degree bins. Here bins 230-250 deg (rear-right, robot frame) were ALWAYS empty; /scan_raw
+  is inf there too (no LiDAR return, not the self-filter; neighbours at 0.4-0.6 m — likely dark/absorptive furniture).
+  Remap-13 bag replay: only 34 % of scans have all 72 bins observed (top gaps 230-240 ~17 %, 320 17 %, 10-25 deg
+  13-15 %). With this rule, autonomous arcs are blocked most of the time anywhere in the house. This is the
+  "real-scan observation gaps" item left open on 2026-10-11 — not new, not previously relaxed.
+- Ultrasonic SERIAL_BACKLOG: bridge invalidates a report when more serial data is already waiting (CPU/latency);
+  intermittent, separate issue.
+- No config changed for this. Manual-only remains open (45 drop-in), navigation_validated true. Owner decision needed.
+
+## 2026-11-15 ~12:30 — LiDAR availability: swept-path policy designed + offline replay (NOT deployed)
+
+- Owner: "Yes, design it". scripts/atlas_lidar_availability.py: arcs now need the +/-45 deg travel cone plus only the
+  bins the 0.50 x 0.36 m footprint actually sweeps into (opposite-phase 4WS, ICR on the base_link lateral axis, 0.5 m
+  horizon, > 2 cm outside the current outline, +/-1 bin); spins and arcs with R < 0.35 m still need all 72 bins;
+  straight unchanged; invalid ranges still never free. tests/test_lidar_availability.py: 16 OK (5 new; the old
+  "left gap blocks a left arc" case became "left gap blocks a RIGHT arc" — geometry; mux mock gained
+  localization_guard, which was missing and made 2 tests error at HEAD as well).
+- Replay (tools/diagnostics/replay_lidar_swept_policy.py, every /scan of 3 recorded drives):
+  * arcs R 1.5-3 m: veto 60-73 % -> 32-51 %; R 0.5-0.75 m: -> 54-63 %; real driven commands 67-74 % -> 63-70 %.
+  * STRAIGHT forward is itself vetoed 32-51 % (reverse 29-36 %) — unchanged by any arc rule. /scan_raw front cone:
+    only 55 % of scans have all 18 front bins; 18 % miss exactly one; gaps cluster at 10-20 deg (13-14 %) and
+    320 deg (17 %). 15 rays per bin, all without a return (not the self-filter).
+- Conclusion: the swept-path rule is correct but NOT sufficient; the front-cone LiDAR no-return gaps are the main
+  autonomy blocker. Not deployed. Candidate next step (owner decision): count a LiDAR bin as observed when another
+  live range sensor (Astra /astra/obstacle_scan front, ultrasonic) has a valid return for that bearing — still never
+  turning "no data" into free space.
+
+## 2026-11-15 ~13:30 — LiDAR + Astra fused coverage: designed + offline replay (NOT deployed)
+
+- Owner: "Yes, design it". Changes (source only, nothing deployed, nothing on the Jetson changed):
+  * atlas_astra_obstacle_core.ObstacleScanner.scan(): also computes last_coverage per Astra bin — obstacle range, or
+    0.83 x the farthest valid FLOOR point (lens 0.23 m, 4 cm floor cut => nothing taller than 4 cm before 0.83 d);
+    walls/ceiling never used (seen over a low black obstacle); NaN = no evidence. Published ranges unchanged.
+    (Not yet published as a topic; node/bridge/mux wiring not written.)
+  * atlas_lidar_availability: update_coverage()/covered() — a LiDAR no-return bin counts as observed only if Astra
+    saw an obstacle there or the floor clear >= 0.8 m from the laser across the whole bin (0.75 s timeout).
+  * travel_cone() is now the straight-line SWEPT footprint (fwd ~+/-35 deg, rev ~+/-45 deg incl. the laser's rear
+    offset) instead of a fixed +/-45 deg. 16 unit tests OK.
+- Replay (tools/diagnostics/replay_fused_coverage.py; colour-remap sessions with simultaneous /scan + Astra depth):
+  * remap7 (11-13): Astra fills 44 % of forward LiDAR gap bins; straight-forward veto 74 % -> 39 %; gentle left arc
+    74 -> 40 %, but right arcs stay 72-78 % (gaps on the right outside the Astra FOV).
+  * remap6 (11-13): LiDAR-only veto 92-100 %, fused 89-100 % (that session's scans are far worse).
+  * mapping bags (LiDAR only, new straight cone): straight 27-35 %, R 1.5 m arcs 27-38 %, R 0.75 m 56-61 %.
+- Conclusion (confirmed): even fused, autonomy would be stopped on roughly 40-75 % of scans. The dominant problem is
+  how often the RPLIDAR returns NO echo in the travel sector (raw driver output, not the filter). Root cause NOT yet
+  known (candidates: glancing incidence on walls, dark/absorbing surfaces, scan mode/quality). Suspected, unverified.
+- Next (owner decision): offline root-cause study of the no-return rays against the accepted map (expected range and
+  incidence angle per missing ray) before any further guard change. Swept-path + fusion stay undeployed.
+
+## 2026-11-15 ~14:00 — LiDAR no-echo root-cause study (offline, remap-13 recording + its own map)
+
+- Tool: tools/diagnostics/lidar_no_echo_study.py (ray-cast every ray of every 10th /scan_raw on the session map
+  .atlas_candidate_21ed0671...; pose = /tf map>odom>base_link + laser mount). 392 scans, 423,360 rays.
+- Confirmed: 14.0 % of rays have no echo. 78 % of those should have hit a mapped wall at NORMAL incidence
+  (29 % of all no-echo rays at < 1 m, where the class misses 8.3 %; 1-3 m misses 13.8 %; > 3 m 46 %).
+  Glancing incidence (> 70 deg) explains only 16 % of no-echo rays (miss rate 11-57 %); open/no wall 6 %.
+- Not consistent surfaces: of 365 wall cells (15 cm) seen >= 20 times only 24 miss >= 70 % (11 % of no-echo
+  rays); median cell miss rate 13 % — the same walls echo in most scans and drop out in others.
+- Dropouts come in long contiguous runs: 1080 samples/scan (0.33 deg); runs of 40-70 samples (13-23 deg) occur
+  thousands of times; scan rate 7.4 Hz (scan_time 0.135 s) although the driver reports "scan frequency 10.0 Hz".
+- Driver config: rplidar_ros, A1 (HW rev 7, FW 1.29), scan_mode Boost (8 kHz), 115200 baud, angle_compensate true.
+- Suspected (NOT verified): Boost-mode sample/capsule loss on the 115200 serial link (or motor speed) producing
+  sector dropouts, plus a few genuinely dark/absorbing surfaces (e.g. the parked rear-right 230-250 deg gap).
+- Discriminating test proposed (owner decision; parked, E-STOP latched, restarts atlas-lidar only): 30 s of
+  /scan_raw in Boost, then the same static scene in Sensitivity and Standard modes; compare no-echo fraction and run
+  lengths. AMCL/SLAM consumers would see a different point density — revert if worse.
+
+## 2026-11-15 ~14:20 — Parked LiDAR scan-mode test (owner OK; E-STOP latched; only atlas-lidar touched)
+
+- /tmp/lidar_mode_test.sh: 30 s of /scan_raw per mode on the same static scene; driver started by hand per mode,
+  atlas-lidar (Boost) restored on exit. Results (~/.local/state/project_atlas/lidar_mode_test_20261115.txt):
+  * Boost (service, as deployed): 7.4 Hz, 1080 samples, no-echo 8.8 %, gap runs/scan: <3 deg 5.4, 3-13 deg 0.2,
+    >= 13 deg 1.8 (one of them is the permanent rear-right 230-250 deg gap of this spot).
+  * Sensitivity (by hand): 13.5 Hz (!), no-echo 28.9 %, <3 deg runs 63/scan.
+  * Standard 2 kHz (by hand): 7.4 Hz, no-echo 12.7 %, >= 13 deg runs 1.7/scan.
+  * Boost (by hand): 9.1 Hz, no-echo 24.1 %.
+- INCONCLUSIVE: the hand-started Boost run differs strongly from the service Boost run (9.1 vs 7.4 Hz, 24 vs 9 %),
+  so hand-started runs are not comparable (likely partial revolutions / different start-up state). No mode is shown
+  to be better than the deployed Boost. Not adopted. Restored: one /scan_raw publisher (atlas-lidar), 7.2 Hz,
+  localization VERIFIED.
+- Parked static scene: Boost no-echo 8.8 % vs 14 % while driving (remap-13) — dropouts are larger in motion.

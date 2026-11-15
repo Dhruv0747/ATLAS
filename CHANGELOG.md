@@ -1,5 +1,9 @@
 # Changelog
 
+2026-11-15 — LiDAR availability: swept-path arc/straight sectors and LiDAR+Astra floor-coverage fusion designed and replayed offline (source only, NOT deployed; replay shows autonomy would still be vetoed on ~40-75 % of scans). Offline root-cause study: most LiDAR no-echo rays point at ordinary walls and drop out in 13-23 deg runs (suspected driver/link dropouts, not verified); parked scan-mode test inconclusive. See docs/audits/ATLAS_CURRENT_BLOCKERS.md (2026-11-15 entries).
+
+2026-11-15 — DEPLOYED: three-encoder consensus rule (coherent pair when only 3 channels are valid; encoder CRITICAL 2 single ticks in ~26 m vs ~half of all stops before), navigation_validated true (M3 excluded), and the mux manual-only lock opened for supervised autonomy (45-supervised-autonomy.conf). Round-trip ground checks: EKF vs LiDAR 19.74/19.75 m and 6.40/6.44 m, left and right arcs covered. First supervised autonomous goal was vetoed by the mux LiDAR availability guard (rover did not move); goal cancelled.
+
 2026-11-04 — Independent Vision host prepared offline: passive RGB cache endpoint, SSH-authenticated Unix-socket API, existing Object/Target worker reuse, and bounded fail-closed transport. Not deployed; the running Dashboard cannot acquire the new endpoint without a separately approved load window. See [offline result](docs/ATLAS_VISION_HOST_OFFLINE_RESULT_20261104.md).
 
 2026-11-03 — Mux transaction: per-attempt binding (owner-approved SHA, current boot, live PID/start-tick re-checks) replaces the hard-coded binding pin; pre-mutation E-STOP/command/encoder admission added; maintenance-protection interface accepts only measured, boot-bound, time-bounded isolation evidence (default still refuses). 66 focused checks. Activation remains NO-GO pending the owner decision and evidence in [the gates doc](docs/ATLAS_PROTECTED_PUBLISHER_GATES_20261102.md).

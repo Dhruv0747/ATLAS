@@ -220,6 +220,28 @@ class EncoderDeltaEstimator:
                     best = candidate
         return best
 
+    def _agree(self, a, b):
+        return abs(a - b) <= max(self.absolute_tolerance_m, self.relative_tolerance * max(abs(a), abs(b)))
+
+    def _pair(self, deltas):
+        """Best coherent pair among exactly three channels, or () (fail closed)."""
+        best, best_spread = (), None
+        for i, j in ((a, b) for a in deltas for b in deltas if a < b):
+            if not self._agree(deltas[i], deltas[j]):
+                continue
+            third = next(k for k in deltas if k not in (i, j))
+            # 'stalled' = essentially no counts (< 0.5 mm). Bursty-but-moving pairs (1-3 mm while the third
+            # reads a 6-11 mm burst) are normal controller timing and are accepted (2026-11-15 replay).
+            pair_still = max(abs(deltas[i]), abs(deltas[j])) < 0.0005
+            if pair_still and abs(deltas[third]) > self.absolute_tolerance_m:
+                continue
+            if deltas[i] * deltas[j] < 0.0 and not pair_still:
+                continue
+            spread = abs(deltas[i] - deltas[j])
+            if best_spread is None or spread < best_spread:
+                best, best_spread = (i, j), spread
+        return best
+
     def update(self, distances, valid_indexes, normalization_scales=None):
         if len(distances) != 4:
             raise ValueError('four raw diagnostic distances required')
@@ -242,6 +264,13 @@ class EncoderDeltaEstimator:
             accepted = self._cluster(deltas)
             if len(accepted) >= 3:
                 delta = statistics.median(deltas[i] for i in accepted)
+            elif len(common) == 3:
+                # 2026-11-15 three-channel rule (one encoder excluded, e.g. M3): requiring all three to agree in
+                # every ~0.1 s interval failed 4-6 % of moving intervals (bursty counts), i.e. CRITICAL / speed 0.
+                # Accept the tightest coherent PAIR, but fail closed when the pair reads ~zero while the third
+                # channel moves (two stalled channels must not outvote a moving one).
+                accepted = self._pair(deltas)
+                delta = (sum(deltas[i] for i in accepted) / 2.0) if accepted else 0.0
             else:
                 accepted = ()
         self.last_accepted = accepted

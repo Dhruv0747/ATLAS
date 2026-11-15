@@ -20,7 +20,8 @@ from std_msgs.msg import String
 
 STILL_V, STILL_W, STILL_S, MIN_MOVE_M, MIN_TURN_DEG = 0.01, 0.02, 1.0, 0.05, 3.0
 LOC_FILE = Path.home() / '.local/state/project_atlas/localization_check.json'
-LOC_WAIT_S = 12.0
+LOC_WAIT_S = 45.0   # the monitor's LiDAR search alone takes ~20 s after a 2 s settle
+LOC_WAIT_STATES = (None, 'VERIFYING', 'PARKED_SETTLING', 'MOVING_UNVERIFIED')
 RANK = {'READY': 0, 'HEALTHY': 0, 'DEGRADED': 1, 'QUALIFYING': 2, 'CRITICAL': 3, 'INVALID': 3, 'MISSING': 3}
 
 
@@ -115,47 +116,51 @@ class RoundTrip:
 
         def along(a, b):
             return (b[0] - a[0]) * math.cos(a[2]) + (b[1] - a[1]) * math.sin(a[2])
-        dw, dl = along(w0, w1), along(l0, l1)
+        dw, dl, de = along(w0, w1), along(l0, l1), along(e0, e1)
         ye, yl, yw = wrap_deg(e1[2] - e0[2]), wrap_deg(l1[2] - l0[2]), wrap_deg(w1[2] - w0[2])
         if abs(dl) < MIN_MOVE_M and abs(yl) < MIN_TURN_DEG:
             return
-        self.pending = {'dw': dw, 'dl': dl, 'ye': ye, 'yl': yl, 'yw': yw, 'worst': self.worst, 'why': self.why,
+        if self.pending is not None:          # previous stop still waiting for localization: report it now
+            self.finish_pending(force=True)
+        self.pending = {'de': de, 'dw': dw, 'dl': dl, 'ye': ye, 'yl': yl, 'yw': yw, 'worst': self.worst, 'why': self.why,
                         'stopped_unix': time.time()}
 
-    def finish_pending(self):
+    def finish_pending(self, force=False):
         p = self.pending
         state, reason = loc_verdict(p['stopped_unix'])
-        if state in (None, 'VERIFYING') and time.time() - p['stopped_unix'] < LOC_WAIT_S:
+        if state in LOC_WAIT_STATES and not force and time.time() - p['stopped_unix'] < LOC_WAIT_S:
             return
         self.pending = None
         self.n += 1
-        d_ok = abs(p['dw'] - p['dl']) <= max(0.10, 0.05 * abs(p['dl']))
+        d_ok = abs(p['de'] - p['dl']) <= max(0.10, 0.05 * abs(p['dl']))   # 2026-11-15: EKF (nav) vs LiDAR; wheel-only pose has the wrong yaw sign
         y_ok = abs(p['yl']) < 5 or (math.copysign(1, p['ye']) == math.copysign(1, p['yl'])
                                     and abs(p['ye'] - p['yl']) <= max(5.0, 0.10 * abs(p['yl'])))
         h_ok = RANK.get(p['worst'], 3) < 3
-        l_ok = state == 'VERIFIED'
-        ok = d_ok and y_ok and h_ok and l_ok
+        # short stops: no verdict yet (owner drove on) -> 'loc not checked', neither pass nor fail for localization
+        l_ok = True if state == 'VERIFIED' else (None if state in LOC_WAIT_STATES else False)
+        ok = d_ok and y_ok and h_ok and l_ok is not False
         t = self.tally
         t['pass' if ok else 'fail'] += 1
-        t['verified' if l_ok else 'not_verified'] += 1
-        t['wheel_m'] += abs(p['dw']); t['lidar_m'] += abs(p['dl'])
+        if l_ok is not None:
+            t['verified' if l_ok else 'not_verified'] += 1
+        t['wheel_m'] += abs(p['de']); t['lidar_m'] += abs(p['dl'])
         if p['yl'] >= 30:
             t['left'] += 1
         elif p['yl'] <= -30:
             t['right'] += 1
         bridge = 'ACTIVE' if bridge_active() else 'OFF'
-        print(f"#{self.n} {'PASS' if ok else 'FAIL'} | dist wheel {p['dw']:+.2f} / LiDAR {p['dl']:+.2f} m "
-              f"{'ok' if d_ok else 'BAD'} | turn IMU-EKF {p['ye']:+.0f} / LiDAR {p['yl']:+.0f} deg {'ok' if y_ok else 'BAD'}"
+        print(f"#{self.n} {'PASS' if ok else 'FAIL'} | dist EKF {p['de']:+.2f} / LiDAR {p['dl']:+.2f} m "
+              f"{'ok' if d_ok else 'BAD'} (wheel-only {p['dw']:+.2f}) | turn IMU-EKF {p['ye']:+.0f} / LiDAR {p['yl']:+.0f} deg {'ok' if y_ok else 'BAD'}"
               f" (wheel {p['yw']:+.0f}) | enc {p['worst']}{'' if h_ok else ' [' + p['why'] + ']'}"
-              f" | loc {state or 'NO VERDICT'}{'' if l_ok else ' (' + reason + ')'} | astra {bridge}"
-              f" || so far {t['pass']}/{self.n} pass, turns L{t['left']} R{t['right']}, loc ok {t['verified']}/{self.n}",
+              f" | loc {'not checked (short stop)' if l_ok is None else state}{'' if l_ok is not False else ' (' + reason + ')'} | astra {bridge}"
+              f" || so far {t['pass']}/{self.n} pass, turns L{t['left']} R{t['right']}, loc VERIFIED {t['verified']} / failed {t['not_verified']}",
               flush=True)
 
     def summary(self):
         t = self.tally
-        print(f"SUMMARY: {self.n} stops, {t['pass']} pass / {t['fail']} fail; wheel {t['wheel_m']:.2f} m vs LiDAR "
+        print(f"SUMMARY: {self.n} stops, {t['pass']} pass / {t['fail']} fail; EKF {t['wheel_m']:.2f} m vs LiDAR "
               f"{t['lidar_m']:.2f} m; turns >= 30 deg: left {t['left']}, right {t['right']}; localization VERIFIED "
-              f"{t['verified']}/{self.n}; Astra bridge {'ACTIVE' if bridge_active() else 'OFF'}", flush=True)
+              f"{t['verified']}, failed {t['not_verified']}; Astra bridge {'ACTIVE' if bridge_active() else 'OFF'}", flush=True)
 
 
 def main():

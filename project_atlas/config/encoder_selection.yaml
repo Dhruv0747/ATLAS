@@ -19,5 +19,10 @@ excluded_encoders: [3]
 # result above is kept as history. Re-enable only after M3 passes and the
 # ground distance/turn/stopping checks are repeated. This blocks autonomous
 # (Nav2/recovery) motion through autonomy_ready; manual remote is unchanged.
-navigation_validated: false
+# 2026-11-15 (owner: "Yes, enable it"): re-enabled with M3 excluded and the three-channel coherent-pair rule.
+# Ground evidence (round_trip_check, owner remote drives): 39-stop Dhruv Room -> hall -> back (EKF 19.74 m vs LiDAR
+# 19.75 m, 8 right arcs >= 30 deg) + 11-stop left-arc run (+89/+85, +90/+93 deg; EKF 6.40 vs LiDAR 6.44 m); yaw
+# IMU-EKF vs LiDAR agreed on every stop; encoder CRITICAL 2 single 0.1 s ticks in ~26 m. Not yet done as a separate
+# test: commanded stopping distance under autonomy (first supervised 1 m drive, owner holds the E-STOP).
+navigation_validated: true
 packet_timeout_s: 1.0
