@@ -2581,3 +2581,29 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
   1.2 s) and the Hindi narrator sentence spoken via the hi_IN Piper voice (~3.7 s). The narrator node is long-lived,
   so its publisher stays matched. The 315 s boot greeting remains unexplained (likely ESP32/USB at boot); no code
   changed.
+
+## 2026-11-15 ~18:45 — Self-service Autonomy Readiness (owner: "tell me why, how to clear it, open the test, unlock on pass") — built + tested, NOT deployed
+
+- scripts/atlas_readiness.py: checklist of every autonomy blocker — mux link, speed (closed loop + ground check),
+  encoders, E-STOP latched (to switch ON), localization VERIFIED (<= 120 s), camera obstacles reaching Nav2,
+  waypoints (optional). Each item: why (live reason), Hindi fix steps, a button (Speed check / Motor & Encoder Test
+  Lab / Check my location / Camera bridge starter / Navigation page) and what clears it.
+- Self-unlock for speed: atlas_autonomy_arm.speed_evidence — speed counts as validated when the speed loop is enabled
+  AND there is a PASS from speed_loop_ground_check.py at 0.10 and 0.15 m/s newer than config/speed_loop.yaml,
+  atlas_speed_loop.py and yahboom_base.py (any change needs a fresh check), <= 30 days old. Manual
+  speed_validated flag still works. Live now: enabled, no results -> "run the Speed check at 0.10 and 0.15 m/s".
+- Web (atlas_autonomy_web): GET /api/readiness; POST /api/readiness/bridge (starts the bridge starter, which
+  re-checks parked/CPU); POST /api/readiness/speedcheck {0.10|0.15, PIN} runs the speed-loop session's ground check
+  tool (one at a time; refused unless tool installed, PIN ok, Manual mode, E-STOP released, speed loop enabled);
+  GET /api/readiness/speedcheck (log + results). New page /v2/readiness (readiness.html/js); links from the home
+  panel and the map card.
+- Owner decision on "override with a code": "Owner sign-off test" — NO override for safety items; each is cleared
+  only by its owner-run check. Waypoints are optional (Move here works without), so they never block.
+- Tests: test_readiness 7, test_autonomy_arm 14 (5 new evidence), test_autonomy_web 12 — OK on the Jetson.
+  Deploy needs: mux restart (gate code), rover-status-web restart; rover parked + E-STOP latched.
+- 2026-11-15 ~19:00 DEPLOYED (owner: "Yes, deploy"; E-STOP latched by owner, no ground check running): autonomy_arm
+  (evidence gate), autonomy_web (+readiness/speedcheck/bridge), atlas_readiness, atlas_web_v2 (/v2/readiness), v2
+  panels + readiness page; backups *.before-readiness-20261115; restarted atlas-cmd-vel-mux and rover-status-web.
+  Live checklist: mux, encoders, E-STOP, localization, camera, waypoints all OK; ONLY blocker = speed ("run the Speed
+  check at 0.10 and 0.15 m/s"); the ground check tool is not yet installed on the rover (speed-loop session).
+  Mux arm_blockers now read the same message.

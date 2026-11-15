@@ -1812,3 +1812,6 @@ Restoration watcher timing: use only the new reviewed restoration-freshness pack
   `nav_behavior_tree`); `atlas-autonomy-voice` speaks stop and replan reasons in Hindi through the voice companion
   (`/atlas/voice/test_speak`, speech only) while Autonomous mode is on or a goal runs; both pages show a
   Manual / Autonomous mode switch.
+- Autonomy readiness (`/v2/readiness`, `GET /api/readiness`): why Autonomous mode is blocked, how to clear each
+  item, and the owner-run Speed check (`POST /api/readiness/speedcheck`, PIN). Speed is validated automatically by
+  fresh PASS results at 0.10 and 0.15 m/s (`atlas_autonomy_arm.speed_evidence`). Safety items have no override.

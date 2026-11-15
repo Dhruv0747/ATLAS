@@ -134,6 +134,8 @@ def json_response(handler, code, payload):
 
 
 def serve(handler, ros, post=False):
+    if serve_readiness(handler, ros, post):
+        return True
     path = handler.path.split('?')[0]
     if path not in ('/api/autonomy', '/api/places'):
         return False
@@ -230,3 +232,166 @@ def serve(handler, ros, post=False):
     else:
         json_response(handler, 400, {'ok': False, 'message': 'unknown action'})
     return True
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# 2026-11-15 Autonomy readiness (owner: self-service — show why, how to fix, open the test, unlock on PASS).
+# GET  /api/readiness              -> atlas_readiness.checklist(...) + speed evidence
+# POST /api/readiness/bridge       -> start atlas-astra-bridge-starter (it re-checks parked + CPU itself)
+# POST /api/readiness/speedcheck   {speed: 0.10|0.15, pin} -> run tools/drive/speed_loop_ground_check.py (one at a time)
+# GET  /api/readiness/speedcheck   -> {running, log, result}
+# ---------------------------------------------------------------------------------------------------------------
+import os
+import subprocess
+import threading
+
+STATE_DIR = Path.home() / '.local/state/project_atlas'
+LOC_FILE = STATE_DIR / 'localization_check.json'
+GROUND_CHECK = Path('/home/jetson/project_atlas/tools/drive/speed_loop_ground_check.py')
+SPEEDCHECK_LOG = STATE_DIR / 'speedcheck_dashboard.log'
+SPEEDS = (0.10, 0.15)
+_RUN = {'proc': None, 'speed': None, 'started': None, 'lock': threading.Lock()}
+
+
+def _item_age(ros, key):
+    item = ros._item(key)
+    return (item, None) if not item else (item, max(0.0, time.time() - float(item.get('ts', 0.0))))
+
+
+def speedcheck_running():
+    p = _RUN['proc']
+    return p is not None and p.poll() is None
+
+
+def _latest_speed_results(n=4):
+    out = []
+    for f in sorted(STATE_DIR.glob('speed_loop_check_*.json'))[-n:]:
+        try:
+            r = json.loads(f.read_text(encoding='utf-8'))
+            out.append({'file': f.name, 'target_mps': r.get('target_mps'), 'verdict': r.get('verdict'),
+                        'steady_mean_mps': r.get('steady_mean_mps'), 'peak_mps': r.get('peak_mps'),
+                        'end_reason': r.get('end_reason'),
+                        'failed_checks': [k for k, v in (r.get('checks') or {}).items() if not v]})
+        except (OSError, ValueError):
+            continue
+    return out
+
+
+def readiness(ros):
+    import atlas_autonomy_arm as arm
+    import atlas_readiness
+    pol = policy(ros)
+    enc_item, enc_age = _item_age(ros, 'encoder_health')
+    try:
+        enc = json.loads(enc_item['value']) if enc_item else {}
+    except (TypeError, ValueError):
+        enc = {}
+    _, astra_age = _item_age(ros, 'astra_nav2')
+    try:
+        loc = json.loads(LOC_FILE.read_text(encoding='utf-8'))
+        loc_age = time.time() - float(loc.get('written_unix', 0))
+    except (OSError, ValueError, TypeError):
+        loc, loc_age = None, None
+    try:
+        bridge = subprocess.run(['systemctl', '--user', 'is-active', '--quiet', 'atlas-astra-bridge.service'],
+                                timeout=3).returncode == 0
+    except Exception:
+        bridge = False
+    ev = arm.speed_evidence()
+    gate = arm.read_gate(evidence=ev)
+    plist = [p for p in places()[0] if p['current_map']]
+    out = atlas_readiness.checklist(pol, enc, enc_age, loc, loc_age, astra_age, bridge, ev, gate, len(plist),
+                                    speedcheck_running())
+    out['speed'] = {'enabled': ev.get('enabled'), 'passed': ev.get('passed'), 'missing': ev.get('missing'),
+                    'tool_installed': GROUND_CHECK.is_file(), 'results': _latest_speed_results()}
+    out['mode'] = 'AUTONOMOUS' if ((pol or {}).get('autonomy') or {}).get('armed') else 'MANUAL'
+    return out
+
+
+def speedcheck_status():
+    try:
+        log = SPEEDCHECK_LOG.read_text(encoding='utf-8', errors='replace')[-4000:]
+    except OSError:
+        log = ''
+    return {'running': speedcheck_running(), 'speed': _RUN['speed'], 'started': _RUN['started'], 'log': log,
+            'results': _latest_speed_results()}
+
+
+def start_speedcheck(ros, speed, pin):
+    """Owner-triggered from the dashboard. Refused unless every precondition holds; the tool itself enforces its
+    own bounds (<= 1 m, <= 15 s, LiDAR clearance, runaway cut) and the remote/E-STOP pre-empt it at any time."""
+    if speed not in SPEEDS:
+        return 400, 'speed must be 0.10 or 0.15'
+    if not GROUND_CHECK.is_file():
+        return 409, 'speed check tool is not installed on the rover yet'
+    if ros.reset_lockout.remaining() > 0:
+        return 429, f'too many wrong PINs; wait {int(ros.reset_lockout.remaining())} s'
+    if not ros.reset_pins.verify(str(pin or '')):
+        ros.reset_lockout.fail()
+        return 403, 'wrong operator PIN'
+    ros.reset_lockout.success()
+    pol = policy(ros)
+    if pol is None:
+        return 409, 'no fresh mux state'
+    if ((pol.get('autonomy') or {}).get('armed')):
+        return 409, 'switch to Manual mode first'
+    if pol.get('stop_latched'):
+        return 409, 'release the E-STOP with the remote first (sticks centred); keep the remote in hand'
+    import atlas_autonomy_arm as arm
+    if not arm.speed_evidence().get('enabled'):
+        return 409, 'speed loop is not enabled on this rover'
+    with _RUN['lock']:
+        if speedcheck_running():
+            return 409, 'a speed check is already running'
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        log = open(SPEEDCHECK_LOG, 'w', encoding='utf-8')
+        cmd = ('source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null; '
+               f'cd {GROUND_CHECK.parent}; exec python3 -u {GROUND_CHECK.name} --speed {speed:.2f} --distance 0.6 --timeout 12')
+        _RUN['proc'] = subprocess.Popen(['bash', '-lc', cmd], stdout=log, stderr=subprocess.STDOUT,
+                                        stdin=subprocess.DEVNULL, start_new_session=True,
+                                        env=dict(os.environ, PYTHONUNBUFFERED='1'))
+        _RUN['speed'], _RUN['started'] = speed, time.time()
+    ros.estop_log.write('speedcheck_start', speed=speed)
+    return 202, f'speed check {speed:.2f} m/s started: rover moves ~0.6 m forward slowly. B on the remote stops it.'
+
+
+def serve_readiness(handler, ros, post=False):
+    path = handler.path.split('?')[0]
+    if path not in ('/api/readiness', '/api/readiness/bridge', '/api/readiness/speedcheck'):
+        return False
+    if not post:
+        if path == '/api/readiness':
+            json_response(handler, 200, readiness(ros))
+        elif path == '/api/readiness/speedcheck':
+            json_response(handler, 200, speedcheck_status())
+        else:
+            handler.send_error(405)
+        return True
+    if not atlas_wifi_web.same_origin(handler.headers):
+        handler.send_error(403)
+        return True
+    try:
+        payload = read_json(handler)
+    except (ValueError, TypeError):
+        json_response(handler, 400, {'ok': False, 'message': 'invalid request'})
+        return True
+    if path == '/api/readiness/bridge':
+        try:
+            r = subprocess.run(['systemctl', '--user', 'start', '--no-block', 'atlas-astra-bridge-starter.service'],
+                               timeout=5, capture_output=True, text=True)
+            ok = r.returncode == 0
+        except Exception:
+            ok = False
+        json_response(handler, 202 if ok else 503, {'ok': ok, 'message': (
+            'camera bridge starter launched: it starts the bridge only while the rover is parked; wait ~20 s'
+            if ok else 'could not launch the camera bridge starter')})
+        return True
+    if path == '/api/readiness/speedcheck':
+        try:
+            speed = round(float(payload.get('speed')), 2)
+        except (TypeError, ValueError):
+            speed = None
+        code, msg = start_speedcheck(ros, speed, payload.get('pin'))
+        json_response(handler, code, {'ok': code == 202, 'message': msg})
+        return True
+    return False

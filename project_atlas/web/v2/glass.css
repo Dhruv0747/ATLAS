@@ -106,6 +106,7 @@ header.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;g
 .apHead .btn.apSel{border-color:var(--terrain)!important;color:var(--terrain);box-shadow:0 0 0 2px rgba(80,200,120,.25) inset;font-weight:800}
 .apPlace b{display:block;overflow-wrap:anywhere}
 .apWhy{font-size:12px;color:var(--mute)}
+.apReady{justify-content:center;min-height:44px;border-color:rgba(242,179,61,.6)}
 .apSave{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .apList{display:grid;gap:6px}
 .apPlace{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-ctl)}

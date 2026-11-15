@@ -14,6 +14,7 @@ TYPES = {'.html': 'text/html; charset=utf-8', '.js': 'application/javascript; ch
          '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8'}
 PAGES = {'map3d': 'map3d.html', '': 'index.html', 'mapping': 'mapping.html', 'commissioning': 'commissioning.html', 'wifi': 'wifi.html', 'camera': 'camera.html', 'lidar': 'lidar.html', 'testlab': 'testlab.html', 'flysky-testlab': 'flysky-testlab.html', 'vision3d': 'vision3d.html', 'cameras': 'cameras.html'}
 PAGES['flysky-drive'] = 'flysky-drive.html'   # ATLAS Stage 29: Xbox/FlySky remote selection (additive)
+PAGES['readiness'] = 'readiness.html'   # 2026-11-15 autonomy readiness: blockers, fixes, speed check
 
 
 def decorate(body, mime):

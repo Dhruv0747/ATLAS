@@ -12,6 +12,7 @@
     <button class="btn" id="apOn" type="button" aria-pressed="false">Autonomous mode</button>
    </div>
    <div class="apWhy" id="apWhy"></div>
+   <a class="btn apReady" href="/v2/readiness">Autonomy readiness: kya rok raha hai / kaise kholein</a>
    <div class="apSave">
     <input id="apName" maxlength="24" placeholder="Waypoint name (e.g. kitchen)" aria-label="New waypoint name">
     <button class="btn" id="apSaveBtn" type="button">Save waypoint here</button>

@@ -147,6 +147,24 @@ class AutonomyWebTests(unittest.TestCase):
         self.assertEqual(mid, 'm1')
         self.assertEqual([(p['name'], p['current_map']) for p in plist], [('a', True), ('b', False)])
 
+    def test_speedcheck_refusals(self):
+        import tempfile as _t
+        tool = Path(_t.mkdtemp()) / 'speed_loop_ground_check.py'
+        old = web.GROUND_CHECK
+        try:
+            web.GROUND_CHECK = tool
+            r = ros({'autonomy': {'armed': False}, 'stop_latched': False})
+            self.assertEqual(web.start_speedcheck(r, 0.12, '1234')[0], 400)          # only 0.10 / 0.15
+            self.assertEqual(web.start_speedcheck(r, 0.10, '1234')[0], 409)          # tool missing
+            tool.write_text('# tool')
+            self.assertEqual(web.start_speedcheck(r, 0.10, '0000')[0], 403)          # wrong PIN
+            r = ros({'autonomy': {'armed': True}, 'stop_latched': False})
+            self.assertIn('Manual', web.start_speedcheck(r, 0.10, '1234')[1])
+            r = ros({'autonomy': {'armed': False}, 'stop_latched': True})
+            self.assertIn('E-STOP', web.start_speedcheck(r, 0.10, '1234')[1])
+        finally:
+            web.GROUND_CHECK = old
+
     def test_unrelated_paths_not_served(self):
         self.assertFalse(web.serve(Handler('/api/status'), ros(None)))
 

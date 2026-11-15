@@ -18,8 +18,53 @@ GATE_FILE = Path(__file__).resolve().parents[1] / 'config' / 'autonomy_gate.yaml
 ENCODER_MAX_AGE_S = 2.0
 
 
-def read_gate(path=GATE_FILE):
-    """{'speed_validated': bool, 'note': str}; anything unreadable is NOT validated."""
+STATE_DIR = Path.home() / '.local/state/project_atlas'
+SPEED_LOOP_CFG = Path(__file__).resolve().parents[1] / 'config' / 'speed_loop.yaml'
+SPEED_LOOP_CODE = (Path(__file__).resolve().parent / 'atlas_speed_loop.py',
+                   Path(__file__).resolve().parent / 'yahboom_base.py')
+SPEED_TARGETS = (0.10, 0.15)
+EVIDENCE_MAX_AGE_S = 30 * 86400
+
+
+def speed_evidence(state_dir=STATE_DIR, cfg=SPEED_LOOP_CFG, code=SPEED_LOOP_CODE, now=None):
+    """2026-11-15 self-service unlock: the owner-run speed ground check (speed_loop_ground_check.py) writes
+    speed_loop_check_*.json. Speed counts as validated when the speed loop is enabled and there is a PASS at every
+    SPEED_TARGETS speed that is newer than the speed-loop config and code (any change needs a fresh check) and at
+    most 30 days old. Returns {'ok', 'enabled', 'passed': [targets], 'missing': [targets], 'latest': {target: summary}}."""
+    import json
+    import time as _time
+    now = _time.time() if now is None else now
+    out = {'ok': False, 'enabled': False, 'passed': [], 'missing': list(SPEED_TARGETS), 'latest': {}}
+    try:
+        text = Path(cfg).read_text(encoding='utf-8')
+        out['enabled'] = any(l.split('#', 1)[0].strip().replace(' ', '') == 'enabled:true' for l in text.splitlines())
+        newest_change = max([Path(cfg).stat().st_mtime] + [Path(c).stat().st_mtime for c in code if Path(c).exists()])
+    except OSError:
+        return out
+    for f in sorted(Path(state_dir).glob('speed_loop_check_*.json')):
+        try:
+            r = json.loads(f.read_text(encoding='utf-8'))
+            mtime = f.stat().st_mtime
+            target = float(r.get('target_mps'))
+        except (OSError, ValueError, TypeError):
+            continue
+        for t in SPEED_TARGETS:
+            if abs(target - t) < 0.005:
+                fresh = mtime > newest_change and now - mtime <= EVIDENCE_MAX_AGE_S
+                out['latest'][t] = {'verdict': r.get('verdict'), 'fresh': fresh, 'file': f.name, 'time': mtime,
+                                    'steady_mean_mps': r.get('steady_mean_mps'), 'peak_mps': r.get('peak_mps'),
+                                    'end_reason': r.get('end_reason'),
+                                    'failed_checks': [k for k, v in (r.get('checks') or {}).items() if not v]}
+                if fresh and r.get('verdict') == 'PASS' and t not in out['passed']:
+                    out['passed'].append(t)
+    out['missing'] = [t for t in SPEED_TARGETS if t not in out['passed']]
+    out['ok'] = out['enabled'] and not out['missing']
+    return out
+
+
+def read_gate(path=GATE_FILE, evidence=None):
+    """{'speed_validated': bool, 'note': str}; anything unreadable is NOT validated.
+    Validated by the manual flag OR by fresh PASS evidence from the owner-run speed check (speed_evidence)."""
     out = {'speed_validated': False, 'note': ''}
     try:
         for line in Path(path).read_text(encoding='utf-8').splitlines():
@@ -33,12 +78,21 @@ def read_gate(path=GATE_FILE):
                 out['note'] = value.strip('\'"')
     except OSError:
         out['note'] = 'gate file missing'
+    if not out['speed_validated']:
+        ev = speed_evidence() if evidence is None else evidence
+        if ev.get('ok'):
+            out['speed_validated'], out['note'] = True, 'speed check PASS evidence'
+        elif not ev.get('enabled'):
+            out['note'] = 'speed loop not enabled'
+        else:
+            out['note'] = 'run the Speed check at ' + ' and '.join(f'{t:.2f}' for t in ev.get('missing', [])) + ' m/s'
     return out
 
 
 class AutonomyArm:
-    def __init__(self, runtime_enabled, gate_path=GATE_FILE):
+    def __init__(self, runtime_enabled, gate_path=GATE_FILE, evidence_override=None):
         self.runtime_enabled = bool(runtime_enabled)
+        self.evidence_override = evidence_override          # tests only
         self.gate_path = gate_path
         self.armed = False
         self.last_change = 'boot: OFF'
@@ -56,7 +110,7 @@ class AutonomyArm:
             why.append('encoder health stale')
         elif not (encoder_health or {}).get('autonomy_ready'):
             why.append('encoder health not autonomy-ready')
-        gate = read_gate(self.gate_path)
+        gate = read_gate(self.gate_path, evidence=self.evidence_override)
         if not gate['speed_validated']:
             why.append('autonomous speed not validated' + (f" ({gate['note']})" if gate['note'] else ''))
         return why

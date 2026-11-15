@@ -11,6 +11,7 @@
    <div class="mwpMode"><button id="mwpManual" type="button">Manual mode</button><button id="mwpAuto" type="button">Autonomous mode</button></div>
    <input id="mwpPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN (for Autonomous)" aria-label="Operator PIN to switch to Autonomous mode">
    <div class="mwpWhy" id="mwpWhy"></div>
+   <a href="/v2/readiness" style="display:inline-block;margin-bottom:8px;color:#ffcc3d;font-weight:700">→ Readiness: kya rok raha hai / kaise kholein</a>
    <div class="mwpTap" id="mwpTap" hidden>
     <div id="mwpXY"></div>
     <div class="mwpBtns"><button class="mwpGo" id="mwpMove" type="button">Move here</button><button id="mwpCancel" type="button">Cancel</button></div>
