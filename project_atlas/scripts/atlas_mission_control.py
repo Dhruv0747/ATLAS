@@ -404,6 +404,8 @@ class AtlasMissionControl(Node):
             [
                 self.create_subscription(String, "/atlas/save_named_place", self.request_save_named_place, 10),
                 self.create_subscription(String, "/atlas/navigate_named_place", self.request_navigate_named_place, 10),
+                self.create_subscription(String, "/atlas/delete_named_place", self.request_delete_named_place, 10),
+                self.create_subscription(String, "/atlas/save_named_place_at", self.request_save_named_place_at, 10),
                 self.create_subscription(Empty, "/atlas/camera/pan_left", self.camera_pan_left, 10),
                 self.create_subscription(Empty, "/atlas/camera/pan_right", self.camera_pan_right, 10),
                 self.create_subscription(Empty, "/atlas/camera/tilt_up", self.camera_tilt_up, 10),
@@ -893,6 +895,65 @@ class AtlasMissionControl(Node):
             self.submit(f"save named place {name}", lambda: self.save_named_place(name))
         except Exception as exc:
             self.error("save named place", exc)
+
+    def request_save_named_place_at(self, msg: String) -> None:
+        """2026-11-15 dashboard map tap: {"name", "x", "y"} in the accepted map frame."""
+        try:
+            data = json.loads(msg.data)
+            name = self.clean_place_name(str(data.get("name", "")))
+            x, y = float(data["x"]), float(data["y"])
+            self.submit(f"save named place {name} at map point", lambda: self.save_named_place_at(name, x, y))
+        except Exception as exc:
+            self.error("save named place at map point", exc)
+
+    def save_named_place_at(self, name: str, x: float, y: float) -> None:
+        from atlas_map_acceptance_core import _map_yaml_values, _read_pgm
+        from atlas_map_waypoint import check_point, heading_towards
+        if self.active_mapping_session():
+            raise RuntimeError("map-tap waypoints are disabled during a mapping session")
+        map_id = self.current_map_id()
+        if not map_id:
+            raise RuntimeError("no accepted map identity")
+        yaml_path = self.map_prefix.with_suffix(".yaml")
+        meta = _map_yaml_values(yaml_path)
+        image = Path(str(meta.get("image", self.map_prefix.with_suffix(".pgm").name)))
+        image = image if image.is_absolute() else yaml_path.parent / image
+        why = check_point(x, y, _read_pgm(image), meta)
+        if why:
+            raise RuntimeError(f"waypoint {name!r} refused: {why}")
+        try:
+            here = self.current_pose()
+            yaw = heading_towards((here["x"], here["y"]), (x, y)) if here.get("frame_id") == "map" else 0.0
+        except Exception:
+            yaw = 0.0
+        places = self.load_named_places()
+        places[name] = {"frame_id": "map", "x": x, "y": y, "z": 0.0, "qx": 0.0, "qy": 0.0,
+                        "qz": math.sin(yaw / 2.0), "qw": math.cos(yaw / 2.0), "map_id": map_id,
+                        "note": "set by map tap on the dashboard"}
+        temporary = self.places_file.with_suffix(".tmp")
+        temporary.write_text(json.dumps(places, indent=2, sort_keys=True), encoding="utf-8")
+        temporary.replace(self.places_file)
+        self.status(f"PLACE SAVED name={name} frame=map x={x:.2f} y={y:.2f} (map tap)")
+
+    def request_delete_named_place(self, msg: String) -> None:
+        try:
+            name = self.clean_place_name(msg.data)
+            self.submit(f"delete named place {name}", lambda: self.delete_named_place(name))
+        except Exception as exc:
+            self.error("delete named place", exc)
+
+    def delete_named_place(self, name: str) -> None:
+        """2026-11-15 dashboard waypoints: remove one saved place (accepted-map file only)."""
+        if self.active_mapping_session():
+            raise RuntimeError("places cannot be deleted during a mapping session")
+        places = self.load_named_places()
+        if name not in places or not isinstance(places.get(name), dict):
+            raise RuntimeError(f"unknown named place {name!r}")
+        del places[name]
+        temporary = self.places_file.with_suffix(".tmp")
+        temporary.write_text(json.dumps(places, indent=2, sort_keys=True), encoding="utf-8")
+        temporary.replace(self.places_file)
+        self.status(f"PLACE DELETED name={name}")
 
     def request_navigate_named_place(self, msg: String) -> None:
         try:

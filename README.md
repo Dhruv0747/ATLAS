@@ -1794,3 +1794,17 @@ This component is **not face recognition acceptance**: no approved embedding ext
 Restoration watcher timing: use only the new reviewed restoration-freshness package (see docs/ATLAS_WEB_BINDING_READY_20261102.md). One-second freshness and CPU windows are preserved; no live activation approved by repository code.
 
 2026-11-02: Restoration-only package replaces watcher systemctlPID diagnostics with verified kernel cgroup/proc identity.12focusedtests pass; liveverification pending; no safety limit or snapshot activation changes. See docs/ATLAS_WEB_BINDING_READY_20261102.md.
+
+## Dashboard autonomy switch and waypoints (2026-11-15)
+
+- Home page, "Mission and position": AUTONOMY ON/OFF and a waypoint list (save at the rover's position, Go,
+  Delete). Navigation page (/v2/mapping): tap the map to add a waypoint.
+- Interfaces: mux services `/atlas/autonomy/arm`, `/atlas/autonomy/disarm` (control_policy gains `autonomy`);
+  mission control topics `/atlas/save_named_place_at` (JSON name/x/y) and `/atlas/delete_named_place`;
+  web `GET/POST /api/autonomy`, `GET/POST /api/places`.
+- Safety: boot OFF; ON needs the operator PIN, a latched E-STOP, a still rover, autonomy-ready encoders and
+  `config/autonomy_gate.yaml` `speed_validated: true` (false until the autonomous speed calibration passes).
+  Any E-STOP or mux restart turns autonomy OFF. Go is refused unless autonomy is ON and the E-STOP released.
+  The mux drop-in `46-autonomy-runtime-switch.conf` enables the runtime switch; `40-manual-commissioning.conf`
+  (manual-only) stays the default.
+

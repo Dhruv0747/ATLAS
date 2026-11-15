@@ -16,6 +16,7 @@ from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import Empty, Float32, String
 from sensor_msgs.msg import Joy, LaserScan
 from atlas_lidar_availability import LidarAvailability
+from atlas_autonomy_arm import AutonomyArm
 from std_srvs.srv import Trigger
 from atlas_remote_stop import RemoteStop
 from atlas_flysky_reset import GATE_ENV as FLYSKY_RESET_ENV, MuxResetGate   # ATLAS Stage 29 FlySky reset
@@ -54,7 +55,11 @@ class AtlasCmdVelMux(Node):
             reset_button=int(self.get_parameter('remote_reset_button').value),
             reset_hold_s=max(2.0, float(self.get_parameter('remote_reset_hold_s').value)),
         )
-        self.manual_only = os.environ.get('ATLAS_MANUAL_ONLY', '0') == '1'
+        self.manual_only_env = os.environ.get('ATLAS_MANUAL_ONLY', '0') == '1'
+        # 2026-11-15 dashboard AUTONOMY ON/OFF: boot OFF; lifts manual-only only while armed (atlas_autonomy_arm).
+        self.autonomy_arm = AutonomyArm(os.environ.get('ATLAS_AUTONOMY_RUNTIME_ARM', '0') == '1')
+        self.create_service(Trigger, '/atlas/autonomy/arm', self.arm_autonomy)
+        self.create_service(Trigger, '/atlas/autonomy/disarm', self.disarm_autonomy)
         # ATLAS Stage 29 FlySky: exactly one manual controller may drive; XBOX is the boot default.
         self.manual_controller = 'XBOX'
         self.flysky_drive_enabled = os.environ.get('ATLAS_FLYSKY_DRIVE_ENABLED', '0') == '1'
@@ -415,6 +420,10 @@ class AtlasCmdVelMux(Node):
             self.publish_mode()
         self._remote_stop_hold_latched = latched
         self._remote_stop_hold_reason = reason
+        arm = getattr(self, 'autonomy_arm', None)      # absent only in partial test fixtures
+        if arm is not None and arm.observe_latch(latched):
+            self.get_logger().warn('AUTONOMY OFF: E-STOP latched')
+            self.publish_mode()
         self.flysky_reset_observe()   # ATLAS Stage 29 FlySky reset: see every latch transition
 
     def reset_remote_stop(self, request, response):
@@ -427,6 +436,41 @@ class AtlasCmdVelMux(Node):
             self.hold_remote_stop()
         response.message = (self.remote_stop.reason if response.success else
                             'Keep sticks centred and all buttons released for one second')
+        return response
+
+    @property
+    def manual_only(self):
+        arm = getattr(self, 'autonomy_arm', None)
+        env = getattr(self, 'manual_only_env', os.environ.get('ATLAS_MANUAL_ONLY', '0') == '1')
+        return env if arm is None else arm.manual_only(env)
+
+    @manual_only.setter
+    def manual_only(self, value):            # legacy fixtures assign it directly
+        self.manual_only_env = bool(value)
+
+    def _autonomy_inputs(self):
+        age = (time.monotonic() - self.encoder_health_rx) if self.encoder_health_rx else None
+        return (bool(self.remote_stop.latched), self.moving(self.last_sent), self.encoder_health, age)
+
+    def arm_autonomy(self, request, response):
+        del request
+        response.success, response.message = self.autonomy_arm.arm(*self._autonomy_inputs())
+        self.get_logger().warn(response.message)
+        self.publish_mode()
+        return response
+
+    def disarm_autonomy(self, request, response):
+        del request
+        self.autonomy_arm.disarm('OFF by operator')
+        channel = self.channels.get('NAV2')
+        if channel is not None:
+            channel.engaged = False
+            channel.command = Twist()
+        if self.active_name == 'NAV2':
+            self.publish_stop('autonomy switched OFF')
+        response.success, response.message = True, 'AUTONOMY OFF (manual only)'
+        self.get_logger().warn(response.message)
+        self.publish_mode()
         return response
 
     def arm_commission(self, request, response):
@@ -948,6 +992,8 @@ class AtlasCmdVelMux(Node):
         self.mode_output.publish(String(data=mode))
         self.policy_output.publish(String(data=json.dumps({
             'manual_only': self.manual_only,
+            'autonomy': (self.autonomy_arm.status(*self._autonomy_inputs())
+                         if getattr(self, 'autonomy_arm', None) is not None else None),
             'commission_armed': time.monotonic() < self.commission_until,
             'commission_remaining_s': max(
                 0.0, self.commission_until - time.monotonic()

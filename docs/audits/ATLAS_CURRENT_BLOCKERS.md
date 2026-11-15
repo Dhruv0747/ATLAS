@@ -2389,3 +2389,95 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
   restarted with the rover still. Live: ATLAS_MANUAL_ONLY=1, control_policy manual_only true, stop_latched true.
   navigation_validated, the 3-encoder rule, the swept-path guard and LiDAR Sensitivity stay deployed. Autonomy
   re-opening requires the autonomous speed calibration (commanded vs measured) first.
+
+## 2026-11-15 ~14:30 — Speed check from recordings (owner chose "calibrate speed first"; lock stays ON)
+
+- Confirmed from the auto3 bag TF: odom>base_link moved -0.245 -> +0.375 m between 110.5 s and 112.5 s while
+  map>odom changed only ~6 cm (AMCL agrees) => ~0.35-0.4 m/s average, ~0.5 m/s peak, for a 0.07 m/s mux command.
+- Steady-command bins (odom vx while the PWM implied by the command was constant >= 0.7 s):
+  * manual drive (REMOTE floor 80-90): PWM ~84 -> +0.37 m/s (p10 0.23, p90 0.50); reverse -0.36 m/s.
+  * autonomous (floor 60): PWM ~62 -> +0.27 m/s median (p90 0.47); reverse -0.33 m/s.
+  => In 60-90 PWM the speed hardly depends on PWM (~0.3-0.4 m/s); the commanded speed is not represented at all.
+- No existing owner-triggered motion commissioning test (atlas_commissioning has hardware/imu/gnss/distance only),
+  and I do not send motion commands. A proper PWM -> speed map below 60 (breakaway / stall point) needs a new,
+  bounded, owner-triggered ground test, or closed-loop speed from the three encoders. Design pending owner OK.
+
+## 2026-11-15 ~15:30 — Closed-loop autonomous speed with 3 encoders: designed + offline tests (NOT deployed)
+
+- Owner chose "Closed-loop speed (3 enc)". New pure module scripts/atlas_speed_loop.py (no ROS; NOT wired into
+  yahboom_base yet). Non-REMOTE only. Per 0.1 s tick: measured speed = 3-encoder consensus distance over the last
+  3 ticks; state machine REST -> breakaway search (PWM from 38, +2.5 per tick, restarting just below the last
+  learned breakaway) -> ROLLING (on first motion it releases 10 PWM below the breakaway PWM, then PI + feed-forward).
+  Fail-safe: zero/deadband command -> 0; invalid feedback (consensus/packet stale/non-finite/bad dt) -> 0 + reset;
+  HARD overspeed cut (|v| > max(1.5 x target, target + 0.08)) -> 0 PWM that tick; moving against the command -> 0
+  until stopped; |PWM| <= 75; bad parameters rejected.
+- Motor identification from recordings (tools: scratch ident script; bags auto3_1m / sensitivity_drive):
+  motion visible 0.34 s (auto) / 0.44 s (manual median) after a command; PWM ~62 -> ~0.27-0.40 m/s, ~84 -> 0.37 m/s;
+  coasting after a zero command 0.74-0.84 s from ~0.37 m/s (~0.45 m/s^2, ~0.14 m). In auto3 the rover already
+  moved at 0.05 m/s 0.23 s after the first command, while the base slew was at 45-53 PWM => breakaway likely <= ~53
+  (suspected; one start only). The breakaway PWM is NOT measured.
+- tests/test_speed_loop.py: 11 OK (Mac and Jetson). Plant model reproduces the recordings (slew 45 + 8/tick, 1-tick
+  latency, static/kinetic friction, 0.2 s spin-up, 0.45 m/s^2 coast, bursty 1 mm encoder counts) and sweeps the
+  unknown breakaway 45/50/55/60 PWM (hold = breakaway - 10), targets 0.07/0.10/0.15 m/s, 3 seeds:
+  start <= 1.0 s; mean speed after 5 s within 0.035 of the target (e.g. 0.10 -> 0.065-0.097); peak <= 0.24 m/s
+  (open loop: 0.28 in the model, 0.4-0.5 measured); stop from 0.10 m/s coasts < 0.05 m. Worst-case "plateau" motor
+  (no slow rolling band): the loop can only pulse — mean 0.07-0.08 for a 0.10 target, peak <= 0.25, > 0.18 m/s for
+  9-14 % of the time.
+- Read-only replay (tools/drive/replay_speed_loop.py; recorded consensus deltas + recorded mux commands, plant =
+  the real open-loop run): in auto3 the loop would have commanded <= 43 PWM, released to ~0 when motion appeared at
+  0.23 s, and its first overspeed cut would fall at 0.62 s (0.28 m/s) — the real run kept 62 PWM and reached 0.5 m/s.
+  Manual drive: REMOTE path not affected (replay for information: 6 cuts, 2 invalid-feedback ticks in 601).
+- Not done / evidence gaps: no integration into yahboom_base (needs a flagged hook in _drive_pwm for non-REMOTE
+  sources, before the existing slew/turn bias), no ground test. Ground qualification needs the owner's OK, the rover
+  parked + E-STOP latched for the base restart, and a supervised low-speed test with manual-only temporarily open.
+  Manual-only lock stays ON. Nothing deployed.
+
+## 2026-11-15 ~15:30 — Dashboard AUTONOMY ON/OFF + waypoints (owner request; built + tested, NOT deployed)
+
+- Mux: scripts/atlas_autonomy_arm.py (pure) + atlas_cmd_vel_mux services /atlas/autonomy/arm|disarm. Boot OFF;
+  ATLAS_MANUAL_ONLY=1 stays the default lock and is lifted only while armed (needs new drop-in
+  46-autonomy-runtime-switch.conf: ATLAS_AUTONOMY_RUNTIME_ARM=1). ON refused unless E-STOP latched, rover still,
+  encoder health fresh + autonomy_ready, and config/autonomy_gate.yaml speed_validated: true (FALSE now: speed
+  calibration pending). OFF always accepted; any new E-STOP latch or mux restart -> OFF. control_policy gains
+  'autonomy' {armed, runtime_enabled, arm_blockers, last_change}.
+- Mission control: /atlas/delete_named_place (accepted-map places file; refused during mapping).
+- Web: scripts/atlas_autonomy_web.py — GET /api/autonomy (state + waypoints), POST /api/autonomy {on (operator PIN,
+  same store/lockout as E-STOP reset) | off}, POST /api/places {save|go|delete, name 1-24 chars}. GO refused unless
+  autonomy ON and E-STOP released (a queued goal can never start by itself on a later release); mission control
+  still runs every navigation check. Events go to the E-STOP event log.
+- Dashboard: web/v2/autonomy-panel.js in the home "Mission and position" panel (state, PIN, ON/OFF, waypoint list
+  with Go/Delete, "Save waypoint here"). Checked in a local mock page (layout at phone width, save flow).
+- Tests: test_autonomy_arm (9) + test_autonomy_web (8) OK; mux stop-hold/mapping-limit/heartbeat/lidar/ultrasonic,
+  camera gate, session places, final-map sampling, commissioning suites OK on the Jetson against the candidate files.
+  test_status_web_estop_safety, test_source_provenance, test_testlab_static, test_final_map_consistency fail
+  identically at HEAD in the same temp layout (missing helper modules) — pre-existing, not caused by this change.
+- Live files equalled git HEAD before the change. Deploy (owner OK): parked + E-STOP latched; restart mux, mission
+  control and rover-status-web.
+- 2026-11-15 ~16:05 DEPLOYED (owner: "Yes, deploy"), rover parked + E-STOP latched: mux (+ 46-autonomy-runtime-switch
+  drop-in), mission control, status web + atlas_autonomy_web/arm, autonomy_gate.yaml (speed_validated false), v2
+  index/glass/autonomy-panel.js; backups *.before-autopanel-20261115. Live: ATLAS_MANUAL_ONLY=1 +
+  ATLAS_AUTONOMY_RUNTIME_ARM=1; manual_only true; /atlas/autonomy/arm refused "autonomous speed not validated (speed
+  calibration pending)"; panel visible on the live dashboard (AUTONOMY OFF, ON blocked, waypoints listed).
+  Fix after deploy: the places file's top-level map_id was stale (old map d12a1f18), so waypoints showed "other map";
+  the web now computes the accepted map id like mission control (map_pair_id of atlas_latest yaml+pgm) -> both
+  waypoints on the current map 38253aab.
+
+## 2026-11-15 ~16:40 — Tap-the-map waypoints (owner: "Yes, add map tap"; built + tested, NOT deployed)
+
+- scripts/atlas_map_waypoint.py (pure): a tapped map point is accepted only if it is inside the ACCEPTED map, on a
+  free cell (trinary 205 = unknown) and no occupied/unknown cell lies within 0.35 m (footprint half-diagonal 0.31 m +
+  margin). On the live accepted map: "dhruv room" and "hall" pass; this morning's tight start spot (-1.47, 0.00) and
+  the 1 m test goal (-0.51, 0.24) are refused "too close to a wall" (matches the real 13-16 cm clearances).
+- Mission control: /atlas/save_named_place_at (JSON name, x, y): refused during mapping; heading = from the rover's
+  current map pose towards the point; written with the current map_id. Web: POST /api/places action save_at.
+- Navigation page (/v2/mapping): web/v2/map-waypoints.js adds a "WAYPOINTS — TAP THE MAP" card: tap -> yellow
+  crosshair + coordinates -> name -> Save; waypoint list with Go (disabled unless AUTONOMY ON and E-STOP released).
+  Tap disabled in mapping mode. Local check through a read-only proxy of the live dashboard: tapping the Dhruv Room
+  marker gave (0.09, 0.53) vs stored (0.08, 0.54); save sent {save_at, x, y}; crosshair persists across redraws.
+- Tests: test_map_waypoint 6, test_autonomy_web 9, test_autonomy_arm 9 — OK.
+- 2026-11-15 ~16:50 DEPLOYED (owner: "Yes, deploy"), parked + E-STOP latched: mission control, status web,
+  atlas_autonomy_web, atlas_map_waypoint, v2 mapping.html + map-waypoints.js (backups *.before-maptap-20261115);
+  restarted atlas-mission-control and rover-status-web only. Live end-to-end: /atlas/save_named_place_at "deploy
+  test" (1.47, -5.60) saved with the map-tap note, then deleted via /atlas/delete_named_place (PLACE DELETED);
+  "bad spot" (-1.47, 0.00) refused "too close to a wall/obstacle (occupied within 0.35 m)". Places file back to
+  dhruv room + hall (backup .before-maptaptest-20261115). Map page serves the waypoint card. Autonomy still OFF.

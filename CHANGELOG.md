@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-15 (late) — DEPLOYED dashboard AUTONOMY ON/OFF + waypoints: mux runtime arm (/atlas/autonomy/arm|disarm; boot OFF; ON needs E-STOP latched, still, encoders autonomy-ready, operator PIN and config/autonomy_gate.yaml speed_validated — currently false; any E-STOP turns it OFF), mission control /atlas/delete_named_place and /atlas/save_named_place_at (map tap, 0.35 m clearance on the accepted map), web /api/autonomy and /api/places, home-page panel and a tap-the-map waypoint card on /v2/mapping. Go is refused unless autonomy is ON and the E-STOP released.
+
 2026-11-15 (evening) — DEPLOYED: RPLIDAR scan mode Sensitivity (drive no-echo 14.0 % -> 8.2 %) and the swept-path LiDAR availability rule. First autonomous motion (1 m goal): the rover moved ~0.5 m but at ~0.5 m/s for a 0.07 m/s command (open-loop PWM floor 60), overshot and stopped 0.16 m from an obstacle via the guards. The manual-only lock was RESTORED (supervised-autonomy drop-in removed); autonomy needs a speed calibration first.
 
 2026-11-15 — LiDAR availability: swept-path arc/straight sectors and LiDAR+Astra floor-coverage fusion designed and replayed offline (source only, NOT deployed; replay shows autonomy would still be vetoed on ~40-75 % of scans). Offline root-cause study: most LiDAR no-echo rays point at ordinary walls and drop out in 13-23 deg runs (suspected driver/link dropouts, not verified); parked scan-mode test inconclusive. See docs/audits/ATLAS_CURRENT_BLOCKERS.md (2026-11-15 entries).

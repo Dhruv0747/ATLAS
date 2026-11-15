@@ -28,6 +28,7 @@ from atlas_web_diagnostics import DiagnosticCache, service_logs
 from atlas_commissioning import Console, hardware_check
 from atlas_localization_display import summarize_amcl_pose
 import atlas_estop_reset as estop_reset
+import atlas_autonomy_web
 import sqlite3
 
 import cv2
@@ -482,6 +483,11 @@ class AtlasRosNode:
             self.steering_cal_pub = self.node.create_publisher(String, '/atlas/steering_calibration/request', 10)
             # Existing mux service; the mux grants it only with the physical remote connected and neutral.
             self.remote_stop_reset_client = self.node.create_client(Trigger, '/atlas/remote_stop/reset')
+            # 2026-11-15 dashboard AUTONOMY ON/OFF + waypoints (atlas_autonomy_web); the mux / mission control decide.
+            self.autonomy_clients = {op: self.node.create_client(Trigger, '/atlas/autonomy/' + op) for op in ('arm', 'disarm')}
+            self.place_pubs = {op: self.node.create_publisher(String, topic, 10) for op, topic in (
+                ('save', '/atlas/save_named_place'), ('go', '/atlas/navigate_named_place'),
+                ('delete', '/atlas/delete_named_place'), ('save_at', '/atlas/save_named_place_at'))}
             self.location_check_clients = {op: self.node.create_client(Trigger, '/atlas/location_check/'+op) for op in ('start','cancel')}
             self.node.create_subscription(String, '/atlas/steering_calibration/status', lambda m: self._set('steering_calibration', m.data), 10)
             self.node.create_subscription(String, '/atlas/control_policy', lambda m: self._set('control_policy', m.data), 10)
@@ -2089,6 +2095,8 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 self.send_error(404)
             return
+        if atlas_autonomy_web.serve(self, ROS):
+            return
         if self.path.split('?')[0] == '/api/estop/state':
             json_response(self, 200, ROS.estop_state(self.client_address[0]))
             return
@@ -2284,6 +2292,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == '/api/estop/reset':
             self.handle_estop_reset()
+            return
+        if atlas_autonomy_web.serve(self, ROS, post=True):
             return
         if self.path.startswith('/api/commissioning'):
             if self.path != '/api/commissioning' or not atlas_wifi_web.same_origin(self.headers):
