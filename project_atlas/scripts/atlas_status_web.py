@@ -612,7 +612,7 @@ class AtlasRosNode:
             n.create_subscription(Float32, "/battery/voltage", lambda m: self._set("bat_voltage", m.data), 10)
             n.create_subscription(Float32, "/battery/current", lambda m: self._set("bat_current", m.data), 10)
             n.create_subscription(Float32, "/battery/percent", lambda m: self._set("bat_percent", m.data), 10)
-            n.create_subscription(String, "/bms/status", lambda m: self._set("bms_status", m.data), 10)
+            n.create_subscription(String, "/bms/status", self._on_bms_status, 10)
             n.create_subscription(String, "/bms/json", lambda m: self._set("bms_json", m.data), 10)
             n.create_subscription(Float32, "/bms/voltage", lambda m: self._set("bms_voltage", m.data), 10)
             n.create_subscription(Float32, "/bms/current", lambda m: self._set("bms_current", m.data), 10)
@@ -942,6 +942,29 @@ class AtlasRosNode:
             self.map_meta = meta
             self.map_received_at = now
         self._set("map_info", meta)
+
+    def _on_bms_status(self, msg):
+        """2026-11-16: also feed the phone-style battery time estimate (read-only advice, never a safety input)."""
+        self._set("bms_status", msg.data)
+        try:
+            eta = getattr(self, "battery_eta", None)
+            if eta is None:
+                from atlas_battery_eta import BatteryEta
+                cap = None
+                try:
+                    import yaml
+                    cfg = yaml.safe_load(open(Path(__file__).resolve().parents[1] / "config" / "battery_eta.yaml"))
+                    cap = (cfg or {}).get("capacity_ah")
+                except (OSError, ValueError, TypeError, AttributeError):
+                    cap = None
+                eta = self.battery_eta = BatteryEta(
+                    capacity_ah=cap, state_path=Path.home() / ".local/state/project_atlas/battery_capacity.json")
+            b = json.loads(msg.data)
+            eta.update(time.time(), float(b.get("soc_percent")), float(b.get("current_a")), bool(b.get("ok")),
+                       voltage=b.get("voltage_v"))
+            self._set("battery_eta", eta.estimate())
+        except Exception:                      # never let the estimate break the BMS telemetry
+            pass
 
     def _plan_cb(self, msg):
         poses = msg.poses

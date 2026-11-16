@@ -2883,3 +2883,17 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
   - Mux restarted with the rover parked, E-STOP latched and autonomy OFF; active, no errors.
   - Tests 32/32. The old test `test_spin_and_tight_arc_need_all_bins` was rewritten to the new policy and still checks that the old policy is selectable.
   - Expected effect (replay): #3 29 % → 20 % vetoed; no change at the hall door (needs tape).
+
+### 2026-11-16 ~17:00 — Dashboard battery time estimate (owner request), DEPLOYED (web only)
+- `scripts/atlas_battery_eta.py` (pure) is fed from the `/bms/status` callback in `atlas_status_web.py` and appears as `ros.battery_eta`; the v2 home battery card shows its Hindi text.
+  - Time to full: CC part to 95 %, then CV tail at 0.4× current.
+  - Time left: down to 10 %, using a 2 min (charge) / 5 min (discharge) time-weighted current.
+  - Charge speed: धीमी < 0.2C ≤ सामान्य < 0.5C ≤ तेज़; by pack watts (30 / 80 W) until the capacity is known.
+  - Capacity: from `config/battery_eta.yaml` (null), otherwise learned from the Daly coulomb counter over ≥ 3 % SOC and persisted in `~/.local/state/project_atlas/battery_capacity.json`. A first 106 s sample gave ~15 Ah (± 11 %). The learned value is the BMS's own configured capacity.
+- Advice only: no safety or motion input. Tests `test_battery_eta` 10/10.
+- Backups `*.before-batteryeta-20261116`. Only `rover-status-web` was restarted.
+- Live: "सामान्य charging (48 W) · समय निकाल रहा हूँ…", capacity still learning.
+- **Owner pack data (2026-11-16):** 4 × 32140 LiFePO4, 3.2 V, 15000 mAh, 2C, 4S1P → 12.8 V / 15 Ah. It matches the BMS (4 cells, ~13.4 V) and the learned ~15 Ah.
+  - `config/battery_eta.yaml` `capacity_ah: 15.0` deployed (status web restarted).
+  - Above 1C the charge label reads "बहुत तेज़ (1C से ऊपर — cell datasheet जाँचें)". Tests 11/11.
+  - Live: "सामान्य charging (0.25C) …", capacity_source config.

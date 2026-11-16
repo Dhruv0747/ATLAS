@@ -72,9 +72,13 @@
     const spread = Math.max(...b.cells_v) - Math.min(...b.cells_v);
     const src = typeof bmsSocSource === 'function' ? bmsSocSource(b) : '';
     const modeText = mode === 'IDLE / NEAR ZERO' ? 'Idle' : mode === 'CHARGING' ? 'Charging' : mode === 'DISCHARGING' ? 'Discharging' : mode;
+    // 2026-11-16 phone-style time estimate (server: atlas_battery_eta; approximate, advice only)
+    let eta = null;
+    try { eta = r && r.battery_eta && r.battery_eta.age < 20 ? r.battery_eta.value : null; } catch (e) { eta = null; }
+    const etaText = eta && eta.text ? eta.text : '';
     setCard('cardBattery', { state: tone === 'fail' ? 'fault' : tone ? 'warn' : 'ok', pill: tone === 'fail' ? 'Low' : tone ? 'Getting low' : modeText,
       main: Math.round(pct) + '%', unit: 'charge',
-      sub: `${fx(b.voltage_v, 2)} V · ${fx(Math.abs(b.current_a), 2)} A · cells within ${fx(spread * 1000, 0)} mV${src ? ' · ' + src.replace('DALY', 'Daly').replace('COUNTER', 'counter').replace('VOLTAGE', 'voltage').replace('ESTIMATE', 'estimate') : ''}`, age: ageOf(r, 'bms_status') });
+      sub: `${etaText ? etaText + ' · ' : ''}${fx(b.voltage_v, 2)} V · ${fx(Math.abs(b.current_a), 2)} A · cells within ${fx(spread * 1000, 0)} mV${src ? ' · ' + src.replace('DALY', 'Daly').replace('COUNTER', 'counter').replace('VOLTAGE', 'voltage').replace('ESTIMATE', 'estimate') : ''}`, age: ageOf(r, 'bms_status') });
   }
 
   // ---------- LiDAR ----------

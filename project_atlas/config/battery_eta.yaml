@@ -1,0 +1,5 @@
+# 2026-11-16 dashboard battery time estimate (scripts/atlas_battery_eta.py). Read-only advice, never a safety input.
+# Pack (owner, 2026-11-16): 4 x 32140 LiFePO4 3.2 V 15000 mAh 2C cells, 4S1P -> 12.8 V nominal, 15 Ah.
+# Matches the Daly BMS (4 cells, ~13.4 V) and the first learned estimate (~15 Ah from a 106 s coulomb-count sample).
+# capacity_ah: null would LEARN it from the BMS instead (persisted in ~/.local/state/project_atlas/battery_capacity.json).
+capacity_ah: 15.0
