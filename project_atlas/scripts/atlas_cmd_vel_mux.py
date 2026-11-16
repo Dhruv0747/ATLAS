@@ -100,6 +100,8 @@ class AtlasCmdVelMux(Node):
         if self.lidar_guard_map_gaps:
             self.create_subscription(OccupancyGrid, '/map', self.on_guard_map, QoSProfile(
                 depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL, reliability=ReliabilityPolicy.RELIABLE))
+        self.declare_parameter('lidar_guard_ultrasonic', True)
+        self.lidar_guard_ultrasonic = bool(self.get_parameter('lidar_guard_ultrasonic').value)
         self.declare_parameter('lidar_guard_astra_coverage', True)
         if bool(self.get_parameter('lidar_guard_astra_coverage').value):
             self.create_subscription(LaserScan, '/astra/obstacle_coverage', self.on_guard_coverage,
@@ -350,6 +352,23 @@ class AtlasCmdVelMux(Node):
     def on_guard_coverage(self, msg):
         self.lidar_availability.update_coverage(msg, time.monotonic())
 
+    def guard_ultrasonic_ranges(self, now):
+        """2026-11-16 fresh VALID front/rear ultrasonic ranges for the LiDAR guard ({} when disabled or stale)."""
+        if not getattr(self, 'lidar_guard_ultrasonic', False):
+            return {}
+        window = getattr(self, 'ultrasonic_validity', None)
+        out = {}
+        if window is None:
+            return out
+        for side in ('front', 'rear'):
+            try:
+                rng, state = window.reading(side, now)
+            except Exception:
+                continue
+            if state == 'VALID' and rng is not None:
+                out[side] = rng
+        return out
+
     def guard_map_explainer(self, now, linear=None, angular=None):
         """Callable for LidarAvailability.reason, or None unless the map is loaded and AMCL is fresh and confident."""
         grid = getattr(self, 'map_grid', None)
@@ -380,7 +399,8 @@ class AtlasCmdVelMux(Node):
                      if getattr(self, 'lidar_guard_map_gaps', False) else None)
         reason = self.lidar_availability.reason(
             command.linear.x, command.angular.z,
-            self.get_clock().now().nanoseconds * 1e-9, now, explain=explainer)
+            self.get_clock().now().nanoseconds * 1e-9, now, explain=explainer,
+            ultrasonic=(self.guard_ultrasonic_ranges(now) if hasattr(self, 'guard_ultrasonic_ranges') else None))
         return 'LIDAR AVAILABILITY STOP: ' + reason if reason else None
 
     @staticmethod

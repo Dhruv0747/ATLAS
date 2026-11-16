@@ -1,12 +1,13 @@
 """Spoken autonomy events (2026-11-15, owner: "agar kisi wajah se rukta hai to speaker se bole"). Pure, no ROS.
 
 Turns mux safety text, mission-control status and Nav2 recovery counts into short Hindi sentences for the existing
-voice companion (/atlas/voice/test_speak: speech only, never motion). Speaks only while Autonomous mode is ON or an
-autonomous goal is running, never repeats the same sentence within REPEAT_S, and keeps GAP_S between sentences.
+voice companion (/atlas/voice/test_speak: speech only, never motion). Mode changes, E-STOP and the goal's own start /
+end are always spoken; obstacle/safety reasons only WHILE a goal is running (2026-11-16 owner: "after it stops it keeps
+talking"), never repeating the same sentence within REPEAT_S, and keeping GAP_S between sentences.
 """
 import re
 
-REPEAT_S = 15.0
+REPEAT_S = 45.0          # 2026-11-16: 15 s repeated the same stop reason too often
 GAP_S = 4.0
 
 SAFETY_RULES = [
@@ -27,6 +28,7 @@ MISSION_RULES = [
     (re.compile(r'NAMED GOAL FINISHED .*status=5'), 'रुक गया।'),
     (re.compile(r'NAMED GOAL FINISHED .*status=6'), 'मुझे वहाँ तक रास्ता नहीं मिला, मैं रुक गया हूँ।'),
     (re.compile(r'NAMED GOAL REJECTED'), 'नेविगेशन ने यह जगह मना कर दी।'),
+    (re.compile(r'NAVIGATION CANCELED'), 'मिशन रद्द। मैं रुक गया हूँ।'),
     (re.compile(r'NAVIGATION STOPPED: camera obstacles lost'), 'कैमरा बंद हो गया, इसलिए मैं रुक गया हूँ।'),
     (re.compile(r'ERROR .*too close to a wall'), 'वह जगह दीवार के बहुत पास है, वहाँ नहीं जा सकता।'),
     (re.compile(r'ERROR .*(unknown|occupied) on the map'), 'वह जगह मैप पर खाली नहीं है।'),
@@ -75,7 +77,7 @@ class AutonomyVoice:
         return out
 
     def on_safety(self, text, now):
-        if not (self.armed or self.goal_active):
+        if not self.goal_active:
             return None
         sentence, matched = _match(SAFETY_RULES, text)
         return self._say(sentence, now) if matched else None
@@ -84,7 +86,7 @@ class AutonomyVoice:
         if 'NAMED GOAL ACCEPTED' in (text or ''):
             self.goal_active, self.recoveries = True, 0
         sentence, matched = _match(MISSION_RULES, text)
-        if 'NAMED GOAL FINISHED' in (text or '') or 'NAVIGATION STOPPED' in (text or ''):
+        if any(k in (text or '') for k in ('NAMED GOAL FINISHED', 'NAVIGATION STOPPED', 'NAVIGATION CANCELED')):
             self.goal_active = False
         if not matched:
             return None

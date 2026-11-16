@@ -1,5 +1,109 @@
 # ATLAS current blockers
 
+### 2026-11-16 ~22:00 — Abort mission button, quiet narrator, drive CPU budget (staged, NOT deployed)
+- **Abort mission** (owner: "one button to abort the mission"): `POST /api/autonomy {action: abort}`. It first switches to Manual (mux disarm; the mux then blocks every Nav2 command), then publishes `/atlas/cancel_navigation` (mission control: zero Twist + cancel all Nav2 goals). Needs no PIN and is never refused; logged `mission_abort`. Red "Abort mission" buttons on the Command center autonomy panel and the Navigation page (no confirmation dialog: it only stops). Tests: `test_autonomy_abort` 2/2. Fixed the leftover Hinglish link text ("Autonomy readiness: what is blocking / how to clear it").
+- **Narrator** (owner: "after it stops it keeps talking"): obstacle/safety reasons are spoken only while a goal is running; repeat window 15 → 45 s; "NAVIGATION CANCELED" → "मिशन रद्द। मैं रुक गया हूँ।" once, then quiet. Tests: `test_autonomy_voice` 12/12.
+- **Drive CPU:** `atlas_feature_on_demand` started agent team, AI annotator, vision-lidar fusion, person fusion and experience store on the `autonomy` trigger, i.e. exactly during drives.
+  - Config: AI annotator triggers `[ai_object, follow, tracking]`; agent team `[]` (never by demand; code now allows an empty list).
+  - The other three are unchanged.
+  - Tests: `test_feature_on_demand_drive_cpu` 2/2 and mapping 4/4, on the rover.
+- **Voice companion: owner chose "Low priority" (not paused).** It is already capped by the rover's `priority.conf` (Nice 10, CPUWeight 25, CPUQuota 25 %). New drop-in `systemd/user/atlas-voice-companion.service.d/zz-low-priority-20261116.conf`: Nice 19, CPUWeight 10 (CPUQuota stays 25 %). The spoken "stop rover" keeps working. Staged, NOT deployed.
+- (superseded) Voice companion pause (owner chose it first): not implemented.
+- **DEPLOYED ~22:30 (owner "Yes, deploy"):** status web, autonomy web, narrator core, feature manager + yaml, autonomy-panel.js, map-waypoints.js, glass.css (backups `*.before-abort-20261116`), plus the voice-companion drop-in `zz-low-priority-20261116.conf`.
+  - Restarted with the rover parked, E-STOP latched and autonomy OFF: rover-status-web, atlas-autonomy-voice, atlas-voice-companion, atlas-feature-on-demand. All active.
+  - Verified: companion Nice 19, CPUWeight 10, quota 250 ms/s. Feature manager loaded agent-team triggers [] and ai-annotator [ai_object, follow, tracking]. `/v2/autonomy-panel.js` and `map-waypoints.js` served with the Abort buttons.
+  - Not yet verified: the Abort button pressed from the dashboard (loopback POST is refused by the Wi-Fi same-origin check, so it was not exercised from the rover shell); CPU during a real drive.
+- **Abort verified by the owner from the dashboard:**
+  - mux "AUTONOMY OFF (manual only)" at 1794829124.27;
+  - mission control "Nav2 cancel acknowledged" and "NAVIGATION CANCELED; ROVER STOPPED" at 1794829124.39.
+- The owner said the toast vanished too fast to read. Command center now shows a large banner for 30 s ("■ MISSION ABORTED at hh:mm:ss — …", or "⚠ ABORT PROBLEM" / "CONTROL LINK LOST — use the remote B"). Cache-busted `?v=20261116abort`. Deployed (static files only, backups `*.before-abortbanner-20261116`). The Navigation page keeps its modal alert.
+- Owner: "the colour chosen to display the message was not good". Toast (`#toast`) and abort banner are now high contrast: dark #0b1620 text on white, 17–18 px bold, coloured accent bar (green OK / red problem / cyan info). Toast stays 6 s (was 2.2 s). Cache-busted `?v=20261116contrast`; static files deployed (backups `*.before-contrast-20261116`).
+ That service also handles spoken "stop rover / emergency stop" (publishes `/atlas/voice/stop` and zero `/cmd_vel_joy`), so pausing it during drives removes a stop channel. Owner decision pending. An alternative is to keep it at low CPU priority (nice) during drives.
+
+### 2026-11-16 ~21:00 — Stage-3 attempt 7, charger card, CPU budget (owner requests)
+- **Stage-3 #7** (bag `stage3_roundtrip7_us_20261116`, 22 topics incl. ultrasonic), with the hall place centred, 45 s patience and front/rear ultrasonic coverage live:
+  - **safe_stop PASS for the first time:** B while Nav2 drove at 0.078 m/s → still in 0.14 s, 0.006 m.
+  - Mean moving speed 0.144 m/s.
+  - legs FAIL: the hall goal aborted at the door (right-side non-echo wall #1, not papered), owner moved it in; the return needed the owner's help out of the hall. The rover arrived at (−0.01, 0.68).
+  - turn_sign FAIL 1667/103 (5.8 % > 5 %; to check whether the opposite samples are the owner's remote assists counted by `/cmd_vel`).
+  - encoders FAIL (1 CRITICAL sample while moving).
+- **Charger:** owner rating 14.80 V 5.1 A (~75 W) → `battery_eta.yaml` `charger_current_a` / `charger_voltage_v`. The card labels speed by the charger (0.34C = Normal) and shows net vs rover load, e.g. "Normal charger (14.8 V 5.1 A ≈ 75 W, 0.34C) · battery gets 2.3 A, rover uses 2.8 A · ≈ 4 h 47 min to full". Deployed (status web only).
+  - Note: 14.8 V is above the usual 4S LiFePO4 full-charge voltage of 14.6 V (3.70 vs 3.65 V/cell); the BMS cuts off, but a 14.6 V charger is advised.
+- **CPU while parked and charging** (20 s /proc sample, 6 cores): total 371 %, load avg 19–20.
+
+  | Process | CPU |
+  |---|---|
+  | yahboom_base | 29 % |
+  | RGB camera driver | 29 % |
+  | mux | 25 % |
+  | **voice companion (idle!)** | 21 % |
+  | status web | 19 % |
+  | localization monitor | 14 % |
+  | rf2o | 12 % |
+  | Astra | 11 % |
+  | ICP odom | 9.5 % |
+  | ai_annotator | 9 % |
+  | agent_team | 9 % |
+  | mission control | 8.6 % |
+  | ultrasonic bridge | 8.5 % |
+  | lifecycle_manager | 7.5 % |
+  | tight-space recovery | 7.5 % |
+  | IM10A observer | 7.3 % |
+
+  Owner reports CPU at 100 % during drives and the dashboard not responding.
+
+### 2026-11-16 ~19:30 — Owner "A and B": hall place centred + Nav2 patience (LIVE), ultrasonic coverage (staged)
+- **A1 LIVE:** `hall` named place moved (1.47, −5.91, clearance 0.65 m) → **(1.68, −5.35)**, the point of maximum wall clearance in the hall (1.1 m). Heading −60° (from Dhruv Room). Done with mission control's own `/atlas/save_named_place_at`.
+  - The dashboard `/api/places` from loopback returned 403 (Wi-Fi client check); it was NOT bypassed.
+  - Backup `~/.config/project_atlas/named_places.json.before-hallcenter-20261116`.
+- **A2 LIVE:** Nav2 `progress_checker.movement_time_allowance` 20 s → 45 s (runtime `ros2 param set /controller_server`, verified 45.0; persisted in the ws `nav2_params.yaml`, backup `.before-patience-20261116`; repo `config/nav2_params.yaml` updated).
+  - Effect: short guard pauses no longer abort a goal after 20 s. The safety guard is unchanged.
+- **B staged (not deployed):** front/rear ultrasonic coverage (`ultrasonic_covered_bins`, ±10° cone, fresh VALID only via `ValidityWindow.reading`).
+  - A bin is covered only when the clear range reaches the sweep-aware requirement; a short range never covers.
+  - Mux `guard_ultrasonic_ranges`, parameter `lidar_guard_ultrasonic` (default true).
+  - Tests: lidar suites 36/36. Not replayable: no ultrasonic topics in the stage-3 bags (record them next time).
+- **B DEPLOYED ~19:45 (owner "Yes, deploy"):** `atlas_lidar_availability.py` 2df90553…, `atlas_cmd_vel_mux.py` 8b98aa7e…. Backups `*.before-ultrasonic-20261116`. Mux restarted with the rover parked, E-STOP latched and autonomy OFF; active, no errors. Next drive must record `/ultrasonic/validity` and `/ultrasonic/{front,rear}_mm`.
+
+### 2026-11-16 ~19:00 — Can the Astra or the ultrasonics cover the LiDAR blind bins? (evidence)
+- **Astra (stage-3 #6 bag)**, empty LiDAR bins while Nav2 drove (4426 scans):
+
+  | Category | Bins | Share |
+  |---|---|---|
+  | Outside the camera view (\|bearing\| > 27°) | 7921 | 67 % |
+  | Camera also has no depth (blind on the same surface) | 2020 | 17 % |
+  | Floor seen to 0.8 m (already filled by the existing coverage rule) | 1625 | 14 % |
+  | Camera obstacle | 236 | 2 % |
+
+  A reach-based camera rule would add nothing: whenever the floor is seen, it is seen to the full 0.8 m.
+- **Ultrasonic live check** (parked, 60 s, UNO R4 hub):
+  - front and rear VALID at 3.4 Hz, sample age ~0.4 s, max gap 0.53 s;
+  - **left and right DISABLED** (−1 / state DISABLED, 204/204 samples);
+  - validity: SAMPLE_REPORT 201, SERIAL_BACKLOG 6 (3 %).
+  - Front 1461 mm vs LiDAR 1868 mm at 0° (≈ 1568 mm from the bumper); rear 524 mm vs LiDAR 796 mm (≈ 596 mm from the bumper). Agreement within ~7–11 cm after the mount offset; one front outlier at 987 mm.
+- Verdict: front/rear ultrasonics are usable as close-range coverage for front/rear bins; they cannot help the side bins (the majority) while left/right are disabled.
+
+### 2026-11-16 ~18:30 — Stage-3 attempt 6 (newspaper on the hall-door left wall): FAIL, much better
+- Bag `data/lidar_tests/stage3_roundtrip6_tape_20261116` (recording started before the first goal).
+- `stage3_autonomy_check`:
+  - legs FAIL (hall=6, dhruv room=6);
+  - return_home FAIL (no HOME success, although the rover ended at (0.09, 0.56), 2 cm from the place);
+  - safe_stop FAIL (no owner stop while Nav2 was driving);
+  - turn_sign PASS 1163/53;
+  - encoders PASS;
+  - localization blocks while moving 0; mean moving speed 0.15 m/s.
+- The owner helped several times. The rover passed A and the hall door itself (corridor stops ~14–44 per minute vs 89–430 before) and stalled 1.5 m inside the hall. Owner moved it to the hall place; the return goal stalled in the hall turn-around, the owner moved it into the corridor, the final goal ended status 6 at the place.
+- Safe stop: the mux journal shows only ONE "AUTONOMY OFF: E-STOP latched" after "AUTONOMY ON" (16934), at 17900, i.e. ~48 s after the last goal ended. The owner reports pressing B as the stop test, but no B latch was recorded while Nav2 was driving. Needs a repeat: press B while the rover is visibly driving under Nav2.
+- Remaining non-echo surfaces (front ±60° rays cast on the map; counts):
+
+  | Spot | Map position | Rays |
+  |---|---|---|
+  | Hall door RIGHT side (new) | (2.1–2.2, −3.8…−4.0) | 2567 |
+  | Spot A | (1.5, −1.4) | 1518 |
+  | Hall door left C, partly still | (1.6–1.7, −4.0…−4.1) | 2480 |
+  | Hall far wall | (0.5–1.0, −6.8…−7.0) | ~4650 |
+  | Hall left | (0.5, −5.3) | 594 |
+  | Hall right | (2.8, −5.5) | 539 |
+
 2026-11-12 16:16 remap REJECTED (closure passed 0.06 m/2 deg; SLAM map->odom jump 0.92 m/12 deg at ~16:06:18 and
 "observation did not cover session start" gate). Old map preserved; localization restored and VERIFIED. Named places
 restored to old-map x/y with RECONSTRUCTED headings; home pose moved aside and MUST BE RE-SAVED before return-home.

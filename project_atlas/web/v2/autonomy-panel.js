@@ -10,9 +10,11 @@
     <input id="apPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN (for Autonomous)" aria-label="Operator PIN to switch to Autonomous mode">
     <button class="btn apOffBtn" id="apOff" type="button" aria-pressed="false">Manual mode</button>
     <button class="btn" id="apOn" type="button" aria-pressed="false">Autonomous mode</button>
+    <button class="btn apAbort" id="apAbort" type="button" title="Cancel the current goal and switch to Manual">Abort mission</button>
    </div>
+   <div class="apAbortMsg" id="apAbortMsg" role="status" aria-live="assertive" hidden></div>
    <div class="apWhy" id="apWhy"></div>
-   <a class="btn apReady" href="/v2/readiness">Autonomy readiness: kya rok raha hai / kaise kholein</a>
+   <a class="btn apReady" href="/v2/readiness">Autonomy readiness: what is blocking / how to clear it</a>
    <div class="apSave">
     <input id="apName" maxlength="24" placeholder="Waypoint name (e.g. kitchen)" aria-label="New waypoint name">
     <button class="btn" id="apSaveBtn" type="button">Save waypoint here</button>
@@ -62,6 +64,24 @@
     await send('/api/autonomy', { action: 'on', pin: $('apPin').value }); $('apPin').value = ''; poll();
   };
   $('apOff').onclick = async () => { await send('/api/autonomy', { action: 'off' }); poll(); };
+  // 2026-11-16 Abort mission: no confirmation on purpose (it only stops); Manual + cancel the Nav2 goal.
+  // Owner: the toast vanished too fast to read -> a large banner stays for 30 s with the time and the result.
+  let abortTimer = null;
+  function showAbort(text, ok) {
+    const el = $('apAbortMsg');
+    const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    el.textContent = `${ok ? '■ MISSION ABORTED' : '⚠ ABORT PROBLEM'} at ${t} — ${text}`;
+    el.className = 'apAbortMsg ' + (ok ? 'ok' : 'bad'); el.hidden = false;
+    clearTimeout(abortTimer); abortTimer = setTimeout(() => { el.hidden = true; }, 30000);
+  }
+  $('apAbort').onclick = async () => {
+    try {
+      const r = await fetch('/api/autonomy', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Atlas-Wifi': '1' }, body: JSON.stringify({ action: 'abort' }) });
+      const d = await r.json().catch(() => ({}));
+      showAbort(d.message || ('request ' + r.status), !!d.ok);
+    } catch (e) { showAbort('CONTROL LINK LOST — use the remote B to stop', false); }
+    poll();
+  };
   $('apSaveBtn').onclick = async () => {
     const name = $('apName').value.trim();
     if (!name) { toastMsg('Type a waypoint name first'); return; }

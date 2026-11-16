@@ -8,7 +8,7 @@
   card.className = 'card mwp';
   card.innerHTML = `<h2>DRIVE MODE AND WAYPOINTS — TAP THE MAP</h2>
    <div class="mwpState" id="mwpState">Mode …</div>
-   <div class="mwpMode"><button id="mwpManual" type="button">Manual mode</button><button id="mwpAuto" type="button">Autonomous mode</button></div>
+   <div class="mwpMode"><button id="mwpManual" type="button">Manual mode</button><button id="mwpAuto" type="button">Autonomous mode</button><button id="mwpAbort" class="mwpAbort" type="button" style="background:#7a0f1c;border:1px solid #ff5c6c;color:#fff;font-weight:800" title="Cancel the current goal and switch to Manual">Abort mission</button></div>
    <input id="mwpPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN (for Autonomous)" aria-label="Operator PIN to switch to Autonomous mode">
    <div class="mwpWhy" id="mwpWhy"></div>
    <a href="/v2/readiness" style="display:inline-block;margin-bottom:8px;color:#ffcc3d;font-weight:700">→ Readiness: kya rok raha hai / kaise kholein</a>
@@ -83,6 +83,8 @@
     $('mwpPin').value = ''; poll();
   }
   $('mwpManual').onclick = () => mode({ action: 'off' });
+  // 2026-11-16 Abort mission: no confirmation on purpose (it only stops); Manual + cancel the Nav2 goal.
+  $('mwpAbort').onclick = () => mode({ action: 'abort' });
   $('mwpAuto').onclick = () => {
     if (!confirm('Switch to AUTONOMOUS mode?\n\nNav2 may then drive after you release the E-STOP. Keep the remote in hand.')) return;
     mode({ action: 'on', pin: $('mwpPin').value });

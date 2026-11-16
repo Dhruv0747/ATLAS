@@ -81,7 +81,7 @@ function renderHealth(r,net){
 }
 function renderConstellations(r){$('constellationGrid').innerHTML=diagnosticConstellations(r)}
 
-function toast(t){let e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>e.style.display='none',2200)}
+function toast(t){let e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>e.style.display='none',6000)}
 async function post(data,loud=true){try{let q=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});let j=await q.json();if(loud)toast(j.message||'done');return j}catch(e){if(loud)toast('CONTROL LINK LOST')}}
 let latestStatus=null,activeDetail='';
 // The server blanks Jetson CPU/RAM/temp/network when its diagnostic cache is >= 2.0 s old. The page polls every

@@ -106,10 +106,13 @@ def load_config(path):
             if 'idle_s' in v:
                 features[unit]['idle_s'] = max(30.0, float(v['idle_s']))
             if 'triggers' in v:
-                bad = set(v['triggers']) - set(TRIGGERS)
-                if bad or not v['triggers']:
+                # 2026-11-16 (owner: free CPU during autonomous drives): an EMPTY list means "never started by demand"
+                # (only always_on or restore-all start it); unknown trigger names are still rejected.
+                trig = v['triggers'] if v['triggers'] is not None else []
+                bad = set(trig) - set(TRIGGERS)
+                if bad or not isinstance(trig, list):
                     raise SystemExit('invalid triggers for %s: %s' % (unit, v['triggers']))
-                features[unit]['triggers'] = list(v['triggers'])
+                features[unit]['triggers'] = list(trig)
             if v.get('always_on'):
                 features[unit]['always_on'] = True
     return cfg, features

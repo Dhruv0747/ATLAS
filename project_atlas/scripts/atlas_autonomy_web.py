@@ -3,7 +3,8 @@
 All authority stays where it was: the cmd_vel mux decides ON (atlas_autonomy_arm gates: E-STOP latched, still,
 encoder autonomy-ready, speed gate) and mission control runs every navigation check before a waypoint goal.
   GET  /api/autonomy          -> {autonomy, stop_latched, places[], map_id}
-  POST /api/autonomy          {action: on|off, pin}   ON needs the operator PIN (same store/lockout as E-STOP reset)
+  POST /api/autonomy          {action: on|off|abort, pin}   ON needs the operator PIN (same store/lockout as E-STOP reset)
+                              abort (2026-11-16): switch to Manual (mux disarm) AND cancel the Nav2 goal; never refused
   POST /api/places            {action: save|save_at|go|go_at|delete, name[, x, y]}  *_at = map tap (map frame)
 "Go" is refused here unless autonomy is ON and the E-STOP is released, so a queued goal can never start by itself
 when someone later releases the stop.
@@ -157,6 +158,18 @@ def serve(handler, ros, post=False):
     clients = getattr(ros, 'autonomy_clients', {}) or {}
     pubs = getattr(ros, 'place_pubs', {}) or {}
     if path == '/api/autonomy':
+        if action == 'abort':                                  # Abort mission: never refused, needs no PIN
+            ok, msg = call_trigger(clients.get('disarm'))      # Manual first: the mux blocks every Nav2 command at once
+            cancelled = False
+            pub = getattr(ros, 'cancel_nav_pub', None)
+            if pub is not None:
+                from std_msgs.msg import Empty
+                pub.publish(Empty()); cancelled = True        # mission control: zero Twist + cancel all Nav2 goals
+            ros.estop_log.write('mission_abort', client=handler.client_address[0], disarm_ok=ok, cancel_sent=cancelled)
+            text = ('MISSION ABORTED: Manual mode' if ok else 'Manual switch FAILED (' + str(msg) + ')') + \
+                   ('; Nav2 goal cancel sent' if cancelled else '; goal cancel unavailable')
+            json_response(handler, 200 if ok else 503, {'ok': ok, 'message': text})
+            return True
         if action == 'off':                                    # OFF is never refused
             ok, msg = call_trigger(clients.get('disarm'))
             ros.estop_log.write('autonomy_off', client=handler.client_address[0], ok=ok, message=msg)

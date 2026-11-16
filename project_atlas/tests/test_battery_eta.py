@@ -128,5 +128,23 @@ class ChargeSpeedTests(unittest.TestCase):
         self.assertTrue(est['text'].startswith('Fast charging (0.60C)'), est['text'])
 
 
+
+class ChargerRatingTests(unittest.TestCase):
+    def test_label_follows_charger_and_shows_net_and_load(self):
+        e2 = BatteryEta(capacity_ah=15.0, charger_current_a=5.1, charger_voltage_v=14.8)
+        t2, _ = feed(e2, 1000, 200, 30.0, 2.2, cap_ah=15.0)
+        self.assertTrue(e2.estimate(now=t2)['text'].startswith('Normal charger (14.8 V 5.1 A ≈ 75 W, 0.34C)'),
+                        e2.estimate(now=t2)['text'])
+        e = BatteryEta(capacity_ah=15.0, charger_current_a=5.1)
+        t, _ = feed(e, 1000, 200, 30.0, 2.2, cap_ah=15.0)
+        est = e.estimate(now=t)
+        self.assertEqual(est['charge_speed'], 'Normal')               # 5.1 A / 15 Ah = 0.34C
+        self.assertEqual(est['charge_rate'], '0.34C')
+        self.assertAlmostEqual(est['rover_load_a'], 2.9, delta=0.01)
+        self.assertTrue(est['text'].startswith('Normal charger (5.1 A, 0.34C) · battery gets 2.2 A, rover uses 2.9 A'),
+                        est['text'])
+        self.assertIn('to full', est['text'])                          # time still from the NET current
+        self.assertFalse(has_devanagari(est['text']))
+
 if __name__ == '__main__':
     unittest.main()

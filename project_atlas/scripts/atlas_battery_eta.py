@@ -76,9 +76,13 @@ def format_minutes(minutes):
 
 
 class BatteryEta:
-    def __init__(self, capacity_ah=None, state_path=None, params=None):
+    def __init__(self, capacity_ah=None, state_path=None, params=None, charger_current_a=None, charger_voltage_v=None):
         self.p = dict(DEFAULTS)
         self.p.update(params or {})
+        # 2026-11-16 owner: charger delivers 5.1 A. The BMS current is NET (charger minus what the rover uses while
+        # plugged in), so the charge-speed label follows the CHARGER rating and the card also shows the net current.
+        self.charger_current = charger_current_a if _finite(charger_current_a) and charger_current_a > 0 else None
+        self.charger_voltage = charger_voltage_v if _finite(charger_voltage_v) and charger_voltage_v > 0 else None
         self.config_capacity = capacity_ah if _finite(capacity_ah) and capacity_ah > 0 else None
         self.state_path = Path(state_path) if state_path else None
         self.learned_capacity = None
@@ -189,10 +193,22 @@ class BatteryEta:
         out['mode'] = 'charging' if sign > 0 else 'discharging'
         speed_prefix = ''
         if sign > 0:
-            speed, rate = charge_speed(i_now, cap, self.last_voltage or 12.8, p)
-            out['charge_speed'], out['charge_rate'] = speed, rate
-            if speed:
-                speed_prefix = f'{speed} charging ({rate}) · '
+            if self.charger_current:
+                speed, rate = charge_speed(self.charger_current, cap, self.last_voltage or 12.8, p)
+                out['charge_speed'], out['charge_rate'] = speed, rate
+                load = self.charger_current - i_now
+                out['charger_current_a'] = self.charger_current
+                out['rover_load_a'] = round(load, 2) if load > 0 else None
+                rating = (f'{self.charger_voltage:.1f} V {self.charger_current:.1f} A ≈ '
+                          f'{self.charger_voltage * self.charger_current:.0f} W' if self.charger_voltage
+                          else f'{self.charger_current:.1f} A')
+                speed_prefix = (f'{speed} charger ({rating}, {rate}) · battery gets {i_now:.1f} A'
+                                + (f', rover uses {load:.1f} A' if load > 0.2 else '') + ' · ')
+            else:
+                speed, rate = charge_speed(i_now, cap, self.last_voltage or 12.8, p)
+                out['charge_speed'], out['charge_rate'] = speed, rate
+                if speed:
+                    speed_prefix = f'{speed} charging ({rate}) · '
         avg = self._avg_current(now, sign)
         if avg is None:
             out['text'] = (speed_prefix if sign > 0 else 'Discharging · ') + 'estimating time…'

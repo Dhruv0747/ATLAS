@@ -241,6 +241,39 @@ def swept_bins(linear, angular):
             out.update({(b - 1) % 72, b, (b + 1) % 72})
     return out
 
+# 2026-11-16 front/rear ultrasonic coverage (owner: "A and B"). Ultrasonic ranging sees glass and black surfaces that
+# return no LiDAR echo. Live check 2026-11-16: front/rear VALID at 3.4 Hz, ~0.4 s sample age, within ~7-11 cm of LiDAR
+# after the mount offset; left/right are not installed. A bin inside a sensor's cone counts as observed only when the
+# sensor reports a fresh VALID range that is clear beyond the footprint reach in that bin (required_wall_distance).
+# A short range (something close) never covers anything: the bin stays vetoed.
+US_MOUNTS = {'front': (FOOTPRINT_X[1], 0.0, 0.0), 'rear': (FOOTPRINT_X[0], 0.0, 180.0)}   # base_link x, y, axis deg
+US_HALF_CONE_DEG = 10.0
+
+
+def ultrasonic_covered_bins(ranges, extent):
+    """ranges: {'front'|'rear': metres from the sensor (fresh, VALID only)}. Returns robot-frame bins (5 deg, laser
+    origin) whose whole span lies within a sensor cone and whose clear distance from the laser reaches the
+    sweep-aware requirement."""
+    out = set()
+    for side, r in (ranges or {}).items():
+        mount = US_MOUNTS.get(side)
+        if mount is None or not isinstance(r, (int, float)) or not math.isfinite(r) or r <= 0:
+            continue
+        mx, my, axis = mount
+        offset = math.hypot(mx - LASER_X, my)                       # laser -> sensor along the axis
+        for b in range(72):
+            lo, hi = b * 5.0, b * 5.0 + 5.0
+            d_lo = (lo - axis + 180.0) % 360.0 - 180.0
+            d_hi = (hi - axis + 180.0) % 360.0 - 180.0
+            if not (abs(d_lo) <= US_HALF_CONE_DEG and abs(d_hi) <= US_HALF_CONE_DEG):
+                continue
+            worst = max(abs(d_lo), abs(d_hi))
+            clear_from_laser = offset * math.cos(math.radians(worst)) + r
+            if clear_from_laser >= required_wall_distance(b, extent):
+                out.add(b)
+    return out
+
+
 class LidarAvailability:
     def __init__(self, timeout_s=.75, frame='laser_frame', yaw_deg=180.):
         self.timeout_s=timeout_s;self.frame=frame;self.yaw_deg=yaw_deg
@@ -312,7 +345,7 @@ class LidarAvailability:
             self.invalid=None
         except (AttributeError,TypeError,ValueError,OverflowError):return
 
-    def reason(self, linear, angular, ros_now, steady_now, explain=None):
+    def reason(self, linear, angular, ros_now, steady_now, explain=None, ultrasonic=None):
         """explain: optional callable(missing_bins) -> bins explained by the map (see map_known_bins); only
         consulted when at most MAP_GAP_MAX_BINS bins are missing."""
         if not math.isfinite(linear) or not math.isfinite(angular):return 'invalid command'
@@ -327,6 +360,14 @@ class LidarAvailability:
         elif abs(angular)>1e-4:required=travel_cone(linear)|swept_bins(linear,angular)
         else:required=travel_cone(linear)
         missing=required-self.bins-self.covered(steady_now)
+        self.ultrasonic_explained=0
+        if missing and ultrasonic:
+            try:
+                us=ultrasonic_covered_bins(ultrasonic, sweep_extent_cached(linear, angular))&missing
+            except Exception:
+                us=set()
+            self.ultrasonic_explained=len(us)
+            missing=missing-us
         self.map_explained=0
         if missing and explain is not None and len(missing)<=MAP_GAP_MAX_BINS:
             try:

@@ -511,6 +511,8 @@ class AtlasRosNode:
             self.remote_stop_reset_client = self.node.create_client(Trigger, '/atlas/remote_stop/reset')
             # 2026-11-15 dashboard AUTONOMY ON/OFF + waypoints (atlas_autonomy_web); the mux / mission control decide.
             self.autonomy_clients = {op: self.node.create_client(Trigger, '/atlas/autonomy/' + op) for op in ('arm', 'disarm')}
+            # 2026-11-16 dashboard "Abort mission": mission control's existing cancel (zero Twist + cancel all Nav2 goals).
+            self.cancel_nav_pub = self.node.create_publisher(Empty, '/atlas/cancel_navigation', 10)
             self.place_pubs = {op: self.node.create_publisher(String, topic, 10) for op, topic in (
                 ('save', '/atlas/save_named_place'), ('go', '/atlas/navigate_named_place'),
                 ('delete', '/atlas/delete_named_place'), ('save_at', '/atlas/save_named_place_at'),
@@ -950,15 +952,18 @@ class AtlasRosNode:
             eta = getattr(self, "battery_eta", None)
             if eta is None:
                 from atlas_battery_eta import BatteryEta
-                cap = None
+                cap = charger = charger_v = None
                 try:
                     import yaml
                     cfg = yaml.safe_load(open(Path(__file__).resolve().parents[1] / "config" / "battery_eta.yaml"))
                     cap = (cfg or {}).get("capacity_ah")
+                    charger = (cfg or {}).get("charger_current_a")
+                    charger_v = (cfg or {}).get("charger_voltage_v")
                 except (OSError, ValueError, TypeError, AttributeError):
-                    cap = None
+                    cap = charger = charger_v = None
                 eta = self.battery_eta = BatteryEta(
-                    capacity_ah=cap, state_path=Path.home() / ".local/state/project_atlas/battery_capacity.json")
+                    capacity_ah=cap, state_path=Path.home() / ".local/state/project_atlas/battery_capacity.json",
+                    charger_current_a=charger, charger_voltage_v=charger_v)
             b = json.loads(msg.data)
             eta.update(time.time(), float(b.get("soc_percent")), float(b.get("current_a")), bool(b.get("ok")),
                        voltage=b.get("voltage_v"))

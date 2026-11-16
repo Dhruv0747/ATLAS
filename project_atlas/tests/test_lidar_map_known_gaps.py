@@ -149,5 +149,39 @@ class MuxExplainerTests(unittest.TestCase):
         self.assertIsNone(f(self.mux(localization_xy_std_m=0.2), 11.0))               # not confident
         self.assertIsNone(f(self.mux(localization_yaw_std_deg=12.0), 11.0))
 
+
+class UltrasonicCoverageTests(unittest.TestCase):
+    def test_front_cone_bins_covered_only_when_clear_beyond_reach(self):
+        e = ala.sweep_extent(0.15, 0.0)
+        far = ala.ultrasonic_covered_bins({'front': 1.5}, e)
+        self.assertTrue({70, 71, 0, 1} <= far, far)                  # -10..+10 deg
+        self.assertFalse(far & {2, 69, 36})                            # outside the cone / rear
+        self.assertEqual(ala.ultrasonic_covered_bins({'front': 0.2}, e), set())   # close object: no cover
+
+    def test_rear_cone_and_bad_input(self):
+        e = ala.sweep_extent(-0.1, 0.0)
+        self.assertTrue({34, 35} <= ala.ultrasonic_covered_bins({'rear': 1.2}, e))
+        self.assertEqual(ala.ultrasonic_covered_bins({'rear': float('nan')}, e), set())
+        self.assertEqual(ala.ultrasonic_covered_bins({'left': 2.0}, e), set())     # no left sensor
+        self.assertEqual(ala.ultrasonic_covered_bins(None, e), set())
+
+    def test_reason_uses_ultrasonic_for_front_gap(self):
+        g = ala.LidarAvailability(); g.update(scan(blank_deg=set(range(0, 5))), 10.0)       # bin 0 empty
+        self.assertIn('unobserved', g.reason(0.15, 0.0, 100.1, 10.1))
+        self.assertIsNone(g.reason(0.15, 0.0, 100.1, 10.1, ultrasonic={'front': 1.5}))
+        self.assertEqual(g.ultrasonic_explained, 1)
+        self.assertIn('unobserved', g.reason(0.15, 0.0, 100.1, 10.1, ultrasonic={'front': 0.25}))
+
+    def test_mux_ranges_only_fresh_valid(self):
+        import ast
+        tree = ast.parse((Path(__file__).parents[1] / 'scripts' / 'atlas_cmd_vel_mux.py').read_text())
+        fn = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == 'guard_ultrasonic_ranges'][0]
+        scope = {}
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), 'mux', 'exec'), scope)
+        f = scope['guard_ultrasonic_ranges']
+        win = NS(reading=lambda side, now: (1.4, 'VALID') if side == 'front' else (None, 'STALE_SAMPLE'))
+        self.assertEqual(f(NS(lidar_guard_ultrasonic=True, ultrasonic_validity=win), 5.0), {'front': 1.4})
+        self.assertEqual(f(NS(lidar_guard_ultrasonic=False, ultrasonic_validity=win), 5.0), {})
+
 if __name__ == '__main__':
     unittest.main()

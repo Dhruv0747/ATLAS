@@ -103,6 +103,11 @@ header.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;g
 .apHead input{grid-column:1/-1}
 .apHead .btn,.apSave .btn,.apPlace .btn{min-height:44px;font-size:13px;padding:6px 10px;min-width:0}
 .apOffBtn{border-color:rgba(255,92,108,.45)}
+/* 2026-11-16 Abort mission: always visible, red, large touch target */
+.apAbort,.mwpAbort{background:#7a0f1c!important;border:1px solid #ff5c6c!important;color:#fff!important;font-weight:800;min-height:44px}
+.apAbortMsg{margin:8px 0;padding:12px 14px;border-radius:10px;font-size:18px;font-weight:800;line-height:1.35;
+  color:#0b1620;background:#ffffff;border:1px solid #0b1620;border-left:10px solid #d81b2c}
+.apAbortMsg.ok{border-left-color:#138a3e}
 .apHead .btn.apSel{border-color:var(--terrain)!important;color:var(--terrain);box-shadow:0 0 0 2px rgba(80,200,120,.25) inset;font-weight:800}
 .apPlace b{display:block;overflow-wrap:anywhere}
 .apWhy{font-size:12px;color:var(--mute)}
@@ -178,7 +183,10 @@ details.panel .btn{margin:4px 6px 4px 0}
 .diagTable tr:hover{background:rgba(34,184,240,.06)}
 .rawData{font:12px ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#BCD3E5;background:rgba(2,8,15,.8);border-radius:10px;padding:10px;margin-top:9px}
 input[type=search],input[type=text],input[type=number],input[type=password],select{background:rgba(3,10,18,.8);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit}
-#toast{position:fixed;left:50%;bottom:calc(var(--dock) + 14px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(10,26,44,.95);border:1px solid var(--line-strong);padding:9px 16px;border-radius:var(--r-chip);display:none;z-index:40}
+#toast{position:fixed;left:50%;bottom:calc(var(--dock) + 14px + env(safe-area-inset-bottom));transform:translateX(-50%);display:none;z-index:40;
+  /* 2026-11-16 owner: the old dark toast was hard to read -> high contrast (dark text on white), larger, accent bar */
+  background:#ffffff;color:#0b1620;border:1px solid #0b1620;border-left:8px solid #17a7c8;padding:12px 18px;border-radius:10px;
+  font-size:17px;font-weight:700;line-height:1.35;max-width:min(92vw,620px);box-shadow:0 6px 24px rgba(0,0,0,.55)}
 .sensorModal{display:none;position:fixed;inset:0;z-index:45;background:rgba(1,5,10,.82);padding:3vh 3vw}
 .sensorModal.open{display:flex}
 .sensorSheet{width:min(980px,94vw);max-height:94vh;margin:auto;overflow:auto;background:var(--deep);border:1px solid var(--line-strong);border-radius:20px;padding:16px;box-shadow:0 30px 80px -20px rgba(0,0,0,.9)}
