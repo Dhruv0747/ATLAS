@@ -40,18 +40,19 @@ DEFAULTS = {
 
 
 def charge_speed(current_a, capacity_ah, voltage_v=12.8, params=None):
-    """('धीमी' | 'सामान्य' | 'तेज़', detail) for a positive charging current."""
+    """('Slow' | 'Normal' | 'Fast' | 'Very fast …', detail) for a positive charging current.
+    2026-11-16 owner: dashboard text in English only."""
     p = dict(DEFAULTS); p.update(params or {})
     if not _finite(current_a) or current_a <= 0:
         return None, ''
     if _finite(capacity_ah) and capacity_ah and capacity_ah > 0:
         c = current_a / capacity_ah
         if c >= p['very_fast_from_c']:
-            return 'बहुत तेज़ (1C से ऊपर — cell datasheet जाँचें)', f'{c:.2f}C'
-        label = 'धीमी' if c < p['slow_below_c'] else ('तेज़' if c >= p['fast_from_c'] else 'सामान्य')
+            return 'Very fast (above 1C — check the cell datasheet)', f'{c:.2f}C'
+        label = 'Slow' if c < p['slow_below_c'] else ('Fast' if c >= p['fast_from_c'] else 'Normal')
         return label, f'{c:.2f}C'
     w = current_a * (voltage_v if _finite(voltage_v) and voltage_v > 0 else 12.8)
-    label = 'धीमी' if w < p['slow_below_w'] else ('तेज़' if w >= p['fast_from_w'] else 'सामान्य')
+    label = 'Slow' if w < p['slow_below_w'] else ('Fast' if w >= p['fast_from_w'] else 'Normal')
     return label, f'{w:.0f} W'
 
 
@@ -59,19 +60,19 @@ def _finite(*v):
     return all(isinstance(x, (int, float)) and math.isfinite(x) for x in v)
 
 
-def format_minutes_hi(minutes):
-    """'≈ 2 घंटे 10 मिनट', '≈ 45 मिनट', '≈ 1 मिनट से कम'."""
+def format_minutes(minutes):
+    """'≈ 2 h 10 min', '≈ 45 min', '< 1 min'."""
     if minutes is None or not _finite(minutes) or minutes < 0:
         return None
     m = int(round(minutes))
     if m < 1:
-        return '≈ 1 मिनट से कम'
+        return '< 1 min'
     h, mm = divmod(m, 60)
     if h and mm:
-        return f'≈ {h} घंटे {mm} मिनट'
+        return f'≈ {h} h {mm} min'
     if h:
-        return f'≈ {h} घंटे'
-    return f'≈ {mm} मिनट'
+        return f'≈ {h} h'
+    return f'≈ {mm} min'
 
 
 class BatteryEta:
@@ -175,7 +176,7 @@ class BatteryEta:
         cap, cap_src = self.capacity
         out = {'mode': 'unknown', 'soc_percent': None, 'avg_current_a': None, 'capacity_ah': cap and round(cap, 2),
                'capacity_source': cap_src, 'minutes_to_full': None, 'minutes_to_reserve': None,
-               'reserve_percent': p['reserve_pct'], 'text': 'Battery data नहीं है', 'approximate': True,
+               'reserve_percent': p['reserve_pct'], 'text': 'No battery data', 'approximate': True,
                'charge_speed': None, 'charge_rate': ''}
         if not self.samples or now - self.samples[-1][0] > p['max_sample_age_s']:
             return out
@@ -183,7 +184,7 @@ class BatteryEta:
         out['soc_percent'] = round(soc, 1)
         sign = 1 if i_now > p['idle_current_a'] else (-1 if i_now < -p['idle_current_a'] else 0)
         if sign == 0:
-            out.update(mode='idle', text='न charge हो रहा, न ख़र्च (idle)')
+            out.update(mode='idle', text='Idle (not charging, not discharging)')
             return out
         out['mode'] = 'charging' if sign > 0 else 'discharging'
         speed_prefix = ''
@@ -194,11 +195,11 @@ class BatteryEta:
                 speed_prefix = f'{speed} charging ({rate}) · '
         avg = self._avg_current(now, sign)
         if avg is None:
-            out['text'] = (speed_prefix + 'समय निकाल रहा हूँ…') if sign > 0 else 'समय निकाल रहा हूँ…'
+            out['text'] = (speed_prefix if sign > 0 else 'Discharging · ') + 'estimating time…'
             return out
         out['avg_current_a'] = round(avg, 2)
         if cap is None:
-            out['text'] = (speed_prefix if sign > 0 else 'Discharging · ') + 'battery की क्षमता सीख रहा हूँ'
+            out['text'] = (speed_prefix if sign > 0 else 'Discharging · ') + 'learning battery capacity…'
             return out
         if sign > 0:
             ts = p['taper_start_pct']
@@ -207,11 +208,11 @@ class BatteryEta:
             tail = tail_pct / 100.0 * cap / (avg * p['taper_current_factor']) if tail_pct > 0 else 0.0
             mins = (cc + tail) * 60.0
             out['minutes_to_full'] = round(mins, 1)
-            out['text'] = speed_prefix + ('पूरा charge होने में ' + format_minutes_hi(mins) if soc < 99.5 else 'लगभग पूरा charge')
+            out['text'] = speed_prefix + (format_minutes(mins) + ' to full' if soc < 99.5 else 'almost full')
         else:
             usable = max(0.0, soc - p['reserve_pct']) / 100.0 * cap
             mins = usable / abs(avg) * 60.0
             out['minutes_to_reserve'] = round(mins, 1)
-            out['text'] = (format_minutes_hi(mins) + f' बाकी ({int(p["reserve_pct"])}% तक)') if usable > 0 \
-                else f'{int(p["reserve_pct"])}% से नीचे — charge कीजिए'
+            out['text'] = (format_minutes(mins) + f' left (to {int(p["reserve_pct"])}%)') if usable > 0 \
+                else f'Below {int(p["reserve_pct"])}% — charge now'
         return out

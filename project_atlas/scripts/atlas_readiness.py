@@ -1,10 +1,11 @@
 """Autonomy readiness checklist (2026-11-15, owner: "tell me why autonomy won't move, how to clear it, open the test
 page, and unlock by itself when the test passes — no developer needed"). Pure; the web layer collects the inputs.
 
-Every item: id, ok, title, why (current reason), steps (Hindi, what to physically do), action (button: page link or
-API call) and unlocks_by (what clears it). Items that the owner cannot fix from the dashboard say so plainly.
+Every item: id, ok, title, why (current reason), steps (what to physically do), action (button: page link or API
+call) and unlocks_by (what clears it). Items that the owner cannot fix from the dashboard say so plainly.
 Owner decision 2026-11-15 ("Owner sign-off test"): there is NO override for safety items (mux, speed, encoders,
 E-STOP, localization, camera); each is cleared only by its owner-run test/check. Only 'waypoints' is optional.
+2026-11-16 owner: "use English in the dashboard, no Hindi" — all dashboard text is English (voice stays Hindi).
 """
 
 LOC_FRESH_S = 120.0
@@ -45,9 +46,10 @@ def checklist(policy, encoder_health, encoder_age_s, loc_check, loc_age_s, astra
 
     # 1. mux link
     add('mux', policy is not None, 'Safety controller (mux) online',
-        'Dashboard को mux से ताज़ा जानकारी नहीं मिल रही।',
-        ['Rover चालू है और Wi-Fi से जुड़ा है, यह देखें।', '30 second रुककर page refresh करें।',
-         'फिर भी न आए तो rover restart करें।'], None, 'mux से ताज़ा status आते ही अपने आप।')
+        'The dashboard is not receiving fresh status from the mux.',
+        ['Check that the rover is powered and connected to Wi-Fi.', 'Wait 30 seconds and refresh the page.',
+         'If it still does not come back, restart the rover.'], None,
+        'Automatically, as soon as fresh mux status arrives.')
 
     # 2. speed (closed loop + owner-run ground check)
     enabled = bool((speed_ev or {}).get('enabled'))
@@ -58,42 +60,44 @@ def checklist(policy, encoder_health, encoder_age_s, loc_check, loc_age_s, astra
         if r.get('verdict') != 'PASS' and r.get('fresh'):
             fails.append(f"{_fmt(float(t))}: FAIL ({', '.join(r.get('failed_checks') or [r.get('end_reason') or '?'])})")
     if not enabled:
-        why = 'Speed control (closed loop) अभी बंद है, इसलिए rover बताई गई speed से नहीं चलता।'
-        steps = ['यह setting developer/deploy से चालू होती है (config/speed_loop.yaml).',
-                 'चालू होने के बाद नीचे का Speed check करें।']
+        why = 'Closed-loop speed control is off, so the rover does not drive at the commanded speed.'
+        steps = ['This setting is enabled by a developer deploy (config/speed_loop.yaml).',
+                 'After it is enabled, run the Speed check below.']
     else:
         need = int((speed_ev or {}).get('passes_needed', 1))
         have = len([t for t in (speed_ev or {}).get('passed', []) if t in missing])
-        why = (f'Speed check बाकी है: {", ".join(_fmt(t) for t in missing)} पर {have}/{need} PASS'
-               + (' • पिछला: ' + '; '.join(fails) if fails else ''))
-        steps = ['Rover को खुली जगह रखें: आगे कम से कम 1.5 m खाली, आगे 0.6 m के अंदर कुछ न हो।',
-                 'Remote हाथ में रखें, sticks बीच में; E-STOP (B) छोड़ दें।',
-                 'Readiness page पर PIN डालकर "Speed check" दबाएँ। Rover ~0.6 m धीरे आगे चलेगा और खुद रुकेगा।',
-                 'Rover वापस लाकर एक बार और "Speed check" करें (2 PASS चाहिए)।',
-                 'दो PASS होते ही यह रुकावट अपने आप हट जाएगी। कुछ गड़बड़ लगे तो B दबाएँ।']
-    add('speed', bool(gate.get('speed_validated')), 'Speed sahi (commanded = actual)', why, steps,
-        {'label': 'Speed check page खोलें', 'href': '/v2/readiness#speed'} if enabled else None,
-        '2 PASS होते ही अपने आप (config या code बदलने पर फिर से check चाहिए)।')
+        why = (f'Speed check pending: {have}/{need} PASS at {", ".join(_fmt(t) for t in missing)}'
+               + (' • last: ' + '; '.join(fails) if fails else ''))
+        steps = ['Place the rover in open space: at least 1.5 m clear ahead, nothing within 0.6 m.',
+                 'Hold the remote with sticks centred; release the E-STOP (B).',
+                 'On the Readiness page enter the PIN and press "Speed check". The rover drives ~0.6 m slowly and '
+                 'stops by itself.',
+                 'Bring the rover back and run "Speed check" once more (2 PASS needed).',
+                 'After two PASS this blocker clears by itself. If anything looks wrong, press B.']
+    add('speed', bool(gate.get('speed_validated')), 'Speed verified (commanded = actual)', why, steps,
+        {'label': 'Open Speed check', 'href': '/v2/readiness#speed'} if enabled else None,
+        'Automatically after 2 PASS (any config or code change needs a new check).')
 
     # 3. encoders
     enc_ok = encoder_age_s is not None and 0 <= encoder_age_s <= 2 and bool((encoder_health or {}).get('autonomy_ready'))
     if encoder_age_s is None or not 0 <= encoder_age_s <= 2:
-        ewhy = 'Encoder (पहियों के sensor) की जानकारी नहीं आ रही।'
+        ewhy = 'No data from the wheel encoders.'
     elif not (encoder_health or {}).get('navigation_validated'):
-        ewhy = 'Encoder अभी autonomy के लिए validated नहीं हैं (ground round-trip check बाकी)।'
+        ewhy = 'Encoders are not yet validated for autonomy (ground round-trip check pending).'
     else:
-        ewhy = f"Encoder हालत: {(encoder_health or {}).get('state', '?')} — {(encoder_health or {}).get('reason', '')}"
+        ewhy = f"Encoder state: {(encoder_health or {}).get('state', '?')} — {(encoder_health or {}).get('reason', '')}"
     add('encoders', enc_ok, 'Wheel encoders ready', ewhy,
-        ['Motor & Encoder Test Lab खोलें और चारों पहियों की गिनती देखें (rover उठाकर या खड़ा रखकर)।',
-         'कोई पहिया 0 या उल्टा गिने तो उसकी wire/connector check करें।',
-         'Wiring ठीक है पर फिर भी blocked हो तो developer से बात करें।'],
-        {'label': 'Motor & Encoder Test Lab', 'href': '/v2/testlab'}, 'Encoder health ठीक होते ही अपने आप।')
+        ['Open the Motor & Encoder Test Lab and watch all four wheel counts (rover lifted or standing still).',
+         'If a wheel counts 0 or backwards, check its wire/connector.',
+         'If the wiring is fine but it is still blocked, contact the developer.'],
+        {'label': 'Motor & Encoder Test Lab', 'href': '/v2/testlab'}, 'Automatically when encoder health is OK.')
 
     # 4. E-STOP latched to switch ON
     add('estop', bool(latched) or auto.get('armed'), 'E-STOP latched (to switch ON)',
-        'Autonomous चालू करने के लिए पहले rover रुका हुआ (E-STOP latched) होना चाहिए।',
-        ['Remote पर B दबाएँ।', 'फिर PIN डालकर "Autonomous mode" दबाएँ।', 'उसके बाद remote से E-STOP छोड़ें (sticks बीच, LB दबाकर छोड़ें)।'],
-        None, 'B दबाते ही।')
+        'To switch Autonomous mode on, the rover must first be stopped (E-STOP latched).',
+        ['Press B on the remote.', 'Then enter the PIN and press "Autonomous mode".',
+         'Then release the E-STOP from the remote (sticks centred, press and release LB).'],
+        None, 'As soon as B is pressed.')
 
     # 5. localization (needed for every goal)
     state = (loc_check or {}).get('state')
@@ -102,28 +106,28 @@ def checklist(policy, encoder_health, encoder_age_s, loc_check, loc_age_s, astra
               and last_verified_age_s <= VERIFIED_WITHIN_S)
     loc_ok = fresh_verified or est_ok
     xy = (amcl or {}).get('xy_std_m')
-    add('localization', loc_ok, 'Rover को अपनी जगह पता है (localization)',
-        f'LiDAR check: {state or "कोई check नहीं"}' + (f' ({int(loc_age_s)} s पुराना)' if loc_age_s else '')
+    add('localization', loc_ok, 'Rover knows where it is (localization)',
+        f'LiDAR check: {state or "no check"}' + (f' ({int(loc_age_s)} s old)' if loc_age_s else '')
         + (f' • AMCL ±{float(xy):.2f} m' if xy is not None else '')
         + ('' if last_verified_age_s is not None and last_verified_age_s <= VERIFIED_WITHIN_S
-           else ' • पिछले 30 min में VERIFIED नहीं'),
-        ['Rover को खड़ा रखें (B latched)।', 'Home page पर "CHECK MY LOCATION" दबाएँ और ~30 s रुकें।',
-         'VERIFIED न आए तो rover को किसी पहचानी जगह (जैसे dhruv room) ले जाकर फिर check करें।'],
-        {'label': 'Check my location (Home)', 'href': '/v2/#hmLocSlot'}, 'VERIFIED आते ही अपने आप।')
+           else ' • not VERIFIED in the last 30 min'),
+        ['Keep the rover still (B latched).', 'On the Home page press "CHECK MY LOCATION" and wait ~30 s.',
+         'If it does not reach VERIFIED, move the rover to a known place (e.g. dhruv room) and check again.'],
+        {'label': 'Check my location (Home)', 'href': '/v2/#hmLocSlot'}, 'Automatically when VERIFIED.')
 
     # 6. camera obstacles reach Nav2
     cam_ok = astra_age_s is not None and astra_age_s <= 2.0
     add('camera', cam_ok, 'Camera obstacle detection (Astra → Nav2)',
-        'Camera की obstacle जानकारी Nav2 तक नहीं पहुँच रही' + ('' if bridge_active else ' (bridge बंद है)') + '।',
-        ['Rover खड़ा रखें (B latched) — bridge चालू होते समय CPU थोड़ी देर busy रहता है।',
-         '"Camera bridge चालू करें" दबाएँ, ~20 s रुकें।'],
-        {'label': 'Camera bridge चालू करें', 'api': '/api/readiness/bridge'}, '"Live · Nav2" आते ही अपने आप।')
+        'Camera obstacle data is not reaching Nav2' + ('' if bridge_active else ' (bridge is off)') + '.',
+        ['Keep the rover still (B latched) — the CPU is busy for a moment while the bridge starts.',
+         'Press "Start camera bridge" and wait ~20 s.'],
+        {'label': 'Start camera bridge', 'api': '/api/readiness/bridge'}, 'Automatically when "Live · Nav2" shows.')
 
     # 7. something to drive to
-    add('waypoints', places_count > 0, 'कम से कम एक waypoint (optional)',
-        'कोई waypoint नहीं है। यह ज़रूरी नहीं: map tap करके "Move here" भी चलता है।',
-        ['Navigation page पर map tap करें और "Save waypoint" या "Move here" इस्तेमाल करें।'],
-        {'label': 'Navigation page', 'href': '/v2/mapping'}, 'Waypoint save होते ही।')
+    add('waypoints', places_count > 0, 'At least one waypoint (optional)',
+        'No waypoint saved. Not required: tapping the map and "Move here" also works.',
+        ['On the Navigation page tap the map and use "Save waypoint" or "Move here".'],
+        {'label': 'Navigation page', 'href': '/v2/mapping'}, 'As soon as a waypoint is saved.')
     items[-1]['optional'] = True
 
     blocking = [i['id'] for i in items if not i['ok'] and i['id'] in ('mux', 'speed', 'encoders')]

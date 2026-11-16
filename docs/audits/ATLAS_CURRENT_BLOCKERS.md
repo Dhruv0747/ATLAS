@@ -2897,3 +2897,8 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
   - `config/battery_eta.yaml` `capacity_ah: 15.0` deployed (status web restarted).
   - Above 1C the charge label reads "बहुत तेज़ (1C से ऊपर — cell datasheet जाँचें)". Tests 11/11.
   - Live: "सामान्य charging (0.25C) …", capacity_source config.
+- **2026-11-16 owner: "use English in the dashboard, no Hindi" — DEPLOYED (web only).** Translated `atlas_readiness.py` (all titles, reasons, steps, buttons), `web/v2/readiness.js`, `web/v2/readiness.html` (lang en) and `atlas_battery_eta.py` texts (charge speed Slow / Normal / Fast / Very fast; "≈ 2 h 10 min to full"; "≈ … left (to 10%)").
+  - Tests: `test_battery_eta` adds `test_all_dashboard_text_is_english`; `test_readiness` assertion updated.
+  - Backups `*.before-english-20261116`; `rover-status-web` restarted.
+  - Live check: readiness titles in English, page heading English, battery "Slow charging (0.17C) · estimating time…".
+  - The voice narrator stays Hindi (a spoken feature, not dashboard text).

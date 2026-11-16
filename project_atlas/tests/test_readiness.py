@@ -40,7 +40,7 @@ class ReadinessTests(unittest.TestCase):
     def test_speed_loop_disabled_has_no_test_button(self):
         s = item(run(speed_ev={'enabled': False, 'missing': [0.1, 0.15], 'latest': {}},
                      gate={'speed_validated': False}), 'speed')
-        self.assertIsNone(s['action']); self.assertIn('बंद', s['why'])
+        self.assertIsNone(s['action']); self.assertIn('off', s['why'])
 
     def test_encoder_stale_and_not_validated(self):
         self.assertFalse(item(run(encoder_age_s=None), 'encoders')['ok'])

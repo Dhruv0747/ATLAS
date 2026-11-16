@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="hi" class="v2page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<html lang="en" class="v2page"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ATLAS · Autonomy Readiness</title>
 <link rel="icon" href="/v2/assets/atlas-logo-96.png">
 <link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/pages.css"><link rel="stylesheet" href="/v2/material.css">
@@ -24,17 +24,17 @@ button:disabled{opacity:.45;cursor:default}
 pre{white-space:pre-wrap;word-break:break-word;background:#020a12;border:1px solid #173047;border-radius:9px;padding:10px;max-height:260px;overflow:auto;font-size:12px}
 .res{display:grid;gap:6px}.res div{padding:6px 8px;border-radius:8px;background:#07131f}.pass{color:var(--ok)}.fail{color:var(--bad)}
 </style></head><body>
-<header><h1>Autonomy Readiness — क्या रोक रहा है और कैसे खोलें</h1><a href="/v2/">← Command center</a><a href="/v2/mapping">Navigation</a></header>
+<header><h1>Autonomy Readiness — what is blocking and how to clear it</h1><a href="/v2/">← Command center</a><a href="/v2/mapping">Navigation</a></header>
 <main>
- <div class="summary warn" id="summary">जाँच हो रही है…</div>
+ <div class="summary warn" id="summary">Checking…</div>
  <div id="items"></div>
  <section class="speed" id="speed">
-  <h2>Speed check (rover खुद ~0.6 m धीरे आगे चलेगा)</h2>
+  <h2>Speed check (the rover drives ~0.6 m forward slowly by itself)</h2>
   <ol>
-   <li>Rover को खुली जगह रखें: आगे कम से कम 1.5 m खाली, 0.6 m के अंदर कुछ न हो। कोई आगे न खड़ा हो।</li>
-   <li>Mode: <b>Manual</b> रखें। Remote हाथ में, sticks बीच में, फिर E-STOP छोड़ें (LB दबाकर छोड़ें)।</li>
-   <li>PIN डालें और <b>Speed check</b> दबाएँ। Rover धीरे (~0.075 m/s) चलेगा और खुद रुकेगा। गड़बड़ लगे तो तुरंत <b>B</b>।</li>
-   <li>Rover वापस लाकर एक बार और करें। <b>2 PASS</b> = Speed वाली रुकावट अपने आप हट जाएगी।</li>
+   <li>Place the rover in open space: at least 1.5 m clear ahead, nothing within 0.6 m. Nobody standing in front.</li>
+   <li>Keep the mode on <b>Manual</b>. Remote in hand, sticks centred, then release the E-STOP (press and release LB).</li>
+   <li>Enter the PIN and press <b>Speed check</b>. The rover drives slowly and stops by itself. If anything looks wrong, press <b>B</b> at once.</li>
+   <li>Bring the rover back and run it once more. <b>2 PASS</b> = the speed blocker clears by itself.</li>
   </ol>
   <div class="speedRow">
    <input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN" aria-label="Operator PIN">
@@ -45,7 +45,7 @@ pre{white-space:pre-wrap;word-break:break-word;background:#020a12;border:1px sol
   <pre id="log" hidden></pre>
  </section>
 </main>
-<script src="/v2/readiness.js?v=20261115" defer></script>
+<script src="/v2/readiness.js?v=20261116en" defer></script>
 <div class="v2dock" role="region" aria-label="Emergency stop">
 <button class="v2estop" id="v2Estop" type="button"><svg class="v2icon" aria-hidden="true"><use href="/v2/assets/icons.svg#i-stop"/></svg>E-STOP</button>
 <span class="v2dock-msg" id="v2EstopMsg" role="status">Sends one zero-speed command. Keep the physical remote stop available.</span>
