@@ -53,12 +53,27 @@ class HeadingLoopTests(unittest.TestCase):
         self.assertEqual(loop.integrator, 0.0)
         self.assertEqual(loop.update(0.1, None, 0.15, DT, 0.05), 0.1)
 
-    def test_not_rolling_applies_nothing_but_keeps_learned_drift(self):
+    def test_not_rolling_ramps_out_but_keeps_learned_drift(self):
         loop = HeadingLoop()
         simulate(loop, -0.08, seconds=4)
-        learned = loop.integrator
-        self.assertEqual(loop.update(0.0, 0.0, 0.0, DT, 0.05), 0.0)
+        learned = loop.integrator; applied = loop.last_correction
+        self.assertGreater(abs(applied), 0.03)
+        out = loop.update(0.0, 0.0, 0.0, DT, 0.05)
+        self.assertAlmostEqual(abs(out), max(0.0, abs(applied) - 0.5 * DT), places=9)   # no step to zero
+        for _ in range(20):
+            out = loop.update(0.0, 0.0, 0.0, DT, 0.05)
+        self.assertEqual(out, 0.0)                         # fully ramped out while stopped
         self.assertEqual(loop.integrator, learned)
+
+    def test_correction_slew_limited_on_restart(self):
+        """auto6 limit cycle: stop (correction out) then roll again with a large learned drift -> no step."""
+        loop = HeadingLoop()
+        simulate(loop, -0.25, seconds=6)                    # learn a big drift
+        for _ in range(20):
+            loop.update(0.0, 0.0, 0.0, DT, 0.05)            # stopped: ramps to 0
+        outs = [loop.update(0.0, 0.25, 0.15, DT, 0.05) for _ in range(10)]   # rolling again, still drifting
+        steps = [abs(b - a) for a, b in zip([0.0] + outs, outs)]
+        self.assertTrue(all(st <= 0.5 * DT + 1e-9 for st in steps), steps)
 
     def test_bad_inputs(self):
         loop = HeadingLoop()

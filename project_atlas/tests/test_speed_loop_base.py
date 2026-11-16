@@ -23,8 +23,9 @@ CONSTS = {'MAX_VX', 'MAX_WZ', 'MAX_PWM', 'MIN_RUN_PWM', 'REMOTE_MAX_PWM', 'REMOT
           'REMOTE_BOOST_MIN_PWM', 'REMOTE_BOOST_MAX_PWM', 'AUTONOMOUS_MIN_RUN_PWM', 'LOW_SPEED_HOLD_PWM',
           'PWM_RAMP_STEP', 'TURN_PWM_BIAS', 'SPEED_LOOP_STATUS_IDLE_PERIOD_S', 'AUTONOMOUS_STEER_SIGN', 'REMOTE_STEER_SIGN',
           'FRONT_STEER_CENTER', 'REAR_STEER_CENTER', 'FRONT_STEER_RIGHT', 'FRONT_STEER_LEFT',
-          'REAR_STEER_RIGHT', 'REAR_STEER_LEFT'}
-FUNCS = {'motor_outputs', '_clamp_servo', 'opposite_steering_targets'}
+          'REAR_STEER_RIGHT', 'REAR_STEER_LEFT', 'STEER_ALIGN_START_DEG', 'STEER_ALIGN_ROLLING_DEG',
+          'STEER_ALIGN_ROLLING_MIN_MPS'}
+FUNCS = {'motor_outputs', '_clamp_servo', 'opposite_steering_targets', 'speed_loop_steering_aligned'}
 METHODS = {'_drive_pwm', '_slew_motor_pwm', '_step_toward', '_init_speed_loop', '_speed_loop_idle',
            '_speed_loop_pwm', '_heading_corrected_wz'}
 
@@ -205,6 +206,56 @@ class BaseIntegrationTests(unittest.TestCase):
             b._drive_pwm(0.10, 0.0)
         self.assertTrue(all(o == (0, 0, 0, 0) for o in b.outputs))
         self.assertEqual(b._speed_loop.integrator, 0.0)
+
+    def test_rolling_tolerance_gate_pure(self):
+        _, ns = make_base(ENABLED, Clock())
+        f = ns['speed_loop_steering_aligned']
+        self.assertTrue(f(8, 0.15, 0.0))                   # standstill: unchanged 8-degree gate
+        self.assertFalse(f(9, 0.15, 0.0))
+        self.assertFalse(f(12, 0.15, 0.02))                # barely moving -> wait
+        self.assertTrue(f(12, 0.15, 0.12))                 # moving forward, bounded error -> keep traction
+        self.assertTrue(f(12, 0.15, 0.06))                 # auto6: just after breakaway (loop not yet "rolling")
+        self.assertTrue(f(16, 0.15, 0.12))
+        self.assertFalse(f(17, 0.15, 0.12))                # beyond the rolling tolerance
+        self.assertFalse(f(12, -0.15, 0.12))               # direction reversal never rides the tolerance
+        self.assertFalse(f(12, 0.15, None))
+        self.assertFalse(f(float('nan'), 0.15, 0.12))
+        self.assertFalse(f(12, 0.15, float('nan')))
+        self.assertFalse(f(None, 0.15, 0.12))
+
+    def test_curvature_change_while_rolling_keeps_traction(self):
+        """auto5 replay pattern: rolling straight at 0.15, then Nav2 asks for a curve needing a >8 deg servo change."""
+        clock = Clock()
+        b, ns = make_base(ENABLED, clock)
+        rover = Rover(50, 40, 1)
+        drive(b, clock, rover, 0.15, 4.0)
+        self.assertTrue(b._speed_loop.rolling)
+        tr = drive(b, clock, rover, 0.15, 2.0, wz=0.18)     # ~12 deg servo step (auto5: 13 of 15 waits were <= 16 deg)
+        self.assertTrue(all(pwm > 0 for _, pwm in tr), tr)
+        self.assertNotIn('steering alignment wait',
+                         [json.loads(m)['reason'] for m in b._pub_speed_loop.msgs[-20:]])
+
+    def test_curvature_change_right_after_breakaway_keeps_traction(self):
+        """auto6: the rover moves at 0.05-0.18 m/s before the loop confirms rolling; a >8 deg step must not cut it."""
+        clock = Clock()
+        b, ns = make_base(ENABLED, clock)
+        rover = Rover(50, 40, 1)
+        for _ in range(40):                                 # until moving (measured) but breakaway not yet confirmed
+            drive(b, clock, rover, 0.15, 0.1)
+            if b._speed_loop.measured_speed() >= 0.05:
+                break
+        self.assertGreaterEqual(b._speed_loop.measured_speed(), 0.05)
+        drive(b, clock, rover, 0.15, 1.0, wz=0.18)          # ~12 deg servo step
+        reasons = [json.loads(m)['reason'] for m in b._pub_speed_loop.msgs[-10:]]
+        self.assertNotIn('steering alignment wait', reasons)
+
+    def test_large_curvature_change_while_rolling_still_waits(self):
+        clock = Clock()
+        b, ns = make_base(ENABLED, clock)
+        rover = Rover(50, 40, 1)
+        drive(b, clock, rover, 0.15, 4.0)
+        drive(b, clock, rover, 0.15, 0.1, wz=1.5)          # full lock: error far above 16 deg
+        self.assertEqual(json.loads(b._pub_speed_loop.msgs[-1])['reason'], 'steering alignment wait')
 
     def test_jitter_tick_holds_but_zero_command_still_stops(self):
         clock = Clock()

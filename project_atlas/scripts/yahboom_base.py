@@ -159,6 +159,38 @@ def motor_outputs(left_pwm, right_pwm):
     return (left_pwm, -right_pwm, left_pwm, -right_pwm)
 
 
+# 2026-11-15 drive auto5 (/atlas/speed_loop): with the 8-degree gate the closed-loop autonomous path spent 26% of
+# a 25.7 s goal in "steering alignment wait" and cut traction 11 times while ROLLING, each cut followed by a fresh
+# breakaway search (31% of the time) -> mean speed ~0.12 for a 0.15 target. The servo slews only 20 deg/s, so any
+# Nav2 curvature change above 8 deg stopped the wheels. From standstill the 8-degree gate is unchanged (never start
+# into a doorway on the wrong wheel angle); while already moving (measured) in the commanded direction a bounded
+# 16-degree tolerance lets the servo catch up (< 0.8 s, < 0.12 m at 0.15 m/s) instead of stopping.
+STEER_ALIGN_START_DEG = 8
+STEER_ALIGN_ROLLING_DEG = 16
+STEER_ALIGN_ROLLING_MIN_MPS = 0.05
+
+
+def speed_loop_steering_aligned(steering_error_deg, vx, measured_mps):
+    """Traction allowed for the closed-loop (non-REMOTE) path? Pure; fail-closed on bad inputs.
+    2026-11-16 auto6: "rolling" is the MEASURED speed, not the speed loop's breakaway flag — right after breakaway the
+    rover already moved at 0.05-0.18 m/s while the loop had not confirmed rolling, so the tolerance never applied."""
+    try:
+        err = float(steering_error_deg); vx = float(vx)
+    except (TypeError, ValueError):
+        return False
+    if not (math.isfinite(err) and math.isfinite(vx)):
+        return False
+    if err <= STEER_ALIGN_START_DEG:
+        return True
+    if err > STEER_ALIGN_ROLLING_DEG or measured_mps is None:
+        return False
+    try:
+        m = float(measured_mps)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(m) and abs(m) >= STEER_ALIGN_ROLLING_MIN_MPS and abs(vx) > 0.02 and (m > 0) == (vx > 0)
+
+
 def _clamp_servo(value, endpoint_a, endpoint_b):
     lower, upper = sorted((float(endpoint_a), float(endpoint_b)))
     return max(lower, min(upper, float(value)))
@@ -1474,8 +1506,13 @@ class YahboomBase(Node):
         if speed_loop_owned:
             # Closed-loop autonomous speed replaces the open-loop 60-PWM floor.
             # A misaligned steering target is a zero speed target (same gate).
+            loop = self._speed_loop
+            aligned = speed_loop_steering_aligned(
+                steering_error, vx,
+                loop.measured_speed() if loop is not None else None,
+            )
             self._applied_pwm = self._slew_motor_pwm(
-                self._speed_loop_pwm(vx, steering_error <= 8)
+                self._speed_loop_pwm(vx, aligned)
             )
         elif pwm and steering_error > 8 and self._drive_source == 'REMOTE':
             sign = 1 if pwm > 0 else -1

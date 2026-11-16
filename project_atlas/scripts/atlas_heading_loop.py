@@ -16,6 +16,11 @@ DEFAULTS = {
     'min_speed_mps': 0.04,        # below this the gyro error is dominated by noise / no steering authority
     'imu_max_age_s': 0.3,
     'error_deadband': 0.01,       # rad/s
+    # 2026-11-16 drive auto6: the correction stepped to 0 whenever the rover slowed below min_speed and stepped back
+    # (up to 0.35 rad/s ~ 20 servo deg) when it rolled again. Each step exceeded the base's steering-alignment gate,
+    # cut traction, stopped the rover, removed the correction again -> stop-go limit cycle (16 traction cuts / goal).
+    # The correction now slews at most this fast (rad/s per s), in and out, so the steering target moves smoothly.
+    'max_correction_rate': 0.5,
 }
 
 
@@ -45,17 +50,21 @@ class HeadingLoop:
                 or not 0 <= imu_age_s <= p['imu_max_age_s']):
             self.reset(); self.last_reason = 'imu stale'
             return wz_cmd
+        m = p['max_correction']
         if abs(speed_mps) < p['min_speed_mps']:
-            # keep the learned drift (integrator) across short stops, but apply nothing while not rolling
-            self.last_correction = 0.0; self.last_reason = 'not rolling'
-            return wz_cmd
+            # keep the learned drift (integrator) across short stops; the applied correction ramps out (no step)
+            self.last_correction = self._slew(0.0, dt_s); self.last_reason = 'not rolling'
+            return wz_cmd + self.last_correction
         err = wz_cmd - wz_meas
         if abs(err) < p['error_deadband']:
             err = 0.0
         self.integrator += p['ki'] * err * dt_s
-        m = p['max_correction']
         self.integrator = max(-m, min(m, self.integrator))
         corr = max(-m, min(m, p['kp'] * err + self.integrator))
-        self.last_correction = corr
+        self.last_correction = self._slew(corr, dt_s)
         self.last_reason = 'tracking'
-        return wz_cmd + corr
+        return wz_cmd + self.last_correction
+
+    def _slew(self, desired, dt_s):
+        step = self.p['max_correction_rate'] * dt_s
+        return max(self.last_correction - step, min(self.last_correction + step, desired))

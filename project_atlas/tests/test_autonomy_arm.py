@@ -2,8 +2,12 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
+import atlas_autonomy_arm
 from atlas_autonomy_arm import AutonomyArm, read_gate
+
+NO_EVIDENCE = {'ok': False, 'enabled': False, 'passed': [], 'missing': [0.15], 'latest': {}}
 
 READY = {'autonomy_ready': True}
 
@@ -16,6 +20,9 @@ def gate(text):
 
 class AutonomyArmTests(unittest.TestCase):
     def setUp(self):
+        # hermetic: never read the real ~/.local/state speed-check evidence (on the rover it holds live PASSes)
+        patcher = mock.patch.object(atlas_autonomy_arm, 'speed_evidence', return_value=dict(NO_EVIDENCE))
+        patcher.start(); self.addCleanup(patcher.stop)
         self.ok = gate('speed_validated: true\n')
         self.no = gate('speed_validated: false\nnote: speed calibration pending\n')
 
