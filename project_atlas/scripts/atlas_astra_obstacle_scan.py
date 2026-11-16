@@ -46,6 +46,10 @@ def main():
             qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST)
             self.pub = self.create_publisher(LaserScan, '/astra/obstacle_scan', 5)
             self.status_pub = self.create_publisher(String, '/astra/obstacle_scan_status', 5)
+            # 2026-11-16: per-bin depth coverage for the mux LiDAR-availability guard (never for Nav2 clearing).
+            # ranges = distance seen (obstacle range or 0.83 x farthest floor point), inf = no evidence;
+            # intensities 1 = obstacle in that bin. Published only for the same fresh, non-blinded frames.
+            self.cover_pub = self.create_publisher(LaserScan, '/astra/obstacle_coverage', 5)
             self.create_subscription(Image, '/astra/depth/image_raw', self.on_depth, qos)
             self.create_subscription(CameraInfo, '/astra/depth/camera_info', self.on_info, qos)
             self.cal_state, self.cal_detail, self.last_info_key = 'NO_CALIBRATION', {}, None
@@ -116,6 +120,16 @@ def main():
             out.ranges = ranges.tolist()
             self.pub.publish(out)
             self.published += 1
+            cover = getattr(scanner, 'last_coverage', None)
+            if cover is not None and len(cover) == len(ranges):
+                cov = LaserScan()
+                cov.header = out.header
+                cov.angle_min, cov.angle_increment, cov.angle_max = out.angle_min, out.angle_increment, out.angle_max
+                cov.time_increment, cov.scan_time = 0.0, out.scan_time
+                cov.range_min, cov.range_max = out.range_min, out.range_max
+                cov.ranges = [float(c) if np.isfinite(c) else float('inf') for c in cover]
+                cov.intensities = [1.0 if np.isfinite(r) else 0.0 for r in ranges]
+                self.cover_pub.publish(cov)
 
         def on_status(self):
             if self.last_frame_mono is None or time.monotonic() - self.last_frame_mono > scanner.s['stale_s']:

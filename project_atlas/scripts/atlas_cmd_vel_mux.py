@@ -12,9 +12,11 @@ import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data, QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from std_msgs.msg import Empty, Float32, String
 from sensor_msgs.msg import Joy, LaserScan
+from nav_msgs.msg import OccupancyGrid
+import atlas_lidar_availability as lidar_avail
 from atlas_lidar_availability import LidarAvailability
 from atlas_autonomy_arm import AutonomyArm
 from std_srvs.srv import Trigger
@@ -89,6 +91,19 @@ class AtlasCmdVelMux(Node):
             str(self.get_parameter('lidar_guard_frame').value),
             float(self.get_parameter('lidar_guard_yaw_deg').value))
         self.create_subscription(LaserScan, '/scan', self.on_guard_scan, qos_profile_sensor_data)
+        # 2026-11-16 map-known gaps + Astra coverage for the LiDAR availability guard (owner-approved; see
+        # atlas_lidar_availability). Either can be switched off by parameter; both only ever REMOVE a veto for bins
+        # that are explained, never add authority.
+        self.declare_parameter('lidar_guard_map_gaps', True)
+        self.lidar_guard_map_gaps = bool(self.get_parameter('lidar_guard_map_gaps').value)
+        self.map_grid = None
+        if self.lidar_guard_map_gaps:
+            self.create_subscription(OccupancyGrid, '/map', self.on_guard_map, QoSProfile(
+                depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL, reliability=ReliabilityPolicy.RELIABLE))
+        self.declare_parameter('lidar_guard_astra_coverage', True)
+        if bool(self.get_parameter('lidar_guard_astra_coverage').value):
+            self.create_subscription(LaserScan, '/astra/obstacle_coverage', self.on_guard_coverage,
+                                     qos_profile_sensor_data)
         self.declare_parameter("foxglove_max_linear", 0.20)
         self.declare_parameter("foxglove_max_angular", 0.45)
         self.declare_parameter("foxglove_steering_expo", 2.0)
@@ -325,14 +340,47 @@ class AtlasCmdVelMux(Node):
     def on_guard_scan(self, msg):
         self.lidar_availability.update(msg, time.monotonic())
 
+    def on_guard_map(self, msg):
+        try:
+            self.map_grid = lidar_avail.OccGrid.from_msg(msg)
+        except (AttributeError, TypeError, ValueError) as exc:
+            self.map_grid = None
+            self.get_logger().warn(f'LiDAR guard: map not usable for map-known gaps: {exc}')
+
+    def on_guard_coverage(self, msg):
+        self.lidar_availability.update_coverage(msg, time.monotonic())
+
+    def guard_map_explainer(self, now, linear=None, angular=None):
+        """Callable for LidarAvailability.reason, or None unless the map is loaded and AMCL is fresh and confident."""
+        grid = getattr(self, 'map_grid', None)
+        pose = getattr(self, 'localization_pose', None)
+        if grid is None or pose is None:
+            return None
+        if not (0.0 <= now - getattr(self, 'localization_rx', 0.0) <= lidar_avail.MAP_POSE_MAX_AGE_S):
+            return None
+        if (getattr(self, 'localization_xy_std_m', float('inf')) > lidar_avail.MAP_POSE_MAX_XY_STD_M
+                or getattr(self, 'localization_yaw_std_deg', float('inf')) > lidar_avail.MAP_POSE_MAX_YAW_STD_DEG):
+            return None
+        guard = getattr(self, 'lidar_availability', None)
+        obstacles = guard.obstacles(now) if guard is not None else {}
+        def explain(missing):
+            # computed only when bins are actually missing; extent memoised per (v, w) (CPU, 2026-11-16)
+            extent = None
+            if linear is not None and angular is not None:
+                extent = lidar_avail.sweep_extent_cached(float(linear), float(angular))
+            return lidar_avail.map_known_bins(missing, grid, pose, obstacles=obstacles, extent=extent)
+        return explain
+
     def lidar_command_guard(self, source, command, now):
         # Manual operator control is deliberately unchanged. This never grants
         # authority: it can only veto NAV2/recovery after selection by the mux.
         if source not in ('NAV2', 'RECOVERY'):
             return None
+        explainer = (self.guard_map_explainer(now, command.linear.x, command.angular.z)
+                     if getattr(self, 'lidar_guard_map_gaps', False) else None)
         reason = self.lidar_availability.reason(
             command.linear.x, command.angular.z,
-            self.get_clock().now().nanoseconds * 1e-9, now)
+            self.get_clock().now().nanoseconds * 1e-9, now, explain=explainer)
         return 'LIDAR AVAILABILITY STOP: ' + reason if reason else None
 
     @staticmethod

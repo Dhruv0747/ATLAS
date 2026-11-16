@@ -2746,3 +2746,140 @@ left/right turns >= 30 deg. Dry run + synthetic-segment check passed on the Jets
 - The rays are no-echo (inf), not < range_min. Per-ray no-echo: −23° 52 %, −19° 50 %, −21° 37 %, +26° 33 %, +41° 33 %, +55° 34 %, −165° 43 %; 0° only 1 %.
 - Not constant across drives: −21° no-echo 33 % here, 29 % in auto4 and ≤ 1 % in auto2/3/5/6/7. So it is not a permanent self-occlusion; it depends on location (hall approach) and possibly on surfaces there (glass/dark/shiny) or on what is near the rover. Not yet discriminated. The guard was NOT relaxed.
 - **DEPLOYED 2026-11-16 (owner "Yes, deploy"): dashboard planned path stays visible while a goal is active.** `atlas_status_web.py` `visible_plan()/nav_goal_active()` + `mapping.html` GOAL arrow; the replan-only-if-blocked BT publishes /plan only on (re)plan, so the 30 s age rule hid the live path. A plan older than the current goal is still hidden. Backups `*.before-planvisible-20261116`; only `rover-status-web` restarted (base/mux/Nav2 untouched, speed evidence still valid). Test `tests/test_status_web_plan_visible.py` 6/6; four older status-web tests fail identically on the deployed HEAD file (missing `calibration_validation` in the temp test copy) — pre-existing.
+
+### 2026-11-16 ~11:00 — Stage-3 round trip attempt 2: FAILED again before the hall (LiDAR availability)
+- Bag `data/lidar_tests/stage3_roundtrip2_20261116` (recording started before the goal). Hall goal status 6: "Controller patience exceeded", then "Failed to make progress" ×2. Owner helped the rover twice by hand. In 3 min the mux logged ~430 LIDAR AVAILABILITY STOP (1–5 bins). AMCL start (−1.2, 0.1), end (2.0, −3.4); hall place (1.47, −5.91), about 2.5 m short.
+- Offline guard replay: 69 % of moving scans blocked. Missing bins now include dead-ahead −10..+15° (≈ 1100), plus −30° (580) and ±30°. Blocked mostly at AMCL (0.3, 0.3), (1.0, −1.0), (2.0, −3.5).
+- Dead-ahead empty bins: neighbours ±10° return 2–4 m (577) or < 2 m (326), median neighbour max 3.3 m; range_max 12 m. So a surface straight ahead returns no echo while the sides around it are seen at 2–4 m. Consistent with the glass/shiny surface the owner confirmed. Not yet taped. Guard not relaxed.
+- **Audit (discriminating) of the hall-route LiDAR stops, 2026-11-16:**
+  - Not motion-related: front ±45° no-echo is 9.5 % / 12.2 % on still scans in the two stage-3 bags, vs 0.3 % in auto7 (inside Dhruv Room). Moving scans 6.6 % / 7.5 %.
+  - Parked live scan at AMCL (1.68, −4.44): 0 no-echo rays in front ±60° (solid surface 0.8 m ahead).
+  - Ray-cast of every front no-echo ray from the AMCL pose onto the accepted map. 77/11456 and 135/10772 had no map wall within 6 m; median expected wall distance 2.55 / 3.0 m. Hits cluster on the same three map spots in both runs:
+    - A (1.5, −1.0…−1.4): 24 % / 18 %
+    - B (2.4–2.5, −3.3…−3.7): 21 % / 14 %
+    - C (1.6, −4.0…−4.1): 10 % / 13 %
+  - Conclusion (confirmed, location-specific): three surfaces on the route do not return the RPLIDAR beam. Their material is not identified yet (owner to inspect). Map image `docs/audits/stage3_noecho_spots_20261116.png`.
+
+### 2026-11-16 — smarter LiDAR availability guard (owner request: "use the map / Astra depth"), staged locally, NOT deployed
+- **Found:** the 2026-11-15 Astra floor-coverage fusion (b9b9a01) was never live. The rover's `atlas_astra_obstacle_core.py` lacked `last_coverage`; `atlas_astra_obstacle_scan.py` published no coverage; the bridge relayed only `/astra/obstacle_scan`; the mux never subscribed. 0 coverage msgs in 6 s on domain 0. Astra logs repeated `obstacle scan not published: BLINDED`.
+- **Rule 1, map-known gaps** (`atlas_lidar_availability.map_known_bins`, mux `guard_map_explainer`). A missing bin is explained only if:
+  - AMCL is fresh (≤ 3 s) and confident (xy ≤ 0.15 m, yaw ≤ 10°);
+  - ≤ 3 bins are missing;
+  - every sub-ray crosses free cells to a mapped wall ≥ MAP_GAP_MIN_M (unknown cells, map edge or no wall within 6 m fail).
+  - Parameter `lidar_guard_map_gaps` (default true).
+- Replay (`tools/drive/replay_map_known_gaps.py`):
+
+  | Bag | Today | ≥ 0.8 m | ≥ 1.0 m | ≥ 1.5 m | ≥ 2.5 m |
+  |---|---|---|---|---|---|
+  | stage3 #1 | 83 % | 20 % | 38 % | 67 % | 76 % |
+  | stage3 #2 | 69 % | 35 % | 35 % | 39 % | 42 % |
+  | auto7 | 33 % | — | 32 % | — | — |
+
+  Default 1.0 m (2× the 0.5 m sweep horizon). Remaining vetoes: AMCL not confident (median xy std 0.19–0.21 m) and > 3 bins.
+- **Rule 2, Astra coverage completed:**
+  - `atlas_astra_obstacle_scan.py` publishes `/astra/obstacle_coverage` (only for fresh, non-blinded frames; inf = no evidence; intensity 1 = obstacle).
+  - Bridge relays it.
+  - Mux subscribes → `LidarAvailability.update_coverage`. Parameter `lidar_guard_astra_coverage` (default true).
+  - Not replayable on today's bags (no depth recorded).
+- Residual risk (owner decision): an obstacle that also returns no LiDAR echo and no depth, standing inside an explained gap.
+- Tests:
+  - New: `test_lidar_map_known_gaps` 9/9; `test_astra_coverage` 4/4 (rover).
+  - Existing: `test_lidar_availability` 16/16.
+  - `test_track_a` has 1 error from the missing `systemd/` folder in the temp copy, identical with the deployed core.
+- **DEPLOYED 2026-11-16 ~13:00 (owner "Yes, deploy"):** map-known gaps + Astra coverage.
+  - Files:
+    - `atlas_lidar_availability.py` a6e394e1…
+    - `atlas_cmd_vel_mux.py` 518eb919…
+    - `atlas_astra_obstacle_core.py` 15020b0c…
+    - `atlas_astra_obstacle_scan.py` 25b3ed65…
+    - `astra_obstacles_bridge.yaml` 24b17e7f…
+  - Backups `*.before-smartguard-20261116`. Restarted `atlas-cmd-vel-mux`, `atlas-astra-obstacles` and `atlas-astra-bridge` with the rover parked, E-STOP latched and autonomy OFF. Base untouched; speed evidence still valid.
+  - Verified: domain 0 `/astra/obstacle_coverage` 53 msgs / 8 s (base_link, 120 bins, 89 finite); mux subscribed to `/astra/obstacle_coverage` and to `/map` (TRANSIENT_LOCAL; map_server active, publishes `/map`).
+  - Not yet verified: the guard effect on a real drive.
+  - Rollback: copy the five backups back and restart the three services (parked + latched).
+
+### 2026-11-16 ~13:30 — Stage-3 attempt 3 (smart guard live, hall → Dhruv Room) and threshold change
+- Bag `data/lidar_tests/stage3_roundtrip3_smartguard_20261116` (18 topics incl. `/astra/obstacle_coverage`, 6146 msgs). The first "dhruv room" goal aborted at hall corner C (1.96, −4.40).
+  - Live check: bin +30° empty in 56/56 scans. Map wall at 0.48–0.50 m (bin +25°: 0.6–0.75 m). AMCL xy std 0.047.
+  - Outside the 1.0 m map rule and at the Astra FOV edge → correctly vetoed.
+- The owner moved the rover past C by remote/hand. Second goal: at (1.55, −2.28) Nav2 commanded a 0.28 m radius turn (all 72 bins required); bins −45° (map wall 0.95 m) and +140° (0.88 m) were empty.
+- The rover reached (0.06, 0.59), 5 cm from the place. It then tried a reverse tight turn for final yaw; rear bins −160/−165 were empty (one sub-ray wall at 0.93 m). The owner pressed B.
+- **Owner decision: MAP_GAP_MIN_M 1.0 → 0.4 m.** Replay (Astra coverage included where recorded), vetoed moving scans:
+
+  | Bag | Guard today | 0.40 m | 0.60 m | 1.00 m |
+  |---|---|---|---|---|
+  | stage3 #3 | 84 % | 26 % | 52 % | 79 % |
+  | stage3 #2 | 69 % | 28 % | 33 % | 35 % |
+  | stage3 #1 | 83 % | 11 % (= AMCL-not-confident share) | — | — |
+  | auto7 | 33 % | 32 % | — | — |
+
+  Remaining vetoes are mostly AMCL not confident (xy std > 0.15) and > 3 empty bins.
+- Residual risk accepted by the owner: a non-echo object inside an explained gap between 0.4 m and the mapped wall. The costmap static layer still keeps the footprint off mapped walls.
+- Tests: `test_lidar_map_known_gaps` 10/10, `test_lidar_availability` 16/16. Not yet deployed.
+- **Camera accuracy check (stage-3 #3 bag):**
+  - Fresh coverage on 4824/4825 moving scans, but it filled almost nothing (vetoed 85 % → 84 %). The empty LiDAR bins sit at ±25–45°, at or outside the Astra ~±29° field of view.
+  - Where both sensors saw an obstacle in the same bin: within 15 cm 45 %, Astra farther 37 %, Astra closer 18 %. Frame origins differ and the Astra reports the nearest point per ray bin.
+  - With the 0.4 m rule, the explained walls were ≥ 0.48 m away (median 0.88 m).
+- **Camera veto added (owner "हाँ, जोड़ो"):** a bin is not map-explained when fresh Astra depth shows an obstacle in that LiDAR bin closer than the mapped wall − 0.15 m (`MAP_GAP_CAMERA_MARGIN_M`, `LidarAvailability.obstacles`). Replay: vetoed 1 bin on stage-3 #3; overall 26 % unchanged. (The earlier "10" used base_link bearings; the laser-origin binning gives 1.)
+  - Tests: `test_lidar_map_known_gaps` 13/13, `test_lidar_availability` 16/16.
+- **DEPLOYED ~14:00:** `atlas_lidar_availability.py` 03ec24d6… and `atlas_cmd_vel_mux.py` 57722178… (MAP_GAP_MIN_M 0.4 + camera veto). Backups `*.before-gap04-20261116`. Mux restarted with the rover parked, E-STOP latched and autonomy OFF; mux active, no errors. Real-drive effect not yet verified.
+- **DEPLOYED 2026-11-16 ~14:30 (owner: "deploy what is built"): AMCL alpha1–4 0.2 → 0.1** (alpha5 unchanged). Applied at runtime with `ros2 param set /amcl` and persisted in `~/project_atlas_ws/src/tortoisebot_bringup/config/nav2_params.yaml` (backup `.before-amclalpha-20261116`); repo `config/nav2_params.yaml` updated to match. The rover was parked and latched.
+  - Evidence: replay F (alpha only) kept scan-fit 0.513 with σxy mean 0.156 → 0.124 and max 0.218 → 0.178. Most of the remaining guard vetoes after the 0.4 m rule were "AMCL not confident" (σxy > 0.15).
+  - Rollback: set alpha1–4 back to 0.2 (runtime + yaml).
+- Human-aware navigation design written: `docs/ATLAS_HUMAN_AWARE_NAVIGATION_DESIGN_2026-11-16.md` (radar + YOLO + depth, polite "please move aside" with radar confirmation). Design only; starts after Stage 3.
+
+### 2026-11-16 ~15:00 — Stage-3 attempt 4 + sweep-aware map gaps
+- Bag `data/lidar_tests/stage3_roundtrip4_20261116` (19 topics incl. `/radar/targets`). The hall goal stalled at spot A (1.07, −1.05): AMCL xy std 0.051. The fixed 0.4 m rule explained 2 of 3 empty bins; bin +100° had the mapped wall at 0.35–0.50 m while Nav2 turned right (w −0.29), so the rear swings toward that wall. The owner moved the rover and returned to Dhruv Room manually. The owner asked for 0.20 m; I advised against it (wall 2 cm from the body side) and proposed a sweep-aware clearance instead (accepted).
+- **Sweep-aware rule** (`sweep_extent`, `required_wall_distance`): per bin, the farthest point the footprint reaches in the next 0.25 m along the commanded arc, + margin, floor 0.25 m. Examples (margin 0.10): straight front 0.66 m, side 0.28 m, right-turn left side 0.32 m.
+- Replay, vetoed moving scans:
+
+  | Bag | Fixed 0.4 m | Sweep, 0.10 margin | Sweep, 0.05 margin |
+  |---|---|---|---|
+  | #4 | 58 % | 11 % | 8 % |
+  | #3 | 26 % | 52 % | 29 % |
+  | #2 | 28 % | 31 % | 30 % |
+  | Total scans | 3377 | 3528 | 2340 |
+
+  The #3 difference is corner C: the wall is at 0.48–0.50 m and the front-left reach needs 0.48–0.56 m at the 0.10 margin.
+- **Owner decision: margin 0.05 m.**
+  - DEPLOYED: `atlas_lidar_availability.py` + `atlas_cmd_vel_mux.py` (the mux passes the command into `guard_map_explainer`). Backups `*.before-sweep-20261116`. Mux restarted with the rover parked, E-STOP latched and autonomy OFF.
+  - Tests: `test_lidar_map_known_gaps` 16/16, `test_lidar_availability` 16/16.
+  - Residual risk: an unseen non-echo object within 5 cm of the body reach.
+
+### 2026-11-16 ~16:00 — Stage-3 attempt 5 (sweep-aware live): hall door is the remaining blocker
+- Bag `data/lidar_tests/stage3_roundtrip5_sweep_20261116`. The rover passed spot A and the +35° unknown-space stop (doorway not in the map) with brief stops, and reached (1.92, −3.56). With the owner's help it reached the hall door (1.99, −4.23); the hall goal then aborted (status 6).
+- "LOCALIZATION STALE" up to 4.6 s happened while I ran two rclpy probe nodes and an unfiltered `journalctl --user` during the drive (load 17–20, SSH timed out). Lesson re-confirmed: no probes during drives.
+- Measured on the rover:
+
+  | Item | Cost |
+  |---|---|
+  | `sweep_extent` uncached | 2.3 ms (≈ 4.5 % CPU at 20 Hz) |
+  | `sweep_extent` cached | 0.04 ms |
+  | Coverage update | 0.6 ms |
+  | Scan update | 0.7 ms |
+
+  Mux idle CPU 18 % (pre-existing, not from these rules). `sweep_extent_cached` and lazy evaluation are staged locally, not deployed.
+- Camera at the hall door: coverage fresh 686/686 but filled 0 empty bins. 63 % of the commands there were arcs tighter than 0.35 m (all 72 bins required). Empty bins: side 2261, rear 1688, front 1124.
+- No-echo by zone:
+
+  | Bag | Dhruv Room | A | B | C/hall |
+  |---|---|---|---|---|
+  | #3 | 5.9 % | 7.8 % | 6.6 % | 8.1 % |
+  | #4 | 1.4 % | 9.0 % | — | — |
+  | #5 | 2.5 % | 8.5 % | 14.7 % | **24.4 %** |
+
+- Hall-door no-echo rays cast on the map: 84 % end on KNOWN walls, mostly ONE ~1 m wall segment at x ≈ 1.5–1.7, y −3.2…−4.2 (left side just before the hall door, includes spot C). Image `docs/audits/hall_door_noecho_wall_20261116.png`. The rover passes it at 0.3–0.5 m, inside body reach + 5 cm, so no map rule can safely explain it.
+- Replay of staged options (sweep-aware 0.05), vetoed share for #5 / #3 / #4:
+
+  | Option | #5 | #3 | #4 |
+  |---|---|---|---|
+  | Today | 87 % | 29 % | 8 % |
+  | Tight arcs use the actual swept bins (`TIGHT_ARC_FULL_RING False`) | 87 % | 20 % | 8 % |
+  | + MAP_GAP_MAX_BINS 8 or 12 | no change | no change | no change |
+
+- **Conclusion:** the hall door needs the physical fix: matte tape on that 1 m wall segment at ~20–30 cm height. A planner change to keep the path off that wall is secondary.
+- **DEPLOYED ~16:20 (owner "पहले fixes deploy"):** `TIGHT_ARC_FULL_RING = False` (tight arcs require the bins the footprint actually sweeps, rotation capped at one full turn; pure spins still require all 72 bins), plus `sweep_extent_cached` and lazy explain in the mux.
+  - md5: `atlas_lidar_availability.py` 51070650…, `atlas_cmd_vel_mux.py` 016d85b1…. Backups `*.before-tightarc-20261116`.
+  - Mux restarted with the rover parked, E-STOP latched and autonomy OFF; active, no errors.
+  - Tests 32/32. The old test `test_spin_and_tight_arc_need_all_bins` was rewritten to the new policy and still checks that the old policy is selectable.
+  - Expected effect (replay): #3 29 % → 20 % vetoed; no change at the hall door (needs tape).

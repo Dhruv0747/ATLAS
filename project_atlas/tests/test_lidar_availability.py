@@ -72,12 +72,24 @@ class Availability(unittest.TestCase):
         g=LidarAvailability();g.update(s,10.)
         self.assertIsNotNone(g.reason(.15,.02,100.1,10.1))
         self.assertIsNotNone(g.reason(.15,0.,100.1,10.1))
-    def test_spin_and_tight_arc_need_all_bins(self):
+    def test_spin_needs_all_bins_tight_arc_needs_its_sweep(self):
+        # 2026-11-16 owner decision: tight arcs (R < SPIN_RADIUS_M) require the bins the footprint actually sweeps,
+        # pure in-place spins still require all 72 bins.
+        import atlas_lidar_availability as ala
         s=scan();s.ranges[180:186]=[math.nan]*6        # directly behind
         g=LidarAvailability();g.update(s,10.)
-        self.assertIsNotNone(g.reason(0.,.5,100.1,10.1))
-        self.assertIsNotNone(g.reason(.15,.6,100.1,10.1))  # R 0.25 m < spin radius
+        self.assertIsNotNone(g.reason(0.,.5,100.1,10.1))                     # spin: all bins
+        tight=ala.swept_bins(.15,.6)                                           # R 0.25 m
+        self.assertLess(len(tight),72)
+        behind=any(((k-180+180)//5)%72 in tight for k in range(180,186))
+        self.assertEqual(g.reason(.15,.6,100.1,10.1) is not None, behind)
         self.assertIsNone(g.reason(.15,.05,100.1,10.1))
+        old=ala.TIGHT_ARC_FULL_RING
+        try:
+            ala.TIGHT_ARC_FULL_RING=True
+            self.assertEqual(len(ala.swept_bins(.15,.6)),72)                  # old policy still selectable
+        finally:
+            ala.TIGHT_ARC_FULL_RING=old
     def test_reverse_arc_needs_rear_cone(self):
         s=scan();s.ranges[175:186]=[math.nan]*11
         g=LidarAvailability();g.update(s,10.)

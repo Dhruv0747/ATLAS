@@ -6,3 +6,6 @@ to_domain: 0
 topics:
   /astra/obstacle_scan:
     type: sensor_msgs/msg/LaserScan
+  # 2026-11-16: depth coverage for the mux LiDAR-availability guard (small LaserScan, base_link).
+  /astra/obstacle_coverage:
+    type: sensor_msgs/msg/LaserScan
