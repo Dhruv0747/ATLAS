@@ -200,6 +200,32 @@ def read_localization_check(now=None, path=None):
             "age": round(now - float(written), 3) if isinstance(written, (int, float)) else None}
 
 
+NAV_ACTIVE_MARKERS = ("GOAL ACCEPTED", "GOAL DISPATCHED")
+
+
+def nav_goal_active(mission_item, max_age_s=5.0):
+    """2026-11-16: True while mission control reports a named/tapped goal in progress. mission_status repeats its
+    latest line about once a second, so a fresh ACCEPTED/DISPATCHED line means Nav2 still owns the goal."""
+    if not mission_item or mission_item.get("age") is None or mission_item["age"] > max_age_s:
+        return False
+    return any(m in str(mission_item.get("value", "")) for m in NAV_ACTIVE_MARKERS)
+
+
+def visible_plan(plan_item, goal_item, mission_item):
+    """Plan shown on the dashboard map. 2026-11-14 rule kept: a plan older than 30 s is hidden (an old plan-only
+    check in another map frame was drawn pointing the wrong way). 2026-11-16 (owner: "I can't see its planned
+    route"): the replan-only-if-blocked tree publishes /plan only when it (re)plans — 4 times in a whole goal — so
+    the live path vanished after 30 s. While a goal is active, keep the plan if it was computed for that goal
+    (not older than the goal itself)."""
+    if not plan_item:
+        return None
+    if plan_item["age"] <= 30.0:
+        return plan_item
+    if nav_goal_active(mission_item) and goal_item and plan_item["age"] <= goal_item["age"] + 2.0:
+        return plan_item
+    return None
+
+
 def map_markers(map_meta=None):
     """Return poses belonging to the map currently shown by the dashboard."""
     markers = []
@@ -970,7 +996,8 @@ class AtlasRosNode:
                 # 2026-11-14: hide a plan older than 30 s. Nav2 replans about every second while navigating; an old
                 # plan (e.g. the map-acceptance plan-only check, in a rejected candidate map's frame) was drawn
                 # over the live map pointing the wrong way.
-                "plan": (lambda p: p if p and p["age"] <= 30.0 else None)(item("nav_plan")),
+                "plan": visible_plan(item("nav_plan"), item("nav_goal"), item("mission_status")),
+                "nav_active": nav_goal_active(item("mission_status")),
                 "mission": item("mission_status"),
                 "localization": item("amcl_quality"),
             }
