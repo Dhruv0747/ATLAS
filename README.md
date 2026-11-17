@@ -114,7 +114,7 @@ Hardware revisions and sensor authority have changed during development. Consult
 - [RTAB-Map / 3D mapping step 1](docs/M3_3D_MAPPING_STEP1_20261112.md)
 - [Human-aware navigation — design only](docs/ATLAS_HUMAN_AWARE_NAVIGATION_DESIGN_2026-11-16.md)
 - [Detailed live blocker and investigation ledger](https://github.com/Dhruv0747/ATLAS/blob/claude/jetson-live-snapshot-20261106/docs/audits/ATLAS_CURRENT_BLOCKERS.md)
-- [Latest development-branch changelog through the 16 November snapshot](https://github.com/Dhruv0747/ATLAS/blob/claude/jetson-live-snapshot-20261106/CHANGELOG.md)
+- [Development-branch changelog (latest detailed 15 November entries)](https://github.com/Dhruv0747/ATLAS/blob/claude/jetson-live-snapshot-20261106/CHANGELOG.md)
 - [Original main-branch README preserved without edits](README_ENGINEERING_LOG_LEGACY_2026-10-31.md)
 
 ## Safety and development policy
