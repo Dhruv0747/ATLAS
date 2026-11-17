@@ -15,6 +15,8 @@
 
 > **Operational status:** ATLAS is an active engineering prototype. It has demonstrated manual operation, mapping, localization experiments, 3D point-cloud generation, guarded navigation goals and a measured safe-stop response. The full supervised Dhruv Room → Hall → Dhruv Room acceptance route had **not passed** as of 16 November 2026. Do not treat this repository as certification for unattended operation.
 
+> **Branch provenance (17 November 2026):** `main` remains the integration baseline through 31 October. Later engineering evidence and runtime changes are present on [`claude/jetson-live-snapshot-20261106`](https://github.com/Dhruv0747/ATLAS/tree/claude/jetson-live-snapshot-20261106), which is **607 commits ahead and 42 behind** `main`. The branches are intentionally not merged wholesale. Review the relevant commits, configuration and acceptance evidence before treating either branch as the deployed system baseline.
+
 ## What ATLAS is
 
 ATLAS is a four-wheel indoor service-rover platform designed to map and navigate a home, travel between named places, stop safely when a route is unsafe, and eventually provide human-aware assistance. It combines deterministic ROS 2 control and safety layers with optional perception, voice and AI features.
