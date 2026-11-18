@@ -72,6 +72,21 @@ The 16 November design is explicitly design-only. Benchmark YOLO on the Jetson, 
 6. Run the full supervised round trip; repeat until acceptance is reproducible.
 7. Resume full-home calibrated 3D mapping and then the human-aware perception roadmap.
 
+## 16 November night work — deployed and owner-verified
+
+The later 16 November work is included here because it materially changed the operational dashboard and drive workload:
+
+- **Hall waypoint and Nav2 patience:** Hall place was moved to (1.68, −5.35), selected for approximately 1.1 m wall clearance. Nav2 progress allowance increased from 20 s to 45 s. Both changes were recorded live.
+- **Ultrasonic coverage:** front/rear VALID channels were measured at about 3.4 Hz and ~0.4 s sample age; left/right were disabled. A fresh-valid, reach-based front/rear LiDAR-coverage rule was deployed around 19:45. It does not treat a short ultrasonic range as clear space.
+- **Stage-3 attempt 7:** safe-stop PASS at 0.14 s / 0.006 m; round-trip still FAIL due to Hall-door right-side no-echo, owner assistance, one CRITICAL encoder sample and 5.8% turn-sign error.
+- **CPU pressure:** parked/charging sample reached 371% aggregate CPU across six cores; owner reported 100% CPU during drives and dashboard stalls. The AI annotator was restricted to dashboard object/follow/tracking triggers; agent-team demand triggers were set empty. Feature-manager tests passed 2/2 and mapping tests 4/4 on rover.
+- **Voice priority:** voice companion remained enabled because it carries spoken stop/E-STOP commands, but its service priority was lowered to Nice 19 / CPUWeight 10; CPUQuota remained 25%.
+- **Mission abort:** abort action disarms autonomy to Manual first, then cancels Nav2 and requests zero velocity. The owner verified autonomy OFF, Nav2 cancel acknowledgement and rover-stopped status.
+- **Dashboard feedback:** abort banner persists 30 s; high-contrast white message surface with dark text; toast duration increased to 6 s. Static assets were deployed.
+- **Deployment boundary:** the 22:30 deployment is recorded as live, with services active and the dashboard abort verified by the owner. Real-drive CPU improvement and a full round-trip pass were not yet demonstrated.
+
+These are recorded as deployed/live observations from the development-branch blocker ledger, not independently re-measured by this documentation-only update.
+
 ## Safety boundary
 
 This status report does not authorize motion, firmware flashing, safety-threshold changes, service restarts or deployment. All physical tests require explicit owner approval, a clear test area and access to the physical E-STOP. Preserve manual fallback and fail-closed behavior.
