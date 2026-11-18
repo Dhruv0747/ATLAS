@@ -89,11 +89,11 @@ This is a conceptual data-flow view, not a complete wiring diagram or a statemen
 - **Compute:** NVIDIA Jetson Orin Nano Super 8 GB.
 - **OS / middleware:** Ubuntu 22.04 and ROS 2 Humble.
 - **Navigation:** Nav2, SLAM Toolbox, robot_localization EKF and mission-control nodes.
-- **Range / perception:** RPLIDAR A1, Orbbec Astra Pro depth, RGB camera, RD-03D radar and ultrasonic sensors.
+- **Range / perception:** RPLIDAR A1, Orbbec Astra Pro depth, RGB camera, RD-03D radar and front/rear ultrasonic channels. Left/right ultrasound are disabled; M3 encoder feedback and legacy L76K GNSS are excluded from the active baseline.
 - **Drive feedback:** Yahboom motor controller and the currently qualified encoder subset. Encoder selection is configuration- and evidence-dependent.
 - **Operator interface:** local web dashboard, diagnostics, manual remote and physical emergency stop.
 
-Hardware revisions and sensor authority have changed during development. Consult the dated commissioning reports before assuming an older calibration, channel mapping or sensor is still authoritative.
+Hardware revisions and sensor authority have changed during development. See [current commissioned hardware](docs/CURRENT_HARDWARE.md) and the [hardware archive](docs/HARDWARE_ARCHIVE.md). Retired/unused hardware is archived, not silently treated as an active fallback.
 
 ## Repository guide
 
