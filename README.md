@@ -110,6 +110,7 @@ Hardware revisions and sensor authority have changed during development. See [cu
 ## Engineering documents
 
 - [Project history: 4 August – 16 November 2026](docs/PROJECT_HISTORY_2026-08-04_to_2026-11-16.md)
+- [System architecture: hardware, software and combined data-flow diagrams](docs/ATLAS_SYSTEM_ARCHITECTURE.md)
 - [Current engineering status and acceptance gates](docs/ENGINEERING_STATUS_2026-11-16.md)
 - [Stage 3 supervised round-trip result](docs/ATLAS_STAGE3_ACCEPTANCE_20261116.md)
 - [EKF heading diagnosis and applied correction](docs/LOCALIZATION_HEADING_DIAGNOSIS_20261112.md)
