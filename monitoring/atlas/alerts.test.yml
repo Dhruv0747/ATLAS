@@ -1,0 +1,43 @@
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'atlas_thermal_max_celsius{instance="test"}'
+        values: '70+0x6'
+      - series: 'atlas_topic_available{topic="lidar",instance="test"}'
+        values: '0+0x6'
+      - series: 'atlas_source_available{source="control_policy",instance="test"}'
+        values: '0+0x6'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: AtlasTemperatureHigh
+        exp_alerts:
+          - exp_labels: {instance: test, severity: critical}
+            exp_annotations: {summary: "Jetson at or above the ATLAS 70 C limit for 5 min (70 C)"}
+      - eval_time: 1m
+        alertname: AtlasLidarStale
+        exp_alerts:
+          - exp_labels: {instance: test, topic: lidar, severity: critical}
+            exp_annotations: {summary: "LiDAR data stale or missing for 1 min"}
+      - eval_time: 1m
+        alertname: AtlasControlPolicyUnavailable
+        exp_alerts:
+          - exp_labels: {instance: test, source: control_policy, severity: warning}
+            exp_annotations: {summary: "Control policy unavailable; do not infer safety state"}
+  - interval: 1m
+    input_series:
+      - series: 'atlas_thermal_max_celsius{instance="test"}'
+        values: '69.9+0x6'
+      - series: 'atlas_topic_available{topic="lidar",instance="test"}'
+        values: '1+0x6'
+      - series: 'atlas_topic_stale{topic="lidar",instance="test"}'
+        values: '0+0x6'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: AtlasTemperatureHigh
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: AtlasLidarStale
+        exp_alerts: []

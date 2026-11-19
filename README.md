@@ -179,9 +179,11 @@ ATLAS/
 │   ├── design/               Designs for upcoming features
 │   ├── history/              Archived project log (the former README)
 │   └── assets/               Maps, images and photos
+├── monitoring/               Optional Prometheus + Grafana health monitoring (monitoring/atlas/README.md)
 ├── evidence/                 Screenshots and captures from tests
 ├── calibration/              Camera calibration guide and checkerboard
-└── foxglove_extensions/      Foxglove Studio drive panel
+├── foxglove_extensions/      Foxglove Studio drive panel
+└── .claude/skills/           Development-only workflow skills for AI coding agents (never deployed)
 ```
 
 ## Documentation

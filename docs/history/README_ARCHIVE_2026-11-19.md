@@ -1815,3 +1815,29 @@ Restoration watcher timing: use only the new reviewed restoration-freshness pack
 - Autonomy readiness (`/v2/readiness`, `GET /api/readiness`): why Autonomous mode is blocked, how to clear each
   item, and the owner-run Speed check (`POST /api/readiness/speedcheck`, PIN). Speed is validated automatically by
   fresh PASS results at 0.10 and 0.15 m/s (`atlas_autonomy_arm.speed_evidence`). Safety items have no override.
+
+
+---
+
+## Notes from the `main` branch README (2026-10-30/31, merged 2026-11-19)
+
+These paragraphs were added to the README on `main` while development continued on the working branch. Links point to the repository root.
+
+Monitoring recovery: [one-attempt transaction and rollback](../../monitoring/atlas/persistent/RECOVERY_TRANSACTION.md)
+was attempted once on October 31: exporter startup deadline failure, cleanup
+VERIFIED, original latch restored and monitoring stopped. No retry; the original
+watchdog trigger remains UNKNOWN. Transaction correction/review is pending.
+
+
+
+2026-10-30 PR #13: completed cached battery-power/encoder metrics, corrected missing/stale safety-state reporting and Grafana availability mapping, added native alert tests. See monitoring/atlas/README.md. Persistent monitoring activation passed; reboot recovery remains pending. See monitoring/atlas/persistent/FINAL_REVIEW_20261030.md; rover safety controls unchanged.
+
+
+
+2026-10-31: Offline monitoring first-fault preservation correction prepared.
+First latch retained, bounded separate refusal history and sanitized safety
+evidence added; limits unchanged. See monitoring/atlas/persistent/FIRST_FAULT_FIX.md.
+Not deployed; original watchdog rejection remains UNKNOWN.
+
+
+2026-10-31: Development-only Superpowers skills on `main` (from PR #15, skills only): six unchanged obra/superpowers v7.0.1 skills (MIT) and the `atlas-workflow` ATLAS override in `.claude/skills`, Codex discovery manifests in `.agents/skills`, and `AGENTS.md`/`CLAUDE.md` pointers. No hooks, plugins or mandatory brainstorming; excluded from `git archive HEAD project_atlas` deploy packages. Verified in Windows Claude Code and Codex Desktop; see `docs/PR15_CODEX_CLAUDE_INTEGRATION.md`. The Stage 29 stop-analyzer fix stays in PR #15.

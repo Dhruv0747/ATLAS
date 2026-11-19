@@ -1,0 +1,35 @@
+[Unit]
+Description=ATLAS optional read-only health exporter
+Requires=atlas-monitoring-firewall.service
+BindsTo=atlas-monitoring-watchdog.service
+After=atlas-monitoring-firewall.service atlas-monitoring-watchdog.service network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=jetson
+Group=jetson
+Environment=XDG_RUNTIME_DIR=/run/user/@JETSON_UID@
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/@JETSON_UID@/bus
+# ExecCondition rejection skips startup without restart; watchdog latches the failure.
+ExecCondition=+/usr/bin/python3 -I -B /usr/local/libexec/atlas-monitoring-guard.py preflight
+ExecStart=/usr/bin/python3 -I -B /opt/atlas-monitoring-exporter/atlas_health_exporter.py --bind 192.168.1.16 --port 9118
+Restart=on-failure
+RestartSec=30
+RestartPreventExitStatus=78
+TimeoutStartSec=10
+TimeoutStopSec=3
+KillMode=control-group
+CPUQuota=10%
+MemoryMax=64M
+TasksMax=32
+Nice=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+RestrictAddressFamilies=AF_INET AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

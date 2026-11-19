@@ -1,0 +1,7 @@
+table inet atlas_monitor {
+    chain input {
+        type filter hook input priority -10; policy accept;
+        tcp dport 9118 iifname "wlP1p1s0" ip saddr 192.168.1.6 ip daddr 192.168.1.16 return
+        tcp dport 9118 drop
+    }
+}

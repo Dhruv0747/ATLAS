@@ -56,3 +56,6 @@ tmp/
 photo-organizer-mcp/
 remote/
 *.rdp
+
+# Monitoring credential: local secret, never commit
+monitoring/atlas/grafana_admin_password.txt
