@@ -549,7 +549,7 @@ identities unchanged, no autostart/dashboard deployment. See Stage29 report.
 passed (two offline tests). Compatible sysroot incomplete: read-only compressed
 target copy stopped at CPU75.7983%. Custom target OpenCV4.8 must not be replaced
 with host x86/stock4.5 libraries. No driver package or ROS stream verified.
-Existing safety/production identities unchanged. See [Stage29](../../ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md).
+Existing safety/production identities unchanged. See [Stage29](../reports/ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md).
 
 21 October Stage28: fresh admission passed, but one incremental isolated build
 with own-process duty pacing aborted on aggregate CPU80.8782% >75%; RAM68%,
@@ -563,14 +563,14 @@ resource limits; depth warning/parser correction verified offline from preserved
 output. No recording or existing-service restart. User cgroup CPU quotas are NOT
 enforceable; global CPU stability remains unresolved. Full ROS driver, simultaneous
 streams, TF/accuracy/endurance and viewer deployment pending. Earlier blocked
-attempts below are historical. See [measurements](../../ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
+attempts below are historical. See [measurements](../reports/ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
 
 21 October2026 approved Astra stationary setup follow-up: vendor source and seven
 private dependency packages staged, no global install. Build aborted by unchanged
 CPU75% admission (75.884% measured); no auto retry. Depth/RGB USB permissions remain
 ungranted; SSH has no suitable passwordless sudo. No streams, movement, recordings
 or existing-service restart.86 targeted offline tests pass, not a vendor-build or
-live-camera pass. See [follow-up](../../ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
+live-camera pass. See [follow-up](../reports/ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
 
 21 October 2026 Astra Vision Lab: read-only USB confirms Astra Pro0403/RGB0501,
 but no vendor ROS driver/publications and no user write access to depth USB.
@@ -579,7 +579,7 @@ Offline viewer tested; NOT deployed and NOT a navigation/localization fix.
 real depth accuracy, TF/extrinsics and streaming resource impact remain unverified.
 Separate stationary driver/permission approval is next; no motion/recording or
 production dashboard/service change authorized. See
-[Vision Lab report](../../ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
+[Vision Lab report](../reports/ATLAS_ASTRA_PRO_3D_VISION_LAB.md).
 
 20 October2026 UNO incident: full operator power cycle restored native USB and
 all3 I2C devices. Initial I2C-offline/LOW reports and later USB enumeration failure
@@ -595,21 +595,21 @@ now the main blocker: physical check of the M2 (rear-right) and M3 (front-left) 
 direction-dependent count loss that has moved M4 -> M3 -> M2 since 2 Oct (connector/harness/supply suspected, unproven).
 Jetson was power-cycled overnight; an AMCL/Nav2 launch started outside systemd at ~08:56 by an unknown actor (mux
 manual-only, E-STOP latched, no goal). No drive, Candidate B or fallback deployment until the hand test is done.
-See [report](../../ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md).
+See [report](../reports/ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md).
 
 15 October 2026 22:30 UPDATE (Stage 25): the slow return failed because encoders M3 (front-left, near-dead) and M2
 (rear-right, froze 21:40:24 then reversed) removed the 3-of-4 consensus; the base failed closed (37% of travel
 discarded). Physical encoder check on M2/M3 is the blocker before any further drive. Final AMCL pose unverified
 (owner says back in Dhruv Room; AMCL/LiDAR say ~4.3 m east). E-STOP was not latched during the loop. Dashboard chip
 fix is offline and undeployed. Candidate B, Foxglove hardening, Stage 17B and physical E-STOP tests unchanged/open.
-See [report](../../ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md).
+See [report](../reports/ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md).
 
 15 October 2026 21:06 UPDATE: owner confirmed the 19:46/20:19 position changes were deliberate tests. AMCL seeded once
 (20:52:54) at (0.235,-1.435,78); parked 10 minutes stable (max step 0.015 m, 21 checks VERIFIED fit0.981-0.985,
 commands zero). OPEN: moving validation (needs separate approval); odometry response to hand moves unexplained
 (/odom ~0 during ~1.7 m of owner moves); Dashboard rendered page not visually confirmed by agent; global
 ambiguity unproven for other placements; one unexplained MOVING blip at 21:03:43. E-STOP latched, manual-only.
-See [seed validation](../../ATLAS_STAGE24_AMCL_SEED_VALIDATION.md).
+See [seed validation](../reports/ATLAS_STAGE24_AMCL_SEED_VALIDATION.md).
 
 15 October 2026 20:40 UPDATE (supersedes the 20:12 stationary reading below): ATLAS was physically moved at
 ~19:46 and ~20:19 (scan range images change 0.19 m and 0.34 m median between periods, identical within them;
@@ -617,13 +617,13 @@ monitor MOVING bursts at those times); /odom did not register the moves. Five re
 Room agree on (0.235,-1.435,75), fit1.0, margin0.105-0.125 (4 of4 completed global; 1 global run failed on the
 seeder's 3 s /odom discovery under load). AMCL still NOT seeded; one seed awaits owner approval; tape check
 requested. Boot success depends on placement (4 of8 boots UNKNOWN). See
-[recovery report](../../ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md).
+[recovery report](../reports/ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md).
 
 15 October 2026 20:12 Stage 24 deployed; AMCL seed BLOCKED. Live dry runs on a stationary ATLAS
 (/odom static) returned (0.115,-2.155,71.5) at 19:44 and (0.335,-0.935,72.0, fit1.0, margin0.116) at 20:08
 as front LiDAR arcs reappeared (cause unknown). Poses disagree by1.2 m, so no seed; AMCL
 NOT_INITIALIZED, Dashboard unknown. Global ambiguity not proven fixed. E-STOP latched,
-manual-only, commands zero. See [Stage 24 deployment](../../ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md).
+manual-only, commands zero. See [Stage 24 deployment](../reports/ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md).
 
 15 October2026 CPU continuation: diagnostic search paced without changing its
 math, inputs or30-second deadline. Monitor burst74.27%→23.24% of one core;
@@ -632,40 +632,40 @@ CPU mean70.747%, peak78.696% (3 excursions>75): sustained headroom still NOT
 resolved. Largest peak coincides with polkitd32.29%; requester unknown, unprivileged
 headers-only trace denied. Need bounded privileged attribution before further
 changes. E-STOP latched, manual-only true, commands zero, recordingOFF; essential
-services/steering unchanged. See [CPU continuation](../../ATLAS_BACKGROUND_SEARCH_CPU_20261015.md).
+services/steering unchanged. See [CPU continuation](../reports/ATLAS_BACKGROUND_SEARCH_CPU_20261015.md).
 
 15 October 2026 parked CPU/manual-only update supersedes the earlier false
 manual-only state below: live manual-only now true, E-STOP latched, commands zero,
 recorder OFF. Unused AI preview rendering fixed and deployed; 19 tests pass.
 Final short resource check passes, but sustained CPU still peaks above 75%.
 Rejected diagnostic CPU-quota trial restored to 60%; localization still ambiguous.
-See [measurement and rollback report](../../ATLAS_PARKED_CPU_MANUAL_ONLY_20261015.md).
+See [measurement and rollback report](../reports/ATLAS_PARKED_CPU_MANUAL_ONLY_20261015.md).
 
 15 October2026 Nano thermal policy corrected: NVIDIA documents CV0/1/2 absence
 on Nano; fresh device-tree identity verified and exact CV EAGAIN is now N/A.
 26 offline tests pass. Fresh Jetson check: thermal reads pass, E-STOP latched,
 commands zero, commissioning false, Stage20 inactive/PID0. Admission remains
 BLOCKED: CPU sample77.89%>75%, manual_only=false. No recording/movement/change
-to production settings. See [verified policy/check](../../ATLAS_ORIN_NANO_CV_THERMAL_POLICY_FIX.md).
+to production settings. See [verified policy/check](../reports/ATLAS_ORIN_NANO_CV_THERMAL_POLICY_FIX.md).
 
 15 October2026 authorized fixed-probe check: six thermal readings59.625–60.656C,
 CPU peak71.43%, RAM66.46%; CV0/1/2 return EAGAIN, precise paths/traces preserved.
 Full admission blocks. Separate safety status could not be fetched: SSH timeouts
 over Tailscale and Wi-Fi. Fresh E-STOP/recorder state unverified; no activation.
-See [Jetson check](../../ATLAS_PC_BRIDGE_TEMPERATURE_JETSON_CHECK.md).
+See [Jetson check](../reports/ATLAS_PC_BRIDGE_TEMPERATURE_JETSON_CHECK.md).
 
 15 October2026 offline correction: bounded binary thermal reads replace the
 UTF-8 read path; exact None-read exception reproduced offline. Per-file paths and
 tracebacks now preserved, unavailable data still blocks.17 focused tests pass
 on Ubuntu22.04. Original live failing attribute/cause remains unproven without
 its traceback. No Jetson probe/deployment or recording retry. See
-[offline fix](../../ATLAS_PC_BRIDGE_TEMPERATURE_OFFLINE_FIX.md).
+[offline fix](../reports/ATLAS_PC_BRIDGE_TEMPERATURE_OFFLINE_FIX.md).
 
 15 October2026 approved10s bridge attempt: BLOCKED before connection. Five fresh
 CPU intervals69.19–73.46%, RAM65.05%; temperature measurement path raised
 `TypeError: can't concat NoneType to bytes`. Exact cause unverified; thermal map
 empty and safety/sensor admission incomplete. No subscription, bag or retry.
-See [attempt evidence](../../ATLAS_PC_BRIDGE_STATIONARY_ATTEMPT_20261015.md).
+See [attempt evidence](../reports/ATLAS_PC_BRIDGE_STATIONARY_ATTEMPT_20261015.md).
 
 15 October2026 follow-up: publisher-presence blocker cleared by3/10/20s graph
 snapshots; AMCL/raw scan/particle publishers now visible. Earlier snapshot below
@@ -673,19 +673,19 @@ is historical, not a device-fault diagnosis. WSL10s graph-only DDS probe found
 no Jetson nodes; existing bridge TCP reachable. Clock bounds still unstable;
 Windows Time stopped and WSL initial sync observed, causation not yet established.
 Next requires approval for10s stationary receive-only qualification; no movement.
-See [connectivity report](../../ATLAS_PC_JETSON_CONNECTIVITY_AND_LOCALIZATION_NEXT.md).
+See [connectivity report](../reports/ATLAS_PC_JETSON_CONNECTIVITY_AND_LOCALIZATION_NEXT.md).
 
 15 October2026 PC offboard update: native21-topic synthetic capture verified,
 22,779/22,779. Live recording remains NO-GO: direct DDS over WSL NAT unqualified;
 clock-offset bounds varied by~944ms; bounded graph snapshot had no AMCL/scan_raw
 publishers and no particle_cloud topic. These are observations, not new root-cause
 claims. Jetson unchanged, recorder OFF. See
-[readiness report](../../ATLAS_PC_OFFBOARD_RECORDER_READINESS.md).
+[readiness report](../reports/ATLAS_PC_OFFBOARD_RECORDER_READINESS.md).
 
 Latest startup audit: exact post-start refusal76.2295% is confirmed, process attribution
 UNKNOWN. Isolated setup profile0.6521 CPU-seconds does not reproduce or attribute it.
 No justified correction, deployment or retry;75% preserved. See
-[CPU root-cause report](../../ATLAS_STAGE20_RECORDER_CPU_SPIKE_ROOT_CAUSE.md).
+[CPU root-cause report](../reports/ATLAS_STAGE20_RECORDER_CPU_SPIKE_ROOT_CAUSE.md).
 Prior supervisor evidence-loss fix is deployed; older source-only status below is history.
 
 Latest: activation supervisor evidence-loss defect fixed in source;18 PC/native
@@ -708,7 +708,7 @@ native install/rollback scenarios passed. Live nine hashes unchanged and unit OF
 Current parked dashboard~70% does not negate historical CPU refusal; six-core
 synthetic recorder estimate adds~8 percentage points. No higher admission justified.
 Installation-only approval requested; activation still NO-GO. See
-[readiness](../../ATLAS_STAGE20_30S_UPGRADE_READINESS.md). No repeated localization replay.
+[readiness](../reports/ATLAS_STAGE20_30S_UPGRADE_READINESS.md). No repeated localization replay.
 
 14 October latest milestone: installed legacy Stage20 remains OFF, nine payloads
 and83 protected files unchanged. New30s source passed isolated native capture and
@@ -716,7 +716,7 @@ failure checks; not deployed. Required static TF loss found/fixed in candidate.
 CPU79.496% admission refusal preserved,75% limit unchanged. Minimal fusion candidate
 contract-tested only; missing EKF initialization prevents faithful A/B and five AMCL
 jumps remain unresolved. No new drive requested. See
-[milestone](../../ATLAS_NEXT_LOCALIZATION_MILESTONE.md) for current status, superseding
+[milestone](../reports/ATLAS_NEXT_LOCALIZATION_MILESTONE.md) for current status, superseding
 older installation-absent status below without erasing historical attempts.
 
 14 October CPU optimization: compact dashboard JSON is verified faster in isolated
@@ -724,7 +724,7 @@ native response tests, but its absolute budget cannot establish Stage20 headroom
 Live dashboard stack profiling refused OS access; noninteractive sudo requires a
 password. No permissions/services changed. Live/repository dashboard drift includes
 undeployed steering diagnostics: future rollout must be JSON-only, not whole-file
-repository replacement. See [optimization report](../../ATLAS_STAGE20_CPU_OPTIMIZATION_REPORT.md).
+repository replacement. See [optimization report](../reports/ATLAS_STAGE20_CPU_OPTIMIZATION_REPORT.md).
 
 14 October CPU admission follow-up: read-only baseline demonstrates actual CPU
 excursions above75% with collector absent and no installation running. Historical
@@ -732,13 +732,13 @@ postflight exact sample remains unavailable; causality is not retrospectively pr
 Exact resource evidence and transactional postflight rollback are corrected in
 `bb8ec665ed5474d7b2b0db22e9b5624ddd137b06`; nine runtime payloads unchanged.
 No third production attempt, recording activation, motion or service restart.
-See [CPU investigation](../../ATLAS_STAGE20_CPU_HEADROOM_AND_INSTALLATION_FIX.md).
+See [CPU investigation](../reports/ATLAS_STAGE20_CPU_HEADROOM_AND_INSTALLATION_FIX.md).
 
 14 October supervised retry: installer and unit registration succeeded, but immediate
 postflight resource guard refused acceptance. Exact threshold sample was not retained;
 subsequent CPU79.7% exceeds75%. Rolled back only new diagnostics; collector never ran.
 All production service identities/protected hashes unchanged, stop latched/zero commands.
-No automatic retry. See [retry result](../../ATLAS_STAGE20_SUPERVISED_RETRY_RESULT.md).
+No automatic retry. See [retry result](../reports/ATLAS_STAGE20_SUPERVISED_RETRY_RESULT.md).
 
 14 October Stage20 installation update: initial install aborted before writes;
 original child error UNKNOWN because wrapper discarded captured stderr. Durable
@@ -746,7 +746,7 @@ installer failure evidence fixed in source; 83 PC tests pass (one POSIX skip),
 19 native targeted tests and fake-root install/rollback pass. Unit parser/offline
 static state verified; manager reload simulated. Nine runtime payloads unchanged.
 No production retry authorized or performed; collector absent/OFF, stop latched,
-production identities unchanged. See [installation investigation](../../ATLAS_STAGE20_INSTALL_FAILURE_ROOT_CAUSE.md).
+production identities unchanged. See [installation investigation](../reports/ATLAS_STAGE20_INSTALL_FAILURE_ROOT_CAUSE.md).
 
 Stage20: **PUBLIC-ONLY alternative qualified, approval pending; private checkpoint
 NOT ready**. Native120s rate/2000-particle test captures all97,901 source messages;
@@ -756,7 +756,7 @@ CPUQuota/device filesystem sandbox unavailable; actual total-CPU75s/memory192MiB
 tasks48/runtime bounds distinguished. No overlays/hooks shipped or live changes.
 Private initialization/covariance/reference/consumption/RNG unavailable in partial
 scope; localization unresolved, B–E blocked, Stage17B HOLD. See
-[minimum-safe scope](../../ATLAS_STAGE20_MINIMUM_SAFE_DEPLOYMENT.md).
+[minimum-safe scope](../reports/ATLAS_STAGE20_MINIMUM_SAFE_DEPLOYMENT.md).
 
 Stage20 continuation: controlled native startup/consumer audit passes (2734
 consumptions), static matched EKF comparison passes (609 samples; max full-covariance
@@ -765,14 +765,14 @@ not a moving/historical repair. Gaussian allocation reseeds static pf_pdf_seed,
 correcting wall-seed-only explanation. 46 current checks and native crash/quota
 tests pass; package/systemd/reset/timing/full-rate qualification still pending.
 DEPLOYMENT READY NO; live unchanged, EStop latched, Stage17B HOLD and B–E blocked.
-See [readiness report](../../ATLAS_STAGE20_DEPLOYMENT_READINESS_REPORT.md).
+See [readiness report](../reports/ATLAS_STAGE20_DEPLOYMENT_READINESS_REPORT.md).
 
 14 October Stage 20 partial milestone: sandbox-only collector and upstream-library
 EKF observer capture actual relative reference/full covariance; opt-in service-call
 hooks default OFF. Native synthetic smoke and 28 offline checks pass. NOT production
 ready: complete startup/consumer order, AMCL internal events, total overhead and
 failure/rollback qualification remain missing. Fidelity and B–E still BLOCKED;
-no live installation, motion, seed or calibration. See [Stage20](../../ATLAS_STAGE20_EKF_AMCL_CHECKPOINT_CAPTURE.md).
+no live installation, motion, seed or calibration. See [Stage20](../reports/ATLAS_STAGE20_EKF_AMCL_CHECKPOINT_CAPTURE.md).
 
 14 October Stage 19: full native Humble EKF/AMCL Hall-return baseline completed in
 private network/PID/device namespaces, without actuator access. Five original parked
@@ -782,7 +782,7 @@ relative wheel reference/full estimator state. Even after initial rigid alignmen
 native differs up to 1.343 m/18.401 deg. Candidate comparisons FIDELITY BLOCKED;
 B native launch refused by strengthened gate. No live configuration/service changed,
 E-STOP remained latched, Stage17B HOLD. Next evidence is initialization/checkpoint
-capture, not another repeated route. See [Stage19](../../ATLAS_STAGE19_NATIVE_EKF_AMCL_REPLAY.md).
+capture, not another repeated route. See [Stage19](../reports/ATLAS_STAGE19_NATIVE_EKF_AMCL_REPLAY.md).
 
 14 October Stage 18 supersedes the next-step approval request: Stage 17B is on
 HOLD, not authorized for deployment or motion. Offline general 4WS math and
@@ -791,7 +791,7 @@ encoder updates (4,591), correcting the earlier incomplete inventory. General
 lateral correction using the same commands does not fix wrong yaw; gyro-heading
 shadow improves yaw but not translation consistently. Five original AMCL jumps
 remain unresolved. No calibration, fusion, map, policy or live service changed.
-See [Stage 18 report](../../ATLAS_STAGE18_ODOMETRY_SENSOR_FUSION_REPORT.md).
+See [Stage 18 report](../reports/ATLAS_STAGE18_ODOMETRY_SENSOR_FUSION_REPORT.md).
 
 14 October Stage 17: exact encoder/raw-gyro/particle/steering instrumentation
 is prepared and an isolated parked Humble capture passed (7,032 messages,
@@ -805,7 +805,7 @@ the recorded yaw failure. Recorder ~85 MiB/40.5% one-core CPU, whole-system
 sampled peak 99.4%; fresh timing/resource and functional remote checks remain
 physical-test prerequisites. Battery was charging. Next approval is stationary
 lifted front/rear measurement; ground movement remains separate. See
-[Stage 17 preparation](../../ATLAS_STAGE17_STEERING_YAW_VALIDATION.md).
+[Stage 17 preparation](../reports/ATLAS_STAGE17_STEERING_YAW_VALIDATION.md).
 
 14 October read-only resumption: Stage 16 has four retained startup verdicts.
 Alternate-position checks failed for two distinct measured reasons: one best
@@ -819,7 +819,7 @@ show ≈10 Hz encoder publication and no diagnostic sequence gaps in the main
 Hall→Dhruv recording, while measured encoder distance remains low. No live
 settings changed. The repository's `atlas_latest` map differs from the
 accepted Jetson map: any offline replay must use the archived accepted pair.
-See [resumption report](../../ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md).
+See [resumption report](../reports/ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md).
 
 11 October 20:15 IST: AMCL localized again, through the existing startup verifier, after the owner's
 19:52 dashboard restart (fit 0.989, margin 0.111). No manual seed was applied. Live CHECK MY
@@ -1378,7 +1378,7 @@ Disabled-by-default single-person front steering measurement sequence is prepare
 and mock-tested. Tilt-only phone orientation is not physical steering feedback.
 No live deployment, motion, calibration or localization repair is claimed.
 Physical wheel-angle evidence and expanded-profile Jetson resource validation
-remain pending. See [Stage 17B](../../ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md).
+remain pending. See [Stage 17B](../reports/ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md).
 # 2026-10-14 executor-profile clarification
 
 Owner-provided live py-spy evidence is now available, superseding the earlier profiler-access gap. Focused audit found measurable dashboard CPU, but no demonstrated avoidable executor defect or duplicate constant-topic subscriptions. Eleven offline checks passed; no runtime patch/deployment or CPU savings claimed. Stage 20 headroom remains blocked. See `ATLAS_STAGE20_DASHBOARD_EXECUTOR_CPU_FIX.md` for sample-attribution limits and the bounded thread measurement. Suppressing QoS, adding sleeps and replacing executors are rejected without further discriminating evidence.
@@ -1406,7 +1406,7 @@ error or a steering crab. B's sideways benefit depends on resolving it.
 - the wheel distance under-read (about 0.65×);
 - the five unexplained parked AMCL jumps.
 
-**Deployment gates:** see the [recovery handoff](../../ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md).
+**Deployment gates:** see the [recovery handoff](../reports/ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md).
 
 ## 2026-10-15 13:30 update: Humble transfer, stop-anchor revision, bridge exposure
 
@@ -1429,7 +1429,7 @@ heading benefit transfers.
 - `test_status_web_estop_reset` wrong-PIN lockout (409 ≠ 403);
 - `test_atlas_safety_status_camera_heartbeat`.
 
-**Not deployed.** See the [deployment plan](../../ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md).
+**Not deployed.** See the [deployment plan](../reports/ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md).
 
 ## 2026-10-15 13:10 update: Stage 21 deployed and parked-verified
 
@@ -1447,7 +1447,7 @@ restarted.
 - **MOVING VALIDATION PENDING.**
 
 **Not deployed:** Candidate B and the Foxglove hardening. See the
-[Stage 21 report](../../ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md).
+[Stage 21 report](../reports/ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md).
 
 ## 2026-10-15 13:30 update: Stage 22 recorder profile deployed (recording OFF)
 
@@ -1461,22 +1461,22 @@ command the steering servos. The repository version is retired. The repository t
 
 **Still blocking the baseline drive:** AMCL is unseeded on this boot.
 
-See the [Stage 22 report](../../ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
+See the [Stage 22 report](../reports/ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
 
 ## 2026-10-30 Vision Lab backend installation
 
 Rolled back; Type=simple HTTP readiness race corrected offline. CPU79.15% was
 measured during OLD web shutdown, not candidate startup. Attribution remains
-unknown; NO-GO for retry. See [diagnosis](../../ATLAS_OBJECT_TARGET_INSTALL_DIAGNOSIS_20261030.md).
+unknown; NO-GO for retry. See [diagnosis](../reports/ATLAS_OBJECT_TARGET_INSTALL_DIAGNOSIS_20261030.md).
 
 2026-10-30 shutdown follow-up:39/39 historical scrapes failed; CPU attribution and
 duration remain UNKNOWN. Staging avoids restarts; functional API activation does
-not. See [assessment](../../ATLAS_WEB_SHUTDOWN_CPU_ASSESSMENT_20261030.md).
+not. See [assessment](../reports/ATLAS_WEB_SHUTDOWN_CPU_ASSESSMENT_20261030.md).
 
 2026-10-30 restart safety follow-up: independent ROS observer and bounded restart/
 policy/file recovery implemented offline.8 focused tests including native WSL
 SIGKILL fake-unit recovery pass. Actual Jetson admission/performance remains gated;
-79.15% cause remains UNKNOWN. [Package](../../ATLAS_WEB_RESTART_SAFETY_PACKAGE_20261030.md).
+79.15% cause remains UNKNOWN. [Package](../reports/ATLAS_WEB_RESTART_SAFETY_PACKAGE_20261030.md).
 
 2026-10-31 PRIORITY INCIDENT: original recovery STOPPED after93.624% startup rejection. Original bytes restored; snapshot producer disabled. Saved stack is within ROS Node initialization before custom work. Exact process attribution missing;19 historical Prometheus scrapes failed. Offline rejection evidence retention fixed/tested, not a runtime optimization. Incident OPEN; see ATLAS_RECOVERY_STARTUP_ROOT_CAUSE_REVIEW_20261031.md.
 

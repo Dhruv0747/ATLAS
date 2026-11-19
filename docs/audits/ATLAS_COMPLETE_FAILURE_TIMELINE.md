@@ -8,7 +8,7 @@
 retained scans/candidates/map identity for all four. New Oct 14 read-only
 encoder receipt audit finds no sustained packet-publication gap; physical
 localization cause remains unresolved. No rover motion or live change in this
-investigation. [Full report](../../ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md).
+investigation. [Full report](../reports/ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md).
 
 2026-10-11 18:55 IST: deployed read-only CHECK MY LOCATION adapter/API and
 both dashboard buttons, then a separately reversible snapshot-clock race fix.

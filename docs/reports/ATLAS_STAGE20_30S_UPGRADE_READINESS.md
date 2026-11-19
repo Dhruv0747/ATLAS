@@ -49,7 +49,7 @@ steering or control authority changed. Stage17B HOLD. Existing collector OFF.
 Source pinned to `04f9ad09025651e954d4e9bab03314a6a3700252`; previous native capture
 results reused, not repeated. Builder `stage20_upgrade30_prepare.py` extracts exact
 Git blobs, avoiding Windows line-ending conversion. It only prepares a directory.
-Machine-readable [manifest](project_atlas/tools/diagnostics/fixtures/stage20_upgrade30_manifest.json)
+Machine-readable [manifest](../../project_atlas/tools/diagnostics/fixtures/stage20_upgrade30_manifest.json)
 contains every before/after SHA256 and five unchanged dependency hashes. Prepared
 manifest SHA256 `8384037bcb114a912f5955295c0d62032ab21fbcaac60642cba909dc754d425c`.
 Package locally `artifacts/upgrade30_candidate`, native sandbox copy

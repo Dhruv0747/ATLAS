@@ -8,7 +8,7 @@ of the alternate scan/map mismatch is still unproven. A new read-only Oct 9
 bag timing audit found ≈10 Hz encoder publications and no missing diagnostic
 sequences in the main Hall→Dhruv run, without resolving metric under-reading.
 No movement or production change. See
-[resumption report](../../ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md).
+[resumption report](../reports/ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md).
 
 2026-10-11: read-only CHECK MY LOCATION is deployed on both pages. Fresh live
 checks expose approximately 1.6–1.7 m disagreement between AMCL and independent

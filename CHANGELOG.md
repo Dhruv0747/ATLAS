@@ -232,33 +232,33 @@ prepared a separate, uninstalled device-specific permissions proposal.
 - **IR IMPLEMENTED (offline), NOT live verified.** Vision Lab modes Infrared, Infrared + Depth and Infrared + RGB (all untested); native IR bytes are shown with a stated display stretch and a raw-value probe; IR is never derived from RGB or depth. Depth and Depth+RGB launch arguments are unchanged (byte-identical test).
 - **CALIBRATION PREPARED, NOT validated.** Factory parameters are still NaN. A guided checkerboard tool (corners only, held-out error, coverage gate) and physical-validation rules are ready, and the metric-geometry gate stays closed.
 - **XYZ CLOUD IMPLEMENTED (offline); live BLOCKED by calibration.** `/astra/points` node (domain 77, ≤5 Hz, ≤6,000 points) refuses to run without a validated calibration. A Jetson camera-off probe cut back-projection from 52 ms to 7 ms per cloud (ray table).
-- **3D VIEWER READY, disabled until calibration.** Package `tools/deploy/stage32/stage32.sh` (rover-status-web restart only) rehearsed with a byte-identical rollback. See [`ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md`](ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md) for approvals A1–A6.
+- **3D VIEWER READY, disabled until calibration.** Package `tools/deploy/stage32/stage32.sh` (rover-status-web restart only) rehearsed with a byte-identical rollback. See [`ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md`](docs/reports/ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md) for approvals A1–A6.
 
 2026-10-21 15:07–15:13 (owner-approved Stage 31B install + one Depth-only test):
 - **UI fix DEPLOYED** and **guard update DEPLOYED** (no restart; `atlas_vision3d_runtime.py 077edc29…`, `vision3d.js 05b83020…`; backup `.pre_stage31b_20261021_150745`).
-- **Sustained Depth viewing VERIFIED (uncalibrated):** one uninterrupted 60 s session, 607 frames on the Dashboard (≈ 11 fps, 0.01–0.33 s old), click-to-measure 2.721 m. 59 guard samples (1.0 s windows) at 63.7–71.1%; recorder max 70.0%, session mean 66.8% vs 64.9% before. Protected services unchanged. See [`ATLAS_STAGE31B_LIVE_DEPLOYMENT.md`](ATLAS_STAGE31B_LIVE_DEPLOYMENT.md).
+- **Sustained Depth viewing VERIFIED (uncalibrated):** one uninterrupted 60 s session, 607 frames on the Dashboard (≈ 11 fps, 0.01–0.33 s old), click-to-measure 2.721 m. 59 guard samples (1.0 s windows) at 63.7–71.1%; recorder max 70.0%, session mean 66.8% vs 64.9% before. Protected services unchanged. See [`ATLAS_STAGE31B_LIVE_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE31B_LIVE_DEPLOYMENT.md).
 
 2026-10-21 15:2x (Stage 31b; DEVELOPMENT ONLY; nothing installed, no restart, no camera start):
 - **Vision Lab stale-summary bug fixed** (`web/v2/vision3d.js`). A headless test reproduces the bug on the deployed file and passes with the fix.
 - **Candidate guard** (`scripts/atlas_vision3d_runtime.py`): every CPU sample covers at least 1.0 s; 75% single-sample fail-closed unchanged; a window over 2.0 s fails closed; RAM, thermal, policy and freshness still checked every sample; no grace period, no limit change, no service pausing.
 - Replay on the captured traces: test 2 would pass (max 1-s sample 73.75%); production-domain join and one-second bursts are still blocked.
-- Package `tools/deploy/stage31b/stage31b.sh` (no restart) rehearsed on a Jetson copy with a byte-identical rollback. Awaiting separate approval. See [`ATLAS_STAGE31B_GUARD_WINDOW_CANDIDATE.md`](ATLAS_STAGE31B_GUARD_WINDOW_CANDIDATE.md).
+- Package `tools/deploy/stage31b/stage31b.sh` (no restart) rehearsed on a Jetson copy with a byte-identical rollback. Awaiting separate approval. See [`ATLAS_STAGE31B_GUARD_WINDOW_CANDIDATE.md`](docs/reports/ATLAS_STAGE31B_GUARD_WINDOW_CANDIDATE.md).
 
 2026-10-21 14:44 (owner-approved second Depth-only test; passive persistent recorder; no intrusive diagnostics while streaming):
 - **Result: BLOCKED at start-up, no frames.** Guard sample 76.0% over a ~0.5 s window just after driver launch; driver stopped, no retry. Over 191 s no 1-s sample exceeded 75% (max 73.8%).
-- Cause: three short bursts collided in one half-second: Astra start-up (55.6% of a core), kernel reclaim/compaction (kswapd0/kcompactd0), and the network-fallback curl probe. Domain isolation held. Decision needed on guard window or background load; nothing changed. See [`ATLAS_STAGE31_LIVE_DEPLOYMENT.md`](ATLAS_STAGE31_LIVE_DEPLOYMENT.md) (second test).
+- Cause: three short bursts collided in one half-second: Astra start-up (55.6% of a core), kernel reclaim/compaction (kswapd0/kcompactd0), and the network-fallback curl probe. Domain isolation held. Decision needed on guard window or background load; nothing changed. See [`ATLAS_STAGE31_LIVE_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE31_LIVE_DEPLOYMENT.md) (second test).
 
 2026-10-21 14:24–14:35 (owner-approved Stage 31 steps 1–3; step 4 NOT approved/not done):
 - **UI DEPLOYED** (static, no restart): new Home, Vision Lab page, `/v2/classic.html` fallback. Live-verified in a real browser on desktop and mobile, with no errors or POSTs.
 - **ASTRA FIX DEPLOYED** (`rover-status-web` restart only, PID 67677 -> 117520): driver and receiver in private ROS domain 77, verified live; domain-0 participants unchanged.
 - **LIVE DEPTH: PARTIAL.** Real 160x120 depth frames shown on the Dashboard (12.6–20 fps, 0.11–0.18 s old) for ~11 s with guard samples 63.5–69.4% after launch (previously every start failed at the first sample); then one 77.8% sample stopped the camera safely. No retry. Cause of that sample unproven (coincided with my mid-session SSH check).
-- See [`ATLAS_STAGE31_LIVE_DEPLOYMENT.md`](ATLAS_STAGE31_LIVE_DEPLOYMENT.md).
+- See [`ATLAS_STAGE31_LIVE_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE31_LIVE_DEPLOYMENT.md).
 
 2026-10-21 (Stage 31; OFFLINE + camera-free Jetson diagnostics only; nothing deployed, no restart, camera never opened):
 - **Astra resource block root cause:** ROS/DDS discovery fan-out. A participant joining production domain 0 lifts CPU 65% -> 92% for ~3 s (34 nodes wake); private domain 77 has no fan-out. Fix implemented: Astra driver and Vision Lab receiver use private domain 77 (`atlas_vision3d_runtime.py`, `atlas_vision3d_web.py`), plus a lease-free `/api/vision3d/summary`. Receiver verified on the Jetson with a synthetic 30 Hz stream. Thresholds unchanged.
 - **Dashboard V2 Home redesign and 3D Vision Lab UI:** systems cards, safety pill, collapsible drawers, developer diagnostics kept; all ids/controls preserved; old Home kept at `/v2/classic.html`. Vision Lab explains RESOURCE BLOCKED with measured CPU vs limit.
 - Package `project_atlas/tools/deploy/stage31/stage31.sh` (apply-ui static, apply-astra restarts rover-status-web only); rehearsed on a Jetson copy with byte-identical rollback. Awaiting owner approval.
-- See [`ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md`](ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md) and [`ATLAS_DASHBOARD_V2_UI_REDESIGN.md`](ATLAS_DASHBOARD_V2_UI_REDESIGN.md).
+- See [`ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md`](docs/reports/ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md) and [`ATLAS_DASHBOARD_V2_UI_REDESIGN.md`](docs/reports/ATLAS_DASHBOARD_V2_UI_REDESIGN.md).
 
 2026-10-21 Stage30 approved three-file deployment and one Dashboard test:
 - Installed exact ac34cd3 observer/guard package with backups and hash checks; no service restart.
@@ -315,66 +315,66 @@ prepared a separate, uninstalled device-specific permissions proposal.
 
 2026-10-17 20:10 (OFFLINE ONLY; nothing installed on the Jetson, nothing restarted, nothing actuated):
 - **Stage 27 FlySky Remote Test Lab built and tested offline.** Read-only page `/v2/flysky-testlab`, one subscription / zero publishers, SIGNAL NOT VERIFIED until real frames arrive, no invented RSSI. No live SBUS frame verified; Jetson cannot see receiver data today. Reversible package in `project_atlas/tools/deploy/stage27_flysky/`. Awaiting owner approval.
-- See [`ATLAS_FLYSKY_SBUS_TEST_LAB.md`](ATLAS_FLYSKY_SBUS_TEST_LAB.md).
+- See [`ATLAS_FLYSKY_SBUS_TEST_LAB.md`](docs/reports/ATLAS_FLYSKY_SBUS_TEST_LAB.md).
 
 2026-10-17 18:45 (static Web UI file only; no restart, nothing actuated):
 - **Home shortcut deployed** (18:37 IST): `index.html` a03baf88... (was 4d4dea56...), backup `.pre_stage26b_shortcut_20261017_183749`. Live-verified one click to `/v2/testlab` at 1440/1920/390 px.
-- See [`ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md`](ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md).
+- See [`ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md).
 
 2026-10-17 18:50 (shortcut only; Web UI static file; no restart of any motor service, nothing actuated):
 - **Home V2: "Motor & Encoder Test Lab" shortcut made clearly visible.** The existing Home link to `/v2/testlab` had its label hidden below 1600 px (icon only). It now always shows its label with an accent outline, and sits first in the nav strip on phones. `web/v2/index.html` only; Test Lab page, safety locks and all other features untouched. Revert: restore the previous `index.html` (sha256 prefix 4d4dea5620c80e91).
 
 2026-10-17 18:15 (read-only deployment; no movement, only rover-status-web restarted, nothing actuated):
 - **Stage 26 Test Lab deployed live** (17:29:51 IST): `/v2/testlab` now 200 (404 was because it was never installed). Live encoders verified, CSV tested, motor pulses LOCKED, base driver untouched.
-- See [`ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md`](ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md).
+- See [`ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md).
 
 2026-10-17 16:30 (offline only; NOT deployed, no movement, no restart, nothing actuated):
 - **Motor & Encoder Test Lab built** (Dashboard V2 page `/v2/testlab`, Home link): live raw counts, direction/RPM/health, graph, forward/reverse comparison, read-only hand test, CSV sessions, fault detection, and a gated single-wheel pulse path through the EXISTING lifted-drive interface (locked unless every owner gate passes). 61 new tests pass; no serial access, no new actuator API, safety files untouched.
 - Deployment package `tools/deploy/stage26_testlab/` (patches the live status-web in place because the repo copy holds undeployed steering work; rollback rehearsed). Base-driver lifted flags shipped DISABLED. Awaiting owner approval.
-- See [`ATLAS_STAGE26_MOTOR_ENCODER_TEST_LAB.md`](ATLAS_STAGE26_MOTOR_ENCODER_TEST_LAB.md).
+- See [`ATLAS_STAGE26_MOTOR_ENCODER_TEST_LAB.md`](docs/reports/ATLAS_STAGE26_MOTOR_ENCODER_TEST_LAB.md).
 
 2026-10-16 09:30 (display-only deployment; no movement, no restart, nothing actuated):
 - **Dashboard Motion Chip correction deployed** (09:03:38 IST): `web/v2/motion-status.js` (new), `shell.js`, `index.html`; hashes match; status-web not restarted. Verified in a real browser: no console errors, "Stopped" at rest, warning path exercised on live data. Backup `web/v2/.pre_stage25_motion_chip_20261016_090338`.
 - M2/M3 encoder analysis refined (direction-dependent loss, not a sign flip); 41-bag history scan; offline LiDAR+gyro fallback evaluated (not deployed). Read-only `tools/diagnostics/encoder_hand_test.py` for a lifted hand test (not deployed). Hardware check pending.
-- See [`ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md`](ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md).
+- See [`ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md).
 
 2026-10-15 22:30 (offline only; no deployment, no movement, no restart):
 - Stage 25 round-trip root cause. Slow return lost because **M3 is near-dead and M2 froze then reversed at 21:40:24**, so 3-of-4 consensus failed closed on 37% of wheel travel. Stage 21 and the estimator behaved as designed; serial link clean.
 - Dashboard Motion chip showed "Stopped" while wheels counted. **Display-only fix** `web/v2/motion-status.js` (undeployed, rehearsed package `tools/deploy/stage25_motion_chip`, 7 recorded-frame tests).
-- Final AMCL pose unverified; recorder gaps match post-roll design; Candidate B fixes heading only and stays undeployed. See [`ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md`](ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md).
+- Final AMCL pose unverified; recorder gaps match post-roll design; Candidate B fixes heading only and stays undeployed. See [`ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md`](docs/reports/ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md).
 
 2026-10-15 21:06 (no deployment, no movement, no recording):
 - Owner confirmed the 19:46 / 20:19 position changes were deliberate tests; earlier "stationary" reading withdrawn.
 - **AMCL seeded once** (20:52:54) at the LiDAR-verified Dhruv Room pose (0.235, -1.435, 78 deg). Parked 10 min: stable, no jump, all checks VERIFIED, commands zero.
-- Moving validation and Candidate B remain pending. See [`ATLAS_STAGE24_AMCL_SEED_VALIDATION.md`](ATLAS_STAGE24_AMCL_SEED_VALIDATION.md).
+- Moving validation and Candidate B remain pending. See [`ATLAS_STAGE24_AMCL_SEED_VALIDATION.md`](docs/reports/ATLAS_STAGE24_AMCL_SEED_VALIDATION.md).
 
 2026-10-15 20:40 (read-only; no deployment, no seed, no movement):
 - Post-deployment location recovery: five live samples. Global and Dhruv Room searches agree on (0.235, -1.435, 75 deg), margin 0.105-0.125.
 - The earlier A and B poses were correct for where ATLAS stood: it was physically moved ~19:46 and ~20:19 (beam-by-beam scan comparison, monitor motion log). Odometry did not register the moves.
 - Corrects the 20:12 "stationary" claim. AMCL still unseeded; one seed awaits owner approval.
-- See [`ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md`](ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md).
+- See [`ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md`](docs/reports/ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md).
 
 2026-10-15 20:12:
 - **Stage 24 deployed** (verify-place seeder, core region filter, `place_regions.json`; 3 files MATCH, no restart).
 - AMCL **not seeded**: stationary ATLAS gave two different VERIFIED poses (1.2 m apart) as the LiDAR front arcs changed. BLOCKED pending owner confirmation.
-- See [`ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md`](ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md).
+- See [`ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md).
 
 2026-10-15 13:30:
 - **Stage 22 deployed** (recorder `steering-validation` profile, installation only, recording OFF).
 - Found: the live `atlas_steering_calibrate.py` is the old direct-serial servo tool; it is harmless at present only because `/dev/yahboom` is absent.
-- See [`ATLAS_STAGE22_RECORDER_DEPLOYMENT.md`](ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
+- See [`ATLAS_STAGE22_RECORDER_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
 
 2026-10-15 13:45 (preparation only; nothing deployed, recorded or moved):
 - Motion-validation readiness: stage 22 optional recorder profile package; stage 23 Candidate B procedure.
 - `ekf_continuity_config.py` prevents the 1.15 m `/odom` jump a plain EKF restart causes.
 - AMCL found unseeded on this boot.
-- See [`ATLAS_STAGE21_MOTION_VALIDATION_READINESS.md`](ATLAS_STAGE21_MOTION_VALIDATION_READINESS.md).
+- See [`ATLAS_STAGE21_MOTION_VALIDATION_READINESS.md`](docs/reports/ATLAS_STAGE21_MOTION_VALIDATION_READINESS.md).
 
 2026-10-15 13:10:
 - **Stage 21 deployed** (driver: zero velocity trusted only after 1 s of verified stillness).
 - Parked-verified: `/odom` drift 0.0 cm over 600 s.
 - Moving validation pending.
-- See [`ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md`](ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md).
+- See [`ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md).
 
 2026-10-15 13:30 (offline; nothing deployed):
 - The stop anchor now needs 1 s of verified stillness.
@@ -382,14 +382,14 @@ prepared a separate, uninstalled device-specific permissions proposal.
 - Candidate B confirmed on native Humble; config prepared as `config/atlas_ekf_candidate_b.yaml`.
 - Least-privilege Foxglove bridge config, plus an isolated privilege test.
 - The calibration test is pinned to the post-replacement calibration.
-- See [`ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md`](ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md).
+- See [`ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md`](docs/reports/ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md).
 
 2026-10-15 (offline; nothing deployed):
 - Native EKF A/B replay tools and LiDAR-ICP heading/sideslip analysis.
 - Production EKF translation found inconsistent with its own heading.
 - Candidate B (no wheel X/Y pose) cuts heading drift per 1.4 m by 5–7×.
 - `yahboom_base` keeps zero velocity trustworthy when a fresh packet shows no wheel counted, even without 3-of-4 consensus. This prevents a velocity-fusing EKF from coasting while parked; pose covariance, source label and stop policy are unchanged.
-- See [`ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md`](ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md).
+- See [`ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md`](docs/reports/ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md).
 
 2026-10-15: Correct Orin Nano-specific CV temperature admission policy.
 - NVIDIA confirms absent DLA/PVA CV readings; exempt only CV-temp EAGAIN on verified Nano.
@@ -545,41 +545,41 @@ prepared a separate, uninstalled device-specific permissions proposal.
 - Ran full Hall-return native EKF/AMCL baseline in private network/PID/device namespaces, domain 187, with no actuator access or production service changes.
 - Original five parked jumps were not reproduced; native had eight pre-stop corrections. Cold EKF/relative-anchor history differs from the recording; zero parked jumps is not a fix.
 - Added native runner, inventory, result summaries and correction-comparison gate. 33 unique regressions passed; Candidate B refused before native launch because fidelity remains blocked.
-- No fusion or navigation correction deployed. See [Stage 19 report](ATLAS_STAGE19_NATIVE_EKF_AMCL_REPLAY.md).
+- No fusion or navigation correction deployed. See [Stage 19 report](docs/reports/ATLAS_STAGE19_NATIVE_EKF_AMCL_REPLAY.md).
 
 2026-10-14: Stage 18 offline motion-model correction and evidence comparison.
 - Stage 17B explicitly ON HOLD; no deployment/actuation authorized.
 - Added isolated general 4WS model and neutral-seeded ICP/gyro/wheel comparison with explicit uncertainty and no control authority.
 - Expanded exact-update coverage to final roundtrip (4,591 updates). Same-command lateral correction does not repair wrong yaw; gyro-heading shadow improves yaw but not translation consistently. No live fusion/calibration change.
-- Original five AMCL jumps remain unresolved. See [Stage 18 report](ATLAS_STAGE18_ODOMETRY_SENSOR_FUSION_REPORT.md).
+- Original five AMCL jumps remain unresolved. See [Stage 18 report](docs/reports/ATLAS_STAGE18_ODOMETRY_SENSOR_FUSION_REPORT.md).
 
 2026-10-14: Stage 17B single-person steering commissioning prepared, not deployed.
 - Added disabled-by-default bounded front-only sequence through the existing lease owner, paused caliper mode, explicit delegation and stop-only cancellation.
 - Added interlock acknowledgement metadata and optional recorder event topics; no calibration, rear target, EKF or live deployment changed.
 - 62 offline Python checks plus mock UI/syntax validation passed. Tilt-only phone app cannot measure road-wheel angle; physical measurements and Jetson resource validation remain pending.
-- See [Stage 17B report](ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md).
+- See [Stage 17B report](docs/reports/ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md).
 
 2026-10-14: Stage 17 steering/yaw instrumentation prepared, physical approval pending.
 - Optional recorder profile adds raw IM10A, exact encoder updates, particles and LiDAR odometry; stationary steering changes trigger bounded capture with 20 s post-roll.
 - Isolated parked Jetson trial: 7,032 messages, all required topics present, zero application/DDS-reported drops; ~40.48% one-core CPU and 84.98 MiB RSS. Production recorder stays unchanged.
 - Added perspective/synchronization/rolling-observability harness and reference sheet; 27 offline regressions passed. Two-encoder feasibility is conditional and grants no control authority.
-- Retired unused direct-serial steering utility with incorrect front/rear mapping in source. No current steering, EKF, map or motor settings changed. See [Stage 17 report](ATLAS_STAGE17_STEERING_YAW_VALIDATION.md).
+- Retired unused direct-serial steering utility with incorrect front/rear mapping in source. No current steering, EKF, map or motor settings changed. See [Stage 17 report](docs/reports/ATLAS_STAGE17_STEERING_YAW_VALIDATION.md).
 
 2026-10-14: isolated two wrong-sign wheel-yaw windows in the Oct 9 Hall return.
 - Added a read-only CDR/SQLite diagnostic that traces exact accepted encoder distance, commanded-steering curvature and IM10A gyro yaw; 3 focused plus 29 related tests passed.
 - All four channels were accepted in 16/20 updates of one wrong-sign window, while nearby turns agreed, excluding a global sign flip or a proven M3-only cause.
-- Physical steering/traction cause and AMCL repair remain unverified; no live motion/fusion settings changed. See [`ATLAS_MOVING_LOCALIZATION_ROOT_CAUSE_AND_FIX.md`](ATLAS_MOVING_LOCALIZATION_ROOT_CAUSE_AND_FIX.md).
+- Physical steering/traction cause and AMCL repair remain unverified; no live motion/fusion settings changed. See [`ATLAS_MOVING_LOCALIZATION_ROOT_CAUSE_AND_FIX.md`](docs/reports/ATLAS_MOVING_LOCALIZATION_ROOT_CAUSE_AND_FIX.md).
 
 2026-10-14: resumed localization forensics from Stage 16 evidence.
 - Four retained verdicts distinguish absolute-fit and ambiguity failures at alternate positions; Home checks were seeded by the startup verifier.
 - Added a read-only encoder bag timing audit: 2 focused tests pass, no missing published diagnostic sequence in the main Hall-to-Dhruv bag.
 - Identified repository `atlas_latest` map drift from the accepted deployed map; use the archived accepted map for replay.
-- Published [`ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md`](ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md). No Jetson runtime or navigation change.
+- Published [`ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md`](docs/reports/ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md). No Jetson runtime or navigation change.
 
 2026-10-11 20:45: end-of-day checkpoint.
 - Verified backup: Jetson `data/backups/eod-20261011-203508/` plus a copy on the owner's PC.
 - Deployed-file check against HEAD `5eb0aad`.
-- Next-session handoff: [`ATLAS_NEXT_SESSION_HANDOFF.md`](ATLAS_NEXT_SESSION_HANDOFF.md).
+- Next-session handoff: [`ATLAS_NEXT_SESSION_HANDOFF.md`](docs/reports/ATLAS_NEXT_SESSION_HANDOFF.md).
 - No runtime change.
 
 2026-10-11 20:45:

@@ -148,8 +148,8 @@ an opt-in diagnostic recording of one supervised drive is still required to
 identify the first divergence; existing bags cannot reconstruct the missing
 10 Oct motion. No autonomous navigation claim is made.
 
-References: [cross-bag comparison](docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md),
-[motion investigation](docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md),
-[map repair](docs/audits/ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md),
-[encoder scale](docs/audits/ATLAS_ENCODER_SCALE_BY_SPEED_2026-10-11.md),
+References: [cross-bag comparison](../audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md),
+[motion investigation](../audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md),
+[map repair](../audits/ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md),
+[encoder scale](../audits/ATLAS_ENCODER_SCALE_BY_SPEED_2026-10-11.md),
 [previous handoff](ATLAS_NEXT_SESSION_HANDOFF.md).
