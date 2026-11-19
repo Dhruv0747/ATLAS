@@ -176,12 +176,23 @@ class UltrasonicCoverageTests(unittest.TestCase):
         import ast
         tree = ast.parse((Path(__file__).parents[1] / 'scripts' / 'atlas_cmd_vel_mux.py').read_text())
         fn = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == 'guard_ultrasonic_ranges'][0]
-        scope = {}
+        scope = {'lidar_avail': ala}
         exec(compile(ast.Module(body=[fn], type_ignores=[]), 'mux', 'exec'), scope)
         f = scope['guard_ultrasonic_ranges']
         win = NS(reading=lambda side, now: (1.4, 'VALID') if side == 'front' else (None, 'STALE_SAMPLE'))
         self.assertEqual(f(NS(lidar_guard_ultrasonic=True, ultrasonic_validity=win), 5.0), {'front': 1.4})
         self.assertEqual(f(NS(lidar_guard_ultrasonic=False, ultrasonic_validity=win), 5.0), {})
+        # 2026-11-19: left/right are read only when a measured mount is configured
+        all_valid = NS(reading=lambda side, now: (0.9, 'VALID'))
+        old = dict(ala.SIDE_US_MOUNTS)
+        try:
+            ala.SIDE_US_MOUNTS = {}
+            self.assertEqual(set(f(NS(lidar_guard_ultrasonic=True, ultrasonic_validity=all_valid), 5.0)), {'front', 'rear'})
+            ala.SIDE_US_MOUNTS = {'right': (0.1, -0.18, -10.0, 10.0)}
+            self.assertEqual(set(f(NS(lidar_guard_ultrasonic=True, ultrasonic_validity=all_valid), 5.0)),
+                             {'front', 'rear', 'right'})
+        finally:
+            ala.SIDE_US_MOUNTS = old
 
 if __name__ == '__main__':
     unittest.main()

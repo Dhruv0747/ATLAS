@@ -115,6 +115,17 @@ class AtlasCmdVelMux(Node):
                 depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL, reliability=ReliabilityPolicy.RELIABLE))
         self.declare_parameter('lidar_guard_ultrasonic', True)
         self.lidar_guard_ultrasonic = bool(self.get_parameter('lidar_guard_ultrasonic').value)
+        # 2026-11-19 (staged): front-corner sensors on the UNO left/right channels add guard coverage only when
+        # config/ultrasonic_mounts.json has an enabled, measured mount for them. Missing file -> front/rear only.
+        self.declare_parameter('lidar_guard_ultrasonic_mounts', '/home/jetson/project_atlas/config/ultrasonic_mounts.json')
+        mounts_path = str(self.get_parameter('lidar_guard_ultrasonic_mounts').value)
+        if mounts_path and os.path.exists(mounts_path):
+            try:
+                lidar_avail.SIDE_US_MOUNTS = lidar_avail.load_side_mounts(mounts_path)
+                self.get_logger().info(f'LiDAR guard: side ultrasonic mounts {sorted(lidar_avail.SIDE_US_MOUNTS)}')
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                lidar_avail.SIDE_US_MOUNTS = {}
+                self.get_logger().error(f'LiDAR guard: side ultrasonic mounts NOT loaded ({mounts_path}): {exc}')
         self.declare_parameter('lidar_guard_astra_coverage', True)
         if bool(self.get_parameter('lidar_guard_astra_coverage').value):
             self.create_subscription(LaserScan, '/astra/obstacle_coverage', self.on_guard_coverage,
@@ -368,14 +379,17 @@ class AtlasCmdVelMux(Node):
         self.lidar_availability.update_coverage(msg, time.monotonic())
 
     def guard_ultrasonic_ranges(self, now):
-        """2026-11-16 fresh VALID front/rear ultrasonic ranges for the LiDAR guard ({} when disabled or stale)."""
+        """2026-11-16 fresh VALID front/rear (+ measured left/right corner, 2026-11-19) ultrasonic ranges for the LiDAR guard
+        ({} when disabled or stale)."""
         if not getattr(self, 'lidar_guard_ultrasonic', False):
             return {}
         window = getattr(self, 'ultrasonic_validity', None)
         out = {}
         if window is None:
             return out
-        for side in ('front', 'rear'):
+        for side in ('front', 'rear', 'left', 'right'):
+            if side in ('left', 'right') and side not in lidar_avail.SIDE_US_MOUNTS:
+                continue
             try:
                 rng, state = window.reading(side, now)
             except Exception:

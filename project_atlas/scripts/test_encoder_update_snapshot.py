@@ -17,9 +17,10 @@ def odometry():
 
 tree=ast.parse(Path(__file__).with_name('yahboom_base.py').read_text(encoding='utf-8'))
 method=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='_publish_yahboom_odom')
+helper=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='applied_curvature_per_m')  # 2026-11-19
 scope=dict(math=math,json=json,Odometry=odometry,String=lambda **kw:N(**kw),
            FRONT_STEER_CENTER=90,REAR_STEER_CENTER=90,four_wheel_path_scales=four_wheel_path_scales)
-exec(compile(ast.Module(body=[method],type_ignores=[]),'odometry_method','exec'),scope)
+exec(compile(ast.Module(body=[helper,method],type_ignores=[]),'odometry_method','exec'),scope)
 
 
 class SnapshotTest(unittest.TestCase):
@@ -37,7 +38,7 @@ class SnapshotTest(unittest.TestCase):
             _pub_odom=Mock(),_pub_encoder_update=Mock(),_encoder_update_sequence=0,
             _last_enc=[100]*4,_enc_origin=[0]*4,_encoder_packet_stamp=.99,
             _encoder_calibration=N(counts_per_revolution=[2000]*4,encoder_signs=[1]*4,wheel_circumference_m=.4),
-            get_logger=Mock())
+            get_logger=Mock(),_speed_loop_enabled=False,_speed_feedback=None)  # 2026-11-19: stub fields added after the 2026-11-15 speed loop
         s._pub_encoder_update.get_subscription_count.return_value=1
         return s
 

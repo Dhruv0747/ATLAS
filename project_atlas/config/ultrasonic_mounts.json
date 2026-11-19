@@ -1,0 +1,5 @@
+{
+  "_comment": "Optional HC-SR04s on the UNO left (D4/D5) and right (D6/D7) channels. Measured base_link mount in metres (x forward from the rover centre, y left), axis_deg (0 = straight ahead, + = left), half_cone_deg (HC-SR04: use 10). Keep enabled=false until the sensor is fitted AND measured. Then enable the UNO channel too (ATLAS_LEFT/RIGHT_ULTRASONIC_ENABLED=1) and restart the sensor hub and mux (parked, E-STOP latched). 2026-11-19 replay: a narrow-cone sensor rarely satisfies the guard's whole-bin rule (best placement covered 2 of 9 door-bin cases), so these sensors mainly add close-range readings; they do not replace matte tape on the hall door frame.",
+  "left": {"enabled": false, "x_m": 0.10, "y_m": 0.18, "axis_deg": 10.0, "half_cone_deg": 10.0},
+  "right": {"enabled": false, "x_m": 0.10, "y_m": -0.18, "axis_deg": -10.0, "half_cone_deg": 10.0}
+}

@@ -46,6 +46,17 @@ SERIAL_STALE_REOPEN_SECONDS = max(
 SENSOR_HUB_POLL_SECONDS = 0.04
 HUB_TRANSPORT = os.environ.get('ATLAS_SENSOR_HUB_TRANSPORT', 'arduino_uno_r4').strip()
 FRONT_ULTRASONIC_ENABLED = os.environ.get('ATLAS_FRONT_ULTRASONIC_ENABLED', '0').strip() == '1'
+
+
+def side_ultrasonic_commands(environ):
+    """2026-11-19: USENABLE commands for the UNO left/right channels (front-corner HC-SR04s, pins D4/D5, D6/D7).
+    A channel is touched only when its variable is explicitly '0' or '1'; otherwise its firmware setting is left as is."""
+    out = []
+    for code, name in (('L', 'ATLAS_LEFT_ULTRASONIC_ENABLED'), ('R', 'ATLAS_RIGHT_ULTRASONIC_ENABLED')):
+        value = str(environ.get(name, '')).strip()
+        if value in ('0', '1'):
+            out.append(f'USENABLE,{code},{value}')
+    return out
 GNSS_ENABLED = os.environ.get('ATLAS_GNSS_ENABLED', '1').strip().lower() not in (
     '0', 'false', 'no', 'off',
 )
@@ -235,6 +246,8 @@ class UltrasonicArduinoBridge(Node):
                 # Reapply the installed front sensor after USB reconnect/reset.
                 # Leave the other three channel selections untouched.
                 self.write_line('USENABLE,F,' + ('1' if FRONT_ULTRASONIC_ENABLED else '0'))
+                for command in side_ultrasonic_commands(os.environ):
+                    self.write_line(command)
                 # Keep camera outputs released during every USB reconnect.
                 # Automatically energising both axes here previously produced
                 # a servo-current surge/reconnect loop that took PCA9685,

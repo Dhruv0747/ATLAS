@@ -1,5 +1,32 @@
 # ATLAS current blockers
 
+### 2026-11-19 ~23:45 IST — Encoder CRITICAL root cause (wheel-curvature sign), side-ultrasonic geometry, pre-home point (offline; nothing deployed)
+
+**1. "ENCODER CRITICAL: encoder consensus unavailable" — root cause found, fix STAGED (not deployed).**
+- Bags `penalty_test_20261116`, `dhruvroom_test3_20261116`, `stage3_roundtrip8_20261116`: 15 + 8 + 5 CRITICAL episodes. All are consensus failures with M1, M2 and M4 rejected (M3 excluded), link LIVE, and almost all while turning (12 of 15 at turn radius < 0.3 m in the penalty test).
+- `yahboom_base.py` computed the 4WS path curvature as `(tan(front) - tan(rear)) / L` and documented "servo-high is physical front-left". The 2026-11-15 steering-sign fix (`AUTONOMOUS_STEER_SIGN`/`REMOTE_STEER_SIGN` = −1) and bag 8 show the opposite: servo-low is front-left (servo direction matched the IM10A gyro in **186/186** forward turning samples).
+- Consequences of the wrong sign:
+  - (a) `/yahboom/odom` yaw is **opposite the gyro in 97–99 %** of turning samples (bag 8: 249 vs 9; penalty: 1 980 vs 8; room test 3: 738 vs 14). This is the root cause behind the 2026-11-12 decision to stop fusing wheel heading. The EKF `/odom` (IM10A yaw) agreed with the gyro in 100 %.
+  - (b) The 4WS path scales treated inner wheels as outer, pushing the three wheel increments apart.
+- Replay of the consensus rule on the logged increments (reproduces every logged CRITICAL: 24/24, 12/12, 5/5, no false positives). With the corrected sign: **24 → 3, 12 → 11, 5 → 0** (41 → 14). The remaining failures are genuine bursts/stalls (two channels near zero while one moves), often during owner remote driving.
+- Staged fix: `applied_curvature_per_m()` in `yahboom_base.py` = `(tan(rear) - tan(front)) / L`, used for both odometry yaw and path scales. Tests: `tests/test_applied_curvature.py` 4/4. `scripts/test_encoder_update_snapshot.py` 6/6 (its stub also gained the speed-loop fields missing since 2026-11-15). `test_speed_loop_base` 25/25, `test_encoder_selection` and `test_atlas_encoder_geometry_audit` pass (rover temp copy).
+- **Deploy needs the owner's OK, and because it changes `yahboom_base.py` the Speed check must pass twice afterwards.** Also affected (expected better): speed-loop distance in turns, `/yahboom/odom` consumers (ICP prior, LiDAR-odom gate, tight-space recovery).
+
+**2. Side ultrasonic (front-corner HC-SR04) — software staged, and an earlier recommendation CORRECTED.**
+- Staged:
+  - bridge `side_ultrasonic_commands()`: `ATLAS_LEFT/RIGHT_ULTRASONIC_ENABLED` sends `USENABLE,L/R` only when explicitly set;
+  - mux reads left/right only when `config/ultrasonic_mounts.json` has an enabled measured mount (repo file: both disabled);
+  - guard `side_ultrasonic_covered_bins()` uses exact, conservative geometry.
+  - Tests: `tests/test_side_ultrasonic.py` 7/7, `test_lidar_map_known_gaps` 20/20 (mux range test extended).
+- **Finding:** with a ±10° cone, no single mount (corner at 20–30° out, front face inboard, side at 5–45°) makes the guard's whole-bin rule hold for the door bins −35…−20°. Best placement: 2 of 9 bin/motion cases. A sensor cannot see the points right beside itself, and the rule needs the whole 5° wedge clear to 0.47–0.63 m.
+- **Correction:** the 2026-11-19 advice that two front-corner sensors at 30° would cover the 15–45° door blind zone was wrong. They add close-range readings (useful for a future side stop), but **matte tape on the door frame remains the fix** for the doorway vetoes.
+
+**3. Pre-home point.**
+- HOME (−0.77, 0.17) has only **0.26 m** clearance (a passage about 0.5 m wide), which explains the tight-spot manoeuvring and refused taps near home in the room tests.
+- Best point at least 0.5 m clear within 1.3 m of HOME: (0.13, 0.54), 0.98 m away, clearance 0.52 m. That is effectively the existing **"dhruv room"** place (0.08, 0.54; clearance 0.49 m), which the Stage-3 checker already uses as home.
+- Picture: `docs/audits/prehome_candidates_20261119.png`.
+- Suggestion (not applied): end autonomous returns at "dhruv room" and do the last metre into HOME by remote.
+
 ### 2026-11-19 ~22:50 IST — Front/rear ultrasonic vs LiDAR check (read-only; rover parked, autonomy not armed)
 - **Live, 60 s, parked:**
   - Front: 209 fresh VALID samples (3.5 Hz), median 0.683 m, std 4.2 mm, 0 samples > 5 cm from the median.

@@ -191,6 +191,22 @@ def speed_loop_steering_aligned(steering_error_deg, vx, measured_mps):
     return math.isfinite(m) and abs(m) >= STEER_ALIGN_ROLLING_MIN_MPS and abs(vx) > 0.02 and (m > 0) == (vx > 0)
 
 
+def applied_curvature_per_m(front_angle_deg, rear_angle_deg, wheelbase_m):
+    """Signed 4WS path curvature (1/m, ROS convention: positive = turning LEFT) from the APPLIED servo angles.
+
+    2026-11-19 (staged, owner approval required): servo-LOW is physical front-left. Evidence: the 2026-11-15 steering
+    sign fix (AUTONOMOUS_STEER_SIGN / REMOTE_STEER_SIGN = -1), and bag stage3_roundtrip8_20261116, where the servo
+    direction matched the IM10A gyro in 186/186 forward turning samples. The former (tan(front) - tan(rear)) / L had the
+    opposite sign: wheel-odometry yaw was opposite the gyro in 97-99 % of turning samples (3 bags), which is why the
+    2026-11-12 EKF stopped trusting wheel heading. The 4WS path scales also treated inner wheels as outer, so
+    "encoder consensus unavailable" stopped autonomy in turns (replay of 3 bags: 41 consensus failures -> 14).
+    The FRONT/REAR_STEER_LEFT/RIGHT constant names predate that evidence and are not used here.
+    """
+    front = math.radians(float(front_angle_deg) - FRONT_STEER_CENTER)
+    rear = math.radians(float(rear_angle_deg) - REAR_STEER_CENTER)
+    return (math.tan(rear) - math.tan(front)) / float(wheelbase_m)
+
+
 def _clamp_servo(value, endpoint_a, endpoint_b):
     lower, upper = sorted((float(endpoint_a), float(endpoint_b)))
     return max(lower, min(upper, float(value)))
@@ -2108,15 +2124,10 @@ class YahboomBase(Node):
         # Normalize the naturally different inside/outside wheel path lengths
         # to body-centre distance before applying three-of-four consensus.
         # This uses measured geometry and does not change steering commands.
-        front_delta = math.radians(
-            self._front_applied_angle - FRONT_STEER_CENTER
+        curvature = applied_curvature_per_m(
+            self._front_applied_angle, self._rear_applied_angle,
+            self._wheelbase_m,
         )
-        rear_delta = math.radians(
-            self._rear_applied_angle - REAR_STEER_CENTER
-        )
-        curvature = (
-            math.tan(front_delta) - math.tan(rear_delta)
-        ) / self._wheelbase_m
         track_width_m = (
             None if self._drive_pid_config is None
             else self._drive_pid_config.geometry.track_width_m
@@ -2151,8 +2162,8 @@ class YahboomBase(Node):
         if encoder_motion:
             vx = distance_delta / dt
             vy = 0.0
-            # Servo-high is physical front-left.  ``curvature`` already uses
-            # the conventional positive-left sign commissioned above.
+            # ``curvature`` is ROS positive-left (servo-LOW is physical
+            # front-left; see applied_curvature_per_m, 2026-11-19).
             vz = vx * curvature
             source = (
                 'wheel_encoder_delta_4ws'

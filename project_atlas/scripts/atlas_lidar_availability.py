@@ -250,6 +250,72 @@ US_MOUNTS = {'front': (FOOTPRINT_X[1], 0.0, 0.0), 'rear': (FOOTPRINT_X[0], 0.0, 
 US_HALF_CONE_DEG = 10.0
 
 
+# 2026-11-19 (staged, not deployed): optional corner sensors on the UNO "left"/"right" channels, mounted at the front
+# corners and angled outward. Geometry comes ONLY from config/ultrasonic_mounts.json after the owner measures the
+# real mounts (load_side_mounts); until then SIDE_US_MOUNTS is empty and these channels add no coverage.
+SIDE_US_MOUNTS = {}            # side -> (x, y, axis_deg, half_cone_deg) in base_link
+SIDE_US_STEP_M = 0.02
+
+
+def load_side_mounts(path):
+    """Read {'left'|'right': {'enabled': true, 'x_m', 'y_m', 'axis_deg', 'half_cone_deg'}} from JSON. Only enabled,
+    finite, plausible entries are returned (|x| <= 0.4, |y| <= 0.3, half cone 5..20 deg). Raises ValueError on a
+    malformed file; a missing file is the caller's decision."""
+    import json
+    with open(path, encoding='utf-8') as f:
+        data = json.load(f)
+    out = {}
+    for side in ('left', 'right'):
+        e = data.get(side) or {}
+        if not e.get('enabled'):
+            continue
+        x, y, axis, cone = (float(e[k]) for k in ('x_m', 'y_m', 'axis_deg', 'half_cone_deg'))
+        if not all(math.isfinite(v) for v in (x, y, axis, cone)):
+            raise ValueError(side + ': non-finite mount')
+        if abs(x) > 0.4 or abs(y) > 0.3 or not 5.0 <= cone <= 20.0:
+            raise ValueError(side + ': implausible mount')
+        out[side] = (x, y, axis, cone)
+    return out
+
+
+def _inside_footprint(x, y):
+    return FOOTPRINT_X[0] <= x <= FOOTPRINT_X[1] and FOOTPRINT_Y[0] <= y <= FOOTPRINT_Y[1]
+
+
+def side_ultrasonic_covered_bins(ranges, extent, mounts=None):
+    """Exact, conservative coverage for corner sensors (they are not on a ray from the laser, so the front/rear
+    shortcut does not apply). A bin counts only if, on all 5 sub-rays from the laser, every point outside the
+    footprint up to the bin's sweep-aware required distance lies inside the sensor's cone and nearer than its fresh
+    VALID range."""
+    mounts = SIDE_US_MOUNTS if mounts is None else mounts
+    out = set()
+    for side, r in (ranges or {}).items():
+        m = mounts.get(side)
+        if m is None or not isinstance(r, (int, float)) or not math.isfinite(r) or r <= 0:
+            continue
+        mx, my, axis, cone = m
+        for b in range(72):
+            need = required_wall_distance(b, extent)
+            ok = True
+            for f in (0.0, 1.25, 2.5, 3.75, 5.0):
+                a = math.radians(b * 5 + f)
+                d = SIDE_US_STEP_M
+                while d <= need + 1e-9:
+                    px, py = LASER_X + d * math.cos(a), d * math.sin(a)
+                    if not _inside_footprint(px, py):
+                        dist = math.hypot(px - mx, py - my)
+                        off = (math.degrees(math.atan2(py - my, px - mx)) - axis + 180.0) % 360.0 - 180.0
+                        if dist >= r or abs(off) > cone:
+                            ok = False
+                            break
+                    d += SIDE_US_STEP_M
+                if not ok:
+                    break
+            if ok:
+                out.add(b)
+    return out
+
+
 def ultrasonic_covered_bins(ranges, extent):
     """ranges: {'front'|'rear': metres from the sensor (fresh, VALID only)}. Returns robot-frame bins (5 deg, laser
     origin) whose whole span lies within a sensor cone and whose clear distance from the laser reaches the
@@ -363,7 +429,9 @@ class LidarAvailability:
         self.ultrasonic_explained=0
         if missing and ultrasonic:
             try:
-                us=ultrasonic_covered_bins(ultrasonic, sweep_extent_cached(linear, angular))&missing
+                ext=sweep_extent_cached(linear, angular)
+                us=(ultrasonic_covered_bins({k: v for k, v in ultrasonic.items() if k in US_MOUNTS}, ext)
+                    | side_ultrasonic_covered_bins({k: v for k, v in ultrasonic.items() if k in SIDE_US_MOUNTS}, ext))&missing
             except Exception:
                 us=set()
             self.ultrasonic_explained=len(us)
