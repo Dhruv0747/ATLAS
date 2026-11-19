@@ -92,8 +92,8 @@ controller_server:
       # progress checker's 10 cm movement radius.  This prevents a car-like
       # chassis from stalling while attempting an impractical final 2-5 cm
       # correction; obstacle clearance remains governed by the costmaps.
-      xy_goal_tolerance: 0.10
-      yaw_goal_tolerance: 0.35
+      xy_goal_tolerance: 0.20   # 2026-11-16 owner OK: 0.10 m made the car-like base manoeuvre for minutes near goals (penalty_test bag)
+      yaw_goal_tolerance: 0.6   # 2026-11-16 owner OK (was 0.35 rad)
 
     FollowPath:
       # ATLAS is a four-wheel-steering car, not a differential-drive robot.
@@ -183,6 +183,7 @@ local_costmap:
           observation_persistence: 0.8
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
+        map_topic: /map_nav   # 2026-11-16 /map + owner-confirmed virtual obstacles (atlas_virtual_obstacles.py); AMCL keeps /map
         map_subscribe_transient_local: True
       always_send_full_costmap: True
 
@@ -226,6 +227,7 @@ global_costmap:
           observation_persistence: 0.8
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
+        map_topic: /map_nav   # 2026-11-16 /map + owner-confirmed virtual obstacles (atlas_virtual_obstacles.py); AMCL keeps /map
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
@@ -273,8 +275,8 @@ planner_server:
       minimum_turning_radius: 0.35
       analytic_expansion_ratio: 3.5
       analytic_expansion_max_length: 2.0
-      reverse_penalty: 2.0
-      change_penalty: 0.0
+      reverse_penalty: 5.0   # 2026-11-16 owner OK: bag 8 door + room test3 showed reverse+turn dithering (was 2.0)
+      change_penalty: 1.0   # 2026-11-16 owner OK: penalise forward<->reverse switches (was 0.0)
       non_straight_penalty: 1.2
       cost_penalty: 2.0
       lookup_table_size: 20.0

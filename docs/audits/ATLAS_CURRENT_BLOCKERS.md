@@ -1,5 +1,168 @@
 # ATLAS current blockers
 
+### 2026-11-19 ~22:50 IST — Front/rear ultrasonic vs LiDAR check (read-only; rover parked, autonomy not armed)
+- **Live, 60 s, parked:**
+  - Front: 209 fresh VALID samples (3.5 Hz), median 0.683 m, std 4.2 mm, 0 samples > 5 cm from the median.
+  - Rear: 209 VALID, median 0.671 m, std 8.1 mm, 0 outliers.
+  - 3 frames had no state (startup).
+- LiDAR along the same axis, assuming mounts at the footprint edges x = ±0.25 (laser at x = −0.05):
+  - Front: LiDAR at the sensor 2.00 m vs ultrasonic 0.68 m (−1.31 m). The ultrasonic sees something nearer that the 18 cm LiDAR plane does not; owner to check what is in front at about 68 cm (low object, legs, floor echo).
+  - Rear: 0.78 m vs 0.67 m (−11 cm).
+- **Bags** (ultrasonic Float32 vs LiDAR nearest within ±10°, minus mount offset):
+
+| Bag | Front, LiDAR-at-sensor < 1 m | Rear, < 1 m |
+|---|---|---|
+| penalty_test_20261116 | median +13 mm, 74 % within 10 cm | −59 mm, 74 % |
+| dhruvroom_test3_20261116 | +46 mm, 90 % | −65 mm, 86 % |
+| stage3_roundtrip8_20261116 | +45 mm, 66 % (120 pairs) | +46 mm, 55 % |
+
+  - At longer range the ultrasonic is mostly shorter than the LiDAR (bag 8 front: 5 986 of 6 145 pairs). This is expected: its cone is wide and covers all heights (side walls, furniture legs, floor), while the LiDAR is a thin plane.
+- **Reading:** both sensors are stable and agree with the LiDAR to within about 5–7 cm at close range (their safety role).
+  - Small biases (front about +4.6 cm, rear about −6 cm) suggest the real mounts differ a few cm from the assumed footprint-edge positions.
+  - **Evidence gap:** no tape-measure check yet. Proposed: a flat board at a measured 50 cm in front and behind, compared with the readings.
+
+### 2026-11-19 ~22:30 IST — REJECTED (offline): short Astra "seen-clear" memory for the hall door (bag 8)
+- Owner idea: use the Astra IR depth before and while crossing the door. Replay (scratch script, not in the repo):
+  - Astra coverage rays that saw free space (obstacle rays excluded) are stamped in a 5 cm world grid via AMCL + odom delta. Later LiDAR returns erase them.
+  - A still-missing bin counts as covered if every sample 0.35–0.8 m on all 5 sub-rays was seen free within T s.
+  - Live config otherwise: unknown kept + virtual obstacles, sweep-aware.
+- Door band y −4..−3, 2 407 moving scans: vetoed 96 % now. With memory: 1 s 96 %, 2 s 95 %, 3 s 95 %, 5 s 95 %.
+- Forward commands only (1 091 scans: 789 straight, 302 turning): 92 % now, 90 % with 3 s memory. Still-missing bins: −30…−25° (623), −25…−20° (391), −35…−30° (211).
+- **Why it cannot work:** the blind front-right bins are not empty space. They are the right door frame itself, about 0.55 m from the laser at −25…−30° (map: "wall too close 0.55–0.58 m"), i.e. only about 7 cm lateral clearance beyond the 0.18 m half-width at x ≈ 1.9. Neither memory nor the camera can honestly call that space clear, and the LiDAR gets no echo from the frame.
+- **Conclusion:** the fix is a LiDAR-visible surface on the right frame (matte white tape/paper at LiDAR height). Once the frame is LiDAR-observed, those bins are observed and the guard no longer vetoes. Secondary: Nav2 passes close to the right frame; check door centring after the tape.
+- Astra usable horizontal view in bag 8: about ±26° (rays at −30° and +25° are mostly no-depth); minimum range 0.35 m.
+
+### 2026-11-19 21:58 IST — Goal tolerance loosened for the car-like base (DEPLOYED, owner "Yes, loosen it" on 2026-11-16, "B pressed" 2026-11-19)
+- `controller_server general_goal_checker`: `xy_goal_tolerance` 0.10 → 0.20 m and `yaw_goal_tolerance` 0.35 → 0.6 rad. Changed in the live ws `nav2_params.yaml` (md5 fee91d04…, identical to the repo ws copy) and in the repo `config/nav2_params.yaml`. Backup: `backups/virtual_obstacles_20261116/nav2_params.yaml.before-goaltol`.
+- Evidence: `penalty_test_20261116`. The "dhruv room" goal took 319 s with 228 forward/reverse switches and 26.7 m driven, and ended 0.36 m short. Test3 re-sent: 102 s, 21 switches, ended 0.17 m away.
+- The rover had rebooted (up 2 min). State: `/atlas/motion_safety` = "REMOTE STOP: joystick unavailable", autonomy not armed. Restarted `atlas-localization` only.
+  - Verified: controller_server 0.2 / 0.6; planner penalties still 5.0 / 1.0.
+  - controller/planner/bt_navigator/amcl/map_server all active.
+  - Virtual obstacles: 867 cells.
+  - AMCL seeded from a LiDAR-verified pose (−1.225, 0.185).
+- No base change, so no Speed check is needed. Not verified: any drive. Expected effect: the goal is declared reached within 20 cm / ~35°. Stage-3 return-home evidence must use this tolerance, stated explicitly.
+
+### 2026-11-16 19:56–20:07 IST — Owner test after the planner penalties (bag `penalty_test_20261116`, 640 s): owner liked the motion, but goals did not complete
+- The owner said "this time it moved well in the tight space". The data shows the near-goal manoeuvring is NOT fixed.
+
+| Goal window | Time | Nav2 fwd/rev switches | Path driven | Result |
+|---|---|---|---|---|
+| test3 leg 1, home → (−0.03, 1.89) | 69 s | 6 | 3.81 m | got within 0.24 m; owner re-sent the goal |
+| test3 re-sent | 102 s | 21 | 2.27 m | ended 0.17 m from the goal; preempted |
+| dhruv room (0.08, 0.54) | 319 s | 228 | 26.7 m | ended 0.36 m short at (0.08, 0.90), nose to an obstacle (front 0.23–0.29 m); camera stale → cancelled |
+| (earlier, old penalties) room test3 return | 56 s | 34 | 3.59 m | cancelled, nose to the wall |
+| (earlier, old penalties) test3 legs | 10 s / 45 s | 0 | 0.9 / 3.2 m | succeeded |
+
+- The planner published only 12 plans in 640 s. Most of the switching comes from the **controller (RPP, `allow_reversing`) during the final approach**, not from new planner paths, so the penalty change has little effect on it.
+- Goal approach constraints:
+  - `xy_goal_tolerance` 0.10 m and `yaw_goal_tolerance` 0.35 rad on a 0.50 × 0.36 m car-like base.
+  - Inscribed-cost cells (99) lie within 0.35 m of the "dhruv room" and test3 goals and at 0.2 m from home (home cell cost 21).
+  - The planner's `tolerance` 0.3 lets a plan end short of the goal; the goal checker still demands 0.10 m.
+- The mux also logged 146 one-bin LiDAR-availability stops in 19:59–20:00 and 24 ENCODER CRITICAL stops. Each interruption makes the controller fall behind the path.
+- Planner penalties kept (no harm seen; no clear gain).
+- **Candidate next step, not applied:** goal tolerance for this chassis (`xy_goal_tolerance` 0.10 → 0.20, `yaw_goal_tolerance` 0.35 → 0.6), plus room places at least 0.5 m from furniture.
+
+### 2026-11-16 ~19:50 IST — Nav2 planner penalties DEPLOYED (owner "Yes, change it")
+- SmacPlannerHybrid `GridBased.reverse_penalty` 2.0 → 5.0 and `change_penalty` 0.0 → 1.0, in the live ws `nav2_params.yaml` (md5 9d5c9a31…, same in the repo ws copy) and the repo `config/nav2_params.yaml`. Backup: `backups/virtual_obstacles_20261116/nav2_params.yaml.before-penalty`.
+- Evidence: bag 8 at the hall door (1 240 reverse-turn scans vs 789 forward-straight) and room test 3 (56 s of about 20 forward/reverse full-lock switches ending nose to the wall).
+- Restarted `atlas-localization` only, with the rover latched ("REMOTE STOP: B pressed") and autonomy not armed.
+  - Verified `ros2 param get /planner_server`: 5.0 / 1.0.
+  - Virtual obstacles: 867 cells.
+  - AMCL seeded from a LiDAR-verified pose (−1.665, 0.185).
+- No speed-loop or base change, so no Speed check is needed.
+- Not verified: any drive. Expected effect: fewer direction changes and wider forward arcs. Possible downside: in very tight spots the planner may now prefer longer paths, or fail where only a multi-point turn fits.
+
+### 2026-11-16 19:25–19:37 IST — Owner room test after the unknown + virtual-obstacle fixes (bag `dhruvroom_test3_20261116`, 688 s, 24 topics)
+- **"dhruv room test 3" (0.06, 2.12): reached twice, SUCCEEDED (status 4)** in 38 s and 47 s.
+- **Return toward home, map point (−1.06, 0.23): failed after 56 s.**
+  - Starting at (−0.06, 1.82, 100°), Nav2 issued about 20 alternating forward/reverse full-lock commands (±0.11 m/s, ±1.0–1.2 rad/s): a many-point turn that made no progress toward the goal.
+  - It ended at (0.06, 1.15, 177°) nose to the wall: map wall ahead 0.35–0.38 m, front ultrasonic 0.23–0.28 m.
+  - The front stop (0.30 m) blocked it. The Astra obstacle scan went BLINDED (wall inside its 0.35 m minimum range), so camera obstacles went stale and mission control cancelled (status 5). Later goals were refused with "camera obstacles OFF". All of this is correct fail-safe behaviour.
+- Other refusals:
+  - Tapped points near home (−1.47, 0.02), (−1.42, 0.07), (−0.67, 0.34) and "delhi test 4" were refused as "occupied within 0.35 m".
+  - One goal was refused at an AMCL scan fit of 84 % (need 85 %).
+- Mux: "ENCODER CRITICAL (fewer than three wheel channels agree)" stopped autonomy 7 times (existing encoder issue). There were 27 one-bin LiDAR-availability stops, mostly while nose to the wall.
+- Guard replay with the live config: only 5 % of moving scans vetoed (y +1..+2: 6 %, y 0..+1: 3 %). **The guard was not the limiting factor in the room;** the unknown fix did not make the room worse.
+- **Reading:** this is the same reverse + turn dithering seen at the hall door (bag 8: 1 240 reverse-turn vs 789 straight scans). It supports the pending Nav2 planner change (`reverse_penalty` 2.0 → 5.0, `change_penalty` 0.0 → 1.0), which is not applied and awaits the owner's OK. Home-side places sit close to walls; a pre-home point about 0.5 m from walls is suggested.
+
+### 2026-11-16 ~19:35 IST — Regression from the free_thresh fix: map identity changed (fixed, owner "Yes, update it")
+- `map_pair_id` hashes the accepted YAML + PGM. Changing `free_thresh` in `atlas_latest.yaml` changed the map id from 38253aab42e9e97304aa to 350de9b5ec3eb7f4d6f1. Mission control (`require_matching_map`) then refused every stored place, with the message "belongs to a different map".
+  - The owner had to create "dhruv room test 3" (0.06, 2.12) by map tap at 19:23 to test.
+  - I missed this side effect when applying the fix.
+- Fix: the PGM and the frame are identical, so the stored poses are still valid. Re-stamped `map_id` 38253aab → 350de9b5 in `~/.config/project_atlas/named_places.json` (5 places), `home_pose.json` (1) and `localization_seed_pose.json` (1). Backups are `*.before-mapid-20261116`. The top-level `map_id` key in named_places (d12a1f18…) was left unchanged.
+- Still referencing the old id: the remap-13 acceptance/review records (historical; not changed). **Lesson:** any edit to the accepted YAML changes the map identity; future map-config fixes must re-stamp the places, home and seed in the same step.
+- Recording `dhruvroom_test3_20261116` (24 topics, as bag 8) started for the owner's room test.
+
+### 2026-11-16 ~18:50 IST — Offline replay of bag 8: virtual obstacles + unknown fix (read-only, rover parked)
+- Tool: `tools/drive/replay_map_known_gaps.py`, with new env options `FREE_THRESH`, `VIRTUAL_OBSTACLES` and `BANDS`. Settings: `TIGHT_ARC_SWEPT=1`, bag `stage3_roundtrip8_20261116`, 9 348 scans while Nav2 commanded motion.
+- The replay has no ultrasonic coverage, so live vetoes in front/rear bins are lower. It includes the owner-assisted part.
+- Scans the guard would still veto under the sweep-aware rule:
+
+| Variant | All | Door band y −3..−4 | Hall y −4..−5 | Hall y −5..−6 |
+|---|---|---|---|---|
+| A: old (unknown = free, no virtual) | 94 % | 97 % | 99 % | 100 % |
+| C: unknown fix only | 94 % | 98 % | 99 % | 100 % |
+| D: virtual obstacles only | 41 % | 96 % | 19 % | 25 % |
+| B: now live (both) | 41 % | 96 % | 19 % | 25 % |
+
+- **Reading:**
+  - The unknown fix is a correctness/safety fix. On this route it neither helps nor hurts: the explained rays ended at real walls.
+  - The virtual obstacles cut hall vetoes from ~100 % to ~20 %.
+  - The **door band stays ~96 % vetoed**. The frames are too close for the map rule, so the physical fix (paper/tape on both door frames so the LiDAR sees them) is still needed.
+  - Rooms y −3..+1 are unchanged (7–52 %).
+  - The earlier note that the replay numbers are "stale" is resolved for this bag: the fix does not change them.
+
+### 2026-11-16 ~18:40 IST — CONFIRMED: saved map's unknown cells load as FREE (free_thresh 0.25 vs grey 205)
+- Found by the guided-mapping session's replay, then confirmed read-only on the parked rover.
+  - `atlas_latest.pgm` holds 44 608 unknown (205), 10 453 free (254) and 1 801 occupied (0) pixels.
+  - The live `/map` (map_server, trinary) has 55 061 free (0), 1 801 occupied (100) and **zero unknown** cells.
+- Cause: (255 − 205) / 255 = 0.196 < `free_thresh: 0.25`, so map_server loads unknown pixels as free. `map_autosaver_node.py` declares `free_thresh` 0.25, and every saved map since at least 2026-08 carries it (10 map yamls).
+- Effect, partly suspected:
+  - The global costmap and planner treat unmapped space as free.
+  - AMCL free space includes unmapped areas.
+  - The LiDAR guard's map-known rays pass through unmapped space as if it were free and stop only at a mapped wall or the map edge. Some blind bins may therefore have been "explained" through space that was never mapped. The 2026-11-16 map-gap replays should be re-checked with 205 = unknown.
+- **FIXED 18:28 IST (owner "Yes, fix it").** Rover state: `/atlas/motion_safety` = "REMOTE STOP: joystick unavailable", autonomy not armed.
+  - Changed `atlas_latest.yaml` free_thresh 0.25 → 0.196 (backup `atlas_latest.yaml.before-freethresh-20261116`).
+  - Changed the `map_autosaver_node.py` default to 0.196 (repo + rover, md5 c34ebd6a; backup in `backups/virtual_obstacles_20261116/`). Its writer also uses free_thresh to classify cells (≤ 19 instead of ≤ 25 → free); SLAM values are almost all 0/100/−1.
+  - Restarted `atlas-localization` only.
+  - Verified: `/map` free 10 453 / occupied 1 801 / unknown 44 608, exactly the PGM's pixel counts. `/map_nav` 867 cells marked. Global costmap: sofa 100, hall place 0, home 0. AMCL seeded from a LiDAR-verified pose (−1.265, 0.185). Mux shows no map errors; it re-receives the latched `/map`.
+  - Not verified: any drive. Expect more LiDAR-guard vetoes and fewer planner shortcuts near unmapped areas. The 2026-11-16 map-gap replay numbers were computed with unknown-as-free and are now stale.
+- Candidate fix, as first written (now applied): `free_thresh: 0.196` in `atlas_latest.yaml` (the ROS standard for 205 pixels) and in the autosaver default; restart localization with the rover parked and latched. Expect more guard vetoes near poorly mapped areas (fails safe).
+
+### 2026-11-16 18:20 IST — Guided mapping assistant: design + phase-1a offline modules (NOT deployed)
+- **Owner request:** the owner drives; the dashboard shows the map building live with a per-area verdict (accepted / weak / "drive here again"); depth + LiDAR + ultrasonic are used, so objects the LiDAR cannot see are captured. Design: `docs/design/guided_mapping_assistant.md` (SLAM stays LiDAR-only; acceptance gate unchanged; phase 2 exploration only after Stage 3).
+- **New, pure Python, offline only:**
+  - `scripts/atlas_map_quality_core.py` (tiles, frontiers, English prompts);
+  - `scripts/atlas_invisible_objects_core.py` (depth/ultrasonic where the LiDAR is silent, plus a "map change" layer for LiDAR returns on map-free cells);
+  - `tools/mapping/bag_reader.py` (sqlite3 + CDR, no ROS) and `tools/mapping/replay_guided_mapping.py`;
+  - tests 24/24 on the Mac.
+- **Replay of `stage3_roundtrip8_20261116`** (`docs/design/guided_mapping_replay8_20261116.png`):
+  - Depth+ultrasonic candidates at the hall-door/corridor frame (x 1.7–2.35, y −2.7…−1.8), the dark wallpaper wall (x −0.1–0.45, y −7.25…−6.95) and the corridor point (x 1.8–2.05, y −3.55…−3.2).
+  - Map change at the sofa's near corner (x 0.45–0.75, y −5.0…−4.7), overlapping the confirmed sofa polygon.
+  - Not found: the glass table and the cabinet (the rover reached only y −5.14); ultrasonic-only candidates in Dhruv Room are unconfirmed.
+- **Evidence gap (verify read-only, parked):** with `free_thresh: 0.25`, PGM 205 would load as FREE by the threshold rule alone (0.196 < 0.25). The replay forces 205 = unknown. Not checked: how the live `/map` encodes those cells.
+- **Not done:** live node, dashboard overlay and prompts (phase 1b) all need the owner's "Yes, deploy". No motion and no rover changes were made in this work.
+
+### 2026-11-16 18:04 IST — Virtual obstacles for LiDAR-invisible hall furniture (DEPLOYED, owner "Yes, deploy")
+- **Triggering evidence: Stage-3 attempt 8** (bag `stage3_roundtrip8_20261116`, 24 topics incl. `/cmd_vel_joy`, `/atlas/control_policy`).
+  - The rover reached the hall door unassisted.
+  - At the door, Nav2 asked for reverse + turn (−0.11 m/s, 0.3 rad/s). Blind side/rear bins vetoed it: 4–6 empty bins on both door frames.
+  - After owner assistance, the goal "tes 3 hall" (0.98, −6.16) was blocked by an unexplained front-right gap (−25/−30°). The map was unknown/free there, but the black leather sofa stands there.
+  - LiDAR returns on map-free cells: sofa cluster (0.0–0.7, −4.8…−5.6), cabinet (2.4–2.8, −4.3…−4.5), right side (3.0–3.2, −5.5…−6.2).
+  - Astra depth sees the dark wallpaper wall at y ≈ −6.5…−7.1. Owner confirmed the picture and the glass table between the sofa corner and the wallpaper wall (`docs/audits/hall_unmapped_objects_20261116.png`).
+  - Mission control reports "NAMED GOAL FINISHED status=6" instantly on goal preemption while the old goal still runs. This is a reporting bug, still open.
+- **Fix:** `config/virtual_obstacles.json` holds three owner-confirmed polygons: sofa x[−0.30, 0.75] × y[−6.40, −4.70], glass table x[0.80, 1.35] × y[−6.30, −5.60], cabinet x[2.35, 2.90] × y[−4.60, −4.20]. Positions are estimated from recordings, not measured.
+  - `scripts/atlas_virtual_obstacles.py` republishes `/map` as `/map_nav` with these cells occupied; it is started from `atlas_localization.launch.py`. Both `static_layer.map_topic` entries in `nav2_params.yaml` → `/map_nav`.
+  - AMCL and `atlas_latest.pgm` are untouched. The polygons only add occupied cells and never clear any. A bad config publishes the plain map and logs an error.
+  - Cmd_vel mux: `lidar_guard_virtual_obstacles` (default the same JSON) overlays the polygons on the guard's map copy. A gap toward the sofa is a known wall at the polygon edge (still vetoed if closer than the sweep-aware required distance, or if the camera sees something closer).
+- **Tests:** `tests/test_virtual_obstacles.py` 8/8 on the Mac and on the rover. `test_lidar_map_known_gaps` and `test_lidar_availability` pass on the Mac; together with the new file that is 42.
+- **Deploy (rover parked, `/atlas/motion_safety` = "REMOTE STOP: B pressed", autonomy not armed):** backups in `~/project_atlas/backups/virtual_obstacles_20261116/` (mux, live ws `nav2_params.yaml` md5 0996584…, launch). Restarted `atlas-cmd-vel-mux` and `atlas-localization`.
+  - Verified: mux "LiDAR guard: 3 virtual obstacles"; node "/map 234x243: 867 cells marked".
+  - Verified: `global_costmap static_layer.map_topic` = `/map_nav`. The global costmap is 100 at the sofa (0.2, −5.5), table (1.07, −5.95) and cabinet (2.6, −4.4), and 0 at the hall place (1.68, −5.35).
+  - The local costmap has no static layer in its plugin list (LiDAR + Astra only), so it is unchanged.
+  - AMCL was re-seeded by the seeder (LiDAR-verified, x = −1.265, y = 0.185).
+- **Not verified:** any drive with this change. The polygon positions are estimates; edit the JSON if the furniture moves, then restart both services with the rover parked and latched. The "tes 3 hall" place (0.98, −6.16) lies INSIDE the glass-table polygon (goals there will now be refused), so use the "hall" place. The door-frame blind bins still need the owner's paper/tape.
+
 ### 2026-11-16 ~22:00 — Abort mission button, quiet narrator, drive CPU budget (staged, NOT deployed)
 - **Abort mission** (owner: "one button to abort the mission"): `POST /api/autonomy {action: abort}`. It first switches to Manual (mux disarm; the mux then blocks every Nav2 command), then publishes `/atlas/cancel_navigation` (mission control: zero Twist + cancel all Nav2 goals). Needs no PIN and is never refused; logged `mission_abort`. Red "Abort mission" buttons on the Command center autonomy panel and the Navigation page (no confirmation dialog: it only stops). Tests: `test_autonomy_abort` 2/2. Fixed the leftover Hinglish link text ("Autonomy readiness: what is blocking / how to clear it").
 - **Narrator** (owner: "after it stops it keeps talking"): obstacle/safety reasons are spoken only while a goal is running; repeat window 15 → 45 s; "NAVIGATION CANCELED" → "मिशन रद्द। मैं रुक गया हूँ।" once, then quiet. Tests: `test_autonomy_voice` 12/12.

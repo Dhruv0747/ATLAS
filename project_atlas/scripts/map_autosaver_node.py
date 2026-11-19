@@ -16,7 +16,7 @@ class MapAutosaver(Node):
         self.declare_parameter("output_prefix", "/home/jetson/project_atlas/maps/autosave")
         self.declare_parameter("save_interval_sec", 120.0)
         self.declare_parameter("occupied_thresh", 0.65)
-        self.declare_parameter("free_thresh", 0.25)
+        self.declare_parameter("free_thresh", 0.196)  # 2026-11-16: 0.25 loaded grey-205 unknown pixels as FREE
 
         self.map_topic = self.get_parameter("map_topic").value
         self.map_service = "/slam_toolbox/dynamic_map"

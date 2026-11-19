@@ -17,6 +17,7 @@ from std_msgs.msg import Empty, Float32, String
 from sensor_msgs.msg import Joy, LaserScan
 from nav_msgs.msg import OccupancyGrid
 import atlas_lidar_availability as lidar_avail
+import atlas_virtual_obstacles
 from atlas_lidar_availability import LidarAvailability
 from atlas_autonomy_arm import AutonomyArm
 from std_srvs.srv import Trigger
@@ -97,6 +98,18 @@ class AtlasCmdVelMux(Node):
         self.declare_parameter('lidar_guard_map_gaps', True)
         self.lidar_guard_map_gaps = bool(self.get_parameter('lidar_guard_map_gaps').value)
         self.map_grid = None
+        # 2026-11-16 owner-confirmed virtual obstacles (sofa / glass table / cabinet the LiDAR cannot see): the same
+        # polygons Nav2 gets on /map_nav are added to the guard's map copy, so a gap toward them is a KNOWN wall at the
+        # polygon edge. Only adds occupied cells. '' disables.
+        self.declare_parameter('lidar_guard_virtual_obstacles', atlas_virtual_obstacles.DEFAULT_CONFIG)
+        self.guard_virtual_polygons = []
+        vpath = str(self.get_parameter('lidar_guard_virtual_obstacles').value)
+        if vpath:
+            try:
+                self.guard_virtual_polygons = atlas_virtual_obstacles.load_polygons(vpath)
+                self.get_logger().info(f'LiDAR guard: {len(self.guard_virtual_polygons)} virtual obstacles from {vpath}')
+            except (OSError, ValueError, TypeError, IndexError, KeyError) as exc:
+                self.get_logger().error(f'LiDAR guard: virtual obstacles NOT loaded ({vpath}): {exc}')
         if self.lidar_guard_map_gaps:
             self.create_subscription(OccupancyGrid, '/map', self.on_guard_map, QoSProfile(
                 depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL, reliability=ReliabilityPolicy.RELIABLE))
@@ -344,7 +357,9 @@ class AtlasCmdVelMux(Node):
 
     def on_guard_map(self, msg):
         try:
-            self.map_grid = lidar_avail.OccGrid.from_msg(msg)
+            grid = lidar_avail.OccGrid.from_msg(msg)
+            polys = getattr(self, 'guard_virtual_polygons', [])
+            self.map_grid = atlas_virtual_obstacles.overlay_grid(grid, polys) if polys else grid
         except (AttributeError, TypeError, ValueError) as exc:
             self.map_grid = None
             self.get_logger().warn(f'LiDAR guard: map not usable for map-known gaps: {exc}')

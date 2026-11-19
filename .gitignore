@@ -51,3 +51,8 @@ Thumbs.db
 
 # Local document rendering/QA intermediates
 tmp/
+
+# Local-only folders that are not part of ATLAS (separate project; remote-desktop connection file)
+photo-organizer-mcp/
+remote/
+*.rdp

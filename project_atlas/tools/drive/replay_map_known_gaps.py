@@ -5,6 +5,9 @@ For every recorded /scan while Nav2 commanded motion (/cmd_vel_nav), rebuild the
 atlas_lidar_availability (travel cone + swept bins) and report how many scans stay vetoed when missing bins may be
 explained by the accepted map (map_known_bins) at several minimum wall distances. AMCL confidence gates as in the mux.
 Usage: replay_map_known_gaps.py MAP_YAML BAG [BAG ...]
+Env (2026-11-16): FREE_THRESH=0.196 overrides the yaml free_thresh (0.25 loaded grey-205 unknown pixels as FREE);
+VIRTUAL_OBSTACLES=config/virtual_obstacles.json overlays the owner-confirmed polygons like the mux does.
+BANDS=1 also prints vetoed scans per 1 m band of map y (AMCL pose) for the sweep-aware rule.
 """
 import bisect, math, os, sys
 from pathlib import Path
@@ -29,7 +32,7 @@ def load_map(yaml_path):
         toks.append(data[i:j]); i = j
     i += 1
     w, h = int(toks[1]), int(toks[2]); px = data[i:i + w * h]
-    neg = int(meta.get('negate', 0)); occ_th = meta.get('occupied_thresh', 0.65); free_th = meta.get('free_thresh', 0.25)
+    neg = int(meta.get('negate', 0)); occ_th = meta.get('occupied_thresh', 0.65); free_th = float(os.environ.get('FREE_THRESH') or meta.get('free_thresh', 0.25))
     grid = [0] * (w * h)
     for row in range(h):                       # pgm row 0 = top; OccupancyGrid row 0 = bottom
         for col in range(w):
@@ -44,6 +47,11 @@ def main():
     from sensor_msgs.msg import LaserScan
     from geometry_msgs.msg import Twist, PoseWithCovarianceStamped
     grid = load_map(sys.argv[1])
+    if os.environ.get('VIRTUAL_OBSTACLES'):
+        import atlas_virtual_obstacles as vo
+        grid = vo.overlay_grid(grid, vo.load_polygons(os.environ['VIRTUAL_OBSTACLES']))
+    print('map: unknown cells', sum(1 for c in grid.data if c < 0), '| free', grid.data.count(0),
+          '| occupied', sum(1 for c in grid.data if c >= 65))
     for bag in sys.argv[2:]:
         r = rosbag2_py.SequentialReader()
         r.open(rosbag2_py.StorageOptions(uri=bag, storage_id='sqlite3'), rosbag2_py.ConverterOptions('cdr', 'cdr'))
@@ -61,7 +69,7 @@ def main():
                            math.sqrt(max(0, c[0]) + max(0, c[7])), math.degrees(math.sqrt(max(0, c[35])))))
         nt = [n[0] for n in nav]; at = [a[0] for a in am]; ct = [c[0] for c in cov]
         thresholds = (None, 0.4, 'sweep')
-        blocked = {k: 0 for k in thresholds}; total = 0; gated = 0
+        blocked = {k: 0 for k in thresholds}; total = 0; gated = 0; bands = {}
         for s, sc in scans:
             i = bisect.bisect_right(nt, s) - 1
             if i < 0 or s - nav[i][0] > 0.5 or abs(nav[i][1]) < 0.02:
@@ -88,11 +96,18 @@ def main():
                                                         obstacles=g.obstacles(0.0), extent=ext)
                 if left:
                     blocked[k] += 1
+                if k == 'sweep' and j >= 0:
+                    band = math.floor(am[j][2])
+                    b = bands.setdefault(band, [0, 0]); b[0] += 1; b[1] += 1 if left else 0
         print(os.path.basename(bag.rstrip('/')), 'coverage msgs', len(cov), 'moving scans', total,
               '| missing but AMCL not confident:', gated)
         for k in thresholds:
             print('   %-22s blocked %5d  (%.0f%%)' % ('no map rule' if k is None else ('sweep-aware' if k == 'sweep' else 'fixed >= %.2f m' % k),
                                                     blocked[k], 100.0 * blocked[k] / max(1, total)))
+        if os.environ.get('BANDS'):
+            for band in sorted(bands, reverse=True):
+                n, bl = bands[band]
+                print('   y %+d..%+d m: moving scans %4d  vetoed (sweep) %4d  (%.0f%%)' % (band, band + 1, n, bl, 100.0 * bl / max(1, n)))
 
 
 if __name__ == '__main__':
