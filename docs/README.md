@@ -321,7 +321,7 @@ Start with the guides below, then browse by topic. Folders: `audits/` investigat
 
 </details>
 
-## Other (20)
+## Other (21)
 
 <details><summary>Show documents</summary>
 
@@ -332,6 +332,7 @@ Start with the guides below, then browse by topic. Folders: `audits/` investigat
 - [Capability-aware fallback: work plan and increment 1](CAPABILITY_FALLBACK_WORK_PLAN_2026-09-20.md)
 - [Lifted commissioning failure audit — 2026-10-08](LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md)
 - [Navigation foundation audit - 2026-08-04](NAVIGATION_FOUNDATION_AUDIT_2026-08-04.md)
+- [PR15 dual-client integration — 2026-10-31](PR15_CODEX_CLAUDE_INTEGRATION.md)
 - [Track A gate G2: Astra mount measurements, recovered from existing records (2026-11-06)](TRACK_A_G2_MEASUREMENTS.md)
 - [Track A test report — 2026-11-06 (software only)](TRACK_A_TEST_REPORT_20261106.md)
 - [UNO bridge polling reduction (offline change)](UNO_BRIDGE_POLLING_2026-10-04.md)
