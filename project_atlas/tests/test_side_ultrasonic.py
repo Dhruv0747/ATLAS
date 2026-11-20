@@ -84,6 +84,32 @@ class CoverageTests(unittest.TestCase):
             ala.SIDE_US_MOUNTS = old
 
 
+def bridge_swap():
+    tree = ast.parse((SCRIPTS / 'ultrasonic_arduino_bridge.py').read_text(encoding='utf-8'))
+    fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'swap_left_right_payload')
+    ns = {}
+    exec(compile(ast.Module(body=[fn], type_ignores=[]), 'bridge', 'exec'), ns)
+    return ns['swap_left_right_payload']
+
+
+class SwapTests(unittest.TestCase):
+    def test_left_right_exchanged_and_marked(self):
+        f = bridge_swap()
+        p = {'reason': 'SAMPLE_REPORT', 'sensors': {'front': {'range_mm': 1}, 'left': {'range_mm': 226},
+                                                     'right': {'range_mm': 238}, 'rear': {'range_mm': 4}}}
+        q = f(p)
+        self.assertEqual(q['sensors']['left']['range_mm'], 238)
+        self.assertEqual(q['sensors']['right']['range_mm'], 226)
+        self.assertEqual(q['sensors']['front'], p['sensors']['front'])
+        self.assertTrue(q['left_right_swapped'])
+        self.assertEqual(p['sensors']['left']['range_mm'], 226)           # input not modified
+
+    def test_invalid_snapshot_passes_through(self):
+        f = bridge_swap()
+        p = {'reason': 'SERIAL_BACKLOG', 'sensors': {}}
+        self.assertIs(f(p), p)
+
+
 class BridgeTests(unittest.TestCase):
     def test_channels_touched_only_when_explicit(self):
         f = bridge_function()

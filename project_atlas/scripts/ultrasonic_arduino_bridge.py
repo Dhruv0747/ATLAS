@@ -48,6 +48,25 @@ HUB_TRANSPORT = os.environ.get('ATLAS_SENSOR_HUB_TRANSPORT', 'arduino_uno_r4').s
 FRONT_ULTRASONIC_ENABLED = os.environ.get('ATLAS_FRONT_ULTRASONIC_ENABLED', '0').strip() == '1'
 
 
+# 2026-11-20 owner: the UNO left (D4/D5) and right (D6/D7) channels are wired to the opposite physical sides.
+# ATLAS_ULTRASONIC_SWAP_LR=1 exchanges them in every published output (left_mm/right_mm, /ultrasonic/status and
+# /ultrasonic/validity), so ROS always uses PHYSICAL sides. The UNO LED matrix still shows the firmware channel letters.
+SWAP_LEFT_RIGHT = os.environ.get('ATLAS_ULTRASONIC_SWAP_LR', '0').strip() == '1'
+
+
+def swap_left_right_payload(payload):
+    """Copy of a validity payload with the left/right sensor entries exchanged (marked left_right_swapped)."""
+    sensors = payload.get('sensors') if isinstance(payload, dict) else None
+    if not isinstance(sensors, dict) or 'left' not in sensors or 'right' not in sensors:
+        return payload
+    out = dict(payload)
+    swapped = dict(sensors)
+    swapped['left'], swapped['right'] = sensors['right'], sensors['left']
+    out['sensors'] = swapped
+    out['left_right_swapped'] = True
+    return out
+
+
 def side_ultrasonic_commands(environ):
     """2026-11-19: USENABLE commands for the UNO left/right channels (front-corner HC-SR04s, pins D4/D5, D6/D7).
     A channel is touched only when its variable is explicitly '0' or '1'; otherwise its firmware setting is left as is."""
@@ -635,6 +654,8 @@ class UltrasonicArduinoBridge(Node):
         self.dashboard_cache_set('thermal_status', status, timestamp)
 
     def publish_ultrasonic_validity(self, payload):
+        if SWAP_LEFT_RIGHT:
+            payload = swap_left_right_payload(payload)
         text = json.dumps(payload, allow_nan=False, separators=(',', ':'))
         self.validity_pub.publish(String(data=text))
         self.dashboard_cache_set('us_validity', text)
@@ -842,6 +863,8 @@ class UltrasonicArduinoBridge(Node):
         front = int(values['front'])
         left = int(values['left'])
         right = int(values['right'])
+        if SWAP_LEFT_RIGHT:
+            left, right = right, left
         rear = int(values['rear']) if values['rear'] is not None else -1
         if values['ok'] != '1':
             front = left = right = rear = -1

@@ -1,5 +1,15 @@
 # ATLAS current blockers
 
+### 2026-11-20 — Left/right ultrasonic SWAPPED in software (owner) + measured sensor heights
+- Owner: the UNO left (D4/D5) and right (D6/D7) channels are wired to the opposite physical sides.
+- Deployed: bridge `swap_left_right_payload()` / `SWAP_LEFT_RIGHT`, and `ATLAS_ULTRASONIC_SWAP_LR=1` in `side-ultrasonic.conf`. `/ultrasonic/left_mm`, `right_mm`, `/ultrasonic/status` and `/ultrasonic/validity` now use physical sides; validity carries `left_right_swapped: true`. Backup `ultrasonic_arduino_bridge.py.before-lr-swap`.
+- Restarted `atlas-uno-r4-sensor-hub` only (stop held, autonomy not armed). After the restart: left 238–242 mm, right 233 mm, all VALID, no mux ultrasonic errors.
+- The UNO LED matrix still labels the firmware channels (its "L" is the physical right); fixing that needs a firmware flash.
+- Tests: `test_side_ultrasonic` 9/9 (2 new).
+- **Heights measured by the owner** (floor to transducer centre): front 0.175 m, left 0.23 m, right 0.23 m, rear 0.23 m (LiDAR plane 0.18 m). Recorded in `config/ultrasonic_mounts.json`.
+- **Likely cause of the occasional 0.71–0.72 m front/rear samples: floor echoes.** From 0.175 m and 0.23 m height, the floor is 13.9° and 17.7° below the axis at 0.71/0.72 m, inside an HC-SR04's side lobes (about ±15°). Suggested: tilt front and rear up by about 5–10°. Earlier "cross-talk" suspicion is weaker.
+- Physical-side comparison with the LiDAR (same parked spot): left 0.24 m vs side wall about 0.20 m from the body (+4 cm); right 0.23 m vs nearest LiDAR return about 0.31 m from the body (−8 cm). The right sensor still sees something nearer than the LiDAR plane; owner checking its aim.
+
 ### 2026-11-20 ~10:30 IST — All four HC-SR04 vs LiDAR, rover parked in a narrow spot (read-only)
 - 30 s and 15 s windows, 4 channels enabled, all VALID:
   - **Front:** median 1.756 m; LiDAR at the bumper 1.80 m (diff −4 cm). The 30 s run had 12/101 short samples (min 0.708 m); the 15 s run had 0.
