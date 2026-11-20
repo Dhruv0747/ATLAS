@@ -4,6 +4,7 @@
 - The owner reported "speed test pass, autonomy on". Control policy: armed true, manual_only false, stop latched.
 - No Speed check ran after 11:33 today. The last start attempt aborted: "front clearance 0.54 m < 1.00 m needed to start". The newest result file is still `speed_loop_check_20261120_113323.json`.
 - PASS files at a requested 0.15 m/s: 20261116_075316 (from before the 11:26 curvature deploy) and 20261120_112944 (after it). `atlas_autonomy_arm.speed_evidence` needs 2 PASS newer than `speed_loop.yaml` + `atlas_speed_loop.py`. It does not track `yahboom_base.py`, so it accepted the pre-fix PASS.
+- Follow-up: another start attempt also aborted: "front clearance 0.05 m < 1.00 m needed to start", and no result file was written. The Readiness page shows "2/2 PASS" because it counts the same two PASSes (11-16 and 11-20 11:29).
 - By the 2026-11-20 rule (a yahboom_base change makes the speed evidence stale), only 1 of the 2 required post-fix PASSes exists. Open: one more Speed check (1.5 m clear ahead), and decide whether to add `yahboom_base.py` to SPEED_LOOP_CODE.
 
 ### 2026-11-20 18:02 IST — Dashboard Restart PASSED (real press by the owner)
