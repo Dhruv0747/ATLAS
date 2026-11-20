@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+### 2026-11-20 13:50 IST — Slower 4G failover INSTALLED + USB hub autosuspend off (owner typed the sudo password)
+- Ran from the owner's terminal tab (ssh + sudo; the owner entered the password).
+- Installed `/usr/local/lib/atlas-network/atlas_network_fallback.py` md5 b6eee7d5 (backup `atlas_network_fallback.py.before-slow-failover`). Restarted `atlas-network-fallback` at 13:50:43.
+- Verified: active; "Uplink=WIFI hotspot=False Wi-Fi=True cellular=True"; status mode WIFI on wlP1p1s0.
+- `/sys/bus/usb/devices/1-2.4/power/control` = on (autosuspend off on the modem hub). **Not persistent across reboot**; a udev rule would make it permanent (owner decision).
+- To verify on the next hall drive: modem disconnect bursts (`usb 1-2.4.1: USB disconnect` count) and system stalls.
+
 ### 2026-11-20 — Slower Wi-Fi→4G failover built (owner keeps the modem; install needs the owner's sudo)
 - `atlas_network_fallback.py` (repo = installed copy before the change, md5 b165e9e2):
   - `Policy.WIFI_FAIL_CYCLES = 6`: Wi-Fi must fail six consecutive checks, about 40–50 s, before traffic is routed through the SIM (was 3, about 20 s);
