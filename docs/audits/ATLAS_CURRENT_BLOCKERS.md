@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+### 2026-11-20 — Slower Wi-Fi→4G failover built (owner keeps the modem; install needs the owner's sudo)
+- `atlas_network_fallback.py` (repo = installed copy before the change, md5 b165e9e2):
+  - `Policy.WIFI_FAIL_CYCLES = 6`: Wi-Fi must fail six consecutive checks, about 40–50 s, before traffic is routed through the SIM (was 3, about 20 s);
+  - during a short Wi-Fi blip the SIM is probed on the normal 30 s cadence, and every cycle only when failover is one check away or cellular is selected (was every cycle from the first Wi-Fi failure);
+  - Wi-Fi recovery (3 good checks) and the hotspot rule are unchanged.
+- Tests: `test_network_fallback` 13/13 (Mac and rover); new short-blip test.
+- Staged at `~/project_atlas/scripts/atlas_network_fallback.py` (md5 b6eee7d5). **Not installed:** `/usr/local/lib/atlas-network/` is root-owned, so the owner runs the sudo install (and optionally `echo on > /sys/bus/usb/devices/1-2.4/power/control` for hub autosuspend).
+- Verification after install: modem disconnect count and stalls on the next hall drive.
+
 ### 2026-11-20 — 4G modem reconnect storms: chain of events (read-only; owner keeps the modem)
 - The 167 disconnects of the SIMCOM modem (USB 1-2.4.1) come in **bursts** (median interval 2.6 s; gaps up to 920 s), not steadily.
 - Bursts per minute: 12:45–12:50 (10, 7, 10, 29), 13:10–13:11 (12, 13), 13:16–13:17 (6, 6). They coincide with the rover being in or near the hall/doorway and with today's stalls (13:11:05, 13:17:58).
