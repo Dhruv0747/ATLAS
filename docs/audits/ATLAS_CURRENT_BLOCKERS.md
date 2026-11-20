@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+### 2026-11-20 — CORRECTION: enabling left/right ultrasonic ACTIVATED the existing autonomy side stop
+- The 10:xx entries said the side readings were "informational only". **That was wrong.**
+- The deployed mux already calls `ValidityWindow.veto(..., side_stop=auto_side_stop_m 0.28)`. While Nav2 turns left (wz > 0.05) or right (wz < −0.05), a fresh VALID reading ≤ 0.28 m on that side gives `AUTONOMY BLOCKED: LEFT/RIGHT <d> m`.
+- The channels were DISABLED before, so the rule was dormant. Enabling them, and the later left/right swap, made it live. The rover file is identical to the repo (md5 8f39f24c).
+- It only blocks autonomy (fails safe) and has not fired this boot (no autonomous drive). Front/rear stay advisory for missing data (`ATLAS_ULTRASONIC_ADVISORY=1`), but a close VALID front/rear reading still blocks.
+- **Risk:** the right sensor reads short of the LiDAR (0.23 m vs about 0.31 m; 0.158 m at 10:5x in another spot). If it sees part of the rover, every right turn would be blocked. Owner to check the right sensor in open space; if it stays below 0.28 m with nothing beside it, disable the right channel (`ATLAS_RIGHT_ULTRASONIC_ENABLED=0`) until fixed.
+- The LiDAR-guard side coverage (`config/ultrasonic_mounts.json`) is still disabled and not deployed.
+
 ### 2026-11-20 — Left/right ultrasonic SWAPPED in software (owner) + measured sensor heights
 - Owner: the UNO left (D4/D5) and right (D6/D7) channels are wired to the opposite physical sides.
 - Deployed: bridge `swap_left_right_payload()` / `SWAP_LEFT_RIGHT`, and `ATLAS_ULTRASONIC_SWAP_LR=1` in `side-ultrasonic.conf`. `/ultrasonic/left_mm`, `right_mm`, `/ultrasonic/status` and `/ultrasonic/validity` now use physical sides; validity carries `left_right_swapped: true`. Backup `ultrasonic_arduino_bridge.py.before-lr-swap`.
