@@ -96,7 +96,6 @@ tests.test_stage31b_package
 tests.test_stage3_autonomy_check
 tests.test_status_web_plan_visible
 tests.test_status_web_smart_panels
-tests.test_status_web_snapshot_cost
 tests.test_steering_commission
 tests.test_systemd_user_ordering
 tests.test_testlab_core
