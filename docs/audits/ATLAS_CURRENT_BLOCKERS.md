@@ -1,5 +1,22 @@
 # ATLAS current blockers
 
+### 2026-11-20 13:04–13:37 IST — Round trip 4: both legs SUCCEEDED (bag `hall_auto4_20261120_1304`, 31 min)
+- Changes in force: "hall" heading −120° and "dhruv room" heading 65° (owner request; backup `named_places.json.before-headings-20261120`); radius-aware side stop; mission-control fix; curvature fix.
+- **Stage-3 checker: 3/5.**
+  - **legs PASS:** hall 4 (13:07:42, 2 min 15 s, one owner assist); final dhruv room 4 (13:36:46).
+  - **return_home FAIL:** 0.20 m (within 0.30) but **131°** from the start pose; the trip did not start at the "dhruv room" place facing 65°.
+  - **safe_stop FAIL:** no owner B while Nav2 drove this time.
+  - turn_sign PASS 6/629; encoders PASS.
+- Return-leg problems, all logged:
+  - **System stalls** at 13:11:05–13:11:13 and 13:17:58: encoder, localization, scan and camera all stale at once. The camera-stale cancel fired (status 5), then AMCL jumped 1.05 m.
+  - Kernel: the **SIMCOM 4G modem (USB 1-2.4.1) disconnected 167 times this boot** (about every 37 s) on a bus-powered USB2 hub (1-2.4, 100 mA) that also carries the TGZ/xpad controller dongle (500 mA) and a CH341 serial.
+  - Another device on that hub (1-2.4.2) failed to enumerate with a power cycle at 13:18:02. The LiDAR serial re-enumerated at 12:39.
+  - Load average 10–12 on 6 cores, with polkitd at 21–29 % CPU (likely NetworkManager/polkit churn from the modem reconnects).
+  - **Suspected root cause (not proven): USB power/brown-out on hub 1-2.4 driven by the modem.** Owner action proposed: unplug the 4G modem; later, a powered hub.
+  - Doorway LiDAR-blind vetoes (5–6 bins) again led to progress-checker aborts; the owner assisted through the door.
+  - In a narrow passage near (0.88, −0.53) the RPP collision check gave zero velocity (walls at 0.50 / 0.58 m from the laser). My first "phantom Astra marks" diagnosis was **wrong**: clearing both costmaps (owner-approved) changed nothing, and the ring is real walls inflated.
+  - Separate open question: the Astra layer uses `inf_is_valid: false`, so empty views never clear old Astra marks (not the cause here).
+
 ### 2026-11-20 ~12:58 IST — Radius-aware inner-side stop DEPLOYED (owner "Yes, push and deploy"; "B pressed")
 - State: `/atlas/motion_safety` = "REMOTE STOP: B pressed", autonomy not armed.
 - Rover `atlas_ultrasonic_validity.py` was the pre-change version (md5 8f39f24c). Backup `…/atlas_ultrasonic_validity.py.before-radius-side`. Deployed md5 3fc62bf9 (commit 95558a2). Restarted `atlas-cmd-vel-mux` only.
