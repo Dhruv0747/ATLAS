@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+### 2026-11-20 18:15 IST — Autonomy ARMED; no new Speed check ran; arm gate counts a pre-curvature-fix PASS
+- The owner reported "speed test pass, autonomy on". Control policy: armed true, manual_only false, stop latched.
+- No Speed check ran after 11:33 today. The last start attempt aborted: "front clearance 0.54 m < 1.00 m needed to start". The newest result file is still `speed_loop_check_20261120_113323.json`.
+- PASS files at a requested 0.15 m/s: 20261116_075316 (from before the 11:26 curvature deploy) and 20261120_112944 (after it). `atlas_autonomy_arm.speed_evidence` needs 2 PASS newer than `speed_loop.yaml` + `atlas_speed_loop.py`. It does not track `yahboom_base.py`, so it accepted the pre-fix PASS.
+- By the 2026-11-20 rule (a yahboom_base change makes the speed evidence stale), only 1 of the 2 required post-fix PASSes exists. Open: one more Speed check (1.5 m clear ahead), and decide whether to add `yahboom_base.py` to SPEED_LOOP_CODE.
+
 ### 2026-11-20 18:02 IST — Dashboard Restart PASSED (real press by the owner)
 - `estop_events.jsonl`: `reboot_latch` at 18:01:29 from 192.168.1.7 (local Wi-Fi). The rover rebooted, boot time 18:02:07, and was back on SSH by 18:03:08.
 - After boot: rover-status-web active; no failed system or user units; stop latched ("REMOTE STOP: joystick unavailable"); autonomy armed false. The fallback md5 b6eee7d5 and both sudoers files persist.
