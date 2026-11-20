@@ -42,6 +42,7 @@
         <a class="headerBtn cloud" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/" title="Open the read-only ATLAS Visual Cloud live ROS observability dashboard."><svg class="icon"><use href="/v2/assets/icons.svg#i-cloud"/></svg>Visual cloud</a>
         <a class="headerBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" title="Open two-way ATLAS intercom. The camera stream closes to preserve call quality and AI Voice pauses during the call."><svg class="icon"><use href="/v2/assets/icons.svg#i-phone"/></svg>Talk / listen</a>
         <a href="/v2/classic.html"><svg class="icon"><use href="/v2/assets/icons.svg#i-back"/></svg>Classic layout</a>
+        <button class="hm-danger" id="restartButton" onclick="restartAtlas()"><svg class="icon"><use href="/v2/assets/icons.svg#i-power"/></svg>Restart Jetson</button>
         <button class="hm-danger" id="shutdownButton" onclick="shutdownAtlas()"><svg class="icon"><use href="/v2/assets/icons.svg#i-power"/></svg>Shut down Jetson</button>
       </div>
     </details>
@@ -258,7 +259,7 @@
   <span class="dock-note">E-STOP sends one zero-speed command. Also release any drive button you are holding.</span>
 </div>
 
-<script src="/diagnostics.js" defer></script>
+<script src="/diagnostics.js?v=20261120restart" defer></script>
 <script src="/v2/flight-instruments.js" defer></script>
 <script src="/v2/command.js?v=20261116contrast" defer></script>
 <script src="/v2/autonomy-panel.js?v=20261116abort" defer></script>

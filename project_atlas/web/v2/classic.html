@@ -38,6 +38,7 @@
     <a class="btn ghost" title="Diagnostics and logs" aria-label="Diagnostics" href="#diagnosticsPanel" onclick="document.getElementById('diagnosticsPanel').open=true;refreshDiagnostics(true)"><svg class="icon"><use href="/v2/assets/icons.svg#i-pulse"/></svg><span class="lbl">Diagnostics</span></a>
     <a class="btn ghost headerBtn cloud" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/" title="Open the read-only ATLAS Visual Cloud live ROS observability dashboard."><svg class="icon"><use href="/v2/assets/icons.svg#i-cloud"/></svg><span class="headerText lbl">Visual cloud</span></a>
     <a class="btn ghost headerBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" title="Open two-way ATLAS intercom. The camera stream closes to preserve call quality and AI Voice pauses during the call."><svg class="icon"><use href="/v2/assets/icons.svg#i-phone"/></svg><span class="headerText lbl">Talk / listen</span></a>
+    <button class="btn ghost warn-outline" id="restartButton" onclick="restartAtlas()"><svg class="icon"><use href="/v2/assets/icons.svg#i-power"/></svg>Restart</button>
     <button class="btn ghost warn-outline" id="shutdownButton" onclick="shutdownAtlas()"><svg class="icon"><use href="/v2/assets/icons.svg#i-power"/></svg>Shut down</button>
   </nav>
 </header>
@@ -193,7 +194,7 @@
   <span class="dock-note">E-STOP sends one zero-speed command. Also release any drive button you are holding.</span>
 </div>
 
-<script src="/diagnostics.js" defer></script>
+<script src="/diagnostics.js?v=20261120restart" defer></script>
 <script src="/v2/command.js" defer></script>
 <script src="/v2/motion-status.js" defer></script>
 <script src="/v2/shell.js" defer></script>

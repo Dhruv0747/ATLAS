@@ -6,6 +6,13 @@ async function shutdownAtlas(){
   try{const response=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Atlas-Wifi':'1'},body:new URLSearchParams({action:'shutdown',confirm:'POWER_OFF_ATLAS'})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.message||'Shutdown failed');button.textContent='⏻ SHUTDOWN REQUESTED';alert(result.message);}
   catch(error){button.disabled=false;alert(error.message+' — check whether ATLAS is still online.');}
 }
+// 2026-11-20 owner: Restart button next to Shut down (same protections; server requires RESTART_ATLAS).
+async function restartAtlas(){
+  if(!confirm('Restart ATLAS Jetson? Driving stops and the dashboard disconnects for about 2 minutes, then ATLAS comes back by itself.'))return;
+  const button=document.getElementById('restartButton');if(button)button.disabled=true;
+  try{const response=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Atlas-Wifi':'1'},body:new URLSearchParams({action:'reboot',confirm:'RESTART_ATLAS'})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.message||'Restart failed');if(button)button.textContent='Restart requested';alert(result.message);}
+  catch(error){if(button)button.disabled=false;alert(error.message+' — check whether ATLAS is still online.');}
+}
 function mainBattery(r) {
   const b=bmsSnapshot(r);
   if(!b) return {percent:null,state:'DATA STALE / OFFLINE',color:'#a3b1bd'};

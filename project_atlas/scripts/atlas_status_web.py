@@ -139,6 +139,21 @@ def run_quiet(cmd, timeout=2):
         return False, str(exc)
 
 
+def reboot_sudo_rule_present(listing=None):
+    """2026-11-20 dashboard Restart: True only if sudo grants exactly `/sbin/shutdown -r now` WITHOUT a password.
+    `sudo -n -l <cmd>` also succeeds for password rules, so the NOPASSWD listing is checked instead."""
+    if listing is None:
+        try:
+            listing = subprocess.run(['sudo', '-n', '-l'], capture_output=True, text=True, timeout=3).stdout
+        except Exception:
+            return False
+    for line in listing.splitlines():
+        if 'NOPASSWD:' in line and any(part.strip() == '/sbin/shutdown -r now'
+                                       for part in line.split('NOPASSWD:', 1)[1].split(',')):
+            return True
+    return False
+
+
 START_VERDICT_FILE = Path.home() / ".local/state/project_atlas/localization_verdict.json"
 
 
@@ -2203,7 +2218,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/diagnostics":
             json_response(self, 200, DIAGNOSTICS.snapshot())
             return
-        if self.path == "/diagnostics.js":
+        if self.path.split("?")[0] == "/diagnostics.js":   # 2026-11-20: allow ?v= cache busting
             try:
                 with open(os.path.join(os.path.dirname(__file__), 'atlas_diagnostics_ui.js'), 'rb') as stream:
                     body = stream.read()
@@ -2558,6 +2573,28 @@ class Handler(BaseHTTPRequestHandler):
                     print('Dashboard shutdown failed: '+str(detail), flush=True)
             threading.Thread(target=power_off, daemon=True).start()
             json_response(self, 202, {"ok": True, "message": "Shutdown requested. Wait for Jetson to power off before disconnecting power."})
+        # 2026-11-20 owner: Restart button next to Shut down. Same protections as shutdown (explicit confirmation token,
+        # same-origin dashboard request, rover stopped and drive latched first, logged); needs a sudoers rule that allows
+        # exactly `/sbin/shutdown -r now` without a password. Unlike the removed 2026-10-11 reboot it never pipes a password.
+        elif action == "reboot":
+            if form.get('confirm', [''])[0] != 'RESTART_ATLAS' or not atlas_wifi_web.same_origin(self.headers):
+                json_response(self, 403, {"ok": False, "message": "Restart requires dashboard confirmation"})
+                return
+            if not reboot_sudo_rule_present():
+                json_response(self, 503, {"ok": False, "message": "Restart permission unavailable (sudoers rule for /sbin/shutdown -r now missing)"})
+                return
+            SHUTDOWN_PENDING.set()
+            stop_rover()
+            ROS.latch_drive_stop()
+            ROS.estop_log.write('reboot_latch', client=self.client_address[0])
+            def reboot():
+                time.sleep(2)
+                ok, detail = run_quiet(['sudo', '-n', '/sbin/shutdown', '-r', 'now'], timeout=8)
+                if not ok:
+                    SHUTDOWN_PENDING.clear()
+                    print('Dashboard restart failed: '+str(detail), flush=True)
+            threading.Thread(target=reboot, daemon=True).start()
+            json_response(self, 202, {"ok": True, "message": "Restart requested. ATLAS will be back in about 2 minutes; the remote stop stays latched after boot."})
         else:
             json_response(self, 400, {"ok": False, "message": "unknown action"})
 

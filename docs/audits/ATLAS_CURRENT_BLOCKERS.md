@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+### 2026-11-20 — Dashboard Restart button STAGED (not deployed; sudoers rule missing)
+- Added `action=reboot` to `atlas_status_web.py`. It needs confirm `RESTART_ATLAS` and same origin, otherwise 403. It needs a NOPASSWD sudoers rule for exactly `/sbin/shutdown -r now`, otherwise 503 and nothing happens.
+- When allowed, it first latches the drive stop, stops the rover and writes the E-STOP log, then runs `sudo -n /sbin/shutdown -r now` after 2 s. No password is ever piped. The old `sudo -S` reboot stays removed.
+- Restart buttons sit next to Shut down in `web/v2/index.html`, `classic.html` and `mapping.html`. The diagnostics.js cache key is now `?v=20261120restart`.
+- Tests: `tests/test_status_web_no_reboot.py` rewritten (9 tests). Ran 51 status-web tests on the rover in a temporary copy: OK.
+- The full CI list in the same rover copy gave FAILED (failures=2, errors=3), which is not yet explained. The rover then went offline before the failing names could be read. The Mac's Python lacks yaml/numpy, so the list could not be run there. GitHub CI after the next push must confirm.
+- Pending: the owner adds `/etc/sudoers.d/atlas-dashboard-reboot` with `jetson ALL=(root) NOPASSWD: /sbin/shutdown -r now` (visudo, owner types the password). Then "Yes, deploy" with the rover parked.
+
 ### 2026-11-20 13:50 IST — Slower 4G failover INSTALLED + USB hub autosuspend off (owner typed the sudo password)
 - Ran from the owner's terminal tab (ssh + sudo; the owner entered the password).
 - Installed `/usr/local/lib/atlas-network/atlas_network_fallback.py` md5 b6eee7d5 (backup `atlas_network_fallback.py.before-slow-failover`). Restarted `atlas-network-fallback` at 13:50:43.
