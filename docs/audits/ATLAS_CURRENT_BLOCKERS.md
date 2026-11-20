@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+### 2026-11-20 19:04 IST — Relocalize mode set to AUTO (owner "Yes, set auto"); AMCL now VERIFIED
+- Before: the location check said LOST several times ("LiDAR places ATLAS 0.82-0.87 m / 6-8 deg from AMCL"). AMCL read (-1.18, 1.08, 21 deg); the LiDAR recovery pose was (-0.885, 0.285, 12 deg).
+- Change: `~/.config/project_atlas/relocalize_mode` changed from `suggest` to `auto` (backup `relocalize_mode.before-auto-20261120`). The monitor reads it on every result, so no restart. Rollback: `echo suggest > ~/.config/project_atlas/relocalize_mode`.
+- Result: AMCL was reseeded at about 19:02. One result was discarded ("AMCL pose changed during the check"), then three VERIFIED results (amcl_fit 0.97-0.98). AMCL is now (-1.02, 0.28, 13 deg).
+- Start pose for Stage-3 round trip 5 is not met yet: 1.13 m from the "dhruv room" place (0.08, 0.54), and heading 13 deg instead of 65 deg.
+
 ### 2026-11-20 18:53 IST — Hiwonder GPS back on USB; NMEA live, no fix indoors
 - After a cable change the GPS enumerated at about 18:50 as a CH340 on 2.4.2 (ttyUSB6), after two "device descriptor read/64, error -32" retries. `atlas-gnss` saw the new device and opened ttyUSB6 at 9600 within about 60 s, with no restart.
 - `/gps/receiver_status`: NMEA_LIVE_NO_FIX, valid_nmea 2134. `/gps/fix` status -1 (indoors, no fix). `/gps/nmea` shows GNGSA with no satellites used.
