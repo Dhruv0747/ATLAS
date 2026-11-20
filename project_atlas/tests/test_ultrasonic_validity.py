@@ -129,12 +129,45 @@ class ValidityTests(unittest.TestCase):
         self.assertIn('REAR', self.window.veto(-.1, 0, 10, .3, .3, .28))
         self.assertIsNone(self.window.veto(0, 0, 10, .3, .3, .28))
 
-    def test_side_veto_uses_validated_echo_only(self):
+    def side_window(self, left_mm=None, right_mm=None):
         d = report()
-        d['sensors']['left'] = dict(d['sensors']['front'], range_mm=200)
-        self.window.ingest(d, 10)
-        self.assertIn('LEFT', self.window.veto(.1, .1, 10, .3, .3, .28))
-        self.assertIsNone(self.window.veto(.1, -.1, 10, .3, .3, .28))
+        if left_mm is not None:
+            d['sensors']['left'] = dict(d['sensors']['front'], range_mm=left_mm)
+        if right_mm is not None:
+            d['sensors']['right'] = dict(d['sensors']['front'], range_mm=right_mm)
+        w = ValidityWindow()
+        w.ingest(d, 10)
+        return w
+
+    def test_side_veto_uses_validated_echo_only(self):
+        # 2026-11-20 radius-aware rule: a gentle left turn (R = 1 m) sweeps the left side only ~3 cm -> limit 0.10 m.
+        w = self.side_window(left_mm=90)
+        self.assertIn('LEFT', w.veto(.1, .1, 10, .3, .3, .28))
+        self.assertIsNone(w.veto(.1, -.1, 10, .3, .3, .28))      # right turn: left is the outer side
+
+    def test_gentle_turn_no_longer_blocked_at_20cm(self):
+        self.assertIsNone(self.side_window(left_mm=200).veto(.1, .1, 10, .3, .3, .28))
+
+    def test_tight_turn_keeps_a_larger_stop(self):
+        w = self.side_window(left_mm=150)
+        self.assertIn('LEFT', w.veto(.1, .1 / .35, 10, .3, .3, .28))          # R 0.35 m: limit about 0.165 m
+        self.assertIsNone(self.side_window(left_mm=200).veto(.1, .1 / .35, 10, .3, .3, .28))
+
+    def test_reverse_checks_the_inner_side(self):
+        # reversing with angular > 0: ICR on the RIGHT, so the right (inner) side sweeps
+        self.assertIn('RIGHT', self.side_window(right_mm=80).veto(-.1, .1, 10, .3, .3, .28))
+        self.assertIsNone(self.side_window(left_mm=80).veto(-.1, .1, 10, .3, .3, .28))
+
+    def test_steering_only_keeps_full_limit(self):
+        self.assertIn('LEFT', self.side_window(left_mm=200).veto(0, .1, 10, .3, .3, .28))
+
+    def test_limit_bounds(self):
+        from atlas_ultrasonic_validity import side_stop_limit_m, SIDE_MIN_STOP_M
+        for v, a in ((.1, .1 / .2), (.1, .1 / .35), (.1, .1), (.1, .001), (-.1, -1.0)):
+            lim = side_stop_limit_m(v, a, .28)
+            self.assertGreaterEqual(lim, SIDE_MIN_STOP_M)
+            self.assertLessEqual(lim, .28)
+        self.assertLess(side_stop_limit_m(.1, .1, .28), side_stop_limit_m(.1, .1 / .35, .28))
 
     def test_future_time_at_read_and_bad_timeout(self):
         self.window.ingest(report(), 10)
@@ -168,6 +201,10 @@ def extracted_class(filename, name, methods):
                           and any(isinstance(t, ast.Name) and t.id == 'LINE_RE' for t in n.targets))
         scope['re'] = re
         exec(compile(ast.Module(body=[assignment], type_ignores=[]), filename, 'exec'), scope)
+        # 2026-11-20 left/right swap support (default off, as without the env variable)
+        swap_fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'swap_left_right_payload')
+        exec(compile(ast.Module(body=[swap_fn], type_ignores=[]), filename, 'exec'), scope)
+        scope['SWAP_LEFT_RIGHT'] = False
     exec(compile(ast.Module(body=[cls], type_ignores=[]), filename, 'exec'), scope)
     return scope[name]
 

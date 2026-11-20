@@ -1,5 +1,16 @@
 # ATLAS current blockers
 
+### 2026-11-20 — Radius-aware inner-side stop BUILT (offline; not deployed) + CI regression found and fixed
+- `atlas_ultrasonic_validity.py`:
+  - the side is the **inner side of the turn** (sign(linear·angular)); this fixes the reverse case that checked the outer sensor;
+  - the limit is `clamp(inner_side_sweep_m(R, 0.15 m) + 0.05, 0.10, side_stop 0.28)`: about 0.165 m at R 0.35, 0.11 m at R 0.5, 0.10 m for gentle turns;
+  - steering-only commands (|v| < 0.01) keep the former side and the full 0.28 m;
+  - the message now carries "(stop X m)".
+- Tests: `test_ultrasonic_validity` 43/43 (6 new or rewritten side tests). The full CI list 127 modules passes locally.
+- Replay on Nav2 turning commands: `hall_auto2` 26 % → **5.4 %** blocked; `hall_auto3` 15 % → **2.0 %**. Remaining blocks are close readings (mostly 0.15–0.20 m on tight turns).
+- **CI regression (my error):** the 2026-11-20 left/right swap (84ee3d0) added `SWAP_LEFT_RIGHT` to bridge methods that `test_ultrasonic_validity` extracts. 14 BridgeIntegrationTests failed, and GitHub CI was red on 84ee3d0 and cdef3ce; I had not checked CI after those pushes. Fixed in the test scope (swap off); runs green locally.
+- Deploy needs the owner's "Yes, deploy" (mux restart parked + latched; no base change, so no Speed check).
+
 ### 2026-11-20 — Side-stop analysis (offline; nothing changed)
 - **Geometry** (0.50 × 0.36 m footprint rotating about the 4WS ICR): the excursion beyond the side line, beside the body, after 10 / 20 / 30 cm of travel, is the same forward and reverse.
 
