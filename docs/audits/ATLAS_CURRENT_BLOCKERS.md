@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+### 2026-11-20 ~10:30 IST — All four HC-SR04 vs LiDAR, rover parked in a narrow spot (read-only)
+- 30 s and 15 s windows, 4 channels enabled, all VALID:
+  - **Front:** median 1.756 m; LiDAR at the bumper 1.80 m (diff −4 cm). The 30 s run had 12/101 short samples (min 0.708 m); the 15 s run had 0.
+  - **Left:** 0.226 m, std 2–4 mm. It matches the LiDAR side wall (best fit at about +90…+115°, about 1 mm after subtracting the 0.18 m half-width).
+  - **Right:** 0.238 m, std 4 mm, **nearer than anything the LiDAR sees on that side** (closest about 0.31 m from the body at −75…−120°). Suspected: aimed at something below the LiDAR plane, at part of the rover (wheel/bracket), or down at the floor. Owner to check the aim.
+  - **Rear:** 0.821 m vs LiDAR at the bumper 0.94 m (−12 cm), with intermittent 0.72 m samples (4/50; 13/102 earlier).
+- The occasional 0.71–0.72 m samples on front and rear appeared only after four channels were enabled. Possible cross-talk between sequential pings (45 ms slots); not proven. Monitor; if confirmed, a longer firmware slot (owner-approved flash) would be the fix.
+- Mount positions/angles still not measured.
+
 ### 2026-11-20 — Left/right HC-SR04 channels ENABLED for checking (owner: "just enable right and left so I can check")
 - Rover state: `/atlas/motion_safety` = "REMOTE STOP: joystick unavailable", autonomy not armed.
 - Deployed `ultrasonic_arduino_bridge.py`: the `side_ultrasonic_commands()` change only; the rover file matched the pre-change repo version (md5 caec6e96). Backup: `backups/virtual_obstacles_20261116/ultrasonic_arduino_bridge.py.before-side-us`.
