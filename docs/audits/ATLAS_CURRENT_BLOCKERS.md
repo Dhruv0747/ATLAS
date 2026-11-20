@@ -1,5 +1,17 @@
 # ATLAS current blockers
 
+### 2026-11-20 — 4G modem reconnect storms: chain of events (read-only; owner keeps the modem)
+- The 167 disconnects of the SIMCOM modem (USB 1-2.4.1) come in **bursts** (median interval 2.6 s; gaps up to 920 s), not steadily.
+- Bursts per minute: 12:45–12:50 (10, 7, 10, 29), 13:10–13:11 (12, 13), 13:16–13:17 (6, 6). They coincide with the rover being in or near the hall/doorway and with today's stalls (13:11:05, 13:17:58).
+- NetworkManager shows the **Wi-Fi DHCP lease dropping and returning** (12:40:55, 12:41:00, 12:45:11, 12:45:18, …). Immediately after each drop, `usb0` (modem RNDIS) is removed and re-activated repeatedly.
+- `atlas_network_fallback.py` states "no modem AT writes" (it does not reset the modem).
+- Hypothesis, not proven: the Wi-Fi drop in the hall dead zone moves traffic to 4G; modem TX current rises; the bus-powered USB2 hub 1-2.4 (100 mA; also feeds the 500 mA TGZ controller dongle and a CH341 serial) browns out. The modem re-enumerates in a loop, and each re-activation drives NetworkManager/polkit CPU (polkitd 21–29 %, load 10–12). Neighbouring USB devices are disturbed.
+- Owner-side fixes (keeping the modem):
+  - (1) move the modem to a direct Jetson port or a powered hub;
+  - (2) a Wi-Fi extender for the hall;
+  - (3) optional: no cellular failover during drives (system setting, owner via sudo).
+- Verification after (1): the disconnect count and stall count on the next drive.
+
 ### 2026-11-20 13:04–13:37 IST — Round trip 4: both legs SUCCEEDED (bag `hall_auto4_20261120_1304`, 31 min)
 - Changes in force: "hall" heading −120° and "dhruv room" heading 65° (owner request; backup `named_places.json.before-headings-20261120`); radius-aware side stop; mission-control fix; curvature fix.
 - **Stage-3 checker: 3/5.**
