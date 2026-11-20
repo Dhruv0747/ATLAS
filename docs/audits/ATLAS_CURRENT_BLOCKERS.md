@@ -1,5 +1,37 @@
 # ATLAS current blockers
 
+### 2026-11-20 11:41–12:11 IST — Owner round trip after the curvature fix (bag `hall_auto2_20261120_1141`, 30 min)
+- **Hall goal SUCCEEDED (status 4) at 11:48:41**, with owner remote help (stuck at the narrow HOME start; turnaround in the hall; doorway).
+- Return to "dhruv room": the 11:51 goal was pre-empted by a new Go at 11:55:43. The new goal **aborted instantly**: the controller logged "Failed to make progress", carried over from the long-blocked previous goal (10 such aborts in the drive). Since the pre-emption bug was also present, the status showed FINISHED 6 / READY. Fix staged (d2ba6c9), not deployed.
+- The 11:59 goal reached Dhruv Room; the owner then aborted the mission (status 5).
+- **Stage-3 checker: FAIL.**
+  - legs: hall 4, dhruv room 6, 5;
+  - return_home: no HOME success;
+  - safe_stop: no owner stop while Nav2 was driving;
+  - turn_sign: **PASS**, 17/826 (2.1 %; 583 remote and 633 flip samples excluded);
+  - encoders: **PASS**, 0 bad samples while moving.
+- **Curvature fix verified on a real drive:** `/yahboom/odom` yaw now has the **same sign as the IM10A gyro in 782/818 turning samples (95.6 %)**, against 1–3 % before. The magnitude is high (median |wheel|/|gyro| 1.64; not fused in the EKF; calibration open).
+- Encoder consensus CRITICAL: **5 episodes in 30 min** (about 0.17/min) vs 15 in 10.7 min (1.4/min) in `penalty_test`. The remaining episodes are two channels near zero while one moves (bursts/slip).
+- Mux stop lines 11:43–12:12:
+
+| Stop | Count |
+|---|---|
+| LiDAR availability (blind bins) | 880 |
+| **side stop RIGHT ≤ 0.28 m** | 247 |
+| **side stop LEFT** | 51 |
+| scan stale | 5 |
+| encoder CRITICAL | 5 |
+| localization uncertainty > 0.25 m | 5 |
+| encoder DEGRADED transition | 1 |
+
+- The new side stop (active since the side sensors were enabled) is now the second-largest limiter: RIGHT 0.10–0.13 m at the narrow HOME start; 0.22–0.27 m in the doorway.
+- Open, owner decisions:
+  - (a) side-stop threshold and whether it should apply only to the inner side of a turn (analysis first);
+  - (b) deploy the mission-control pre-emption fix;
+  - (c) progress-checker behaviour after long safety blocks;
+  - (d) HOME relocation;
+  - (e) door-frame tape.
+
 ### 2026-11-20 11:26 IST — Wheel-curvature sign fix DEPLOYED (owner approved "Yes, deploy later"; rover parked, B pressed)
 - State: `/atlas/motion_safety` = "REMOTE STOP: joystick unavailable", autonomy not armed.
 - Rover `yahboom_base.py` was the pre-fix version (md5 18c74867, identical to the repo parent of 97e154e). Backup `backups/virtual_obstacles_20261116/yahboom_base.py.before-curvature`. Deployed md5 a9c378fc (commit 97e154e). Restarted `rover-base-telemetry` only.
