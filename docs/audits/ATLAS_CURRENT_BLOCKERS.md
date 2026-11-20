@@ -1,5 +1,27 @@
 # ATLAS current blockers
 
+### 2026-11-20 12:34–12:50 IST — Round trip 3, after the curvature and mission-control fixes (bag `hall_auto3_20261120_1234`)
+- **Stage-3 checker: 3 of 5 PASS.**
+  - **safe_stop PASS:** owner B while Nav2 drove at 0.128 m/s; still after 0.47 s, 4.2 cm.
+  - **turn_sign PASS:** 7/753 (0.9 %).
+  - **encoders PASS:** 0 bad samples while moving.
+  - legs FAIL: hall 6, then hall 4 (SUCCEEDED 12:43:16), dhruv room 6, 6.
+  - return_home FAIL.
+- **Failure mode at both ends: arrival heading, not position.**
+  - Hall: the rover stopped 0.16 m from the point with yaw −120° vs the saved −60°. It succeeded only after the owner turned it by remote.
+  - Dhruv Room: 0.22 m and yaw 65° vs the saved 17° (48° off). The controller aborted while the guard/side stops blocked the turning manoeuvre.
+  - A car-like 4WS rover cannot turn in place, and the hall/door surroundings veto most manoeuvres.
+- Other events:
+  - one "Starting point in lethal space" planner failure after the owner moved the rover close to hall furniture;
+  - a Wi-Fi drop near the hall door (both IPs unreachable for about 1 min; the bag on the rover was unaffected);
+  - "localization still moving while stopped" (0.45 m / 26°) refused one Go.
+- Mux stop lines: LiDAR availability 667, side RIGHT 26, side LEFT 14, REAR 6, encoder CRITICAL 3, localization uncertainty 3. The side stop fell from 298 to 40 with a better start position.
+- Mission-control fix: no pre-emption occurred this drive (0 "superseded" lines), so it was not exercised.
+- **Open owner decision:**
+  - (a) set the saved headings of "hall" and "dhruv room" to the natural arrival directions (about −120° and about 65°); and/or
+  - (b) loosen `yaw_goal_tolerance` further.
+  - Note: the Stage-3 return_home criterion (20° of the start pose) also needs the arrival heading to match the start heading.
+
 ### 2026-11-20 ~12:20 IST — Mission-control pre-emption fix DEPLOYED (owner "Deploy mission fix")
 - Autonomy not armed; no mission-control goal in the previous 15 min.
 - Rover `atlas_mission_control.py` was the pre-fix version (md5 a32a55a1, identical to the repo before d2ba6c9). Deployed md5 db0b27c4. Backup `backups/virtual_obstacles_20261116/atlas_mission_control.py.before-supersede`.
