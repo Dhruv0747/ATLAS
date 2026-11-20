@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+### 2026-11-20 18:25 IST — Speed check PASS (second post-curvature-fix PASS; speed evidence current again)
+- `speed_loop_check_20261120_182509.json`: PASS, requested 0.15 m/s. Start 0.46 s; steady mean 0.117 m/s; peak 0.167 m/s (limit 0.25); wheel distance 0.587 m; ICP 0.648 m (agrees within 25 %); coast after stop 0.018 m. All checks true.
+- PASSes after the 11:26 yahboom_base deploy: 11:29:44 and 18:25:09. The 2-PASS rule from the curvature fix is met.
+- Still open: `atlas_autonomy_arm.speed_evidence` does not track `yahboom_base.py` (see the 18:15 entry).
+
 ### 2026-11-20 18:15 IST — Autonomy ARMED; no new Speed check ran; arm gate counts a pre-curvature-fix PASS
 - The owner reported "speed test pass, autonomy on". Control policy: armed true, manual_only false, stop latched.
 - No Speed check ran after 11:33 today. The last start attempt aborted: "front clearance 0.54 m < 1.00 m needed to start". The newest result file is still `speed_loop_check_20261120_113323.json`.
