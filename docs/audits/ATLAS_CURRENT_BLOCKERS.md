@@ -1,5 +1,15 @@
 # ATLAS current blockers
 
+### 2026-11-20 ~12:58 IST — Radius-aware inner-side stop DEPLOYED (owner "Yes, push and deploy"; "B pressed")
+- State: `/atlas/motion_safety` = "REMOTE STOP: B pressed", autonomy not armed.
+- Rover `atlas_ultrasonic_validity.py` was the pre-change version (md5 8f39f24c). Backup `…/atlas_ultrasonic_validity.py.before-radius-side`. Deployed md5 3fc62bf9 (commit 95558a2). Restarted `atlas-cmd-vel-mux` only.
+- Verified:
+  - active, no errors;
+  - "LiDAR guard: 3 virtual obstacles" loaded;
+  - limits on the rover: 0.165 m at R 0.35, 0.10 m at R 1.
+- GitHub CI green again on 95558a2 (push and PR).
+- Not yet verified on a drive; the next drive's mux log shows "(stop X m)" on side blocks.
+
 ### 2026-11-20 — Radius-aware inner-side stop BUILT (offline; not deployed) + CI regression found and fixed
 - `atlas_ultrasonic_validity.py`:
   - the side is the **inner side of the turn** (sign(linear·angular)); this fixes the reverse case that checked the outer sensor;
