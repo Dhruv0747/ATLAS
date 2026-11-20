@@ -1,5 +1,31 @@
 # ATLAS current blockers
 
+### 2026-11-20 — Side-stop analysis (offline; nothing changed)
+- **Geometry** (0.50 × 0.36 m footprint rotating about the 4WS ICR): the excursion beyond the side line, beside the body, after 10 / 20 / 30 cm of travel, is the same forward and reverse.
+
+| Turn radius R | Inner side (toward the ICR) | Outer side |
+|---|---|---|
+| 0.35 m | 6.6 / 12.4 / 19.5 cm | ≤ 5.6 cm |
+| 0.50 m | 4.4 / 7.6 / 10.1 cm | ≤ 5.6 cm |
+| 1.0 m | 2.1 / 3.3 / 3.9 cm | ≤ 2.6 cm |
+| 2.0 m | 1.0 / 1.6 / 1.7 cm | ≤ 1.4 cm |
+
+  The mux re-evaluates every cycle and the rover stops in about 4 cm at 0.15 m/s, so the relevant horizon is about 10–15 cm: roughly 9 cm (R 0.35), 6 cm (R 0.5) and 3 cm (R ≥ 1) plus margin.
+- **Bug (latent):** `ValidityWindow.veto` picks the side from the sign of wz only. Reversing with wz > 0 puts the ICR on the RIGHT (inner side right), but the LEFT (outer) sensor is checked. Not triggered in these bags (every replayed block was forward / inner).
+- **Replay** of Nav2 turning commands with physical-side ultrasonic:
+
+| Bag | 0.28 m (current) | Inner-side rule 0.20 m | Inner-side rule 0.15 m |
+|---|---|---|---|
+| `hall_auto2` | 2 088/8 056 (26 %) | 24 % | 19 % |
+| `hall_auto3` | 720/4 885 (15 %); 558 of them at R ≥ 1 m with readings 0.20–0.28 m | **2 %** | **2 %** |
+
+  `hall_auto2` blocks were mostly real close objects at the narrow HOME start (0.10–0.13 m).
+- **Proposal, not implemented:**
+  - side = inner side by sign(v·wz);
+  - limit = clamp(inner sweep for the commanded radius over 15 cm + 5 cm margin, 0.10 m, 0.28 m), i.e. about 0.15 m at R 0.35, 0.11 m at R 0.5, 0.08–0.10 m for gentle turns;
+  - unit tests plus replay of both bags before any deploy. The mux restart needs the rover parked and latched.
+- HC-SR04 cones see only beside the sensor; corner clearance stays with the LiDAR guard and costmaps.
+
 ### 2026-11-20 12:34–12:50 IST — Round trip 3, after the curvature and mission-control fixes (bag `hall_auto3_20261120_1234`)
 - **Stage-3 checker: 3 of 5 PASS.**
   - **safe_stop PASS:** owner B while Nav2 drove at 0.128 m/s; still after 0.47 s, 4.2 cm.
