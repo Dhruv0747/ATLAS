@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+### 2026-11-20 18:53 IST — Hiwonder GPS back on USB; NMEA live, no fix indoors
+- After a cable change the GPS enumerated at about 18:50 as a CH340 on 2.4.2 (ttyUSB6), after two "device descriptor read/64, error -32" retries. `atlas-gnss` saw the new device and opened ttyUSB6 at 9600 within about 60 s, with no restart.
+- `/gps/receiver_status`: NMEA_LIVE_NO_FIX, valid_nmea 2134. `/gps/fix` status -1 (indoors, no fix). `/gps/nmea` shows GNGSA with no satellites used.
+- Risk: the GPS sits on the bus-powered modem hub (2.4). The SIM8230G re-enumerated at the same moment (ttyUSB3-5 disconnected and reattached), which fits the earlier brownout hypothesis. Hub 2.2 port 2 is free.
+
 ### 2026-11-20 18:45 IST — Hiwonder GPS V1 (primary GPS) missing from USB since the 13:52 boot
 - `atlas-gnss` (auto_usb) logs "expected one unclaimed verified device, found 0", every 10 min since 03:26. `/gps/receiver_status` reads PORT_OFFLINE. Its startup line names the SIMCOM if03 port only because that is the DEFAULT_PORT label; the node does not open the modem port. ModemManager owns ttyUSB5.
 - Only two CH340s are present now: 2.2.3 = ttyUSB0 (yahboom_base) and 2.4.3 = ttyUSB1 (IM10A). Port 2.2.4, once a small hub carrying the GPS at 2.2.4.3, now holds the ESP32 directly. Port 2.2.2 is free.
