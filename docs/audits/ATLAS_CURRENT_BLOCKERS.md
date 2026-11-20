@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+### 2026-11-20 11:26 IST — Wheel-curvature sign fix DEPLOYED (owner approved "Yes, deploy later"; rover parked, B pressed)
+- State: `/atlas/motion_safety` = "REMOTE STOP: joystick unavailable", autonomy not armed.
+- Rover `yahboom_base.py` was the pre-fix version (md5 18c74867, identical to the repo parent of 97e154e). Backup `backups/virtual_obstacles_20261116/yahboom_base.py.before-curvature`. Deployed md5 a9c378fc (commit 97e154e). Restarted `rover-base-telemetry` only.
+- Verified parked: service active, no errors; `/yahboom/odom` about 9 Hz; encoder health DEGRADED with M3 excluded (normal 3-encoder mode); IMU calibration loaded; encoder stream requalifying after restart.
+- **Speed evidence is now stale: two dashboard Speed checks must PASS before autonomy.**
+- Not yet verified: the wheel-odometry yaw sign against the gyro while turning, and consensus failures in turns. Both come from the next drive's bag; recording `hall_auto_20261120_1123` is running.
+
 ### 2026-11-20 — Open-space ultrasonic check (owner placed the rover in open space; 15 s, all VALID)
 - **Right: median 0.96 m** (0.82–1.62; the owner moved a hand in front) vs LiDAR right side about 0.94–0.95 m. **Not seeing the rover itself**; the earlier 0.16–0.23 m were real nearby objects. The side stop is kept.
 - **Left: 0.723 m stable** while the LiDAR left side was open to about 2 m. This matches the floor-echo distance for a 0.23 m high sensor (floor about 17.7° below the axis at 0.72 m).
