@@ -53,18 +53,22 @@ three stages pass.
 ## Left to do 🔧
 
 **For Stage 3 (now)**
+0. **Deploy the staged wheel-curvature fix** (owner approved; when parked), then two Speed checks. It removes most
+   encoder-consensus stops in turns (replay 41 → 14) and makes wheel-odometry yaw agree with the gyro.
 1. **Hall door frame:** the dark frame returns no LiDAR echo, so the guard stops the rover in the doorway (~96 % of
    doorway scans in replay). Fix: matte white tape on both faces of the frame at LiDAR height (18 cm).
-2. **Side ultrasonic sensors:** two HC-SR04 at the front corners, angled about 30° outward (UNO pins D4/D5 and D6/D7),
-   then software configuration and tests.
-3. **Encoder consensus warnings** that pause autonomy several times per drive: investigate from recordings.
-4. **Home position** sits close to a wall: add a pre-home point about 0.5 m from furniture.
+2. **Side ultrasonic sensors (optional):** software is staged (disabled). Replay shows narrow-cone HC-SR04s cannot
+   clear the doorway veto; they would add close-range readings only.
+3. ~~Encoder consensus warnings~~: root cause found (wheel-curvature sign); fix staged, see item 0.
+4. **Home position** has only 0.26 m clearance; end autonomous returns at the "dhruv room" place (0.49 m clear) and do
+   the last metre by remote.
 5. **Validation drive** of the 2026-11-16/19 changes (virtual obstacles, planner, goal tolerance), recorded and replayed.
 6. **Wi-Fi:** power saving off on the rover and an extender for the hall, so the dashboard never shows "no data".
 
 **After Stage 3**
-- Mission-control status message on goal pre-emption (currently reports "FINISHED" too early).
-- Turn-sign check (commanded vs gyro) at 5.8 %, above the 5 % limit.
+- ~~Mission-control status on goal pre-emption~~: fix staged (superseded goals are logged only).
+- ~~Turn-sign check at 5.8 %~~: explained (owner remote reverse turns and steering swings were counted); the checker
+  now counts autonomous turning only. Bags 8 / penalty / room test: 2.9 % / 0.1 % / 1.4 % (pass).
 - Pause non-essential AI services during drives to save CPU.
 - Guided mapping assistant, phase 1b: live map quality and prompts on the dashboard
   ([design](design/guided_mapping_assistant.md)).

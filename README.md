@@ -169,7 +169,7 @@ ATLAS/
 │   ├── web/v2/               Web Command Center (HTML/JS/CSS)
 │   ├── config/               Robot parameters (Nav2, EKF, virtual obstacles, battery…)
 │   ├── launch/  systemd/     Launch files and user services that start everything at boot
-│   ├── tests/                176 offline unit-test files (no robot needed)
+│   ├── tests/                Unit tests; 128 robot-free modules (1,138 tests) listed for CI in tools/ci/
 │   └── tools/                Replay, diagnostics, recording and deploy tools
 ├── project_atlas_ws/src/     ROS 2 packages (bringup, localization launch, drivers)
 ├── firmware/                 Arduino UNO R4 sensor hub and ESP32 voice-speaker firmware

@@ -56,5 +56,36 @@ class Stage3Tests(unittest.TestCase):
         self.assertEqual(r['verdict'], 'FAIL')
 
 
+class TurnSignAutonomyOnlyTests(unittest.TestCase):
+    """2026-11-19: remote reverse turns and lock-to-lock steering swings are not autonomy turn-sign errors."""
+    def test_remote_samples_are_excluded(self):
+        d = trip()
+        # the owner drives by remote from 41 to 52 s with car-like reverse steering: gyro opposite to cmd wz
+        d['cmd'] = [(t, -0.15, 0.4) if 41 <= t < 52 else (t, v, w) for t, v, w in d['cmd']]
+        d['imu'] = [(t, -0.3) if 41 <= t < 52.3 else (t, g) for t, g in d['imu']]
+        bad = evaluate('dhruv room', **d)['checks']['turn_sign']
+        self.assertFalse(bad['ok'])                                      # without /cmd_vel_joy: counted
+        self.assertIn('cannot be separated', bad['detail'])
+        joy = [(t, 41 <= t < 52) for t, _v, _w in d['cmd']]
+        ok = evaluate('dhruv room', joy=joy, **d)['checks']['turn_sign']
+        self.assertTrue(ok['ok'], ok['detail'])
+        self.assertIn('remote', ok['detail'])
+
+    def test_samples_right_after_a_yaw_flip_are_skipped(self):
+        d = trip()
+        cmd, imu = [], []
+        for t, v, w in d['cmd']:
+            if 1 <= t < 29:                                                # weave: flip yaw sign every 2 s
+                w = 0.3 if int(t // 2) % 2 == 0 else -0.3
+                prev = 0.3 if int((t - 0.6) // 2) % 2 == 0 else -0.3     # steering still on the old side for 0.6 s
+                cmd.append((t, 0.15, w)); imu.append((t, prev))
+            else:
+                cmd.append((t, v, w)); imu.append((t, 0.2 if w else 0.0))
+        d['cmd'], d['imu'] = cmd, imu
+        r = evaluate('dhruv room', joy=[], **d)['checks']['turn_sign']
+        self.assertTrue(r['ok'], r['detail'])
+        self.assertIn('steering-flip', r['detail'])
+
+
 if __name__ == '__main__':
     unittest.main()

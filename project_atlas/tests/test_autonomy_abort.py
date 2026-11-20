@@ -12,8 +12,15 @@ if 'std_msgs.msg' not in sys.modules:
     std_msgs = types.ModuleType('std_msgs'); std_msgs.msg = types.ModuleType('std_msgs.msg')
     std_msgs.msg.Empty = lambda: 'EMPTY'; std_msgs.msg.String = lambda data='': NS(data=data)
     sys.modules['std_msgs'] = std_msgs; sys.modules['std_msgs.msg'] = std_msgs.msg
-sys.modules.setdefault('atlas_wifi_web', NS(same_origin=lambda headers: True))   # same stub as test_autonomy_web
+# 2026-11-19: stub atlas_wifi_web only for this import; never leave it in sys.modules (it made later
+# tests' origin checks always pass: test_flysky_web / test_testlab_web failed when run in one process).
+_saved_wifi = sys.modules.get('atlas_wifi_web')
+sys.modules['atlas_wifi_web'] = types.SimpleNamespace(same_origin=lambda headers: True)
 import atlas_autonomy_web as aw  # noqa: E402
+if _saved_wifi is None:
+    del sys.modules['atlas_wifi_web']
+else:
+    sys.modules['atlas_wifi_web'] = _saved_wifi
 
 
 class Handler:

@@ -7,8 +7,15 @@ import time
 import types
 import unittest
 sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
-sys.modules.setdefault('atlas_wifi_web', types.SimpleNamespace(same_origin=lambda headers: True))
+# 2026-11-19: stub atlas_wifi_web only for this import; never leave it in sys.modules (it made later
+# tests' origin checks always pass: test_flysky_web / test_testlab_web failed when run in one process).
+_saved_wifi = sys.modules.get('atlas_wifi_web')
+sys.modules['atlas_wifi_web'] = types.SimpleNamespace(same_origin=lambda headers: True)
 import atlas_autonomy_web as web
+if _saved_wifi is None:
+    del sys.modules['atlas_wifi_web']
+else:
+    sys.modules['atlas_wifi_web'] = _saved_wifi
 
 
 class Headers(dict):

@@ -1,5 +1,42 @@
 # ATLAS current blockers
 
+### 2026-11-20 — Mission-control pre-emption, room guard stops, turn-sign metric, GitHub CI (offline; nothing deployed)
+
+**4. Early "NAMED GOAL FINISHED status=6" on pre-emption — fix STAGED (not deployed).**
+- `penalty_test_20261116` (19:58:52 and 20:00:34): when a new goal was dispatched, Nav2 pre-empted the old one and its result was published as `NAMED GOAL FINISHED name=<old> status=6` while the new goal drove.
+  - The narrator reported a failure.
+  - The camera tracker was restarted mid-goal.
+  - The terminal-status hold reverted the status to READY at 20:01:34 while the goal drove until 20:05:50.
+- Fix in `atlas_mission_control.py`:
+  - every named / return-home goal gets a generation;
+  - results and rejections of a superseded goal are logged only (no status, no tracker restore, no home verification);
+  - `revert_idle_status_to_ready` never reverts while `autonomy_goals_active > 0`.
+- Tests: `tests/test_mission_goal_supersede.py` 4/4, plus the 24 existing mission-control tests (rover temp copy, ROS). Deploy needs the owner's OK (restart `atlas-mission-control` parked; no Speed check needed).
+
+**5. Room "LIDAR AVAILABILITY STOP (1 bins)" ×146 (19:59–20:00) — explained, no change.**
+- Replay with the live config including ultrasonic, penalty test t+120…260 s: 344 of 969 moving scans vetoed.
+- Almost all were the single bin +35…+40° (front-left), during reverse + turn (292) at (−0.1, 2.1…2.2) near "dhruv room test 3".
+- A mapped wall at (−0.34, 2.42) was 0.38 m from the laser against 0.40 m needed: the front-left corner was about 5 cm from the wall while manoeuvring.
+- Correct veto. The rest of that drive: 0 %. Remedies already in place: goal tolerance 20 cm (less dithering) and goals at least 0.5 m from furniture.
+
+**6. turn_sign 5.8 % — explained; checker corrected to measure autonomy only.**
+- Breakdown (cmd_vel wz vs IM10A gz 0.3 s later):
+  - owner **remote reverse turns 99–100 % "opposite"** (car-like stick: room test 3: 240/243, penalty: 6/6);
+  - Nav2 samples within 1 s of a yaw-sign flip: 4–10 % (servo lock-to-lock travel);
+  - Nav2 steady forward/reverse: 0–3 %.
+- Attempt 7 had no `/cmd_vel_joy`, so remote samples were counted as Nav2.
+- `stage3_autonomy_check.py` now excludes `/cmd_vel_joy`-active samples and the 1 s after a flip, and reports both.
+- Results: bag 8 13/455 (2.9 %) PASS; penalty 2/1825 PASS; room test 3 11/773 (1.4 %) PASS; attempt 7 73/1358 (5.4 %) FAIL with the note that remote driving cannot be separated (topic not recorded).
+- Tests: `test_stage3_autonomy_check` 9/9 (2 new).
+- **Owner note:** this changes how a Stage-3 criterion is measured (autonomous turning only). It is not a relaxed threshold.
+
+**7. GitHub CI.**
+- `.github/workflows/offline-tests.yml`: ubuntu-22.04, Python 3.10, pyyaml + numpy; on push, pull request and manual run; read-only permissions; never contacts the rover.
+- It runs `project_atlas/tools/ci/offline_tests.txt`: 128 modules / 1 138 tests, all passing together locally (70 skipped need ROS).
+- 59 modules need ROS 2, hardware, the Jetson layout or are stale (`not_in_ci.txt`); evidence gap: not triaged one by one.
+- Found and fixed while doing this: `test_autonomy_web` / `test_autonomy_abort` left a stub `atlas_wifi_web` (origin check always true) in `sys.modules`. That made the origin-security tests of `test_flysky_web` / `test_testlab_web` fail when run in one process; the stub is now removed after import.
+- README badge added.
+
 ### 2026-11-19 ~23:45 IST — Encoder CRITICAL root cause (wheel-curvature sign), side-ultrasonic geometry, pre-home point (offline; nothing deployed)
 
 **1. "ENCODER CRITICAL: encoder consensus unavailable" — root cause found, fix STAGED (not deployed).**

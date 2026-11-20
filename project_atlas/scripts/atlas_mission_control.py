@@ -557,6 +557,8 @@ class AtlasMissionControl(Node):
         since = getattr(self, "current_status_since", None)
         if since is None or time.monotonic() - since < hold:
             return
+        if getattr(self, "autonomy_goals_active", 0) > 0:
+            return                                   # 2026-11-19: a Nav2 goal is still driving
         if not self.operation_lock.acquire(blocking=False):
             return                                   # an operation is running: its status is live
         try:
@@ -2015,30 +2017,54 @@ class AtlasMissionControl(Node):
         goal.pose.pose.orientation.w = float(pose["qw"])
         if self.nav_behavior_tree and Path(self.nav_behavior_tree).is_file():
             goal.behavior_tree = self.nav_behavior_tree
+        generation = self.next_goal_generation()
         future = self.nav.send_goal_async(goal)
-        future.add_done_callback(lambda done: self.named_goal_response(done, label))
+        future.add_done_callback(lambda done: self.named_goal_response(done, label, generation))
         self.status(f"NAMED GOAL DISPATCHED name={label}")
 
-    def named_goal_response(self, future, label: str) -> None:
+    # 2026-11-19: Nav2 pre-empts a running goal when a new one is sent. The old goal's result (status 6) used to be
+    # published as "NAMED GOAL FINISHED ... status=6" while the NEW goal was driving: the dashboard and narrator
+    # reported a failure, the status reverted to READY 60 s later mid-drive, and the camera tracker was restarted
+    # (penalty_test_20261116: 19:58:52 and 20:00:34). Every dispatched goal now carries a generation; results of a
+    # superseded goal are logged only and never touch the live status or the tracker.
+    def next_goal_generation(self) -> int:
+        self.goal_generation = getattr(self, "goal_generation", 0) + 1
+        return self.goal_generation
+
+    def goal_superseded(self, generation) -> bool:
+        return generation is not None and generation != getattr(self, "goal_generation", generation)
+
+    def named_goal_response(self, future, label: str, generation=None) -> None:
         try:
             handle = future.result()
             if not handle.accepted:
+                if self.goal_superseded(generation):
+                    self.get_logger().info(f"superseded named goal {label} was rejected")
+                    return
                 self.status(f"NAMED GOAL REJECTED name={label}")
                 return
-            self.status(f"NAMED GOAL ACCEPTED name={label}")
             self.autonomy_goals_active += 1
+            if not self.goal_superseded(generation):
+                self.status(f"NAMED GOAL ACCEPTED name={label}")
             result = handle.get_result_async()
-            result.add_done_callback(lambda done: self.named_goal_finished(done, label))
+            result.add_done_callback(lambda done: self.named_goal_finished(done, label, generation))
         except Exception as exc:
-            self.restore_goal_tracker()
+            if not self.goal_superseded(generation):
+                self.restore_goal_tracker()
             self.error(f"named goal {label}", exc)
 
-    def named_goal_finished(self, future, label: str) -> None:
+    def named_goal_finished(self, future, label: str, generation=None) -> None:
+        superseded = self.goal_superseded(generation)
         try:
-            self.status(f"NAMED GOAL FINISHED name={label} status={future.result().status}")
+            status = future.result().status
+            if superseded:
+                self.get_logger().info(f"superseded named goal {label} ended status={status} (a newer goal is active)")
+            else:
+                self.status(f"NAMED GOAL FINISHED name={label} status={status}")
         finally:
             self.autonomy_goals_active = max(0, self.autonomy_goals_active - 1)
-            self.restore_goal_tracker()
+            if not superseded:
+                self.restore_goal_tracker()
 
     def restore_goal_tracker(self) -> None:
         if self.tracker_paused_for_goal:
@@ -2292,31 +2318,39 @@ class AtlasMissionControl(Node):
         goal.pose.pose.orientation.w = float(pose["qw"])
         if self.nav_behavior_tree and Path(self.nav_behavior_tree).is_file():
             goal.behavior_tree = self.nav_behavior_tree
+        generation = self.next_goal_generation()
         future = self.nav.send_goal_async(goal)
         future.add_done_callback(
-            lambda done: self.home_goal_response(done, pose, attempt)
+            lambda done: self.home_goal_response(done, pose, attempt, generation)
         )
         self.status(f"RETURN HOME GOAL DISPATCHED attempt={attempt + 1}")
 
-    def home_goal_response(self, future, pose, attempt: int) -> None:
+    def home_goal_response(self, future, pose, attempt: int, generation=None) -> None:
         try:
             handle = future.result()
             if not handle.accepted:
+                if self.goal_superseded(generation):
+                    self.get_logger().info("superseded return-home goal was rejected")
+                    return
                 self.status("RETURN HOME REJECTED")
                 return
-            self.status("RETURN HOME ACCEPTED")
             self.autonomy_goals_active += 1
+            if not self.goal_superseded(generation):
+                self.status("RETURN HOME ACCEPTED")
             result = handle.get_result_async()
             result.add_done_callback(
-                lambda done: self.home_goal_result(done, pose, attempt)
+                lambda done: self.home_goal_result(done, pose, attempt, generation)
             )
         except Exception as exc:
             self.error("return-home action", exc)
 
-    def home_goal_result(self, future, pose, attempt: int) -> None:
+    def home_goal_result(self, future, pose, attempt: int, generation=None) -> None:
         self.autonomy_goals_active = max(0, self.autonomy_goals_active - 1)
         try:
             status = future.result().status
+            if self.goal_superseded(generation):
+                self.get_logger().info(f"superseded return-home goal ended status={status} (a newer goal is active)")
+                return
             self.status(f"RETURN HOME FINISHED status={status}")
             if status == 4:
                 self.worker.submit(
