@@ -1,5 +1,18 @@
 # ATLAS current blockers
 
+### 2026-11-20 — Left/right HC-SR04 channels ENABLED for checking (owner: "just enable right and left so I can check")
+- Rover state: `/atlas/motion_safety` = "REMOTE STOP: joystick unavailable", autonomy not armed.
+- Deployed `ultrasonic_arduino_bridge.py`: the `side_ultrasonic_commands()` change only; the rover file matched the pre-change repo version (md5 caec6e96). Backup: `backups/virtual_obstacles_20261116/ultrasonic_arduino_bridge.py.before-side-us`.
+- New drop-in `atlas-uno-r4-sensor-hub.service.d/side-ultrasonic.conf` (`ATLAS_LEFT/RIGHT_ULTRASONIC_ENABLED=1`). Restarted `atlas-uno-r4-sensor-hub` only.
+- Verified over 10 s (28 reports, all VALID):
+  - front median 0.346 m;
+  - **left median 1.255 m** (1.216–1.283);
+  - **right median 1.169 m** (1.141–1.178);
+  - rear median 0.337 m.
+- Timing: the firmware samples each enabled channel in a 45 ms slot (about 180 ms per sensor with 4), well inside the mux 1.0 s ultrasonic timeout.
+- Not changed: the mux / LiDAR guard (rover mux has no side-sensor code; `config/ultrasonic_mounts.json` not deployed and disabled). The side readings are informational only.
+- Next: owner checks the readings against a tape measure and reports each sensor's mount position and angle.
+
 ### 2026-11-20 — Mission-control pre-emption, room guard stops, turn-sign metric, GitHub CI (offline; nothing deployed)
 
 **4. Early "NAMED GOAL FINISHED status=6" on pre-emption — fix STAGED (not deployed).**
