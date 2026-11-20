@@ -209,10 +209,9 @@ python3 -m unittest discover -s tests -p 'test_*.py'    # everything (some modul
 python3 -m unittest $(grep -v '^#' tools/ci/offline_tests.txt)   # exactly what GitHub CI runs
 ```
 
-The robot-free set is meant to run in GitHub CI on every push and pull request; the workflow file
-(`.github/workflows/offline-tests.yml`) is still to be added (the push token lacked the `workflow` permission on
-2026-11-20). Modules that need ROS 2, hardware or the Jetson file layout are listed in
-`project_atlas/tools/ci/not_in_ci.txt`.
+GitHub runs the robot-free set automatically on every push and pull request
+([`.github/workflows/offline-tests.yml`](../.github/workflows/offline-tests.yml)). Modules that need ROS 2, hardware or the
+Jetson file layout are listed in `project_atlas/tools/ci/not_in_ci.txt`.
 
 ## 10. Build and deploy
 

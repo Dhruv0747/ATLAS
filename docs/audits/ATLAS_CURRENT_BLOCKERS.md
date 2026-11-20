@@ -30,12 +30,12 @@
 - Tests: `test_stage3_autonomy_check` 9/9 (2 new).
 - **Owner note:** this changes how a Stage-3 criterion is measured (autonomous turning only). It is not a relaxed threshold.
 
-**7. GitHub CI.** *(Correction 2026-11-20 09:20: the workflow file below was NOT pushed: the GitHub token lacked the `workflow` scope and three device-authorisation codes expired. The file is kept locally; the module lists in `project_atlas/tools/ci/` are pushed. Owner to add the workflow via the GitHub web UI or after granting the scope.)*
+**7. GitHub CI.** *(Correction 2026-11-20 09:20: the workflow file below was NOT pushed: the GitHub token lacked the `workflow` scope and three device-authorisation codes expired. The file is kept locally; the module lists in `project_atlas/tools/ci/` are pushed. Owner to add the workflow via the GitHub web UI or after granting the scope.)* *(Update 09:59: added through the GitHub web editor in the owner's signed-in browser session at the owner's request, commit 5925d14; the first runs started on push and on PR #22.)*
 - `.github/workflows/offline-tests.yml`: ubuntu-22.04, Python 3.10, pyyaml + numpy; on push, pull request and manual run; read-only permissions; never contacts the rover.
 - It runs `project_atlas/tools/ci/offline_tests.txt`: 128 modules / 1 138 tests, all passing together locally (70 skipped need ROS).
 - 59 modules need ROS 2, hardware, the Jetson layout or are stale (`not_in_ci.txt`); evidence gap: not triaged one by one.
 - Found and fixed while doing this: `test_autonomy_web` / `test_autonomy_abort` left a stub `atlas_wifi_web` (origin check always true) in `sys.modules`. That made the origin-security tests of `test_flysky_web` / `test_testlab_web` fail when run in one process; the stub is now removed after import.
-- README badge removed again until the workflow exists.
+- README badge restored once the workflow existed (5925d14).
 
 ### 2026-11-19 ~23:45 IST — Encoder CRITICAL root cause (wheel-curvature sign), side-ultrasonic geometry, pre-home point (offline; nothing deployed)
 
