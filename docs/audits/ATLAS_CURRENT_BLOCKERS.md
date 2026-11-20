@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+### 2026-11-20 — Dashboard Restart: two-tap in-page confirm DEPLOYED (owner "Yes, deploy")
+- Owner pressed Restart about 17:40 and no dialog appeared. The rover did not reboot (up since 17:21) and no reboot entry reached `estop_events.jsonl`. The owner's browser most likely blocks `confirm()` pop-ups. In a fresh built-in browser page the dialog did appear (auto-cancelled; nothing sent).
+- Fix (commit d756a67): no pop-up. The first tap arms the button for 5 s ("Tap again to restart (5 s)", red). A second tap within 5 s sends `action=reboot&confirm=RESTART_ATLAS`. Result and error text show on the button. The server side is unchanged.
+- Browser test with fetch stubbed (nothing sent): one tap sent 0 requests, the button restored after 5.5 s, and a double tap sent exactly 1 correct body.
+- Before deploying: stop latched ("REMOTE STOP: joystick unavailable"), autonomy armed false.
+- Backups are in `~/project_atlas/backups/restart_twotap_20261120/`. Copied atlas_diagnostics_ui.js (1150750b), index.html (245d1301), classic.html (26d76f9b) and mapping.html (2ad700d2); the rover's md5s match. The service was not restarted because the files are read per request. The served pages load diagnostics.js?v=20261120restart2, which has the two-tap code. The real Restart has NOT yet been pressed.
+
 ### 2026-11-20 17:33 IST — Dashboard Restart button DEPLOYED (owner "Yes, deploy")
 - Sudoers: the owner typed the password in their terminal tab. `/etc/sudoers.d/atlas-dashboard-reboot` (17:31, 0440 root) holds `jetson ALL=(root) NOPASSWD: /sbin/shutdown -r now`. `sudo -n -l` lists both shutdown -r and shutdown -h as NOPASSWD. The first two tries failed with 3 incorrect password attempts each and changed nothing.
 - Before deploying: stop latched ("REMOTE STOP: joystick unavailable"), autonomy armed false, /cmd_vel zero.
