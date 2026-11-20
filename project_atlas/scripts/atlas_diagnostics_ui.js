@@ -6,12 +6,22 @@ async function shutdownAtlas(){
   try{const response=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Atlas-Wifi':'1'},body:new URLSearchParams({action:'shutdown',confirm:'POWER_OFF_ATLAS'})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.message||'Shutdown failed');button.textContent='⏻ SHUTDOWN REQUESTED';alert(result.message);}
   catch(error){button.disabled=false;alert(error.message+' — check whether ATLAS is still online.');}
 }
-// 2026-11-20 owner: Restart button next to Shut down (same protections; server requires RESTART_ATLAS).
+// 2026-11-20 owner: two-tap confirm inside the page (no pop-up; some dashboard browsers block confirm()).
+// First tap arms the button for 5 s; a second tap within 5 s sends the request. The server still
+// requires confirm=RESTART_ATLAS + same origin and latches the drive stop before restarting.
+let restartArmTimer=null;
 async function restartAtlas(){
-  if(!confirm('Restart ATLAS Jetson? Driving stops and the dashboard disconnects for about 2 minutes, then ATLAS comes back by itself.'))return;
-  const button=document.getElementById('restartButton');if(button)button.disabled=true;
-  try{const response=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Atlas-Wifi':'1'},body:new URLSearchParams({action:'reboot',confirm:'RESTART_ATLAS'})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.message||'Restart failed');if(button)button.textContent='Restart requested';alert(result.message);}
-  catch(error){if(button)button.disabled=false;alert(error.message+' — check whether ATLAS is still online.');}
+  const button=document.getElementById('restartButton');if(!button||button.disabled)return;
+  if(!button.dataset.label)button.dataset.label=button.innerHTML;
+  const restore=()=>{delete button.dataset.armed;button.innerHTML=button.dataset.label;button.style.outline='';button.style.background='';};
+  if(button.dataset.armed!=='1'){
+    button.dataset.armed='1';button.textContent='Tap again to restart (5 s)';
+    button.style.outline='3px solid #ff5261';button.style.background='#7a1020';
+    clearTimeout(restartArmTimer);restartArmTimer=setTimeout(restore,5000);return;
+  }
+  clearTimeout(restartArmTimer);delete button.dataset.armed;button.style.outline='';button.disabled=true;button.textContent='Restarting...';
+  try{const response=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Atlas-Wifi':'1'},body:new URLSearchParams({action:'reboot',confirm:'RESTART_ATLAS'})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.message||'Restart failed');button.textContent='Restart requested - back in about 2 min';}
+  catch(error){button.textContent='Restart failed: '+error.message;setTimeout(()=>{button.disabled=false;restore();},8000);}
 }
 function mainBattery(r) {
   const b=bmsSnapshot(r);
