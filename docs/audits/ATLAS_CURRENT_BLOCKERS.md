@@ -6,6 +6,7 @@
 - Backups are in `~/project_atlas/backups/restart_button_20261120/`. Copied atlas_status_web.py (md5 add0193f), atlas_diagnostics_ui.js (ec00b0ac), web/v2/index.html (b5aa494a), classic.html (917211fa) and mapping.html (66ae79d4). The rover's md5s match the local ones; py_compile OK.
 - `systemctl --user restart rover-status-web` at 17:33:27; active. The old process printed ExternalShutdownException tracebacks while stopping (normal shutdown noise).
 - On 127.0.0.1:8088: /v2/, classic.html, mapping.html and diagnostics.js?v=20261120restart all serve the Restart button or function. An unconfirmed `action=reboot` POST returns 403. The button itself was NOT pressed.
+- After the deploy, the latch was released on the controller ("REMOTE STOP: released by neutral LB hold"). That was an operator action, not the web restart. Autonomy stayed armed false and manual_only true.
 - Still open: the full CI list on the rover copy gave 2 failures and 3 errors (names not captured). GitHub CI must confirm after the next push.
 
 ### 2026-11-20 — Dashboard Restart button STAGED (not deployed; sudoers rule missing)
