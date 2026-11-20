@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+### 2026-11-20 17:33 IST — Dashboard Restart button DEPLOYED (owner "Yes, deploy")
+- Sudoers: the owner typed the password in their terminal tab. `/etc/sudoers.d/atlas-dashboard-reboot` (17:31, 0440 root) holds `jetson ALL=(root) NOPASSWD: /sbin/shutdown -r now`. `sudo -n -l` lists both shutdown -r and shutdown -h as NOPASSWD. The first two tries failed with 3 incorrect password attempts each and changed nothing.
+- Before deploying: stop latched ("REMOTE STOP: joystick unavailable"), autonomy armed false, /cmd_vel zero.
+- Backups are in `~/project_atlas/backups/restart_button_20261120/`. Copied atlas_status_web.py (md5 add0193f), atlas_diagnostics_ui.js (ec00b0ac), web/v2/index.html (b5aa494a), classic.html (917211fa) and mapping.html (66ae79d4). The rover's md5s match the local ones; py_compile OK.
+- `systemctl --user restart rover-status-web` at 17:33:27; active. The old process printed ExternalShutdownException tracebacks while stopping (normal shutdown noise).
+- On 127.0.0.1:8088: /v2/, classic.html, mapping.html and diagnostics.js?v=20261120restart all serve the Restart button or function. An unconfirmed `action=reboot` POST returns 403. The button itself was NOT pressed.
+- Still open: the full CI list on the rover copy gave 2 failures and 3 errors (names not captured). GitHub CI must confirm after the next push.
+
 ### 2026-11-20 — Dashboard Restart button STAGED (not deployed; sudoers rule missing)
 - Added `action=reboot` to `atlas_status_web.py`. It needs confirm `RESTART_ATLAS` and same origin, otherwise 403. It needs a NOPASSWD sudoers rule for exactly `/sbin/shutdown -r now`, otherwise 503 and nothing happens.
 - When allowed, it first latches the drive stop, stops the rover and writes the E-STOP log, then runs `sudo -n /sbin/shutdown -r now` after 2 s. No password is ever piped. The old `sudo -S` reboot stays removed.
