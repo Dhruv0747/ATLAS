@@ -1,5 +1,14 @@
 # ATLAS current blockers
 
+### 2026-11-20 19:24-19:30 IST — Round trip 5: both legs SUCCEEDED (no bag; light dashboard log only)
+- No rosbag (the owner chose "No need"), so the Stage-3 checker cannot score this trip. Evidence: dashboard `/api/status` read every 5 s (`/tmp/light_watch.py`) plus the mission-control, mux, E-STOP and kernel logs.
+- Start was not the dhruv room place: ATLAS began the hall leg from about (1.33, -1.46, -71 deg), after the earlier blocked attempts and manual repositioning.
+- Hall leg: Go 19:24:56, scan check fit 97 %, accepted 19:24:58, "NAMED GOAL FINISHED name=hall status=4" (SUCCEEDED) at 19:26:49. Stop pose (1.76, -5.21) vs place (1.68, -5.35): 0.16 m. One remote assist sample (src=REMOTE) at 19:26:13, near the hall door.
+- Return leg: Go 19:28:01, scan fit 94 %, accepted 19:28:04, "NAMED GOAL FINISHED name=dhruv room status=4" at 19:30:21. Last samples (0.00, 0.28, 91 deg) vs place (0.08, 0.54, 65 deg): about 0.27 m and 26 deg by the 5 s samples. A remote sample (src=REMOTE) appeared at 19:30:15-19:30:25, just before the finish.
+- Mux: 287 "LIDAR AVAILABILITY STOP" lines from 19:24:58 to the end; no LOCALIZATION JUMP, ultrasonic or encoder stops logged.
+- 4G modem: two USB re-enumerations of 1-2.4.1, at 19:26:11 (two seconds before the hall-door assist) and 19:27:41. The GPS now shares that hub. Load average was 8-13 during the drive (my heavy monitors were stopped).
+- Location monitor VERIFIED after the stop.
+
 ### 2026-11-20 19:14-19:22 IST — Round trip 5 attempt: no autonomous leg. LOCALIZATION JUMP, then refusal "localization still moving", then a CPU-load spike
 - 19:14:53 hall goal accepted (scan check fit 97 %). Then 19:14:54 mux: "AUTONOMY BLOCKED: LOCALIZATION JUMP pose jump 0.60m/42.1deg (allowed 0.32m/64.2deg over 1.02s)". Nav2 commanded 0.15 m/s, /cmd_vel stayed 0. No auto-reseed at that time; location checks before and after were VERIFIED. The source of the one-update AMCL jump is unexplained.
 - The first "B pressed" was not seen by the system (no latch_state event). B registered at 19:19:43, cleared the fault and turned autonomy OFF. LB released at 19:19:50; autonomy ON at 19:20:22; Go at 19:20:36.
