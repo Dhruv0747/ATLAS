@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+### 2026-11-20 18:02 IST — Dashboard Restart PASSED (real press by the owner)
+- `estop_events.jsonl`: `reboot_latch` at 18:01:29 from 192.168.1.7 (local Wi-Fi). The rover rebooted, boot time 18:02:07, and was back on SSH by 18:03:08.
+- After boot: rover-status-web active; no failed system or user units; stop latched ("REMOTE STOP: joystick unavailable"); autonomy armed false. The fallback md5 b6eee7d5 and both sudoers files persist.
+- Earlier tries from 100.76.195.106 (Tailscale) never sent a request: "nothing changed" on the first tap even after the menu fix. Not reproduced in the built-in browser; probably a stale page on that device. Re-check it from that device after a full reload.
+
 ### 2026-11-20 — More-menu fix for the two-tap Restart DEPLOYED (owner "Yes, deploy")
 - Failure: the owner pressed the two-tap Restart about 17:48 and the rover did not reboot (still up since 17:21; no reboot entry). Cause: the first tap rewrote the button label, which detached the click target. The More-menu outside-click handler (`menu.contains(e.target)`) then judged the tap as outside and closed the menu, hiding the armed button. Reproduced in the browser.
 - Fix (commit 2866de6): `home-cards.js` now uses `e.composedPath().includes(menu)`. The cache key is now `home-cards.js?v=20261120menu`.
