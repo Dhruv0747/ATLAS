@@ -381,7 +381,9 @@
     dr.addEventListener('toggle', () => store.set('atlasHomeOpen:' + dr.id, dr.open ? '1' : '0'));
   }
   const menu = document.querySelector('.hm-menu');
-  if (menu) document.addEventListener('click', e => { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+  // composedPath(): the Restart two-tap rewrites its button label, which detaches e.target before this runs;
+  // menu.contains(detached) was false and closed the menu after the first tap (2026-11-20).
+  if (menu) document.addEventListener('click', e => { if (menu.open && !e.composedPath().includes(menu)) menu.open = false; });
   // location-check.js inserts its panel after the header; keep it with the position facts instead.
   const slot = $('hmLocSlot');
   const adopt = () => { const box = document.querySelector('.atlas-location'); if (box && slot && box.parentElement !== slot) { slot.append(box); return true; } return false; };
