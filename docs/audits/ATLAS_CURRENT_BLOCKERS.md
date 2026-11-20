@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+### 2026-11-20 — Open-space ultrasonic check (owner placed the rover in open space; 15 s, all VALID)
+- **Right: median 0.96 m** (0.82–1.62; the owner moved a hand in front) vs LiDAR right side about 0.94–0.95 m. **Not seeing the rover itself**; the earlier 0.16–0.23 m were real nearby objects. The side stop is kept.
+- **Left: 0.723 m stable** while the LiDAR left side was open to about 2 m. This matches the floor-echo distance for a 0.23 m high sensor (floor about 17.7° below the axis at 0.72 m).
+- **Rear:** 0.911 m with 0.719 m samples (floor echo) vs LiDAR about 0.75 m from the bumper.
+- **Front:** 0.677 vs 0.704 m (−2.7 cm).
+- Floor echoes (about 0.72 m) are far above the 0.28 m side stop and the 0.30 m front/rear stops, so they cannot cause autonomy stops. They do shorten readings (conservative).
+- Recommendation: tilt the 0.23 m-high left/right/rear sensors up about 5–10°.
+
 ### 2026-11-20 — CORRECTION: enabling left/right ultrasonic ACTIVATED the existing autonomy side stop
 - The 10:xx entries said the side readings were "informational only". **That was wrong.**
 - The deployed mux already calls `ValidityWindow.veto(..., side_stop=auto_side_stop_m 0.28)`. While Nav2 turns left (wz > 0.05) or right (wz < −0.05), a fresh VALID reading ≤ 0.28 m on that side gives `AUTONOMY BLOCKED: LEFT/RIGHT <d> m`.
