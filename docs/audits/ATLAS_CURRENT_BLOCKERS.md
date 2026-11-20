@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+### 2026-11-20 — More-menu fix for the two-tap Restart DEPLOYED (owner "Yes, deploy")
+- Failure: the owner pressed the two-tap Restart about 17:48 and the rover did not reboot (still up since 17:21; no reboot entry). Cause: the first tap rewrote the button label, which detached the click target. The More-menu outside-click handler (`menu.contains(e.target)`) then judged the tap as outside and closed the menu, hiding the armed button. Reproduced in the browser.
+- Fix (commit 2866de6): `home-cards.js` now uses `e.composedPath().includes(menu)`. The cache key is now `home-cards.js?v=20261120menu`.
+- Before deploying: stop latched, autonomy armed false. Backups are in `~/project_atlas/backups/restart_menu_20261120/`. Copied home-cards.js (bfd5230b) and index.html (9f13a673); the rover's md5s match. No service restart.
+- Live-page test with fetch stubbed (nothing sent): after the first tap the menu stays open and the button is armed. The second tap sent exactly `action=reboot&confirm=RESTART_ATLAS`. A real press by the owner is still pending.
+
 ### 2026-11-20 — Dashboard Restart: two-tap in-page confirm DEPLOYED (owner "Yes, deploy")
 - Owner pressed Restart about 17:40 and no dialog appeared. The rover did not reboot (up since 17:21) and no reboot entry reached `estop_events.jsonl`. The owner's browser most likely blocks `confirm()` pop-ups. In a fresh built-in browser page the dialog did appear (auto-cancelled; nothing sent).
 - Fix (commit d756a67): no pop-up. The first tap arms the button for 5 s ("Tap again to restart (5 s)", red). A second tap within 5 s sends `action=reboot&confirm=RESTART_ATLAS`. Result and error text show on the button. The server side is unchanged.
