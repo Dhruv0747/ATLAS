@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+### 2026-11-20 ~12:20 IST — Mission-control pre-emption fix DEPLOYED (owner "Deploy mission fix")
+- Autonomy not armed; no mission-control goal in the previous 15 min.
+- Rover `atlas_mission_control.py` was the pre-fix version (md5 a32a55a1, identical to the repo before d2ba6c9). Deployed md5 db0b27c4. Backup `backups/virtual_obstacles_20261116/atlas_mission_control.py.before-supersede`.
+- Restarted `atlas-mission-control` only. Verified: active, status READY, Foxglove bindings ready, no errors.
+- Expected (not yet seen live): a pre-empted goal's result is logged as "superseded …" instead of `NAMED GOAL FINISHED … status=6`; no READY revert while a goal drives; the camera tracker is not restarted mid-goal.
+- Not addressed: Nav2 "Failed to make progress" after long safety blocks (10× in `hall_auto2`). That is the controller progress checker, not mission control.
+
 ### 2026-11-20 11:41–12:11 IST — Owner round trip after the curvature fix (bag `hall_auto2_20261120_1141`, 30 min)
 - **Hall goal SUCCEEDED (status 4) at 11:48:41**, with owner remote help (stuck at the narrow HOME start; turnaround in the hall; doorway).
 - Return to "dhruv room": the 11:51 goal was pre-empted by a new Go at 11:55:43. The new goal **aborted instantly**: the controller logged "Failed to make progress", carried over from the long-blocked previous goal (10 such aborts in the drive). Since the pre-emption bug was also present, the status showed FINISHED 6 / READY. Fix staged (d2ba6c9), not deployed.
