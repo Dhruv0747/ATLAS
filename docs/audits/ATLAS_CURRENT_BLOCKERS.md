@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+### 2026-11-20 18:45 IST — Hiwonder GPS V1 (primary GPS) missing from USB since the 13:52 boot
+- `atlas-gnss` (auto_usb) logs "expected one unclaimed verified device, found 0", every 10 min since 03:26. `/gps/receiver_status` reads PORT_OFFLINE. Its startup line names the SIMCOM if03 port only because that is the DEFAULT_PORT label; the node does not open the modem port. ModemManager owns ttyUSB5.
+- Only two CH340s are present now: 2.2.3 = ttyUSB0 (yahboom_base) and 2.4.3 = ttyUSB1 (IM10A). Port 2.2.4, once a small hub carrying the GPS at 2.2.4.3, now holds the ESP32 directly. Port 2.2.2 is free.
+- Evidence from the modem's first tty number in the kernel log: boot 11:34–12:49 gave ttyUSB4 (4 USB serials, GPS present). Boots from 13:52, 16:51 and 18:02 gave ttyUSB3 (GPS absent). So the GPS disappeared during the 12:49–13:52 power-off.
+- The owner plugged the GPS back in about 18:37. The kernel logged no new USB device; not yet resolved (cable, port or power).
+
 ### 2026-11-20 18:25 IST — Speed check PASS (second post-curvature-fix PASS; speed evidence current again)
 - `speed_loop_check_20261120_182509.json`: PASS, requested 0.15 m/s. Start 0.46 s; steady mean 0.117 m/s; peak 0.167 m/s (limit 0.25); wheel distance 0.587 m; ICP 0.648 m (agrees within 25 %); coast after stop 0.018 m. All checks true.
 - PASSes after the 11:26 yahboom_base deploy: 11:29:44 and 18:25:09. The 2-PASS rule from the curvature fix is met.
