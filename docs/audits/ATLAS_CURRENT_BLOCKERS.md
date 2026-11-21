@@ -1,5 +1,16 @@
 # ATLAS current blockers
 
+### 2026-11-21 21:57 IST — Back to Stage 3: localization not seeded after the 21:24 boot
+- Boot seeder: "LOCALIZATION UNKNOWN: AMCL not seeded; scan does not match the saved map well enough anywhere (best 0.78 < 0.93)". AMCL: "Please set the initial pose"; the location monitor shows "AMCL pose stale". Relocalize mode is `auto`, but auto needs a live AMCL pose to compare against.
+- Likely cause: ATLAS was not at a mapped spot during the USB re-wiring and reboot. Next: the owner places ATLAS at the "dhruv room" place facing 65 deg, then seed in verify mode (scan match, no motion).
+- Plan for round trip 6 (official Stage-3 evidence):
+  1. Tape the hall door frame.
+  2. Start at "dhruv room", 65 deg, location VERIFIED.
+  3. Record a light bag of the checker topics only.
+  4. Go hall; press B once while Nav2 is driving (safe_stop); release; Go again.
+  5. Go dhruv room.
+  6. Run `stage3_autonomy_check.py BAG --home "dhruv room"`.
+
 ### 2026-11-21 20:56 IST — Owner gave the USB hub its own power: 0 USB faults in the first 16 min (early result)
 - Rover rebooted about 20:40 after the re-wiring. Layout unchanged: hub 1-2.2 = 4G modem + motor base + LiDAR (+ billboard); 1-2.3 = ESP32 + UNO R4; 1-2.3.3 = Astra x2; 1-2.4 = GPS + IM10A + Xbox.
 - Kernel this boot: 0 USB disconnects, 0 USB errors (-32/-71/-110/urb stopped). Modem registered on LTE (67 %), usb0 192.168.225.138.
