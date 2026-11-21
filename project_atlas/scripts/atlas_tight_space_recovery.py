@@ -42,7 +42,7 @@ class TightRecovery(Node):
         # settle. Allow enough wall-clock time for that safe gate, but end the
         # pulse by measured displacement so the extra time cannot create an
         # unbounded movement.
-        self.declare_parameter('pulse_duration_s', 1.4)
+        self.declare_parameter('pulse_duration_s', 3.0)
         # ATLAS can coast several centimetres after zero is commanded. Keep
         # the powered portion short and let the settle phase measure the full
         # result.
@@ -58,10 +58,12 @@ class TightRecovery(Node):
         self.resume_pub = self.create_publisher(Bool, '/explore/resume', 10)
         self.create_subscription(Empty, '/atlas/tight_recovery_request', self.request, 10)
         self.create_subscription(LaserScan, '/scan', self.scan_cb, qos_profile_sensor_data)
-        # Short recovery displacement must come directly from wheel odometry.
-        # Fused /odom can be delayed or corrected by the EKF/SLAM stack and
-        # once allowed a pulse to run past its cap before reporting 0.383 m.
+        # Keep raw wheel odometry, but corroborate it with the independent
+        # LiDAR-odometry shadow source. Degraded three-encoder feedback can
+        # under-report a real short movement. Fused /odom is deliberately not
+        # used because EKF/SLAM corrections once overstated a recovery pulse.
         self.create_subscription(Odometry, '/yahboom/odom', self.odom_cb, 20)
+        self.create_subscription(Odometry, '/lidar/odom', self.lidar_odom_cb, 20)
         for name in ('front', 'left', 'right', 'rear'):
             self.create_subscription(Float32, f'/ultrasonic/{name}_mm',
                                      lambda msg, n=name: self.ultra_cb(n, msg), 10)
@@ -81,7 +83,12 @@ class TightRecovery(Node):
         self.odom = None
         self.previous_odom = None
         self.odom_discontinuity = False
+        self.lidar_odom = None
+        self.previous_lidar_odom = None
+        self.lidar_odom_time = 0.0
+        self.lidar_odom_discontinuity = False
         self.start_xy = None
+        self.start_lidar_xy = None
         self.deadline = 0.0
         self.last_request = -1e9
         self.attempts = 0
@@ -128,12 +135,28 @@ class TightRecovery(Node):
         self.previous_odom = current
         self.odom = current
 
+    def lidar_odom_cb(self, msg):
+        p = msg.pose.pose.position
+        current = (p.x, p.y)
+        if self.previous_lidar_odom is not None and self.phase in (
+            Phase.PULSE, Phase.SETTLE
+        ):
+            step = math.hypot(
+                current[0] - self.previous_lidar_odom[0],
+                current[1] - self.previous_lidar_odom[1],
+            )
+            if step > 0.12:
+                self.lidar_odom_discontinuity = True
+        self.previous_lidar_odom = current
+        self.lidar_odom = current
+        self.lidar_odom_time = self.now_s()
+
     def sector_min(self, center_deg, width_deg):
-        if self.scan is None:
-            return math.inf
+        if not self.sensors_fresh():
+            return 0.0
         vals = []
         for i, value in enumerate(self.scan.ranges):
-            if not math.isfinite(value) or value < self.scan.range_min:
+            if not math.isfinite(value) or not self.scan.range_min <= value <= self.scan.range_max:
                 continue
             angle = math.degrees(self.scan.angle_min + i * self.scan.angle_increment)
             if ray_in_base_sector(
@@ -143,14 +166,32 @@ class TightRecovery(Node):
                 self.get_parameter('laser_yaw_deg').value,
             ):
                 vals.append(value)
-        return min(vals) if vals else math.inf
+        # This is a permission-to-move input, unlike optional ultrasonic vetoes.
+        # An unobserved sector must never satisfy `distance > clearance`.
+        # Zero means clearance UNAVAILABLE here, not a fabricated scan return;
+        # the original LaserScan is never modified. This does not prove full
+        # swept-footprint coverage when only a few valid rays exist.
+        return min(vals) if vals else 0.0
 
     def sensors_fresh(self):
         age = self.get_parameter('sensor_timeout_s').value
         now = self.now_s()
-        # Recovery requires fresh LiDAR and odometry. Ultrasonics are optional
-        # close-range vetoes because open space may legitimately return no echo.
-        return now - self.scan_time <= age
+        # Arrival time alone allows a delayed/replayed old scan to authorize
+        # motion. Require acquisition and receipt freshness independently.
+        # Unknown/future timestamps and malformed geometry fail closed.
+        if self.scan is None:
+            return False
+        scan = self.scan
+        stamp = scan.header.stamp.sec + scan.header.stamp.nanosec * 1e-9
+        geometry = (scan.range_min, scan.range_max, scan.angle_min, scan.angle_increment)
+        return (
+            stamp > 0.0
+            and all(math.isfinite(v) for v in geometry)
+            and 0.0 <= scan.range_min < scan.range_max
+            and scan.angle_increment != 0.0 and bool(scan.ranges)
+            and 0.0 <= now - self.scan_time <= age
+            and 0.0 <= now - stamp <= age
+        )
 
     def request(self, _msg):
         now = self.now_s()
@@ -167,6 +208,7 @@ class TightRecovery(Node):
         self.attempts = 0
         self.avoid_forward = False
         self.odom_discontinuity = False
+        self.lidar_odom_discontinuity = False
         self.lockout_clear_since = None
         self.phase = Phase.CLEARING
         self.deadline = now + 0.8
@@ -176,6 +218,10 @@ class TightRecovery(Node):
         self.report('RECOVERY: Nav2 paused; costmaps clearing')
 
     def choose_motion(self):
+        # Also recheck after costmap clearing: the request-time scan may have
+        # expired before the first pulse. Never wait for a later tick to stop.
+        if not self.sensors_fresh():
+            return None
         # Match atlas_safety_status exactly.  A narrower recovery sector once
         # classified a door/wall edge as clear while the operator safety view
         # correctly reported it at 0.52 m, allowing a forward pulse into the
@@ -188,26 +234,27 @@ class TightRecovery(Node):
         fc = self.get_parameter('front_clear_m').value
         rc = self.get_parameter('rear_clear_m').value
         sc = self.get_parameter('side_clear_m').value
+        pulse_speed = self.get_parameter('pulse_speed').value
         if self.avoid_forward and rear > rc and max(left, right) > sc:
             turn = -0.25 if left > right else 0.25
-            return -0.09, turn, 'alternate reverse arc toward clearer side'
+            return -pulse_speed, turn, 'alternate reverse arc toward clearer side'
         if front > fc and left > sc and right > sc:
             side_difference = left - right
             if abs(side_difference) > self.get_parameter(
                 'side_balance_for_straight_m'
             ).value:
                 turn = 0.25 if side_difference > 0.0 else -0.25
-                return 0.09, turn, 'forward arc toward wider side'
-            return self.get_parameter('pulse_speed').value, 0.0, 'forward'
+                return pulse_speed, turn, 'forward arc toward wider side'
+            return pulse_speed, 0.0, 'forward'
         if front > fc and max(left, right) > sc:
             turn = 0.25 if left > right else -0.25
-            return 0.09, turn, 'forward arc toward clearer side'
+            return pulse_speed, turn, 'forward arc toward clearer side'
         if rear > rc and max(left, right) > sc:
             # When reversing, the rear of the rover sweeps opposite the yaw
             # direction. Choose the sign that moves the rear into the clearer
             # side corridor; signed steering kinematics handle the axle angles.
             turn = -0.25 if left > right else 0.25
-            return -0.09, turn, 'reverse arc toward clearer side'
+            return -pulse_speed, turn, 'reverse arc toward clearer side'
         if rear > rc:
             # Match the verified ATLAS drivetrain deadband. The previous
             # 0.08 m/s command was safe but too small to turn the wheels.
@@ -240,12 +287,26 @@ class TightRecovery(Node):
         self.cmd_pub.publish(msg)
 
     def measured_progress(self):
+        progress = 0.0
         if self.start_xy and self.odom:
-            return math.hypot(
+            progress = math.hypot(
                 self.odom[0] - self.start_xy[0],
                 self.odom[1] - self.start_xy[1],
             )
-        return 0.0
+        lidar_fresh = (
+            self.now_s() - self.lidar_odom_time
+            <= self.get_parameter('sensor_timeout_s').value
+        )
+        if (
+            lidar_fresh and not self.lidar_odom_discontinuity
+            and self.start_lidar_xy and self.lidar_odom
+        ):
+            lidar_progress = math.hypot(
+                self.lidar_odom[0] - self.start_lidar_xy[0],
+                self.lidar_odom[1] - self.start_lidar_xy[1],
+            )
+            progress = max(progress, lidar_progress)
+        return progress
 
     def stop(self, reason):
         self.publish_cmd()
@@ -288,14 +349,16 @@ class TightRecovery(Node):
             self.direction = linear
             self.angular = angular
             self.start_xy = self.odom
+            self.start_lidar_xy = self.lidar_odom
             self.attempts += 1
             self.deadline = now + self.get_parameter('pulse_duration_s').value
             self.phase = Phase.PULSE
             self.report(f'RECOVERY: bounded {label} pulse, attempt {self.attempts}')
             self.publish_cmd(linear, angular)
         elif self.phase == Phase.PULSE:
-            if self.odom_discontinuity:
-                self.stop('BLOCKED: wheel odometry reset during recovery pulse')
+            if self.odom_discontinuity or self.lidar_odom_discontinuity:
+                source = 'wheel' if self.odom_discontinuity else 'LiDAR'
+                self.stop(f'BLOCKED: {source} odometry reset during recovery pulse')
                 return
             if not self.still_safe():
                 self.stop('BLOCKED: obstacle or stale sensor detected during pulse')

@@ -1,0 +1,142 @@
+{
+ "evidence": {
+  "schema_version": 3,
+  "session_id": "21ed0671944a43f8840c7e72c048823f",
+  "candidate_map_id": "38253aab42e9e97304aa",
+  "tf_jump": {
+   "session_id": "21ed0671944a43f8840c7e72c048823f",
+   "session_started_unix": 1794657076.184965,
+   "monitor_started_unix": 1794657095.780234,
+   "observation_started_unix": 1794657095.8255684,
+   "observation_ended_unix": 1794658062.470538,
+   "sample_count": 17182,
+   "max_translation_m": 1.273873,
+   "max_yaw_deg": 13.597434,
+   "max_sample_gap_s": 0.349711,
+   "time_order_valid": true,
+   "source_stamp_started_unix": 1794657094.5758967,
+   "source_stamp_ended_unix": 1794658058.8510866,
+   "raw_source_stamp_started_unix": 1794657096.0758967,
+   "raw_source_stamp_ended_unix": 1794658060.3510866,
+   "source_future_offset_s": 1.5,
+   "source_future_skew_limit_s": 1.0,
+   "max_source_age_s": 3.768324,
+   "max_raw_source_future_s": 0.343258,
+   "max_normalized_source_future_s": 0.0,
+   "source_stamp_valid": true,
+   "source_time_order_valid": true,
+   "source_future_skew_valid": true,
+   "invalid_source_stamp_count": 0,
+   "source_regression_count": 0,
+   "max_source_regression_s": 0.0,
+   "max_translation_observation_unix": 1794657445.5442731,
+   "max_translation_source_unix": 1794657442.003583,
+   "max_yaw_observation_unix": 1794657445.5442731,
+   "max_yaw_source_unix": 1794657442.003583
+  },
+  "round_trip_closure": {
+   "session_id": "21ed0671944a43f8840c7e72c048823f",
+   "translation_error_m": 0.134622,
+   "yaw_error_deg": 1.319065
+  },
+  "exact_candidate_connectivity": {
+   "session_id": "21ed0671944a43f8840c7e72c048823f",
+   "candidate_map_id": "38253aab42e9e97304aa",
+   "connected": true,
+   "unknown_is_blocked": true,
+   "inflation_radius_m": 0.18,
+   "resolution_m": 0.05,
+   "width_cells": 234,
+   "height_cells": 243,
+   "start_cell": [
+    85,
+    59
+   ],
+   "goal_cell": [
+    113,
+    188
+   ],
+   "reachable_cells": 3165
+  },
+  "full_footprint_connectivity": {
+   "point_count": 4,
+   "length_m": 0.5,
+   "width_m": 0.36,
+   "area_m2": 0.18,
+   "frame_id": "map",
+   "observed_unix": 1794659900.0449293,
+   "connected": true
+  },
+  "bidirectional_plans": {
+   "forward": {
+    "passed": true,
+    "status": 4,
+    "poses": 87,
+    "path_length_m": 7.204
+   },
+   "reverse": {
+    "passed": true,
+    "status": 4,
+    "poses": 93,
+    "path_length_m": 7.734
+   }
+  },
+  "motion_dispatched": false,
+  "session_mode": "manual_teaching",
+  "startup_stillness": {
+   "start_odom_age_s": 0.04013825599759002,
+   "ready_odom_age_s": 0.0069425840010808315,
+   "wheel_displacement_m": 0.0,
+   "wheel_yaw_change_deg": 0.0
+  },
+  "final_map_consistency": {
+   "schema": 1,
+   "session_id": "21ed0671944a43f8840c7e72c048823f",
+   "scans": 972,
+   "matched": 972,
+   "passed": true,
+   "failures": [],
+   "policy": {
+    "min_scans": 100,
+    "tolerance_m": 0.15,
+    "min_scan_fit": 0.85,
+    "min_fraction_good": 0.95,
+    "max_pose_offset_m": 0.3,
+    "max_pose_offset_deg": 15.0,
+    "sample_period_s": 0.5,
+    "max_samples": 1200
+   },
+   "fit_median": 1.0,
+   "fit_p10": 0.9836,
+   "fraction_good": 1.0,
+   "pose_offset_median_m": 0.046,
+   "pose_offset_max_m": 0.185,
+   "pose_offset_max_deg": 13.05,
+   "evaluation_s": 12.9,
+   "thinned": 0
+  }
+ },
+ "failures_session_time": [],
+ "failures_review_time": [
+  "map->odom evidence is stale at promotion time",
+  "map->odom source timestamp is stale at promotion time"
+ ],
+ "places_dhruv_room": {
+  "frame_id": "map",
+  "mapping_session_id": "21ed0671944a43f8840c7e72c048823f",
+  "qw": 0.9888478180669028,
+  "qx": 0.0,
+  "qy": 0.0,
+  "qz": 0.1489294890353336,
+  "x": 0.08,
+  "y": 0.54,
+  "z": 0.0,
+  "selected_offline": true
+ },
+ "decision": "accepted_after_owner_review",
+ "promoted_unix": 1794660194.5469878,
+ "promoted_map_id": "38253aab42e9e97304aa",
+ "old_map_id": "d12a1f183177212a3cc8",
+ "backup_tag": "20261114-181314-21ed0671-review",
+ "deviation": "session evidence evaluated at 17:37:42; connectivity/plans/footprint evaluated parked at 18:08:21; each set passes at its own time; single-moment freshness cannot hold offline. final_map_consistency recomputed from the recording (latest-TF method). dhruv room place selected on the map, owner confirmed."
+}

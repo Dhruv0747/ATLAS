@@ -5,8 +5,54 @@ host_monotonic_s is meaningful ONLY to consumers on the same Jetson boot.
 This is sample validity, not physical qualification or a PATH CLEAR guarantee.
 """
 import math
+import os
 
 SIDES = ('front', 'left', 'right', 'rear')
+
+# 2026-11-20 radius-aware side stop (owner: "Yes, build it"). A 4WS turn rotates the 0.50 x 0.36 m body about the
+# instantaneous centre of rotation (ICR); only the INNER side (towards the ICR) sweeps sideways much: about 9 cm at
+# R 0.35 m, 6 cm at R 0.5 m and 3 cm at R >= 1 m over SIDE_SWEEP_HORIZON_M of travel (outer side <= 6 cm). The stop
+# distance is that sweep + SIDE_MARGIN_M, clamped to [SIDE_MIN_STOP_M, side_stop]. Bags hall_auto2/3 (2026-11-20):
+# the fixed 0.28 m blocked 15-26 % of turning commands, mostly gentle turns that sweep 2-4 cm.
+SIDE_HALF_LENGTH_M, SIDE_HALF_WIDTH_M = 0.25, 0.18
+SIDE_SWEEP_HORIZON_M = 0.15
+SIDE_MARGIN_M = 0.05
+SIDE_MIN_STOP_M = 0.10
+_SWEEP_CACHE = {}
+
+
+def inner_side_sweep_m(radius_m, horizon_m=SIDE_SWEEP_HORIZON_M):
+    """Largest sideways reach beyond the inner side line, beside the body, while the footprint rotates about an ICR at
+    |radius_m| for horizon_m of travel. Cached on 5 cm radius steps (rounded DOWN, i.e. the tighter, safer radius)."""
+    r = abs(float(radius_m))
+    if not math.isfinite(r) or r > 50.0:
+        return 0.0
+    key = max(0.05, math.floor(r / 0.05) * 0.05)
+    if key in _SWEEP_CACHE:
+        return _SWEEP_CACHE[key]
+    hl, hw = SIDE_HALF_LENGTH_M, SIDE_HALF_WIDTH_M
+    pts = [(-hl + 2 * hl * i / 25, y) for i in range(26) for y in (-hw, hw)]
+    pts += [(x, -hw + 2 * hw * j / 18) for j in range(19) for x in (-hl, hl)]
+    reach, steps = 0.0, 30
+    for k in range(1, steps + 1):
+        th = horizon_m * k / steps / key
+        c, sn = math.cos(th), math.sin(th)
+        for x, y in pts:
+            qx = c * x - sn * (y - key)
+            qy = sn * x + c * (y - key) + key           # ICR at (0, +key): left turn, inner side = +y
+            if -hl <= qx <= hl and qy > hw:
+                reach = max(reach, qy - hw)
+    if len(_SWEEP_CACHE) > 4096:
+        _SWEEP_CACHE.clear()
+    _SWEEP_CACHE[key] = reach
+    return reach
+
+
+def side_stop_limit_m(linear, angular, side_stop):
+    """Stop distance for the inner-side ultrasonic: sweep + margin, clamped to [SIDE_MIN_STOP_M, side_stop]."""
+    if abs(angular) < 1e-6:
+        return SIDE_MIN_STOP_M
+    return max(SIDE_MIN_STOP_M, min(side_stop, inner_side_sweep_m(linear / angular) + SIDE_MARGIN_M))
 CODES = ('F', 'L', 'R', 'B')
 SOURCE = 'uno_r4_uvalid1'
 MIN_MM, MAX_MM = 20, 4200
@@ -148,13 +194,26 @@ class ValidityWindow:
         if required:
             distance, state = self.reading(required, now)
             if state != 'VALID':
+                # 2026-11-15 owner: front/rear ultrasonic are a CLOSE-RANGE backup only ("not too much reliance").
+                # With ATLAS_ULTRASONIC_ADVISORY=1 a missing/backlogged report no longer blocks (LiDAR availability,
+                # costmaps and the camera gate stay in force); a VALID close reading still blocks below.
+                if os.environ.get('ATLAS_ULTRASONIC_ADVISORY', '0') == '1':
+                    return None
                 return f'AUTONOMY BLOCKED: {required.upper()} ULTRASONIC {state}'
             limit = front_stop if required == 'front' else rear_stop
             if distance <= limit:
                 return f'AUTONOMY BLOCKED: {required.upper()} {distance:.2f} m (stop {limit:.2f} m)'
-        side = 'left' if angular > 0.05 else 'right' if angular < -0.05 else None
-        if side:
+        # Inner side of the turn = side of the ICR: sign(linear * angular). Reversing with angular > 0 turns about an ICR
+        # on the RIGHT, so the right sensor guards the sweeping side (the former sign(angular) rule checked the outer
+        # side when reversing). With no travel (steering only) keep the former side choice and the full limit.
+        if angular > 0.05 or angular < -0.05:
+            if abs(linear) >= 0.01:
+                side = 'left' if linear * angular > 0 else 'right'
+                limit = side_stop_limit_m(linear, angular, side_stop)
+            else:
+                side = 'left' if angular > 0 else 'right'
+                limit = side_stop
             distance, state = self.reading(side, now)
-            if state == 'VALID' and distance <= side_stop:
-                return f'AUTONOMY BLOCKED: {side.upper()} {distance:.2f} m'
+            if state == 'VALID' and distance <= limit:
+                return f'AUTONOMY BLOCKED: {side.upper()} {distance:.2f} m (stop {limit:.2f} m)'
         return None

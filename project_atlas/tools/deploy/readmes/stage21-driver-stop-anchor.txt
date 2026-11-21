@@ -1,0 +1,14 @@
+ATLAS stage 21: wheel odometry trusts zero velocity only after 1 s of verified stillness
+Source a2ad1c9 (patch range 1de2962..a2ad1c9 applied to the LIVE files; the live yahboom_base.py
+is the 0872973 version, so undeployed Stage 17 steering commits 46ff15f/1de2962 are NOT shipped).
+Files: scripts/yahboom_base.py (patch, +14/-2), scripts/atlas_encoder_selection.py (patch, adds
+all_counts_unchanged + WheelStillnessDetector). Pose covariance, odom_source label, 3-of-4
+consensus, fewer_than_3=stop policy, motor/steering output and manual control are unchanged.
+Expected live hashes after install: yahboom_base.py 6ee8... (see deployment plan), encoder_selection see plan.
+PRECONDITIONS  rover parked, stop LATCHED, manual_only true, no motion commanded.
+INSTALL        bash install.sh
+RESTART        systemctl --user restart rover-base-telemetry.service   (owner approval required)
+VERIFY         /yahboom/odom twist covariance[0] == 0.10 while parked with all encoders fresh;
+               odom_source unchanged; encoder_health policy string unchanged; mux/E-STOP PIDs unchanged.
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage21-driver-stop-anchor/ROLLBACK.sh
+               then systemctl --user restart rover-base-telemetry.service (rover latched)

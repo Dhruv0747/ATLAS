@@ -1,0 +1,15 @@
+[Unit]
+Description=ATLAS bridge /astra/obstacle_scan domain 77 -> 0 (Track A) - STAGED, owner-approved activation only
+After=atlas-astra-obstacles.service
+BindsTo=atlas-astra-obstacles.service
+
+[Service]
+Type=simple
+# Joining production domain 0 costs ~4.5 s of ~100 % CPU (DDS discovery in every existing node; measured
+# 2026-11-06, parked). Start ONLY while parked (interlock below) and never auto-restart (could happen while driving).
+ExecCondition=/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_astra_bridge_parked_check.py
+ExecStart=/bin/bash -c 'source /opt/ros/humble/setup.bash && exec /opt/ros/humble/lib/domain_bridge/domain_bridge /home/jetson/project_atlas/config/astra_obstacles_bridge.yaml'
+Restart=no
+MemoryMax=150M
+Nice=5
+# No [Install] section: manual start only.

@@ -1,0 +1,9 @@
+# 2026-11-16 dashboard battery time estimate (scripts/atlas_battery_eta.py). Read-only advice, never a safety input.
+# Pack (owner, 2026-11-16): 4 x 32140 LiFePO4 3.2 V 15000 mAh 2C cells, 4S1P -> 12.8 V nominal, 15 Ah.
+# Matches the Daly BMS (4 cells, ~13.4 V) and the first learned estimate (~15 Ah from a 106 s coulomb-count sample).
+# capacity_ah: null would LEARN it from the BMS instead (persisted in ~/.local/state/project_atlas/battery_capacity.json).
+capacity_ah: 15.0
+# Charger (owner, 2026-11-16): Riden RD6018 lab supply set to 14.6 V CV, 5.1 A CC (~74 W); was 14.8 V. The BMS current is net (charger minus the rover's own load while plugged
+# in); the card labels the charge speed by the charger rating (5.1 A / 15 Ah = 0.34C = Normal) and shows the net.
+charger_current_a: 5.1
+charger_voltage_v: 14.6

@@ -1,0 +1,72 @@
+{
+ "cards": [
+  "Jetson | Normal | CPU | 64% | RAM | 68% | Temp | 60\u00b0 | Marks show the 3D camera admission limits | Updated just now",
+  "Battery | Idle | 100% | charge | 14.10 V \u00b7 0.00 A \u00b7 cells within 388 mV \u00b7 Daly counter | Updated just now",
+  "LiDAR | Scanning | 8.1 Hz \u00b7 210 of 360 points valid \u00b7 nearest 0.30 m right | Updated just now",
+  "Depth camera | Open lab | Vision Lab | Live depth status is shown in the 3D Vision Lab.",
+  "Wheel encoders | All 4 OK | -19 | \u00b7 | Front left | -101 | \u00b7 | Front right | 0 | \u00b7 | Rear left | 2 | \u00b7 | Rear right | Consensus available \u00b7 link live | Updated just now",
+  "IMU | Live | -120\u00b0 | Roll 0.6\u00b0 \u00b7 pitch 2.8\u00b0 \u00b7 gyro used by EKF | Updated just now",
+  "Network | Online | Wi-Fi | Wi-Fi | Cellular | Tailscale | 192.168.1.15 \u00b7 rescue hotspot off | Updated 6.1 s ago"
+ ],
+ "safety": "E-STOP latched\nREMOTE STOP: joystick unavailable",
+ "chips": "\u25cf ONLINE\nManual only\nLocalization unknown\nStopped",
+ "estop_dock_visible": true,
+ "estop_pad_visible": true,
+ "estop_reset_text": "STOP LATCHED \u2014 RESET AVAILABLE",
+ "health": "13 OK / 5 WARN / 0 FAULT",
+ "camera_status": "LIVE \u2022 AUTO REFRESH",
+ "camera_img_natural_w": 1280,
+ "loc_box_moved": true,
+ "mission": "Mission\nREADY\nControl\nManual only \u00b7 source stopped\nLocalization\nLocalization unknown\nDrive controller\ndisabled \u00b7 controller disabled",
+ "drawer_contents": {
+  "sensors": "LiDAR \u2022 nearest any direction | 0.29 m | 208 points \u2022 navigation-primary \u2022 TOUCH FOR LIVE DATA | LiDAR distance sectors | LiDAR corridor \u00b135\u00b0 F 1.33 m / R 0.46 m | Centre",
+  "power": "Main BMS | 100% \u2022 IDLE / NEAR ZERO | 14.10 V \u2022 0.00 A / 0.0 W IDLE / NEAR ZERO \u2022 cells \u0394 0.386 V \u2022 1.4 s old \u2022 TOUCH FOR LIVE DATA | Motor board | 12.40V | Current NOT ME",
+  "network": "Wi-Fi / AP | 192.168.1.15 | 4G data | 192.168.225.110 \u2022 airtel \u2022 61% | Tailscale | 100.87.208.71 | Active route | Wi-Fi (wlP1p1s0) | Automatic network | WIFI | Internet probes | Wi-F",
+  "system": "CPU | 64.7% | GPU | NOT EXPOSED | RAM | 5191 MB / 7620 MB (68%) | Jetson temp | 60 C \u2022 NORMAL | Jetson power | 8.00 W | Power mode | 25W | NVMe | 394.6 GB free / 501.4 GB | Services | 29 act",
+  "healthGrid": "CAMERA | OK 0.1s | IMX708 video frames live \u2022 TOUCH FOR DETAILS | DRIVE FEEDBACK \u2022 ALL 4 WHEELS | WARN 0.1s | READY \u2022 selected M1, M2, M3, M4 \u2022 excluded NONE \u2022 counts 0 /",
+  "motion": "Safety | READY | Selected | M1, M2, M3, M4 | Excluded | NONE | M1 RL / M2 RR | 0 / 2 | M3 FL / M4 FR | -19 / -101 | Steering | F 90\u00b0 / R 90\u00b0 | Autonomy | VALIDATION BLOCKED",
+  "radar": "T1 \u25a0 STATIONARY 0cm/s \u2022 T2 \u25a0 STATIONARY 0cm/s",
+  "diag": "READY \u2022 OS snapshot 2026-10-21 14:27:37 \u2022 6.1s old"
+ },
+ "detail_title": "HIWONDER IM10A \u2014 LIVE MONITORING",
+ "menu_links": [
+  "Commissioning /v2/commissioning",
+  "Full-quality camera /v2/camera",
+  "LiDAR 360\u00b0 /v2/lidar",
+  "Wi-Fi setup /v2/wifi",
+  "Visual cloud https://project-atlas-jetson.tail12f5ff.ts.net:8443/",
+  "Talk / listen https://project-atlas-jetson.tail12f5ff.ts.net/",
+  "Classic layout /v2/classic.html"
+ ],
+ "links": {
+  "a.hm-lab[href=\"/v2/testlab\"]": [
+   "/v2/testlab",
+   "ATLAS \u00b7 Motor & Encoder Test Lab"
+  ],
+  "a.hm-lab[href=\"/v2/flysky-testlab\"]": [
+   "/v2/flysky-testlab",
+   "ATLAS \u00b7 FlySky Remote Test Lab"
+  ],
+  "a.hm-lab[href=\"/v2/vision3d\"]": [
+   "/v2/vision3d",
+   "ATLAS 3D Vision Lab"
+  ],
+  ".hm-nav a[href=\"/v2/mapping\"]": [
+   "/v2/mapping",
+   "ATLAS Live Mapping"
+  ]
+ },
+ "classic": {
+  "title": "ATLAS Command Center",
+  "online": "\u25cf ONLINE",
+  "drive_buttons": 6
+ },
+ "errors": [],
+ "non_get_requests": [],
+ "mobile": {
+  "sw": 390,
+  "vw": 390,
+  "h": 3526,
+  "dock": "fixed"
+ }
+}

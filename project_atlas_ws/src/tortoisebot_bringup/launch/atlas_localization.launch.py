@@ -2,7 +2,7 @@
 """Saved-map localization and safe Nav2 bringup for Project ATLAS."""
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -54,6 +54,14 @@ def generate_launch_description():
             "bond_timeout": 4.0,
             "attempt_respawn_reconnection": True,
         }],
+    )
+    # 2026-11-16 owner-confirmed virtual obstacles (sofa / glass table / cabinet the LiDAR cannot see): republishes
+    # /map as /map_nav with config/virtual_obstacles.json polygons occupied. Nav2 static layers read /map_nav;
+    # AMCL keeps the untouched /map.
+    virtual_obstacles = ExecuteProcess(
+        cmd=["python3", "/home/jetson/project_atlas/scripts/atlas_virtual_obstacles.py"],
+        name="atlas_virtual_obstacles",
+        output="screen",
     )
     navigation_nodes = [
         Node(
@@ -115,5 +123,6 @@ def generate_launch_description():
         map_server,
         amcl,
         localization_manager,
+        virtual_obstacles,
         TimerAction(period=12.0, actions=navigation_nodes),
     ])

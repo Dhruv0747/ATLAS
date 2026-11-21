@@ -1,0 +1,6 @@
+ATLAS stage 16: startup localization keeps every boot's verdict and replayable scan evidence
+Source b81d7ac (base 7f8ee2e). File: scripts/seed_atlas_localization.py. Owner approval 20:21.
+Verdict logic, 0.93 threshold, seeding and publishers unchanged; capture is exception-guarded.
+Takes effect the next time atlas-localization starts (normal boot). Nothing is restarted.
+PRECONDITIONS  rover parked, stop LATCHED.  INSTALL bash install.sh  RESTART none
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage16-startup-evidence/ROLLBACK.sh (no restart needed)

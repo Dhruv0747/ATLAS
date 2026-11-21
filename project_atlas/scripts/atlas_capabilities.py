@@ -58,8 +58,15 @@ def encoder_transport(data):
         return False, 'Encoder owner not qualified or malformed health report'
     if e['state'] == 'CRITICAL' and not e['faults']:
         return False, 'Encoder owner reports unexplained critical state'
-    # Supported current policies only; new combinations must not appear by accident.
-    if (e.get('selected_encoders'), e.get('excluded_encoders')) not in (([1, 2, 3], [4]), ([1, 2, 3, 4], [])):
+    selected = e.get('selected_encoders')
+    excluded = e.get('excluded_encoders')
+    # Require exactly the complement of zero or one explicitly excluded
+    # channel. Two-encoder fallback is never accepted for navigation.
+    if (not isinstance(selected, list) or not isinstance(excluded, list)
+            or len(excluded) > 1
+            or sorted(selected + excluded) != [1, 2, 3, 4]
+            or set(selected) & set(excluded)
+            or len(selected) < 3):
         return False, 'Unrecognized selected/excluded encoder policy'
     return True, 'Fresh shared packet; stationary counts are not a failure'
 

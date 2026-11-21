@@ -6,21 +6,37 @@ async function shutdownAtlas(){
   try{const response=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Atlas-Wifi':'1'},body:new URLSearchParams({action:'shutdown',confirm:'POWER_OFF_ATLAS'})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.message||'Shutdown failed');button.textContent='⏻ SHUTDOWN REQUESTED';alert(result.message);}
   catch(error){button.disabled=false;alert(error.message+' — check whether ATLAS is still online.');}
 }
+// 2026-11-20 owner: two-tap confirm inside the page (no pop-up; some dashboard browsers block confirm()).
+// First tap arms the button for 5 s; a second tap within 5 s sends the request. The server still
+// requires confirm=RESTART_ATLAS + same origin and latches the drive stop before restarting.
+let restartArmTimer=null;
+async function restartAtlas(){
+  const button=document.getElementById('restartButton');if(!button||button.disabled)return;
+  if(!button.dataset.label)button.dataset.label=button.innerHTML;
+  const restore=()=>{delete button.dataset.armed;button.innerHTML=button.dataset.label;button.style.outline='';button.style.background='';};
+  if(button.dataset.armed!=='1'){
+    button.dataset.armed='1';button.textContent='Tap again to restart (5 s)';
+    button.style.outline='3px solid #ff5261';button.style.background='#7a1020';
+    clearTimeout(restartArmTimer);restartArmTimer=setTimeout(restore,5000);return;
+  }
+  clearTimeout(restartArmTimer);delete button.dataset.armed;button.style.outline='';button.disabled=true;button.textContent='Restarting...';
+  try{const response=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Atlas-Wifi':'1'},body:new URLSearchParams({action:'reboot',confirm:'RESTART_ATLAS'})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.message||'Restart failed');button.textContent='Restart requested - back in about 2 min';}
+  catch(error){button.textContent='Restart failed: '+error.message;setTimeout(()=>{button.disabled=false;restore();},8000);}
+}
 function mainBattery(r) {
-  let b; try { b=JSON.parse(r.bms_status?.value||'{}'); } catch(_) { b={}; }
-  const age=Number(r.bms_status?.age)+Number(b.age_s||0);
-  const valid=b.ok===true && Number.isFinite(age) && age<20 && typeof b.soc_percent==='number' && b.soc_percent>=0 && b.soc_percent<=100;
-  if(!valid) return {percent:null,state:'DATA STALE / OFFLINE',color:'#a3b1bd'};
+  const b=bmsSnapshot(r);
+  if(!b) return {percent:null,state:'DATA STALE / OFFLINE',color:'#a3b1bd'};
   const current=b.current_a;
-  const state=typeof current!=='number'||!Number.isFinite(current)?'CURRENT UNKNOWN':current>0.15?'CHARGING':current< -0.15?'DISCHARGING':b.soc_percent>=99?'FULL · IDLE':'IDLE';
-  return {percent:b.soc_percent,state,color:b.soc_percent<=20?'#ff5966':b.soc_percent<=40?'#ffcc3d':'#34e58b'};
+  const state=current>0.15?'CHARGING':current< -0.15?'DISCHARGING':b.soc_percent>=99?'FULL · IDLE':'IDLE';
+  return {percent:b.soc_percent,state,currentA:Math.abs(b.current_a),powerW:Math.abs(b.power_w),color:b.soc_percent<=20?'#ff5966':b.soc_percent<=40?'#ffcc3d':'#34e58b'};
 }
 function updateBatteryBadge(r) {
   let el=document.getElementById('mainBatteryBadge');
-  if(!el){el=document.createElement('button');el.id='mainBatteryBadge';el.className='batteryBadge';el.onclick=()=>openDetail('telemetry:bms_status');document.querySelector('header').append(el);}
+  if(!el){el=document.createElement('button');el.id='mainBatteryBadge';el.className='batteryBadge';el.onclick=()=>openDetail('bms_status');document.querySelector('header').append(el);}
   const b=mainBattery(r),text=b.percent===null?'--%':Math.round(b.percent)+'%';
-  el.innerHTML=`<span class="batteryShell"><span class="batteryFill" style="width:${b.percent??0}%;background:${b.color}"></span><span class="batteryBolt">${b.state==='CHARGING'?'ϟ':''}</span></span><span><strong>${text}</strong><small>${b.state}</small></span>`;
-  el.title='Main DALY battery · '+text+' · '+b.state+' · tap for details';
+  const metrics=b.percent===null?'CURRENT / POWER UNAVAILABLE':`${b.currentA.toFixed(2)} A · ${b.powerW.toFixed(1)} W`;
+  el.innerHTML=`<span class="batteryShell"><span class="batteryFill" style="width:${b.percent??0}%;background:${b.color}"></span><span class="batteryBolt">${b.state==='CHARGING'?'ϟ':''}</span></span><span><strong>${text}</strong><small>${b.state}</small><span class="batteryMetrics">${metrics}</span></span>`;
+  el.title='Main DALY battery · '+text+' · '+b.state+' · '+metrics+' · tap for details';
   el.setAttribute('aria-label',el.title);
   el.dataset.updated=Date.now();
 }

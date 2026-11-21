@@ -1,5 +1,2051 @@
 # Changelog
 
+2026-11-15 (late night) — DEPLOYED closed-loop speed control with 3 encoders (atlas_speed_loop in yahboom_base, config/speed_loop.yaml enabled; breakaway needs real window motion, ff 44 PWM) and ground-validated from the dashboard: Speed check PASS x2 (requested 0.15, mean 0.116 / 0.096 m/s, peak 0.183 / 0.148). The mux keeps the full command while DEGRADED when the speed loop is closed (drop-in 47) and treats front/rear ultrasonic data loss as advisory (drop-in 48; a valid close reading still blocks). Autonomous mode unlocked by itself via the Readiness gate.
+
+2026-11-15 (night) — DEPLOYED self-service Autonomy Readiness: /v2/readiness lists every blocker with its live reason, Hindi fix steps and a button to the matching test; the Speed check (owner-run, PIN) unlocks Autonomous mode by itself once 0.10 and 0.15 m/s both PASS (evidence newer than the speed-loop config/code). No override for safety items (owner decision). Live: only the speed check remains; its tool is installed by the speed-loop work.
+
+2026-11-15 (evening 2) — DEPLOYED: map tap "Move here" (mission control /atlas/navigate_to_point, same spot checks and navigation gates; web go_at), obstacle detour tree config/atlas_ackermann_replan_if_blocked.xml (replans once per second when the committed path becomes blocked; passed per goal, not yet ground-tested), spoken Hindi stop/replan reasons (atlas-autonomy-voice, listen-only narrator -> voice companion), and a Manual / Autonomous mode switch on the home panel and map card. Autonomous mode stays blocked by the speed gate.
+
+2026-11-15 (late) — DEPLOYED dashboard AUTONOMY ON/OFF + waypoints: mux runtime arm (/atlas/autonomy/arm|disarm; boot OFF; ON needs E-STOP latched, still, encoders autonomy-ready, operator PIN and config/autonomy_gate.yaml speed_validated — currently false; any E-STOP turns it OFF), mission control /atlas/delete_named_place and /atlas/save_named_place_at (map tap, 0.35 m clearance on the accepted map), web /api/autonomy and /api/places, home-page panel and a tap-the-map waypoint card on /v2/mapping. Go is refused unless autonomy is ON and the E-STOP released.
+
+2026-11-15 (evening) — DEPLOYED: RPLIDAR scan mode Sensitivity (drive no-echo 14.0 % -> 8.2 %) and the swept-path LiDAR availability rule. First autonomous motion (1 m goal): the rover moved ~0.5 m but at ~0.5 m/s for a 0.07 m/s command (open-loop PWM floor 60), overshot and stopped 0.16 m from an obstacle via the guards. The manual-only lock was RESTORED (supervised-autonomy drop-in removed); autonomy needs a speed calibration first.
+
+2026-11-15 — LiDAR availability: swept-path arc/straight sectors and LiDAR+Astra floor-coverage fusion designed and replayed offline (source only, NOT deployed; replay shows autonomy would still be vetoed on ~40-75 % of scans). Offline root-cause study: most LiDAR no-echo rays point at ordinary walls and drop out in 13-23 deg runs (suspected driver/link dropouts, not verified); parked scan-mode test inconclusive. See docs/audits/ATLAS_CURRENT_BLOCKERS.md (2026-11-15 entries).
+
+2026-11-15 — DEPLOYED: three-encoder consensus rule (coherent pair when only 3 channels are valid; encoder CRITICAL 2 single ticks in ~26 m vs ~half of all stops before), navigation_validated true (M3 excluded), and the mux manual-only lock opened for supervised autonomy (45-supervised-autonomy.conf). Round-trip ground checks: EKF vs LiDAR 19.74/19.75 m and 6.40/6.44 m, left and right arcs covered. First supervised autonomous goal was vetoed by the mux LiDAR availability guard (rover did not move); goal cancelled.
+
+2026-11-04 — Independent Vision host prepared offline: passive RGB cache endpoint, SSH-authenticated Unix-socket API, existing Object/Target worker reuse, and bounded fail-closed transport. Not deployed; the running Dashboard cannot acquire the new endpoint without a separately approved load window. See [offline result](docs/ATLAS_VISION_HOST_OFFLINE_RESULT_20261104.md).
+
+2026-11-03 — Mux transaction: per-attempt binding (owner-approved SHA, current boot, live PID/start-tick re-checks) replaces the hard-coded binding pin; pre-mutation E-STOP/command/encoder admission added; maintenance-protection interface accepts only measured, boot-bound, time-bounded isolation evidence (default still refuses). 66 focused checks. Activation remains NO-GO pending the owner decision and evidence in [the gates doc](docs/ATLAS_PROTECTED_PUBLISHER_GATES_20261102.md).
+
+2026-11-03 — The [offline Mux installation and rollback controller](docs/ATLAS_PROTECTED_PUBLISHER_GATES_20261102.md) passed 35 focused integration checks. Live activation remains blocked on independent maintenance protection and current service binding.
+
+2026-11-02: Exact-live publisher reconciliation and source-time transport prepared offline; see docs/ATLAS_PUBLISHER_INTEGRATION_20261102.md. Deployment NO-GO; CPU overhead UNKNOWN.
+
+2026-11-02: Source provenance metadata and source-time consumer implemented offline; 33 focused checks PASS. See docs/ATLAS_SOURCE_PROVENANCE_20261102.md. No deployment; overhead UNKNOWN.
+
+2026-10-30: prepared Object/Target-only admission, model-ready handshake, expiring
+safety lease, bounded recorder check and exact-live functional Lab package. Native
+synthetic lifecycle/UI checks passed; camera and inference remain off.
+
+2026-10-30: prepared exact-live one-file static Vision Lab feature-panel patch;
+preserved material.css and all original controls. Desktop/mobile checks pass.
+No deployment, activation or restart performed.
+
+2026-10-30: extended existing 3D Vision Lab repository with six honest-status
+panels, bounded optional YOLO/person/target adapters and local manual test evidence.
+No servo publishers or new raw subscriptions. Runtime disabled; no live activation.
+
+2026-10-30: prepared disabled standalone mapping adapter/supervisor/storage/viewer,
+focused native PC tests, and offline Astra feature admission/priority policy.
+No live deployment, camera activation or actuator control. See the dated mapping
+implementation and Astra vision integration reports for measured evidence and blockers.
+
+2026-10-21 Stage32 thread profiling blocked by verified process-memory access
+denial. Documented stopped RESOURCE BLOCKED camera state and evidence limits.
+No hot-function attribution, optimization deployment or camera test claimed.
+
+2026-10-21 reused existing executor/JSON evidence; prepared one-line exact-live
+compact JSON package,6+60tests pass. Dominant CPU cause unresolved; minor savings
+not represented as an admission fix. No production changes.
+
+2026-10-21 exact-live snapshot package deployed98f3c269; only web restarted,
+protected services/safety healthy. Matched parked CPU comparison shows no saving.
+Astra OFF. Backup, hashes and measurements in exact-live deployment report.
+
+2026-10-21 prepared exact-live dashboard patch against fa62787f, preserving all
+unrelated live differences.9 package tests and60 dashboard tests pass; isolated
+byte-perfect rollback verified. No deployment. See exact-live package report.
+
+2026-10-21 approved snapshot installation aborted on substantive live baseline
+hash mismatch. No production changes; corrected live-based package required.
+
+2026-10-21 OFFLINE dashboard candidate: avoid repeated history-list scans and
+discarded deque allocations. Differential freshness/rate tests and60 Linux
+dashboard tests pass. No live services, limits or camera sessions changed.
+
+2026-10-21: offline all-PID CPU accounting with7 tests; bounded passive evidence
+identifies distributed parked load and measurement limitations. No production
+optimization, camera activation or threshold change. See aggregate CPU report.
+
+2026-10-21 one guarded Depth-only test after97735e9:CPU76.6102% rejected before
+driver launch,zero frames. Per-process evidence captured; protected services and
+safety preserved. No retry. ATLAS_STAGE32_PREVIEW_CORE_LIVE_RESULT.md.
+
+2026-10-21 preview core e01fc36 DEPLOYED/VERIFIED: single file,web-only restart,
+CPU restart peak100%, five passing samples by38s. E-STOP/zero commands preserved,
+protected PIDs unchanged, sensors fresh, Astra/recorder OFF. Hashes/rollback:
+ATLAS_STAGE32_PREVIEW_CORE_DEPLOYMENT.md. No camera test.
+
+2026-10-21 OFFLINE depth-preview candidate: validate frame layout once rather
+than19,201 times; WSL conversion21.25->9.60ms, identical output,94 tests pass.
+No live changes; remaining aggregate contention unresolved. Package/rollback:
+ATLAS_STAGE32_PREVIEW_CPU_OPTIMIZATION.md.
+
+2026-10-21 one approved Depth-only test after08ad26f: driver launched,17 depth
+frames received; CPU76.0757% guard stopped it safely. No retry or production
+changes;3D Preview not verified. See ATLAS_STAGE32_DIRECT_DEPTH_VERIFICATION.md.
+
+2026-10-21 direct worker candidate ed450f9 DEPLOYED/VERIFIED: one runtime file,
+web-only restart, persistent CPU trace (peak100%, settled below75% by28s).
+Protected services unchanged, sensors fresh, Astra/recorder OFF; no camera test.
+Hashes/backup/helper pre-install abort evidence: ATLAS_STAGE32_DIRECT_LAUNCH_DEPLOYMENT.md.
+
+2026-10-21 OFFLINE direct worker launch: inherit web owner's sourced ROS environment
+instead of repeating login shell/setup. PC median launch CPU0.162734->0.055208s;
+79 focused tests pass. Guard and modes unchanged. No deployment or camera start.
+See ATLAS_STAGE32_DIRECT_WORKER_LAUNCH.md for package and separate approvals.
+
+2026-10-21 startup guard74ff38f DEPLOYED after fresh admission. Web-only restart;
+runtime read-back hash verified. CPU transient99.83%, five passing samples by27s;
+protected identities/sensor freshness preserved. No camera/recording/movement.
+See ATLAS_STAGE32_STARTUP_GUARD_DEPLOYMENT.md for full scalar trace and rollback.
+
+2026-10-21 OFFLINE startup coverage candidate: pre-spawn CPU baseline, fail-closed
+seed validation, guard/lease checkpoints during bounded128KiB hashing. 77 tests
+pass; PC allocation reduced97%, total CPU time increased. No CPU reliability
+claim, deployment or camera start. See ATLAS_STAGE32_STARTUP_COVERAGE_CANDIDATE.md.
+
+2026-10-21 approved single-file cleanup DEPLOYED; one Depth+RGB attempt stopped
+at CPU77.104377%, driver reaped cleanly. Dashboard receiver 6 depth/0 RGB frames;
+no combined success claim. Protected PIDs unchanged; no restart/movement/retry.
+See ATLAS_STAGE32_CLEANUP_LIVE_RESULT_20261021.md for hashes, rollback, exact
+monotonic events and pre-admission CPU coverage gap requiring offline correction.
+
+2026-10-21 Depth+RGB startup investigation (offline only):
+- Retained log shows signal handler26.874ms before invalid-context exception;
+  worker rejected aggregateCPU78.4615%. USB depth connection succeeded.
+- Preserve signal diagnostics and bounded dual-clock lifecycle evidence; fix
+  owned-child exit/signal cleanup race and truthful driver_stopped reporting.
+-66 focused tests pass; camera argument vectors and safety limits unchanged.
+-No vendor/context exception suppression, CPU tuning, deployment or camera test.
+
+2026-10-21 permanent USB audit (offline only):
+- Verified actual USB owners/topology/access: radar is UNO topic-fed, three CH340
+  adapters share ambiguous by-id; existing dialout access works.
+- Prepared two-interface, topology-bound atlas-astra0660 candidate; eight static
+  matching tests pass. No live udev activation, membership or service changes.
+- Documented existing LiDAR0666 vendor rule, stale motor alias and guardian's
+  numbered USB paths; no unrelated fixes applied.
+- Prior approved Depth preflight stopped at CPU75.2902%; no Start/retry/install.
+- Report: ATLAS_PERMANENT_USB_ACCESS_AND_REBOOT_RECOVERY.md.
+
+2026-10-21 approved USB recovery preflight: safety/resources passed three samples;
+sudo requires a password, so stopped before any production installation or ACL
+change. Camera test NOT started. Recorded exact live hashes/service identities and
+prepared a separate, uninstalled device-specific permissions proposal.
+
+2026-10-21 Astra USB admission follow-up (OFFLINE candidate only):
+- Confirmed errno13 on both expected Astra nodes; temporary jetson ACLs absent after a new boot.
+- Split identity/query/access guardian errors; bound identity queries; preserve fail-closed admission and all camera/resource settings.
+- Added six offline USB regressions; deployment/ACL restoration and live preview retest require approval.
+- Evidence and rollback: docs/audits/ATLAS_STAGE32_USB_ACCESS_20261021.md.
+
+2026-10-21 19:16–19:25 (owner-approved U2+P; then owner 3-day pause):
+- **DEPLOYED U2+P:** Infrared "Tested" label, device serial for the calibration gate, and the UNCALIBRATED 3D preview receiver + UI.
+  - One monitored `rover-status-web` restart: settled in 30.6 s, transient peak 98.9% with the camera off. All post-checks passed; no rollback.
+  - Backup: `.pre_stage32_config_u2p_20261021_191658`.
+- **Live 3D preview test NOT started:** the owner's pause arrived before Start, and the camera was never started. The viewer script `stage32_preview_live.py` is prepared and dry-run verified.
+- **Paused** with E-STOP latched, commands zero, recording off and the camera off. See `ATLAS_3_DAY_PAUSE_HANDOVER.md`.
+
+2026-10-21 18:57– (offline only; nothing deployed, no restart, camera never started):
+- **UNCALIBRATED 3D preview (diagnostic mode) READY:** while Depth is live, the Vision Lab can draw the real depth frame as an interactive 3D cloud (orbit, zoom, pan, click). Geometry is nominal field of view, ≤ 6,000 points, browser-only.
+  - It is labelled **UNCALIBRATED — DIAGNOSTIC ONLY** on the canvas itself, off by default, and never combined with the calibrated cloud.
+  - The receiver gains a read-only labelled raw-depth route. The calibrated cloud, metric XYZ, ROS output and navigation stay blocked.
+- **U2+P package:** U2 and the preview receiver plus static files, one monitored `rover-status-web` restart with automatic rollback. Rehearsed on a copy of production; production untouched.
+- **A4 calibration target:** 9x6 inner corners, 25 mm squares (`atlas_astra_checkerboard_9x6_25mm_A4.pdf`), verified 25.0 mm.
+  - The capture tool still requires the *measured* square size and flags implausible values.
+  - The depth-target tool now requires the measured target size and keeps its samples on the target.
+- **Tests:** 236 passed, 8 skipped. Stage 32 report section 28.
+
+2026-10-21 18:37–18:45 (owner-approved U1):
+- **UI DEPLOYED (U1):** the Vision Lab now shows real per-stream session states. Four static files changed, with no restart, a verified backup and a byte-identical rollback rehearsal. Live page check passed: no errors and no POSTs. Infrared stays "Not yet tested" until U2.
+- **Prepared, not run:**
+  - U2 with a restart-monitoring script (passive recorder, settle check, health checks, automatic rollback);
+  - an IR+Depth acceptance mode (`MODE=ir_depth`, including depth click-to-measure);
+  - a print-ready A3 9x6 / 35 mm checkerboard PDF, verified at 35.000 mm;
+  - owner positioning instructions;
+  - the shortest route to a live XYZ cloud (Stage 32 report section 27).
+
+2026-10-21 18:12–18:40 (Stage 32 continuation; offline only, nothing deployed, no restart, camera never started):
+- **UI FIX READY:** `vision3d_state.js` derives Starting / Waiting for frames / Live / No frames received / Frames stopped / Resource blocked / Stopped safely / Calibration required from real per-stream frame counts. It never shows "driver running" as live. Package `s32_ui_pkg_v2.tgz` U1 is static with no restart; U2 (Infrared "Tested" label, device serial for the calibration gate) needs one `rover-status-web` restart.
+- **Combined modes:** readiness documented from driver source, a USB 2.0 read-only check, an Orbbec forum note on IR 640x480 and a CPU forecast. **Not tested live.**
+- **Calibration preparation:** IR despeckle for the unswitchable projector, a front-face depth-offset model, and corners-only checkerboard and depth-target capture tools. Owner checkerboard spec: 9x6 inner corners, 35 mm squares, A3, matte.
+- **Regression:** 230 Vision Lab tests pass. The two failures in the full suite are already present at `dabf95e`.
+
+2026-10-21 17:54–18:03 (owner-approved final IR acceptance):
+- **IR LIVE VERIFIED on the production driver; 640x480 correction DEPLOYED and retained.** `scripts/atlas_vision3d_runtime.py` now requests IR 640x480@30 (`fc807489`, one line, no restart).
+- **Acceptance session:** the 60-second IR-only session completed normally (60-second session complete). 1,624 frames, 29.7 fps median, 640x480 `mono8`, frame age ≤ 0.23 s, canvas rendered, raw click value read. Guard 63.7–70.5%, RAM ≤ 72%, ≤ 62 °C.
+- **Viewer:** a verified stable viewer was used, with a 60-s heartbeat pre-check before Start and no extra requests during the session. The lease stayed at 4 s and its largest gap was 1.40 s. The built-in desktop browser was rejected after its page went hidden.
+- **Post-checks:** E-STOP latched, commands zero, sensors fresh, protected services unchanged, Pi Camera 200. Repository source and tests updated to match production.
+
+2026-10-21 17:45–17:49 (owner-approved permanent IR 640x480 correction plus one confirming session):
+- One-line runtime change deployed without a restart. On the **production** driver, real IR at 640x480 `mono8` (29.7 fps median, 895 frames) reached the Dashboard and was drawn.
+- The session was stopped at about 42 s by the viewer-lease watchdog. A clock comparison points to a pause of about 3 s in the PC-hosted test client, not the Jetson.
+- The 60-second acceptance was therefore **incomplete**. Following the approval's rule, the original 320x240 setting was **restored** (`454dd25f`). E-STOP latched, commands zero, protected services and Pi Camera healthy.
+
+2026-10-21 17:37–17:40 (owner-approved D2):
+- **Real infrared verified once on the Dashboard** in the diagnostic configuration: 640x480@30 GRAY8, instrumented driver, temporary one-line runtime override, no restart. 1,656 frames read and published (29.70 fps hardware), 1,569 received, canvas rendered, and the full 60-second session completed. Guard 65.0–71.3%, RAM ≤ 69.8%, ≤ 60.9 °C.
+- **Zero-frame cause on this unit:** the advertised 320x240@30 IR mode is never served; 640x480 is.
+- **All temporary changes restored:** runtime `454dd25f`, library `6ae87601`, manifest `c1a6d1c0`, integrity PASS, protected services and Pi Camera healthy. The production IR request is still 320x240; the permanent change awaits separate approval.
+
+2026-10-21 17:28–17:30 (owner-approved D1):
+- **No-restart diagnostic install** of the instrumented driver library plus the one-entry runtime manifest fix. Integrity check PASS; no service restarted.
+- **One IR-only session:** the earliest failed boundary is **1**. OpenNI started IR at 320x240@30 GRAY8, but `waitForAnyStream` timed out 11 times out of 11 (rc 102), so no IR frame was ever ready. The domain-77 subscriber matched. CPU 63.4–68.8% while active.
+- **Rolled back after 63 s:** baseline library and manifest restored, integrity PASS, E-STOP latched, commands zero, protected services unchanged, Pi Camera 200. **IR is NOT verified.**
+
+2026-10-21 17:20 (Stage 32 takeover from `c68ba48`; offline and read-only only):
+- **Restart CPU spike analysed:** the 95.64% sample was taken 1–3 s after `rover-status-web` restarted. The same restart with a different payload (A1, 15:56) showed 93.6% and about 51 runnable tasks, so the candidate is not implicated. The mechanism fits the confirmed domain-0 discovery fan-out. Per-process attribution is still missing.
+- **Latent defect found:** the rolled-back candidate did not update the isolated runtime `manifest.json`, so every Vision Lab start would have failed its integrity check.
+- **No-restart IR diagnostic package** (`tools/vision3d/stage32_ir_diag_package.py`, `stage32_ir_diag_install.py`, `stage32_ir_boundary.py`): installs only the reviewed instrumented driver library and the one-entry manifest fix. Rehearsed on a Jetson copy (integrity PASS, byte-identical rollback). 19 new tests. **DEPLOYMENT READY, not installed; IR not verified.**
+
+2026-10-21 (final documentation-only handover):
+- Added ATLAS_STAGE32_DEVELOPER_HANDOVER.md and focused deployment registry with exact restored/candidate hashes, evidence/backup/build locations, working versus pending features, hypotheses and approval boundaries.
+- All historical evidence preserved; no deployment, restart, test or new Jetson inspection. Incoming priority is passive read-only web-restart CPU diagnosis. Session ends after GitHub synchronization.
+
+2026-10-21 (Stage32 approved conditional install; ROLLED BACK):
+- Source/package/live hashes and fresh preflight passed; ARM64 RTLD_NOW load passed without starting a camera. Backed up and installed only the three approved payloads; restarted only rover-status-web.
+- Post-restart CPU95.6376% failed unchanged75% guard. Restored originals and restarted web for rollback; exact hashes verified. No IR session, retry, movement or recording.
+- Final E-STOP/manual-only/zero/fresh-sensor checks passed; Pi JPEG200, no Astra/Domain77 owner, protected identities unchanged except web. Full evidence/rollback retained on Jetson and PC. Report section19; IR root cause remains unresolved.
+
+2026-10-21 (Stage32 OpenNI-to-ROS instrumentation; offline only):
+- Add pinned-source instrumentation with bounded readiness/read/callback/conversion/publication counters, actual frame metadata and subscriber presence. Incremental ARM64 driver build passed; no stream-setting change.
+- Add API-prepared and browser-received/rendered counters; preserve scalar stop evidence. 94 regressions plus3 instrumentation tests passed; one Playwright skip; Node canvas checks passed. Synthetic ROS run179/180 received, no rejects (not a loss-free claim).
+- Three-file candidate and byte-identical rollback rehearsal prepared; live ten-file hashes verified unchanged. No installation, camera start or service restart. Root cause remains unknown until separately approved instrumented test; section18.
+
+2026-10-21 (Stage32 zero-frame investigation; offline only):
+- Distinguish driver running, receiver delivery, stale IR and browser rendering; retain scalar session evidence after Stop. Zero callbacks show IR NO FRAMES RECEIVED.
+- Add bounded discovery/domain/RMW diagnostics and native byte-layout/browser regression fixtures. PC ROS smoke: 180 synthetic callbacks, zero rejects; 93 regression tests passed, one browser dependency skip; separate Node canvas/banner checks passed.
+- Prepare two-file diagnostic package and byte-identical rollback rehearsal. Nothing deployed or activated. OpenNI frame readiness versus live ROS publication/discovery remains unproven; real IR is NOT fixed. Stage32 report section17.
+
+2026-10-21 (one separately approved Stage32 IR-only revalidation):
+- FAILED frame delivery: eleven persisted ACTIVE samples contain zero IR callbacks; stopped after >10s unavailable via ordinary Stop endpoint. No retry or combination test.
+- Guard CPU peak69.78%, RAM70.09%, thermal59.47C: not a resource rejection. Actual dimensions/encoding/timestamps/FPS unavailable because no frame arrived. Driver startup is not a viewing pass.
+- Pre/post hashes and protected identities unchanged; E-STOP latched, commands zero, recorder/Astra OFF, Pi camera healthy. Scalar evidence retained, no video/rosbag. See Stage32 report section16; root cause still unresolved.
+
+2026-10-21 (Stage32 handover reconciliation; read-only live audit):
+- Recovered previously uncommitted A1 installation, A2 IR attempt and A4 metadata evidence. Ten installed hashes match package; rollback checksums pass; no deployment/test repeated.
+- A2 is UNVERIFIED: driver started but Dashboard delivery evidence was not retained; stop clears counters. CPU stayed below75% in the retained active trace. A3 held, calibration/cloud gated.
+- Fresh CPU64.08–66.88%, RAM72.19%, temperature60.06C; E-STOP/manual-only preserved, commands zero, recorder/Astra OFF, protected services unchanged. See Stage32 report section15. No production code changed.
+
+2026-10-21 15:30–16:00 (Stage 32 + addendum; DEVELOPMENT ONLY; nothing installed, no restart, camera never started):
+- **IR IMPLEMENTED (offline), NOT live verified.** Vision Lab modes Infrared, Infrared + Depth and Infrared + RGB (all untested); native IR bytes are shown with a stated display stretch and a raw-value probe; IR is never derived from RGB or depth. Depth and Depth+RGB launch arguments are unchanged (byte-identical test).
+- **CALIBRATION PREPARED, NOT validated.** Factory parameters are still NaN. A guided checkerboard tool (corners only, held-out error, coverage gate) and physical-validation rules are ready, and the metric-geometry gate stays closed.
+- **XYZ CLOUD IMPLEMENTED (offline); live BLOCKED by calibration.** `/astra/points` node (domain 77, ≤5 Hz, ≤6,000 points) refuses to run without a validated calibration. A Jetson camera-off probe cut back-projection from 52 ms to 7 ms per cloud (ray table).
+- **3D VIEWER READY, disabled until calibration.** Package `tools/deploy/stage32/stage32.sh` (rover-status-web restart only) rehearsed with a byte-identical rollback. See [`ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md`](docs/reports/ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md) for approvals A1–A6.
+
+2026-10-21 15:07–15:13 (owner-approved Stage 31B install + one Depth-only test):
+- **UI fix DEPLOYED** and **guard update DEPLOYED** (no restart; `atlas_vision3d_runtime.py 077edc29…`, `vision3d.js 05b83020…`; backup `.pre_stage31b_20261021_150745`).
+- **Sustained Depth viewing VERIFIED (uncalibrated):** one uninterrupted 60 s session, 607 frames on the Dashboard (≈ 11 fps, 0.01–0.33 s old), click-to-measure 2.721 m. 59 guard samples (1.0 s windows) at 63.7–71.1%; recorder max 70.0%, session mean 66.8% vs 64.9% before. Protected services unchanged. See [`ATLAS_STAGE31B_LIVE_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE31B_LIVE_DEPLOYMENT.md).
+
+2026-10-21 15:2x (Stage 31b; DEVELOPMENT ONLY; nothing installed, no restart, no camera start):
+- **Vision Lab stale-summary bug fixed** (`web/v2/vision3d.js`). A headless test reproduces the bug on the deployed file and passes with the fix.
+- **Candidate guard** (`scripts/atlas_vision3d_runtime.py`): every CPU sample covers at least 1.0 s; 75% single-sample fail-closed unchanged; a window over 2.0 s fails closed; RAM, thermal, policy and freshness still checked every sample; no grace period, no limit change, no service pausing.
+- Replay on the captured traces: test 2 would pass (max 1-s sample 73.75%); production-domain join and one-second bursts are still blocked.
+- Package `tools/deploy/stage31b/stage31b.sh` (no restart) rehearsed on a Jetson copy with a byte-identical rollback. Awaiting separate approval. See [`ATLAS_STAGE31B_GUARD_WINDOW_CANDIDATE.md`](docs/reports/ATLAS_STAGE31B_GUARD_WINDOW_CANDIDATE.md).
+
+2026-10-21 14:44 (owner-approved second Depth-only test; passive persistent recorder; no intrusive diagnostics while streaming):
+- **Result: BLOCKED at start-up, no frames.** Guard sample 76.0% over a ~0.5 s window just after driver launch; driver stopped, no retry. Over 191 s no 1-s sample exceeded 75% (max 73.8%).
+- Cause: three short bursts collided in one half-second: Astra start-up (55.6% of a core), kernel reclaim/compaction (kswapd0/kcompactd0), and the network-fallback curl probe. Domain isolation held. Decision needed on guard window or background load; nothing changed. See [`ATLAS_STAGE31_LIVE_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE31_LIVE_DEPLOYMENT.md) (second test).
+
+2026-10-21 14:24–14:35 (owner-approved Stage 31 steps 1–3; step 4 NOT approved/not done):
+- **UI DEPLOYED** (static, no restart): new Home, Vision Lab page, `/v2/classic.html` fallback. Live-verified in a real browser on desktop and mobile, with no errors or POSTs.
+- **ASTRA FIX DEPLOYED** (`rover-status-web` restart only, PID 67677 -> 117520): driver and receiver in private ROS domain 77, verified live; domain-0 participants unchanged.
+- **LIVE DEPTH: PARTIAL.** Real 160x120 depth frames shown on the Dashboard (12.6–20 fps, 0.11–0.18 s old) for ~11 s with guard samples 63.5–69.4% after launch (previously every start failed at the first sample); then one 77.8% sample stopped the camera safely. No retry. Cause of that sample unproven (coincided with my mid-session SSH check).
+- See [`ATLAS_STAGE31_LIVE_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE31_LIVE_DEPLOYMENT.md).
+
+2026-10-21 (Stage 31; OFFLINE + camera-free Jetson diagnostics only; nothing deployed, no restart, camera never opened):
+- **Astra resource block root cause:** ROS/DDS discovery fan-out. A participant joining production domain 0 lifts CPU 65% -> 92% for ~3 s (34 nodes wake); private domain 77 has no fan-out. Fix implemented: Astra driver and Vision Lab receiver use private domain 77 (`atlas_vision3d_runtime.py`, `atlas_vision3d_web.py`), plus a lease-free `/api/vision3d/summary`. Receiver verified on the Jetson with a synthetic 30 Hz stream. Thresholds unchanged.
+- **Dashboard V2 Home redesign and 3D Vision Lab UI:** systems cards, safety pill, collapsible drawers, developer diagnostics kept; all ids/controls preserved; old Home kept at `/v2/classic.html`. Vision Lab explains RESOURCE BLOCKED with measured CPU vs limit.
+- Package `project_atlas/tools/deploy/stage31/stage31.sh` (apply-ui static, apply-astra restarts rover-status-web only); rehearsed on a Jetson copy with byte-identical rollback. Awaiting owner approval.
+- See [`ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md`](docs/reports/ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md) and [`ATLAS_DASHBOARD_V2_UI_REDESIGN.md`](docs/reports/ATLAS_DASHBOARD_V2_UI_REDESIGN.md).
+
+2026-10-21 Stage30 approved three-file deployment and one Dashboard test:
+- Installed exact ac34cd3 observer/guard package with backups and hash checks; no service restart.
+- One Depth start through existing Dashboard stopped automatically at80.7786% CPU; zero delivered frames. No retry or safeguard change.
+- Independent RAM peak69.916%, hottest61.187C; protected identities, Pi camera, E-STOP/manual-only/zero/recorder-OFF verified afterward.
+- Live depth viewing remains RESOURCE BLOCKED. Evidence/rollback in ATLAS_STAGE30_ASTRA_RESOURCE_RECOVERY.md.
+
+2026-10-21 Stage30 resource investigation (isolated only):
+- Profiled parked load and isolated startup; reproduced81.68% CPU failure with a camera-free ROS participant.
+- Batched six identity reads into one, reused one existing lightweight ROS safety snapshot, and reject failed CPU before HTTP; thresholds unchanged.
+- Retained worker/Astra metrics on rejection. Rejected startup pacing removed from proposal; stable viewer NOT passed.
+-119 focused tests pass. Three-file worker cleanup requires separate production approval; no service/control/calibration changes deployed.
+
+2026-10-21 Vision Lab deployment verified:
+- Installed12 allowlisted files with exact hashes, backups and fixture rollback; only rover-status-web restarted.
+- Actual desktop/mobile render and Home navigation verified; existing pages/API/Pi camera healthy.
+- One Depth-only live attempt RESOURCE BLOCKED at77.9097% CPU; isolated driver stopped, no frames or bypass/retry.
+- Final E-STOP/manual-only/zero/recorder-OFF checks passed; six protected service identities unchanged. Live accuracy/cloud still unverified.
+
+2026-10-21 approved read-only Vision Lab deployment candidate:
+- Reused V2 UI with explicit60-second, leased camera viewer; only supported isolated modes, normal resource/safety gates and no autostart.
+- Existing-bridge receive-only adapter; fallback CameraInfo diagnostic-only, live XYZ/cloud disabled.
+- Scoped hash-gated installer preserves unrelated live steering code and rehearses rollback; only web service restart allowed.
+-108 targeted tests pass, including worker resource-failure and lease cleanup fixtures; live status documented separately.
+
+2026-10-21 Astra calibration investigation:
+- Confirmed pinned120-byte SDK layout; identified incomplete vendor parameter validation, not a proven NaN cause.
+- Added offline calibration-document admission and measured-target scalar statistics; six new tests,94 targeted tests pass.
+- Reverified458 live package hashes and fresh stationary admission; no streams, production changes or threshold overrides.
+- Documented physical reference/approval requirements and unpassed geometry/deployment gates.
+
+2026-10-21 Stage29 continuation:
+- Built pinned Astra ARM64 driver offboard; isolated v2 package hashes and target loader verified.
+- Added bounded receive-only modern Foxglove SDK observer and explicit test-only owner CPU exception; production limits unchanged.
+- Verified concurrent RGB/depth and preserved Pi camera; 88 targeted tests pass.
+- Read-only factory calibration returned NaNs; metric cloud blocked, no fabricated calibration or production launch.
+- Recorded resources, failed attempts, package provenance and rollback in Stage29 report.
+
+2026-10-21 Stage29 offboard preparation:
+- Installed narrowly scoped ARM64 compiler in existing WSL; two PC tests verify actual AArch64 output and target-only toolchain search.
+- Pinned vendor source cloned on PC. Partial target snapshot retained after CPU75.7983% guard; no unverified driver package/deployment.
+- Documented exact tool versions, ABI blocker, resource observations and rollback in ATLAS_STAGE29_ASTRA_OFFBOARD_ARM64_BUILD.md.
+
+2026-10-21 Stage28 isolated build:
+- Added opt-in own-process paced build supervisor; four offline failure-path tests pass.
+- Live one-shot incremental build stopped on CPU80.8782% >75%; evidence preserved, no retry or driver launch.
+- Existing production service identities unchanged; report distinguishes incomplete ROS/cloud/concurrent milestones.
+
+2026-10-21 Astra stationary validation:
+- Added guarded, opt-in RGB/depth smoke tools with own-child duty pacing; verified real frames without saving images or disturbing the Pi camera.
+- Fixed unsupported RGB FPS selection and strict depth JSON/native-warning parsing; retained failed evidence and SDK warning.
+- Build preflight now rejects unavailable cgroup CPU enforcement. No global cgroup, navigation or production-service changes.
+- See ATLAS_ASTRA_PRO_3D_VISION_LAB.md for measurements, limitations and rollback.
+
+2026-10-17 20:10 (OFFLINE ONLY; nothing installed on the Jetson, nothing restarted, nothing actuated):
+- **Stage 27 FlySky Remote Test Lab built and tested offline.** Read-only page `/v2/flysky-testlab`, one subscription / zero publishers, SIGNAL NOT VERIFIED until real frames arrive, no invented RSSI. No live SBUS frame verified; Jetson cannot see receiver data today. Reversible package in `project_atlas/tools/deploy/stage27_flysky/`. Awaiting owner approval.
+- See [`ATLAS_FLYSKY_SBUS_TEST_LAB.md`](docs/reports/ATLAS_FLYSKY_SBUS_TEST_LAB.md).
+
+2026-10-17 18:45 (static Web UI file only; no restart, nothing actuated):
+- **Home shortcut deployed** (18:37 IST): `index.html` a03baf88... (was 4d4dea56...), backup `.pre_stage26b_shortcut_20261017_183749`. Live-verified one click to `/v2/testlab` at 1440/1920/390 px.
+- See [`ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE26B_HOME_SHORTCUT_DEPLOYMENT.md).
+
+2026-10-17 18:50 (shortcut only; Web UI static file; no restart of any motor service, nothing actuated):
+- **Home V2: "Motor & Encoder Test Lab" shortcut made clearly visible.** The existing Home link to `/v2/testlab` had its label hidden below 1600 px (icon only). It now always shows its label with an accent outline, and sits first in the nav strip on phones. `web/v2/index.html` only; Test Lab page, safety locks and all other features untouched. Revert: restore the previous `index.html` (sha256 prefix 4d4dea5620c80e91).
+
+2026-10-17 18:15 (read-only deployment; no movement, only rover-status-web restarted, nothing actuated):
+- **Stage 26 Test Lab deployed live** (17:29:51 IST): `/v2/testlab` now 200 (404 was because it was never installed). Live encoders verified, CSV tested, motor pulses LOCKED, base driver untouched.
+- See [`ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE26_TESTLAB_LIVE_DEPLOYMENT.md).
+
+2026-10-17 16:30 (offline only; NOT deployed, no movement, no restart, nothing actuated):
+- **Motor & Encoder Test Lab built** (Dashboard V2 page `/v2/testlab`, Home link): live raw counts, direction/RPM/health, graph, forward/reverse comparison, read-only hand test, CSV sessions, fault detection, and a gated single-wheel pulse path through the EXISTING lifted-drive interface (locked unless every owner gate passes). 61 new tests pass; no serial access, no new actuator API, safety files untouched.
+- Deployment package `tools/deploy/stage26_testlab/` (patches the live status-web in place because the repo copy holds undeployed steering work; rollback rehearsed). Base-driver lifted flags shipped DISABLED. Awaiting owner approval.
+- See [`ATLAS_STAGE26_MOTOR_ENCODER_TEST_LAB.md`](docs/reports/ATLAS_STAGE26_MOTOR_ENCODER_TEST_LAB.md).
+
+2026-10-16 09:30 (display-only deployment; no movement, no restart, nothing actuated):
+- **Dashboard Motion Chip correction deployed** (09:03:38 IST): `web/v2/motion-status.js` (new), `shell.js`, `index.html`; hashes match; status-web not restarted. Verified in a real browser: no console errors, "Stopped" at rest, warning path exercised on live data. Backup `web/v2/.pre_stage25_motion_chip_20261016_090338`.
+- M2/M3 encoder analysis refined (direction-dependent loss, not a sign flip); 41-bag history scan; offline LiDAR+gyro fallback evaluated (not deployed). Read-only `tools/diagnostics/encoder_hand_test.py` for a lifted hand test (not deployed). Hardware check pending.
+- See [`ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md).
+
+2026-10-15 22:30 (offline only; no deployment, no movement, no restart):
+- Stage 25 round-trip root cause. Slow return lost because **M3 is near-dead and M2 froze then reversed at 21:40:24**, so 3-of-4 consensus failed closed on 37% of wheel travel. Stage 21 and the estimator behaved as designed; serial link clean.
+- Dashboard Motion chip showed "Stopped" while wheels counted. **Display-only fix** `web/v2/motion-status.js` (undeployed, rehearsed package `tools/deploy/stage25_motion_chip`, 7 recorded-frame tests).
+- Final AMCL pose unverified; recorder gaps match post-roll design; Candidate B fixes heading only and stays undeployed. See [`ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md`](docs/reports/ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md).
+
+2026-10-15 21:06 (no deployment, no movement, no recording):
+- Owner confirmed the 19:46 / 20:19 position changes were deliberate tests; earlier "stationary" reading withdrawn.
+- **AMCL seeded once** (20:52:54) at the LiDAR-verified Dhruv Room pose (0.235, -1.435, 78 deg). Parked 10 min: stable, no jump, all checks VERIFIED, commands zero.
+- Moving validation and Candidate B remain pending. See [`ATLAS_STAGE24_AMCL_SEED_VALIDATION.md`](docs/reports/ATLAS_STAGE24_AMCL_SEED_VALIDATION.md).
+
+2026-10-15 20:40 (read-only; no deployment, no seed, no movement):
+- Post-deployment location recovery: five live samples. Global and Dhruv Room searches agree on (0.235, -1.435, 75 deg), margin 0.105-0.125.
+- The earlier A and B poses were correct for where ATLAS stood: it was physically moved ~19:46 and ~20:19 (beam-by-beam scan comparison, monitor motion log). Odometry did not register the moves.
+- Corrects the 20:12 "stationary" claim. AMCL still unseeded; one seed awaits owner approval.
+- See [`ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md`](docs/reports/ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md).
+
+2026-10-15 20:12:
+- **Stage 24 deployed** (verify-place seeder, core region filter, `place_regions.json`; 3 files MATCH, no restart).
+- AMCL **not seeded**: stationary ATLAS gave two different VERIFIED poses (1.2 m apart) as the LiDAR front arcs changed. BLOCKED pending owner confirmation.
+- See [`ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md).
+
+2026-10-15 13:30:
+- **Stage 22 deployed** (recorder `steering-validation` profile, installation only, recording OFF).
+- Found: the live `atlas_steering_calibrate.py` is the old direct-serial servo tool; it is harmless at present only because `/dev/yahboom` is absent.
+- See [`ATLAS_STAGE22_RECORDER_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE22_RECORDER_DEPLOYMENT.md).
+
+2026-10-15 13:45 (preparation only; nothing deployed, recorded or moved):
+- Motion-validation readiness: stage 22 optional recorder profile package; stage 23 Candidate B procedure.
+- `ekf_continuity_config.py` prevents the 1.15 m `/odom` jump a plain EKF restart causes.
+- AMCL found unseeded on this boot.
+- See [`ATLAS_STAGE21_MOTION_VALIDATION_READINESS.md`](docs/reports/ATLAS_STAGE21_MOTION_VALIDATION_READINESS.md).
+
+2026-10-15 13:10:
+- **Stage 21 deployed** (driver: zero velocity trusted only after 1 s of verified stillness).
+- Parked-verified: `/odom` drift 0.0 cm over 600 s.
+- Moving validation pending.
+- See [`ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md`](docs/reports/ATLAS_STAGE21_DRIVER_STOP_ANCHOR_DEPLOYMENT.md).
+
+2026-10-15 13:30 (offline; nothing deployed):
+- The stop anchor now needs 1 s of verified stillness.
+- Stage 21 driver package prepared.
+- Candidate B confirmed on native Humble; config prepared as `config/atlas_ekf_candidate_b.yaml`.
+- Least-privilege Foxglove bridge config, plus an isolated privilege test.
+- The calibration test is pinned to the post-replacement calibration.
+- See [`ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md`](docs/reports/ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md).
+
+2026-10-15 (offline; nothing deployed):
+- Native EKF A/B replay tools and LiDAR-ICP heading/sideslip analysis.
+- Production EKF translation found inconsistent with its own heading.
+- Candidate B (no wheel X/Y pose) cuts heading drift per 1.4 m by 5–7×.
+- `yahboom_base` keeps zero velocity trustworthy when a fresh packet shows no wheel counted, even without 3-of-4 consensus. This prevents a velocity-fusing EKF from coasting while parked; pose covariance, source label and stop policy are unchanged.
+- See [`ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md`](docs/reports/ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md).
+
+2026-10-15: Correct Orin Nano-specific CV temperature admission policy.
+- NVIDIA confirms absent DLA/PVA CV readings; exempt only CV-temp EAGAIN on verified Nano.
+- Require CPU/GPU/SoC/TJ, preserve all temperature limits and other failures.
+- 26 offline regressions pass; fresh Jetson check has no thermal-read errors.
+- Stop/zero-command/commission-disarmed/recorder-OFF verified; admission blocked by
+  CPU77.89% and manual_only=false. No recording, movement or production changes.
+
+2026-10-15: Check corrected temperature probe once on Jetson, preserve blocked result.
+- CPU peak71.43%, RAM66.46%, CPU/GPU60.66/60.31C; six thermal readings valid.
+- CV0/1/2 return EAGAIN with precise paths/tracebacks; full admission remains blocked.
+- Separate SSH safety queries time out on both existing endpoints; state unverified.
+- No code/deployment change, bridge connection, recording or movement.
+
+2026-10-15: Correct temperature admission read handling offline.
+- Reproduce UTF-8/None exception; replace thermal text reads with bounded binary reads.
+- Retain zone paths, valid partial readings and tracebacks; missing data still blocks.
+- 13 new temperature/admission tests pass;17 focused tests pass on Ubuntu22.04.
+- Preserve75%/80%/70C limits. No live probe, connection, recording or deployment.
+
+2026-10-15: Stop approved bridge attempt at fresh preflight measurement failure.
+- Four isolated outgoing-operation/channel/payload-boundary tests pass.
+- CPU69.19–73.46%, RAM65.05%; temperature collection raises TypeError.
+- Preserve exact blocked result; no bridge connection, subscriptions, bag or retry.
+- Retain as-run diagnostic source; no production deployment or localization claim.
+
+2026-10-15: Resolve publisher-presence uncertainty and bound next transport test.
+- All three endpoints observed; record actual AMCL/particle/raw-scan QoS.
+- Direct WSL graph discovery sees no Jetson nodes; existing bridge TCP reachable.
+- Windows Time stopped, WSL initial sync offset and unstable SSH bounds documented.
+- Prepare10s receive-only approval plan; no subscriptions or production modifications.
+
+2026-10-15: Validate isolated PC native full-topic recorder, not live ATLAS capture.
+- Reuse Stage20 writer/inventory; preserve raw CDR, source and receipt timestamps.
+- 21 topics /22,779 messages pass native SQLite readback and payload verification.
+- Missing-source, disconnect, cancel, queue and four admission/cleanup checks pass.
+- Record unstable WSL–Jetson clock bounds and unqualified DDS/missing-publisher gates.
+- No production subscription, deployment, clock/network change or movement.
+
+2026-10-14: Save PC-only runtime setup and native test checkpoint.
+- WSL2/Ubuntu22.04/Humble installed without PC reboot;1454/1454 native messages pass.
+- Preserve source scripts, local evidence locations and morning approval boundaries.
+- No live capture, Jetson configuration change or overnight testing.
+
+2026-10-14: Audit offboard recording feasibility without live subscriptions.
+- Added transport-free PC CDR/SQLite fixture;30s/6300 messages and3 storage tests pass.
+- WSL/ROS absent and clock qualification pending; no live transport/CPU saving claim.
+- Preserved Stage20 OFF and all production settings; documented next setup approval.
+
+2026-10-14: Bound recorder startup CPU investigation, no live retry.
+- Added isolated phase profiler; native initialization measured0.6521 CPU-seconds.
+- Historical process attribution remains UNKNOWN; no speculative optimization/deployment.
+- Documented timing evidence gaps and offboard-capture feasibility alternative.
+
+2026-10-14 23:02IST: One approved recorder attempt stopped on exact CPU76.2295%.
+- Preflight passed; optional start aborted before bag creation. Grant revoked,
+  recorder OFF, production/services/450 protected files unchanged. No retry.
+- Exact rejection evidence retained; no capture/localization success claimed.
+
+2026-10-14 22:57IST: Owner-approved supervisor tooling e35006a deployed separately.
+- Exact Git hashes and installed refusal logging verified; recorder OFF/no grant.
+- Pre/post admission passed,75% retained; protected production/services unchanged.
+
+2026-10-14: Fix supervisor lost-resource-refusal evidence in source only.
+- Observe/log/fsync before validation; exact thresholds, safe finalization and
+  sanitized terminal fallback; owned partial-grant cleanup.18 PC/native tests pass.
+- Original refusing value UNKNOWN; no production deployment or recording retry.
+
+2026-10-14: Approved first live capture blocked before activation by resource guard.
+- No grant/bag/service start; recorder OFF, production unchanged. No retry.
+- Exact rejecting resource sample lost by supervisor; reporting limitation documented,
+  later passing sample not substituted. No localization or capture success claim.
+
+2026-10-14: First live30s preflight passed; awaiting separate activation approval.
+- Single CPU sample series max69.71%, required topics received, hashes exact.
+- No grant, recording, movement or production restart; result is preflight only.
+
+2026-10-14 17:11UTC:30s upgrade installed under explicit installation-only CPU waiver.
+- Actual pre/post CPU below75%; all other checks retained, runtime75% gate unchanged.
+- Five hashes verified;328 protected files and production identities unchanged.
+- Recorder OFF/static/inactive, no grant/autostart/motion; backup and evidence saved.
+
+2026-10-14: Approved30s installation rolled back after postflight CPU77.35% refusal.
+- Five original hashes restored; recorder remains OFF, production unchanged.
+- Durable exact interval/error/rollback evidence retained; no automatic retry.
+
+2026-10-14: Prepare exact five-file stationary30 upgrade, no production writes.
+- Pinned Git-blob builder and before/after manifest from read-only installed hashes.
+- Existing transaction reused in native isolation: success/rollback and failures
+  after all five writes restore originals and preserve evidence. No service starts.
+- Separate installation/parked/moving admission; retain75% limit. Recording NO-GO.
+
+2026-10-14: Opt-in stationary30 recorder and bounded fusion candidate preparation.
+- Preserve installed120s profile OFF; distinct grant,30s receipt deadline, bounded
+  writer flush, freshness/completeness checks and retained static-TF capture.
+- Native isolated CDR/SQLite and failure tests pass;106 regression tests with one
+  environment skip, plus four fusion contract tests. No deployment or motion.
+- Candidate removes only wheel XY pose observations; historical filter state still
+  missing, so no AMCL-jump improvement claimed. See milestone report for metrics,
+  retained failed tests, CPU refusal and rollback preparation.
+
+2026-10-14: Dashboard JSON serialization optimization, source only.
+- Compact API whitespace with identical decoded values, ages and cache-control policy.
+- Native real-payload function benchmark confirms54–61% serialization CPU reduction,
+  not whole-robot CPU reduction; predicted absolute saving is small.
+- Added isolated response tests/profiling tool. Live stack profiling lacks permissions;
+  no deployment/restart or Stage20 installation; existing steering integration preserved.
+
+2026-10-14: Stage20 CPU admission evidence and transactional rollback correction.
+- Retain every one-second CPU interval, process attribution, RAM/temperature/disk,
+  safety evidence and exact refusal before raising; same pre/post method.
+- Refuse any interval above75%; preserve additional dashboard guard and all limits.
+- Move postflight refusal inside installer rollback; no public runtime changes.
+- Read-only baseline and isolated native validation only; production remains untouched.
+
+2026-10-14: Record one owner-approved Stage20 installation-only retry and rollback.
+- Exact nine payload hashes and inactive/static unit verified; installer exit0.
+- Postflight resource check failed; later CPU79.7% exceeds75% guard. Exact failing
+  sample unavailable, so no specific transient value or cause is invented.
+- Rollback verified, evidence/backup preserved, production identities unchanged,
+  E-STOP latched and commands zero. Collector never activated; no automatic retry.
+
+2026-10-14: Stage20 installation failure evidence repair; no production retry.
+- Preserve named phase, exit status, sanitized child output/traceback, manifest identity,
+  target changes and rollback outcome in an exclusive, fsynced evidence file.
+- Require reviewed manifest hash and evidence destination for the installation CLI.
+- Keep the nine approved diagnostic payload files and all safety/resource guards unchanged.
+- Native fake-root install/rollback, refusal matrix and POSIX permission test pass.
+  Original pre-write abort reason remains UNKNOWN; production remains untouched.
+
+2026-10-14: Stage20 minimum-safe PUBLIC-only alternative; owner approval pending.
+- Separate deployment safety from replay fidelity and optional work; exclude unqualified estimator overlays/hooks from the capsule.
+- Fix diagnostic receive bottleneck with raw CDR: 120s native case captures all97,901 source messages; exact receipt/header audit passes on separate40s case.
+- Actual530-unit graph, one-use fake-root adapter, resource bounds and scratch rollback pass;65 current offline tests pass.
+- Document unavailable CPU-quota/device-sandbox enforcement; native-tested kernel CPU lifetime, memory, task and runtime bounds retained.
+- Hashed default-OFF public capsule, source SHA, live-drift guards and approval/rollback plan prepared. No live installation or localization repair asserted.
+
+2026-10-14: Continue Stage20 initialization/consumer evidence, not Stage21.
+- Add version-pinned opt-in EKF/AMCL diagnostic overlays, bounded discovery buffering and read-only constructor retrieval; retain original algorithm expressions and default-OFF behavior.
+- Controlled native startup ledger and 609-sample static EKF comparison pass; preserve earlier discovery/order/shutdown failures and uncontrolled covariance mismatch.
+- Add comparator, capture integrity, native quota/crash/restart, strict installation/atomic rollback and future one-shot approval tooling. 46 current offline checks pass.
+- Correct RNG audit: Gaussian allocation reseeds with ++pf_pdf_seed after pf_alloc's wall seed; 20 cold-start cases are not independent randomized fidelity trials.
+- No production deployment/restart/motion/map/calibration change. Remaining readiness gates explicit in the Stage20 readiness report.
+
+2026-10-14: Stage 20 scoped checkpoint capture milestone, not deployment-ready.
+- Reuse bounded topic/CDR writer; add receipt ledger, hashes, incomplete flags and read-only parameter snapshots in a finite private-domain collector.
+- Native-build an upstream-library EKF observer exposing the actual relative reference and full 225-element covariance without filter-math edits.
+- Prepare default-OFF initial-pose/no-motion service evidence hooks preserving exactly-one-call/Future semantics; no live installation.
+- 28 offline tests and native synthetic capture/read-back pass. Consumer order, AMCL internal state, startup ordering, total resource and failure qualification remain open.
+- Candidates B–E remain blocked; no drive, seed, map, calibration or production service change. See Stage20 report.
+
+2026-10-14: Stage 19 native Humble baseline and fail-closed replay-fidelity gate.
+- Ran full Hall-return native EKF/AMCL baseline in private network/PID/device namespaces, domain 187, with no actuator access or production service changes.
+- Original five parked jumps were not reproduced; native had eight pre-stop corrections. Cold EKF/relative-anchor history differs from the recording; zero parked jumps is not a fix.
+- Added native runner, inventory, result summaries and correction-comparison gate. 33 unique regressions passed; Candidate B refused before native launch because fidelity remains blocked.
+- No fusion or navigation correction deployed. See [Stage 19 report](docs/reports/ATLAS_STAGE19_NATIVE_EKF_AMCL_REPLAY.md).
+
+2026-10-14: Stage 18 offline motion-model correction and evidence comparison.
+- Stage 17B explicitly ON HOLD; no deployment/actuation authorized.
+- Added isolated general 4WS model and neutral-seeded ICP/gyro/wheel comparison with explicit uncertainty and no control authority.
+- Expanded exact-update coverage to final roundtrip (4,591 updates). Same-command lateral correction does not repair wrong yaw; gyro-heading shadow improves yaw but not translation consistently. No live fusion/calibration change.
+- Original five AMCL jumps remain unresolved. See [Stage 18 report](docs/reports/ATLAS_STAGE18_ODOMETRY_SENSOR_FUSION_REPORT.md).
+
+2026-10-14: Stage 17B single-person steering commissioning prepared, not deployed.
+- Added disabled-by-default bounded front-only sequence through the existing lease owner, paused caliper mode, explicit delegation and stop-only cancellation.
+- Added interlock acknowledgement metadata and optional recorder event topics; no calibration, rear target, EKF or live deployment changed.
+- 62 offline Python checks plus mock UI/syntax validation passed. Tilt-only phone app cannot measure road-wheel angle; physical measurements and Jetson resource validation remain pending.
+- See [Stage 17B report](docs/reports/ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md).
+
+2026-10-14: Stage 17 steering/yaw instrumentation prepared, physical approval pending.
+- Optional recorder profile adds raw IM10A, exact encoder updates, particles and LiDAR odometry; stationary steering changes trigger bounded capture with 20 s post-roll.
+- Isolated parked Jetson trial: 7,032 messages, all required topics present, zero application/DDS-reported drops; ~40.48% one-core CPU and 84.98 MiB RSS. Production recorder stays unchanged.
+- Added perspective/synchronization/rolling-observability harness and reference sheet; 27 offline regressions passed. Two-encoder feasibility is conditional and grants no control authority.
+- Retired unused direct-serial steering utility with incorrect front/rear mapping in source. No current steering, EKF, map or motor settings changed. See [Stage 17 report](docs/reports/ATLAS_STAGE17_STEERING_YAW_VALIDATION.md).
+
+2026-10-14: isolated two wrong-sign wheel-yaw windows in the Oct 9 Hall return.
+- Added a read-only CDR/SQLite diagnostic that traces exact accepted encoder distance, commanded-steering curvature and IM10A gyro yaw; 3 focused plus 29 related tests passed.
+- All four channels were accepted in 16/20 updates of one wrong-sign window, while nearby turns agreed, excluding a global sign flip or a proven M3-only cause.
+- Physical steering/traction cause and AMCL repair remain unverified; no live motion/fusion settings changed. See [`ATLAS_MOVING_LOCALIZATION_ROOT_CAUSE_AND_FIX.md`](docs/reports/ATLAS_MOVING_LOCALIZATION_ROOT_CAUSE_AND_FIX.md).
+
+2026-10-14: resumed localization forensics from Stage 16 evidence.
+- Four retained verdicts distinguish absolute-fit and ambiguity failures at alternate positions; Home checks were seeded by the startup verifier.
+- Added a read-only encoder bag timing audit: 2 focused tests pass, no missing published diagnostic sequence in the main Hall-to-Dhruv bag.
+- Identified repository `atlas_latest` map drift from the accepted deployed map; use the archived accepted map for replay.
+- Published [`ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md`](docs/reports/ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md). No Jetson runtime or navigation change.
+
+2026-10-11 20:45: end-of-day checkpoint.
+- Verified backup: Jetson `data/backups/eod-20261011-203508/` plus a copy on the owner's PC.
+- Deployed-file check against HEAD `5eb0aad`.
+- Next-session handoff: [`ATLAS_NEXT_SESSION_HANDOFF.md`](docs/reports/ATLAS_NEXT_SESSION_HANDOFF.md).
+- No runtime change.
+
+2026-10-11 20:45:
+- Offline encoder-distance-by-speed analysis and diagnostic tool (`tools/diagnostics/encoder_scale_by_speed.py`). Binned two ways to avoid regression-to-the-mean bias.
+- M1/M4 read about 0.64–0.72× and M2 about 0.51–0.64× of the LiDAR distance at 0.1–0.45 m/s.
+- No calibration change. See the [analysis](docs/audits/ATLAS_ENCODER_SCALE_BY_SPEED_2026-10-11.md).
+
+2026-10-11 20:15:
+- Stage 14 (voice announces stop latch and release) deployed.
+- Stage 15 (CHECK MY LOCATION motion gate on the EKF's IM10A gyro) deployed.
+- AMCL re-localized by the existing startup verifier; live check VERIFIED.
+- Per-boot startup evidence capture prepared (not deployed).
+- See the [evening record](docs/deploy/ATLAS_LOCALIZATION_RECOVERY_2026-10-11_EVENING.md).
+
+2026-10-11 19:46: **CHECK MY LOCATION works without an AMCL pose** (stage 13, deployed).
+- Precise rejection codes and a stage table replace the merged "SCAN UNAVAILABLE or AMCL reference
+  unavailable".
+- AMCL status is reported separately; the independent LiDAR search runs anyway. Without AMCL the
+  best answer is LIDAR_ONLY_MATCH, never VERIFIED.
+- Last success is kept apart from the current result.
+- See the [stage 13 record](docs/deploy/ATLAS_LOCATION_CHECK_NO_AMCL_2026-10-11.md).
+- Voice: latch and release are both announced (source only, `27ccfcd`, not deployed).
+
+2026-10-11: CHECK MY LOCATION Stage A deployed and browser verified.
+- Fixed snapshot clock/lock race with a deterministic regression; 73 scoped
+  Python tests pass. Two pre-existing rosbags-dependent cases remain excluded.
+- Both live V2 buttons complete fresh read-only checks; measured about 3 seconds,
+  exposing AMCL/LiDAR mismatch rather than silently correcting position.
+- Stage 11/12 backups and rollback rehearsed; only monitor/web restarted.
+  E-STOP stayed latched, control owners unchanged, Nav2/explore inactive.
+- Correction endpoint remains disabled/unimplemented; no driving or pose reseed.
+
+2026-10-11: CHECK MY LOCATION Stage A implementation.
+- One existing-monitor search owner, fresh ROS snapshots, acquisition-time TF,
+  loaded-map content verification, stopped/zero-command gates and cancellation.
+- Shared V2 Command Center/Mapping UI and same-origin bounded diagnostic API;
+  no pose correction or navigation authorization.
+- 72 scoped Python regressions pass; isolated ROS domain 173 validates recorded
+  ranges with synthetic stationary timestamps, ambiguity, cancellation, missing/
+  stale IMU, unavailable TF, motion and concurrent-search rejection.
+- Two existing people-experiment tests remain blocked by missing rosbags.
+- Deployment status, benchmarks and remaining limits are in the implementation report.
+
+2026-10-11: Read-only reliability and location-check foundation (not deployed).
+- Paired raw/filtered guard audit plus finite settled resource probe; five audit tests.
+- Manual location job lifecycle with cancellation, timeout, provenance invalidation,
+  single-worker ownership and historical-result labeling; optional matcher checkpoint.
+- 33 scoped Jetson tests pass; two people-experiment tests blocked by missing rosbags.
+- UI, trusted ROS adapter, end-to-end location replay and correction remain pending.
+
+2026-10-11: Approved scan-availability guard and full-controller validation.
+- Actual installed controller/action/costmap replay reproduced continued commands
+  with missing/stale scans and an unobserved rear sector; expected_update_rate
+  alone did not reject fresh-arrival old-stamp messages.
+- Stop-only mux veto rejects unavailable/stale directional observations for
+  NAV2/recovery. Manual remote commands and steering calibration are untouched.
+- Exact live-based candidate passes 15 isolated integration checks; 12 guard,
+  13 recovery, 6 stop-hold, 4 replay-acceptance and 3 inflation tests pass.
+- Stage-specific patch generator preserves unrelated undeployed AMCL changes;
+  native RPP dynamic inflation update validated without localization restart.
+- Deployment evidence is maintained in the navigation guard report.
+- Both stages deployed with hash/rollback verification. Direct ROS stop checks
+  replace unreliable dashboard cache checks for this rollout; no stop release.
+  Both YAML copies and runtime RPP factor agree at 15, AMCL process unchanged.
+  Real-scan coverage gaps continue to veto autonomy; no physical acceptance.
+
+2026-10-11: Recovery freshness extension, NOT deployed.
+- Reject old/zero/future scan acquisition times, expired arrival times and
+  malformed scan geometry. Recheck before the first post-clearing pulse.
+- Thirteen regressions pass, including actual recovery tick/stop paths emitting
+  only zero when scans expire before or during a pulse. No sensor filtering,
+  steering, footprint or live service changed.
+
+2026-10-11: Separate RPP inflation-distance contract candidate, NOT deployed.
+- Explicit conversion factor 15 matches the existing local inflation layer
+  instead of default 3; synchronize both Nav2 YAML copies. No radius/footprint,
+  steering, speed, reverse or collision-detection setting changed.
+- Configuration and cost-distance inversion tests added. This corrects a
+  measured contract mismatch, not proof of complete controller acceptance.
+
+2026-10-11: Decision-path audit; recovery unknown-clearance candidate, NOT deployed.
+- Actual recovery methods reproduced four unsafe unknown/out-of-range cases;
+  reject missing sectors as unavailable clearance and reject ranges above max.
+  Do not modify LaserScan or genuine returns. Six regression tests now pass.
+- Six mux stop-hold and three frame-sector regressions pass. Read-only live
+  parameter/costmap probe and native Nav2 footprint-checker fixtures added.
+- Candidate is limited: sparse sectors, full swept-body coverage, sensor
+  synchronization and loaded stopping behavior still need qualification.
+
+2026-10-11: Approved LiDAR diagnostic stage 10 deployed from `1a9f077`.
+- Three-file rehearsal, byte-identical rollback and live hashes passed; only
+  rover-status-web restarted. Motor/mux/localization process IDs unchanged.
+- Browser confirmed live nearest-ray markers, raw range/angle/time and cluster
+  support warnings; 60/60 HTTP samples LIVE, receipt ages 0.001–0.245 s.
+- Dashboard process CPU 45.31% before / 45.40% after (one-core basis), peak
+  RSS 170.72 / 165.04 MiB. Not an isolated feature CPU benchmark.
+- Physical return identity, map overlay and BLE connection remain unresolved.
+  Passive btmon capture was denied by OS permissions; no competing client ran.
+
+2026-10-11: LiDAR distance provenance investigation (not deployed).
+- Reproduced 0.509 m FRONT minimum at front-right quadrant boundary; matching
+  original raw ray excludes dashboard fabrication for that observation.
+- Add minimum ray/angle/time diagnostics and separately labelled cluster
+  estimates; preserve every valid point and nearest distance. UI marks minima.
+- Add finite paired-scan probe and offline replay: 26/26 captured projections
+  reproduced; 15 projection tests, seven route tests and UI logic checks pass.
+- Physical return identity, scan-density variation and localization remain
+  unresolved. No production configuration, map or control change.
+
+2026-10-11: Owner-approved live stages 8, 9b and 9c verified.
+- Single BMS retry ownership now deployed; connection still times out, but no
+  competing restart. New camera/LiDAR/Home views are installed on the Jetson.
+- 62/62 HTTP JPEG hashes match original ROS frames; current image softness
+  is upstream of UI rendering. Do not claim optical/source cause resolved.
+- Consolidated deployment report records resources, outstanding acceptance,
+  exact rollback directories and unchanged motor-control process identities.
+
+2026-10-11: Operator-approved camera/LiDAR/Home stage.
+- Add full-size original-JPEG view and bounded visible-only 360-degree scan
+  display; exact scan-time base_link TF, invalid points and stale data explicit.
+- Add consistent Home links to V2 and a return link on Visual Cloud.
+- Nine projection/freshness tests, 15 isolated Jetson route tests, 12 dashboard
+  safety regressions and 11 idle-camera tests pass. No sensor-driver change.
+- Current source JPEG itself is visibly soft; precise optical/source cause and
+  historical equal-frame quality acceptance remain unresolved, not claimed fixed.
+
+2026-10-11: Parked rollout validation and BMS rollback.
+- Recorder installed opt-in: 3,203 live messages, one DDS-reported loss, no
+  application drops; 29.29% of one CPU core and 78.27 MiB RSS. No autostart.
+- BMS rollout rolled back after competing supervisor restarts reset backoff.
+  Offline ownership fix exempts only fresh, explicit BMS retry heartbeats;
+  faults remain faults and stale heartbeats retain existing recovery policy.
+- Parse BMS health as JSON rather than whitespace-sensitive text. Nineteen
+  recovery, nineteen Daly and sixteen recorder tests pass. Ownership fix is
+  NOT deployed. No motor, network, steering or autonomy changes.
+
+2026-10-11: Daly reconnect control (separate rollout stage).
+- Reuse a healthy GATT connection, drain old transaction bytes, close on protocol
+  failure, and back off reconnect attempts 10/20/40/80/120 seconds.
+- Keep five-second healthy polling and invalid/offline status publication during
+  backoff; age now refers to the last actual successful snapshot. No stale scalar
+  republishing, pairing command, battery safety limit or hardware setting change.
+- Nineteen focused offline Daly tests pass. Live connection recovery/endurance
+  remains a separate observation, not a promise from unit tests.
+
+2026-10-11: Bounded recorder background writer.
+- Single ordered worker with bounded 32 MiB / 30,000-message queue, atomic pre-roll
+  enqueue, explicit errors and drain-on-stop. Fifteen offline tests pass.
+- Added finite parked validation, root ownership lock, QoS discovery and DDS
+  reported-loss counters. Normal pre-roll expiry is no longer labelled data loss.
+- No motor/control changes or autostart installation. Deployment evidence is
+  maintained in `docs/ATLAS_ROLLOUT_2026-10-11.md`.
+
+2026-10-11: Isolated Humble recorder validation.
+- Fixed missing preroll on closely spaced captures; nine offline tests pass. Real Jetson synthetic serialization/SQLite readback passes for 47,887 messages. Added repeatable smoke/flush harness and measured resource report. Live deployment remains held for synchronous preroll callback blocking; no production service changed.
+
+2026-10-11: Motion diagnostic recorder (offline only).
+- Added an opt-in, motion-triggered ROS bag recorder with ten-second pre/post capture, bounded storage, per-topic health and drop reporting, and no motor-control dependency. Offline tests and synthetic benchmark added. Not deployed or enabled on the Jetson.
+
+2026-10-11 14:21: **Glass UI V2 is the only dashboard.**
+- `/` serves V2.
+- `/mapping`, `/commissioning` and `/wifi` redirect (302) to `/v2/...`; unknown pages return 404.
+- The classic V1 sources are kept on disk; `ATLAS_CLASSIC_UI=1` restores the classic routing.
+- APIs, controls, E-STOP and web reset are unchanged.
+- Deployed as stage 5 with the stop latched; backup and `ROLLBACK.sh` are in place. See the
+  [V2 default record](docs/deploy/ATLAS_V2_DEFAULT_2026-10-11.md).
+- `e2e_estop_test.py` now refuses to run against the live PIN file or event log.
+
+2026-10-11 13:40: read-only core-reliability pass. No runtime change, no motion, no restart.
+- New read-only tools in `project_atlas/tools/diagnostics/`: `net_timeline.py`, `lidar_starts.py`,
+  `stationary_sample.py`, `im10a_counts.py`.
+- Findings: [core reliability report](docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md)
+  covers Wi-Fi DHCP on secondary APs, LiDAR start-only failures, IM10A static zeroing, and a live
+  moving-localization repeat.
+- Correction: the Oct 10 "46 roams" figure could not be reproduced and is marked unverified.
+
+2026-10-11 (later): four approved preparation stages are **built, tested and staged, not
+installed**. They are staged on the Jetson in `data/staging/2026-10-11/`, and each needs separate
+approval. See the [staged deployment plan](docs/deploy/ATLAS_STAGED_DEPLOYMENT_2026-10-11.md).
+1. **Safety:**
+   - web E-STOP latches the existing mux stop;
+   - drive refused while latched;
+   - stops accepted during shutdown;
+   - unauthenticated reboot action removed.
+
+   See the [safety review](docs/security/ATLAS_ESTOP_SAFETY_REVIEW_2026-10-11.md). New finding:
+   during a two-finger touch, V1's E-STOP sends nothing.
+2. **Glass UI V2 `/v2/` package.** The V2 E-STOP fires on pointerdown and cancels hold-to-drive.
+3. **rover-status-web hot/cold executor split:** 57% → 40.7% of one core (real module, isolated
+   benchmark).
+4. **Visual Cloud** becomes local-only and viewer/activity-activated, with bounded history in a
+   new file (the 25 GB legacy DB is untouched). Measured live: idle 11.5% → 1.4% of one core.
+
+2026-10-11 Glass UI V2 prototype plus three read-only audits. **Nothing was
+deployed or changed on the Jetson.**
+- **Glass UI V2** (`project_atlas/web/v2/`). It is served at `/v2/` by a new allow-listed
+  static route (`scripts/atlas_web_v2.py`). Offline, V2 sends requests identical to V1 for every
+  control. The full results are in the
+  [prototype report](docs/ui/ATLAS_GLASS_UI_V2_PROTOTYPE_REPORT_2026-10-11.md).
+- **Security and safety fix proposal.** It covers the E-STOP-while-holding hazard, the reboot
+  password, same-origin checks and stop during shutdown. See the
+  [proposal](docs/security/ATLAS_DASHBOARD_SECURITY_FIX_PROPOSAL_2026-10-11.md).
+- **Visual Cloud** has received no data since the Oct 4 deployment, which replaced the local
+  URL with the placeholder. The agent still uses 11% of a core, and a 25 GB history DB has no
+  reader. See the
+  [Visual Cloud audit](docs/audits/ATLAS_VISUAL_CLOUD_AUDIT_2026-10-11.md).
+- **rover-status-web** spends about 54% of a core in the rclpy executor (≈290 msgs/s). An
+  isolated benchmark shows a hot/cold executor split saves 29%. See the
+  [server audit](docs/audits/ATLAS_DASHBOARD_SERVER_PERF_AUDIT_2026-10-11.md).
+
+2026-10-10 local map candidate validation (read-only, nothing deployed).
+Candidate v1 is **rejected**: it deleted real surfaces and opened new
+plannable space. The safe v3 adds no passages but localizes the same as the
+active map. Recommendation: a supervised slow re-map of the corridor. The
+plan is in the
+[local map repair analysis](docs/audits/ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md).
+
+2026-10-10 local map audit, Dhruv Room → Hall (read-only). The doubled and
+broken walls trace to the Oct 2 mapping run's return leg. A local candidate
+map is in `maps/candidates/local_dhruv_hall_20261010/` and is **not
+promoted**. Offline:
+- AMCL replay ends correct: 65 / 5 / 100 / 100% → 100 / 90 / 100 / 100%;
+- parked checks: still 15/15.
+
+The corridor still needs a slow local re-map. See the
+[local map repair analysis](docs/audits/ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md).
+
+2026-10-10 22:30: fixed a boot ordering cycle that stopped
+`atlas-localization-monitor` from starting after the 22:24 power-off. The fix
+is deployed, the old unit is backed up in
+`data/backups/2026-10-10-monitor-unit/`, and the monitor is VERIFIED again.
+On the 22:01–22:24 drive:
+- 5 of 11 checked stops gave a result in 4.1–4.2 s;
+- 6 took 6.4–15.3 s because AMCL kept changing after the stop;
+- ATLAS was LOST for most of the drive.
+
+SSD SMART: healthy, with 0 media errors and 1% used, but 442 of 647 power
+cycles were unsafe shutdowns.
+
+2026-10-10 22:21 the live map page (`/mapping`) gained the confirmed
+**SHUT DOWN** button that the Command Center already has. It uses the same
+server action: stop the rover, then a clean `shutdown -h now`. Deployed;
+only `rover-status-web` was restarted. The previous page is backed up in
+`data/backups/2026-10-10-shutdown-button/`. A read-only SSD scan found only
+corrected PCIe link errors, in four boots on Oct 9–10, and none since Oct 10
+14:29. Details are in ATLAS-018.
+
+2026-10-10 21:29 deployed reliability steps 1 and 2 (faster LiDAR search,
+monitor state machine, dashboard labels, sensor-recovery deferral) from
+`2120613`, with approval. Step 3, the LiDAR restart limit, is on hold. Results
+on the Jetson:
+- monitor CPU 0.281 → 0.099 core;
+- recheck search about 2 s;
+- replayed stops reach a result in 4.1–5.3 s.
+
+The deployment record and rollback are in the
+[reliability review](docs/audits/ATLAS_RELIABILITY_REVIEW_2026-10-10.md).
+
+2026-10-10 reliability fixes on branch `claude/localization-motion-investigation`
+(not deployed):
+- LiDAR global search about 8× faster with identical scores (Jetson
+  18.5–20.2 s → 2.2–2.6 s).
+- Monitor states: PARKED_SETTLING, VERIFYING and INPUT_STALE. It also adds
+  episode tokens against stale results, input freshness checks, locking,
+  timing fields and a bounded history in
+  `~/.local/state/project_atlas/localization_check_history.jsonl`.
+- Map page: **STOPPED - CHECKING LOCALIZATION WITH LIDAR**, and a red
+  **LOCALIZATION UNKNOWN - <stale input>**.
+- Sensor recovery defers while systemd is already restarting a unit.
+- A bounded LiDAR restart drop-in is proposed, not installed.
+
+See the
+[reliability review](docs/audits/ATLAS_RELIABILITY_REVIEW_2026-10-10.md).
+
+2026-10-10 deployed the localization monitor (suggest-only) and the map-page
+fix. The live wrong pose was reported LOST, then recovered by the
+verify-mode seeder and independently re-verified. Only `rover-status-web` was
+restarted; the new `atlas-localization-monitor` user service was enabled.
+Backups are in `data/backups/2026-10-10-localization-monitor/`. See the
+[moving failure report](docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md).
+
+2026-10-10 moving localization failure. After a LiDAR-verified start and a
+fast drive, AMCL was 4 m wrong at a recurring Dhruv Room alias while the page
+showed START VERIFIED. Added `atlas_localization_monitor.py` (opt-in, not
+deployed). While parked, it checks the live AMCL pose against a no-prior LiDAR
+search and reports VERIFIED, DEGRADED or LOST. It suggests, or in `auto` mode
+after two agreeing checks applies, a LiDAR reseed, and never grants autonomy.
+`/api/map` adds `localization_check`. The map page is green only on a fresh
+LiDAR check; a start verdict alone shows amber. See the
+[moving failure report](docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md).
+
+2026-10-10 start-pose verifier under household movement. Added an offline
+stress test that inserts simulated walking and standing people into real
+parked scans. Across 484 runs there were 0 wrong-place verdicts; ambiguous
+cases reported UNKNOWN. Percentile aggregation and lower fit thresholds were
+tested and rejected, so the deployed verifier settings are unchanged. See the
+[Hall cold-start report](docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
+
+2026-10-10 Hall cold start investigation. Restarted in the Hall, ATLAS
+showed Dhruv Room as CONFIDENT. The cause: the startup seeder always seeds the
+saved Dhruv Room pose without checking the LiDAR, AMCL injects no recovery
+particles, and parked updates collapsed the cloud to one particle whose
+round-off covariance looks confident. Added a pure LiDAR-to-map verifier, plus
+an opt-in `verify` seed mode (`~/.config/project_atlas/seed_mode`) that seeds
+only a unique LiDAR match and otherwise reports LOCALIZATION UNKNOWN. A
+`--dry-run` check is included. `/api/map` adds `start_verdict`, and the map
+page shows green CONFIDENT only after this boot's LiDAR verification. Deployed
+with backups and switched on at the operator's request; AMCL was reseeded at
+the LiDAR-verified Hall pose. Reboot validation is pending. See
+[Hall cold-start report](docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md).
+
+2026-10-10 localization during motion investigation. Wheel odometry
+reports ~0.6× the distance LiDAR scan matching measures (raw M1/M2/M4
+0.60–0.62; EKF 0.36–0.54 above 0.3 m/s). This matches the Sep 16/25 tape
+results and is the top-ranked cause of UNCERTAIN-while-moving, forward
+corrections and lag. A new AMCL 1.1.20 motion replay reproduces the recorded
+behaviour. Corrected distance raised held-out scan fit from 0.69–0.74 to
+0.84–0.94 on 3 of 4 drives. Alpha-only tuning made the pose look confident
+but less accurate, so it was rejected. Wi-Fi roams caused no Jetson-side ROS
+gaps. Fixed and deployed (display only, backup kept, no restart): the
+`/mapping` page no longer labels a network stall as POSE DELAYED and keeps
+rover-side ages separate from link age. Added read-only tools and tests. No
+calibration, EKF, AMCL or network setting was changed. See
+[motion investigation](docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md).
+
+2026-10-10 developer branch review: compared the three new GitHub branches
+with baseline `cc5862a` and read-only Jetson state. Confirmed offline AMCL
+particle-loss evidence and a loaded mission-start scan gate. The observed
+encoder health blocks NAV2; the installed mux manual-only value is 0, despite
+a deployment note saying 1. The branches remain separate and no localization
+repair is validated. See
+[developer branch review](docs/audits/ATLAS_DEVELOPER_BRANCH_REVIEW_2026-10-10.md).
+
+2026-10-10 operator confirms ATLAS was moved by hand on Oct 9. Manual
+relocation (AMCL cannot see it) is the confirmed cause class for the
+outbound 1636 start offset; exact move times were not recorded.
+
+2026-10-10 operator: it is possible ATLAS was moved by hand on Oct 9. Manual
+relocation without AMCL following is now the leading (not confirmed)
+explanation for the outbound 1636 start offset. Mitigation needs no AMCL
+tuning: reseed after any manual move, and gate mission start on a fresh
+held-out scan-fit check.
+
+2026-10-10 outbound 1636 start offset: AMCL began the recording already
+converged 0.55 m ahead of the scan-best pose along the rover's heading (no
+sideways error). AMCL's own likelihood peaks there (6.38–7.32 vs 4.08–4.92;
+held-out fit 1.00 vs 0.60), and that pose is 7.5–8.5 cm from the morning's
+operator-confirmed Dhruv Room reseed. The cloud was 1–2.5 cm wide with zero
+odometry, so parked updates could not correct it. How AMCL got there predates
+the bag (evidence gap: check Oct 9 16:00–16:37 Jetson journals). Offline only.
+Four new helper tests passed. See [start-offset diagnosis](docs/audits/ATLAS_OUTBOUND_1636_START_OFFSET_2026-10-10.md).
+
+2026-10-10 multi-drive parked-diversity check (12 parked windows, 6
+recordings, 1,800 AMCL core runs): nudge 0.05 m / 2.5° never lowered held-out
+scan fit in 11/12 windows (2 seeds in the already-failed window) and improved
+it in 5. The parked-update gate lowered fit in 5 windows on every seed and
+never improved it: rejected as a standalone repair. Nudge 0.10 m rejected.
+New: outbound 1636 sat ~0.5 m from a far better-fitting pose (0.62 vs 1.00).
+The 0.05 m nudge added jumps (up to 9) in correcting windows. Offline only.
+Five new helper tests passed. See [multi-drive results](docs/audits/ATLAS_AMCL_PARKED_DIVERSITY_MULTIDRIVE_2026-10-10.md).
+
+2026-10-10 parked-diversity experiment (AMCL 1.1.20 core, 450 runs, seeds
+1–30): bounded jitter of 0.05 m / 2.5° after each parked resample moved the
+failed return window onto the refined Dhruv Room pose in 22/30 seeds
+(held-out fit 1.000) and kept the correct room and Hall windows correct in
+30/30 each. 8/30 failure-window runs stayed wrong, some wandering up to 3 m:
+not deployable. The parked-update gate never recovered and froze the Hall
+window wrong in 30/30, where recorded updates had corrected it; do not
+deploy it as a standalone repair. Unchanged existing harness reproduced
+published Jetson numbers exactly. Offline, one drive; production unchanged.
+Nine new helper tests passed. See [parked-diversity experiment](docs/audits/ATLAS_AMCL_PARKED_DIVERSITY_EXPERIMENT_2026-10-10.md).
+
+2026-10-10 weak-hypothesis trace: the 15 room-near particles were lost
+while parked (+351.997 to +362.854 s, 11 forced no-motion updates, 0.23 mm
+odometry). Scans did not reject them: the exact room pose outscored every
+particle on every update, but none sat on that peak. Multinomial resampling
+as KLD shrank 2,000 to 1,098 particles removes them in 9.6–14.2% of trials;
+zero motion noise and zero recovery alphas meant no new particle could
+reach the peak. Offline, one recording; no candidate fix or runtime change.
+Next: replay the parked-update gate plus bounded diversity on saved drives.
+Thirteen helper tests passed. See [weak-hypothesis trace](docs/audits/ATLAS_AMCL_WEAK_HYPOTHESIS_TRACE_2026-10-10.md).
+
+2026-10-10 — Deployed both safety changes to the Jetson (files only)
+
+- Backed up the originals first to
+  `/home/jetson/project_atlas/data/backups/2026-10-10-safety/`, with a
+  SHA256SUMS file. The live files matched this repository before the change.
+- Live `config/encoder_selection.yaml` now has SHA-256 `1260c463…` and reads
+  `navigation_validated: false`; it validated with `atlas_encoder_selection`.
+  The two lifted scripts are in `scripts/archive/`, byte-identical to before.
+- No service was restarted: `rover-base-telemetry` stayed on PID 1814, active
+  since 2026-10-09 22:47. The flag takes effect at that service's next start;
+  until then `ATLAS_MANUAL_ONLY=1` still blocks autonomy.
+- To roll back, copy the files from the backup folder over the live ones.
+
+2026-10-10 — Archive scripts that bypass the command mux
+
+- Moved `verify_metric_wheels_lifted.py` and `verify_steering_lifted.py`,
+  unchanged, into `project_atlas/scripts/archive/` with a do-not-run README.
+  Both publish straight to `/cmd_vel` and skip the remote stop latch,
+  manual-only mode, the watchdog and the autonomy guards.
+- No service, unit or document referenced either script. Lifted checks
+  belong in the commissioning console's leased, stop-latched flow.
+
+2026-10-10 — Revoke encoder navigation validation (fail-safe)
+
+- Set `navigation_validated: false` in `project_atlas/config/encoder_selection.yaml`.
+  The Oct 2 ground qualification is kept as history, but the Oct 8–9 records
+  say M3 remains unvalidated and encoder reliability is unqualified.
+- Effect, once the base driver restarts: `/atlas/encoder_health` reports
+  `autonomy_ready: false`, so the mux blocks NAV2 and RECOVERY commands.
+  Manual remote driving, the latched stop and `ATLAS_MANUAL_ONLY` are unchanged.
+- Re-enable only after M3 passes and the ground distance, turn and stopping
+  checks are repeated. The encoder selection, commissioning-evidence and
+  closed-loop tests pass.
+
+Review correction later on Oct 10: the installed mux unit showed
+`ATLAS_MANUAL_ONLY=0`, while live encoder health showed
+`navigation_validated:false` and `autonomy_ready:false`. The latter blocked
+NAV2 in the observed READY state. The mux has a separate DEGRADED recovery
+exception, so the above blanket RECOVERY claim needs qualification. See
+[developer branch review](docs/audits/ATLAS_DEVELOPER_BRANCH_REVIEW_2026-10-10.md).
+
+2026-10-10 — Deployed the mission-start LiDAR check to the Jetson (files only)
+
+- The Jetson ran mission control from `6a622f5` (Oct 9, 11:59), not this
+  branch's base: the later `4a4ea9a` and `edd6563` AMCL-update changes are
+  repository-only and were not deployed. So the same additive block (75
+  lines, no removals, byte-identical to this branch's addition) was applied
+  to the deployed `6a622f5` file. The tests pass on Python 3.10 and 3.13.
+- Backed up the original (SHA-256 `1252a28f…`) to
+  `data/backups/2026-10-10-scan-fit-gate/` first. Deployed
+  `atlas_mission_control.py` is `0da12027…`; new `atlas_scan_fit_core.py` is
+  `d60ceeb2…`. It imports on the Jetson.
+- No restart was done by Claude. The check is active after the operator
+  restarts `atlas-mission-control`. To roll back, restore the backup file.
+
+2026-10-10 — Mission-start LiDAR/map agreement check
+
+- `atlas_mission_control.py` runs `require_scan_map_agreement()` after the
+  start-clearance gate on all three saved-map dispatch paths. The pure logic
+  is in `atlas_scan_fit_core.py`: beams not sampled by AMCL (every sixth of
+  360), 0.3–8 m, a 15 cm wall tolerance, at least 60 returns, a scan no
+  older than 1 s, and an 85% minimum.
+- Replayed on 12 parked windows from six Oct 9 recordings at AMCL's actual
+  pose: it refused all five known-wrong poses (outbound 1636 ×3 at 61–63%,
+  stationary capture at 77%, failed round trip at 82%) and the round-trip
+  Hall pose (81%, about 0.24 m off). It passed the six good poses (96–100%).
+- The map loader round-trips the recorded map exactly. The pure-Python wall
+  lookup matched scipy on all 3,000 test points. 16 new tests pass on
+  Python 3.13 and on ROS 2 Humble Python 3.10, and the existing mission
+  contract tests still pass.
+- Note: `project_atlas/maps/atlas_latest.*` in Git (218×187, origin
+  −2.75, −8.08) is not the map deployed on the Jetson (232×220, origin
+  −3.89, −8.46). The check reads the deployed file through `map_prefix`.
+
+2026-10-09 competing-pose comparison: equal bounded fitting plus later unused
+beams favours the Dhruv region (99–100% endpoint fit, 0.214° corrected-gyro
+residual) over the refined false region (78.9–85.6%, 98.229°). A recorded
+cloud contains 15 particles near the better room pose; blanket missing-support
+claims are not justified. Ten helper tests passed. Offline only, not a fix
+or independent multi-drive validation. Next trace weak-hypothesis survival.
+See [competing-pose evidence](docs/audits/ATLAS_COMPETING_POSE_EVIDENCE_2026-10-09.md).
+
+2026-10-09 sensor evidence: six recorded stopped windows confirm that physical
+stillness is not global localization correctness. Early return AMCL spans
+1.148 m/76.478° against repeatable scans and +0.064° integrated gyro. Late
+return is steady but wrong; its 77.4–82.7% endpoint fit overlaps late Hall.
+No threshold or runtime change was deployed. Six helper tests passed.
+See [sensor stability evidence](docs/audits/ATLAS_SENSOR_STABILITY_EVIDENCE_2026-10-09.md).
+
+2026-10-09 follow-up: mission-start incompatibility is CONFIRMED, not merely
+suspected. Saved isolated replay has two poses; actual mission code requires
+four over at least 5.6 seconds in an 8-second window. One extra startup
+refresh still cannot pass. Seven new offline contract tests passed, including
+jump/heading/uncertainty rejection. Candidate remains disabled; no production
+change or driving. Next: design and offline-validate an independent stationary
+estimate-stability criterion before replacing the publication-count requirement.
+
+2026-10-09: added an opt-in, bounded AMCL measurement-refresh handshake.
+Healthy processing never overrides stale pose, jump or covariance checks.
+The request tick stays blocked; only a subsequent real pose can satisfy the
+existing guard. All new authority switches default OFF; production unchanged.
+45 focused regression tests passed. Mission startup's multi-pose stability
+window and moving/stop localization accuracy remain deployment blockers.
+See [isolated experiment details](docs/audits/ATLAS_AMCL_STATIONARY_POLICY_EXPERIMENT_2026-10-09.md).
+
+## 2026-10-09 — Distinct AMCL processing diagnostics, isolated validation
+
+- Added AMCL 1.1.20 overlay generator emitting actual scan-callback and pose
+  publication sequences separately; no forced updates or synthetic poses.
+- Added diagnostic-only health reporter with source-time and monotonic expiry.
+  Fixed a frozen simulated-clock timer defect found by integration testing.
+- Separate build and stationary replay passed after repair. Thirteen health
+  tests and five mux-contract regressions passed. No safety gate or production
+  service changed; localization correctness remains unresolved.
+
+## 2026-10-09 — Reject update-gate deployment after mux validation
+
+- Added five non-actuating tests of the actual mux localization guard:
+  stationary/sub-threshold motion exceeds its unchanged 2.5 s timeout.
+- Marked 4a4ea9a experimental policy not deployable alone. No live changes;
+  localization accuracy remains unresolved. Preserved existing safety gates.
+
+## 2026-10-09 — Offline stationary-policy repair candidate (not deployed)
+
+- Added actual AMCL-core experiments and reproducible result checks; rejected
+  reduced-resampling and frozen-prior policies as full localization fixes.
+- Bound mission-control periodic forced updates to fresh odometry progress
+  with a single in-flight request. Explicit pre-motion refresh and safety
+  timeout remain unchanged. Candidate awaits AMCL/mux validation before deployment.
+- Ten new policy/callback tests passed; five saved timelines produced zero
+  requests on 975 unchanged-pose ticks. This does not prove pose accuracy.
+- Recorded reboot evidence: startup explicitly seeded saved home. No steering,
+  motor, production configuration or live localization changes were made.
+
+## 2026-10-09 — Confirm stationary AMCL particle impoverishment
+
+- Captured a bounded stationary bag and audited it against the saved round
+  trip. Confirmed one effective geometric support point despite 2,000
+  published particles; no new stationary jump occurred in the current window.
+- Added a read-only particle-diversity diagnostic with four unit tests.
+  Recorded the forced-update/resampling mechanism and remaining causal limits.
+  No production service, steering or navigation parameter changed.
+
+## 2026-10-09 — Add bounded AMCL shadow instrumentation
+
+- Built a separate diagnostic Nav2 AMCL 1.1.20 binary that captures
+  pre-resampling weighted particles and chosen-cluster scores. Added a
+  fail-closed, 1 Hz stationary capture helper and verified an 8.10 s bag.
+- Production localization, TF, motors and steering were unchanged. A first
+  helper pacing error was corrected before the accepted run; details and
+  limitations are in the [shadow trace audit](docs/audits/ATLAS_AMCL_SHADOW_TRACE_2026-10-09.md).
+
+## 2026-10-09 — Compare AMCL replay and live jump evidence
+
+- Added a read-only one-second scan-window/particle-cloud comparison for the
+  original five jumps and the no-motion replay's two. Both had broad particle
+  clouds, but two original jumps worsened the diagnostic map-endpoint score
+  across all seven preceding scans, unlike either replay jump.
+- Published cloud weights are uniform, so AMCL's internal pre-resampling
+  likelihood and hypothesis choice remain unverified. No production change or
+  rover movement; autonomy remains gated. See the
+  [fidelity audit](docs/audits/ATLAS_AMCL_REPLAY_FIDELITY_2026-10-09.md).
+
+## 2026-10-09 — Restore missing AMCL replay update trigger
+
+- Verified from the original Jetson journal that mission control requested
+  `/request_nomotion_update` about once per second during the Hall-return
+  jump window; recorded odom/TF motion remained below replay update gates.
+- Added an isolated replay-only request client and timestamp-based comparison.
+  One full-bag replay matched the live AMCL pose counts (384 total, 80 after
+  stopping) and reproduced two large stationary jumps, not the exact five.
+- Production AMCL, EKF, motor and steering settings remain unchanged; autonomy
+  is still gated. See the [fidelity audit](docs/audits/ATLAS_AMCL_REPLAY_FIDELITY_2026-10-09.md).
+
+## 2026-10-09 — Identify AMCL replay-fidelity gap
+
+- Added read-only map/input/particle-state fidelity auditing and an isolated
+  AMCL-only replay of the original scan, odometry and odom TF streams. Two
+  repeat runs still did not reproduce the five live jumps: 120 versus 168
+  AMCL updates and lower replay particle spread. The saved map itself matched
+  the recorded grid in all 51,040 cells.
+- A replay-only motion-threshold probe kept AMCL updating and produced one
+  repeatable 1.827 m jump, but at 512 rather than 168 poses; it is not the
+  original five-jump baseline and was not deployed.
+- No localization candidate was promoted, and no production service or rover
+  actuator was changed. See the
+  [replay-fidelity audit](docs/audits/ATLAS_AMCL_REPLAY_FIDELITY_2026-10-09.md).
+
+## 2026-10-09 — Audit stationary AMCL hypothesis switching
+
+- Added a read-only particle-cloud/same-scan map-fit audit and replay summary,
+  plus an isolated replay-only laser-model switch and heading-stability metrics.
+  Each of the five Hall-return jumps had fresh scans, no wheel motion and a
+  broad particle distribution; one switch worsened scan/map agreement.
+- Saved-map AMCL replays did not reproduce the five live jumps. The beam laser
+  alternative and wheel velocity-only EKF failed stability gates, so neither
+  was deployed. Production localization, steering and motors are unchanged.
+  See the [cross-bag audit](docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md).
+
+## 2026-10-09 — Correlate stationary AMCL jumps with live sensors
+
+- Extended the read-only recorded-bag audit with per-jump wheel, corrected-gyro,
+  LiDAR, heading and AMCL-uncertainty context. On the Hall return, all five
+  large post-stop AMCL corrections occurred with zero wheel/gyro motion while
+  scans continued; uncertainty was already over 1 m. This narrows the failure
+  to localization hypothesis switching, not its upstream cause.
+- Preserved the operator-approved steering controls and production EKF/Nav2.
+  No rover movement, service restart or autonomous command was made. See the
+  [cross-bag audit](docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md).
+
+## 2026-10-09 — Localize wrong-sign steering-model interval
+
+- Extended the read-only encoder snapshot reviewer with whole-motion summaries
+  and bounded commanded-steering delay sensitivity. The Oct9 +7.42° wheel
+  model versus -18.96° gyro/-16.09° scan turn remained wrong-sign with up to
+  0.75 s delay; a uniform 0.5 s shift worsened another turn. No steering or
+  EKF calibration was changed. See the
+  [cross-bag audit](docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md).
+
+## 2026-10-09 — Cross-bag localization regression, no EKF deployment
+
+- Audited eleven relevant recorded bags and corrected the fusion analyzer so
+  raw and bias-corrected IMU samples are never mixed. Added read-only bag
+  inventory, timestamp-aligned yaw/jump audit, and isolated saved-map AMCL
+  A/B replay tooling with regression tests.
+- Reproduced wheel encoder-selection arithmetic exactly; recurrent wheel-model
+  versus gyro/scan heading conflict remains, including an opposite-sign Oct9
+  turn with all four encoders selected. Commanded steering is not measured
+  physical angle, so the mechanical source is not proven.
+- Saved-map AMCL replay failed to reproduce five original post-stop jumps in
+  either variant. Velocity-only reduced some correction metrics but worsened
+  final ~20 s position span from 0.845 m to 1.789 m. Experimental EKF change
+  **not deployed**; localization and autonomous route release remain gated.
+  See [cross-bag audit](docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md).
+
+## 2026-10-09 — Show localization uncertainty on the live map
+
+- Analyzed the existing Hall-to-Dhruv bag without moving ATLAS. AMCL became
+  highly uncertain before switching between stationary pose hypotheses;
+  recorded scans strongly favored the eventual Dhruv Room hypothesis. Wheel
+  steering-derived heading diverged from IM10A gyro heading, particularly in
+  one turning window, while LiDAR/IMU/odometry delivery remained fresh.
+- Added diagnostic-only AMCL covariance and recent-pose-jump information to
+  `/api/map`. The read-only map page now labels fresh but uncertain poses as
+  estimates instead of presenting them as confident localization. No motor,
+  EKF, AMCL, Nav2, steering or calibration setting was changed.
+- Replayed all 384 recorded AMCL poses through the display classifier: it
+  flagged all five >0.5 m post-stop corrections. Unit and browser-script
+  syntax checks passed. Deployed only the web display with a recoverable
+  backup; the map API and page returned HTTP 200 with fresh AMCL confidence.
+  This is an observability repair, **not** a claim that localization jumping
+  is resolved.
+- An isolated A/B replay of the same Hall bag found that velocity-only wheel
+  input improved median saved-map LiDAR endpoint fit from 23.1% to 50.2%,
+  with the gyro retained. This candidate is not production-ready: endpoint
+  fit remains incomplete and a prior bag had mixed results. Live EKF/Nav2
+  configuration was not changed.
+
+## 2026-10-09 — Manual return recording and live-map refresh
+
+- Recorded an operator-driven Hall → Dhruv Room return with LiDAR, AMCL,
+  odometry and TF. ROS/bag timing had no 20-second delivery gap, but the full
+  bag revealed five >0.5 m AMCL jumps after the remote stopped, including
+  a 2.206 m/130° step. Further bag review found 32 traction samples with
+  critical encoder-consensus loss during the manual drive and about 49°
+  disagreement between wheel-derived and IM10A-integrated yaw rate. The
+  4.236 m odometry endpoint displacement does not establish wheel-distance
+  under-reporting: its curved path length was about 6.77 m. This does not
+  count as an autonomous return-home trial or prove localization repeatability.
+- Updated only the live-map web page to prevent overlapping polls, bound a
+  delayed request to 2 seconds, refresh after mobile-tab wake, and show
+  client-elapsed pose age/staleness. Static saved maps no longer reload their
+  PNG every 1.5 seconds or appear falsely stale just because `/map` is
+  latched. Deployed with an HTML backup; no ROS or actuator restart. The
+  reported phone-side 20-second delay still needs an observed moving retest;
+  this UI repair does not resolve the measured AMCL corrections.
+
+## 2026-10-09 — Operator-confirmed Hall waypoint on accepted map
+
+- Replaced the old footprint-blocked Hall waypoint with the rover's stopped,
+  operator-confirmed Hall location after fresh LiDAR/map fit and exact
+  known-free 0.18 m grid-connectivity checks. Backed up the prior waypoint.
+- Archived a stale Oct 8 active mapping-session marker that initially caused
+  the save to carry an old session ID despite localization mode. Re-saved and
+  verified the waypoint carries the accepted map ID. No motor, map, or service
+  command was issued. The manual arrival lacked a dedicated route recording;
+  taught-route map ID and supervised autonomy validation remain open.
+
+## 2026-10-09 — Confirmed stationary Dhruv Room relocalization
+
+- Added a read-only live LiDAR-versus-accepted-map pose-fit diagnostic. A fresh
+  scan favored the saved Dhruv Room pose over the old out-of-map AMCL pose.
+- After the operator confirmed the exact physical spot and heading, backed up
+  the old seed and used the existing AMCL seeder once. The live map pose moved
+  to known free space near home; post-seed LiDAR/map fit reached 99% within
+  15 cm of mapped walls with the rover stopped. No motion or service restart.
+- Autonomous motion remains gated on fresh BMS data, a footprint-clear Hall
+  endpoint, matching route map ID, and repeatable localization under motion.
+
+## 2026-10-09 — Saved-map start clearance gate
+
+- Block named-place and return-home goal dispatch when the current map-frame
+  pose is not known free with the commissioned 0.18 m clearance in the exact
+  accepted map bytes. Active SLAM mapping is exempt from this saved-map check.
+- A stopped LiDAR/map audit found the reported ATLAS pose in unknown space;
+  the saved Dhruv Room point is mapped free. This guard prevents a misleading
+  `READY` mission status from being treated as route clearance. It does not
+  establish which pose is physically correct or qualify autonomous driving.
+- Added offline free/unknown and dispatch-order regressions. No navigation
+  parameters, actuator controls, or BMS safety gates changed. Deployed only
+  the mission-control script with a recoverable backup; it restarted cleanly,
+  the motor owner PID was unchanged, and observed motor speed remained zero.
+
+## 2026-10-09 — BMS net charge/discharge dashboard
+
+- Show the coherent Daly status packet's SOC, charge/discharge state, absolute net current in A, and net power in W on the main Power card, with a detailed four-cell report on tap.
+- Put the same A/W readings in large, labelled text next to the top battery icon so they remain visible without scrolling to the Power card.
+- Align dashboard freshness to the 10-second BMS motor-test gate; hide last-known figures when status is invalid, incomplete, or stale. The physical BMS protection and all motor/navigation settings are unchanged.
+- Deployed both web assets with recoverable backups; HTTP 200 and fresh BMS JSON were verified after the web-only restart. No BMS reader or motor service restart.
+- The intermittent Bluetooth connect-stage failure is still under investigation; a clearer display is not a transport repair.
+
+## 2026-10-09 — M3 attempt stopped before motion
+
+- A bounded lifted M3 attempt reached the no-motion locked state but aborted on stale BMS telemetry before any motor pulse. The operator separately reported M3 physical rotation; encoder reliability remains unqualified. The temporary raw-test gate was removed after Jetson reconnection, and the motor owner was verified IDLE with stop latched and all outputs zero. See the lifted-test audit for evidence.
+
+## 2026-10-09 — Lifted-test timing evidence and rejected-only delivery probe
+
+- Added client publish-start and motor-owner request-receive/status timestamps on the same Jetson monotonic clock, without changing the 0.5 s heartbeat lease or authorizing a motor pulse. Deployed the motor owner with a recoverable backup while all wheels were lifted; it restarted once by plan and remained stopped with zero output.
+- Added a bounded, rejected-only ROS delivery probe. Six requests were rejected by the disabled raw interface with zero output; the five-request batch had 6.6–262 ms send-to-owner delay. This qualifies stopped request delivery only, not an armed heartbeat session, wheel feedback or autonomous driving.
+
+## 2026-10-09 — Map-readiness diagnostics
+
+- Added the safety reporter's observed operating mode, whether a map was received, and map age to its existing autonomy-state JSON. The fail-closed map decision is unchanged. Deployed with operator approval while stopped; only the safety reporter restarted. It then reported `LOCALIZATION`, map received and online. Root cause of the earlier stale status remains unproven.
+
+## 2026-10-09 — Dashboard BMS validity display
+
+- The consolidated dashboard now requires a fresh `ok:true` BMS status and fresh scalar SOC before showing its BMS tile as healthy or displaying the main battery figures. Invalid/stale status displays `UNAVAILABLE`, not a last-known percentage. Source change only; web-service deployment is pending.
+
+## 2026-10-09 — BMS stale-scalar safety repair
+
+- Stop republishing last-good scalar battery readings when Daly BLE fails; continue publishing `ok:false` JSON status.
+- Make mission-agent battery preflight use coherent JSON so an unhealthy reading revokes SOC authority immediately.
+- Added offline freshness regressions. Deployed only the BMS and mission-agent scripts with recoverable backups; short healthy-runtime check passed, but live invalid-path and connection endurance remain unvalidated. No motor or steering behavior changed.
+
+## 2026-10-09 — Project-wide historical failure baseline
+
+- Indexed 268 reachable commits and investigated selected cross-system failure
+  chains; queried all available GitHub branches, PRs, comments and Actions metadata.
+- Added four canonical audit records with 15 issue families, rejected fixes,
+  scoped validation, chronology, missing evidence and ordered release gates.
+- Added a repository workflow for preserving failure history in future sessions.
+  No background watcher, motion, firmware update or control change was made by
+  the audit; deep review of all transcripts/logs remains incomplete.
+
+## 2026-10-09 — BMS failure-stage diagnostics
+
+- Label Bluetooth timeout/EOF with connect, MTU, notifications or data stage;
+  deadlines, parsing and safety gates are unchanged. Twelve Daly tests pass.
+- Deployed helper and restarted only the BMS monitor. Live failures identified
+  the connect stage, interspersed with successful reads. This is diagnosis,
+  not a repaired Bluetooth link or completed motor commissioning.
+- Motor base was not restarted; stop latched, outputs zero, raw tests disabled.
+
+## 2026-10-08 — Repeated-failure audit
+
+- Audited six recorded sessions: zero pulse requests and zero observed motor
+  outputs, with distinct stop, BMS, discovery and feedback-timing failures.
+- Documented cached-versus-receiver freshness, discovery contention, diagnostic
+  shutdown failure, evidence gaps and a no-motion-first acceptance plan in
+  `docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md`.
+- Audit only: no rover control, safety threshold or live service changes.
+
+## 2026-10-08 — Continuous commissioning readiness, timing issue still open
+
+- Require owner-reported five-second healthy readiness before client entry;
+  invalid inputs or a callback gap over 0.35 s reset readiness. Older owners
+  without this field cannot start a test through the updated client.
+- Default client status wait 15 s; motor pulse, heartbeat and sensor freshness
+  limits unchanged. Added readiness-window/reset regression coverage; 64 tests.
+- Live no-motion test reached 5.007 s readiness but later hit heartbeat expiry.
+  No arm/pulse requested; all observed motor outputs zero. Do not claim M3 pass.
+- Temporary callback profiler removed from execution; driver and client updated.
+  Normal motor service restored, GNSS restored, raw test flags unset.
+  Pre-change driver backup: `data/diagnostics/yahboom_before_profile.py` on Jetson.
+
+
+## 2026-10-08 — Lifted link-fault investigation (not a motor pass)
+
+- Added read-only receiver age versus cached encoder age diagnostics to lifted
+  status. Safety thresholds and commanded outputs are unchanged; 63 tests pass.
+- Stationary normal-mode check: 292 samples, maximum receiver age 0.049 s,
+  cached age 0.177 s, all outputs zero. Locked test reproduced a cached age
+  0.536 s despite receiver age 0.005 s and later a stale policy abort.
+- Duplicate-service coalescing candidate still hit a heartbeat deadline and was
+  rolled back. Neither trial armed or pulsed any motor. M3 remains unvalidated.
+- GPS discovery contention was worked around by briefly stopping GNSS during
+  base restart, then restoring it. This is not a permanent discovery fix.
+- Diagnostics deployed; normal base restored with raw testing disabled and
+  stop latched. Rollback file on Jetson:
+  `/home/jetson/project_atlas/data/diagnostics/yahboom_before_link_diag.py`.
+
+
+## 2026-10-08 — Bounded response-driven BMS reader
+
+- Removed fixed per-command waits causing approximately 11.3-second polls.
+- Wait for connection/MTU/subscription acknowledgements and validated data;
+  bound each complete transaction to 8 seconds plus process cleanup.
+- Ten tests passed; four live probes completed in 0.4–2.2 seconds. Deployed
+  BMS-only restart, with initial service intervals approximately 4.6–4.7 seconds.
+- Stale-data and cell limits unchanged. No motor motion; endurance test pending.
+
+## 2026-10-08 — Lifted request discovery guard
+
+- Wait for request subscriber matching before one-shot entry; 54 existing
+  client/owner tests passed. Live entry reached LOCKED, then the unchanged
+  battery freshness guard aborted it. No pulse issued; M3 still unvalidated.
+
+## 2026-10-08 — Daly MTU and frame integrity repair
+
+- Observed default-MTU truncation of cell frames; MTU 64 returned all 26 bytes
+  in three probe reads. Enabled negotiation on every Bluetooth connection.
+- Reject truncated/bad-checksum frames; preserve payload A5 bytes and assemble
+  fragments within the current poll only. No stale-cell filling.
+- Seven decoder tests passed; deployed BMS-only restart. Motor testing remains
+  paused with battery around 13%; endurance verification still required.
+
+## 2026-10-08 — Explain and prevent premature lifted-test entry
+
+- Recorded initial `bms_unhealthy` rejection after base restart; battery data
+  had not arrived. No pulse ran in that attempt.
+- Client waits for fresh complete battery data and a latched stop before entry;
+  owner rejection reason is reported immediately. Owner limits unchanged.
+- 54 offline tests passed; diagnostic client deployed without service restart.
+
+## 2026-10-08 — Control-policy heartbeat timing margin
+
+- Changed mux policy publication from 2 Hz to 10 Hz; retained the lifted
+  test's 500 ms stale-data rejection and emergency-stop priority.
+- Added heartbeat/deadline regression test; 47 targeted tests passed.
+- Deployed with a stopped mux restart; live policy approximately 10 Hz,
+  motor outputs zero, stop latched. No motor/encoder pass claimed.
+
+## 2026-10-08 — Fail-closed USB retry and incomplete battery handling
+
+- Added one bounded retry of a timed-out serial ownership check; never assumes
+  an unknown port is free.
+- Removed synthetic zero-cell filling; incomplete Daly snapshots are unhealthy
+  and explicitly list missing cells.
+- Local tests: 18 passed, four Linux-specific tests skipped. Python compilation
+  passed on Jetson. BMS restart only; no pulse or steering change.
+
+## 2026-10-08 — Separated manual turn retry saved
+
+- Stopped and reviewed `left_right_retry-20261008-150806`; 431 coherent
+  snapshots, no stale flags or sequence gaps, exact estimator replay.
+- Recorded near-static M3 count during the right turn and continued yaw
+  disagreement. Delay sensitivity did not reproduce a substantial benefit.
+- Preserved previous attempt and working steering; no autonomous pass claimed.
+
+## 2026-10-08 — Saved camera evidence inspected
+
+- Extracted original frames around the manual turns and visually checked three.
+- Recorded that wheels are not visible and imagery is hazy; onboard footage
+  cannot validate mechanical steering delay. No hardware settings changed.
+
+## 2026-10-08 — Offline steering-delay sensitivity
+
+- Compared seven hypothetical steering delays with recorded candidate gyro;
+  documented improved fit at 0.5 seconds and confounding/validation limits.
+- Ran analysis on the saved bag only. No rover movement or control changes.
+
+## 2026-10-08 — Encoder calculation replay and timing
+
+- Replayed synchronized calculation inputs against the encoder estimator:
+  664 post-initialization deltas and selections matched exactly.
+- Documented calculation interval and packet age; no claim of physical
+  calibration or root-cause resolution. No live control changes.
+
+## 2026-10-08 — Separate recorded turn directions
+
+- Extended offline snapshot review with commanded-curvature windows and
+  zero-seed ICP comparison. Executed against the saved bag on Jetson.
+- Documented per-turn wheel/gyro disagreement and ICP seed sensitivity;
+  no repeat drive, service restart or calibration change.
+
+## 2026-10-08 — First synchronized manual turn recording reviewed
+
+- Recorded operator-driven forward/left/right motion; stopped the recorder.
+- Added read-only snapshot review and documented M3 rejection and disagreement
+  between net wheel, gyro and scan yaw. No autonomous pass claimed.
+- Preserved all driving/steering settings and the original bag on Jetson.
+
+## 2026-10-08 — Encoder diagnostics activated
+
+- Deployed the two scripts from `1771b1d` with rollback copies after confirming
+  the live driver exactly matched the expected prior version.
+- Four snapshot tests, Python compilation and recorder shell syntax passed on
+  Jetson. Restarted only the motor service with operator safety confirmation.
+- Verified live diagnostic messages: fresh counts, zero stationary movement,
+  saved steering centres 90/90; service active with zero automatic restarts.
+- No drive commands or tuning changes; moving accuracy remains unvalidated.
+
+## 2026-10-08 — Coherent encoder calculation diagnostics (not deployed)
+
+- Added subscriber-gated `/atlas/encoder_update` snapshots with the odometry
+  timestamp, actual calculation inputs, channel decisions and output.
+- Included the diagnostic topic in demonstration recordings; added four offline
+  tests for coherence, no-subscriber behaviour, publication failure and rejection.
+- No steering, odometry mathematics or safety policy changed. Live activation
+  remains pending a safe motor-service restart and stationary verification.
+
+## 2026-10-08 — Offline encoder geometry audit
+
+- Compared three normalization cases using synchronized-enough raw topic batches.
+- Found no decisive consensus/distance improvement; retained the production model
+  and all stop conditions. Documented recording limits instead of claiming a fix.
+
+## 2026-10-08 — Whole-run pose correction trace
+
+- Added read-only correction timing, wheel/fused-heading and encoder-health
+  correlation. Located major corrections around turns in the saved run.
+- Verified live commanded-angle curvature also feeds encoder path normalization;
+  no steering or odometry parameter was changed without validation.
+
+## 2026-10-08 — Prior-map consistency at correction
+
+- Added read-only before/after scan projection against a frozen pre-event map.
+- Distinguished map-origin transform changes from robot-position correction.
+- Found improved prior-map endpoint fit after correction; no live changes or
+  autonomous-validation claim made.
+
+## 2026-10-08 — Scan rotation sensitivity, no live deployment
+
+- Verified installed RPLIDAR package/release and examined its timing/reordering.
+- Added offline gyro-rotation sensitivity checks for both ray-time hypotheses.
+- Corrected interpretation of reported scan duration; no robust improvement
+  found, so no deskew or production driver change was deployed.
+
+## 2026-10-08 — Recorded scan/TF timing investigation
+
+- Added read-only scan acquisition and TF/odometry timing measurements.
+- Added a single-variable isolated TF-offset comparison and numerical checks.
+- No production timing, steering or actuator settings changed.
+
+## 2026-10-08 — Isolated fusion comparison
+
+- Added command-free EKF/SLAM replay comparing wheel pose+velocity against
+  wheel velocity only, retaining the same candidate IMU input and other settings.
+- Added configuration-difference checks and diagnostic counts in replay reports.
+- Production navigation and steering configuration remains unchanged.
+
+## 2026-10-08 — Offline turn sensor audit
+
+- Added read-only scan/IMU/odometry comparison with synthetic fit checks.
+- Recorded post-turn wheel-heading disagreement and wheel-pose coupling in
+  the mapping investigation. No live tuning or steering changes made.
+
+## 2026-10-08 — Isolated recorded-data SLAM comparison
+
+- Added command-free bag preparation, loop-closure A/B replay in localhost
+  domain 177, and read-only comparison metrics. Live steering and navigation
+  parameters are unaffected.
+- Corrected the mapping report's bag name, mixed-run attribution, and unsupported
+  claim that gentler driving alone explained the improvement. Reusing an active
+  SLAM service does not create a fresh map.
+
+## 2026-10-05 — Make manual mapping readiness explicit and record complete evidence
+
+- Manual mapping now writes a durable `starting` session immediately and tells
+  the operator to keep ATLAS stopped while saved-map localization is replaced
+  by fresh SLAM/Nav2. It changes to `active`/`drive_ready=true` only after the
+  fresh mapping stack is ready, preventing route movement from preceding the
+  session and its map-quality observation window.
+- The demonstration recorder now includes raw LiDAR, encoder health, control
+  policy, bounded commissioning/recovery command paths, and the IM10A shadow
+  candidate. Future failures can be classified from one bag instead of losing
+  the evidence needed to separate sensors, command ownership and odometry.
+- Steering calibration, limits, direction and response are unchanged.
+
+## 2026-10-04 — Keep manual mapping slow without weakening steering
+
+- Added a mapping-only remote teaching linear envelope of 0.30 m/s so SLAM
+  still receives several LiDAR revolutions per metre.
+- Restored the commissioned 1.20 rad/s remote steering authority in mapping
+  mode after the initial 0.45 rad/s angular cap made tight indoor steering
+  heavy and forced the operator to fight doorway turns.
+- Kept ordinary remote driving outside `MAPPING` unchanged and preserved the
+  physical/voice stop path ahead of command conditioning.
+- Exposed the active mapping limit and both caps through
+  `/atlas/control_policy`, with focused tests for positive, negative, bounded,
+  and non-mapping commands.
+- Deployed by restarting only `atlas-cmd-vel-mux.service` while velocity was
+  zero. Post-deployment policy reported the new caps, saved-map localization
+  remained active, and the remote-stop latch remained fail-closed. Rollback
+  backup: `deploy_backups/mapping_remote_limit_20261004_170204` on the Jetson.
+
+## 2026-10-04 — Normalize Slam Toolbox TF evidence timestamps
+
+- Made the commissioned 1.5-second Slam Toolbox `transform_timeout` an
+  explicit mission-control parameter, capped it at that commissioned value,
+  and kept the systemd values covered by an offline drift test.
+- Bumped map-acceptance evidence to schema 3. Reports now retain raw and
+  normalized map-to-odom stamps, the applied offset, raw/normalized future
+  skew, invalid-stamp counts, and regression magnitude/count diagnostics.
+- Split fail-closed source-timestamp failures into invalid values, true
+  publication-order regression, and excess future skew after normalization.
+  TF geometry sampling, receipt-time gap coverage, five-second age limits,
+  0.15 m translation, and 5-degree yaw limits are unchanged.
+- Added focused offline regressions and replayed the real rejected mapping bag:
+  the false timestamp error cleared while the genuine 1.221502 m / 20.596114
+  degree discontinuities remained rejected.
+- Deployed the checker and restarted only `atlas-mission-control.service` while
+  ATLAS was stationary. Saved-map localization, accepted map ID
+  `d12a1f183177212a3cc8`, and zero velocity were verified afterward. Rollback
+  backup: `deploy_backups/tf_timestamp_20261004_165842` on the Jetson.
+
+## 2026-10-04 — Avoid unused camera payload construction
+
+- Kept Argus capture, rotation, optional enhancement, configured resolution,
+  10 FPS cadence, JPEG quality, publishers, topics, and QoS unchanged.
+- Materialize raw and compressed ROS messages only while their respective
+  publishers have matched subscribers. At 720p this avoids constructing
+  27.648 MB/s of unused raw BGR payload before ROS copies.
+- Changed the safety node's AI-camera liveness-only subscription from the
+  annotated JPEG to the detector JSON emitted by the same successful
+  inference path. Its 2.5-second freshness threshold and safety/control logic
+  are unchanged.
+- Added seven focused regressions, rebuilt and deployed the camera package,
+  and deployed the safety node while ATLAS was stopped. A fresh browser frame
+  returned HTTP 200 in 89 ms; camera, safety, and recovery services were active
+  with zero automatic restarts after the deployment gate.
+
+## 2026-10-04 — Adapt Visual Cloud cadence while stationary
+
+- Kept every configured subscription active and continued recording every
+  receive timestamp used for topic rate, age, and health diagnostics.
+- Reduced idle snapshot upload to 0.2 Hz, full ROS graph discovery to once per
+  30 seconds, and non-activity sensor deserialization/compact-value extraction
+  to at most 1 Hz while still timestamping every serialized arrival.
+- A nonzero `/cmd_vel` or `/cmd_vel_nav`, or active mapping, navigation, or
+  recovery status, immediately restores the original 1 Hz snapshot and
+  five-second graph cadence for a 30-second renewable lease.
+- Cached the process Git revision instead of spawning Git for every snapshot,
+  and exposed `collection_mode` as `IDLE` or `ACTIVE` for validation.
+- Added focused activity/cadence regressions and a stationary deployment gate.
+  No ROS interface, safety policy, actuator authority, or systemd limit changed.
+- Deployed the agent/core/config together while stopped. The service remained
+  active with zero restarts and idle CPU fell from about 22.3% to 11.1% of one
+  core. The remote URL is still a placeholder, so production cloud delivery
+  remains uncommissioned.
+
+## 2026-10-04 — Avoid unused voice sensor deserialization
+
+- Changed only the voice companion's LiDAR and IM10A liveness subscriptions to
+  serialized delivery; their callbacks still refresh liveness on every sample.
+- Reconciled the tested stopped-only local-LLM client hook, which remains
+  opt-in and disabled in the live environment.
+- Deployed while stopped. USB/audio returned online, the service returned to
+  `IDLE` with zero restarts, and the first CPU sample fell from about 26.8% to
+  19.2% of one core. Added 33-test voice validation coverage.
+
+## 2026-10-04 — Avoid unused sensor-recovery deserialization
+
+- Changed only freshness-only recovery subscriptions for camera, LiDAR, IMU,
+  odometry, one diagnostic encoder stream, and the map to serialized delivery.
+- Preserved per-message freshness timestamps and kept every fault-bearing
+  status and GNSS message decoded for the existing fail-closed classifiers.
+- Kept topics, types, QoS, thresholds, retry limits, stop guards, services, and
+  motion authority unchanged. Added focused tests and a rollback gate.
+- Deployed while stop-latched; every monitored stream remained fresh, the
+  service had zero restarts, and CPU fell from about 20.0% to 15.3% of one core.
+
+## 2026-10-04 — Reduce idle UNO bridge polling
+
+- Reduced the Jetson bridge timer from 100 Hz to 25 Hz while preserving its
+  bounded same-callback serial drain, backlog invalidation, reconnect,
+  camera-command, and stale-sensor behavior.
+- Deployed while stopped. Radar, ultrasonic, thermal, ambient, I2C, and camera
+  telemetry remained live with zero restarts; process CPU fell from roughly
+  23.6% to 8.7% of one core.
+
+## 2026-10-04 — Decimate Yahboom dashboard-only telemetry
+
+- Kept the motor keepalive, board sampling, raw encoders, all IMU streams,
+  wheel odometry, encoder health, control processing, and safety processing at
+  their existing 10 Hz cadence.
+- Limited 22 legacy dashboard-only motion/wheel/motor summary topics to 2 Hz,
+  removing up to 176 redundant ROS publications per second while keeping every
+  topic, message type, and QoS interface.
+- Added focused cadence and authority-boundary tests plus a stationary
+  deployment/rollback gate.
+- Deployed while stopped. Authority topics stayed about 10 Hz, diagnostic
+  topics about 2 Hz, encoder health stayed `READY`, and CPU fell from roughly
+  30.1% to 23.4% of one core. This adds no physical-motion evidence.
+
+## 2026-10-04 — Avoid status-web camera work with no viewer
+
+- Added a two-second camera-client lease renewed by every still, panel,
+  overview, and MJPEG frame request.
+- With no viewer, retained a 1 Hz lightweight camera-ingress health record but
+  stopped copying compressed/annotated JPEG payloads and stopped motion JPEG
+  decoding. Active dashboard clients retain the existing latest-frame path.
+- Follow-up profiling found the remaining idle load in the ROS spin thread, so
+  the web node now destroys both JPEG subscriptions after the viewer lease and
+  recreates them inside the executor when a camera endpoint is requested.
+- Idle camera availability now comes from a 1 Hz publisher-graph check; a
+  missing publisher clears the remembered byte count and fails health closed.
+- Rejected cached camera frames older than two seconds so an idle-to-live
+  transition cannot label a stale image as current.
+- Added focused offline coverage and an acceptance note. No systemd behavior,
+  ROS interface, camera capture, AI authority, or safety control changed.
+- Deployed with zero restarts. A fresh frame returned in about 279 ms and the
+  subscriptions released again after the lease. Remaining ~48–50% process CPU
+  is the 102-subscription non-camera ROS fan-in (~270 callbacks/s), not JPEG or
+  HTTP work; no speculative freshness-changing throttle was added.
+
+## 2026-10-04 — Rate-limit unchanged latched-stop publications
+
+- Preserved immediate zero output on remote-stop latch, release, or unexpected
+  motion while held. Full source/commissioning flushes still run on every hold
+  callback.
+- Limited unchanged latched-stop zero heartbeats to 5 Hz, safely inside the
+  Yahboom driver's 0.45-second command deadman, instead of republishing from
+  every joystick and 20 Hz mux-watchdog callback.
+- Limited unchanged motion-safety status to 1 Hz and left drive-mode/control
+  policy freshness on the existing 2 Hz timer; transitions still publish
+  immediately.
+- Added offline regressions for immediate stop/flush, heartbeat bounds,
+  publication deduplication, changed reasons, release transitions, unexpected
+  motion, and service resets.
+- Deployed while stop-latched. The unchanged zero stream measured about 4.7 Hz
+  instead of roughly 33–41 Hz; command remained zero and no motion occurred.
+
+## 2026-10-04 — Require no-motion evidence before map promotion
+
+- Candidate maps now require same-session TF-jump and settled round-trip
+  closure evidence, continuous TF coverage, exact candidate-byte connectivity
+  with unknown cells blocked and 0.18 m inflation, a fresh commissioned
+  footprint, and successful Nav2 plan-only paths in both Hall/Dhruv Room
+  directions.
+- Every check is bound to the exact sanitized candidate identity. A missing,
+  stale, malformed, or failed check is recorded beside the candidate and
+  rejected before any accepted map or map-bound pose write.
+- Accepted YAML/image, Home, seed, and named-place metadata are staged and
+  transactionally rolled back as one bundle, with the authoritative YAML
+  committed and restored last.
+- Deployed the mission-control/core pair while mapping was inactive and stop
+  latched. Mission control returned `READY`, zero command was preserved, and
+  accepted map ID `d12a1f183177212a3cc8` remained unchanged.
+
+## 2026-10-04 — Preserve LiDAR acquisition timestamps through self-filtering
+
+- Removed the self-filter's publication-time restamp. Filtered `/scan` now
+  retains the exact `/scan_raw` header, including the RPLIDAR first-ray
+  acquisition timestamp used for TF lookup.
+- The rejected-remap bag showed a 131.59 ms median raw-to-filter header shift
+  versus only 5.02 ms median filter transport latency. At the observed
+  1.2 rad/s turn rate, the former behavior could associate geometry with a
+  rover pose about 9° later than acquisition.
+- Kept scan geometry, self-return filtering, topic names, depth-one QoS,
+  service wiring, static TF, EKF settings, SLAM settings, and all motion/safety
+  authority unchanged. Existing SLAM TF buffering already covers the measured
+  raw scan age, so no latency-masking parameter increase was added.
+- Added focused offline regression coverage for timestamp preservation,
+  timing-field preservation, raw-range immutability, filtering, and the
+  existing service/topic boundary.
+- Deployed while stationary. An 82-pair capture had exact raw/filtered headers,
+  monotonic stamps, 4.98 ms median pipeline latency, and successful
+  acquisition-time TF lookup, with no scan/TF error burst.
+
+## 2026-10-02 — Commission 720p IMX708 indoor driving image
+
+- Raised live capture from 656×368 to 1280×720 at 10 FPS and set JPEG
+  quality to 75.
+- Tuned Argus exposure, saturation, edge enhancement, and temporal noise
+  reduction for the indoor Dhruv Room ↔ Hall route.
+- Kept automatic white balance and avoided CPU-heavy software CLAHE.
+- Verified 9.96 FPS camera output and 10.0 Hz `/odom`; with TensorRT object
+  detection enabled, CPU remained 73–76%, RAM 70%, temperature 63°C, and
+  camera age 0.0–0.1 seconds.
+
+## 2026-10-02 — Persist the verified forward camera pose
+
+- Saved the visually verified forward-driving view at pan `1628 us`, tilt
+  `1442 us`.
+- Mission control now reloads the shared dashboard camera-home file whenever
+  navigation or the Home command centers the camera, instead of restoring
+  obsolete hard-coded angles.
+
+## 2026-10-02 — Commit Nav2 to a valid global path
+
+- Changed the single-goal Ackermann behavior tree to compute one global path
+  and follow it without periodic two-second route replacement.
+- A new path is computed only for a new goal or after `FollowPath` fails and
+  the existing bounded recovery branch runs.
+- LiDAR costmaps, localization guards, collision stopping, bounded reverse,
+  and emergency-stop authority are unchanged.
+
+## 2026-10-02 — Restore authoritative EKF ROS identity
+
+- Give the production `robot_localization` process the explicit ROS node name
+  `atlas_ekf` and scope `atlas_ekf.yaml` to that same name.
+- This prevents a live Linux `ekf_node` process from silently running without
+  registered ROS subscriptions or an `/odom` publisher after service restarts.
+- Verified stationary output at approximately 10 Hz, including the
+  `odom -> base_link` and composed `map -> base_link` transforms.
+- Kept the IM10A shadow-test reader backward compatible with older saved EKF
+  configuration files.
+
+## 2026-10-02 — Live mapping dashboard
+
+- Added a separate `/mapping` page to the ATLAS web command center.
+- Added live `/map`, `map -> base_link`, `/plan`, `/goal_pose`, and mission-status observability.
+- Added source-labelled Hall and Dhruv Room markers and explicit stale/unavailable states.
+- Refused to substitute raw wheel odometry when authoritative map pose is absent; the UI reports the pose unavailable instead of showing misleading coordinates.
+- Kept the new page read-only; it creates no browser-to-motor control path.
+
+## 2026-10-01 — Saved-map health diagnostic correction
+
+- Changed bounded sensor recovery to subscribe to `/map` with transient-local reliable QoS.
+- A valid latched localization map now remains healthy instead of being falsely reported stale after 20 seconds.
+- Added an offline regression test; navigation parameters and actuator authority are unchanged.
+- Reduced Visual Cloud retention overhead by replacing its every-sample full-history scan with an indexed, once-per-minute prune while preserving live 1 Hz ingest and the existing 86,400-row capacity.
+- Added automatic Visual Cloud history throttling: the live API remains real time, while local database writes fall to one every 10 seconds during mapping/navigation or high CPU, RAM, or temperature load and return to 1 Hz automatically afterward.
+- Separated LiDAR, ultrasonic, and fused safety clearances in live autonomy telemetry and the web dashboard. LiDAR is explicitly labelled navigation-primary; ultrasonic values remain separately visible as the secondary close-range guard, preventing ultrasonic echoes from being mistaken for LiDAR distance.
+- Added separately labelled LiDAR centre-line (±15°) and wide safety-corridor (±35°) distances so a nearby edge obstacle cannot be confused with the straight-ahead range.
+
+- 2026-09-30: Revoked the active three-encoder navigation validation after the
+  bounded 20 cm ground retry exposed a selected-channel traction failure. The
+  test armed normally but stopped at 0.031 m LiDAR progress; raw deltas were M1
+  `+36`, M2 `-113`, excluded M3 `0`, and selected M4 `0`. The command mux then
+  recorded `COMMISSION ABORT: ENCODER CRITICAL` because fewer than three wheel
+  channels agreed. ATLAS ended stopped, disarmed and at zero motor speed. M3
+  remains diagnostic-only; M4 now requires repair/requalification. Manual
+  control remains available, PID remains disabled, and no steering setting was
+  changed.
+
+- 2026-09-30: Added the documentation-only AI/robotics adaptation Phase 0
+  baseline after auditing the named Packt reference examples and the current
+  ATLAS repository. Corrected the proposed roadmap's stale M4 exclusion,
+  future-rear-steering and IM10A-authority assumptions; recorded that M1/M2/M4
+  are selected, M3 is diagnostic-only, PID and IM10A navigation fusion remain
+  disabled, rear steering already exists without physical angle feedback, and
+  TensorRT YOLO/sensor-authority/recovery foundations already exist. New
+  PID/VO/semantic work is gated behind the remaining bounded straight, turn and
+  supervised room-round-trip validation. No runtime configuration, service or
+  actuator was changed. The focused offline regression passed 75 tests with
+  five existing environment-dependent skips; a hardware-oriented steering
+  import was excluded because the Windows environment lacks `pyserial`.
+
+- 2026-09-25: After explicit operator approval, activated the evidence-backed
+  three-encoder navigation policy: M1 rear-left, M2 rear-right and M4
+  front-right are selected; weak M3 front-left remains raw diagnostic data.
+  Navigation feedback is speed-degraded and fails closed if any additional
+  selected channel becomes invalid. This does not enable closed-loop PID and
+  does not change the saved steering calibration.
+
+- 2026-09-25: Completed the available-space turn-feedback gate. A read-only
+  eight-sector LiDAR snapshot measured front 1.19 m, left 0.74 m, front-left
+  0.81 m and rear-left 0.63 m minimum; the right side was correctly rejected
+  at only 0.48 m. A bounded left arc retained safe clearance and completed
+  with 0.078 m wheel distance, 0.050 m accepted LiDAR distance and five RF2O
+  jumps rejected. Raw encoder changes were M1 `431`, M2 `-576`, M3 `64`, M4
+  `-408`: M3 was again the weak front-left channel while M1/M2/M4 responded.
+  M1/M2/M4 are therefore the evidence-backed candidate navigation set, with M3
+  proposed for diagnostic-only exclusion. Activation was deliberately not
+  performed: the saved encoder policy remains `navigation_validated: false`
+  pending explicit operator approval of that safety-setting change. Closed-loop
+  PID remains disabled and uncommissioned; steering calibration is unchanged.
+
+- 2026-09-25: Recorded the operator-measured 0.260 m front tyre-centre track
+  width without altering the saved 90-degree steering centres or steering
+  endpoints. Encoder increments are now normalized by four-wheel-steering
+  path geometry before dynamic three-of-four consensus, so valid inside and
+  outside wheel distances no longer form a false two-versus-two failure.
+  Offline tests prove both a valid curved four-wheel interval and rejection of
+  one weak channel after normalization; 51 focused tests passed. The repeated
+  right-arc run retained encoder state `READY`, confirming the former false
+  consensus abort was removed. Its apparent 0.190 m RF2O increment at very low
+  speed was physically implausible, so that run is not accepted as a distance
+  pass. The arc validator now rejects inter-sample LiDAR-odometry jumps above
+  0.03 m and separately reports wheel/LiDAR distance. ATLAS ended stopped,
+  disarmed, and with both steering commands back at the unchanged 90-degree
+  centres.
+
+- 2026-09-25: Added an explicitly armed bounded ground-arc commissioning path.
+  Commissioning steering is clamped to +/-0.15 rad/s and retains the existing
+  20-second lease, physical-remote priority, LiDAR/ultrasonic guards, encoder
+  fail-closed policy, stale-command watchdog and explicit disarm. The arc tool
+  now uses `/cmd_vel_commission`, waits for fresh wheel odometry, gated LiDAR
+  odometry, scan and encoder health, and stops on stale or critical feedback.
+  Fast DDS service discovery under the full workload sometimes exceeded the
+  former three-second client wait; the clients now wait up to 12 seconds, but
+  no motion authority begins until the arm service actually succeeds. Ten
+  focused tests passed and the scripts compiled before deployment. The first
+  5 cm / 0.06 m/s / 0.10 rad/s right-arc attempt moved only about 3 mm before
+  the mux revoked its lease on `ENCODER CRITICAL`; ATLAS stopped and disarmed.
+  This exposed the still-open measured-track-width gate: straight-line
+  equal-delta clustering cannot validate the natural inside/outside wheel
+  distance split of a turn. No track width was guessed and autonomy remains
+  locked pending physical left-to-right wheel-centre measurement and
+  turn-aware encoder normalization.
+
+- 2026-09-25: Extended the fail-closed straight-distance commissioning harness
+  to support both forward and reverse LiDAR corridor progress, wait for a
+  successful commissioning arm plus initial encoder/health samples before
+  starting its timer, and report raw M1-M4 deltas with encoder consensus state.
+  Six distance-core tests, three commissioning source tests and Python
+  compilation passed locally and on the Jetson. Ground validation produced a
+  safe reverse `PASS_TARGET_SETTLED` (4.8 cm LiDAR odometry, 2.8 cm rear
+  corridor change, all four raw channels changed, encoder state `READY`). A
+  subsequent forward request stopped on its bounded timeout with 14.4 cm
+  corridor progress; the operator confirmed the physical forward and reverse
+  distances were correct, while wheel odometry continued to under-report.
+  M3 counted only 55 ticks versus approximately 491/494/668 on M1/M2/M4, so
+  the remaining navigation gate is still three-of-four ground validation, not
+  unconditional four-wheel trust. A full Jetson reboot cleared accumulated
+  Fast DDS discovery failure: `/atlas_cmd_vel_mux` and both commissioning
+  services became discoverable again. After reboot the Yahboom base recovered
+  firmware 3.6 with a live encoder stream; 26,432 valid packets and 6,608
+  encoder packets were observed with one checksum error and no write errors.
+  ATLAS remained manual-only, stopped and commissioning-disarmed.
+
+- 2026-09-25: Corrected encoder-fault classification after the bounded ground
+  tests. The Yahboom USB device remained exclusively owned and its packet
+  stream recovered as `READY`; recorded failing intervals were a real
+  two-versus-two wheel disagreement (rear deltas changed while both front
+  deltas were near zero), not proof that all four encoders or the USB link had
+  failed. Hardware freeze faults, dynamic consensus rejection, and shared
+  serial-link loss are now reported separately. Added packet, checksum and
+  write-error counters plus exact serial errors. A real packet loss now resets
+  a three-second link-qualification gate before motion feedback can be trusted
+  again. The existing three-of-four requirement and autonomy lock remain; the
+  software does not fabricate distance from two agreeing wheels. Deployed to
+  the Jetson and restarted while the remote stop was latched. A stationary
+  ~139-second verification received 13,717 valid board packets and 3,429
+  encoder packets with zero stale events, checksum errors or write errors;
+  `/cmd_vel` and motor speed remained zero.
+
+- 2026-09-25: Corrected the bounded straight-distance commissioning test after
+  a commanded 0.20 m run physically travelled about 0.50 m while wheel odometry
+  reported 0.294 m. The test now accumulates accepted gated `/lidar/odom` pose
+  increments as its stopping authority, retains `/yahboom/odom` only as a
+  comparison measurement, fails closed if either stream or `/scan` is stale,
+  and reports LiDAR distance, wheel distance, clearance change and rejected
+  LiDAR updates. A follow-up run confirmed the LiDAR result (39.7 cm reported,
+  about 39 cm observed) but exposed drivetrain coast after the stop trigger.
+  Short bounded drive pulses now alternate with zero-command settling periods;
+  success is declared only after settled distance is within tolerance. Added
+  pure tests for heading-independent accumulation and invalid/jump rejection.
+  Replaced the unsafe runtime manual-only override with a dedicated
+  `/cmd_vel_commission` channel: it requires a fresh, neutral, released remote,
+  expires inside the mux after 20 seconds, is speed-clamped to 0.12 m/s,
+  cannot steer, retains encoder/obstacle guards and remains subordinate to the
+  physical remote stop. The test explicitly arms and disarms this lease. This
+  does not promote LiDAR odometry into Nav2. Deployed to the Jetson on
+  2026-09-25; four focused tests and Python compilation passed locally and on
+  the Jetson. After the user-service restart, manual-only remained enabled,
+  the commissioning lease was disarmed, the remote stop was latched, and the
+  live `/cmd_vel` output was zero. A later ground run from a LiDAR-verified
+  2.05 m corridor produced a nominal `PASS_TARGET_SETTLED` result of 0.173 m
+  gated LiDAR odometry and 0.192 m wheel odometry, but the operator's measured
+  physical travel was 0.27 m. The raw forward-clearance change was 0.284 m and
+  agreed with the physical measurement. That nominal pass is therefore
+  invalidated: RF2O distance alone is not accepted as ground truth, and the
+  experimental 0.30 s pulse was not made the default. The lease still disarmed
+  automatically and the mux returned to `STOPPED` after the run. Added a
+  robust median forward-corridor LiDAR measurement as a second conservative
+  stopping source. A subsequent run exposed a more important safety defect:
+  an intermittent all-encoder CRITICAL state stopped output, but the still
+  armed commissioning publisher could resume pulses after encoder recovery,
+  causing about 5 cm of delayed motion. Commissioning now fails closed: remote
+  stop, stale commands, encoder faults, and obstacle/safety guards permanently
+  revoke the lease and require explicit re-arming. Eight focused tests passed
+  locally and on the Jetson; after deployment and mux restart, the remote stop
+  was latched, commissioning was disarmed, and command/motor speed were zero.
+
+- 2026-09-25: Ground evidence refined the shadow LiDAR fusion from planar pose
+  to signed body-forward speed. A low-power supervised run measured about
+  0.019 m by LiDAR but 0.0095 m by wheel consensus; RF2O pose direction was
+  inconsistent because its yaw was already known invalid. The gate now derives
+  speed from scan displacement magnitude, direction from fresh final-command
+  or wheel evidence, and leaves all heading authority with the IMU.
+
+- 2026-09-25: Added a default-shadow RF2O LiDAR-odometry path for inaccurate
+  wheel-distance conditions. RF2O publishes no TF; an ATLAS validation gate
+  rejects invalid/jump data, assigns explicit covariance and rebases raw scan
+  drift whenever fresh final command and wheel-motion evidence say the rover is
+  stopped. A separate no-TF EKF fuses gated LiDAR X/Y, wheel velocity and the
+  configured IMU yaw-rate into `/odom/lidar_fused_candidate`. A 20-second
+  stationary run held the gated and fused candidate at 0.00 m / 0.00 degrees
+  while raw RF2O drifted 0.0048 m / 7.32 degrees. Isolated replay of the saved
+  operator-measured 0.30 m run estimated 0.2793 m translation, but false RF2O
+  yaw of -17.6 degrees; LiDAR yaw is therefore excluded. The candidate is
+  installed and auto-started but does not yet own `/odom` or Nav2 TF. A fresh
+  low-speed ground validation is required before promotion.
+
+- 2026-09-25: Replaced the fixed single-channel encoder exclusion with a
+  fail-closed dynamic 3-of-4 consensus estimator. Every wheel remains a
+  candidate; the largest coherent group of at least three interval deltas is
+  integrated, a moving outlier is reported, and a two-versus-two split yields
+  zero odometry. Applied provisional per-wheel CPR values from the clean 20 cm
+  forward and ~70 cm reverse evidence. Offline replay now estimates 0.1975 m
+  for the measured 0.20 m run and -0.6999 m for the measured ~0.70 m reverse
+  run. Navigation and closed-loop PID gates remain false pending a fresh
+  deployment validation run.
+
+- 2026-09-25: Added segment-aware analysis for measured manual ground runs so
+  forward and reverse legs in one bag are not incorrectly reduced to one net
+  displacement. A clean operator-measured ~70 cm reverse run recorded M1
+  -4000, M2 +3937, M3 -3920 and M4 only +294 raw counts. M1/M2/M3 therefore
+  agreed at roughly 5,600-5,714 counts/m while M4 was weak in this run. This
+  also disproves a permanent fixed-M3 exclusion: the weak front channel has
+  alternated between M3 and M4. No navigation gate was enabled and no metric
+  scale was promoted; a dynamic three-of-four consensus policy is required.
+
+- 2026-09-25: Corrected the active three-encoder policy after a recorded,
+  operator-measured 20 cm forward ground run. Raw deltas were M1 +926,
+  M2 -931, M3 +162 and M4 -869 counts: M1/M2 forward signs were stale, M3
+  was the weak channel, and the replaced M4 tracked the healthy rear channels.
+  M1/M2 signs are now corrected and M3 replaces M4 as the single excluded
+  feedback channel; all four drive-motor outputs remain enabled. Selection,
+  capability and evidence logic now describes the configured single exclusion
+  rather than hard-coding M4. Metric CPR values were deliberately left
+  unchanged pending an independent repeat run, and navigation/PID validation
+  remains false.
+
+- 2026-09-25: Added a default-off, sole-owner lifted drive harness for one
+  bounded raw motor-channel pulse (`abs(PWM) <= 50`, 0.20–0.50 s) with a
+  0.50-second heartbeat lease, automatic zero/rest, authenticated abort/exit,
+  live per-channel output tracking and post-zero encoder observations. PID
+  pulse modes remain owner-rejected and all production PID gates remain false.
+  Entry and runtime now fail closed on stale/nonzero ownership state, missing
+  stationary dwell, controller/encoder loss, Jetson temperature at or above
+  80 C, stale/unhealthy Daly BMS data, cells outside 3.00–3.65 V or spread over
+  0.10 V. Current 88 C / ~0.356 V-spread evidence therefore blocks physical
+  activation. Added a dry-run-by-default client, crash-release protocol and
+  focused pure/owner/client tests; no deployment or physical pulse was run.
+
+- 2026-09-25: Unified encoder channel position, forward sign and retained
+  counts/revolution in `config/encoder_calibration.yaml`. Corrected its stale
+  physical labels to M1 rear-left, M2 rear-right, M3 front-left and M4
+  front-right. Yahboom telemetry conversion and the optional drive PID now
+  consume the same validated source; PID-specific output polarity and tuning
+  remain in `drive_pid.yaml`. Numeric calibration is unchanged and marked for
+  post-motor-replacement revalidation. PID/hardware/navigation gates remain
+  false, M4 remains excluded, track width remains unset and gains remain zero.
+
+- 2026-09-25: Improved the live Web diagnostics without changing any motor,
+  navigation or safety authority. Fresh-but-offline BME680/AMG8833 reports no
+  longer make the shared I2C panel look healthy; radar targets now show
+  distance-derived approaching/moving-away/stationary state and radial speed;
+  and each encoder tile distinguishes a changing count from a merely live,
+  stopped packet. The radar display continues to label T1/T2/T3 as temporary
+  slots, not permanent people identities. Updated the Yahboom user service to
+  discover its verified packet protocol rather than rely on a mutable CH340 USB
+  path. A supervised lifted test observed raw count deltas on all four channels
+  (M1 +1589, M2 +1804, M3 +1316, M4 -1221), but M4 remains excluded and the
+  closed-loop PID remains disabled until metric ground commissioning passes.
+
+- 2026-09-23: Added a safety-gated host-side closed-loop drive controller for
+  ATLAS's real 4WS geometry. It provides per-wheel PID/feed-forward, bounded
+  yaw-rate steering correction, anti-windup, slew limiting, explicit controller
+  ownership, latched fail-stop behavior and live Web diagnostics. It is integrated
+  into the existing sole Yahboom hardware owner and deliberately ships disabled,
+  uncommissioned, with zero gains, no guessed track width and M4 still excluded.
+  Added offline regression tests and a non-actuating staged commissioning/evidence
+  tool. No autonomous capability has been enabled and no physical test is claimed.
+
+- 2026-09-21: Corrected radar health rendering so a fresh, valid 30-byte
+  RD-03D frame containing zero targets is shown as **LIVE / NO CURRENT TARGET**
+  instead of being conflated with an offline radar. UART-link and decoder
+  health remain separate from whether a person is currently detected.
+
+- 2026-09-21: Added a live **SAVE CURRENT AS HOME** camera control. It accepts
+  only fresh PCA9685 feedback, atomically persists the current pan/tilt pulses
+  in the UNO R4 service drop-in, updates the running dashboard home, and makes
+  **GO TO SAVED HOME** use that position without restarting the rover.
+
+- 2026-09-21: Restored fail-safe UNO R4 reconnect behaviour: USB recovery no
+  longer energises both PCA9685 camera axes automatically. This removes the
+  regression that could create a servo-current/USB reconnect loop and take the
+  shared PCA9685, BME680 and AMG8833 I2C bus offline. Saved camera home remains
+  available only through an explicit operator command.
 2026-10-31 Monitoring recovery attempt-2 package prepared (offline, not executed): exporter start measured 3.598-3.629 s (three systemd starts) against attempt 1's 3 s sub-deadline; exporter deadline 12 s (outer 25 s bound unchanged); idempotent launcher stop (attempt 1's collected-unit exit 5); new attempt identity -20261031-2. Guard, thresholds, firewall and archive logic byte-identical. 37/37 focused transaction tests. Archive b997bcd4e503. monitoring/atlas/persistent/RECOVERY_TRANSACTION.md
 
 ## 2026-10-31 — Dashboard labels; recovery attempt 3 recorded
@@ -1389,6 +3435,188 @@ Historical first attempt; the later successful installation is recorded above.
 - Add an opt-in front-channel setting to the existing UNO serial owner. Reapply
   `USENABLE,F,1` on connection with the installed drop-in; preserve rear/left/right
   settings and all navigation safety configuration. No firmware flash required.
+## 2026-09-20 - IM10A gyro-Z commissioned for EKF yaw rate
+
+- Validated physical 90-degree turns in both directions: +90.22 degrees and
+  -86.45 degrees from the raw gyro integration.
+- Confirmed magnetic/Euler heading is chassis-distorted and remains excluded.
+- Revalidated the saved Z-bias against the current stationary sensor state.
+- Corrected gyro-authority shadow EKF measured +87.96 degrees for a physical
+  +90-degree turn, accepted 620/620 samples, and produced zero translation.
+- Live EKF now fuses only `/im10a/imu/bias_corrected_candidate` yaw rate;
+  unreliable wheel-derived pose yaw and yaw rate are excluded. A rollback copy
+  was retained on the Jetson. M4 encoder safety restrictions remain unchanged.
+- Corrected the candidate message frame from an unconnected commissioning frame
+  to `base_link`; a ground bag showed the otherwise valid gyro was being ignored
+  by the live EKF because no TF existed for the old frame.
+- Recommissioned steering at 90-degree front/rear centres, confirmed the
+  installed front linkage is servo-reversed, set its physical-left endpoint to
+  50 degrees, and extended the visually confirmed rear-right endpoint to 59
+  degrees. Manual steering now uses smooth direct wheel-angle control while
+  Nav2 retains car-like kinematics; odometry uses the corrected physical sign.
+- Corrected stale IM10A status/dashboard wording that still reported EKF fusion
+  as disabled. Runtime inspection confirms the EKF subscribes to the
+  bias-corrected candidate and fuses gyro-Z only; magnetic/Euler heading remains
+  diagnostics-only.
+- Revoked IM10A EKF authority after a fresh stationary bag measured a constant
+  -0.00403 rad/s corrected yaw rate, causing about -6.6 degrees of false turn in
+  29 seconds. Raw monitoring remains live; the corrected candidate is now
+  fail-closed until a fresh bias and dynamic turn revalidation explicitly set
+  both `enabled` and `navigation_qualified` true.
+## 2026-09-25 - Measured ground encoder repeat
+
+- Added `atlas_analyze_manual_run.py` to summarize per-wheel encoder deltas,
+  command timing, odometry, and IMU stability from measured ground rosbag runs.
+- The post-mapping 20 cm repeat confirmed M1/M2/M4 direction agreement and
+  matched counts within 0.7%; M3 remained weak and excluded.
+- Retained the existing distance scale pending one more independently measured
+  run because the two nominal 20 cm trials produced materially different counts.
+# 2026-09-30 — Bounded active camera inspection adviser
+
+- Added a stopped-only left/centre/right camera inspection service using live camera AI and LiDAR clearance.
+- The adviser cancels on rover motion, returns the camera to its saved home position, and has no motor authority.
+- Advice is published on `/atlas/active_vision/status`; LiDAR/Nav2 must still validate every route.
+
+## 2026-09-30 — One-shot spoken and mobile battery reminders
+
+- Changed the low-battery reminder threshold to 10%, resetting only after recovery above 15%.
+- Added one-time humorous low and full-charge messages for the speaker and mobile notifier.
+- Retained the 99% full threshold, multiple-sample confirmation, and BMS balancing disclaimer.
+
+## 2026-10-15 parked CPU repair
+
+### 2026-10-20 UNO transport timing
+
+- Use monotonic receive/silence elapsed time for the existing eight-second USB
+  watchdog; preserve protocol, reconnect rates, camera release and motion safety.
+- 67 offline tests pass; scoped bridge-only deployment verified. Document separate
+  I2C/USB failure phases and restored firmware without claiming a permanent
+  electrical fix or condemning functioning sensors.
+
+- Pace only the diagnostic localization-search worker; preserve exact search
+  results, sensor/control rates and30-second deadline.56 focused tests pass.
+- Deploy and verify with protected service/hash checks and rollback; document
+  reduced worker burst but unresolved total CPU peaks and denied polkit tracing.
+
+- Avoid unused AI preview drawing/JPEG encoding without changing detections.
+- Restore live manual-only override; preserve stop, steering and production owners.
+- Add bounded startup verification and regression tests; document remaining CPU peaks.
+
+# 2026-10-21 — Astra Pro read-only identification / offline Vision Lab
+
+- Preserve developer stages21–27 and UNO clock repair; no production deployment.
+- Add bounded receive-only `/v2/vision3d` candidate with one Home shortcut, depth
+  pixel/XYZ measurement, PointCloud2 browser controls and honest unavailable states.
+- Add synthetic simulator, desktop/mobile checks, 37 unit/service tests and two
+  native Humble serialization tests; 72 targeted tests pass including regressions.
+- Document missing vendor driver/USB permission, JetPack6.2.1 observed version,
+  real baseline resources and separate approvals required for streams/page install.
+
+- Stationary setup approval received: stage vendor ARM64/OpenNI source and seven
+  private dependency packages; no global installation. Add bounded opt-in build
+  supervision and14 offline admission tests. Preserve source-wrapper failure and
+  corrected launch attempt stopped by CPU75.884%>75%. No streams or retry after
+  resource rejection; sudo/USB permission execution remains blocked. Prepare
+  exact-ID0660/video udev rule as undeployed candidate only.
+
+2026-10-30: Add isolated localhost RTAB-Map runner, input admission tests, synthetic RGB-D/odometry/LiDAR fixture and RViz configuration. Reuse Astra calibration validation; no rover deployment.
+
+2026-10-30: Add original-CDR Astra bag adapter, isolated replay admission, offline capture supervisor core and measurement sheet. No live adapter activation or Jetson deployment; real Astra replay remains blocked by missing saved image data.
+
+## 2026-10-30 � Vision Lab deployment verifier (not deployed)
+
+Bounded HTTP readiness, kernel camera-process checks, preserved resource rejection
+and rollback readiness;13 focused simulated tests. Backend unchanged. Restart CPU
+rejection remains unresolved; no live retry.
+
+## 2026-10-30 — Bounded Vision Lab restart controls (not deployed)
+
+Independent read-only safety observer, durable two-restart budget, runtime policy
+restoration and SIGKILL recovery for the unchanged staged backend. Offline-only.
+
+## 2026-10-30 — Offline independent safety snapshot integration
+Reuse existing recovery callback observations without a duplicate ROS observer; session-latched rejection and eight focused tests. No live deployment or verified Jetson savings.
+
+## 2026-10-31 — Snapshot benchmark wrapper preparation
+Bounded isolated benchmark with unchanged resource/safety gates, child limits, cleanup and seven focused offline tests. Inert package staged; execution requires separate approval.
+
+## 2026-10-31 — Exact-live snapshot integration preparation
+Prepared targeted live-baseline patch preserving Stage28 recovery safeguards, disabled by default, with 12 focused checks and byte-exact rollback. Not deployed.
+
+## 2026-10-31 — Recovery snapshot runtime validation primitives
+Verified installed hashes and disabled state; six focused offline tests cover independent-safety freshness and durable restart budgets. Runtime supervisor/crash cleanup still pending; activation remains NO-GO.
+
+## 2026-10-31 — Recovery snapshot runtime safety supervisor
+Added independent HTTP/resource watcher, nonblocking bounded restart flow and systemd ExecStopPost cleanup, validated with PC fake units including SIGKILL/timeout. Runtime activation remains separately approval-gated.
+
+## 2026-10-31 — Priority recovery startup incident investigation
+Reviewed retained original-service CPU rejection, ROS constructor stack and unavailable historical metrics. Added offline failure-first raw CPU evidence retention; no runtime CPU fix or restart. Recovery incident remains open.
+
+2026-10-31: added passive /proc and selected-cgroup startup attribution collector, durable per-sample evidence and11focused offline tests. PC overhead measured; no Jetson execution or service changes.
+
+2026-10-31: integrated passive CPU attribution with independent safety checks, parent-death cleanup and single-use package.13 focused tests PASS including native simulated-safety lifecycle; no live execution.
+
+2026-10-31: documented single approved Jetson attribution test PASS, CPU peak63.12%, observer0.68516CPU-s/20.42MiB;42service identities unchanged. No production source changes.
+
+2026-10-31: prepared original Recovery one-start diagnostic supervisor with dynamic PID/cgroup attribution and independent ExecStopPost cleanup.8 focused tests PASS including native PC fake-unit SIGKILL/timeout. No Jetson operations.
+
+2026-10-31: recorded one approved diagnostic start; collector150ms deadline failed after first startup attribution sample. Recovery stopped and policy restored;41unrelated units unchanged. No retry or source modification.
+
+2026-10-31: corrected150ms attribution truncation to preserve valid aggregate/partial counters with explicit gaps; unchanged safety gates.8 focused offline tests PASS; no runtime execution.
+
+2026-10-31: Rebuilt existing Recovery restoration package with partial CPU evidence fix; fresh supervisor staging path, nine verified hashes, eight focused built-package tests passed. No live execution.
+
+2026-10-31: One approved corrected Recovery start failed real CPU guard at 86.93%; rejected interval retained, original policy restored, 41 unrelated services unchanged. No retry.
+
+2026-10-31: Preload required Recovery ROS type libraries before DDS initialization; four focused tests and native Humble no-node check passed. Exact-live patch preserves maintenance integration; not deployed.
+
+2026-10-31: Recomputed saved Recovery rejection: kernel-accounted time explains approx96% of interval CPU increase. Documentation only; no unsupported runtime optimization or new diagnostic tool.
+
+2026-10-31: Owner-directed CPU investigation stop documented; evidence retained, Recovery incident remains OPEN with functionality unavailable. Separate AMCL initial-pose/map-TF issue recorded. Documentation only.
+
+2026-10-31: Saved localization startup evidence identifies verify-mode refusal as cause of missing initial pose; no service or safety changes. Documented stale source-text test separately.
+
+2026-10-31: Separate test-only fix ed88556 updates seeder API assertions; five tests PASS. Recorded230/246 vs229/246 replay matches and owner-confirmed Dhruv Room; no localization runtime changes.
+
+
+2026-10-31: Named-place localization dry-run safety path corrected offline: one
+attempt, bounded processing, independent existing safety utilities and continuous
+sensor/TF freshness checks. 14 focused tests passed. Not deployed or executed;
+localization remains unverified and Recovery remains STOPPED/open. See
+[guard report](docs/audits/ATLAS_LOCALIZATION_DRY_RUN_GUARD_20261031.md).
+
+
+2026-11-02: Onboard mapping validates original timestamps and PointCloud2 layout before local viewer export. Offline only; calibration and real RGB-D evidence remain blocked.
+
+
+2026-11-02: Added offline existing-session RGB-D recording binding and checksum-verified rosbag conversion. No live route enabled; calibration and bounded host safety/TF providers remain capture blockers. See docs/ATLAS_RGBD_RECORDING_INTEGRATION_20261102.md.
+
+
+## 2026-11-02 - Bounded local RGB-D recording integration
+- Added optional existing-callback TF/odom/scan evidence cache and local safety-provider binding.
+- Bound recording lease to its owner and total startup-inclusive deadline; require owned shutdown evidence.
+- No deployment, camera activation or calibrated mapping acceptance.
+- Capture-only absolute deadline alarm interrupts blocked reads before owned cleanup; reviewed native timeout test.
+
+## 2026-11-02 - Live-bound mapping installation preparation
+- Added installation-only transaction, exact metadata rollback and targeted live web/router patch builder.
+- No installation, service restart, camera activation or safety-setting change.
+
+## 2026-11-02 - Vision feature resource boundary
+- Reject CPU exactly 75% and RAM exactly 80% in the optional feature guard. Offline only; independent safety snapshot still blocks backend activation.
+
+## 2026-11-02 - Web controller binding
+- Bind existing supervisor to its packaged payload and frozen adjacent dependencies. Keep strict resource limits and missing-snapshot refusal. No live activation.
+
+## 2026-11-02 — Offline face identity storage only
+- Added consent-gated local identity storage/matching/deletion with model binding, ambiguity rejection, finite-vector checks and storage bounds.
+- Eight focused Linux tests pass, including missing-model-metadata corruption; independent review passed after correction.
+- No feature enabled, model installed, camera started or live deployment performed.
+
+## 2026-11-02 — Offline restoration watcher correction
+- Fixed reviewed package publication cadence/ordering without extending freshness or resource limits. Eight focused timing tests and independent review pass; live reliability pending. No Recovery start or deployment.
+
+2026-11-02: Restoration-only package replaces watcher systemctlPID diagnostics with verified kernel cgroup/proc identity.12focusedtests pass; liveverification pending; no safety limit or snapshot activation changes. See docs/ATLAS_WEB_BINDING_READY_20261102.md.
 
 
 2026-10-30 PR #13: completed cached battery-power/encoder metrics, corrected missing/stale safety-state reporting and Grafana availability mapping, added native alert tests. See monitoring/atlas/README.md. Optional monitoring deployment remains pending; rover safety controls unchanged.

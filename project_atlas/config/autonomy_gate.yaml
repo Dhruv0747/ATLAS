@@ -1,0 +1,5 @@
+# Read by scripts/atlas_autonomy_arm.py every time the dashboard asks for AUTONOMY ON.
+# 2026-11-15: a 0.07 m/s Nav2 command drove ~0.4 m/s (open-loop PWM floor 60). Keep false until the closed-loop /
+# calibrated autonomous speed passes a supervised ground check (commanded vs measured), then set true with evidence.
+speed_validated: false
+note: speed calibration pending

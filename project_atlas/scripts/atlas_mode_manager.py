@@ -225,18 +225,24 @@ class AtlasModeManager(Node):
                         "/usr/bin/python3",
                         "/home/jetson/project_atlas/scripts/seed_atlas_localization.py",
                     ],
-                    check=False, timeout=30, capture_output=True, text=True,
+                    # 2026-10-10: LiDAR start verification (seed_mode=verify)
+                    # takes ~20 s per parked check (up to 3) on the Jetson.
+                    check=False, timeout=150, capture_output=True, text=True,
                 )
                 if result.returncode:
                     raise RuntimeError(
                         result.stderr.strip() or result.stdout.strip() or
                         "AMCL localization seed failed"
                     )
-                self.set_state(
-                    "LOCALIZATION",
-                    "Saved map, AMCL and Nav2 active; seeded at "
-                    f"x={seed['x']:.2f} y={seed['y']:.2f}",
-                )
+                log = (result.stderr or "") + (result.stdout or "")
+                if "LOCALIZATION UNKNOWN" in log:
+                    detail = ("LOCALIZATION UNKNOWN: LiDAR did not confirm a unique "
+                              "start pose; AMCL not seeded")
+                elif "LiDAR-verified" in log:
+                    detail = "seeded at a LiDAR-verified start pose"
+                else:
+                    detail = f"seeded at x={seed['x']:.2f} y={seed['y']:.2f}"
+                self.set_state("LOCALIZATION", "Saved map, AMCL and Nav2 active; " + detail)
             else:
                 raise ValueError(f"unsupported transition target: {target}")
         except Exception as exc:

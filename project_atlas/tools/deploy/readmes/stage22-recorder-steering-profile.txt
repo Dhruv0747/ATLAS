@@ -1,0 +1,8 @@
+ATLAS stage 22 (OPTIONAL): motion recorder gains the opt-in "steering-validation" profile
+Source HEAD (recorder changes 290fb5a + 46ff15f), base 0c1d520 (= live stage 6b recorder, hash 02fcaed2c435).
+File: scripts/atlas_motion_recorder.py only. Default profile, helper modules and storage cap unchanged.
+Adds, only with --profile steering-validation (bounded --duration 30..600 s): /atlas/encoder_update,
+/im10a/imu/unvalidated, /particle_cloud, /lidar/odom(_raw), /joy, /bms/status, steering-change triggers.
+No service, no autostart, no publishers. Nothing restarts.
+PRECONDITIONS  rover parked, stop LATCHED, recorder not running.  INSTALL bash install.sh  RESTART none
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage22-recorder-steering-profile/ROLLBACK.sh

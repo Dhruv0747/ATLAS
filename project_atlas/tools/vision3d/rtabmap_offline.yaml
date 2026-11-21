@@ -1,0 +1,22 @@
+/**:
+  ros__parameters:
+    use_sim_time: true
+    frame_id: base_link
+    map_frame_id: map_3d_offline
+    publish_tf: false
+    subscribe_depth: true
+    subscribe_rgb: true
+    subscribe_scan: true
+    approx_sync: true
+    approx_sync_max_interval: 0.03
+    topic_queue_size: 5
+    sync_queue_size: 5
+    qos_image: 2
+    qos_camera_info: 2
+    qos_scan: 2
+    qos_odom: 2
+    Rtabmap/DetectionRate: '1.0'
+    Rtabmap/MemoryThr: '100'
+    Mem/IncrementalMemory: 'true'
+    Grid/CellSize: '0.05'
+    Grid/RangeMax: '3.0'

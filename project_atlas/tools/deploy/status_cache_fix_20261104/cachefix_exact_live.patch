@@ -1,0 +1,72 @@
+--- live/atlas_status_web.py
++++ candidate/atlas_status_web.py
+@@ -1858,29 +1858,56 @@
+ 
+ 
+ _slow_cache_lock = threading.Lock()
+-_slow_cache = {"ts": 0.0, "network": {}, "system": {}, "services": {}}
++_slow_cache = {"ts": 0.0, "attempted": 0.0, "pending": False,
++               "network": {}, "system": {}, "services": {}}
++
++
++def _refresh_status_cache(started):
++    # Expensive subprocess/filesystem work must not hold the HTTP reader lock.
++    # Publish all fields together, with collection START time, never completion
++    # time: slow work must not make old resource values appear newly sampled.
++    value = None
++    try:
++        value = {"network": network_status(), "system": system_status(), "services": services()}
++    except Exception:
++        pass  # No partial data or zero-as-healthy fallback.
++    finally:
++        with _slow_cache_lock:
++            if value is not None:
++                _slow_cache.update(value, ts=started)
++            _slow_cache["pending"] = False
+ 
+ 
+ def snapshot():
+-    # Network discovery, top/free and systemctl previously ran independently
+-    # for every connected dashboard.  CrowPanel + browser + diagnostics could
+-    # therefore launch dozens of subprocesses per second.  Share a short cache
+-    # while keeping ROS sensor values fresh on every response.
++    # Reuse the existing cache, with one owned refresh in flight. Never wait for
++    # OS diagnostics in an API request. ROS safety values are NOT cached here.
+     now = time.monotonic()
++    refresh = False
+     with _slow_cache_lock:
+-        if now - _slow_cache["ts"] >= 2.0:
+-            _slow_cache["network"] = network_status()
+-            _slow_cache["system"] = system_status()
+-            _slow_cache["services"] = services()
+-            _slow_cache["ts"] = now
+-        network = dict(_slow_cache["network"])
+-        system = dict(_slow_cache["system"])
+-        service_state = dict(_slow_cache["services"])
++        # Refresh ahead of the unchanged two-second diagnostic cache expiry.
++        if not _slow_cache["pending"] and now-_slow_cache["attempted"] >= 1.0 and now-_slow_cache["ts"] >= 1.0:
++            _slow_cache.update(pending=True, attempted=now)
++            refresh = True
++        age = now-_slow_cache["ts"] if _slow_cache["ts"] else None
++        fresh = age is not None and 0 <= age < 2.0
++        network = dict(_slow_cache["network"]) if fresh else {
++            "wifi_ip": "--", "cell_ip": "--", "tailscale_ip": "--", "route": "unavailable", "ssh": "--"}
++        system = dict(_slow_cache["system"]) if fresh else {
++            "cpu_percent": "--", "ram": "--", "ram_percent": None, "temp": "--"}
++        service_state = dict(_slow_cache["services"]) if fresh else {}
++    if refresh:
++        try:
++            threading.Thread(target=_refresh_status_cache, args=(now,), daemon=True,
++                             name="atlas-web-status-cache").start()
++        except Exception:
++            with _slow_cache_lock:
++                _slow_cache["pending"] = False
+     return {
+         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+         "network": network,
+         "system": system,
+         "services": service_state,
++        "diagnostic_cache": {"fresh": fresh, "age_s": age},
+         "ros": ROS.snapshot(),
+         "todo": TODO,
+     }

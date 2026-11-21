@@ -1,0 +1,30 @@
+2026-10-21T15:56:23+05:30
+ 15:56:23 up  5:19,  3 users,  load average: 16.58, 11.70, 10.19
+estop_latched None | None
+system cpu -- ram 72 temp 61 C
+control_policy None
+services_inactive []
+atlas-camera 1982 0  active
+rover-base-telemetry 3534 1  active
+atlas-cmd-vel-mux 1975 0  active
+atlas-ekf 3260 0  active
+atlas-localization 5713 1  active
+atlas-lidar 5523 5  active
+rover-status-web 164593 0  active
+astra procs: 0  vision workers: 0  cloud nodes: 0
+domain77 shm ports: 0
+454dd25fd0e5bafb  scripts/atlas_vision3d_runtime.py
+889881c062717d07  scripts/atlas_vision3d_web.py
+a930af8392b0fbaa  web/v2/vision3d.html
+76f9a20267e7d90a  web/v2/vision3d.js
+04f98c8c0338b960  web/v2/vision3d.css
+e27bc0c0551d22ba  config/vision3d_live.json
+19d5bb1f114ccbab  web/v2/index.html
+present: scripts/atlas_vision3d_geometry.py 75d020120d22fe31
+present: scripts/atlas_vision3d_cloud_node.py d2bfad1cfd970593
+present: tools/vision3d/calibration_validation.py 9ca7f52cdf8fe323
+present: tools/vision3d/checkerboard_calibration.py 132522ba2a2b780b
+absent: config/astra_calibration
+thermal max: 60843
+pi camera jpg 404 447
+astra usb: Bus 001 Device 014: ID 2bc5:0403 Orbbec 3D Technology International, Inc Astra Pro;Bus 001 Device 011: ID 2bc5:0501 Orbbec 3D Technology International, Inc Astra Pro HD Camera;

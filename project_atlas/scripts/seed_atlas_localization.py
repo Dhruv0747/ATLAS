@@ -1,8 +1,25 @@
 #!/usr/bin/env python3
-"""Seed AMCL from a saved map-frame pose without moving the rover."""
+"""Seed AMCL from a saved map-frame pose without moving the rover.
+
+Seed modes (--mode, else ATLAS_SEED_MODE, else the first word of
+~/.config/project_atlas/seed_mode, else "saved"; one switch covers both the
+boot-time ExecStartPost and the mode manager's LOCALIZATION transition):
+
+  saved   (default, unchanged behaviour) seed from the saved seed/home pose.
+  verify  (2026-10-10 Hall cold-start fix) first match a parked LiDAR scan
+          against the saved map with no prior pose. Seed only at a unique,
+          well-fitting match; otherwise do NOT seed and record
+          LOCALIZATION UNKNOWN. Never seeds the saved pose blindly.
+
+Every run records its outcome in VERDICT_FILE for the dashboard. The file is
+diagnostic only; it grants no navigation authority.
+"""
 
 import argparse
+import hashlib
 import json
+import math
+import os
 from pathlib import Path
 import time
 
@@ -19,6 +36,236 @@ POSE_FILES = (
     Path.home() / ".config/project_atlas/home_pose.json",
 )
 PLACES_FILE = Path.home() / ".config/project_atlas/named_places.json"
+# Operator-confirmed place regions for --verify-place (repository config, bound to one map).
+PLACE_REGIONS_FILE = Path(__file__).resolve().parents[1] / "config" / "place_regions.json"
+VERDICT_FILE = Path.home() / ".local/state/project_atlas/localization_verdict.json"
+# Every boot's verdict, appended (the file above is overwritten each boot). 2026-10-11: the
+# 19:06 boot refused at fit 0.90, and its attempt detail was lost when the next boot overwrote
+# the verdict, so the low score could not be explained. Bounded: one rotated copy.
+VERDICT_HISTORY = Path.home() / ".local/state/project_atlas/localization_verdict_history.jsonl"
+VERDICT_HISTORY_MAX_BYTES = 4_000_000
+DEFAULT_MAP = Path.home() / "project_atlas/maps/atlas_latest.yaml"
+SEED_MODE_FILE = Path.home() / ".config/project_atlas/seed_mode"
+
+
+def configured_seed_mode():
+    mode = os.environ.get("ATLAS_SEED_MODE", "").strip().lower()
+    if not mode:
+        try:
+            words = SEED_MODE_FILE.read_text(encoding="utf-8").split()
+            mode = words[0].lower() if words else ""
+        except OSError:
+            mode = ""
+    return mode if mode in ("saved", "verify") else "saved"
+PARKED_SCAN_S = 3.0
+PARKED_MPS = 0.01
+PARKED_RADPS = 0.02
+
+
+def boot_id():
+    try:
+        return Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError:
+        return None
+
+
+def write_verdict(record):
+    """Atomic, best-effort; failure to record never changes what was seeded."""
+    try:
+        record = dict(record, written_unix=time.time(), boot_id=boot_id(),
+                      navigation_authorized=False)
+        VERDICT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        temporary = VERDICT_FILE.with_suffix(".tmp")
+        temporary.write_text(json.dumps(record, indent=2), encoding="utf-8")
+        temporary.replace(VERDICT_FILE)
+    except OSError:
+        pass
+    append_verdict_history(record)
+
+
+def append_verdict_history(record, path=None, max_bytes=VERDICT_HISTORY_MAX_BYTES):
+    """Best-effort append of one verdict per line; never raises and never affects seeding."""
+    path = Path(path or VERDICT_HISTORY)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        line = json.dumps(record, separators=(",", ":"), allow_nan=False) + "\n"
+        if path.exists() and path.stat().st_size + len(line) > max_bytes:
+            path.replace(path.with_suffix(path.suffix + ".1"))
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(line)
+    except (OSError, TypeError, ValueError):
+        pass
+
+
+def scan_evidence(scans, ranges, laser, all_pts, hypotheses, policy):
+    """Compact replayable input of one startup attempt (median ranges in mm, coverage, timing).
+
+    Enough to rerun the exact search offline and to see occlusion or missing sectors; it is
+    diagnostic only and never used for seeding. Never raises.
+    """
+    try:
+        first, last = scans[0], scans[-1]
+        stamp = lambda m: m.header.stamp.sec + m.header.stamp.nanosec * 1e-9
+        quadrants = [0, 0, 0, 0]
+        for i, r in enumerate(ranges):
+            if r is not None and math.isfinite(r) and policy.min_range_m <= r <= policy.max_range_m:
+                a = (first.angle_min + i * first.angle_increment) % (2 * math.pi)
+                quadrants[min(3, int(a / (math.pi / 2)))] += 1
+        return {"frame": first.header.frame_id, "scan_count": len(scans),
+                "scan_stamp_first": stamp(first), "scan_stamp_last": stamp(last),
+                "angle_min": first.angle_min, "angle_increment": first.angle_increment,
+                "range_min": first.range_min, "range_max": first.range_max,
+                "median_ranges_mm": [int(round(r * 1000)) if r is not None and math.isfinite(r) else None for r in ranges],
+                "valid_endpoints": int(len(all_pts)), "quadrants": quadrants,
+                "laser_in_base": [round(v, 4) for v in laser],
+                "top_hypotheses": [{k: (round(v, 4) if isinstance(v, float) else v) for k, v in h.items()}
+                                   for h in (hypotheses or [])[:5]]}
+    except Exception as exc:  # evidence capture must never change the verdict
+        return {"capture_error": repr(exc)}
+
+
+def yaw_of(q):
+    return math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+
+
+def collect_parked_scans(node, duration_s=PARKED_SCAN_S, timeout_s=20.0):
+    """Ranges from /scan while /odom reports the rover still; None if it moved."""
+    import rclpy
+    from rclpy.qos import qos_profile_sensor_data
+    from sensor_msgs.msg import LaserScan
+    from nav_msgs.msg import Odometry
+    scans, moving = [], {"seen": False, "odom": False}
+
+    def on_scan(msg):
+        scans.append(msg)
+
+    def on_odom(msg):
+        moving["odom"] = True
+        t = msg.twist.twist
+        if abs(t.linear.x) > PARKED_MPS or abs(t.linear.y) > PARKED_MPS or abs(t.angular.z) > PARKED_RADPS:
+            moving["seen"] = True
+    subs = [node.create_subscription(LaserScan, "/scan", on_scan, qos_profile_sensor_data),
+            node.create_subscription(Odometry, "/odom", on_odom, 10)]
+    start = time.monotonic()
+    first_scan = None
+    while time.monotonic() - start < timeout_s:
+        rclpy.spin_once(node, timeout_sec=0.1)
+        if scans and first_scan is None:
+            first_scan = time.monotonic()
+        if first_scan is not None and time.monotonic() - first_scan >= duration_s:
+            break
+    for sub in subs:
+        node.destroy_subscription(sub)
+    if moving["seen"]:
+        return None, "rover moved while the startup scan was collected"
+    if not moving["odom"]:
+        return None, "no odometry while the startup scan was collected"
+    if len(scans) < 5:
+        return None, f"too few LiDAR scans ({len(scans)}) for startup verification"
+    return scans, None
+
+
+def laser_in_base(node, frame):
+    import rclpy
+    from rclpy.duration import Duration
+    from rclpy.time import Time
+    from tf2_ros import Buffer, TransformListener
+    buffer = Buffer()
+    TransformListener(buffer, node)
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        rclpy.spin_once(node, timeout_sec=0.1)
+        try:
+            t = buffer.lookup_transform("base_link", frame, Time(), timeout=Duration(seconds=0.1)).transform
+            return (t.translation.x, t.translation.y, yaw_of(t.rotation))
+        except Exception:
+            continue
+    raise RuntimeError(f"no base_link -> {frame} transform")
+
+
+VERIFY_ATTEMPTS = 3
+VERIFY_BUDGET_S = 60.0
+
+
+def load_place_region(name, path=None):
+    """Search box of an operator-confirmed named place, or raise. The box is only used to
+    exclude aliases OUTSIDE the confirmed place; thresholds are unchanged."""
+    data = json.loads(Path(path or PLACE_REGIONS_FILE).read_text(encoding="utf-8"))
+    key = str(name).strip().lower().replace("_", " ")
+    region = (data.get("places") or {}).get(key)
+    if region is None:
+        raise RuntimeError(f"no search region for place {name!r}")
+    box = {k: float(region[k]) for k in ("x_min", "x_max", "y_min", "y_max")}
+    if not (box["x_min"] < box["x_max"] and box["y_min"] < box["y_max"]):
+        raise RuntimeError(f"invalid search region for place {name!r}")
+    return dict(box, place=key, map_yaml_sha256=str(data.get("map_yaml_sha256", "")))
+
+
+def verify_start_pose(node, map_yaml, attempts=VERIFY_ATTEMPTS, budget_s=VERIFY_BUDGET_S, region=None):
+    """Return (pose dict or None, verdict record). Uses no saved pose.
+
+    Up to ``attempts`` independent parked-scan checks (people walking past
+    lower the fit). VERIFIED needs one attempt to pass AND every attempt's
+    best place to agree with it; any disagreement is UNKNOWN.
+    """
+    import atlas_localization_verify_core as core
+    record = {"mode": "verify" if region is None else "verify_in_place", "map_yaml": str(map_yaml),
+              "attempts": []}
+    if region is not None:
+        record["place_region"] = region
+    policy = core.VerifyPolicy()
+    started = time.monotonic()
+    try:
+        record["map_sha256"] = hashlib.sha256(Path(map_yaml).read_bytes()).hexdigest()
+        if region is not None and region.get("map_yaml_sha256") != record["map_sha256"]:
+            record.update(state="UNKNOWN", reason="place region was drawn for a different map")
+            return None, record
+        grid = core.load_map(map_yaml)
+        laser = None
+        verdict = None
+        for _ in range(max(1, attempts)):
+            scans, problem = collect_parked_scans(node)
+            if problem:
+                record.update(state="UNKNOWN", reason=problem)
+                return None, record
+            if laser is None:
+                laser = laser_in_base(node, scans[0].header.frame_id)
+            ranges = core.median_ranges([list(m.ranges) for m in scans])
+            all_pts, held = core.endpoints(scans[0].angle_min, scans[0].angle_increment, ranges, laser, policy)
+            # positional: region is None for the normal boot check (whole map, unchanged)
+            hypotheses = (core.global_search(grid, all_pts, held, policy) if region is None
+                          else core.global_search(grid, all_pts, held, policy, None, region))
+            verdict = core.decide(hypotheses, len(all_pts), None, policy)
+            try:   # capture must never alter a verdict, even if the helper is missing or fails
+                evidence = scan_evidence(scans, ranges, laser, all_pts, verdict.hypotheses, policy)
+            except Exception as exc:
+                evidence = {"capture_error": repr(exc)}
+            record["attempts"].append({"state": verdict.state, "best": (verdict.hypotheses or [None])[0],
+                                       "best_fit": verdict.best_fit, "margin": verdict.margin,
+                                       "scans_used": len(scans), "reason": verdict.reason,
+                                       "seconds_since_start": round(time.monotonic() - started, 2),
+                                       "evidence": evidence})
+            if verdict.state == "VERIFIED" or time.monotonic() - started > budget_s:
+                break
+    except Exception as exc:  # fail closed: unknown, never a blind seed
+        record.update(state="UNKNOWN", reason=f"verification failed: {exc}")
+        return None, record
+    record.update(verdict.as_dict())
+    if verdict.state != "VERIFIED":
+        return None, record
+    x, y, yaw = verdict.pose
+    for attempt in record["attempts"]:
+        best = attempt["best"]
+        if best is None:
+            continue
+        dyaw = abs(math.degrees(math.atan2(math.sin(math.radians(best["yaw_deg"]) - yaw),
+                                           math.cos(math.radians(best["yaw_deg"]) - yaw))))
+        if math.hypot(best["x"] - x, best["y"] - y) > policy.agree_m or dyaw > policy.agree_deg:
+            record.update(state="UNKNOWN", pose=None,
+                          reason="parked checks disagree about where ATLAS is")
+            return None, record
+    return {"frame_id": "map", "x": x, "y": y, "z": 0.0, "qx": 0.0, "qy": 0.0,
+            "qz": math.sin(yaw / 2.0), "qw": math.cos(yaw / 2.0)}, record
 
 
 def load_pose(place=None):
@@ -48,10 +295,39 @@ def load_pose(place=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--place", help="named map place to seed and persist")
+    parser.add_argument("--mode", choices=("saved", "verify"),
+                        default=configured_seed_mode())
+    parser.add_argument("--map", type=Path, default=DEFAULT_MAP)
+    parser.add_argument("--dry-run", action="store_true",
+                        help="verify only: print the verdict; seed nothing, write nothing")
+    parser.add_argument("--verify-place",
+                        help="operator-confirmed named place: LiDAR search limited to that place's "
+                             "region; seeds only a VERIFIED LiDAR pose (same thresholds); never "
+                             "overwrites the saved seed")
     args = parser.parse_args()
-    pose = load_pose(args.place)
+    if args.place and args.verify_place:
+        parser.error("--place and --verify-place are mutually exclusive")
+    region = load_place_region(args.verify_place) if args.verify_place else None
+    verify = (args.mode == "verify" and args.place is None) or region is not None
+    pose = None if (verify or args.dry_run) else load_pose(args.place)
     rclpy.init()
     node = Node("atlas_localization_seeder")
+    if args.dry_run:
+        pose, record = verify_start_pose(node, args.map, region=region)
+        print(json.dumps(dict(record, dry_run=True, seeded=False, navigation_authorized=False), indent=2))
+        node.destroy_node()
+        rclpy.shutdown()
+        return
+    if verify:
+        pose, record = verify_start_pose(node, args.map, region=region)
+        if pose is None:
+            write_verdict(record)
+            node.get_logger().warn(
+                "LOCALIZATION UNKNOWN: AMCL not seeded; " + record.get("reason", "")
+                + ". Set the current named place after checking where ATLAS is.")
+            node.destroy_node()
+            rclpy.shutdown()
+            return  # exit 0: an unverified start is a reported state, not a crash loop
     publisher = node.create_publisher(PoseWithCovarianceStamped, "/initialpose", 10)
     pose_client = node.create_client(SetInitialPose, "/set_initial_pose")
     update_client = node.create_client(Empty, "/request_nomotion_update")
@@ -75,6 +351,11 @@ def main():
     message.pose.covariance[0] = 0.25
     message.pose.covariance[7] = 0.25
     message.pose.covariance[35] = 0.068
+    if verify:
+        # LiDAR-matched pose: start AMCL near it, but not as a single point.
+        message.pose.covariance[0] = 0.10 ** 2
+        message.pose.covariance[7] = 0.10 ** 2
+        message.pose.covariance[35] = math.radians(8.0) ** 2
 
     deadline = time.monotonic() + 20.0
     while publisher.get_subscription_count() == 0 and time.monotonic() < deadline:
@@ -111,8 +392,16 @@ def main():
     if update_client.wait_for_service(timeout_sec=2.0):
         future = update_client.call_async(Empty.Request())
         rclpy.spin_until_future_complete(node, future, timeout_sec=3.0)
+    if verify:
+        write_verdict(dict(record, seeded=True,
+                           seeded_via="service" if service_applied else "topic fallback"))
+    else:
+        write_verdict({"mode": "saved", "state": "UNVERIFIED",
+                       "reason": "seeded from a saved pose without checking the LiDAR",
+                       "pose": {"x": round(float(pose["x"]), 3), "y": round(float(pose["y"]), 3)},
+                       "seeded": True})
     node.get_logger().info(
-        f"Seeded AMCL from saved pose x={pose['x']:.3f} y={pose['y']:.3f} "
+        f"Seeded AMCL from {'LiDAR-verified' if verify else 'saved'} pose x={pose['x']:.3f} y={pose['y']:.3f} "
         f"via {'service' if service_applied else 'topic fallback'}"
     )
     node.destroy_node()

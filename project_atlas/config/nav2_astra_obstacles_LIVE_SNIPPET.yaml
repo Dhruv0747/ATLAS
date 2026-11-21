@@ -1,0 +1,30 @@
+# Track A gate G5 ONLY (owner approval + passed shadow tests). NOT applied anywhere.
+# Apply with tools/track_a/check_nav2_merge.py --write, which validates and backs up first.
+#
+# The Astra gets its OWN ObstacleLayer ("astra_layer"). It must never share the LiDAR's obstacle_layer: an Astra ray
+# that sees nothing (glass, black surfaces, closer than 0.35 m, sensor blinded) could otherwise clear obstacles the
+# LiDAR marked. Separate layers are combined by maximum cost, so each sensor can only add obstacles, never erase the
+# other's. Local costmap only; the global costmap (static map + LiDAR) is unchanged.
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      plugins: ["obstacle_layer", "astra_layer", "inflation_layer"]   # inflation stays LAST
+      astra_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: astra
+        astra:
+          topic: /astra/obstacle_scan
+          data_type: "LaserScan"
+          marking: true
+          clearing: true
+          inf_is_valid: false         # "no return" (+inf) NEVER clears; only measured hits clear up to the hit
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.35
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.35
+          expected_update_rate: 0.0   # NO currency check (a period in s, not a rate): an Astra outage must never mark the
+                                      # costmap 'not current' and stall LiDAR navigation. Astra is purely additive;
+                                      # when it stops, its last marks stay at their world position (conservative)
+                                      # until re-observed or out of the rolling window; the LiDAR layer is unaffected.
+          observation_persistence: 0.0

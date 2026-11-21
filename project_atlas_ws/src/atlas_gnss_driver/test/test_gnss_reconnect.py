@@ -80,6 +80,9 @@ class ReceiverTests(unittest.TestCase):
         self.clock = self.clock_patch.start()
         with patch.object(GnssNode, '_open_port'):
             self.node = GnssNode()
+        # These lifecycle tests exercise a fixed (by-path) Hiwonder port, not USB discovery.
+        self.node.auto_usb = False
+        self.node.port = '/dev/serial/by-path/platform-3610000.usb-usb-0:2.4.2:1.0-port0'
         for name in ('fix_pub', 'sat_pub', 'hdop_pub', 'const_pub', 'nmea_pub', 'status_pub', 'diagnostics_pub'):
             setattr(self.node, name, MagicMock())
 
@@ -174,6 +177,57 @@ class ReceiverTests(unittest.TestCase):
     def test_shutdown_does_not_publish_after_ros_context_ends(self):
         self.node.destroy_node()
         self.node.fix_pub.publish.assert_not_called()
+
+
+
+class HiwonderOnlyTests(unittest.TestCase):
+    """2026-11-21 owner rule: the only GPS is the Hiwonder GPS V1 USB; never the 4G modem's GNSS port."""
+    def node(self, **params):
+        with patch.object(GnssNode, '_open_port'), patch.object(FakeNode, 'declare_parameter',
+                autospec=True, side_effect=lambda me, n, v: me.parameters.__setitem__(n, params.get(n, v))):
+            return GnssNode()
+
+    def test_default_is_hiwonder_discovery_not_modem(self):
+        from atlas_gnss_driver import gnss_node
+        self.assertEqual(gnss_node.DEFAULT_PORT, '')
+        node = self.node()
+        self.assertTrue(node.auto_usb)
+        self.assertEqual(node.source_name, 'Hiwonder GPS V1 USB')
+
+    def test_empty_port_forces_discovery_even_if_auto_usb_false(self):
+        self.assertTrue(self.node(auto_usb=False, port='').auto_usb)
+
+    def test_simcom_by_id_port_refused_without_opening(self):
+        node = self.node(auto_usb=False, port='/dev/serial/by-id/usb-SIMCOM_SDXBAAGHA-IDP__SN:X-if03-port0')
+        node.last_open_attempt = -100
+        with patch('atlas_gnss_driver.gnss_node.open_raw_serial') as opened:
+            node._open_port()
+        opened.assert_not_called()
+        self.assertIsNone(node.fd)
+        self.assertIn('4G modem', node.last_error)
+
+    def test_modem_vendor_tty_refused(self):
+        from atlas_gnss_driver import gnss_node
+        with patch.object(gnss_node, 'tty_usb_vendor', return_value='1e0e'):
+            with self.assertRaises(ValueError):
+                gnss_node.refuse_modem_port('/dev/ttyUSB6')
+        with patch.object(gnss_node, 'tty_usb_vendor', return_value='1a86'):
+            gnss_node.refuse_modem_port('/dev/ttyUSB2')   # Hiwonder CH340: allowed
+
+    def test_discovery_only_uses_verified_ch340(self):
+        node = self.node()
+        node.next_discovery = 0
+        node.last_open_attempt = -100
+        link = SimpleNamespace(port='/dev/ttyUSB2', fileno=lambda: 77)
+        fake = ModuleType('atlas_usb_identity'); fake.open_verified = MagicMock(return_value=link)
+        with patch.dict(sys.modules, {'atlas_usb_identity': fake}), \
+             patch('atlas_gnss_driver.gnss_node.open_raw_serial') as raw:
+            node._open_port()
+        fake.open_verified.assert_called_once()
+        self.assertEqual(fake.open_verified.call_args.args[0], 'gps')
+        raw.assert_not_called()
+        self.assertEqual((node.port, node.fd), ('/dev/ttyUSB2', 77))
+        node.fd = None
 
 
 if __name__ == '__main__':

@@ -1,0 +1,49 @@
+--- a/recovery_snapshot_supervisor.py
++++ b/recovery_snapshot_supervisor.py
+@@ -49,20 +49,28 @@
+ def watch(root):
+     # Separate process: never waits for systemctl/recovery or reads producer safety.
+     baseline=json.loads((root/'watcher-baseline.json').read_text())
+-    start=time.monotonic();last=baseline['ticks'];stamp=baseline['mono'];count=0
++    start=time.monotonic();stamp=baseline['mono'];count=0
++    history=[(baseline['ticks'],stamp)]
+     try:
+         while time.monotonic()-start<80:
+-            time.sleep(max(0,stamp+1-time.monotonic()))
+-            now=time.monotonic();current=ticks();interval=now-stamp
++            time.sleep(max(0,stamp+.5-time.monotonic()))
++            now=time.monotonic();current=ticks();stamp=now
++            # First full interval includes watcher initialization; no sample is discarded.
++            if len(history)<2:
++                history.append((current,now));continue
++            previous,last_stamp=history.pop(0);interval=now-last_stamp
+             if not .9<=interval<=1.1:raise ValueError('CPU interval')
+-            previous,last_stamp=last,stamp
+-            cpu=cpu_delta(last,current);last=current;stamp=now
++            history.append((current,now))
++            cpu=cpu_delta(previous,current)
+             if cpu>=75:
+                 record_cpu_rejection(root,previous,current,last_stamp,now,cpu)
+                 raise ValueError('CPU guard '+str(cpu))
+             ram,temp=resources();strict_resources(cpu,ram,max(temp.values()));began=time.monotonic();status=fetch('/api/status')
+             row=validate(status,cpu,ram,temp,time.monotonic()-began)
+-            row.update(mono=time.monotonic(),safe=True,interval=interval,watcher_cpu=time.process_time())
++            # Age starts at actual CPU observation, not at publication or diagnostic completion.
++            row.update(mono=now,safe=True,interval=interval,watcher_cpu=time.process_time())
++            if not 0<=time.monotonic()-now<=1.0:raise ValueError('collection already stale')
++            save(root/'health.json',row)
+             pid=subprocess.check_output(['systemctl','--user','show','atlas-sensor-recovery.service','-p','MainPID','--value'],text=True,timeout=.3).strip()
+             row['recovery_pid']=pid
+             if pid!='0':
+@@ -70,10 +78,9 @@
+                     raw=Path('/proc',pid,'stat').read_text();fields=raw[raw.rfind(')')+2:].split()
+                     row['recovery_counters']={'user_ticks':int(fields[11]),'system_ticks':int(fields[12]),'start_ticks':int(fields[19]),'rss_pages':int(fields[21]),'hz':os.sysconf('SC_CLK_TCK'),'page_size':os.sysconf('SC_PAGE_SIZE')}
+                 except FileNotFoundError:row['recovery_counters']='process exited during sample'
+-            save(root/'health.json',row)
+             with (root/'samples.jsonl').open('a') as f:f.write(json.dumps(row)+'\n')
+             count+=1
+-            if count>80:raise ValueError('sample bound')
++            if count>160:raise ValueError('sample bound')
+         raise TimeoutError('watcher lifetime')
+     except BaseException as exc:
+         save(root/'health.json',{'mono':time.monotonic(),'safe':False,'error':str(exc)})

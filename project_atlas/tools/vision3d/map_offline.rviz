@@ -1,0 +1,21 @@
+Panels:
+  - Class: rviz_common/Displays
+Visualization Manager:
+  Class: ""
+  Global Options:
+    Fixed Frame: map_3d_offline
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Offline 3D map
+      Enabled: true
+      Topic:
+        Value: /atlas_offline/cloud_map
+        Reliability Policy: Reliable
+      Size (Pixels): 2
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 5

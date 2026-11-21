@@ -3,6 +3,7 @@ import json
 import re
 import subprocess
 import time
+from atlas_daly_transport import PersistentDalyClient, ReconnectBackoff
 
 import rclpy
 from rclpy.node import Node
@@ -69,8 +70,12 @@ class DalyBmsNode(Node):
             self.create_publisher(Float32, f"/bms/cell{i}_voltage", 10)
             for i in range(1, 5)
         ]
-        self.timer = self.create_timer(5.0, self.poll)
         self.last = {}
+        self.last_success_at = None
+        self.last_error = 'No fresh snapshot yet'
+        self.link = PersistentDalyClient(MAC, ADDR_TYPE, NOTIFY_CCCD_HANDLE, WRITE_HANDLE)
+        self.backoff = ReconnectBackoff()
+        self.timer = self.create_timer(5.0, self.poll)
         self.poll()
 
     def publish_float(self, pub, value):
@@ -79,7 +84,9 @@ class DalyBmsNode(Node):
         pub.publish(msg)
 
     def poll(self):
-        started = time.time()
+        if self.backoff.remaining() > 0:
+            self.publish_unavailable(self.last_error)
+            return
         try:
             out = self.read_ble()
             data = self.decode(out)
@@ -87,59 +94,55 @@ class DalyBmsNode(Node):
                 raise RuntimeError("no Daly notification received")
             data["mac"] = MAC
             data["age_s"] = 0
-            data["ok"] = True
+            data["ok"] = all(key in data for key in ("voltage_v", "current_a", "soc_percent")) and data.get("cells_complete", False)
+            if not data["ok"]:
+                raise RuntimeError('Incomplete Daly snapshot; missing pack or cell frames')
             data["source"] = "bluetooth"
+            self.last_success_at = time.monotonic()
+            self.backoff.succeeded()
+            data['connection_attempts'] = self.link.connections
+            data['poll_interval_s'] = 5.0
+            data['retry_owner'] = 'daly_transport_v1'
+            data['reconnect_in_s'] = 0.0
             self.last = data
             self.publish_data(data)
             self.get_logger().info(
-                f"Daly OK {data.get('voltage_v', 0):.2f}V "
+                f"Daly {'OK' if data['ok'] else 'INCOMPLETE'} {data.get('voltage_v', 0):.2f}V "
                 f"{data.get('current_a', 0):+.2f}A {data.get('soc_percent', 0):.1f}%"
             )
         except Exception as exc:
-            fallback = dict(self.last)
-            fallback["ok"] = False
-            fallback["error"] = str(exc)
-            fallback["age_s"] = round(time.time() - started, 1)
-            self.publish_data(fallback)
+            self.link.close()
+            self.backoff.failed()
+            self.last_error = str(exc)
+            self.publish_unavailable(self.last_error)
             self.get_logger().warn(f"Daly read failed: {exc}")
 
-    def read_ble(self):
-        proc = subprocess.Popen(
-            ["gatttool", "-b", MAC, "-t", ADDR_TYPE, "-I"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        try:
-            self._send(proc, "connect", 4.0)
-            self._send(proc, f"char-write-req {NOTIFY_CCCD_HANDLE} 0100", 0.8)
-            for cmd in COMMANDS.values():
-                self._send(proc, f"char-write-req {WRITE_HANDLE} {cmd}", 1.4)
-            time.sleep(1.5)
-            proc.terminate()
-            out, _ = proc.communicate(timeout=3)
-            return out
-        except Exception:
-            proc.kill()
-            out, _ = proc.communicate(timeout=2)
-            return out
+    def publish_unavailable(self, error):
+        fallback = dict(self.last)
+        fallback.update(ok=False, error=error, source='bluetooth',
+                        retry_owner='daly_transport_v1',
+                        age_s=None if self.last_success_at is None else round(time.monotonic()-self.last_success_at, 1),
+                        reconnect_in_s=round(self.backoff.remaining(), 1),
+                        connection_attempts=self.link.connections)
+        self.publish_data(fallback)
 
-    def _send(self, proc, text, delay):
-        if proc.stdin is None:
-            return
-        proc.stdin.write(text + "\n")
-        proc.stdin.flush()
-        time.sleep(delay)
+    def destroy_node(self):
+        self.link.close()
+        return super().destroy_node()
+
+    def read_ble(self):
+        return self.link.read_snapshot(COMMANDS, self.decode)
 
     def decode(self, text):
-        frames = []
+        stream = []
         for line in text.splitlines():
             if "Notification handle" not in line or "value:" not in line:
                 continue
             hex_part = line.split("value:", 1)[1]
             vals = [int(x, 16) for x in re.findall(r"\b[0-9a-fA-F]{2}\b", hex_part)]
-            frames.extend(self.split_frames(vals))
+            stream.extend(vals)
+
+        frames = self.split_frames(stream)
 
         data = {}
         cells = {}
@@ -176,8 +179,14 @@ class DalyBmsNode(Node):
                 data["min_cell_voltage_v"] = self.u16(payload, 3) / 1000.0
                 data["min_cell_index"] = payload[5]
 
-        if cells:
-            data["cells_v"] = [cells.get(i, 0.0) for i in range(1, 5)]
+        if data or cells:
+            data["cells_complete"] = all(i in cells for i in range(1, 5))
+            data["missing_cell_indices"] = [i for i in range(1, 5) if i not in cells]
+            # Never fabricate zero volts for a cell whose frame was not received.
+            # Omit the array entirely so consumers cannot mistake a partial pack
+            # for a fresh four-cell measurement. Do not merge previous polls.
+            if data["cells_complete"]:
+                data["cells_v"] = [cells[i] for i in range(1, 5)]
         self.correct_soc(data)
         return data
 
@@ -214,12 +223,15 @@ class DalyBmsNode(Node):
 
     def split_frames(self, vals):
         frames = []
-        starts = [i for i, value in enumerate(vals) if value == 0xA5]
-        for pos, start in enumerate(starts):
-            end = starts[pos + 1] if pos + 1 < len(starts) else len(vals)
-            frame = vals[start:end]
-            if len(frame) >= 7:
-                frames.append(frame[:13])
+        i = 0
+        while i + 13 <= len(vals):
+            frame = vals[i:i + 13]
+            if (frame[0] == 0xA5 and frame[3] == 8
+                    and (sum(frame[:12]) & 0xFF) == frame[12]):
+                frames.append(frame)
+                i += 13
+            else:
+                i += 1
         return frames
 
     def u16(self, payload, offset):
@@ -230,6 +242,11 @@ class DalyBmsNode(Node):
         status.data = json.dumps(data, separators=(",", ":"))
         self.status_pub.publish(status)
         self.json_pub.publish(status)
+        # Scalar topics have no validity field. Publishing values copied from
+        # the previous snapshot on a failed BLE read would make them appear
+        # newly measured to subscribers. The JSON status carries ok=False.
+        if data.get("ok") is not True:
+            return
         if "voltage_v" in data:
             self.publish_float(self.voltage_pub, data["voltage_v"])
         if "current_a" in data:

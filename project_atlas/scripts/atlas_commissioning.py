@@ -15,7 +15,7 @@ import threading
 import time
 import uuid
 
-from atlas_encoder_selection import WHEEL_NAMES
+from atlas_encoder_calibration import load_encoder_calibration
 from atlas_commissioning_evidence import EvidenceLedger, observation_gate, readiness
 from atlas_capabilities import load_registry, report as capability_report
 
@@ -62,7 +62,8 @@ def constants(path):
 
 def configuration(root):
     files = ['scripts/yahboom_base.py', 'scripts/atlas_status_web.py',
-             'config/encoder_selection.yaml', 'config/atlas_ekf.yaml',
+             'config/encoder_selection.yaml', 'config/encoder_calibration.yaml',
+             'config/atlas_ekf.yaml',
              'config/im10a_mounting.yaml', 'config/im10a_gyro_bias.json',
              'config/steering_calibration.json',
              'systemd/user/atlas-uno-r4-sensor-hub.service.d/camera-home.conf']
@@ -71,17 +72,19 @@ def configuration(root):
         path = root / name
         hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
     base = constants(root / 'scripts/yahboom_base.py')
+    encoder = load_encoder_calibration(root / 'config' / 'encoder_calibration.yaml')
     steering = {}
     for name in ('front', 'rear'):
         p = name.upper() + '_STEER_'
         steering[name] = {k.lower(): base.get(p+k) for k in ('CENTER','LEFT','RIGHT','SERVO_ID')}
     return {'source_hashes': hashes, 'steering': steering,
-            'counts_per_revolution': base.get('ENCODER_COUNTS_PER_REV'),
-            'encoder_forward_sign': base.get('ENCODER_FORWARD_SIGN'),
-            'wheel_circumference_m': base.get('WHEEL_CIRCUMFERENCE_M'),
-            'wheelbase_m': base.get('WHEELBASE_M'), 'motor_locations': list(WHEEL_NAMES),
+            'counts_per_revolution': list(encoder.counts_per_revolution),
+            'encoder_forward_sign': list(encoder.encoder_signs),
+            'wheel_circumference_m': encoder.wheel_circumference_m,
+            'wheelbase_m': encoder.wheelbase_m,
+            'motor_locations': list(encoder.positions),
             'calibration_status': 'CONFIGURED / PHYSICAL REVERIFICATION REQUIRED',
-            'warning': 'Encoder scales predate motor replacements. Old motor_config.yaml and encoder YAML locations are NOT authoritative. Runtime overrides require separate verification.',
+            'warning': 'encoder_calibration.yaml is authoritative. Retained encoder scales predate motor replacements and require physical revalidation.',
             'actuator_commissioning_enabled': False,
             'storage_scope': 'Saved test observations only; no active calibration is overwritten.'}
 
@@ -155,7 +158,7 @@ class Console:
         self.root=Path(root)
         try:
             self.config=configuration(Path(root))
-        except (OSError, ValueError, SyntaxError) as exc:
+        except (OSError, ValueError, SyntaxError, ModuleNotFoundError) as exc:
             self.config={'source_hashes':{},'configuration_error':str(exc),
                          'actuator_commissioning_enabled':False}
         self.database=Path(database)

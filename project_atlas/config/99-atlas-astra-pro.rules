@@ -1,0 +1,4 @@
+# Candidate only; NOT installed. Requires explicit administrator execution.
+# Exact Astra Pro depth/RGB USB IDs only. No serial, hub or unrelated camera match.
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="2bc5", ATTR{idProduct}=="0403", MODE="0660", GROUP="video"
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="2bc5", ATTR{idProduct}=="0501", MODE="0660", GROUP="video"

@@ -2,13 +2,16 @@
 """Repeatable one-motor forward/reverse encoder stress test for lifted ATLAS."""
 
 import argparse
+import os
 import statistics
 import time
 
 from Rosmaster_Lib import Rosmaster
 
 
-FORWARD_PWM = {1: 60, 2: -60, 3: -60, 4: 60}
+# Installed ATLAS polarity: positive drives the left-side M1/M3 channels
+# physically forward; negative drives the right-side M2/M4 channels forward.
+FORWARD_PWM = {1: 60, 2: -60, 3: 60, 4: -60}
 
 
 def delta(after, before):
@@ -39,7 +42,11 @@ def main():
     if not 0.5 <= args.run <= 3.0 or not 0.5 <= args.rest <= 3.0:
         raise SystemExit("unsafe run/rest duration")
 
-    bot = Rosmaster(car_type=5, com="/dev/yahboom")
+    port = os.environ.get(
+        "ATLAS_YAHBOOM_PORT",
+        "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",
+    )
+    bot = Rosmaster(car_type=5, com=port)
     bot.create_receive_threading()
     bot.set_car_type(5)
     bot.set_auto_report_state(True, False)

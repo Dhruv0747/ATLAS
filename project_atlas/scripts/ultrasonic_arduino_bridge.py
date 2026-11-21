@@ -38,8 +38,44 @@ BAUD = 115200
 SERIAL_STALE_REOPEN_SECONDS = max(
     5.0, float(os.environ.get('ATLAS_SENSOR_HUB_STALE_REOPEN_SECONDS', '8.0'))
 )
+# The fastest existing camera command interval is 40 ms, while the commissioned
+# firmware reports atomic ultrasonic validity every 250 ms.  A 25 Hz timer
+# therefore preserves those cadences and removes 75% of the idle executor
+# wakeups from the former 100 Hz timer.  ROS camera callbacks remain independent;
+# tick() still drains local commands and immediately available serial work.
+SENSOR_HUB_POLL_SECONDS = 0.04
 HUB_TRANSPORT = os.environ.get('ATLAS_SENSOR_HUB_TRANSPORT', 'arduino_uno_r4').strip()
 FRONT_ULTRASONIC_ENABLED = os.environ.get('ATLAS_FRONT_ULTRASONIC_ENABLED', '0').strip() == '1'
+
+
+# 2026-11-20 owner: the UNO left (D4/D5) and right (D6/D7) channels are wired to the opposite physical sides.
+# ATLAS_ULTRASONIC_SWAP_LR=1 exchanges them in every published output (left_mm/right_mm, /ultrasonic/status and
+# /ultrasonic/validity), so ROS always uses PHYSICAL sides. The UNO LED matrix still shows the firmware channel letters.
+SWAP_LEFT_RIGHT = os.environ.get('ATLAS_ULTRASONIC_SWAP_LR', '0').strip() == '1'
+
+
+def swap_left_right_payload(payload):
+    """Copy of a validity payload with the left/right sensor entries exchanged (marked left_right_swapped)."""
+    sensors = payload.get('sensors') if isinstance(payload, dict) else None
+    if not isinstance(sensors, dict) or 'left' not in sensors or 'right' not in sensors:
+        return payload
+    out = dict(payload)
+    swapped = dict(sensors)
+    swapped['left'], swapped['right'] = sensors['right'], sensors['left']
+    out['sensors'] = swapped
+    out['left_right_swapped'] = True
+    return out
+
+
+def side_ultrasonic_commands(environ):
+    """2026-11-19: USENABLE commands for the UNO left/right channels (front-corner HC-SR04s, pins D4/D5, D6/D7).
+    A channel is touched only when its variable is explicitly '0' or '1'; otherwise its firmware setting is left as is."""
+    out = []
+    for code, name in (('L', 'ATLAS_LEFT_ULTRASONIC_ENABLED'), ('R', 'ATLAS_RIGHT_ULTRASONIC_ENABLED')):
+        value = str(environ.get(name, '')).strip()
+        if value in ('0', '1'):
+            out.append(f'USENABLE,{code},{value}')
+    return out
 GNSS_ENABLED = os.environ.get('ATLAS_GNSS_ENABLED', '1').strip().lower() not in (
     '0', 'false', 'no', 'off',
 )
@@ -136,7 +172,7 @@ class UltrasonicArduinoBridge(Node):
                 self.camera_socket = None
                 self.get_logger().error(f'camera command socket unavailable: {exc}')
         self.last_ok = 0.0
-        self.last_serial_rx = 0.0
+        self.last_serial_rx_mono = 0.0
         self.last_wait_status = 0.0
         self.last_connect_log = 0.0
         self.next_connect_attempt = 0.0
@@ -164,7 +200,7 @@ class UltrasonicArduinoBridge(Node):
         self.rx_high_water = 0
         self.rx_diag_time = 0.0
         self.rx_diag_pub = self.create_publisher(String, '/arduino/serial_diagnostics', 10)
-        self.create_timer(0.01, self.tick)
+        self.create_timer(SENSOR_HUB_POLL_SECONDS, self.tick)
         if self.camera_via_arduino:
             camera_route = 'Arduino UNO R4 PCA9685'
         else:
@@ -217,7 +253,7 @@ class UltrasonicArduinoBridge(Node):
             # returning empty reads forever, so tick() reopens it if no bytes
             # arrive before this deadline.
             self.last_ok = now
-            self.last_serial_rx = now
+            self.last_serial_rx_mono = time.monotonic()
             self.status_pub.publish(String(data=f'connected port={resolved_port}'))
             if HUB_TRANSPORT == 'uno_r4_i2c_hub':
                 # Firmware setup already performs the authoritative scan and
@@ -229,11 +265,14 @@ class UltrasonicArduinoBridge(Node):
                 # Reapply the installed front sensor after USB reconnect/reset.
                 # Leave the other three channel selections untouched.
                 self.write_line('USENABLE,F,' + ('1' if FRONT_ULTRASONIC_ENABLED else '0'))
-                # Dhruv's commissioned forward pose. Apply it only after the
-                # sensor hub has connected, so every full system power-on and
-                # USB re-enumeration restores the same camera view.
-                self.write_line(f'SERVO,0,{CAMERA_PAN_HOME_US}')
-                self.write_line(f'SERVO,1,{CAMERA_TILT_HOME_US}')
+                for command in side_ultrasonic_commands(os.environ):
+                    self.write_line(command)
+                # Keep camera outputs released during every USB reconnect.
+                # Automatically energising both axes here previously produced
+                # a servo-current surge/reconnect loop that took PCA9685,
+                # BME680 and AMG8833 offline together.  The saved home remains
+                # available through the explicit dashboard/ROS camera command;
+                # recovery must never move hardware by itself.
                 # Radar UART is deliberately lazy in firmware so a faulty
                 # peripheral cannot block I2C startup. Enable it only after
                 # the native USB telemetry link is proven alive.
@@ -615,6 +654,8 @@ class UltrasonicArduinoBridge(Node):
         self.dashboard_cache_set('thermal_status', status, timestamp)
 
     def publish_ultrasonic_validity(self, payload):
+        if SWAP_LEFT_RIGHT:
+            payload = swap_left_right_payload(payload)
         text = json.dumps(payload, allow_nan=False, separators=(',', ':'))
         self.validity_pub.publish(String(data=text))
         self.dashboard_cache_set('us_validity', text)
@@ -657,7 +698,7 @@ class UltrasonicArduinoBridge(Node):
                         break
                     self.rx_lines.feed(chunk)
                     received += len(chunk)
-                    self.last_serial_rx = time.time()
+                    self.last_serial_rx_mono = time.monotonic()
                     continue
                 if raw:
                     self.handle_line(raw)
@@ -700,16 +741,18 @@ class UltrasonicArduinoBridge(Node):
             return
         if not received and not processed:
             now = time.time()
-            if now - self.last_serial_rx >= SERIAL_STALE_REOPEN_SECONDS:
+            # Calendar time can step during boot/NTP correction. Only elapsed
+            # monotonic time may decide whether the USB transport is silent.
+            serial_idle_s = time.monotonic() - self.last_serial_rx_mono
+            if serial_idle_s >= SERIAL_STALE_REOPEN_SECONDS:
                 self.status_pub.publish(String(
-                    data=(f'serial_stale_reopening age_s='
-                          f'{now - self.last_serial_rx:.1f}')))
+                    data=f'serial_stale_reopening age_s={serial_idle_s:.1f}'))
                 try:
                     self.ser.close()
                 except Exception:
                     pass
                 self.ser = None
-                self.last_serial_rx = now
+                self.last_serial_rx_mono = time.monotonic()
                 self.last_wait_status = now
                 return
             if now - self.last_ok > 2.5 and now - self.last_wait_status >= 1.0:
@@ -820,6 +863,8 @@ class UltrasonicArduinoBridge(Node):
         front = int(values['front'])
         left = int(values['left'])
         right = int(values['right'])
+        if SWAP_LEFT_RIGHT:
+            left, right = right, left
         rear = int(values['rear']) if values['rear'] is not None else -1
         if values['ok'] != '1':
             front = left = right = rear = -1

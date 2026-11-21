@@ -1,0 +1,8 @@
+ATLAS stage 24: operator-confirmed place verification for startup localization
+Source cbf6dcc (patch range 8203417..cbf6dcc applied to the LIVE files). Files: scripts/seed_atlas_localization.py
+(live = stage 16 b81d7ac; undeployed Stage 20 observer lines are NOT shipped), scripts/atlas_localization_verify_core.py
+(live = repo base), config/place_regions.json (new). Boot check unchanged (region=None); thresholds 0.93/0.06 unchanged.
+Takes effect only when an operator runs: seed_atlas_localization.py --verify-place "dhruv room"
+PRECONDITIONS rover parked, stop LATCHED.  INSTALL bash install.sh  RESTART none (the core is re-read by processes
+only when they restart; running monitor/location-check keep their loaded copy)
+ROLLBACK bash ~/project_atlas/data/backups/<stamp>-stage24-verify-place/ROLLBACK.sh (no restart)

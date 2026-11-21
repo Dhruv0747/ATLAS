@@ -6,16 +6,18 @@ import math
 import time
 
 import rclpy
+import atlas_batched_spin
 from action_msgs.msg import GoalStatusArray
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from nav2_msgs.msg import BehaviorTreeLog
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from sensor_msgs.msg import CompressedImage, LaserScan
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32, String
 
-from atlas_scan_geometry import ray_in_base_sector
+from atlas_scan_geometry import ray_in_base_sector, sensor_ray_in_base_degrees, wrap_degrees
+from atlas_clearance_core import clearance_channel
 
 
 LASER_YAW_DEG = 180.0
@@ -33,9 +35,11 @@ class AtlasSafetyStatus(Node):
         self.last_bt_action = 0.0
         self.last_map_metrics = 0.0
         self.front_lidar = math.inf
+        self.front_center_lidar = math.inf
         self.left_lidar = math.inf
         self.right_lidar = math.inf
         self.rear_lidar = math.inf
+        self.rear_center_lidar = math.inf
         self.front_ultrasonic = math.inf
         self.left_ultrasonic = math.inf
         self.right_ultrasonic = math.inf
@@ -111,8 +115,8 @@ class AtlasSafetyStatus(Node):
             10,
         )
         self.create_subscription(
-            CompressedImage,
-            "/camera/detections/compressed",
+            String,
+            "/camera/detections/json",
             self.on_ai_camera,
             10,
         )
@@ -140,22 +144,31 @@ class AtlasSafetyStatus(Node):
             "right": math.inf,
             "rear": math.inf,
         }
+        centerline = {"front": math.inf, "rear": math.inf}
         for index, value in enumerate(msg.ranges):
             angle = msg.angle_min + index * msg.angle_increment
             if not math.isfinite(value) or not msg.range_min <= value <= msg.range_max:
                 continue
             degrees = math.degrees(angle)
-            if ray_in_base_sector(degrees, 0.0, 35.0, LASER_YAW_DEG):
+            base_angle = sensor_ray_in_base_degrees(degrees, LASER_YAW_DEG)
+            if abs(wrap_degrees(base_angle - 0.0)) <= 15.0:
+                centerline["front"] = min(centerline["front"], value)
+            if abs(wrap_degrees(base_angle - 180.0)) <= 15.0:
+                centerline["rear"] = min(centerline["rear"], value)
+            if abs(wrap_degrees(base_angle - 0.0)) <= 35.0:
                 nearest["front"] = min(nearest["front"], value)
-            elif ray_in_base_sector(degrees, 77.5, 42.5, LASER_YAW_DEG):
+            elif abs(wrap_degrees(base_angle - 77.5)) <= 42.5:
                 nearest["left"] = min(nearest["left"], value)
-            elif ray_in_base_sector(degrees, -77.5, 42.5, LASER_YAW_DEG):
+            elif abs(wrap_degrees(base_angle - -77.5)) <= 42.5:
                 nearest["right"] = min(nearest["right"], value)
-            elif ray_in_base_sector(degrees, 180.0, 35.0, LASER_YAW_DEG):
+            elif abs(wrap_degrees(base_angle - 180.0)) <= 35.0:
                 nearest["rear"] = min(nearest["rear"], value)
         clear_value = float(msg.range_max)
         self.front_lidar = (
             nearest["front"] if math.isfinite(nearest["front"]) else clear_value
+        )
+        self.front_center_lidar = (
+            centerline["front"] if math.isfinite(centerline["front"]) else clear_value
         )
         self.left_lidar = (
             nearest["left"] if math.isfinite(nearest["left"]) else clear_value
@@ -165,6 +178,9 @@ class AtlasSafetyStatus(Node):
         )
         self.rear_lidar = (
             nearest["rear"] if math.isfinite(nearest["rear"]) else clear_value
+        )
+        self.rear_center_lidar = (
+            centerline["rear"] if math.isfinite(centerline["rear"]) else clear_value
         )
 
     def on_map(self, msg: OccupancyGrid) -> None:
@@ -259,7 +275,7 @@ class AtlasSafetyStatus(Node):
                         self.last_bt_action = time.monotonic()
                         break
 
-    def on_ai_camera(self, _msg: CompressedImage) -> None:
+    def on_ai_camera(self, _msg: String) -> None:
         self.last_ai_camera = time.monotonic()
 
     @staticmethod
@@ -369,6 +385,17 @@ class AtlasSafetyStatus(Node):
         self.status_pub.publish(String(data=text))
         self.phase_pub.publish(String(data=phase))
         rear_clearance = self.rear_clearance(now)
+        channels = {
+            "front": clearance_channel(self.front_lidar, self.front_ultrasonic),
+            "left": clearance_channel(self.left_lidar, self.left_ultrasonic),
+            "right": clearance_channel(self.right_lidar, self.right_ultrasonic),
+            "rear": clearance_channel(
+                self.rear_lidar,
+                self.rear_ultrasonic
+                if now - self.last_rear_ultrasonic <= 1.5
+                else math.inf,
+            ),
+        }
         self.rear_clearance_pub.publish(Float32(data=float(rear_clearance)))
         state = {
             "phase": phase,
@@ -388,17 +415,34 @@ class AtlasSafetyStatus(Node):
                 "angular_rps": round(self.angular_speed, 3),
             },
             "clearance_m": {
-                "front": round(min(self.front_lidar, self.front_ultrasonic), 3),
-                "left": round(min(self.left_lidar, self.left_ultrasonic), 3),
-                "right": round(min(self.right_lidar, self.right_ultrasonic), 3),
-                "rear": round(rear_clearance, 3),
+                "front": channels["front"]["fused_m"],
+                "left": channels["left"]["fused_m"],
+                "right": channels["right"]["fused_m"],
+                "rear": channels["rear"]["fused_m"],
             },
+            "clearance_channels": channels,
+            "lidar_centerline_m": {
+                "front": round(self.front_center_lidar, 3),
+                "rear": round(self.rear_center_lidar, 3),
+                "half_width_deg": 15.0,
+            },
+            "lidar_safety_corridor": {
+                "front_rear_half_width_deg": 35.0,
+                "side_sector_half_width_deg": 42.5,
+            },
+            "clearance_policy": (
+                "LiDAR is navigation-primary; ultrasonic is an independent "
+                "close-range safety guard. Fused clearance is the conservative minimum."
+            ),
             "map": {
                 "width_m": round(self.map_width_m, 2),
                 "height_m": round(self.map_height_m, 2),
                 "known_percent": round(self.map_known_pct, 1),
                 "occupied_cells": self.map_occupied_cells,
                 "plan_points": self.plan_points,
+                "operating_mode": self.operating_mode,
+                "received": self.last_map > 0.0,
+                "age_s": round(now - self.last_map, 2) if self.last_map > 0.0 else None,
             },
             "sensors": {
                 "lidar": "ONLINE" if now - self.last_scan <= 1.5 else "LOST",
@@ -478,9 +522,12 @@ def main():
     rclpy.init()
     node = AtlasSafetyStatus()
     try:
-        rclpy.spin(node)
+        atlas_batched_spin.spin(node)  # ATLAS_EXECUTOR_BATCH_S (2026-11-13)
     except KeyboardInterrupt:
         pass
+    except Exception as exc:   # 2026-11-13: systemctl stop is a normal exit, not a failure
+        if type(exc).__name__ != 'ExternalShutdownException':
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():

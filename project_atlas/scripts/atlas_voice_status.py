@@ -201,16 +201,20 @@ class Announcements:
         bms = values.bms()
         if bms:
             soc, current = float(bms['soc_percent']), bms.get('current_a', 0)
-            if soc > 25:
+            if soc > 15:
                 self.low = False
-            if soc <= 20 and not self.low:
-                output.append(('battery_low', f'Dhruv, main battery is {soc:.0f} percent. Please arrange charging.'))
+            if soc <= 10 and not self.low:
+                output.append(('battery_low',
+                    f'Dhruv, battery emergency! I am at {soc:.0f} percent. '
+                    'I am a rover, not modern furniture. Please charge me before I become a very expensive table.'))
                 self.low = True
             if soc < 95:
                 self.full = False
             if soc >= 99 and not self.full and isinstance(current, (int, float)) and 0 <= current < .5:
                 # Announce SOC, not proof that the charger completed balancing.
-                output.append(('battery_full', 'The BMS reports at least 99 percent charge. Charger completion is not independently verified.'))
+                output.append(('battery_full',
+                    'Dhruv, I am at one hundred percent, fully charged, slightly overconfident, and ready to roll. '
+                    'The BMS reading is full; charger balancing completion is not independently verified.'))
                 self.full = True
         for key, label in (('encoder_health', 'Encoder health'), ('lidar_live', 'LiDAR'), ('imu_live', 'IMU')):
             # Never announce devices we have never received as newly lost.
@@ -221,9 +225,15 @@ class Announcements:
             if self.transition(key, state) and state in ('CRITICAL', 'DEGRADED', 'STALE'):
                 output.append((key, f'{label} reports {state.lower()}. Check the dashboard before driving.'))
         policy = as_object(values.get('control_policy'))
+        was_latched = self.seen.get('stop') is True
         if policy and self.transition('stop', bool(policy.get('stop_latched'))):
+            # Announce both edges, so a spoken "latched" is never left standing after a release
+            # (2026-10-11: boot-time latch was announced, the later LB release was silent).
             if policy.get('stop_latched'):
-                output.append(('stop', 'Remote safety stop is latched. Check the dashboard. Only the remote can release it.'))
+                output.append(('stop', 'Safety stop latched. Release it with the remote, sticks centred and L B held, '
+                                       'or with the dashboard reset and PIN.'))
+            elif was_latched:   # never announce a "release" of a stop that was not announced as latched
+                output.append(('stop', 'Safety stop released. Nothing moves until a new drive command.'))
         mission = str(values.get('mission_status', ''))
         if self.transition('mission', mission):
             text = mission_announcement(mission)

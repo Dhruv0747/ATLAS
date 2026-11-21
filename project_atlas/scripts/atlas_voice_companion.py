@@ -25,6 +25,7 @@ import requests
 import serial
 
 import rclpy
+from atlas_dashboard_executor import spin as _atlas_voice_spin
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
@@ -182,8 +183,19 @@ class AtlasVoice(Node):
                 10,
             )
         self.create_subscription(NavSatFix, "/gps/fix", self.gps_callback, 10)
-        self.create_subscription(LaserScan, '/scan', lambda m: self.rover.__setitem__('lidar_live', True), qos_profile_sensor_data)
-        self.create_subscription(Imu, '/im10a/imu/unvalidated', lambda m: self.rover.__setitem__('imu_live', True), qos_profile_sensor_data)
+        # These subscriptions prove message freshness only.  Keep the original
+        # type and QoS matching, but skip constructing large Python ROS message
+        # objects whose fields the callbacks never inspect.
+        self.create_subscription(
+            LaserScan, '/scan',
+            lambda _raw: self.rover.__setitem__('lidar_live', True),
+            qos_profile_sensor_data, raw=True,
+        )
+        self.create_subscription(
+            Imu, '/im10a/imu/unvalidated',
+            lambda _raw: self.rover.__setitem__('imu_live', True),
+            qos_profile_sensor_data, raw=True,
+        )
         self.serial = None
         self.serial_error_text = ""
         self.serial_lock = threading.Lock()
@@ -240,7 +252,10 @@ class AtlasVoice(Node):
         self.publish_privacy()
         for key, text in self.alerts.evaluate(self.rover):
             now = time.monotonic()
-            if now - self.last_alert_at.get(key, -1000) < 60:
+            # Stop latch/release alerts are already debounced (2 s stable) and fire only on a change;
+            # throttling them would drop a "released" said within 60 s of "latched" and leave the
+            # spoken state wrong (2026-10-11).
+            if key != 'stop' and now - self.last_alert_at.get(key, -1000) < 60:
                 continue
             self.last_alert_at[key] = now
             self.publish('alert', text)
@@ -1360,9 +1375,13 @@ def main():
     rclpy.init()
     node = AtlasVoice()
     try:
-        rclpy.spin(node)
+        _atlas_voice_spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except Exception as exc:
+        # 2026-11-13: the dashboard executor overlay raises its own ExternalShutdownException class
+        if type(exc).__name__ != 'ExternalShutdownException':
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():

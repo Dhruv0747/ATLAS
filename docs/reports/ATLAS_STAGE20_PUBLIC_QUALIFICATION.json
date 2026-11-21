@@ -1,0 +1,18 @@
+{
+  "scope_reviewed": "PARTIAL_PUBLIC_ONLY",
+  "native_full_duration_rates": true,
+  "kernel_memory_tasks_total_cpu_limits": true,
+  "actual_service_graph": true,
+  "native_production_adapter": true,
+  "cdr_receipt_integrity": true,
+  "scratch_install_activation_rollback": true,
+  "quota_crash_missing_sensor_tests": true,
+  "evidence_report": "ATLAS_STAGE20_MINIMUM_SAFE_DEPLOYMENT.md",
+  "resource_capture": "/tmp/atlas-stage20-complete-EW8kVA07/public_dce7a496/captures/capture_20261014T124135Z_aac0e060",
+  "native_adapter_fixture": "/tmp/atlas-stage20-complete-EW8kVA07/adapter_fake_project_03/adapter_result.json",
+  "actual_graph_units": 530,
+  "full_checkpoint_deployment_ready": false,
+  "production_approval": false,
+  "production_changed": false,
+  "replay_fidelity_verified": false
+}

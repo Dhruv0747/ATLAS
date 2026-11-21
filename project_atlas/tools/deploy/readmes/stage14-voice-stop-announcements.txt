@@ -1,0 +1,8 @@
+ATLAS stage 14: voice announces both safety-stop latch and release (informational only)
+Source e2197f9 (base 7f8ee2e). Owner approval 19:57.
+Changes: scripts/atlas_voice_status.py (announcement text/edges), scripts/atlas_voice_companion.py (stop alerts not throttled).
+No motor, mux, E-STOP, localization or navigation change.
+PRECONDITIONS  rover parked, stop LATCHED.
+INSTALL        bash install.sh   (restarts nothing)
+RESTART        systemctl --user restart atlas-voice-companion.service   (voice only)
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage14-voice-stop-announcements/ROLLBACK.sh, then restart atlas-voice-companion

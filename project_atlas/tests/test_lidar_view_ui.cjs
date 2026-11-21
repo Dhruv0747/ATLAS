@@ -1,0 +1,17 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const labels=[],elements={};
+const ctx=new Proxy({fillText:t=>labels.push(t)},{get:(o,k)=>o[k]||(()=>{})});
+for(const id of ['scan','status','radius','directions','selected'])elements[id]={textContent:'',value:'4',getContext:()=>ctx,getBoundingClientRect:()=>({width:800,height:600,left:0,top:0}),addEventListener:()=>{}};
+const sandbox={document:{hidden:true,getElementById:id=>elements[id]},window:{addEventListener:()=>{}},performance:{now:()=>1000},devicePixelRatio:1,setInterval:()=>{},AbortSignal,fetch:()=>{throw Error('network forbidden');},console};
+vm.createContext(sandbox);
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../web/v2/lidar.js'),'utf8'),sandbox);
+sandbox.fixture={state:'LIVE',points:[[.36,-.36]],closest:{front:.509,left:null,rear:null,right:null},minima:{front:{index:318,x_m:.36,y_m:-.36,distance_m:.509,raw_range_m:.54575,raw_angle_rad:2.426,bearing_rad:-.780,ray_offset_s:.113}},surfaces:{},valid:1,invalid:359,stamp_s:100,stamp_age_s:.25,age_s:.1,frame:'laser_frame',hz:7};
+vm.runInContext('data=fixture;received=1000;draw()',sandbox);
+assert.match(elements.directions.textContent,/ray #318/);
+assert.match(elements.directions.textContent,/100.113000/);
+assert.match(elements.directions.textContent,/INSUFFICIENT SUPPORT/);
+assert(labels.includes('FRONT'));
+vm.runInContext('received=-3000;draw()',sandbox);
+assert.match(elements.status.textContent,/STALE/);
+assert.equal(elements.directions.textContent,'Directional ranges unavailable');
+console.log('PASS: minimum marker, source ray timestamp, unsupported surface, stale hiding; no network/control calls');

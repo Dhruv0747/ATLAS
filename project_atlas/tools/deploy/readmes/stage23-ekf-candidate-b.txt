@@ -1,0 +1,20 @@
+ATLAS stage 23 (NOT APPROVED): EKF Candidate B - wheel X/Y pose no longer fused
+Requires stage 21 live (stillness anchor). One config file; restart atlas-ekf only. Prepared, not run.
+
+PRE   stop LATCHED, manual_only true, /odom still; live config/atlas_ekf.yaml sha256 starts 69dd4479cdf8;
+      maps d957f0fe/4beb26d5 unchanged; baseline session (production EKF A) already recorded.
+1     B=~/project_atlas/data/backups/$(date +%F-%H%M%S)-stage23-ekf-candidate-b; mkdir -p $B
+      cp -p ~/project_atlas/config/atlas_ekf.yaml $B/atlas_ekf.yaml.orig; sha256sum $B/atlas_ekf.yaml.orig
+2     copy repo config/atlas_ekf_candidate_b.yaml and tools/deploy/ekf_continuity_config.py to the Jetson
+      (candidate sha256 as committed); verify only odom0_config[0,1] differ from the .orig (yaml compare).
+3     python3 ekf_continuity_config.py <candidate_b.yaml> $B/atlas_ekf.yaml.new
+      (reads the parked /odom pose read-only, refuses unless latched/manual-only/still; adds initial_state only)
+      cp $B/atlas_ekf.yaml.new ~/project_atlas/config/atlas_ekf.yaml
+4     systemctl --user restart atlas-ekf.service      <- the only restart
+VERIFY /odom 10 Hz, position/yaw step across restart < 1 cm / 0.2 deg, no backwards stamps, odom->base_link
+      TF present, /yahboom/odom and policy unchanged, mux/base/AMCL PIDs unchanged.
+ROLLBACK (latched, still): python3 ekf_continuity_config.py $B/atlas_ekf.yaml.orig $B/atlas_ekf.yaml.rollback
+      cp $B/atlas_ekf.yaml.rollback ~/project_atlas/config/atlas_ekf.yaml; systemctl --user restart atlas-ekf.service
+      (the generated files differ from their sources only by initial_state = parked pose, so neither the
+      deployment nor the rollback makes /odom jump; plain restarts would jump to 0,0,0 - 1.15 m/34 deg in test)
+NOTE  any later SAME-BOOT restart of atlas-ekf must use the helper again; a reboot is unaffected.

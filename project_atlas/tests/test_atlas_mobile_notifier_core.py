@@ -7,11 +7,11 @@ class BatteryAlertStateTests(unittest.TestCase):
     def test_low_alert_has_hysteresis(self):
         state = BatteryAlertState()
         self.assertEqual(state.update(21), [])
-        self.assertEqual(state.update(20), ["battery_low"])
+        self.assertEqual(state.update(10), ["battery_low"])
         self.assertEqual(state.update(19), [])
         self.assertEqual(state.update(24), [])
-        self.assertEqual(state.update(25), [])
-        self.assertEqual(state.update(20), ["battery_low"])
+        self.assertEqual(state.update(15), [])
+        self.assertEqual(state.update(10), ["battery_low"])
 
     def test_full_requires_stable_samples(self):
         state = BatteryAlertState(full_samples_required=3)

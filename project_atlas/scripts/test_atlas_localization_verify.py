@@ -1,0 +1,475 @@
+"""Startup-localization verification tests; no ROS, bag, network or motion.
+
+Synthetic two-room map: an L-shaped "room A" and a rectangular "room B"
+5 m apart, so a scan has one right answer. Covers the Hall cold-start
+failure: a claimed (seeded) pose in the wrong room must never be VERIFIED.
+"""
+import ast
+import json
+import math
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace as NS
+import unittest
+
+import numpy as np
+
+import atlas_localization_verify_core as core
+
+RES = 0.05
+
+
+def write_map(d, walls, size=(12.0, 6.0), origin=(-1.0, -1.0)):
+    w, h = int(size[0] / RES), int(size[1] / RES)
+    img = np.full((h, w), 254, np.uint8)                 # free
+    for (x0, y0, x1, y1) in walls:                         # occupied segments
+        n = int(max(abs(x1 - x0), abs(y1 - y0)) / (RES / 2)) + 1
+        for k in range(n + 1):
+            x = x0 + (x1 - x0) * k / n
+            y = y0 + (y1 - y0) * k / n
+            c, r = int((x - origin[0]) / RES), int((y - origin[1]) / RES)
+            if 0 <= c < w and 0 <= r < h:
+                img[h - 1 - r, c] = 0
+    pgm = Path(d) / 'm.pgm'
+    pgm.write_bytes(b'P5\n%d %d\n255\n' % (w, h) + img.tobytes())
+    yaml = Path(d) / 'm.yaml'
+    yaml.write_text(f'image: m.pgm\nmode: trinary\nresolution: {RES}\norigin: [{origin[0]}, {origin[1]}, 0]\n'
+                    'negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.25\n')
+    return yaml
+
+
+ROOM_A = [(0, 0, 3, 0), (3, 0, 3, 2), (3, 2, 1.5, 2), (1.5, 2, 1.5, 3.5), (1.5, 3.5, 0, 3.5), (0, 3.5, 0, 0),
+          (0.6, 0.6, 1.0, 0.6)]                            # a small obstacle breaks symmetry
+SYMMETRIC_B = [(6, 0, 10, 0), (10, 0, 10, 2.5), (10, 2.5, 6, 2.5), (6, 2.5, 6, 0)]
+ROOM_B = SYMMETRIC_B + [(8.5, 0.0, 8.5, 0.8), (6, 1.6, 7.0, 1.6), (9.2, 2.5, 9.2, 2.0), (9.2, 2.0, 10, 2.0)]
+
+
+def ray_scan(walls, pose, count=360, max_r=8.0):
+    """Ranges seen from ``pose`` (laser at robot centre, no yaw offset)."""
+    out = []
+    for i in range(count):
+        a = pose[2] - math.pi + i * 2 * math.pi / count
+        dx, dy = math.cos(a), math.sin(a)
+        best = float('inf')
+        for (x0, y0, x1, y1) in walls:
+            ex, ey = x1 - x0, y1 - y0
+            den = dx * ey - dy * ex
+            if abs(den) < 1e-12:
+                continue
+            t = ((x0 - pose[0]) * ey - (y0 - pose[1]) * ex) / den
+            u = ((x0 - pose[0]) * dy - (y0 - pose[1]) * dx) / den
+            if t > 0 and 0 <= u <= 1:
+                best = min(best, t)
+        out.append(best if best <= max_r else float('inf'))
+    return -math.pi, 2 * math.pi / count, out
+
+
+class VerifyCoreTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.map = core.load_map(write_map(cls.tmp.name, ROOM_A + ROOM_B))
+        cls.policy = core.VerifyPolicy()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def search(self, truth, walls=ROOM_A + ROOM_B, claimed=None):
+        amin, inc, ranges = ray_scan(walls, truth)
+        allp, held = core.endpoints(amin, inc, ranges, (0.0, 0.0, 0.0), self.policy)
+        hyps = core.global_search(self.map, allp, held, self.policy)
+        return core.decide(hyps, len(allp), claimed, self.policy)
+
+    def test_finds_true_room_without_prior(self):
+        truth = (8.0, 1.6, math.radians(-100))
+        v = self.search(truth)
+        self.assertEqual(v.state, 'VERIFIED', v.reason)
+        self.assertLess(math.hypot(v.pose[0] - truth[0], v.pose[1] - truth[1]), 0.15)
+        self.assertLess(abs(math.degrees(v.pose[2] - truth[2])), 4)
+
+    def test_claim_in_wrong_room_is_unknown(self):
+        # the saved "home" seed claims room A while ATLAS is parked in room B
+        v = self.search((8.0, 1.6, math.radians(-100)), claimed=(0.8, 1.2, math.radians(77)))
+        self.assertEqual(v.state, 'UNKNOWN')
+        self.assertIn('disagrees', v.reason)
+        self.assertIsNone(v.pose)
+
+    def test_scan_not_on_map_is_unknown(self):
+        # a place that is not in the saved map (e.g. furniture rearranged everywhere)
+        other = [(-5, -5, 5, -5), (5, -5, 5, 5), (5, 5, -5, 5), (-5, 5, -5, -5)]
+        amin, inc, ranges = ray_scan(other, (0.3, 0.2, 0.4))
+        ranges = [r * 0.63 if math.isfinite(r) else r for r in ranges]
+        allp, held = core.endpoints(amin, inc, ranges, (0, 0, 0), self.policy)
+        v = core.decide(core.global_search(self.map, allp, held, self.policy), len(allp), None, self.policy)
+        self.assertEqual(v.state, 'UNKNOWN')
+
+    def test_symmetric_room_is_unknown(self):
+        # a plain rectangle fits equally well rotated by 180 deg: refuse to guess
+        sym = core.load_map(write_map(self.tmp.name, ROOM_A + SYMMETRIC_B))
+        amin, inc, ranges = ray_scan(ROOM_A + SYMMETRIC_B, (7.5, 1.0, 0.3))
+        allp, held = core.endpoints(amin, inc, ranges, (0, 0, 0), self.policy)
+        v = core.decide(core.global_search(sym, allp, held, self.policy), len(allp), None, self.policy)
+        self.assertEqual(v.state, 'UNKNOWN')
+        self.assertIn('ambiguous', v.reason)
+
+    def test_too_few_returns_is_unknown(self):
+        v = core.decide([{'x': 0, 'y': 0, 'yaw': 0, 'fit_heldout': 1.0}], 10, None, self.policy)
+        self.assertEqual(v.state, 'UNKNOWN')
+
+    def test_ambiguous_places_are_unknown(self):
+        hyps = [{'x': 0, 'y': 0, 'yaw': 0, 'fit_heldout': 0.97},
+                {'x': 4, 'y': 0, 'yaw': 0, 'fit_heldout': 0.95}]
+        v = core.decide(hyps, 300, None, self.policy)
+        self.assertEqual(v.state, 'UNKNOWN')
+        self.assertIn('ambiguous', v.reason)
+
+    def test_low_fit_everywhere_is_unknown(self):
+        hyps = [{'x': 0, 'y': 0, 'yaw': 0, 'fit_heldout': 0.90}]
+        self.assertEqual(core.decide(hyps, 300, None, self.policy).state, 'UNKNOWN')
+
+    def test_fast_coarse_scores_equal_reference_lookup(self):
+        # The cached-index search must score every candidate exactly like the
+        # per-point distance-map lookup it replaced (no threshold drift).
+        amin, inc, ranges = ray_scan(ROOM_A + ROOM_B, (8.0, 1.6, math.radians(-100)))
+        allp, _ = core.endpoints(amin, inc, ranges, (0.0, 0.0, 0.0), self.policy)
+        sub = allp[::max(1, len(allp) // 120)]
+        index = core._search_index(self.map, self.policy)
+        self.assertIs(index, core._search_index(self.map, self.policy))  # cached
+        for yaw_deg in (-180.0, -97.0, 0.0, 33.0, 177.0):
+            yaw = math.radians(yaw_deg)
+            fast = core._coarse_scores(index, sub, yaw, self.map['res'])
+            ref = core._fit_many(self.map, sub, index['xs'], index['ys'], yaw, self.policy.tolerance_m)
+            self.assertEqual(float(np.max(np.abs(fast - ref))), 0.0, yaw_deg)
+
+    def test_median_ignores_single_dropouts(self):
+        rows = [[1.0, float('inf'), 2.0], [1.1, 3.0, float('nan')], [0.9, 3.1, 2.1]]
+        out = core.median_ranges(rows)
+        self.assertAlmostEqual(out[0], 1.0)
+        self.assertAlmostEqual(out[1], 3.05)
+        self.assertAlmostEqual(out[2], 2.05)
+
+    def test_map_rows_are_bottom_up(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / 'm.pgm').write_bytes(b'P5\n3 2\n255\n' + bytes([0, 254, 254, 254, 254, 254]))
+            (Path(d) / 'm.yaml').write_text('image: m.pgm\nresolution: 1.0\norigin: [10.0, 20.0, 0]\n'
+                                            'negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.25\n')
+            m = core.load_map(Path(d) / 'm.yaml')
+            self.assertTrue(m['occupied'][1, 0])          # top-left pixel = top map row
+            self.assertEqual(core.fit(m, np.array([[0.0, 0.0]]), 10.5, 21.5, 0.0, 0.1), 1.0)
+
+
+def seeder_functions(*names):
+    src = Path(__file__).with_name('seed_atlas_localization.py').read_text()
+    fns = [n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name in names]
+    scope = {'json': json, 'math': math, 'Path': Path, 'VERDICT_HISTORY': None, 'VERDICT_HISTORY_MAX_BYTES': 4_000_000}
+    exec(compile(ast.Module(body=fns, type_ignores=[]), 'seed', 'exec'), scope)
+    return scope
+
+
+class StartupEvidenceTests(unittest.TestCase):
+    """2026-10-11: a refused boot (fit 0.90) left no replayable evidence. Capture must keep every
+    boot, stay bounded, never raise, and be enough to rerun the identical search offline."""
+
+    def test_history_appends_every_boot_and_stays_bounded(self):
+        f = seeder_functions('append_verdict_history')['append_verdict_history']
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'h.jsonl'
+            for i in range(3):
+                f({'boot': i, 'state': 'UNKNOWN'}, path=path, max_bytes=10_000)
+            self.assertEqual([json.loads(l)['boot'] for l in path.read_text().splitlines()], [0, 1, 2])
+            f({'pad': 'x' * 9_990}, path=path, max_bytes=10_000)      # would exceed: rotate first
+            self.assertTrue(Path(str(path) + '.1').exists())
+            self.assertEqual(len(path.read_text().splitlines()), 1)
+
+    def test_history_never_raises(self):
+        f = seeder_functions('append_verdict_history')['append_verdict_history']
+        f({'bad': float('nan')}, path='/proc/forbidden/h.jsonl')     # unwritable + invalid JSON
+        f({'ok': 1}, path='/proc/forbidden/h.jsonl')
+
+    def test_evidence_replays_to_the_same_answer(self):
+        f = seeder_functions('scan_evidence')['scan_evidence']
+        policy = core.VerifyPolicy()
+        with tempfile.TemporaryDirectory() as d:
+            grid = core.load_map(write_map(d, ROOM_A + ROOM_B))
+            amin, inc, ranges = ray_scan(ROOM_A + ROOM_B, (8.0, 1.6, math.radians(-100)))
+            scans = [NS(header=NS(frame_id='laser_frame', stamp=NS(sec=100 + i, nanosec=0)), angle_min=amin,
+                        angle_increment=inc, range_min=0.15, range_max=12.0) for i in range(5)]
+            allp, held = core.endpoints(amin, inc, ranges, (0., 0., 0.), policy)
+            hyps = core.global_search(grid, allp, held, policy)
+            ev = f(scans, ranges, (0., 0., 0.), allp, hyps, policy)
+            self.assertEqual(ev['scan_count'], 5)
+            self.assertEqual(ev['scan_stamp_last'] - ev['scan_stamp_first'], 4)
+            self.assertEqual(sum(ev['quadrants']), ev['valid_endpoints'])
+            json.dumps(ev, allow_nan=False)                                 # storable as-is
+            replay = [None if v is None else v / 1000 for v in ev['median_ranges_mm']]
+            a2, h2 = core.endpoints(ev['angle_min'], ev['angle_increment'], replay, tuple(ev['laser_in_base']), policy)
+            again = core.decide(core.global_search(grid, a2, h2, policy), len(a2), None, policy)
+            first = core.decide(hyps, len(allp), None, policy)
+            self.assertEqual(again.state, first.state)
+            self.assertLess(math.hypot(again.pose[0] - first.pose[0], again.pose[1] - first.pose[1]), 0.06)
+
+    def test_missing_capture_cannot_change_the_verdict(self):
+        # The SeederTests harness compiles verify_start_pose WITHOUT scan_evidence; its retry and
+        # disagreement tests passing proves a missing/failing capture leaves the verdict alone.
+        src = Path(__file__).with_name('seed_atlas_localization.py').read_text()
+        self.assertIn('evidence = {"capture_error": repr(exc)}', src)
+
+    def test_evidence_never_raises(self):
+        f = seeder_functions('scan_evidence')['scan_evidence']
+        self.assertIn('capture_error', f([], [], (0, 0, 0), [], [], core.VerifyPolicy()))
+
+    def test_every_attempt_records_evidence(self):
+        src = Path(__file__).with_name('seed_atlas_localization.py').read_text()
+        self.assertIn('"evidence": evidence', src)
+        self.assertIn('append_verdict_history(record)', src)
+
+
+class SeederTests(unittest.TestCase):
+    def setUp(self):
+        self.source = Path(__file__).with_name('seed_atlas_localization.py').read_text()
+
+    def test_default_mode_is_unchanged_saved_pose(self):
+        self.assertIn('default=configured_seed_mode()', self.source)
+        fn = next(n for n in ast.parse(self.source).body
+                  if isinstance(n, ast.FunctionDef) and n.name == 'configured_seed_mode')
+        with tempfile.TemporaryDirectory() as d:
+            mode_file = Path(d) / 'seed_mode'
+            env = {}
+            scope = {}
+            exec(compile(ast.Module(body=[fn], type_ignores=[]), 'seed', 'exec'),
+                 {'os': NS(environ=env), 'SEED_MODE_FILE': mode_file}, scope)
+            mode = scope['configured_seed_mode']
+            self.assertEqual(mode(), 'saved')               # no file, no env
+            mode_file.write_text('verify\n')
+            self.assertEqual(mode(), 'verify')
+            mode_file.write_text('anything-else')
+            self.assertEqual(mode(), 'saved')               # unknown values fall back to unchanged behaviour
+            env['ATLAS_SEED_MODE'] = 'verify'
+            self.assertEqual(mode(), 'verify')
+
+    def test_unknown_returns_before_any_seed_is_sent(self):
+        tree = ast.parse(self.source)
+        main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'main')
+        text = ast.get_source_segment(self.source, main)
+        unknown_return = text.index('return  # exit 0: an unverified start')
+        self.assertLess(unknown_return, text.index('publisher.publish(message)'))
+        self.assertLess(unknown_return, text.index('checkpoint_observer.call(pose_client, request,'))
+
+    def test_dry_run_returns_before_any_seed_or_write(self):
+        main = next(n for n in ast.parse(self.source).body if isinstance(n, ast.FunctionDef) and n.name == 'main')
+        text = ast.get_source_segment(self.source, main)
+        dry = text.index('if args.dry_run:')
+        ret = text.index('return', dry)
+        self.assertNotIn('write_verdict', text[dry:ret])
+        self.assertLess(ret, text.index('checkpoint_observer.call(pose_client, request,'))
+
+    def run_verify(self, verdicts):
+        """verify_start_pose with stubbed scans/search returning ``verdicts`` in order."""
+        import atlas_localization_verify_core as real
+        seq = iter(verdicts)
+        fake_core = NS(VerifyPolicy=real.VerifyPolicy, load_map=lambda p: None,
+                       median_ranges=lambda rows: [], endpoints=lambda *a: ([], []),
+                       global_search=lambda *a: None, decide=lambda *a: next(seq))
+        import sys
+        saved = sys.modules.get('atlas_localization_verify_core')
+        sys.modules['atlas_localization_verify_core'] = fake_core
+        try:
+            fn = next(n for n in ast.parse(self.source).body
+                      if isinstance(n, ast.FunctionDef) and n.name == 'verify_start_pose')
+            scope = {}
+            scan = NS(header=NS(frame_id='laser_frame'), angle_min=0, angle_increment=0, ranges=[])
+            exec(compile(ast.Module(body=[fn], type_ignores=[]), 'seed', 'exec'),
+                 {'Path': Path, 'hashlib': __import__('hashlib'), 'math': math, 'time': __import__('time'),
+                  'VERIFY_ATTEMPTS': 3, 'VERIFY_BUDGET_S': 60.0,
+                  'collect_parked_scans': lambda node: ([scan] * 6, None),
+                  'laser_in_base': lambda node, frame: (0, 0, 0)}, scope)
+            with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
+                return scope['verify_start_pose'](NS(), f.name)
+        finally:
+            if saved is not None:
+                sys.modules['atlas_localization_verify_core'] = saved
+
+    @staticmethod
+    def verdict(state, x, y, yaw_deg, fit):
+        hyp = {'x': x, 'y': y, 'yaw_deg': yaw_deg, 'fit_heldout': fit}
+        return core.Verdict(state, (x, y, math.radians(yaw_deg)) if state == 'VERIFIED' else None,
+                            'stub', fit, 0.1, [hyp])
+
+    def test_retry_accepts_consistent_place(self):
+        pose, rec = self.run_verify([self.verdict('UNKNOWN', 6.28, -2.08, -95, 0.92),
+                                     self.verdict('VERIFIED', 6.24, -2.25, -96, 0.95)])
+        self.assertEqual(rec['state'], 'VERIFIED')
+        self.assertAlmostEqual(pose['x'], 6.24)
+        self.assertEqual(len(rec['attempts']), 2)
+
+    def test_retry_rejects_disagreeing_places(self):
+        pose, rec = self.run_verify([self.verdict('UNKNOWN', 0.3, -1.2, 75, 0.91),
+                                     self.verdict('VERIFIED', 6.24, -2.25, -96, 0.95)])
+        self.assertIsNone(pose)
+        self.assertEqual(rec['state'], 'UNKNOWN')
+        self.assertIn('disagree', rec['reason'])
+
+    def test_three_unknown_attempts_stay_unknown(self):
+        pose, rec = self.run_verify([self.verdict('UNKNOWN', 6.28, -2.08, -95, 0.92)] * 3)
+        self.assertIsNone(pose)
+        self.assertEqual(len(rec['attempts']), 3)
+
+    def test_verify_failure_is_unknown_not_saved_seed(self):
+        scope = {}
+        tree = ast.parse(self.source)
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'verify_start_pose')
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), 'seed', 'exec'),
+             {'Path': Path, 'hashlib': __import__('hashlib'), 'math': math, 'time': __import__('time'),
+              'VERIFY_ATTEMPTS': 3, 'VERIFY_BUDGET_S': 60.0,
+              'collect_parked_scans': lambda node: (None, 'rover moved while the startup scan was collected'),
+              'laser_in_base': None}, scope)
+        with tempfile.TemporaryDirectory() as d:
+            pose, record = scope['verify_start_pose'](NS(), write_map(d, ROOM_A))
+        self.assertIsNone(pose)
+        self.assertEqual(record['state'], 'UNKNOWN')
+        self.assertIn('moved', record['reason'])
+
+
+class PlaceRegionTests(unittest.TestCase):
+    """Operator-confirmed place (--verify-place): the region removes aliases OUTSIDE the
+    confirmed place only; fit and margin thresholds are unchanged."""
+    TWIN = [(x0 - 6, y0, x1 - 6, y1) for (x0, y0, x1, y1) in ROOM_B]   # identical copy at x 0..4
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.policy = core.VerifyPolicy()
+        cls.twins = core.load_map(write_map(cls.tmp.name, cls.TWIN + ROOM_B))
+        cls.normal = core.load_map(write_map(Path(cls.tmp.name) / '..' / Path(cls.tmp.name).name, ROOM_A + ROOM_B))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def pts(self, walls, truth):
+        amin, inc, ranges = ray_scan(walls, truth)
+        return core.endpoints(amin, inc, ranges, (0.0, 0.0, 0.0), self.policy)
+
+    def test_no_region_is_identical_to_before(self):
+        allp, held = self.pts(ROOM_A + ROOM_B, (8.0, 1.6, math.radians(-100)))
+        self.assertEqual(core.global_search(self.normal, allp, held, self.policy),
+                         core.global_search(self.normal, allp, held, self.policy, None, None))
+
+    def test_identical_rooms_are_ambiguous_without_region(self):
+        allp, held = self.pts(self.TWIN + ROOM_B, (8.0, 1.6, math.radians(-100)))
+        v = core.decide(core.global_search(self.twins, allp, held, self.policy), len(allp), None, self.policy)
+        self.assertEqual(v.state, 'UNKNOWN')
+        self.assertIn('ambiguous', v.reason)
+
+    def test_confirmed_place_resolves_only_with_unchanged_thresholds(self):
+        truth = (8.0, 1.6, math.radians(-100))
+        allp, held = self.pts(self.TWIN + ROOM_B, truth)
+        box = {'x_min': 5.5, 'x_max': 10.5, 'y_min': -0.5, 'y_max': 3.0}
+        hyps = core.global_search(self.twins, allp, held, self.policy, None, box)
+        self.assertTrue(all(core.in_region(h['x'], h['y'], box, pad=self.policy.tolerance_m) for h in hyps))
+        v = core.decide(hyps, len(allp), None, self.policy)
+        self.assertEqual(v.state, 'VERIFIED', v.reason)
+        self.assertGreaterEqual(v.best_fit, self.policy.min_fit)
+        self.assertLess(math.hypot(v.pose[0] - truth[0], v.pose[1] - truth[1]), 0.15)
+        self.assertEqual((self.policy.min_fit, self.policy.min_margin), (0.93, 0.06))
+
+    def test_wrong_confirmed_place_is_unknown_not_forced(self):
+        allp, held = self.pts(ROOM_A + ROOM_B, (8.0, 1.6, math.radians(-100)))   # truly in room B
+        box_a = {'x_min': -0.5, 'x_max': 3.5, 'y_min': -0.5, 'y_max': 4.0}         # operator says room A
+        v = core.decide(core.global_search(self.normal, allp, held, self.policy, None, box_a),
+                        len(allp), None, self.policy)
+        self.assertEqual(v.state, 'UNKNOWN')
+        self.assertIsNone(v.pose)
+
+    def test_symmetric_place_stays_ambiguous_inside_region(self):
+        sym = core.load_map(write_map(self.tmp.name, ROOM_A + SYMMETRIC_B))
+        allp, held = self.pts(ROOM_A + SYMMETRIC_B, (7.5, 1.0, 0.3))
+        box = {'x_min': 5.5, 'x_max': 10.5, 'y_min': -0.5, 'y_max': 3.0}
+        v = core.decide(core.global_search(sym, allp, held, self.policy, None, box), len(allp), None, self.policy)
+        self.assertEqual(v.state, 'UNKNOWN')        # a 180-degree twin inside the room is still refused
+
+
+class VerifyPlaceSeederTests(unittest.TestCase):
+    def setUp(self):
+        self.source = Path(__file__).with_name('seed_atlas_localization.py').read_text()
+        self.scope = seeder_functions('load_place_region')
+
+    def test_region_loader_validates_and_normalizes(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / 'r.json'
+            f.write_text(json.dumps({'map_yaml_sha256': 'abc', 'places': {
+                'dhruv room': {'x_min': -0.7, 'x_max': 0.7, 'y_min': -2.8, 'y_max': -0.9},
+                'bad': {'x_min': 1, 'x_max': 0, 'y_min': 0, 'y_max': 1}}}))
+            r = self.scope['load_place_region']('Dhruv_Room', f)
+            self.assertEqual((r['place'], r['map_yaml_sha256'], r['x_min']), ('dhruv room', 'abc', -0.7))
+            with self.assertRaises(RuntimeError):
+                self.scope['load_place_region']('hall', f)
+            with self.assertRaises(RuntimeError):
+                self.scope['load_place_region']('bad', f)
+
+    def test_repository_region_is_bound_to_the_accepted_map(self):
+        data = json.loads((Path(__file__).resolve().parents[1] / 'config' / 'place_regions.json').read_text())
+        self.assertEqual(data['map_yaml_sha256'],
+                         'd957f0fe3b8b48166751ef0226ba5f7abdd5454e6f44fac4c9e7b430f00c45e4')
+
+    def test_verify_place_never_overwrites_saved_seed_and_is_exclusive(self):
+        main = next(n for n in ast.parse(self.source).body if isinstance(n, ast.FunctionDef) and n.name == 'main')
+        text = ast.get_source_segment(self.source, main)
+        self.assertIn('--place and --verify-place are mutually exclusive', text)
+        self.assertIn('or region is not None', text)          # verify-place takes the verify path
+        self.assertIn('pose = None if (verify or args.dry_run) else load_pose(args.place)', text)
+
+    def test_map_mismatch_is_unknown_before_any_search(self):
+        fn = next(n for n in ast.parse(self.source).body
+                  if isinstance(n, ast.FunctionDef) and n.name == 'verify_start_pose')
+        text = ast.get_source_segment(self.source, fn)
+        self.assertLess(text.index('place region was drawn for a different map'), text.index('core.load_map'))
+
+
+class StatusVerdictTests(unittest.TestCase):
+    def test_reader_marks_other_boot_and_handles_missing(self):
+        source = Path(__file__).with_name('atlas_status_web.py').read_text()
+        fn = next(n for n in ast.parse(source).body
+                  if isinstance(n, ast.FunctionDef) and n.name == 'read_start_verdict')
+        scope = {}
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), 'web', 'exec'),
+             {'Path': Path, 'json': json, 'time': __import__('time'), 'START_VERDICT_FILE': Path('/nonexistent')}, scope)
+        read = scope['read_start_verdict']
+        self.assertIsNone(read(100.0))
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / 'v.json'
+            p.write_text(json.dumps({'state': 'VERIFIED', 'boot_id': 'not-this-boot', 'written_unix': 90.0}))
+            out = read(100.0, p)
+            self.assertEqual(out['value']['state'], 'VERIFIED')
+            self.assertFalse(out['value']['current_boot'])
+            self.assertEqual(out['age'], 10.0)
+            p.write_text('{broken')
+            self.assertIsNone(read(100.0, p))
+
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+class PeopleExperimentTests(unittest.TestCase):
+    def test_leg_shortens_only_the_beams_it_blocks(self):
+        import atlas_localization_verify_people_experiment as ex
+        n = 360
+        ranges = np.full((2, n), 5.0)
+        times = np.array([0.0, 0.1])
+        # person standing 1 m straight ahead in base frame; laser at origin, no yaw
+        out = ex.occlude(ranges, times, -math.pi, 2 * math.pi / n, (0.0, 0.0, 0.0),
+                         [lambda t: [(1.0, 0.125), (1.0, -0.125)]])
+        ahead = n // 2                                   # beam at angle 0
+        blocked = np.nonzero(out[0] < 5.0)[0]
+        self.assertTrue(len(blocked) >= 4)
+        self.assertTrue(np.all(np.abs(blocked - ahead) <= 12))
+        self.assertTrue(np.all(out[0][blocked] > 0.9) and np.all(out[0][blocked] < 1.0))
+        self.assertTrue(np.all(out <= ranges))           # people never lengthen a range
+
+    def test_median_removes_a_brief_passer_by(self):
+        import atlas_localization_verify_people_experiment as ex
+        rows = np.full((21, 4), 3.0)
+        rows[:5, 1] = 0.8                                # blocked in 5 of 21 scans
+        self.assertTrue(np.allclose(ex.aggregate(rows, 'median'), 3.0))

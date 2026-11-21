@@ -1,0 +1,15 @@
+[Unit]
+Description=Project ATLAS LiDAR odometry validation and covariance gate
+Wants=atlas-lidar-odom.service
+After=atlas-lidar-odom.service
+
+[Service]
+Type=simple
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_lidar_odom_gate.py'
+Restart=always
+RestartSec=3
+TimeoutStopSec=6
+
+[Install]
+WantedBy=default.target
