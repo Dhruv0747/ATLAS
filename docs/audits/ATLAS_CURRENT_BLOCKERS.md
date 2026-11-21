@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+### 2026-11-21 12:24 IST — USB power-health chart DEPLOYED (owner "Yes, deploy")
+- Before deploying: control source STOPPED, stop latched ("REMOTE STOP: joystick unavailable"), autonomy armed false. Backups in `~/project_atlas/backups/usb_power_chart_20261121/` (atlas_status_web.py, index.html). Before copying, the rover's two files differed from the repo only by this change.
+- Copied atlas_usb_power_monitor.py (147e0668), atlas_status_web.py (4cea5321), usb-power.js and index.html; md5s match. py_compile OK. `systemctl --user restart rover-status-web` at 12:24:43; active, no errors in the journal.
+- `/api/usb_power` live: rail Jetson VDD_IN 4.864 V / 1.84 A. 5 hubs and 12 devices named correctly: hub 1-2.2 = 4G modem + Motor base + LiDAR + billboard; 1-2.3 = ESP32 + UNO R4; 1-2.3.3 = Astra x2; 1-2.4 = Hiwonder GPS + IM10A + Xbox. No faults since start. status-web process 20 % CPU right after start.
+- Follow-up fix (same deploy): the dashboard runs in a light theme, where the dark-theme green banner text was unreadable. usb-power.js now picks a light or dark palette from the drawer's text colour; cache key `usb-power.js?v=20261121usb2` (usb-power.js bb82d130, index.html c73ca05b). Verified in the built-in browser on the live dashboard: green "No USB faults" banner readable, volt/amp charts and 12 device lines drawn, no console errors.
+
 ### 2026-11-21 — USB power-health chart on the dashboard STAGED (owner request; not deployed)
 - Owner asked for a live power reading per USB device, so that a power drop shows which hub it came from. Per-port USB current is NOT measurable on ATLAS: USB 2.0 hubs and Linux do not report it. Real per-hub current would need an INA219/INA226 on each hub's 5 V line.
 - Built instead (read-only): `scripts/atlas_usb_power_monitor.py` samples every 1 s (sysfs scan of every USB device, its hub, ttys and owning process role) plus the Jetson VDD_IN rail (INA3221 in1/curr1). A `journalctl -k -f` reader maps USB disconnect, re-enumeration, enumeration errors (-71), control/urb errors (-32) and over-current to the device. Health per second: 1 up / 0.75 re-enumerated / 0.5 USB error / 0 gone. 10-minute history, 1 h event counters per hub, and `suspect_hub` = the hub with the most faults in 10 min.

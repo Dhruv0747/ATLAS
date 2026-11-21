@@ -17,6 +17,9 @@
   .usbp .usbpBanner{padding:9px 12px;border-radius:10px;font-weight:700;font-size:14px}
   .usbp .ok{background:rgba(44,224,143,.12);color:#5dfcae;border:1px solid rgba(44,224,143,.35)}
   .usbp .bad{background:rgba(255,82,97,.14);color:#ff8a94;border:1px solid rgba(255,82,97,.45)}
+  .usbp.light .ok{background:rgba(19,131,79,.10);color:#0d6b40;border-color:rgba(19,131,79,.45)}
+  .usbp.light .bad{background:rgba(208,32,47,.08);color:#a8131f;border-color:rgba(208,32,47,.5)}
+  .usbp.light .usbpNote{color:#41566b}
   .usbp .hub{border:1px solid var(--line,#1f3346);border-radius:12px;padding:8px 10px}
   .usbp .hub.bad{border-color:rgba(255,82,97,.6)}
   .usbp .hubTitle{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:700;margin-bottom:4px}
@@ -29,6 +32,19 @@
   style.textContent = css;
   document.head.appendChild(style);
 
+  // Light or dark dashboard theme: judge by the drawer's text colour (dark text = light theme).
+  function isLight() {
+    const m = getComputedStyle(root).color.match(/\d+/g);
+    if (!m) return false;
+    const [r, g, b] = m.map(Number);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+  }
+  let P = {};
+  function palette() {
+    P = isLight()
+      ? { volt: '#0a72a8', amp: '#a86f00', ok: '#13834f', err: '#d0202f', warn: '#c26a00', text: '#41566b', fill: 'rgba(10,40,70,.06)' }
+      : { volt: '#19cfff', amp: '#ffcc3d', ok: '#2ce08f', err: '#ff5261', warn: '#ffb03d', text: '#8fa3b8', fill: 'rgba(255,255,255,.04)' };
+  }
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let busy = false, timer = null;
 
@@ -75,29 +91,29 @@
     const v = d.vin_v || [], a = d.iin_a || [], xs = xScale(d.t || [], w, span, pad);
     const vv = v.filter(x => x != null), lo = Math.min(4.5, ...vv), hi = Math.max(5.2, ...vv);
     const aa = a.filter(x => x != null), amax = Math.max(3, ...aa);
-    g.fillStyle = 'rgba(255,255,255,.04)'; g.fillRect(pad, 6, w - pad - 4, h - 22);
+    g.fillStyle = P.fill; g.fillRect(pad, 6, w - pad - 4, h - 22);
     g.strokeStyle = 'rgba(255,82,97,.5)'; g.setLineDash([4, 4]); g.beginPath();
     const y475 = 6 + (h - 22) * (1 - (4.75 - lo) / (hi - lo)); g.moveTo(pad, y475); g.lineTo(w - 4, y475); g.stroke(); g.setLineDash([]);
-    g.fillStyle = '#8fa3b8'; g.font = '11px system-ui';
+    g.fillStyle = P.text; g.font = '11px system-ui';
     g.fillText(hi.toFixed(2) + ' V', 2, 14); g.fillText(lo.toFixed(2) + ' V', 2, h - 18); g.fillText('4.75 V', 2, y475 + 4);
     g.fillText('-' + Math.round(span / 60) + ' min', pad, h - 3); g.fillText('now', w - 26, h - 3);
-    line(g, xs, smooth(v, 2).map(x => x == null ? null : 6 + (h - 22) * (1 - (x - lo) / (hi - lo))), '#19cfff', 2.2);
+    line(g, xs, smooth(v, 2).map(x => x == null ? null : 6 + (h - 22) * (1 - (x - lo) / (hi - lo))), P.volt, 2.2);
     const c2 = canvasFor('usbpAmps', 64); if (!c2) return;
     const g2 = c2.g, h2 = c2.h, xs2 = xScale(d.t || [], c2.w, span, pad);
-    g2.fillStyle = 'rgba(255,255,255,.04)'; g2.fillRect(pad, 4, c2.w - pad - 4, h2 - 8);
-    g2.fillStyle = '#8fa3b8'; g2.font = '11px system-ui';
+    g2.fillStyle = P.fill; g2.fillRect(pad, 4, c2.w - pad - 4, h2 - 8);
+    g2.fillStyle = P.text; g2.font = '11px system-ui';
     g2.fillText(amax.toFixed(1) + ' A', 2, 14); g2.fillText('0 A', 2, h2 - 6);
-    line(g2, xs2, smooth(a, 2).map(x => x == null ? null : 4 + (h2 - 8) * (1 - x / amax)), '#ffcc3d', 1.8);
+    line(g2, xs2, smooth(a, 2).map(x => x == null ? null : 4 + (h2 - 8) * (1 - x / amax)), P.amp, 1.8);
   }
 
   function drawHealth(id, t, health, span) {
     const c = canvasFor(id, 26); if (!c) return;
     const { g, w, h } = c, xs = xScale(t, w, span, 0);
-    g.fillStyle = 'rgba(255,255,255,.04)'; g.fillRect(0, 2, w, h - 4);
+    g.fillStyle = P.fill; g.fillRect(0, 2, w, h - 4);
     for (let i = 0; i < health.length; i++) {            // red ticks under every fault second
-      if (health[i] < 1) { g.fillStyle = health[i] === 0 ? '#ff5261' : '#ffb03d'; g.fillRect(xs[i] - 1.5, 2, 3, h - 4); }
+      if (health[i] < 1) { g.fillStyle = health[i] === 0 ? P.err : P.warn; g.fillRect(xs[i] - 1.5, 2, 3, h - 4); }
     }
-    line(g, xs, smooth(health, 0).map(x => x == null ? null : 3 + (h - 6) * (1 - x)), '#2ce08f', 2);
+    line(g, xs, smooth(health, 0).map(x => x == null ? null : 3 + (h - 6) * (1 - x)), P.ok, 2);
   }
 
   function render(d) {
@@ -108,10 +124,11 @@
       : '<div class="usbpBanner ok">No USB faults in the last 10 min on any hub</div>';
     const lastV = (d.vin_v || []).filter(x => x != null).slice(-1)[0], lastA = (d.iin_a || []).filter(x => x != null).slice(-1)[0];
     const order = Object.keys(hubs).sort((a, b) => (hubs[b].events_10min - hubs[a].events_10min) || a.localeCompare(b));
-    let html = `<div class="usbp"><div class="usbpHead"><h3>USB POWER HEALTH • last ${Math.round(span / 60)} min</h3>
+    palette();
+    let html = `<div class="usbp ${isLight() ? 'light' : ''}"><div class="usbpHead"><h3>USB POWER HEALTH • last ${Math.round(span / 60)} min</h3>
       <span class="usbpNote">${esc(d.rail || 'Jetson rail sensor not found')} ${lastV != null ? `• ${lastV.toFixed(3)} V • ${lastA.toFixed(2)} A • ${(lastV * lastA).toFixed(1)} W` : ''}</span></div>
       ${banner}
-      <div class="usbpNote"><span style="color:#19cfff">━ Jetson VDD_IN volts (top)</span> &nbsp; <span style="color:#ffcc3d">━ Jetson VDD_IN amps (below)</span> &nbsp; <span style="color:#ff8a94">┄ 4.75 V</span></div>
+      <div class="usbpNote"><span style="color:${P.volt}">━ Jetson VDD_IN volts (top)</span> &nbsp; <span style="color:${P.amp}">━ Jetson VDD_IN amps (below)</span> &nbsp; <span style="color:${P.err}">┄ 4.75 V</span></div>
       <canvas id="usbpRail" style="height:120px"></canvas><canvas id="usbpAmps" style="height:64px"></canvas>`;
     order.forEach((hub, hi) => {
       const h = hubs[hub];
