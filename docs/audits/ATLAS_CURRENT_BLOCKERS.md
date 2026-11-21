@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+### 2026-11-21 11:52-11:54 IST — Owner moved the 4G modem to a Jetson USB port directly: the modem no longer enumerates
+- 11:52:07: the whole hub 1-2.2 (LiDAR CP210x, Yahboom CH340, ESP32, billboard) and 2-1.2 disconnected and re-enumerated, most likely bumped during the re-cabling. Services reopened: base now on ttyUSB4, LiDAR on ttyUSB0 (356/360 points). rover-base-telemetry, atlas-lidar, atlas-im10a and atlas-gnss are active.
+- Modem at 1-2.1 (Jetson onboard hub port): "device descriptor read/64, error -71" (11:52:29-30), then "Device not responding to setup address" and "device not accepting address 50, error -71" (11:52:33). Since then: no SIMCOM device in lsusb, `mmcli -L` "No modems were found", no usb0. The 4G backup is currently DOWN; Wi-Fi is up.
+- Error -71 (EPROTO) at enumeration on a direct Jetson port, with no hub, is a further sign that the modem cannot be powered from a USB port (or that the cable/connector is bad).
+- The Hiwonder GPS recovered on hub 1-2.4 (NMEA_LIVE_NO_FIX on ttyUSB2, valid_nmea 2431) once the modem left that hub. The stop is latched ("joystick unavailable").
+
 ### 2026-11-21 11:50 IST — The modem's power event also wedged the Hiwonder GPS (same hub)
 - 11:50:49 kernel: "ch341-uart ttyUSB2: usb_serial_generic_read_bulk_callback - urb stopped: -32" (GPS CH340, 1-2.4.2). Within one second the modem (1-2.4.1) re-enumerated four times (devices 38-41).
 - 11:50:58: "usb 1-2.4.2: failed to send/receive control message: -32" and "ch341-uart ttyUSB2: failed to read modem status: -32". The GPS stays enumerated but is unusable. atlas-gnss: "expected one unclaimed verified device, found 0"; state PORT_OFFLINE.
