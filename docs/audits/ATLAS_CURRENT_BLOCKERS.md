@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+### 2026-11-21 22:13 IST — Owner: "Restart didn't restart" and "charging keeps stopping"
+- Restart: no `reboot_latch` in estop_events since the 21:24 boot, so the request never reached the server. Only "stop" events arrived from 100.76.195.106 (22:05:49, 22:11:04), the same Tailscale device whose taps failed on 2026-11-20 (probably a stale page). The sudoers rules are still present. LiDAR is running: atlas-lidar and atlas-scan-filter active, /scan fresh (299/360 points, age 0.2 s).
+- Charging (Daly BMS, 4S LiFePO4, Bluetooth, logged every 5 s): the BMS reports "OK" throughout, cells 3.336-3.358 V (spread 22 mV; far below the 3.65 V full level). The pack current flips between charging +2.5..2.8 A and discharging -1.8..-2.3 A (rover load with no charger input):
+  CHG 21:28:33-21:47:13 (19 min), 21:49:48-21:58:58 (9 min), 21:59:18-22:02:28, 22:02:53-22:04:03, 22:04:48-22:07:43, 22:08:18-22:11:43, then 22:12:18 on. The charge runs keep getting shorter, and each cut lasts 20 s to 2.5 min before charging resumes by itself.
+- Reading: BMS protection is unlikely (status OK, cells low and balanced). An intermittent external charger supply fits better: a loose charge connector or cable, or a charger hitting its limit or overheating. The charger must supply about 4.7 A (2.1 A rover load + 2.6 A into the pack). SOC (Daly coulomb counter) 26.6 %.
+
 ### 2026-11-21 21:57 IST — Back to Stage 3: localization not seeded after the 21:24 boot
 - Boot seeder: "LOCALIZATION UNKNOWN: AMCL not seeded; scan does not match the saved map well enough anywhere (best 0.78 < 0.93)". AMCL: "Please set the initial pose"; the location monitor shows "AMCL pose stale". Relocalize mode is `auto`, but auto needs a live AMCL pose to compare against.
 - Likely cause: ATLAS was not at a mapped spot during the USB re-wiring and reboot. Next: the owner places ATLAS at the "dhruv room" place facing 65 deg, then seed in verify mode (scan match, no motion).
