@@ -2231,6 +2231,13 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 self.send_error(404)
             return
+        if self.path.split('?')[0] == '/api/usb_power':   # 2026-11-21: per-hub USB health + VDD_IN (read-only)
+            try:
+                import atlas_usb_power_monitor
+                json_response(self, 200, atlas_usb_power_monitor.monitor().snapshot())
+            except Exception as exc:
+                json_response(self, 503, {"error": "USB power monitor unavailable: " + str(exc)[:120]})
+            return
         if self.path.split('?')[0] == '/api/attitude':
             json_response(self, 200, ROS.attitude_snapshot())
             return
@@ -3120,6 +3127,11 @@ def main():
     # every thread's Python stack to the journal so the lock can be identified; the watchdog sends it before restarting.
     import faulthandler
     faulthandler.register(signal.SIGUSR1, all_threads=True)
+    try:   # 2026-11-21: start USB power-health history at boot (read-only; 1 Hz sysfs + kernel-log reader)
+        import atlas_usb_power_monitor
+        atlas_usb_power_monitor.monitor()
+    except Exception as exc:
+        print('USB power monitor not started: ' + str(exc), flush=True)
     # 2026-11-13: listen backlog 64 (stdlib default 5): several dashboard tabs/phones polling at once could fill
     # a 5-deep queue while a slow request was served, and new connections were refused ("dashboard not loading").
     ThreadingHTTPServer.request_queue_size = 64

@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+### 2026-11-21 — USB power-health chart on the dashboard STAGED (owner request; not deployed)
+- Owner asked for a live power reading per USB device, so that a power drop shows which hub it came from. Per-port USB current is NOT measurable on ATLAS: USB 2.0 hubs and Linux do not report it. Real per-hub current would need an INA219/INA226 on each hub's 5 V line.
+- Built instead (read-only): `scripts/atlas_usb_power_monitor.py` samples every 1 s (sysfs scan of every USB device, its hub, ttys and owning process role) plus the Jetson VDD_IN rail (INA3221 in1/curr1). A `journalctl -k -f` reader maps USB disconnect, re-enumeration, enumeration errors (-71), control/urb errors (-32) and over-current to the device. Health per second: 1 up / 0.75 re-enumerated / 0.5 USB error / 0 gone. 10-minute history, 1 h event counters per hub, and `suspect_hub` = the hub with the most faults in 10 min.
+- `atlas_status_web.py`: new `GET /api/usb_power`; the monitor starts at server start.
+- `web/v2/usb-power.js` (+ slot in index.html "Power and environment" drawer): red banner naming the suspect hub and its devices, smooth VDD_IN volts and amps charts, then one health line per device grouped by hub, with red/orange ticks on fault seconds. Polls every 2 s only while the drawer is open and the page is visible.
+- Tests: `tests/test_usb_power_monitor.py` 9/9 (added to the CI list). Status-web suite 60/60 in a rover temp copy. Browser check with rover-sampled data (synthetic modem disconnect + base -32): renders, suspect hub 1-2.2 named, no console errors, no horizontal scroll at 375 px.
+- Deploy needs the owner's OK: copy the 2 scripts and 2 web files, then restart rover-status-web with the rover parked.
+
 ### 2026-11-21 12:03 IST — Owner re-cabled USB: the modem now shares hub 1-2.2 with the base and LiDAR; GPS wedged again
 - New layout. Hub 1-2.2: port 1 SIM8230G modem (enumerated 12:01:42, registered on LTE, usb0 up), port 3 Yahboom base CH340 (ttyUSB4), port 4 RPLIDAR CP210x (ttyUSB0, 360/360 points). Hub 1-2.3: ESP32 moved to port 1, UNO R4 on port 2. Hub 1-2.4: GPS 2.4.2, IM10A 2.4.3, Xbox 2.4.4.
 - During the re-cabling: a brief device at 1-2.1 (11:58:42-45), then at 11:59:09 the GPS CH340 again logged "urb stopped: -32" and at 11:59:18 "failed to send control message: -32". GPS PORT_OFFLINE (needs a replug). No modem drop since 12:01:42 (checked 12:03:50, only 2 min).
