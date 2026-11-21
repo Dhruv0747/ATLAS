@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+### 2026-11-21 20:56 IST — Owner gave the USB hub its own power: 0 USB faults in the first 16 min (early result)
+- Rover rebooted about 20:40 after the re-wiring. Layout unchanged: hub 1-2.2 = 4G modem + motor base + LiDAR (+ billboard); 1-2.3 = ESP32 + UNO R4; 1-2.3.3 = Astra x2; 1-2.4 = GPS + IM10A + Xbox.
+- Kernel this boot: 0 USB disconnects, 0 USB errors (-32/-71/-110/urb stopped). Modem registered on LTE (67 %), usb0 192.168.225.138.
+- `/api/usb_power`: 575 samples, every device health 1.0 throughout, no faults on any hub, suspect_hub none. VDD_IN 4.864-4.888 V (1.69 A).
+- Hiwonder GPS: NMEA_LIVE_NO_FIX on ttyUSB1 (renumbered), valid_nmea 10865.
+- Caveat: this morning's storm started about 20 min after boot and lasted until 10:28. One clean 16-minute window is encouraging but not yet proof. Still to do: re-check after a few hours, and during a drive with Wi-Fi loss (4G carrying traffic).
+
 ### 2026-11-21 12:24 IST — USB power-health chart DEPLOYED (owner "Yes, deploy")
 - Before deploying: control source STOPPED, stop latched ("REMOTE STOP: joystick unavailable"), autonomy armed false. Backups in `~/project_atlas/backups/usb_power_chart_20261121/` (atlas_status_web.py, index.html). Before copying, the rover's two files differed from the repo only by this change.
 - Copied atlas_usb_power_monitor.py (147e0668), atlas_status_web.py (4cea5321), usb-power.js and index.html; md5s match. py_compile OK. `systemctl --user restart rover-status-web` at 12:24:43; active, no errors in the journal.
