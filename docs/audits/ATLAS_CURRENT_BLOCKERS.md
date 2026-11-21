@@ -5,6 +5,7 @@
 - Kernel this boot: 0 USB disconnects, 0 USB errors (-32/-71/-110/urb stopped). Modem registered on LTE (67 %), usb0 192.168.225.138.
 - `/api/usb_power`: 575 samples, every device health 1.0 throughout, no faults on any hub, suspect_hub none. VDD_IN 4.864-4.888 V (1.69 A).
 - Hiwonder GPS: NMEA_LIVE_NO_FIX on ttyUSB1 (renumbered), valid_nmea 10865.
+- Owner confirmed (21:00): the external supply went to hub 1-2.2, the modem hub that also carries the motor base and LiDAR. 0 faults on every hub 19 min after boot.
 - Caveat: this morning's storm started about 20 min after boot and lasted until 10:28. One clean 16-minute window is encouraging but not yet proof. Still to do: re-check after a few hours, and during a drive with Wi-Fi loss (4G carrying traffic).
 
 ### 2026-11-21 12:24 IST — USB power-health chart DEPLOYED (owner "Yes, deploy")
