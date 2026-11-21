@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+### 2026-11-21 22:59 IST — Restart from the owner's phone PASSED (new confirm sheet)
+- estop_events: `reboot_latch` at 22:58:57 from 100.76.195.106 (the phone that failed before), then latch "REMOTE STOP: voice stop requested". New boot 22:59:35; SSH back by 23:02:07. After boot: latch "REMOTE STOP: joystick unavailable"; rover-status-web, atlas-lidar, rover-base-telemetry and atlas-gnss active; modem registered; 0 USB faults this boot.
+- Earlier "Pressed YES" at about 22:51 left no record. The sheet's message was not reported, so that first try is unexplained (most likely a stale page before the reload).
+- The scheduled 2 h USB recheck ran at about 23:00 during the reboot, and SSH failed (exit 255). The previous boot's kernel journal is not available ("No such boot ID"), so the USB fault count for 21:50-22:59 is unverified. At 21:50 it was 0 and the chart showed no suspect hub.
+
 ### 2026-11-21 22:45 IST — Restart confirm sheet DEPLOYED (owner "Yes, deploy")
 - Rover state: control source STOPPED, autonomy armed false (stop released). Web-only change, no service restart; diagnostics.js and the pages are read per request.
 - Backups in `~/project_atlas/backups/restart_sheet_20261121/`. Before copying, the rover files differed from the repo only by the old restart code. Copied atlas_diagnostics_ui.js (0f6b2b74), index.html (30cc8017), classic.html (e7f4845b) and mapping.html (5cf82520); md5s match.
