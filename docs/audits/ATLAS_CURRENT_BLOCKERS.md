@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+### 2026-11-21 23:25 IST — FIX MY LOCATION DEPLOYED (owner "Yes, deploy")
+- Before deploying: control source STOPPED, stop latched, autonomy armed false. Backups in `~/project_atlas/backups/fix_location_20261121/` (atlas_status_web.py, index.html); the rover copies matched the repo before this change.
+- Copied atlas_relocalize_web.py (aea8ed97), atlas_status_web.py (177235f4), find-location.js (715f4a41) and index.html (ae53dfde); md5s match, py_compile OK. `systemctl --user restart rover-status-web` at 23:24:48; active, no errors.
+- Verified: GET /api/relocalize -> idle status (navigation_authorized false); a POST without confirm -> 400; /api/usb_power still serves 12 devices. On the live dashboard the FIX MY LOCATION button sits in the location panel and the localization chip handler is bound (chip currently "Localization verified"). No console errors.
+- Not yet exercised end to end. The first real use runs the boot seeder (no motion, autonomy must be off).
+
 ### 2026-11-21 23:20 IST — Dashboard "FIX MY LOCATION" STAGED (owner request; separate button; not deployed)
 - Why: at the 21:24 boot the seeder logged LOCALIZATION UNKNOWN (best map fit 0.78 < 0.93; LiDAR partly blocked during re-wiring, 299/360 points). After the 22:59 restart, the same boot check gave a unique fit 1.0 and seeded AMCL. The owner wants that fix without a restart. The existing CHECK MY LOCATION is read-only ("No driving or pose correction").
 - `scripts/atlas_relocalize_web.py`: POST /api/relocalize runs exactly the boot seeder, `seed_atlas_localization.py --mode verify` (parked LiDAR search over the whole map, unique strong match only, same thresholds; the seeder refuses while moving). It never moves the rover. Gates: JSON confirm=FIND_LOCATION, same origin, autonomy armed must be False (unknown counts as armed), one run at a time, 150 s timeout. GET /api/relocalize returns running / elapsed / last result (seeded, pose, fit, reason). navigation_authorized stays false.
