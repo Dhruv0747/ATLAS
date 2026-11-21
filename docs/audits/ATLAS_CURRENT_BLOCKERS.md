@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+### 2026-11-21 11:47 IST — Hiwonder-only GPS driver DEPLOYED (owner "Yes, deploy")
+- Before deploying: control source STOPPED, stop latched ("REMOTE STOP: joystick unavailable"), autonomy armed false.
+- Backup in `~/project_atlas/backups/gnss_hiwonder_only_20261121/` (src_gnss_node.py, test_gnss_reconnect.py). Copied `gnss_node.py` (md5 04f02a67, matches the repo commit 0ddb771) and the test into `~/project_atlas_ws/src/atlas_gnss_driver/`. The install is a colcon symlink install (build dir links to src), so no rebuild was needed. py_compile OK; on-rover tests 16/16 OK.
+- `systemctl --user restart atlas-gnss` at 11:47:13; active. Log: "Hiwonder GPS V1 USB node started: automatic USB discovery of the Hiwonder CH340 (modem ports are never opened) at 9600 baud".
+- After the 90 s low-priority discovery delay: 11:48:54 NMEA_LIVE_NO_FIX on /dev/ttyUSB2 (Hiwonder CH340, 1-2.4.2), valid_nmea 56. The gnss node holds only ttyUSB2. No base, motion or speed-loop change, so no Speed check.
+- Rollback: copy `backups/gnss_hiwonder_only_20261121/src_gnss_node.py` back and restart `atlas-gnss`.
+
 ### 2026-11-21 11:30 IST — Audit: 4G modem USB drops and the Hiwonder GPS (read-only on the rover; GPS driver fix staged)
 Owner rule (2026-11-21): the SIM8230G 4G modem stays. It is the Wi-Fi backup uplink, so fix it; do not propose removing it. The ONLY GPS is the Hiwonder GPS V1 USB.
 
