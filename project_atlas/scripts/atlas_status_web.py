@@ -17,6 +17,7 @@ import atlas_controller_input_web   # ATLAS Stage 29 controller input view: read
 import atlas_map3d_web  # Read-only local stored map API
 import atlas_vision3d_web  # Isolated read-only Vision Lab
 import atlas_camera_settings_web  # Camera settings (issue #11; additive)
+import atlas_relocalize_web  # 2026-11-21: dashboard FIX MY LOCATION (boot LiDAR seed, no motion)
 import subprocess
 import threading
 SHUTDOWN_PENDING = threading.Event()
@@ -1513,6 +1514,18 @@ class AtlasRosNode:
         self.commissioning_stop_pub.publish(Empty())
         return True
 
+    def autonomy_armed(self, max_policy_age_s=2.0):
+        """True/False from a fresh mux control policy; None when unknown (callers must treat None as armed)."""
+        with self.lock:
+            item = self.data.get('control_policy')
+        if not item or time.time() - float(item.get('ts', 0.0)) > max_policy_age_s:
+            return None
+        try:
+            armed = json.loads(item['value']).get('autonomy', {}).get('armed')
+        except (TypeError, ValueError, AttributeError):
+            return None
+        return armed if isinstance(armed, bool) else None
+
     def drive_stop_latched(self, max_policy_age_s=1.0, estop_grace_s=1.0):
         """True while a web E-STOP is recent or fresh mux policy reports a latch."""
         if time.monotonic() - self.web_estop_at < estop_grace_s:
@@ -2127,6 +2140,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if atlas_location_check_web.serve(self, ROS):
             return
+        if atlas_relocalize_web.serve(self, lambda: ROS.autonomy_armed(), json_response):
+            return
         if atlas_testlab_web.serve(self, ROS):
             return
         if atlas_flysky_web.serve(self, ROS):
@@ -2357,6 +2372,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(403)
             return
         if atlas_location_check_web.serve(self, ROS, post=True):
+            return
+        if atlas_relocalize_web.serve(self, lambda: ROS.autonomy_armed(), json_response, post=True):
             return
         if atlas_testlab_web.serve(self, ROS, post=True):
             return

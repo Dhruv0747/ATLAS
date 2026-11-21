@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+### 2026-11-21 23:20 IST — Dashboard "FIX MY LOCATION" STAGED (owner request; separate button; not deployed)
+- Why: at the 21:24 boot the seeder logged LOCALIZATION UNKNOWN (best map fit 0.78 < 0.93; LiDAR partly blocked during re-wiring, 299/360 points). After the 22:59 restart, the same boot check gave a unique fit 1.0 and seeded AMCL. The owner wants that fix without a restart. The existing CHECK MY LOCATION is read-only ("No driving or pose correction").
+- `scripts/atlas_relocalize_web.py`: POST /api/relocalize runs exactly the boot seeder, `seed_atlas_localization.py --mode verify` (parked LiDAR search over the whole map, unique strong match only, same thresholds; the seeder refuses while moving). It never moves the rover. Gates: JSON confirm=FIND_LOCATION, same origin, autonomy armed must be False (unknown counts as armed), one run at a time, 150 s timeout. GET /api/relocalize returns running / elapsed / last result (seeded, pose, fit, reason). navigation_authorized stays false.
+- `atlas_status_web.py`: routes for GET and POST plus `AtlasRosNode.autonomy_armed()` from the fresh mux control policy.
+- `web/v2/find-location.js` (index.html): a FIX MY LOCATION button next to CHECK MY LOCATION; clicking the red "Localization unknown/lost" chip opens it too. It shows a bottom sheet with a 15 s auto-close, progress polling, and the result ("Location found and set: x, y, facing, fit", or "not found" with the reason and advice).
+- Tests: `tests/test_relocalize_web.py` 11/11 (added to the CI list). Status-web suite 71/71 in a rover temp copy; the first run had 27 errors because the old test stub had no `autonomy_armed`, fixed by passing a lambda. Browser test page with the API stubbed: the button is placed after CHECK, the sheet opens and sends exactly {"confirm":"FIND_LOCATION"}, the polled result renders, Close works, and the chip opens the sheet.
+- Deploy needs the owner's OK: copy 2 scripts and 2 web files, then restart rover-status-web (parked).
+
 ### 2026-11-21 22:59 IST — Restart from the owner's phone PASSED (new confirm sheet)
 - estop_events: `reboot_latch` at 22:58:57 from 100.76.195.106 (the phone that failed before), then latch "REMOTE STOP: voice stop requested". New boot 22:59:35; SSH back by 23:02:07. After boot: latch "REMOTE STOP: joystick unavailable"; rover-status-web, atlas-lidar, rover-base-telemetry and atlas-gnss active; modem registered; 0 USB faults this boot.
 - Earlier "Pressed YES" at about 22:51 left no record. The sheet's message was not reported, so that first try is unexplained (most likely a stale page before the reload).

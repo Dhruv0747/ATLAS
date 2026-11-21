@@ -129,3 +129,4 @@ tests.test_visual_cloud_local_mode
 tests.test_yahboom_diagnostic_cadence
 tests.test_yahboom_lifted_owner
 tests.test_usb_power_monitor
+tests.test_relocalize_web
