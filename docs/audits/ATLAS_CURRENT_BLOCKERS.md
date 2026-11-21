@@ -1,5 +1,23 @@
 # ATLAS current blockers
 
+### 2026-11-21 11:30 IST — Audit: 4G modem USB drops and the Hiwonder GPS (read-only on the rover; GPS driver fix staged)
+Owner rule (2026-11-21): the SIM8230G 4G modem stays. It is the Wi-Fi backup uplink, so fix it; do not propose removing it. The ONLY GPS is the Hiwonder GPS V1 USB.
+
+**4G modem (SIM8230G on 1-2.4.1, RNDIS usb0 + ttyUSB4-6)**
+- This boot (about 09:56) logged 13 modem USB disconnects: 1 at 00:xx (pre-NTP clock), 1 at 09:xx and 11 between 10:17 and 10:28, with the rover parked, Wi-Fi up and battery at 12.3 V / 86 %. None since 10:28 (checked 11:34). Yesterday's drive had 2 more (19:26:11, 19:27:41).
+- Pattern: each drop re-enumerates within about 0.3 s. That is too fast for a modem firmware reboot (about 10-15 s), so the USB link itself is dropping. There is no over-current or USB error message before a drop, and no software command (ModemManager, NetworkManager or fallback) before it. The drops cluster right after NetworkManager auto-activates `ATLAS-Cellular-RNDIS` and ModemManager powers the radio on and registers ("power state updated: on" -> registered). That is when the radio transmits and draws its highest current.
+- Only the modem drops. The GPS (1-2.4.2), IM10A (1-2.4.3) and Xbox receiver (1-2.4.4) on the same hub stay up.
+- Hub 1-2.4 (214b:7260 "USB2.0 HUB", in a Jetson USB-A port) reports self-powered (bmAttributes e0). Cheap hubs often report this even without an external supply, so its real power source is unknown; the owner needs to check. The modem descriptor asks for 500 mA, while a 4G module's transmit peaks are well above USB 2.0's 500 mA.
+- Conclusion: most likely a power-supply sag on the modem during radio transmit (brownout of its USB PHY), with marginal cable or connector integrity as the second suspect. Software cannot supply current. The fix is hardware: a dedicated 5 V supply of at least 3 A for the modem (powered hub with its own adapter, or a 5 V buck from the battery through a power-injector/Y cable) and a short, thick USB cable.
+- Side risk: the IM10A (primary yaw-rate IMU) and the GPS share that hub with the modem.
+
+**Hiwonder GPS V1 USB**
+- Works after this morning's reboot: the CH340 at 1-2.4.2 became ttyUSB2 (renumbered), and auto discovery re-found it. NMEA_LIVE_NO_FIX indoors (GPS 5, GLONASS 2, BeiDou 1 in view; HDOP 25.5).
+- Defect found: `gnss_node.py` DEFAULT_PORT was the SIM8230G modem's GNSS NMEA port (if03), and the default source name was "SIM8230G USB GNSS". The live unit uses auto_usb, so the modem port is only a misleading log label today. But any unit without `auto_usb:=true` would read the modem's GNSS, against the owner rule.
+- Repo drift: the rover's `gnss_node.py` (low-priority USB discovery and hot-plug, 2026-10-24) and the `low-priority.conf` drop-in were not in the repo. Both are now synced.
+- Staged fix (not deployed): DEFAULT_PORT is empty, auto_usb defaults to true, and an empty port forces discovery. A fixed port is refused if it is a SIMCOM path or USB vendor 1e0e. The startup log says "automatic USB discovery of the Hiwonder CH340 (modem ports are never opened)". Tests: `test/test_gnss_reconnect.py` 16/16 (5 new) in a rover temp copy. Deploy needs the owner's OK: colcon build atlas_gnss_driver and restart the low-priority `atlas-gnss` user service. No base, motion or speed-loop change, so no Speed check.
+- No CH340 by-id ambiguity in use: base (ATLAS_YAHBOOM_AUTO_USB=1), IM10A (auto_usb) and GPS (auto_usb) all use verified discovery. Nothing references `usb-1a86_USB_Serial-if00-port0`.
+
 ### 2026-11-20 19:24-19:30 IST — Round trip 5: both legs SUCCEEDED (no bag; light dashboard log only)
 - No rosbag (the owner chose "No need"), so the Stage-3 checker cannot score this trip. Evidence: dashboard `/api/status` read every 5 s (`/tmp/light_watch.py`) plus the mission-control, mux, E-STOP and kernel logs.
 - Start was not the dhruv room place: ATLAS began the hall leg from about (1.33, -1.46, -71 deg), after the earlier blocked attempts and manual repositioning.
