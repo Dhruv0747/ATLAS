@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+### 2026-11-21 22:40 IST — Restart: 15 s on-page confirm sheet STAGED (owner "Yes, build it"; not deployed)
+- Finding: on a phone-sized page (real taps, requests stubbed), the two-tap Restart works when both taps land within 5 s. A second tap after 5 s only re-arms the button and sends nothing. That fits the owner's phone (100.76.195.106), from which only "stop" requests arrived (22:05-22:33), never `reboot_latch`.
+- Change: `restartAtlas()` in `atlas_diagnostics_ui.js` (index + classic) and in `mapping.html` now opens a fixed bottom sheet: "Restart ATLAS Jetson?" with big "YES, RESTART NOW" and "Cancel" buttons and a 15 s countdown, then auto-closes. No pop-up. The result or error text shows in the sheet. Colours are forced with !important because the page's button CSS overrode them. The server side is unchanged (confirm=RESTART_ATLAS + same origin, drive stop latched first). Cache key `diagnostics.js?v=20261121sheet`.
+- Test on the live dashboard at 375 px, real taps, fetch stubbed: More -> Restart opens the sheet; YES tapped after more than 5 s sent exactly `action=reboot&confirm=RESTART_ATLAS`; Cancel closes with nothing sent; the YES button computes red (rgb 208,32,47).
+
 ### 2026-11-21 22:13 IST — Owner: "Restart didn't restart" and "charging keeps stopping"
 - Restart: no `reboot_latch` in estop_events since the 21:24 boot, so the request never reached the server. Only "stop" events arrived from 100.76.195.106 (22:05:49, 22:11:04), the same Tailscale device whose taps failed on 2026-11-20 (probably a stale page). The sudoers rules are still present. LiDAR is running: atlas-lidar and atlas-scan-filter active, /scan fresh (299/360 points, age 0.2 s).
 - Charging (Daly BMS, 4S LiFePO4, Bluetooth, logged every 5 s): the BMS reports "OK" throughout, cells 3.336-3.358 V (spread 22 mV; far below the 3.65 V full level). The pack current flips between charging +2.5..2.8 A and discharging -1.8..-2.3 A (rover load with no charger input):

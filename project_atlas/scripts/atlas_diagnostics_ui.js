@@ -6,22 +6,24 @@ async function shutdownAtlas(){
   try{const response=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Atlas-Wifi':'1'},body:new URLSearchParams({action:'shutdown',confirm:'POWER_OFF_ATLAS'})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.message||'Shutdown failed');button.textContent='⏻ SHUTDOWN REQUESTED';alert(result.message);}
   catch(error){button.disabled=false;alert(error.message+' — check whether ATLAS is still online.');}
 }
-// 2026-11-20 owner: two-tap confirm inside the page (no pop-up; some dashboard browsers block confirm()).
-// First tap arms the button for 5 s; a second tap within 5 s sends the request. The server still
-// requires confirm=RESTART_ATLAS + same origin and latches the drive stop before restarting.
-let restartArmTimer=null;
-async function restartAtlas(){
-  const button=document.getElementById('restartButton');if(!button||button.disabled)return;
-  if(!button.dataset.label)button.dataset.label=button.innerHTML;
-  const restore=()=>{delete button.dataset.armed;button.innerHTML=button.dataset.label;button.style.outline='';button.style.background='';};
-  if(button.dataset.armed!=='1'){
-    button.dataset.armed='1';button.textContent='Tap again to restart (5 s)';
-    button.style.outline='3px solid #ff5261';button.style.background='#7a1020';
-    clearTimeout(restartArmTimer);restartArmTimer=setTimeout(restore,5000);return;
-  }
-  clearTimeout(restartArmTimer);delete button.dataset.armed;button.style.outline='';button.disabled=true;button.textContent='Restarting...';
-  try{const response=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Atlas-Wifi':'1'},body:new URLSearchParams({action:'reboot',confirm:'RESTART_ATLAS'})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.message||'Restart failed');button.textContent='Restart requested - back in about 2 min';}
-  catch(error){button.textContent='Restart failed: '+error.message;setTimeout(()=>{button.disabled=false;restore();},8000);}
+// 2026-11-21 owner: Restart asks with a big on-page confirm sheet that stays 15 s (no pop-up, no 5 s two-tap race).
+// The server still requires confirm=RESTART_ATLAS + same origin and latches the drive stop before restarting.
+let restartSheetTimer=null;
+function restartSheetClose(){clearInterval(restartSheetTimer);restartSheetTimer=null;const s=document.getElementById('restartSheet');if(s)s.remove();}
+function restartAtlas(){
+  if(document.getElementById('restartSheet'))return;
+  if(!document.getElementById('restartSheetCss')){const st=document.createElement('style');st.id='restartSheetCss';st.textContent='#restartSheet{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99999;width:min(92vw,440px);box-sizing:border-box;padding:16px;border-radius:16px;background:#1b0b0f;color:#ffe9eb;border:2px solid #ff5261;box-shadow:0 12px 40px rgba(0,0,0,.55);font:15px/1.4 system-ui,sans-serif}#restartSheet b{display:block;font-size:18px;margin-bottom:4px}#restartSheet .row{display:flex;gap:10px;margin-top:12px}#restartSheet button{flex:1;min-height:52px;border-radius:12px;font:700 16px system-ui,sans-serif;cursor:pointer}#restartSheet #restartYes{background:#d0202f!important;color:#fff!important;border:0!important}#restartSheet #restartYes:disabled{opacity:.6}#restartSheet #restartNo{background:transparent!important;color:#ffe9eb!important;border:1px solid #ff8a94!important}#restartLeft{font-size:13px;opacity:.85;margin-top:8px}';document.head.appendChild(st);}
+  const s=document.createElement('div');s.id='restartSheet';s.setAttribute('role','alertdialog');
+  s.innerHTML='<b>Restart ATLAS Jetson?</b>Driving stops and the dashboard disconnects for about 2 minutes, then ATLAS comes back by itself. The remote stop stays latched after boot.<div class="row"><button id="restartYes" type="button">YES, RESTART NOW</button><button id="restartNo" type="button">Cancel</button></div><div id="restartLeft">Closes in 15 s</div>';
+  document.body.appendChild(s);
+  let left=15;restartSheetTimer=setInterval(()=>{left-=1;const l=document.getElementById('restartLeft');if(l)l.textContent='Closes in '+left+' s';if(left<=0)restartSheetClose();},1000);
+  document.getElementById('restartNo').onclick=restartSheetClose;
+  document.getElementById('restartYes').onclick=async()=>{
+    clearInterval(restartSheetTimer);restartSheetTimer=null;
+    const yes=document.getElementById('restartYes'),info=document.getElementById('restartLeft');yes.disabled=true;yes.textContent='Restarting...';
+    try{const response=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Atlas-Wifi':'1'},body:new URLSearchParams({action:'reboot',confirm:'RESTART_ATLAS'})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.message||'Restart failed');yes.textContent='Restart requested';info.textContent=result.message||'ATLAS will be back in about 2 minutes.';}
+    catch(error){yes.disabled=false;yes.textContent='YES, RESTART NOW';info.textContent='Restart failed: '+error.message+' (check whether ATLAS is still online)';}
+  };
 }
 function mainBattery(r) {
   const b=bmsSnapshot(r);
