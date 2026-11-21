@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+### 2026-11-21 22:45 IST — Restart confirm sheet DEPLOYED (owner "Yes, deploy")
+- Rover state: control source STOPPED, autonomy armed false (stop released). Web-only change, no service restart; diagnostics.js and the pages are read per request.
+- Backups in `~/project_atlas/backups/restart_sheet_20261121/`. Before copying, the rover files differed from the repo only by the old restart code. Copied atlas_diagnostics_ui.js (0f6b2b74), index.html (30cc8017), classic.html (e7f4845b) and mapping.html (5cf82520); md5s match.
+- Served: /v2/ and classic.html load `diagnostics.js?v=20261121sheet`; diagnostics.js and mapping.html contain the sheet. Live page in the built-in browser with fetch stubbed: the sheet was still open 6.5 s after the tap, and Cancel closed it with nothing sent. Not yet tested with a real press on the owner's phone.
+
 ### 2026-11-21 22:40 IST — Restart: 15 s on-page confirm sheet STAGED (owner "Yes, build it"; not deployed)
 - Finding: on a phone-sized page (real taps, requests stubbed), the two-tap Restart works when both taps land within 5 s. A second tap after 5 s only re-arms the button and sends nothing. That fits the owner's phone (100.76.195.106), from which only "stop" requests arrived (22:05-22:33), never `reboot_latch`.
 - Change: `restartAtlas()` in `atlas_diagnostics_ui.js` (index + classic) and in `mapping.html` now opens a fixed bottom sheet: "Restart ATLAS Jetson?" with big "YES, RESTART NOW" and "Cancel" buttons and a 15 s countdown, then auto-closes. No pop-up. The result or error text shows in the sheet. Colours are forced with !important because the page's button CSS overrode them. The server side is unchanged (confirm=RESTART_ATLAS + same origin, drive stop latched first). Cache key `diagnostics.js?v=20261121sheet`.
