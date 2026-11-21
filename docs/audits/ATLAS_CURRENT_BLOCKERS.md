@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+### 2026-11-21 11:50 IST — The modem's power event also wedged the Hiwonder GPS (same hub)
+- 11:50:49 kernel: "ch341-uart ttyUSB2: usb_serial_generic_read_bulk_callback - urb stopped: -32" (GPS CH340, 1-2.4.2). Within one second the modem (1-2.4.1) re-enumerated four times (devices 38-41).
+- 11:50:58: "usb 1-2.4.2: failed to send/receive control message: -32" and "ch341-uart ttyUSB2: failed to read modem status: -32". The GPS stays enumerated but is unusable. atlas-gnss: "expected one unclaimed verified device, found 0"; state PORT_OFFLINE.
+- Modem drops this boot: 20 (13 at 11:34). The IM10A (1-2.4.3) and Xbox receiver (1-2.4.4) logged no errors this time.
+- Reading: the GPS barely draws current and is not the cause. It is collateral damage from the modem's supply sag on the shared hub 1-2.4. Fix: move the GPS off hub 1-2.4 (hub 1-2.2 port 2 is free) until the modem has its own 5 V ≥3 A supply. Replugging also clears the wedged CH340; the driver rediscovers about 60 s after a new USB serial device appears.
+
 ### 2026-11-21 11:47 IST — Hiwonder-only GPS driver DEPLOYED (owner "Yes, deploy")
 - Before deploying: control source STOPPED, stop latched ("REMOTE STOP: joystick unavailable"), autonomy armed false.
 - Backup in `~/project_atlas/backups/gnss_hiwonder_only_20261121/` (src_gnss_node.py, test_gnss_reconnect.py). Copied `gnss_node.py` (md5 04f02a67, matches the repo commit 0ddb771) and the test into `~/project_atlas_ws/src/atlas_gnss_driver/`. The install is a colcon symlink install (build dir links to src), so no rebuild was needed. py_compile OK; on-rover tests 16/16 OK.
