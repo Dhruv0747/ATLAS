@@ -1,5 +1,10 @@
 # ATLAS current blockers
 
+### 2026-11-21 12:03 IST — Owner re-cabled USB: the modem now shares hub 1-2.2 with the base and LiDAR; GPS wedged again
+- New layout. Hub 1-2.2: port 1 SIM8230G modem (enumerated 12:01:42, registered on LTE, usb0 up), port 3 Yahboom base CH340 (ttyUSB4), port 4 RPLIDAR CP210x (ttyUSB0, 360/360 points). Hub 1-2.3: ESP32 moved to port 1, UNO R4 on port 2. Hub 1-2.4: GPS 2.4.2, IM10A 2.4.3, Xbox 2.4.4.
+- During the re-cabling: a brief device at 1-2.1 (11:58:42-45), then at 11:59:09 the GPS CH340 again logged "urb stopped: -32" and at 11:59:18 "failed to send control message: -32". GPS PORT_OFFLINE (needs a replug). No modem drop since 12:01:42 (checked 12:03:50, only 2 min).
+- RISK: the modem's earlier brownouts now sit on the same hub as the motor base and the LiDAR. The modem's earlier drops had no errors on neighbouring devices, but hub 1-2.2 itself dropped completely once at 11:52:07 during re-cabling. A sag here could cut the base serial or the LiDAR mid-drive. Recommend keeping the modem off the base/LiDAR hub until it has its own 5 V ≥3 A supply. Do not drive autonomously in this layout.
+
 ### 2026-11-21 11:52-11:54 IST — Owner moved the 4G modem to a Jetson USB port directly: the modem no longer enumerates
 - 11:52:07: the whole hub 1-2.2 (LiDAR CP210x, Yahboom CH340, ESP32, billboard) and 2-1.2 disconnected and re-enumerated, most likely bumped during the re-cabling. Services reopened: base now on ttyUSB4, LiDAR on ttyUSB0 (356/360 points). rover-base-telemetry, atlas-lidar, atlas-im10a and atlas-gnss are active.
 - Modem at 1-2.1 (Jetson onboard hub port): "device descriptor read/64, error -71" (11:52:29-30), then "Device not responding to setup address" and "device not accepting address 50, error -71" (11:52:33). Since then: no SIMCOM device in lsusb, `mmcli -L` "No modems were found", no usb0. The 4G backup is currently DOWN; Wi-Fi is up.
