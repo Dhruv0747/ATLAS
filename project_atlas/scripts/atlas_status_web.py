@@ -31,6 +31,7 @@ from atlas_localization_display import summarize_amcl_pose
 import atlas_estop_reset as estop_reset
 import atlas_autonomy_web
 import atlas_stage3_runner
+import atlas_master_plan
 import sqlite3
 
 import cv2
@@ -2384,6 +2385,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/api/map"):
             json_response(self, 200, ROS.map_snapshot())
+            return
+        if atlas_master_plan.serve(self, json_response):      # 2026-11-23 master-plan progress board
             return
         if self.path.split('?')[0] == '/api/stage3':          # 2026-11-22 one-click Stage-3 run (status)
             atlas_stage3_runner.serve(self, stage3_service(), json_response)

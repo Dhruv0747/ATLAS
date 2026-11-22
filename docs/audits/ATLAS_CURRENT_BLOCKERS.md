@@ -1,5 +1,40 @@
 # ATLAS current blockers
 
+### 2026-11-23 00:10 IST — "Master plan" progress board DEPLOYED (owner "Yes, deploy")
+- **Before the deploy:** stop latched, autonomy off, motion quiet, Stage-3 runner IDLE.
+- **Backups:** `~/project_atlas/backups/master_plan_20261123/` (status web, web_v2, stage3 runner, index, home-nav). The diffs were only this feature (3 / 2 / 11 / 2 / 2 lines).
+- **Installed md5s:**
+
+| File | md5 |
+|---|---|
+| atlas_master_plan.py | acb3d67e |
+| atlas_status_web.py | 28dd4ca1 |
+| atlas_web_v2.py | b4adcaaf |
+| atlas_stage3_runner.py | 646d62f7 |
+| plan.html | ef0503f9 |
+| plan.js | b1717353 |
+| index.html | b2b6e264 |
+| home-nav.js | 1aa0cb68 |
+
+- **Restart and checks:** rover-status-web restarted 00:10:54 → active. `/v2/plan`, `/v2/stage3`, `/v2/lidar` and `/v2/` all 200; no errors in the journal.
+- **Live result:** `/api/master_plan` gives 1/3 [PASS, NOT DONE, IN PROGRESS], next step "Do stage 3 …". The page over Tailscale (mobile) shows the menu entries "Master plan" and "Stage 3 run", the next-step button, and the Stage 1 evidence (Speed check 2026-11-20 18:25: 0.59 m wheels, 0.67 m LiDAR).
+
+### 2026-11-23 — "Master plan" progress board STAGED (owner: "show master-goal progress and help reach it without a developer"; not deployed)
+- **New `scripts/atlas_master_plan.py`** (read-only except one write path):
+  - The board follows the entry gate and execution order of `docs/AI_ROBOTICS_ADAPTATION_PHASE0_2026-09-30.md`.
+  - **Status only from recorded evidence:**
+    - **Stage 1** = a Speed check file with verdict PASS, end_reason DISTANCE, wheels ≥ 0.20 m and LiDAR ICP ≥ 0.20 m (a bounded straight run). The rover has such a file from 2026-11-20 (0.595 m wheels / 0.667 m ICP, coast 0.02 m), so Stage 1 shows PASS. This is an interpretation: the Phase-0 text records the 2026-09-30 runs as PARTIAL / FAILED SAFE; the later Speed check is the bounded straight-run evidence. The owner can disagree.
+    - **Stage 2** = NOT DONE: no turn-sequence tool exists yet, and the board says so.
+    - **Stage 3** = PASS only on a checker "STAGE 3: PASS". The one-click runner now calls `record_stage3()` after every checker run. History keeps runs #7–#9 (best 4/5).
+  - The later steps (IMU/EKF/TF … arm) are LOCKED until the gate opens, then "NEEDS DEVELOPER".
+  - "Next step" prefers a stage the owner can do with a tool. Now: "Do stage 3 … Stage 2 still needs a test tool (developer)", with an "Open Stage 3 run" button.
+- **Web:** `/api/master_plan` (GET); page `/v2/plan` (`plan.html` / `plan.js`, polls every 5 s); menu "Master plan"; `atlas_web_v2.PAGES` += plan.
+- **Tests:**
+  - `tests/test_master_plan.py` 6/6, added to CI.
+  - `test_stage3_runner` checks that the result is recorded.
+  - Rover repo copy: master plan, runner, executor split, estop safety, no-reboot, v2 default route, mapping install: OK (1 skipped). A live evaluation on the rover data gives stage1 PASS, stage2 NOT DONE, stage3 IN PROGRESS 4/5.
+- **Browser preview** (mobile): next-step box with the button, gate cards with status and evidence, locked later steps.
+
 ### 2026-11-23 00:01–00:04 IST — One-click "Stage 3 run" button DEPLOYED (owner "Yes, deploy")
 - **Before the deploy:** stop latched, autonomy armed false, motion quiet, mission READY. Only rover-status-web was restarted (twice, see below); no base, mux, Nav2 or mission-control restart.
 - **Backups** in `~/project_atlas/backups/stage3_button_20261123/`: status web, index.html, home-nav.js, atlas_web_v2.py. The status-web diff was only the Stage-3 additions.

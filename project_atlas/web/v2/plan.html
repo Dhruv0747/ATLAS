@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ATLAS · Master plan</title><link rel="stylesheet" href="/v2/base.css"><style>
+body{margin:0;background:#06101c!important;color:#e7f5ff!important;font:16px system-ui}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px}
+a,button{color:#fff;background:#15334a;border:1px solid #58badb;border-radius:10px;padding:10px 12px;font:inherit;text-decoration:none}
+main{max-width:820px;margin:auto;padding:12px}
+h1{font-size:22px;margin:0;color:#fff}h2{font-size:18px;margin:22px 0 8px;color:#fff}
+.stop{background:#a71d35!important;margin-left:auto}
+#next{padding:16px;border-radius:16px;background:#0e3a26;border:2px solid #2fd47a;font-size:19px;color:#fff}
+#next a{display:inline-block;margin-top:10px;background:#0a7f4c!important;border:0!important;font-weight:800;font-size:18px;padding:14px 18px}
+.bar{height:16px;border-radius:999px;background:#163246;overflow:hidden;margin:10px 0 2px}.bar i{display:block;height:100%;background:#2fd47a}
+.card{margin:12px 0;padding:14px;border-radius:14px;background:#0b1c29;border:1px solid #2a5770}
+.card b{font-size:17px;color:#fff}.st{float:right;font-weight:800;padding:3px 10px;border-radius:999px;font-size:13px}
+.PASS{background:#124d2f;color:#8dffc0}.IN_PROGRESS{background:#5a4a0e;color:#ffd23f}.NOT_DONE{background:#5c1420;color:#ffb3bd}
+.LOCKED{background:#33404a;color:#c7d3dc}.NEEDS_DEVELOPER{background:#2b2f5c;color:#c9ccff}
+.goal{color:#cfe3f1;margin:6px 0}.ev{color:#9fb9cc;font-size:14px}ol{margin:6px 0 6px 18px;padding:0;color:#e7f5ff}
+.card a.tool{display:inline-block;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}td{padding:5px;border-bottom:1px solid #20435a;color:#cfe3f1}
+.later{padding:10px 12px;border-radius:12px;background:#0b1c29;border:1px solid #20435a;margin:8px 0}
+.later b{color:#fff}small{display:block;color:#9fb9cc;margin-top:12px;line-height:1.5}
+</style></head><body>
+<header><a href="/v2/">Home</a><h1>Master plan · progress</h1><button class="stop" id="v2Estop">E-STOP</button><span id="v2EstopMsg" role="status"></span></header>
+<main>
+<div id="next">Loading…</div>
+<h2>Entry gate <span id="gcount"></span></h2>
+<div class="bar"><i id="gbar" style="width:0%"></i></div>
+<div id="gate"></div>
+<h2>After the entry gate</h2>
+<div id="later"></div>
+<small id="note"></small>
+</main>
+<script src="/v2/estop.js"></script>
+<script src="/v2/plan.js?v=20261123a"></script>
+</body></html>

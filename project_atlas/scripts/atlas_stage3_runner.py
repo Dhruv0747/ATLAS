@@ -318,8 +318,13 @@ def run_checker(bag, runner=subprocess.run):
 class Service:
     """Ticks the Runner every 0.5 s. obs_fn() -> obs dict; go_fn(place) -> (ok, message)."""
 
-    def __init__(self, obs_fn, go_fn, recorder=None, checker=run_checker, clock=time.monotonic, period=0.5):
+    def __init__(self, obs_fn, go_fn, recorder=None, checker=run_checker, clock=time.monotonic, period=0.5,
+                 record=None):
         self.runner, self.obs_fn, self.go_fn = Runner(), obs_fn, go_fn
+        if record is None:
+            import atlas_master_plan
+            record = atlas_master_plan.record_stage3
+        self.record = record
         self.recorder, self.checker, self.clock, self.period = recorder or Recorder(), checker, clock, period
         self.lock = threading.Lock()
         self.bag = None
@@ -361,6 +366,10 @@ class Service:
                 self.recorder.stop()
             elif a[0] == 'run_checker':
                 res = self.checker(self.bag) if self.bag else {'verdict': 'ERROR', 'checks': {}, 'raw': 'no bag'}
+                try:                                     # 2026-11-23: every result goes on the master-plan board
+                    self.record(res, self.bag)
+                except Exception:
+                    pass
                 with self.lock:
                     self.runner.finish_check(self.clock(), res)
 

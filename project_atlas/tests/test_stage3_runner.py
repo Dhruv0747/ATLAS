@@ -132,11 +132,11 @@ class FakeRecorder:
 
 class ServiceTests(unittest.TestCase):
     def make(self, go_ok=True):
-        self.clock = [0.0]; self.sent = []; self.cur = obs()
+        self.clock = [0.0]; self.sent = []; self.cur = obs(); self.recorded = []
         rec = FakeRecorder()
         svc = s3.Service(lambda: dict(self.cur), lambda p: (self.sent.append(p) or (go_ok, 'refused by test')),
                          recorder=rec, checker=lambda bag: {'verdict': 'PASS', 'checks': {}, 'raw': bag},
-                         clock=lambda: self.clock[0])
+                         clock=lambda: self.clock[0], record=lambda res, bag: self.recorded.append((res['verdict'], bag)))
         svc.runner.start(0.0)
         return svc, rec
 
@@ -156,6 +156,7 @@ class ServiceTests(unittest.TestCase):
         snap = svc.snapshot()
         self.assertEqual(snap['state'], 'DONE'); self.assertEqual(snap['result']['verdict'], 'PASS')
         self.assertEqual(snap['bag'], '/tmp/bag_x')
+        self.assertEqual(self.recorded, [('PASS', '/tmp/bag_x')])          # result goes on the master-plan board
 
     def test_refused_go_is_retried_later_not_lost(self):
         svc, rec = self.make(go_ok=False)
