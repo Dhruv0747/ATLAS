@@ -45,7 +45,8 @@ def evaluate(home, mission, safety, encoder, amcl, odom, cmd, imu, joy=None):
     finished, last = [], None          # mission_status repeats its latest line ~1 Hz: count a goal result once
     for t, s in mission:
         m = FINISHED.search(s)
-        key = (m.group(1).strip().lower(), int(m.group(2))) if m else None
+        # 2026-11-22: taught-route goals report 'name=<place> taught-route'; the place is what counts
+        key = (re.sub(r'\s+taught-route$', '', m.group(1).strip().lower()), int(m.group(2))) if m else None
         if key and key != last:
             finished.append((t,) + key)
         if m or DISPATCHED.search(s):

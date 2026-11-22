@@ -34,6 +34,16 @@ class Stage3Tests(unittest.TestCase):
         self.assertEqual(r['verdict'], 'PASS', r['checks'])
         self.assertEqual(len(r['stops']), 1)
 
+    def test_taught_route_labels_count_as_the_place(self):
+        base = trip()
+        base['mission'] = [(0.0, 'NAMED GOAL ACCEPTED name=hall taught-route'),
+                           (30.0, 'NAMED GOAL FINISHED name=hall taught-route status=4'),
+                           (40.0, 'NAMED GOAL ACCEPTED name=dhruv room taught-route'),
+                           (70.0, 'NAMED GOAL FINISHED name=dhruv room taught-route status=4')]
+        res = evaluate('dhruv room', **base)
+        self.assertTrue(res['checks']['legs']['ok'], res['checks']['legs'])
+        self.assertIn('dhruv room=4', res['checks']['legs']['detail'])
+
     def test_missing_home_leg_or_failed_leg_fails(self):
         self.assertFalse(evaluate('dhruv room', **trip(home_status=6))['checks']['legs']['ok'])
         self.assertFalse(evaluate('dhruv room', **trip(out_status=5))['checks']['legs']['ok'])

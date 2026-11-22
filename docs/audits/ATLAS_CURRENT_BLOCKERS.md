@@ -1,5 +1,71 @@
 # ATLAS current blockers
 
+### 2026-11-22 18:37–19:16 IST — Stage-3 run #9 FAIL (start re-oriented, no valid stop); run #10 recording discarded; next run tomorrow
+- **Positioning:** a Go dhruv room (not recorded) brought ATLAS to (0.25, 0.52, 103°), exactly the arrival heading.
+- **Run #9** (bag `~/atlas_bags/stage3_run9_20261122_183726`, 130 MB). Before Go hall the rover was driven by remote for about 70 s and ended at (0.08, 0.72, **-37°**). Go hall was dispatched there, so the checker's start pose is -37°.
+  - Hall: #1 failed in a doorway (6). Then "localization still moving while ATLAS is stopped: pose_shift=0.32m" was refused; hall #2 SUCCEEDED 18:43:49.
+  - Network: two outages (18:45:30 to about 18:50, about 19:03 to 19:06). The Wi-Fi roamed to mesh node b4:a7:c6:41:fc:9a, which gave CONNECTED_LOCAL (no internet), and moved to another node within 5 s (the retry fix worked). The bag kept recording on the rover.
+  - Home leg:
+    - one attempt failed with 7× lethal start in D2;
+    - an E-STOP latched with "REMOTE STOP: joystick unavailable" (Xbox link drop);
+    - final SUCCEEDED at (0.29, 0.54, 95°).
+- **Checker:**
+  - PASS legs, turn_sign (1423/25), encoders.
+  - FAIL return_home 0.27 m / 131° (start -37° vs end 95°).
+  - **FAIL safe_stop:** of 3 latches, none had odom ≥ 0.05 m/s at the press. One had cmd_vel 0.15 but the rover was not rolling.
+  - localization blocks while moving 18.
+- **Run #10:** started recording 19:14:54 at a perfect start (0.18, 0.53, 106°). The rover was driven to (-0.63, 0.30, 17°) before any Go, so the recording was stopped and set aside as `…stage3_run10_20261122_191454_discarded_moved_before_go`.
+- **Owner:** stop for today, do the next run tomorrow.
+- **Procedure for the next run:**
+  - Go dhruv room (unrecorded) to reach the start pose; do not touch the remote.
+  - Recording starts, then Go hall immediately.
+  - Press B while ATLAS is clearly rolling straight (corridor), then reset → autonomy ON → Go again.
+  - In the hall, Go dhruv room.
+- **Best result so far, run #8:** 4/5, return_home 0.23 m / 31°. No run has passed all five; Stage 3 is NOT complete.
+
+### 2026-11-22 15:27–16:18 IST — Stage-3 run #8: 4/5 PASS (return_home heading 31°); home heading = arrival direction DEPLOYED
+- **Bag:** `~/atlas_bags/stage3_run8_20261122_152723` (156 MB). Start (0.41, 0.64, -75°), AMCL std 0.017.
+- **Run:**
+  - Hall #1 failed at 15:34:12 in D2 (1.34, -1.50) after 7× "Starting point in lethal space".
+  - Go hall from inside the doorway was refused ("not in known clear space"). After the owner moved ATLAS forward: "SCAN CHECK OK fit=97%", accepted 15:36:43, **SUCCEEDED 15:40:17**.
+  - Owner drove out through D4/D3. Go dhruv room accepted 15:50:17. **B pressed 15:50:21 while Nav2 drove**; released 15:50:25. A second B at 15:51:49; accepted again 15:52:22 ("TAUGHT ROUTE DISPATCHED … waypoints=11 corridor_error=0.12m"). **SUCCEEDED 16:06:26.**
+- **Checker:**
+  - PASS legs (hall=6, hall=4, dhruv room=5, dhruv room=4).
+  - **PASS safe_stop** (v 0.117 → still in 0.18 s, 0.008 m).
+  - PASS turn_sign (1433/11); PASS encoders.
+  - localization blocks while moving 0; 2330 s.
+  - **FAIL return_home: 0.23 m (≤ 0.30 OK) / 31° (> 20°).**
+- **Cause:**
+  - Arriving facing into the room (about 0°), the car-like rover made multi-point turns toward the -75° home heading (AMCL 0° → -20° → -28° → -45°). Nav2 reported "Reached the goal" at -43…-45°.
+  - The Smac Hybrid planner has `tolerance: 0.30` and REEDS_SHEPP, so a path ending in a nearby pose with a different heading is acceptable to it. The controller (RPP, `use_rotate_to_heading: false`, yaw tolerance 0.35 rad) then finished there. Not proven which pose the final path segment had.
+- **Fix (owner "karo", B latched):**
+  - `reversed_route()` no longer overrides the final yaw: home keeps the **arrival direction (+105°)**, so there is no 180° turn at the end. Round trips must **start at (0.28, 0.66) facing into the room (about +105°)**; Nav2 turns at the start, which the checker does not grade.
+  - This replaces the 13:45 "home = start heading (-75°)" rule; the tests were updated (`test_home_pose_is_the_arrival_direction`).
+- **Deploy:** backup `~/project_atlas/backups/home_arrival_20261122/atlas_mission_control.py` (6501a6d2) → be467749; diff = docstring + the 2 removed lines. Restarted `atlas-mission-control` 16:18:22 → READY. Rover-copy mission-control tests + stage-3 checker tests OK.
+
+### 2026-11-22 15:06–15:24 IST — Stage-3 round trip #7 (bag `~/atlas_bags/stage3_run7_20261122_150623`, 70 MB): legs PASS, STAGE 3 FAIL
+- **Recording:** 15 checker + context topics (domain 0); `/astra/obstacle_scan_status` is on domain 77 and was not recorded.
+- **Earlier bags re-checked** (owner "check all recordings"): hall_auto, hall_auto2, hall_auto3, hall_auto4 (2026-11-20) and rt6 (today) all FAIL.
+  - hall_auto3: safe_stop PASS (0.47 s, 0.042 m).
+  - hall_auto4: legs PASS but return_home 0.20 m / **131°**, because the "dhruv room" named place yaw is 65° while round trips start facing the door. A proposal to align the named places with the route start/end awaits the owner.
+- **Run #7:**
+  - Go hall was pressed at 15:07:22 while ATLAS faced -16° at (0.08, 0.47); I had asked to turn to about -75° first.
+  - Hall #1 cancelled at 15:11:16: "camera obstacles lost (2.4s stale)" after 2× "Starting point in lethal space" at the D3/D4 doorways. **Astra BLINDED in narrow doorways** (walls closer than its minimum depth range) is a new Stage-3 blocker.
+  - Owner assisted through D4; Go hall #2 SUCCEEDED at 15:14:31 at (2.33, -5.40).
+  - Go dhruv room from inside D4 (1.92, -3.98) was refused: "saved-map navigation blocked: current pose is not in known clear space". The start-clearance check is by design; at (1.08, -1.21) it passes at 0.30 m and blocks at 0.35 m.
+  - Owner drove out through D3; Go dhruv room accepted at 15:19:17 and SUCCEEDED at 15:23:31 at (0.44, 0.62, -76°). The taught route ends at the start heading as deployed.
+- **Checker bug fixed:** mission status reports "name=<place> taught-route", so legs read "hall taught-route" and missed the home key.
+  - `stage3_autonomy_check.py` now strips a trailing " taught-route".
+  - New test `test_taught_route_labels_count_as_the_place`; `test_stage3_autonomy_check` 10/10 OK.
+- **Verdict with the fixed checker:**
+  - **PASS legs** (hall=5, hall=4, dhruv room=4), **PASS turn_sign** (same 1459 / opposite 11), **PASS encoders**.
+  - **FAIL return_home** 0.39 m / 59° (start pose was off).
+  - **FAIL safe_stop** (no B while Nav2 drove).
+  - localization blocks while moving: 2; mean speed 0.134 m/s; 967 s.
+- **What a PASS needs now:** start at about (0.28, 0.66) facing about -75° (within about 0.15 m / 10°), and press B once while Nav2 drives. Open blockers that cost assists but do not fail the checker:
+  - D3/D4 lethal start;
+  - Astra BLINDED inside doorways (cancels goals).
+
 ### 2026-11-22 13:45 IST — Home pose keeps the start heading DEPLOYED (owner "Yes, deploy", B pressed)
 - **Before the deploy:** first check found the latch released and autonomy armed, so I asked the owner. After B: stop_latched true, armed false, motion quiet, mission READY.
 - **Files:** backup `~/project_atlas/backups/home_heading_20261122/atlas_mission_control.py` (d35ac0c4); the diff is only the docstring + the final-yaw lines. Compiled OK; installed 6501a6d2.

@@ -47,17 +47,18 @@ class ReversedRouteTests(unittest.TestCase):
                {'x': 0.0, 'y': -2.0, 'yaw': -math.pi / 2}]
         out = rev(pts)
         self.assertEqual([p['y'] for p in out], [-2.0, -1.0, 0.0])
-        for p in out[:-1]:
-            self.assertAlmostEqual(p['yaw'], math.pi / 2, places=6)   # travel direction on the way back
+        for p in out:
+            self.assertAlmostEqual(p['yaw'], math.pi / 2, places=6)   # travel direction, home pose included
         self.assertEqual(pts[0]['yaw'], -math.pi / 2)          # input not modified
 
-    def test_home_pose_keeps_start_heading_for_return_home(self):
+    def test_home_pose_is_the_arrival_direction(self):
+        # 2026-11-22 run #8: a 180 deg turn at home was not precise; home keeps the arrival heading (start yaw + pi)
         rev, _ = load_reversed_route()
         pts = [{'x': 0.28, 'y': 0.66, 'yaw': -1.309}, {'x': 0.36, 'y': 0.35, 'yaw': -1.22},
                {'x': 2.19, 'y': -5.58, 'yaw': -1.658}]
         home = rev(pts)[-1]
         self.assertEqual((home['x'], home['y']), (0.28, 0.66))
-        self.assertAlmostEqual(home['yaw'], -1.309, places=6)  # same heading as the round-trip start (< 20 deg)
+        self.assertAlmostEqual(math.degrees(home['yaw']), 105.0, delta=0.1)
 
     def test_dispatch_uses_reversed_route_for_dhruv_room(self):
         _, src = load_reversed_route()
