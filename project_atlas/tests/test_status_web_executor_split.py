@@ -70,7 +70,9 @@ def callback_node(src):
 
 
 # Lock-guarded or immutable-after-start state that both groups may touch.
-GUARDED = {'lock', 'data', 'update_times', 'node', 'status_node', 'ready', 'pub', 'map_lock'}
+# gate_guard (2026-11-22 'What ATLAS sees'): every read/write is inside `with self.lock` (_scan_cb, _gate_coverage_cb,
+# _gate_guard_copy).
+GUARDED = {'lock', 'data', 'update_times', 'node', 'status_node', 'ready', 'pub', 'map_lock', 'gate_guard'}
 
 
 class ExecutorSplit(unittest.TestCase):

@@ -130,3 +130,4 @@ tests.test_yahboom_diagnostic_cadence
 tests.test_yahboom_lifted_owner
 tests.test_usb_power_monitor
 tests.test_relocalize_web
+tests.test_gate_view

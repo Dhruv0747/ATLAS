@@ -1,5 +1,77 @@
 # ATLAS current blockers
 
+### 2026-11-22 10:25 IST — "What ATLAS sees" window DEPLOYED (owner "Yes, deploy")
+- State before the deploy: ATLAS parked (motion quiet, mission READY), autonomy armed true, stop not latched. Only rover-status-web was restarted (no base, mux, Nav2 or LiDAR restart; no motion).
+- Rover files differed from the repo only by this change. Backups are in `~/project_atlas/backups/gate_view_20261122/` (status web, index.html, home-nav.js, lidar.html, lidar.js).
+- Deployed md5s: atlas_gate_view 36694951, atlas_status_web 9bf00fee, lidar.html 99c64d49, lidar.js a732bcb2, index.html 7549dd2c, home-nav.js 4dec8552. Compiled OK; service restarted 10:25:13; active; /api/status 200; no errors in the journal.
+- Live check at dhruv room (0.21, 0.71, -76°): /scan LIVE about 9 Hz; gate LIVE with all 72 directions lidar; forward, reverse and spin all OK; ultrasonic front 0.67, left 0.89, right 0.46, rear 0.73 m. The page (Tailscale, `/v2/lidar`) shows an all-green ring, "Every direction is covered right now", and the menu entry "What ATLAS sees".
+- **New finding, pre-existing and not caused by this deploy: the AMCL covariance has collapsed.** `/amcl_pose` covariance is about 0, with tiny negative values (cov[0] -1.9e-15, cov[7] -3.7e-14). The dashboard therefore shows "Invalid AMCL pose/covariance" (amcl_quality xy_std None). The mux computes the std as sqrt(max(0, …)) = 0, so it treats the location as fully confident and the map fallback stays enabled. Earlier today the covariance was normal (xy_std 0.068 at 09:44). Not investigated or changed.
+
+### 2026-11-22 — "What ATLAS sees" window STAGED (owner "हाँ, window बनाओ"; not deployed)
+- Purpose: the owner can see live which directions the Nav2 LiDAR safety gate cannot see, and where they point on the map, so the cause of a stop can be found (taping surfaces is not practical in the house).
+- New `scripts/atlas_gate_view.py`, display only (no publishing, no commands, no gate change). For each of the 72 robot-frame 5° directions it reports the source that covers it: lidar / astra / ultrasonic / map (map + virtual obstacles explain the gap) / none. It calls the same `atlas_lidar_availability` functions as the mux. For gaps it gives the map ray (wall / UNKNOWN / edge, distance, map point). It also reports what the gate would answer now for forward 0.15 m/s, reverse and spin 0.5 rad/s.
+- `atlas_status_web.py`:
+  - subscribes `/astra/obstacle_coverage`;
+  - feeds a display-only `LidarAvailability` from `/scan` and coverage, under `self.lock` because the two callbacks run on different executor threads; the HTTP thread reads a copy taken under the lock;
+  - keeps the map + `virtual_obstacles.json` overlay and the AMCL pose/std (same formulas as the mux);
+  - `/api/lidar-view` gains `gate`.
+- `web/v2/lidar.html` + `lidar.js` (`?v=20261122gate`):
+  - a coloured ring around the rover;
+  - Drive forward / Reverse / Turn on the spot OK/STOP chips;
+  - a legend with counts;
+  - a warning when more directions lack echo than MAP_GAP_MAX_BINS;
+  - a list of "Directions nothing sees" with side, width and map point.
+  - The menu entry is renamed "What ATLAS sees".
+- Limitation: ultrasonic freshness comes from the `/ultrasonic/validity` JSON (0.5 s), not the mux's own ValidityWindow, so the view may differ from the mux for a moment.
+- Tests:
+  - `tests/test_gate_view.py` 9/9 (added to the CI list).
+  - `test_status_web_executor_split` caught the cross-thread `gate_guard`. Fixed with the lock; `gate_guard` was added to its GUARDED set with a comment.
+  - Rover temp copy: gate view, no-reboot, relocalize, estop-safety and executor-split all pass (47, 1 skipped).
+  - Full CI list on a repo copy on the rover: 1173 run; 7 fail/error in monitoring config, scan self-filter service, systemd ordering and vision3d tests that do not touch these files (rover environment). GitHub CI is the reference.
+  - Browser preview with fake data (real `build()`): ring colours and directions are correct (left = left), red unknown gap listed with its map point.
+
+### 2026-11-22 09:31–09:45 IST — Round trip 6 (all-sensor recording): both legs SUCCEEDED with owner assists; STAGE 3 FAIL (not scoreable)
+- Context: ATLAS had booted about 7 min before the run (load average 12–27 throughout). Autonomy ON by operator. The owner drove/assisted with the Xbox remote; I sent no motion.
+- Recording (owner request "use all sensors together" for 3D mapping): two `ros2 bag record` processes (nice 5), started at 09:32:12 while ATLAS was already on the way to hall. Astra runs on ROS_DOMAIN_ID 77 and the main stack on domain 0 (UDPv4), so one bag per domain:
+  - `~/atlas_bags/rt6_allsensors_20261122_093212`: Astra color, depth, camera_info and obstacle scans; 11 GB, about 13 MB/s. `/astra/extrinsic/depth_to_color` was not recorded (astra_camera_msgs type not installed).
+  - `..._main`: 145 topics (LiDAR scan and scan_raw, tf, odom, AMCL, map, cmd_vel*, Yahboom encoders/IMU/wheels, IM10A, GPS, ultrasonic, radar, IMX708 compressed, /atlas/*); 385 MB.
+- Leg 1, Go hall: Nav2 "Goal succeeded" 09:36:05; final pose (1.77, -5.24, -109°), 0.13 m / 11° off.
+  - 187 `LIDAR AVAILABILITY STOP: unobserved motion sector (1–3 bins)` between 09:31 and 09:36.
+  - One `Failed to make progress` (09:33:51) with `Control loop missed its desired rate of 10 Hz`; Nav2 then retried on its own.
+  - rf2o: 639 `Waiting for laser_scans` in 4 min (scan delivery late under load).
+  - 09:35:53–55: `AUTONOMY BLOCKED: LOCALIZATION XY UNCERTAINTY 0.30 m`; AMCL then recovered.
+  - Owner assists: 2.
+- Leg 2, Go dhruv room:
+  - The first goal FAILED at 09:39:57 because the planner said `Starting point in lethal space` (the hall spot is inside the costmap's lethal space next to the wall). The owner turned ATLAS by remote (net turn about 184°), then pressed Go again.
+  - Repeated `LIDAR AVAILABILITY STOP` while going straight on the hall→room line, with the most stops near (1.3, -1.8), the same area as on leg 1 (hall door frame). About 118 stops in 2 min, plus one more `Failed to make progress`.
+  - Nav2 "Goal succeeded" at 09:44:49. Final pose (-0.04, 0.61, 92°): 0.14 m / 27° off. AMCL xy_std 0.068 m. Owner assists: several (turning and straight line).
+- Checker (`stage3_autonomy_check.py`, run from /tmp on the rover with /usr/bin/python3) on the main bag:
+  - PASS legs, turn_sign (autonomous same 737 / opposite 13) and encoders (0 bad).
+  - FAIL return_home (2.81 m / 161° from the bag start pose, because the bag started mid-leg and not at dhruv room).
+  - FAIL safe_stop (no owner B press while Nav2 drove).
+  - localization_blocks_while_moving 3; mean moving speed 0.167 m/s; duration 691 s. **STAGE 3: FAIL.**
+- Bag replay (read-only, /tmp/replay_gate.py and /tmp/spot_detail.py on the rover).
+  - Method: the gate logic of `atlas_lidar_availability` over /scan + /astra/obstacle_coverage + /amcl_pose + /map + /cmd_vel_nav.
+  - Limitations: ultrasonic coverage is not applied, and bag receive time is used as both clocks.
+  - Result: 3323 of 5051 Nav2 commands vetoed. 1391 passed on LiDAR alone, and 337 passed only because the map explained the missing bins. Almost all vetoes were arcs, not straight lines.
+- What the vetoes are:
+  - **No-echo directions that are also UNKNOWN on the map.** At the hall spots (1.5–2.0, -5.0…-5.5), every LiDAR ray at robot bearing -22/-28° is inf, and the map ray from there meets UNKNOWN cells at 1.9–2.7 m (world 220–230°). Near the door (1.5, -2.0; leg-1 stop at 1.32, -1.76), robot bearing +52° is inf, and the map meets UNKNOWN at 2.3–2.6 m (world about 330°); 915 vetoes there. Neither the LiDAR nor the mapping run ever saw these surfaces. Likely non-reflecting surfaces (glass, black/glossy furniture, mirror); the owner should check what stands there.
+  - **Mapped walls that give no echo.** In the hall, the right-side wall at 1.4–1.8 m (robot -88/-98°, world 150–160°) gives no echo. Together with the UNKNOWN bins that makes 4 or more missing bins, above MAP_GAP_MAX_BINS 3, so the map fallback is not used.
+  - **Wall too close.** In the corridor (2.0, -3.5…-4.0), the right/rear wall at 0.3–0.5 m gives no echo and is closer than the sweep-required distance (wall_too_close).
+  - **Not a fixed blind spot on the rover:** no robot bin was empty more than 34 % of the whole bag (/scan and /scan_raw are the same).
+- **Corrections to what I told the owner during the drive:**
+  - (1) CPU load did NOT delay the scans: scan gaps were median 0.137 s, p95 0.153 s, max 0.291 s, and none exceeded the 0.75 s timeout.
+  - (2) On the plain /map the hall named place is 1.12 m from a wall. **But with the virtual obstacles that Nav2 and the guard actually use (`config/virtual_obstacles.json`), the hall spot (1.68, -5.35) is only 0.44 m from the "glass coffee table" polygon**, less than the footprint half-diagonal 0.31 m + inflation 0.28 m. At the 09:39 failure ATLAS was at about (1.77, -5.24), 0.55 m from the table corner. Costmaps were not recorded, so which layer made the start lethal is unproven.
+- Second replay, matching the mux: virtual obstacles overlaid, front/rear ultrasonic applied.
+  - Result: 2891 of 5051 vetoed; 1391 passed on LiDAR, 738 because the map explained the gap, 31 by ultrasonic.
+  - Remaining veto groups:
+    - (1.5, -2.0), 915 vetoes: robot +52° is inf, and the map ray meets UNKNOWN at map (3.5–3.7, -2.6…-2.7). This is a non-reflecting object that is not in virtual_obstacles.json and not yet identified.
+    - (2.0, -3.5…-4.0), about 720 `wall_too_close`: the narrow passage, with mapped jambs at 0.3–0.5 m around (1.5–1.6, -3.7…-3.8) and (2.1–2.2, -3.8…-4.0) that give no echo.
+    - Hall, `too_many_bins`: the missing bins all point at the virtual table (0.6 m) and sofa (1.1 m), but more than MAP_GAP_MAX_BINS 3 are missing at once.
+  - What-if limits (not applied): MAP_GAP_MAX_BINS 4 → 2447 vetoes, 5 → 2322, 6 → 2059.
+- `config/ultrasonic_mounts.json` does not exist on the rover, so the left/right ultrasonic sensors add no guard coverage (the staged 2026-11-19 code waits for measured mounts).
+- Open, not changed: the non-reflecting hall and door surfaces; the corridor path hugging the right wall; the source of the lethal start; why the Astra coverage did not cover bearings -22/-28° (inside its FOV); and `stage3_autonomy_check.py` is not installed on the rover.
+
 ### 2026-11-22 06:29 IST — "SINCE POWER-ON" history DEPLOYED (owner "Yes, deploy") + battery backfill
 - Before deploying: source STOPPED, stop latched, autonomy armed false. Backups in `~/project_atlas/backups/power_history_20261122/` (monitor, status web, usb-power.js, index.html); the rover files differed only by the replaced lines.
 - First deploy 06:27:41 (monitor d8f7c766, status web d3a7a3ef, usb-power.js 44bc6576, index 6446fcfa): `?long=1` served. Faults since boot: 0. The battery reading filled within seconds, and the history file was saved. On the live chart, rail and battery were empty before 06:27 because they had not been recorded before this deploy.

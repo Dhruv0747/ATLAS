@@ -673,6 +673,8 @@ class AtlasRosNode:
             n.create_subscription(String, "/atlas/encoder_health", lambda m: self._set("encoder_health", m.data), 10)
             n.create_subscription(String, "/atlas/drive_pid/diagnostics", lambda m: self._set("drive_pid", m.data), 10)
             n.create_subscription(LaserScan, "/scan", self._scan_cb, qos_profile_sensor_data)
+            # 2026-11-22 "What ATLAS sees": the mux gate's own inputs, display only (atlas_gate_view).
+            n.create_subscription(LaserScan, "/astra/obstacle_coverage", self._gate_coverage_cb, qos_profile_sensor_data)
             # 2026-11-14: the Astra obstacle scan exactly as Nav2 sees it (domain 0, via the bridge).
             n.create_subscription(LaserScan, "/astra/obstacle_scan",
                                   lambda m: self._set("astra_nav2", {"beams": len(m.ranges)}), qos_profile_sensor_data)
@@ -782,6 +784,10 @@ class AtlasRosNode:
         yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
                          1.0 - 2.0 * (q.y * q.y + q.z * q.z))
         current = (float(pose.position.x), float(pose.position.y), yaw)
+        cov = msg.pose.covariance      # same std formulas as the cmd_vel mux (on_localization)
+        self.gate_pose = current
+        self.gate_pose_std = (math.sqrt(max(0.0, cov[0]) + max(0.0, cov[7])), math.degrees(math.sqrt(max(0.0, cov[35]))))
+        self.gate_pose_rx = time.monotonic()
         quality = summarize_amcl_pose(*current, msg.pose.covariance,
                                       previous=self.previous_amcl_pose)
         self.previous_amcl_pose = current
@@ -880,8 +886,67 @@ class AtlasRosNode:
             ):
                 self.data[key] = {"value": value, "ts": now}
 
+    def _gate_guard(self):
+        guard = getattr(self, 'gate_guard', None)
+        if guard is None:
+            import atlas_lidar_availability as lidar_avail
+            guard = self.gate_guard = lidar_avail.LidarAvailability()
+        return guard
+
+    def _gate_coverage_cb(self, msg):
+        try:
+            now = time.monotonic()
+            with self.lock:          # /scan (hot) and coverage (cold) run on different executor threads
+                self._gate_guard().update_coverage(msg, now)
+        except Exception:
+            pass
+
+    def _gate_guard_copy(self):
+        """Consistent copy of the display guard for the HTTP thread (taken under self.lock)."""
+        import copy
+        with self.lock:
+            guard = getattr(self, 'gate_guard', None)
+            if guard is None:
+                return None
+            g = copy.copy(guard)
+            g.bins = set(guard.bins)
+            g.cover_bins = set(getattr(guard, 'cover_bins', set()))
+            g.cover_obstacles = dict(getattr(guard, 'cover_obstacles', {}))
+            return g
+
+    def gate_view_snapshot(self):
+        """2026-11-22 read-only 'What ATLAS sees' (see atlas_gate_view). Never raises."""
+        try:
+            import atlas_gate_view
+            sample = getattr(self, 'surround_scan', None)
+            pose_rx = getattr(self, 'gate_pose_rx', None)
+            item = self._item('us_validity')
+            try:
+                validity = json.loads(item['value']) if item and isinstance(item.get('value'), str) else None
+            except ValueError:
+                validity = None
+            if validity is not None and item:
+                age = max(0.0, time.time() - float(item.get('ts', 0.0)))
+                for s in (validity.get('sensors') or {}).values():
+                    if isinstance(s, dict):
+                        s['sample_age_s'] = float(s.get('sample_age_s', 99)) + age
+            std = getattr(self, 'gate_pose_std', (None, None))
+            return atlas_gate_view.build(
+                self._gate_guard_copy(), sample[0] if sample else None, time.monotonic(),
+                self.node.get_clock().now().nanoseconds * 1e-9, grid=getattr(self, 'gate_grid', None),
+                pose=getattr(self, 'gate_pose', None), xy_std=std[0], yaw_std=std[1],
+                pose_age_s=(time.monotonic() - pose_rx) if pose_rx else None, validity=validity)
+        except Exception as exc:
+            return {'state': 'ERROR', 'reason': str(exc)[:200]}
+
     def _scan_cb(self, msg):
         if getattr(self,"rgbd_context",None) is not None:self.rgbd_context.put("scan",msg)
+        try:
+            now = time.monotonic()
+            with self.lock:
+                self._gate_guard().update(msg, now)
+        except Exception:
+            pass
         now = time.time()
         previous = getattr(self, 'surround_scan', None)
         dt = now-previous[1] if previous else 0
@@ -927,6 +992,17 @@ class AtlasRosNode:
 
     def _map_cb(self, msg):
         """Cache a browser-ready occupancy image without changing Nav2 data."""
+        try:   # 2026-11-22 gate view: the same map + virtual obstacles the mux guard uses
+            import atlas_lidar_availability as lidar_avail
+            import atlas_virtual_obstacles
+            grid = lidar_avail.OccGrid.from_msg(msg)
+            try:
+                polys = atlas_virtual_obstacles.load_polygons(atlas_virtual_obstacles.DEFAULT_CONFIG)
+            except (OSError, ValueError, TypeError, IndexError, KeyError):
+                polys = []
+            self.gate_grid = atlas_virtual_obstacles.overlay_grid(grid, polys) if polys else grid
+        except Exception:
+            self.gate_grid = None
         now = time.time()
         if now - self.last_map_encode < 0.75:
             return
@@ -2265,7 +2341,9 @@ class Handler(BaseHTTPRequestHandler):
             json_response(self, 200, ROS.map_snapshot())
             return
         if self.path.split('?')[0] == '/api/lidar-view':
-            json_response(self, 200, ROS.surround_snapshot())
+            out = ROS.surround_snapshot()
+            out['gate'] = ROS.gate_view_snapshot()      # 2026-11-22 "What ATLAS sees" (display only)
+            json_response(self, 200, out)
             return
         if self.path.startswith("/map.png"):
             frame = ROS.map_frame()
