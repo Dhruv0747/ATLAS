@@ -30,6 +30,7 @@ from atlas_commissioning import Console, hardware_check
 from atlas_localization_display import summarize_amcl_pose
 import atlas_estop_reset as estop_reset
 import atlas_autonomy_web
+import atlas_stage3_runner
 import sqlite3
 
 import cv2
@@ -2198,6 +2199,50 @@ def json_response(handler, status, payload):
     handler.wfile.write(body)
 
 
+
+# 2026-11-22 one-click Stage-3 run (atlas_stage3_runner): same Go path and refusals as the dashboard Go buttons.
+def _stage3_obs():
+    def val(key):
+        item = ROS._item(key)
+        return (item or {}).get('value'), (time.time() - float(item.get('ts', 0.0))) if item else None
+    pose_v, pose_age = val('map_pose')
+    odom_v, _ = val('odom')
+    q_v, _ = val('amcl_quality')
+    ms_v, _ = val('mission_status')
+    pol = atlas_autonomy_web.policy(ROS)
+    pose = None
+    if isinstance(pose_v, dict) and pose_age is not None and pose_age < 2.0 and pose_v.get('x') is not None:
+        pose = (float(pose_v['x']), float(pose_v['y']), math.degrees(float(pose_v['yaw'])))
+    return {'pose': pose, 'speed': float((odom_v or {}).get('vx') or 0.0) if isinstance(odom_v, dict) else 0.0,
+            'xy_std': (q_v or {}).get('xy_std_m') if isinstance(q_v, dict) else None,
+            'latched': None if pol is None else bool(pol.get('stop_latched')),
+            'armed': None if pol is None else bool((pol.get('autonomy') or {}).get('armed')),
+            'source': None if pol is None else pol.get('source'),
+            'mission': str(ms_v or '')}
+
+
+def _stage3_go(place):
+    why = atlas_autonomy_web.go_refusal(ROS)
+    if why:
+        return False, why
+    ok = atlas_autonomy_web.publish((getattr(ROS, 'place_pubs', {}) or {}).get('go'), place)
+    try:
+        ROS.estop_log.write('stage3_runner_go', place=place, ok=ok)
+    except Exception:
+        pass
+    return ok, ('sent' if ok else 'ROS link not ready')
+
+
+STAGE3 = None
+
+
+def stage3_service():
+    global STAGE3
+    if STAGE3 is None:
+        STAGE3 = atlas_stage3_runner.Service(_stage3_obs, _stage3_go)
+    return STAGE3
+
+
 class Handler(BaseHTTPRequestHandler):
     def client_allowed(self):
         try:
@@ -2340,6 +2385,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/api/map"):
             json_response(self, 200, ROS.map_snapshot())
             return
+        if self.path.split('?')[0] == '/api/stage3':          # 2026-11-22 one-click Stage-3 run (status)
+            atlas_stage3_runner.serve(self, stage3_service(), json_response)
+            return
         if self.path.split('?')[0] == '/api/lidar-view':
             out = ROS.surround_snapshot()
             out['gate'] = ROS.gate_view_snapshot()      # 2026-11-22 "What ATLAS sees" (display only)
@@ -2452,6 +2500,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(403)
             return
         if atlas_location_check_web.serve(self, ROS, post=True):
+            return
+        if atlas_stage3_runner.serve(self, stage3_service(), json_response, post=True):   # 2026-11-22
             return
         if atlas_relocalize_web.serve(self, lambda: ROS.autonomy_armed(), json_response, post=True):
             return

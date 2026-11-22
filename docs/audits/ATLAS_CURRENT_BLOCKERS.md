@@ -1,5 +1,54 @@
 # ATLAS current blockers
 
+### 2026-11-23 00:01–00:04 IST — One-click "Stage 3 run" button DEPLOYED (owner "Yes, deploy")
+- **Before the deploy:** stop latched, autonomy armed false, motion quiet, mission READY. Only rover-status-web was restarted (twice, see below); no base, mux, Nav2 or mission-control restart.
+- **Backups** in `~/project_atlas/backups/stage3_button_20261123/`: status web, index.html, home-nav.js, atlas_web_v2.py. The status-web diff was only the Stage-3 additions.
+- **Installed md5s:**
+
+| File | md5 |
+|---|---|
+| atlas_stage3_runner.py | d1e35dde |
+| atlas_status_web.py | 0f9e8a46 |
+| stage3.html | 410ac894 |
+| stage3.js | d6c87586 |
+| index.html | 910dd35f |
+| home-nav.js | 17426af2 |
+| **`tools/drive/stage3_autonomy_check.py`** (now on the rover, previously only in /tmp) | 13dbcb3e |
+
+- **First restart 00:01:10:** `/api/stage3` IDLE. But `/v2/stage3` returned 404: `atlas_web_v2.PAGES` is an allow-list.
+  - Added `'stage3': 'stage3.html'`; `test_v2_default_route` + `test_mapping_install_once` OK.
+  - Deployed atlas_web_v2.py f07ce612 and restarted again: `/v2/stage3` 200, `/v2/lidar` 200.
+- **Live page** over Tailscale (mobile width): START STAGE 3 RUN button, step list, and the "Stage 3 run" menu entry. START was NOT pressed by me; starting a run is the owner's action.
+
+### 2026-11-22 — One-click "Stage 3 run" button STAGED (owner "make a button, one click and it does everything"; not deployed)
+- **Why:** runs #7, #9 and #10 failed on procedure, not on ATLAS: start heading changed by remote before Go, B pressed while not rolling, recording started after the rover moved. The button removes those steps from the owner.
+- **New `scripts/atlas_stage3_runner.py`:**
+  - **`Runner`** is a pure state machine: POSITION → SETTLE → OUT → HOME → CHECK → DONE.
+    - POSITION: if not within 0.25 m / 15° of (0.28, 0.66, +105°), send Go dhruv room and wait for SUCCEEDED.
+    - SETTLE: wait 5 s still at the start.
+    - OUT: start the bag, then Go hall.
+    - HOME: Go dhruv room.
+    - CHECK: stop the bag and run `stage3_autonomy_check.py`.
+    - "PRESS B NOW" is shown only while source = NAV2 and odom ≥ 0.08 m/s for ≥ 1 s. A latch with odom ≥ 0.05 m/s counts as the stop.
+    - A failed, cancelled or refused leg (doorway, E-STOP, "not in known clear space", "localization still moving") is re-sent automatically. Conditions: the E-STOP is released, autonomy is ON, AMCL std ≤ 0.15, ATLAS has been still for 5 s, and 8 s have passed since the failure.
+  - **`Service`:** a 0.5 s thread; `Recorder` (ros2 bag via `bash -lc` with the ROS env, SIGINT on stop); `run_checker()` parses the five verdicts.
+  - **`serve()`:** `/api/stage3` GET snapshot; POST {action: start|cancel, confirm: STAGE3}, same-origin only.
+- **Authority unchanged:**
+  - Goals use `atlas_autonomy_web.go_refusal()` + `/atlas/navigate_named_place`, exactly like the Go buttons, and are logged to the E-STOP log as `stage3_runner_go`.
+  - The runner never arms autonomy, never releases the E-STOP, never publishes velocity.
+  - Cancel stops the recording; the owner stops motion with the remote / Abort.
+- **Status web:** `/api/stage3` GET/POST routes; `_stage3_obs()` reads map_pose / odom / amcl_quality / mission_status / control_policy.
+- **Page:** `web/v2/stage3.html` + `stage3.js` (`/v2/stage3`, menu "Stage 3 run").
+  - One START button (with a confirm) and Cancel.
+  - Big blinking red **PRESS B NOW** with beep + vibrate.
+  - Step list, run log, and a result table with PASS/FAIL per check.
+- **Tests:**
+  - `tests/test_stage3_runner.py` 12/12, added to the CI list. Covers: start/record order; positioning without recording; never sending while latched or with autonomy OFF; a full round trip with B and a doorway retry; B while still not counted; cancel; mission-error retry; double start; service record/send/check; refused Go retried; bad status read sends nothing; checker parsing.
+  - Rover repo copy: runner + executor-split + estop-safety + no-reboot + gate view + relocalize + stage3 checker + taught route: 77 OK (1 skipped).
+  - Rover smoke test of `Recorder` from an empty environment: 15 topics subscribed, bag written and closed.
+- **Browser preview** (fake API, mobile 375 px): the button, the PRESS B NOW banner, the step highlighting and the result table render correctly.
+- **Deploy needs:** the new module + status web + page/menu files, and `tools/drive/stage3_autonomy_check.py` installed on the rover (it was only in /tmp). Restart rover-status-web; no base, mux or Nav2 restart.
+
 ### 2026-11-22 18:37–19:16 IST — Stage-3 run #9 FAIL (start re-oriented, no valid stop); run #10 recording discarded; next run tomorrow
 - **Positioning:** a Go dhruv room (not recorded) brought ATLAS to (0.25, 0.52, 103°), exactly the arrival heading.
 - **Run #9** (bag `~/atlas_bags/stage3_run9_20261122_183726`, 130 MB). Before Go hall the rover was driven by remote for about 70 s and ended at (0.08, 0.72, **-37°**). Go hall was dispatched there, so the checker's start pose is -37°.
