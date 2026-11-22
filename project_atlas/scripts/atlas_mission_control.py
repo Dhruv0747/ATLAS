@@ -68,6 +68,19 @@ from atlas_scan_fit_core import (
 )
 
 
+
+def reversed_route(points: list) -> list:
+    """The taught route is stored room -> hall. Driving it back, the order is reversed AND every pose must face
+    the new travel direction (yaw + pi); before 2026-11-22 the yaw was kept, so each waypoint (and the final
+    'dhruv room' pose) faced backwards."""
+    out = []
+    for point in reversed(points):
+        p = dict(point)
+        yaw = float(p["yaw"]) + math.pi
+        p["yaw"] = math.atan2(math.sin(yaw), math.cos(yaw))
+        out.append(p)
+    return out
+
 class AtlasMissionControl(Node):
     """Expose topic and service controls without blocking the ROS executor."""
 
@@ -1905,7 +1918,7 @@ class AtlasMissionControl(Node):
             )
             return False
         if normalized == "dhruv room":
-            points = list(reversed(points))
+            points = reversed_route(points)
         current = self.current_pose()
         nearest_index, nearest_point = min(
             enumerate(points),

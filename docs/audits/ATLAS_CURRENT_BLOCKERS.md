@@ -1,5 +1,40 @@
 # ATLAS current blockers
 
+### 2026-11-22 12:14 IST — New taught route + reversed-route yaw fix DEPLOYED (owner "Yes, deploy")
+- **Before the deploy:** stop_latched true (reason "joystick unavailable"), autonomy armed false, motion quiet, mission READY.
+- **Backups** in `~/project_atlas/backups/taught_route_20261122/`: old route 773f7b3b, mission control db0b27c4.
+- **Mission control:** the diff was only `reversed_route()` + its call; compiled OK. Installed md5 d35ac0c4.
+- **Route:** checked map_id 350de9b5ec3eb7f4d6f1 and 22 points before copying; installed md5 4e5118aa.
+- **Restart:** `atlas-mission-control` restarted 12:13:57 → active; log "READY". Status web OK; mission READY; still latched.
+- **On-rover check with the deployed helper:**
+  - Forward: start (0.281, 0.664, -75°) → end (2.19, -5.58, -95°).
+  - Reversed for "dhruv room": start (2.19, -5.58, +85°) → end (0.281, 0.664, +105°). Both now face the travel direction.
+- **Load:** 1-minute load average 32.5 right after the restart, 27.2 at 12:14:58 and falling (startup).
+- **Not yet verified:** a real Go hall / Go dhruv room using the taught route. Expected log: "TAUGHT ROUTE DISPATCHED name=hall waypoints=…", not "Taught route ignored". The "hall" named place is still (1.68, -5.35), so the route is used only when ATLAS starts within 0.65 m of the route.
+
+### 2026-11-22 — New taught route (dhruv room → hall) on the current map STAGED (owner "हाँ, route सिखाओ"; not deployed)
+- **Why:** `config/routes/dhruv_room_to_hall.json` (2026-08-26, map_id a8e7035836f61cbac5f3) does not match the current map (`map_pair_id` 350de9b5ec3eb7f4d6f1), so mission control ignored it on every Go. Nav2 then planned freely and tried to turn inside the 0.61 m hall doorway.
+- **Recording:**
+  - New `tools/drive/teach_route_record.py`: polls the dashboard /api/status every 0.3 s, never moves the rover and uses no ROS.
+  - Owner drove dhruv room (0.24, 0.72, -58°) → hall by remote, 12:02:57, 129 s.
+  - **AMCL was not tight:** xy_std 0.15–0.63 m for most of the drive (0.627 at (1.74, -2.45)). After the owner latched at the end, the pose drifted 0.39 m while ATLAS stood still ((1.31, -5.91), inside the glass-table polygon, → (1.70, -5.98)), i.e. AMCL correcting itself. So the recorded poses were used only for topology.
+- **Builder:** new `tools/drive/teach_route_build.py`, read-only, writes JSON for review.
+  - Map: the accepted map YAML/PGM plus `virtual_obstacles.json`, unknown = blocked. The loader matches the live /map: 0 of 56862 cells differ.
+  - Narrow sections (free width across travel < 1.4 m) use the wall-to-wall midpoint; wide sections keep the recorded poses with std ≤ 0.25 m; latched samples are dropped.
+  - Smoothing; 0.25 m resampling; cut at the first point within 0.3 m of the end pose; central-difference yaw.
+  - Then a sideways nudge (±0.35 m, ±20°) maximises footprint clearance; every waypoint's 0.50 × 0.36 m footprint is checked with a 0.05 m margin.
+  - Narrow sections found: D1 dhruv room door 0.84–0.94 m; D2 1.1–1.3/-1.3…-1.6 0.84 m; D3 1.8–2.0/-2.7…-3.2 0.82 m; **D4 hall doorway (1.9, -3.9) 0.61 m**.
+- **Result** `/tmp/route_new.json` on the rover (copy in the session scratchpad):
+  - 22 waypoints, 7.01 m, map_id 350de9b5ec3eb7f4d6f1, from (0.28, 0.66) to an end of **(2.19, -5.58, -95°)**, the spot where the gate view showed every direction OK; the old hall place (1.68, -5.35) is 0.44 m from the virtual glass table.
+  - All waypoints clear by at least 0.06 m (D4 0.06 m; it is 12 cm per side when perfectly aligned).
+  - Rendered image `route_new_20261122.png` sent to the owner.
+- **Bug fixed in `atlas_mission_control.py`:** going back to "dhruv room", the route was reversed but every pose kept the room → hall yaw, so each waypoint (and the final home pose) faced backwards. New `reversed_route()` reverses AND adds π.
+- **Tests:** new `tests/test_taught_route.py` (6: reverse yaw/order, dispatch uses the helper, narrow corridor centred with clearance, end cut + yaw, latched dropped, PGM loader), added to the CI list. Mac: taught route + virtual obstacles 13 OK. Rover repo copy: every test that touches mission control (map acceptance core, camera obstacle gate, feature-on-demand mapping, final map sampling, goal supersede, status idle revert, session places) + taught route + virtual obstacles + map-known gaps: 103 OK.
+- **Deploy needs:**
+  - route file into `~/project_atlas/config/routes/` (backup the old one);
+  - `atlas_mission_control.py` + restart of the mission control service (parked, E-STOP latched, autonomy OFF).
+  - The taught route only replaces the named-place goal for "hall"/"dhruv room" when ATLAS is within 0.65 m of the route; otherwise the plain goal is used. Moving the "hall" named place to the route end is a separate owner step.
+
 ### 2026-11-22 11:50 IST — MAP_GAP_MAX_BINS 3 → 6 DEPLOYED (owner "Yes, deploy", B pressed)
 - **First check:** latch released, so I asked the owner. After B: stop_latched true ("REMOTE STOP: B pressed"), autonomy armed false, motion quiet, ATLAS parked at about (1.88, -3.82) in the narrow passage.
 - **Deploy:**
