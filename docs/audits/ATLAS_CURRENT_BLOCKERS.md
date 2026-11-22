@@ -1,5 +1,12 @@
 # ATLAS current blockers
 
+### 2026-11-22 06:20 IST — Overnight check: powered hub holds; 0 USB faults in 7 h 20 min
+- Boot 22:59 (dashboard Restart); uptime 7 h 20 min. Kernel: 0 modem disconnects, 0 USB disconnects, 0 USB errors (-32/-71/-110/urb stopped). USB power chart: 0 faults on all 5 hubs, no device gone, suspect hub none.
+- Jetson VDD_IN 4.856-4.880 V over the last 10 min, 1.6-1.8 A (8-9 W). Load average about 8.5.
+- 4G: registered, LTE, signal 58 %, usb0 up. Hiwonder GPS: FIXED on ttyUSB1 (GPS 10, GLONASS 8, BeiDou 7 in view; 396 k valid NMEA). LiDAR 359/360. Localization VERIFIED. Stop latched, autonomy armed false.
+- Battery (Daly BMS): 100 %, 14.4 V, 0 A; cells 3.593-3.612 V (full, balanced). The overnight charge completed.
+- Conclusion: giving hub 1-2.2 its own supply fixed the modem USB drops, with no recurrence over the same post-boot window where yesterday's storm began. Still to verify: a drive with Wi-Fi loss (4G carrying traffic).
+
 ### 2026-11-21 23:25 IST — FIX MY LOCATION DEPLOYED (owner "Yes, deploy")
 - Before deploying: control source STOPPED, stop latched, autonomy armed false. Backups in `~/project_atlas/backups/fix_location_20261121/` (atlas_status_web.py, index.html); the rover copies matched the repo before this change.
 - Copied atlas_relocalize_web.py (aea8ed97), atlas_status_web.py (177235f4), find-location.js (715f4a41) and index.html (ae53dfde); md5s match, py_compile OK. `systemctl --user restart rover-status-web` at 23:24:48; active, no errors.
