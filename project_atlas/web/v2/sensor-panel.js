@@ -31,7 +31,7 @@
   const num = (v, d = 2) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '--';
   const fresh = (r, k, lim = 3) => { const a = age(r, k); return a == null ? '<span class="stale">NO DATA</span>' : a > lim ? `<span class="stale">STALE ${a.toFixed(0)} s</span>` : `live · ${a.toFixed(1)} s`; };
   const tile = (name, value, sub, gate, extra = '') =>
-    `<div class="t"><b>${name}</b><div class="v">${value}</div><div class="s">${sub}</div>${extra}<span class="gate ${gate ? 'yes' : 'no'}">${gate ? 'USED BY SAFETY GATE' : 'NOT USED BY SAFETY GATE'}</span></div>`;
+    `<div class="t"><b>${name}</b><div class="v">${value}</div><div class="s">${sub}</div>${extra}<span class="gate ${gate ? 'yes' : 'no'}">${gate === 'side' ? 'SIDE STOP ONLY · NOT USED TO FILL LIDAR GAPS' : gate ? 'USED BY SAFETY GATE' : 'NOT USED BY SAFETY GATE'}</span></div>`;
   const mm = v => (typeof v === 'number' && v > 0) ? (v / 1000).toFixed(2) + ' m' : '--';
 
   let camUrl = null;
@@ -52,7 +52,7 @@
       tile('Astra depth camera', gx.astra_fresh ? `${(gx.astra_obstacles || []).length} obstacle directions` : '<span class="warn">no fresh coverage</span>',
         `blue dots on the ring view = what the depth camera sees as obstacles\n${gx.astra_fresh ? 'live' : 'coverage stale or not running'}`, true),
       tile('Ultrasonic front / rear', `${mm(val(r, 'us_front'))} / ${mm(val(r, 'us_rear'))}`, `${esc(val(r, 'us_status', ''))}\n${fresh(r, 'us_front')}`, true),
-      tile('Ultrasonic left / right', `${mm(val(r, 'us_left'))} / ${mm(val(r, 'us_right'))}`, `measured mounts not set up yet, so the gate ignores these\n${fresh(r, 'us_left')}`, false),
+      tile('Ultrasonic left / right', `${mm(val(r, 'us_left'))} / ${mm(val(r, 'us_right'))}`, `autonomy stops if the side it turns toward reads 0.28 m or less\nnot used to fill LiDAR gaps (tested: no benefit, sees the floor)\n${fresh(r, 'us_left')}`, 'side'),
       tile('Location (AMCL on map)', q.xy_std_m != null ? `±${num(q.xy_std_m, 3)} m` : '<span class="warn">invalid</span>',
         `heading ±${num(q.yaw_std_deg, 1)}°${q.uncertain ? ' · UNCERTAIN' : ''}\ngate trusts the map only below ±0.15 m\n${fresh(r, 'amcl_quality')}`, true),
       tile('Radar (RD-03D)', `${val(r, 'radar_count', 0)} target(s)`, `nearest ${mm(val(r, 'radar_dist'))} · ${esc(radarZone)}\nx ${num(val(r, 'radar_x'), 0)} mm, y ${num(val(r, 'radar_y'), 0)} mm (radar's own frame)\n${fresh(r, 'radar_dist')}`, false),

@@ -1,5 +1,23 @@
 # ATLAS current blockers
 
+### 2026-11-22 11:01 IST — Side-ultrasonic label on the sensor panel DEPLOYED (owner "Yes, deploy")
+- The left/right tile now reads "SIDE STOP ONLY · NOT USED TO FILL LIDAR GAPS", with the 0.28 m autonomy side-stop rule and the replay result (no benefit, sees the floor). The earlier "NOT USED BY SAFETY GATE" understated the side stop.
+- Web files only, no restart. Backups in `~/project_atlas/backups/side_label_20261122/` (sensor-panel.js ceae025b, lidar.html 2050b845). Deployed: sensor-panel.js a28ee131, lidar.html 8c24df16 (`?v=20261122side`).
+- Verified on the live page over Tailscale: the tile shows the new text with live readings (left 0.80 m, right 0.43 m).
+
+### 2026-11-22 — Side (left/right) ultrasonic for the LiDAR gate: replay says NO benefit (read-only)
+- Owner question: would the left/right HC-SR04 help the LiDAR gate? The owner sent a side photo (right side, front to the right). The sensor sits flat on the side panel about 4–5 cm behind the front edge, at the 0.23 m height measured earlier, facing straight sideways. Estimated mount: x ≈ 0.20 m, y ≈ ∓0.18 m, axis ∓90°.
+- Mount check against the LiDAR (round-trip-6 bag, about 420 readings per side, /tmp/side_us_check.py):
+  - Agreement is poor for every tested x (0.10/0.20) and axis (±70…±110°). Right: within 10 cm of the LiDAR only 8–17 % of the time, and more than 10 cm SHORTER 46–50 %. Left: best 32 % (x 0.10, axis 90–100°).
+  - Median readings 0.79/0.80 m sit close to the 0.72 m floor-echo distance for a 0.23 m high sensor, so the sensors often see the floor or low objects below the LiDAR plane.
+- Gate replay with the repo's side-coverage code (`side_ultrasonic_covered_bins`), mounts x 0.20, axis ±90°, cone 10° and 15°: vetoes 3085 → **3085 (zero change)**, the same at every spot.
+  - Reason: the gate's bins are measured from the LiDAR origin, and the sensor sits 0.25 m ahead of it with a narrow cone. The directions the LiDAR misses (e.g. -88…-98° from the LiDAR) lie behind the sensor's cone. This confirms the 2026-11-19 finding (2 of 9 door cases).
+  - (This replay uses `reason()` with the std gate, so its baseline is 3085 rather than the 2891 of the simplified replay.)
+- Decision input for the owner: keep left/right as the existing autonomy side stop (≤ 0.28 m while turning). Do not add them to the LiDAR gate. The larger levers remain:
+  - a virtual obstacle for the unknown non-reflecting object near map (3.5, -2.6): 918 vetoes;
+  - Nav2 centring in the narrow passage: 730;
+  - the MAP_GAP_MAX_BINS decision for the hall.
+
 ### 2026-11-22 10:38 IST — "All sensors" panel DEPLOYED (owner "Yes, deploy")
 - Before the deploy: parked (motion quiet, mission READY), autonomy armed true, stop not latched. Only rover-status-web was restarted, at 10:38:20; no motion.
 - Backups: `~/project_atlas/backups/sensor_panel_20261122/` (atlas_gate_view 36694951, lidar.html 99c64d49, lidar.js a732bcb2).
