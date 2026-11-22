@@ -39,7 +39,8 @@ COVER_TIMEOUT_S = 0.75
 #     OCCUPIED cell no closer than MAP_GAP_MIN_M (unknown cells, map edge or no wall within MAP_GAP_RAY_MAX_M fail).
 # Residual risk (documented, owner decision): an obstacle that ALSO returns no echo, standing inside such a gap.
 MAP_GAP_MIN_M = 0.4          # 2026-11-16 owner decision ("1 m -> 0.4"); replay vetoes at 0.45 m: 84->26 %, 69->28 %, 83->11 % (1.0 m: 79/35/38 %)
-MAP_GAP_MAX_BINS = 3
+MAP_GAP_MAX_BINS = 6           # 2026-11-22 owner decision ("5 fix karo"): 3 -> 6. Round-trip-6 replay with the 4 virtual
+                               # obstacles: vetoes 2153 -> 1323 (43 -> 26 %), hall 1065 -> 259; 8 bins would add little (1225).
 MAP_GAP_RAY_MAX_M = 6.0
 MAP_POSE_MAX_AGE_S = 3.0
 MAP_POSE_MAX_XY_STD_M = 0.15

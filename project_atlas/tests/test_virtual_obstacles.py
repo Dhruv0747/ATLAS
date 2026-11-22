@@ -27,12 +27,21 @@ def dist_to_polygon(x, y, poly):
 
 
 class ConfigTests(unittest.TestCase):
-    def test_repo_config_loads_the_three_owner_objects(self):
+    def test_repo_config_loads_the_owner_objects(self):
         polys = vo.load_polygons(CONFIG)
         names = [n for n, _ in polys]
-        self.assertEqual(len(polys), 3)
+        self.assertEqual(len(polys), 4)   # 2026-11-22: + dark wood cabinet / open door left of the hall doorway
         self.assertTrue(any('sofa' in n for n in names))
         self.assertTrue(any('table' in n for n in names))
+        self.assertTrue(any('doorway' in n for n in names))
+
+    def test_doorway_route_stays_clear(self):
+        # round-trip-6 AMCL path through the hall doorway (room -> hall); the doorway polygon keeps >= 0.6 m from it
+        route = [(1.0, -0.8), (1.32, -1.76), (1.53, -2.15), (1.9, -2.6), (2.0, -3.0), (1.95, -3.6), (1.9, -4.2)]
+        for name, poly in [p for p in vo.load_polygons(CONFIG) if 'doorway' in p[0]]:
+            for pt in route:
+                self.assertFalse(vo.point_in_polygon(*pt, poly), (name, pt))
+                self.assertGreaterEqual(dist_to_polygon(*pt, poly), 0.6, (name, pt))
 
     def test_hall_place_stays_free_with_clearance(self):
         for name, poly in vo.load_polygons(CONFIG):

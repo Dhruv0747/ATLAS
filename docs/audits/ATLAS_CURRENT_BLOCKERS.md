@@ -1,5 +1,73 @@
 # ATLAS current blockers
 
+### 2026-11-22 11:50 IST — MAP_GAP_MAX_BINS 3 → 6 DEPLOYED (owner "Yes, deploy", B pressed)
+- **First check:** latch released, so I asked the owner. After B: stop_latched true ("REMOTE STOP: B pressed"), autonomy armed false, motion quiet, ATLAS parked at about (1.88, -3.82) in the narrow passage.
+- **Deploy:**
+  - Backup: `~/project_atlas/backups/map_gap_6_20261122/atlas_lidar_availability.py` (md5 2df90553).
+  - Only the constant line changed on the rover (diff = line 42 only); new md5 7f2c9036; the import reports MAP_GAP_MAX_BINS 6.
+  - `atlas-cmd-vel-mux` restarted 11:50:24 → active; "LiDAR guard: 4 virtual obstacles". rover-status-web restarted → active.
+- **Live check at the narrow passage:**
+  - Gate view LIVE, limit 6; counts lidar 66, ultrasonic 1, map 5.
+  - forward, reverse and **spin now OK**. Before: spin STOP with 6 map bins over the 3 limit.
+  - Still latched (reason "joystick unavailable" after the mux restart), autonomy off.
+- **Caveat:** after the restarts the dashboard shows AMCL xy_std None, because AMCL publishes /amcl_pose only after an update/motion. Until the first new /amcl_pose, the mux has no fresh pose, so the map fallback is disabled (fails closed).
+- **Repo:** constant + comment in the repo file; the new exact-limit test is in `test_lidar_map_known_gaps`.
+
+### 2026-11-22 — LiDAR gate MAP_GAP_MAX_BINS 3 → 6 STAGED (owner "5 fix karo"; not deployed)
+- **Safety decision by the owner:**
+  - The map may explain up to 6 no-echo 5° bins at once (was 3).
+  - Every explained bin still needs the full map rule: fresh confident AMCL, free cells all the way to a mapped or virtual wall beyond the sweep distance, and no closer Astra obstacle.
+  - Residual risk, unchanged in kind and wider in angle: an obstacle that ALSO returns no LiDAR echo and is not seen by the Astra, standing inside one of up to 6 gaps.
+- **Replay** (round-trip-6 bag, the 4 deployed virtual obstacles, `reason()` with the AMCL std gate, `/tmp/gap_limit.py`):
+
+| Limit | Vetoes | Hall (y ≤ -4.5) | Passage (2.0, -3.5) | (2.0, -4.0) |
+|---|---|---|---|---|
+| 3 | 2153/5051 (43 %) | 1065 | 730 | 103 |
+| 4 | 1711 | 623 | 730 | 103 |
+| 5 | 1586 | 500 | 730 | 101 |
+| **6** | **1323 (26 %)** | **259** | 730 | 79 |
+| 8 | 1225 | 228 | 730 | 12 |
+
+  The narrow passage (730, wall_too_close) is not affected; it needs the taught route.
+- **Staged:**
+  - Repo `atlas_lidar_availability.py`: constant + comment.
+  - `test_lidar_map_known_gaps`: a new exact-limit test (6 bins explained for a spin, 7 stop, no map still stops); the "many" test comment updated. Mac: 47 tests OK.
+  - **Rover deploy plan: change only the constant line in the rover's own file** (the repo file also has staged, undeployed side-ultrasonic code). Tested on a rover-file copy with the one-line change: the map-known tests pass, except the repo side-ultrasonic test (`SIDE_US_MOUNTS` is not on the rover; pre-existing drift).
+  - Needs restarts of `atlas-cmd-vel-mux` (parked, E-STOP latched, autonomy OFF) and rover-status-web (so the gate view shows the limit 6).
+- Also found: the taught route `config/routes/dhruv_room_to_hall.json` (2026-08-26, map_id a8e7035836f61cbac5f3, 127 points, 3.8 m) is ignored on every Go today ("route map identity … does not match"). Re-teaching on the current map is proposed and not started.
+
+### 2026-11-22 11:30 IST — Doorway cabinet virtual obstacle DEPLOYED (owner "Yes, deploy", B pressed)
+- **Before the deploy:**
+  - The first check found the latch released and autonomy armed, so I asked the owner. After B: stop_latched true ("REMOTE STOP: B pressed"), autonomy armed false, motion quiet.
+  - ATLAS was parked at about (1.80, -3.08), in the narrow passage, not open space; the owner was told.
+  - The pre-restart AMCL xy_std was 0.002 (collapsed covariance again).
+- **Deploy:**
+  - Backup: `~/project_atlas/backups/door_cabinet_20261122/virtual_obstacles.json` (md5 83d368b5). Deployed config md5 3ce3481d with 4 obstacles.
+  - `atlas-localization` restarted 11:29:49 → active 11:30:21. Log: "4 virtual obstacles … /map 234x243: 1005 cells marked as virtual obstacles".
+  - The ExecStartPost verify seeder seeded "AMCL from LiDAR-verified pose x=1.895 y=-3.075", 9.5 cm from the pre-restart pose.
+  - `atlas-cmd-vel-mux` restarted 11:30:30 → active. Log: "LiDAR guard: 4 virtual obstacles from …/virtual_obstacles.json".
+- **After the restart:**
+  - Still latched; the latch reason changed to "REMOTE STOP: joystick unavailable" after the mux restart, joy age 0.1 s. Autonomy armed false.
+  - AMCL xy_std 0.065 m, yaw 2.4°, not uncertain; the covariance is healthy again.
+  - rover-status-web logged HTTP handler tracebacks at 11:30:23–24 (socketserver request thread, during the restarts); none after 11:30:40.
+- Not yet verified live: the gate view / guard at the doorway spot (1.3–1.5, -1.8…-2.2) showing the +55…+65° bins as map-explained (yellow) instead of none (red). This needs ATLAS at the doorway.
+
+### 2026-11-22 — Virtual obstacle for the dark wood cabinet + open door left of the hall doorway STAGED (owner "kar do"; not deployed)
+- Owner photo from behind ATLAS in the hall doorway: on the left is a dark polished wood door, open against the wall, and a dark wood cabinet. Right: door jamb, black sofa. Owner: both stay like this.
+- Live check at (1.53, -2.15, -73°): the LiDAR saw 0.95–1.1 m at +37…+52°, but 5.8–6.0 m at +57…+62° (beyond the map edge) toward the map (3.5, -2.6) area.
+- Derivation (round-trip-6 bag, read-only `/tmp/door_obstacle.py`):
+  - 975 vetoes in the door area. Their no-echo rays (2875 sub-rays) cross FREE cells and first meet UNKNOWN along a line at y ≈ -2.5, x 3.0–3.7 (cells (3.5, -2.5) 919, (3.2, -2.5) 601, (3.5, -2.6) 506, (3.7, -2.7) 418); median 2.33 m from the laser. This is the cabinet front, never returned by the RPLIDAR.
+  - Polygon [[2.95, -2.85], [3.95, -2.85], [3.95, -2.47], [2.95, -2.47]] covers 38 free (the free/unknown boundary row), 100 unknown and 2 occupied cells. At least 0.96 m from the doorway route.
+  - Replay with it: door-area vetoes **918 → 3**; total 3085 → 2153; all other spots unchanged.
+  - A polygon starting at y -2.52 (not covering the boundary row) gave no change at all, so the row is needed.
+- `config/virtual_obstacles.json` gets the 4th obstacle. `tests/test_virtual_obstacles.py`: count 4, plus a new route-clearance test for the doorway polygon (≥ 0.6 m). Results:
+  - Mac: virtual obstacles + gate view pass.
+  - Rover repo copy: virtual obstacles, lidar map-known gaps, lidar availability and gate view pass.
+  - A first all-polygon version of the clearance test failed on the EXISTING "black cabinet": 0.45 m from route point (1.9, -4.2). This is pre-existing and was not changed; the test was scoped to the new polygon.
+- Deploy needs:
+  - restarting `atlas-localization` (AMCL + Nav2 + the /map_nav republisher; AMCL resets, so re-seed with FIX MY LOCATION / the verify seeder) and `atlas-cmd-vel-mux` (guard overlay);
+  - ATLAS parked in an open mapped spot, E-STOP latched (B), autonomy OFF.
+
 ### 2026-11-22 11:01 IST — Side-ultrasonic label on the sensor panel DEPLOYED (owner "Yes, deploy")
 - The left/right tile now reads "SIDE STOP ONLY · NOT USED TO FILL LIDAR GAPS", with the 0.28 m autonomy side-stop rule and the replay result (no benefit, sees the floor). The earlier "NOT USED BY SAFETY GATE" understated the side stop.
 - Web files only, no restart. Backups in `~/project_atlas/backups/side_label_20261122/` (sensor-panel.js ceae025b, lidar.html 2050b845). Deployed: sensor-panel.js a28ee131, lidar.html 8c24df16 (`?v=20261122side`).

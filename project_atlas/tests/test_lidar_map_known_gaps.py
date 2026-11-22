@@ -63,7 +63,18 @@ class MapKnownTests(unittest.TestCase):
         self.assertIsNone(g.reason(0.1, 0.0, 100.1, 10.1, explain=lambda m: m))
         self.assertEqual(g.map_explained, 1)
         many = ala.LidarAvailability(); many.update(scan(blank_deg=set(range(0, 20)) | set(range(340, 360))), 10.0)
-        self.assertIn('unobserved', many.reason(0.1, 0.0, 100.1, 10.1, explain=lambda m: m))   # > 3 bins
+        self.assertIn('unobserved', many.reason(0.1, 0.0, 100.1, 10.1, explain=lambda m: m))   # 8 bins > MAP_GAP_MAX_BINS
+
+    def test_map_gap_limit_is_owner_value_and_exact(self):
+        self.assertEqual(ala.MAP_GAP_MAX_BINS, 6)       # 2026-11-22 owner decision
+        def guard(n_bins):
+            g = ala.LidarAvailability()
+            g.update(scan(blank_deg=set(range(0, 5 * n_bins))), 10.0)    # bins 0..n-1 empty (left of dead ahead)
+            return g
+        spin = 0.0, 0.5                                   # in-place spin needs every bin
+        self.assertIsNone(guard(6).reason(*spin, 100.1, 10.1, explain=lambda m: m))
+        self.assertIn('unobserved', guard(7).reason(*spin, 100.1, 10.1, explain=lambda m: m))
+        self.assertIn('unobserved', guard(1).reason(*spin, 100.1, 10.1))              # no map: still stops
 
     def test_explain_errors_fail_closed(self):
         g = ala.LidarAvailability(); g.update(scan(blank_deg=set(range(0, 5))), 10.0)
