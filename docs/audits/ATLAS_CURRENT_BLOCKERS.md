@@ -1,5 +1,11 @@
 # ATLAS current blockers
 
+### 2026-11-22 06:29 IST — "SINCE POWER-ON" history DEPLOYED (owner "Yes, deploy") + battery backfill
+- Before deploying: source STOPPED, stop latched, autonomy armed false. Backups in `~/project_atlas/backups/power_history_20261122/` (monitor, status web, usb-power.js, index.html); the rover files differed only by the replaced lines.
+- First deploy 06:27:41 (monitor d8f7c766, status web d3a7a3ef, usb-power.js 44bc6576, index 6446fcfa): `?long=1` served. Faults since boot: 0. The battery reading filled within seconds, and the history file was saved. On the live chart, rail and battery were empty before 06:27 because they had not been recorded before this deploy.
+- Follow-up (same feature, same deploy): battery minutes are now backfilled from the `rover-daly-bms` journal (5 s lines) for time before the monitor started; live readings are never overwritten. Minutes are sorted, and the 24 h cap drops the oldest minute. The chart notes when the Jetson rail starts ("recorded from 06:27 (dashboard start)"). Tests 16/16 (1 new); the rover temp-copy set passed. Redeployed 06:29:13 (monitor bbc24543, usb-power.js 95259b1b, index b0071249).
+- Live result: 451 minutes from 22:59, all with battery. rail_from 06:27; faults since power-on 0. On the dashboard: green "No USB faults since power-on on any hub"; battery 35 % -> 100 % by about 03:05; current +1.5..2 A, then 0, never below 0.
+
 ### 2026-11-22 — Power chart "SINCE POWER-ON" history STAGED (owner "Yes, add it"; not deployed)
 - `atlas_usb_power_monitor.py`: per-minute buckets for up to 24 h: Jetson VDD_IN min/avg/max and current avg/max, battery SOC/current/voltage from the Daly BMS (via the new `bms_for_power_history()` in status web), and USB faults per hub (disconnect, enum error, I/O error, over-current; re-enumerations are not counted).
 - USB faults since boot are backfilled once from `journalctl -k -b` for the time before the monitor started; afterwards the live reader takes over, with no double counting. Rail and battery minutes are saved every 60 s to `~/.local/state/project_atlas/usb_power_history.json` and restored after a dashboard restart within the same boot (boot_id).

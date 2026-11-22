@@ -176,7 +176,7 @@
     const bad = (L.faults_total || 0) > 0;
     return `<div class="usbpHead" style="margin-top:6px"><h3>SINCE POWER-ON • ${hhmm(t0)} → now (${Math.floor(mins / 60)} h ${mins % 60} min)</h3></div>
       <div class="usbpBanner ${bad ? 'bad' : 'ok'}">${bad ? `⚠ ${L.faults_total} USB fault${L.faults_total === 1 ? '' : 's'} since power-on (${byHub})` : 'No USB faults since power-on on any hub'}</div>
-      <div class="usbpNote"><span style="color:${P.volt}">━ Jetson VDD_IN volts (line = 1-min average, shade = min…max)</span></div><canvas id="usbpLongV" style="height:110px"></canvas>
+      <div class="usbpNote"><span style="color:${P.volt}">━ Jetson VDD_IN volts (line = 1-min average, shade = min…max)</span>${L.rail_from && L.rail_from - t0 > 300 ? ` • recorded from ${hhmm(L.rail_from)} (dashboard start)` : ''}</div><canvas id="usbpLongV" style="height:110px"></canvas>
       <div class="usbpNote"><span style="color:${P.ok}">━ Battery charge %</span></div><canvas id="usbpLongB" style="height:110px"></canvas>
       <div class="usbpNote"><span style="color:${P.amp}">━ Battery current (A, above 0 = charging, below 0 = running on battery)</span></div><canvas id="usbpLongA" style="height:70px"></canvas>
       <div class="usbpNote"><span style="color:${P.err}">▮ USB faults per minute (all hubs)</span></div><canvas id="usbpLongF" style="height:56px"></canvas>

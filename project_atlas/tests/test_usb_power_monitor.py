@@ -202,5 +202,22 @@ class MonitorTests(unittest.TestCase):
         self.assertIsNone(b['bat_a'])
 
 
+    def test_battery_backfill_from_bms_log_fills_only_past_minutes(self):
+        self.mon.live_since = 1200.0
+        self.clock.t = 1200.0
+        self.tick()                                       # live minute 1200 with live battery 35 %
+        lines = ['1000.0 jetsan-desktop bash[1]: [INFO] [1.0] [daly_bms_node]: Daly OK 13.30V +2.60A 26.3%',
+                 '1065.0 jetsan-desktop bash[1]: [INFO] [1.0] [daly_bms_node]: Daly OK 13.20V -2.10A 26.4%',
+                 '1210.0 jetsan-desktop bash[1]: [INFO] [1.0] [daly_bms_node]: Daly OK 14.40V +0.00A 99.0%',
+                 'junk']
+        self.mon.backfill_battery(lines)
+        ms = self.mon.long_snapshot()['minutes']
+        self.assertEqual([m['t'] for m in ms], [960, 1020, 1200])      # sorted by time
+        self.assertEqual((ms[0]['bat_soc'], ms[0]['bat_a']), (26.3, 2.6))
+        self.assertEqual(ms[1]['bat_a'], -2.1)
+        self.assertEqual(ms[2]['bat_soc'], 35.0)                       # live reading not overwritten
+        self.assertEqual(self.mon.long_snapshot()['rail_from'], 1200)
+
+
 if __name__ == '__main__':
     unittest.main()

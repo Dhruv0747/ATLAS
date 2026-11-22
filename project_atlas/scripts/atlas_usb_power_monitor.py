@@ -51,6 +51,7 @@ EVENT_RES = (
     ('io_error', re.compile(r'usb (\d+-[\d.]+): failed to (?:send|receive) control message: -\d+')),
     ('over_current', re.compile(r'(?:usb|hub) (\d+-[\d.]+)\S*.*over-current', re.I)),
 )
+BMS_LOG_RE = re.compile(r'Daly \w+ ([\d.]+)V ([+-]?[\d.]+)A ([\d.]+)%')   # rover-daly-bms journal line
 TTY_ERROR_RE = re.compile(r'(?:ch341-uart|cp210x|option1|cdc_acm) (ttyUSB\d+|ttyACM\d+):.*(?:-32|-71|-110|error)', re.I)
 
 
@@ -177,7 +178,11 @@ class UsbPowerMonitor:
         self.started = True
         threading.Thread(target=self._sample_loop, name='usb-power-sample', daemon=True).start()
         threading.Thread(target=self._kernel_loop, name='usb-power-kmsg', daemon=True).start()
-        threading.Thread(target=self.backfill_kernel, name='usb-power-backfill', daemon=True).start()
+        threading.Thread(target=self._backfill_all, name='usb-power-backfill', daemon=True).start()
+
+    def _backfill_all(self):
+        self.backfill_kernel()
+        self.backfill_battery()
 
     # ---- since-boot history (per minute) ---------------------------------------------------------
     def _bucket(self, t):
@@ -188,7 +193,7 @@ class UsbPowerMonitor:
                                      'iin_sum': 0.0, 'iin_max': None, 'bat_soc': None, 'bat_a': None,
                                      'bat_v': None, 'faults': {}}
             while len(self.minutes) > LONG_MINUTES:
-                self.minutes.popitem(last=False)
+                self.minutes.pop(min(self.minutes))       # drop the oldest minute (backfill inserts out of order)
         return b
 
     def _add_fault(self, t, path):
@@ -246,9 +251,32 @@ class UsbPowerMonitor:
                     with self.lock:
                         self._add_fault(t, hit[1])
 
+    def backfill_battery(self, lines=None):
+        """Battery minutes since boot from the Daly BMS journal (it logs every 5 s), for minutes not yet filled."""
+        if lines is None:
+            try:
+                lines = subprocess.run(['journalctl', '--user', '-u', 'rover-daly-bms', '-b', '-o', 'short-unix',
+                                        '--no-pager'], capture_output=True, text=True, timeout=30).stdout.splitlines()
+            except Exception:
+                return
+        for line in lines:
+            try:
+                t = float(line.split(' ', 1)[0])
+            except ValueError:
+                continue
+            m = BMS_LOG_RE.search(line)
+            if not m or t >= self.live_since:
+                continue
+            with self.lock:
+                b = self._bucket(t)
+                if b.get('bat_live'):
+                    continue
+                b['bat_v'], b['bat_a'], b['bat_soc'] = float(m.group(1)), float(m.group(2)), float(m.group(3))
+
     def long_snapshot(self):
         with self.lock:
-            buckets = list(self.minutes.values())
+            buckets = sorted(self.minutes.values(), key=lambda b: b['t'])
+        rail_from = next((b['t'] for b in buckets if b['n']), None)
         out = []
         for b in buckets:
             n = b['n']
@@ -261,10 +289,10 @@ class UsbPowerMonitor:
         for b in buckets:
             for h, k in b['faults'].items():
                 total[h] = total.get(h, 0) + k
-        return {'schema': 1, 'boot_unix': self.boot.get('unix'), 'now': round(self.clock(), 1),
+        return {'schema': 1, 'boot_unix': self.boot.get('unix'), 'now': round(self.clock(), 1), 'rail_from': rail_from,
                 'minutes': out, 'faults_by_hub': total, 'faults_total': sum(total.values()),
-                'note': 'One point per minute since power-on. USB faults since boot come from the kernel log; '
-                        'Jetson rail and battery start when the dashboard service first started this boot.'}
+                'note': 'One point per minute since power-on. USB faults and battery since boot come from the kernel '
+                        'and BMS logs; the Jetson rail (INA3221) is only recorded while the dashboard service runs.'}
 
     # ---- inputs --------------------------------------------------------------------------------
     def _rail(self):
@@ -311,6 +339,7 @@ class UsbPowerMonitor:
                 for key, field in (('soc', 'bat_soc'), ('current_a', 'bat_a'), ('voltage_v', 'bat_v')):
                     if isinstance(extra.get(key), (int, float)):
                         b[field] = round(float(extra[key]), 3)
+                        b['bat_live'] = True
             for path, dev in devices.items():
                 dev = dict(dev, role=role_for(dev, self.owners), hub_path=parent_hub(path), present=True)
                 self.known[path] = dev
