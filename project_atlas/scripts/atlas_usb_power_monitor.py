@@ -14,6 +14,7 @@ one `journalctl -k -f` reader thread.
 """
 import collections
 import glob
+import json
 import os
 import re
 import subprocess
@@ -22,6 +23,9 @@ import time
 
 USB_ROOT = '/sys/bus/usb/devices'
 HISTORY_S = 600            # ring buffer length (1 Hz samples)
+LONG_MINUTES = 24 * 60     # since-boot history: one bucket per minute, up to 24 h
+LONG_STATE = os.path.expanduser('~/.local/state/project_atlas/usb_power_history.json')
+FAULT_KINDS = ('disconnect', 'enum_error', 'io_error', 'over_current')   # 'reconnect' is not a fault
 EVENT_KEEP_S = 3600        # kernel events kept for the per-hub counters
 ROLE_BY_ID = {             # vendor:product -> human role
     '1e0e:907b': '4G modem (SIM8230G)',
@@ -126,6 +130,17 @@ def role_for(dev, owners):
     return ROLE_BY_ID.get(dev.get('id'), dev.get('product') or dev.get('id') or 'USB device')
 
 
+def boot_id(path='/proc/sys/kernel/random/boot_id'):
+    return _read(path)
+
+
+def boot_unix(clock=time.time, path='/proc/uptime'):
+    try:
+        return clock() - float(_read(path).split()[0])
+    except (ValueError, IndexError):
+        return None
+
+
 def find_ina3221(pattern='/sys/class/hwmon/hwmon*'):
     for root in glob.glob(pattern):
         if _read(os.path.join(root, 'name')) == 'ina3221':
@@ -134,8 +149,15 @@ def find_ina3221(pattern='/sys/class/hwmon/hwmon*'):
 
 
 class UsbPowerMonitor:
-    def __init__(self, usb_root=USB_ROOT, hwmon=None, clock=time.time, start_threads=True):
+    def __init__(self, usb_root=USB_ROOT, hwmon=None, clock=time.time, start_threads=True,
+                 extra_fn=None, state_path=LONG_STATE, boot=None):
         self.usb_root, self.clock = usb_root, clock
+        self.extra_fn = extra_fn          # optional () -> {'soc': %, 'current_a': A, 'voltage_v': V} (battery BMS)
+        self.state_path = state_path
+        self.boot = boot if boot is not None else {'id': boot_id(), 'unix': boot_unix(clock)}
+        self.minutes = collections.OrderedDict()               # minute epoch -> bucket
+        self.saved_at = 0.0
+        self.live_since = clock()   # kernel faults before this come from the backfill, after it from the live reader
         self.hwmon = hwmon if hwmon is not None else find_ina3221()
         self.lock = threading.Lock()
         self.samples = collections.deque(maxlen=HISTORY_S)    # (t, vin_v, iin_a, {path: state})
@@ -145,6 +167,7 @@ class UsbPowerMonitor:
         self.tty_map = {}
         self.pending = {}                                       # path -> worst event kind since last sample
         self.started = False
+        self._restore()
         if start_threads:
             self.start()
 
@@ -154,6 +177,94 @@ class UsbPowerMonitor:
         self.started = True
         threading.Thread(target=self._sample_loop, name='usb-power-sample', daemon=True).start()
         threading.Thread(target=self._kernel_loop, name='usb-power-kmsg', daemon=True).start()
+        threading.Thread(target=self.backfill_kernel, name='usb-power-backfill', daemon=True).start()
+
+    # ---- since-boot history (per minute) ---------------------------------------------------------
+    def _bucket(self, t):
+        key = int(t // 60) * 60
+        b = self.minutes.get(key)
+        if b is None:
+            b = self.minutes[key] = {'t': key, 'n': 0, 'vin_sum': 0.0, 'vin_min': None, 'vin_max': None,
+                                     'iin_sum': 0.0, 'iin_max': None, 'bat_soc': None, 'bat_a': None,
+                                     'bat_v': None, 'faults': {}}
+            while len(self.minutes) > LONG_MINUTES:
+                self.minutes.popitem(last=False)
+        return b
+
+    def _add_fault(self, t, path):
+        hub = parent_hub(path)
+        b = self._bucket(t)
+        b['faults'][hub] = b['faults'].get(hub, 0) + 1
+
+    def _restore(self):
+        """Reload rail/battery minutes from this boot after a dashboard restart (faults come from the kernel log)."""
+        if not self.state_path:
+            return
+        try:
+            with open(self.state_path, encoding='utf-8') as stream:
+                data = json.load(stream)
+        except (OSError, ValueError):
+            return
+        if not self.boot.get('id') or data.get('boot_id') != self.boot.get('id'):
+            return
+        for b in data.get('minutes', []):
+            if isinstance(b, dict) and isinstance(b.get('t'), (int, float)):
+                self.minutes[int(b['t'])] = dict(b, faults={})
+
+    def save(self):
+        if not self.state_path:
+            return
+        try:
+            with self.lock:
+                payload = {'boot_id': self.boot.get('id'), 'minutes': [dict(b, faults={}) for b in self.minutes.values()]}
+            os.makedirs(os.path.dirname(self.state_path), exist_ok=True)
+            tmp = self.state_path + '.tmp'
+            with open(tmp, 'w', encoding='utf-8') as stream:
+                json.dump(payload, stream)
+            os.replace(tmp, self.state_path)
+        except OSError:
+            pass
+
+    def backfill_kernel(self, lines=None):
+        """USB faults since boot from the kernel journal (one pass at start)."""
+        if lines is None:
+            try:
+                lines = subprocess.run(['journalctl', '-k', '-b', '-o', 'short-unix', '--no-pager'],
+                                       capture_output=True, text=True, timeout=30).stdout.splitlines()
+            except Exception:
+                return
+        with self.lock:
+            tty_map = dict(self.tty_map)
+        for line in lines:
+            try:
+                t = float(line.split(' ', 1)[0])
+            except ValueError:
+                continue
+            hit = parse_kernel_line(line, tty_map)
+            if hit and hit[0] in FAULT_KINDS:
+                if t < self.live_since:
+                    with self.lock:
+                        self._add_fault(t, hit[1])
+
+    def long_snapshot(self):
+        with self.lock:
+            buckets = list(self.minutes.values())
+        out = []
+        for b in buckets:
+            n = b['n']
+            out.append({'t': b['t'], 'vin_min': b['vin_min'], 'vin_max': b['vin_max'],
+                        'vin_avg': round(b['vin_sum'] / n, 3) if n else None,
+                        'iin_avg': round(b['iin_sum'] / n, 3) if n else None, 'iin_max': b['iin_max'],
+                        'bat_soc': b['bat_soc'], 'bat_a': b['bat_a'], 'bat_v': b['bat_v'],
+                        'faults': sum(b['faults'].values()), 'faults_by_hub': dict(b['faults'])})
+        total = {}
+        for b in buckets:
+            for h, k in b['faults'].items():
+                total[h] = total.get(h, 0) + k
+        return {'schema': 1, 'boot_unix': self.boot.get('unix'), 'now': round(self.clock(), 1),
+                'minutes': out, 'faults_by_hub': total, 'faults_total': sum(total.values()),
+                'note': 'One point per minute since power-on. USB faults since boot come from the kernel log; '
+                        'Jetson rail and battery start when the dashboard service first started this boot.'}
 
     # ---- inputs --------------------------------------------------------------------------------
     def _rail(self):
@@ -169,6 +280,8 @@ class UsbPowerMonitor:
         t = self.clock() if t is None else t
         with self.lock:
             self.events.append((t, kind, path))
+            if kind in FAULT_KINDS:
+                self._add_fault(t, path)
             rank = {'reconnect': 1, 'io_error': 2, 'enum_error': 2, 'over_current': 3, 'disconnect': 3}
             if rank.get(kind, 0) >= rank.get(self.pending.get(path), 0):
                 self.pending[path] = kind
@@ -179,7 +292,25 @@ class UsbPowerMonitor:
         if now - self.owners_at > 10.0:
             self.owners, self.owners_at = tty_owners(), now
         vin, iin = self._rail()
+        extra = None
+        if self.extra_fn:
+            try:
+                extra = self.extra_fn()
+            except Exception:
+                extra = None
         with self.lock:
+            b = self._bucket(now)
+            if vin is not None:
+                b['n'] += 1
+                b['vin_sum'] += vin
+                b['iin_sum'] += iin or 0.0
+                b['vin_min'] = vin if b['vin_min'] is None else min(b['vin_min'], vin)
+                b['vin_max'] = vin if b['vin_max'] is None else max(b['vin_max'], vin)
+                b['iin_max'] = iin if b['iin_max'] is None else max(b['iin_max'], iin or 0.0)
+            if isinstance(extra, dict):
+                for key, field in (('soc', 'bat_soc'), ('current_a', 'bat_a'), ('voltage_v', 'bat_v')):
+                    if isinstance(extra.get(key), (int, float)):
+                        b[field] = round(float(extra[key]), 3)
             for path, dev in devices.items():
                 dev = dict(dev, role=role_for(dev, self.owners), hub_path=parent_hub(path), present=True)
                 self.known[path] = dev
@@ -208,6 +339,9 @@ class UsbPowerMonitor:
                 self.sample_once()
             except Exception as exc:   # never take the dashboard down
                 print('usb power monitor sample failed: ' + str(exc), flush=True)
+            if self.clock() - self.saved_at > 60.0:
+                self.saved_at = self.clock()
+                self.save()
             time.sleep(1.0)
 
     def _kernel_loop(self):
@@ -270,9 +404,11 @@ _MONITOR = None
 _MONITOR_LOCK = threading.Lock()
 
 
-def monitor():
+def monitor(extra_fn=None):
     global _MONITOR
     with _MONITOR_LOCK:
         if _MONITOR is None:
-            _MONITOR = UsbPowerMonitor()
+            _MONITOR = UsbPowerMonitor(extra_fn=extra_fn)
+        elif extra_fn and not _MONITOR.extra_fn:
+            _MONITOR.extra_fn = extra_fn
         return _MONITOR

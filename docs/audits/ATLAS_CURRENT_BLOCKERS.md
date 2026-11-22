@@ -1,5 +1,13 @@
 # ATLAS current blockers
 
+### 2026-11-22 — Power chart "SINCE POWER-ON" history STAGED (owner "Yes, add it"; not deployed)
+- `atlas_usb_power_monitor.py`: per-minute buckets for up to 24 h: Jetson VDD_IN min/avg/max and current avg/max, battery SOC/current/voltage from the Daly BMS (via the new `bms_for_power_history()` in status web), and USB faults per hub (disconnect, enum error, I/O error, over-current; re-enumerations are not counted).
+- USB faults since boot are backfilled once from `journalctl -k -b` for the time before the monitor started; afterwards the live reader takes over, with no double counting. Rail and battery minutes are saved every 60 s to `~/.local/state/project_atlas/usb_power_history.json` and restored after a dashboard restart within the same boot (boot_id).
+- `GET /api/usb_power?long=1` returns the per-minute list, totals per hub, and boot time. The dashboard fetches it every 60 s (only while the drawer is open).
+- `usb-power.js`: new SINCE POWER-ON section with a banner ("No USB faults since power-on" or the faults per hub) and four charts: VDD_IN (1-min average line plus min..max shading and the 4.75 V line), battery %, battery current (above or below 0), and USB faults per minute. Cache key `usb-power.js?v=20261122long`.
+- Tests: `test_usb_power_monitor.py` 15/15 (6 new; this caught `state_path=None` crashing `_restore`, now fixed). The status-web set is 77/77 in a rover temp copy; one combined run had a single failure that passed on two reruns and individually, likely a 3 s thread wait in `test_relocalize_web` under load, so the wait is now 15 s. Real rover probe: backfill took 0.02 s; boot 22:59; 0 faults since boot. Browser test page (rover 10-min data + BMS overnight history + one synthetic fault): banner and charts render, no console errors.
+- Limitation: the rail and battery history start when the dashboard service first started this boot (the INA3221 is not logged elsewhere). USB faults cover the whole boot.
+
 ### 2026-11-22 06:20 IST — Overnight check: powered hub holds; 0 USB faults in 7 h 20 min
 - Boot 22:59 (dashboard Restart); uptime 7 h 20 min. Kernel: 0 modem disconnects, 0 USB disconnects, 0 USB errors (-32/-71/-110/urb stopped). USB power chart: 0 faults on all 5 hubs, no device gone, suspect hub none.
 - Jetson VDD_IN 4.856-4.880 V over the last 10 min, 1.6-1.8 A (8-9 W). Load average about 8.5.

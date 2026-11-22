@@ -2249,7 +2249,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.split('?')[0] == '/api/usb_power':   # 2026-11-21: per-hub USB health + VDD_IN (read-only)
             try:
                 import atlas_usb_power_monitor
-                json_response(self, 200, atlas_usb_power_monitor.monitor().snapshot())
+                mon = atlas_usb_power_monitor.monitor()
+                long_view = 'long=1' in (self.path.split('?', 1)[1] if '?' in self.path else '')
+                json_response(self, 200, mon.long_snapshot() if long_view else mon.snapshot())
             except Exception as exc:
                 json_response(self, 503, {"error": "USB power monitor unavailable: " + str(exc)[:120]})
             return
@@ -3139,6 +3141,20 @@ refresh();setInterval(refresh,2000);
 </script></body></html>"""
 
 
+def bms_for_power_history(max_age_s=15.0):
+    """Battery pack reading for the since-boot power history: {'soc','current_a','voltage_v'} or None."""
+    item = ROS._item('bms_status')
+    if not item or time.time() - float(item.get('ts', 0.0)) > max_age_s:
+        return None
+    try:
+        b = json.loads(item['value']) if isinstance(item.get('value'), str) else item.get('value')
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(b, dict) or not b.get('ok', True):
+        return None
+    return {'soc': b.get('soc_percent'), 'current_a': b.get('current_a'), 'voltage_v': b.get('voltage_v')}
+
+
 def main():
     # 2026-11-13: the server was found deadlocked (all threads in futex wait, CLOSE-WAIT sockets). SIGUSR1 now dumps
     # every thread's Python stack to the journal so the lock can be identified; the watchdog sends it before restarting.
@@ -3146,7 +3162,7 @@ def main():
     faulthandler.register(signal.SIGUSR1, all_threads=True)
     try:   # 2026-11-21: start USB power-health history at boot (read-only; 1 Hz sysfs + kernel-log reader)
         import atlas_usb_power_monitor
-        atlas_usb_power_monitor.monitor()
+        atlas_usb_power_monitor.monitor(extra_fn=bms_for_power_history)
     except Exception as exc:
         print('USB power monitor not started: ' + str(exc), flush=True)
     # 2026-11-13: listen backlog 64 (stdlib default 5): several dashboard tabs/phones polling at once could fill

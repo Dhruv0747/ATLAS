@@ -68,7 +68,11 @@ class MonitorTests(unittest.TestCase):
         (hw / 'in1_input').write_text('4872\n')
         (hw / 'curr1_input').write_text('1720\n')
         self.clock = Clock()
-        self.mon = m.UsbPowerMonitor(usb_root=root, hwmon=str(hw), clock=self.clock, start_threads=False)
+        self.state = str(Path(root) / 'history.json')
+        self.battery = {'soc': 35.0, 'current_a': 1.7, 'voltage_v': 13.3}
+        self.mon = m.UsbPowerMonitor(usb_root=root, hwmon=str(hw), clock=self.clock, start_threads=False,
+                                     extra_fn=lambda: self.battery, state_path=self.state,
+                                     boot={'id': 'boot-A', 'unix': 900.0})
         self.mon.owners_at = 1e12        # skip /proc scanning in tests
         self.mon.owners = {'ttyUSB2': 'python3 gnss_node --ros-args'}
         self.root = root
@@ -123,7 +127,7 @@ class MonitorTests(unittest.TestCase):
         self.assertTrue(s['devices']['1-2.2.4']['present'])
 
     def test_missing_ina3221_is_reported_not_faked(self):
-        mon = m.UsbPowerMonitor(usb_root=self.root, hwmon='', clock=self.clock, start_threads=False)
+        mon = m.UsbPowerMonitor(usb_root=self.root, hwmon='', clock=self.clock, start_threads=False, state_path=None)
         mon.owners_at = 1e12
         mon.sample_once()
         s = mon.snapshot()
@@ -133,6 +137,69 @@ class MonitorTests(unittest.TestCase):
     def test_history_is_bounded(self):
         self.tick(m.HISTORY_S + 20)
         self.assertEqual(len(self.mon.snapshot()['t']), m.HISTORY_S)
+
+
+    # ---- since power-on history (2026-11-22) ----
+    def test_minute_buckets_hold_rail_and_battery(self):
+        self.clock.t = 1020.0
+        self.tick(90)                                   # 1020..1109 s -> minutes 1020 and 1080
+        L = self.mon.long_snapshot()
+        self.assertEqual([b['t'] for b in L['minutes']], [1020, 1080])
+        first = L['minutes'][0]
+        self.assertEqual((first['vin_min'], first['vin_avg'], first['vin_max']), (4.872, 4.872, 4.872))
+        self.assertEqual(first['iin_avg'], 1.72)
+        self.assertEqual((first['bat_soc'], first['bat_a'], first['bat_v']), (35.0, 1.7, 13.3))
+        self.assertEqual(L['boot_unix'], 900.0)
+        self.assertEqual(L['faults_total'], 0)
+
+    def test_faults_counted_per_minute_and_hub_not_reconnects(self):
+        self.tick()
+        self.mon.note_event('disconnect', '1-2.4.1', t=1030.0)
+        self.mon.note_event('reconnect', '1-2.4.1', t=1030.5)
+        self.mon.note_event('io_error', '1-2.4.2', t=1031.0)
+        self.mon.note_event('enum_error', '1-2.2.4', t=1100.0)
+        L = self.mon.long_snapshot()
+        by_t = {b['t']: b for b in L['minutes']}
+        self.assertEqual(by_t[1020]['faults'], 2)
+        self.assertEqual(by_t[1020]['faults_by_hub'], {'1-2.4': 2})
+        self.assertEqual(by_t[1080]['faults'], 1)
+        self.assertEqual(L['faults_by_hub'], {'1-2.4': 2, '1-2.2': 1})
+        self.assertEqual(L['faults_total'], 3)
+
+    def test_kernel_backfill_counts_only_before_live_start(self):
+        self.mon.live_since = 1000.0
+        lines = ['950.5 jetsan-desktop kernel: usb 1-2.4.1: USB disconnect, device number 51',
+                 '951.0 jetsan-desktop kernel: usb 1-2.4.1: new high-speed USB device number 52 using tegra-xusb',
+                 '960.0 jetsan-desktop kernel: usb 1-2.1: device descriptor read/64, error -71',
+                 '1005.0 jetsan-desktop kernel: usb 1-2.4.1: USB disconnect, device number 53',
+                 'garbage line']
+        self.mon.backfill_kernel(lines)
+        L = self.mon.long_snapshot()
+        self.assertEqual(L['faults_total'], 2)            # the 1005 s one belongs to the live reader
+        self.assertEqual(L['faults_by_hub'], {'1-2.4': 1, '1-2': 1})
+
+    def test_history_survives_dashboard_restart_same_boot_only(self):
+        self.tick(3)
+        self.mon.save()
+        again = m.UsbPowerMonitor(usb_root=self.root, hwmon='', clock=self.clock, start_threads=False,
+                                  state_path=self.state, boot={'id': 'boot-A', 'unix': 900.0})
+        self.assertEqual(len(again.long_snapshot()['minutes']), 1)
+        self.assertEqual(again.long_snapshot()['minutes'][0]['bat_soc'], 35.0)
+        other = m.UsbPowerMonitor(usb_root=self.root, hwmon='', clock=self.clock, start_threads=False,
+                                  state_path=self.state, boot={'id': 'boot-B', 'unix': 900.0})
+        self.assertEqual(other.long_snapshot()['minutes'], [])
+
+    def test_long_history_is_bounded_to_24h(self):
+        for i in range(m.LONG_MINUTES + 30):
+            self.mon.note_event('disconnect', '1-2.4.1', t=1000.0 + 60 * i)
+        self.assertEqual(len(self.mon.long_snapshot()['minutes']), m.LONG_MINUTES)
+
+    def test_bad_battery_reading_is_ignored(self):
+        self.battery = {'soc': None, 'current_a': 'x'}
+        self.tick()
+        b = self.mon.long_snapshot()['minutes'][0]
+        self.assertIsNone(b['bat_soc'])
+        self.assertIsNone(b['bat_a'])
 
 
 if __name__ == '__main__':

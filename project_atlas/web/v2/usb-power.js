@@ -46,7 +46,7 @@
       : { volt: '#19cfff', amp: '#ffcc3d', ok: '#2ce08f', err: '#ff5261', warn: '#ffb03d', text: '#8fa3b8', fill: 'rgba(255,255,255,.04)' };
   }
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  let busy = false, timer = null;
+  let busy = false, timer = null, longData = null, longAt = 0;
 
   function canvasFor(id, h) {
     let c = document.getElementById(id);
@@ -116,6 +116,73 @@
     line(g, xs, smooth(health, 0).map(x => x == null ? null : 3 + (h - 6) * (1 - x)), P.ok, 2);
   }
 
+  // ---- since power-on (one point per minute; GET /api/usb_power?long=1, refreshed every 60 s) ----
+  const hhmm = t => { const x = new Date(t * 1000); return String(x.getHours()).padStart(2, '0') + ':' + String(x.getMinutes()).padStart(2, '0'); };
+  function longAxis(g, w, h, pad, t0, t1) {
+    g.fillStyle = P.text; g.font = '11px system-ui';
+    g.fillText(hhmm(t0), pad, h - 3); const lbl = 'now ' + hhmm(t1); g.fillText(lbl, w - 4 - g.measureText(lbl).width, h - 3);
+  }
+  function drawLong(L) {
+    const ms = L.minutes || []; if (!ms.length) return;
+    const t1 = L.now || ms[ms.length - 1].t, t0 = Math.min(L.boot_unix || ms[0].t, ms[0].t), pad = 44;
+    const X = (t, w) => pad + (w - pad - 4) * (t - t0) / Math.max(60, t1 - t0);
+    let c = canvasFor('usbpLongV', 110);
+    if (c) {
+      const { g, w, h } = c, vals = ms.filter(m => m.vin_avg != null);
+      const lo = Math.min(4.5, ...vals.map(m => m.vin_min)), hi = Math.max(5.2, ...vals.map(m => m.vin_max));
+      const Y = v => 6 + (h - 22) * (1 - (v - lo) / (hi - lo));
+      g.fillStyle = P.fill; g.fillRect(pad, 6, w - pad - 4, h - 22);
+      g.strokeStyle = 'rgba(255,82,97,.5)'; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(pad, Y(4.75)); g.lineTo(w - 4, Y(4.75)); g.stroke(); g.setLineDash([]);
+      g.strokeStyle = P.volt; g.globalAlpha = 0.35; g.lineWidth = 1;
+      vals.forEach(m => { const x = X(m.t + 30, w); g.beginPath(); g.moveTo(x, Y(m.vin_min)); g.lineTo(x, Y(m.vin_max)); g.stroke(); });
+      g.globalAlpha = 1;
+      line(g, vals.map(m => X(m.t + 30, w)), smooth(vals.map(m => m.vin_avg), 2).map(Y), P.volt, 2);
+      g.fillStyle = P.text; g.font = '11px system-ui'; g.fillText(hi.toFixed(2) + ' V', 2, 14); g.fillText(lo.toFixed(2) + ' V', 2, h - 18); g.fillText('4.75 V', 2, Y(4.75) + 4);
+      longAxis(g, w, h, pad, t0, t1);
+    }
+    c = canvasFor('usbpLongB', 110);
+    if (c) {
+      const { g, w, h } = c, vals = ms.filter(m => m.bat_soc != null);
+      g.fillStyle = P.fill; g.fillRect(pad, 6, w - pad - 4, h - 22);
+      g.fillStyle = P.text; g.font = '11px system-ui'; g.fillText('100 %', 2, 14); g.fillText('0 %', 2, h - 18);
+      if (vals.length) line(g, vals.map(m => X(m.t + 30, w)), smooth(vals.map(m => m.bat_soc), 1).map(v => 6 + (h - 22) * (1 - v / 100)), P.ok, 2.2);
+      else { g.fillText('No battery (BMS) data yet', pad + 8, h / 2); }
+      longAxis(g, w, h, pad, t0, t1);
+    }
+    c = canvasFor('usbpLongA', 70);
+    if (c) {
+      const { g, w, h } = c, vals = ms.filter(m => m.bat_a != null);
+      const amax = Math.max(3, ...vals.map(m => Math.abs(m.bat_a))), Y = v => 4 + (h - 20) * (1 - (v + amax) / (2 * amax));
+      g.fillStyle = P.fill; g.fillRect(pad, 4, w - pad - 4, h - 20);
+      g.strokeStyle = P.text; g.globalAlpha = 0.5; g.beginPath(); g.moveTo(pad, Y(0)); g.lineTo(w - 4, Y(0)); g.stroke(); g.globalAlpha = 1;
+      g.fillStyle = P.text; g.font = '11px system-ui'; g.fillText('+' + amax.toFixed(0) + ' A', 2, 14); g.fillText('0', 2, Y(0) + 4); g.fillText('-' + amax.toFixed(0) + ' A', 2, h - 18);
+      if (vals.length) line(g, vals.map(m => X(m.t + 30, w)), smooth(vals.map(m => m.bat_a), 1).map(Y), P.amp, 1.8);
+      longAxis(g, w, h, pad, t0, t1);
+    }
+    c = canvasFor('usbpLongF', 56);
+    if (c) {
+      const { g, w, h } = c, fmax = Math.max(1, ...ms.map(m => m.faults || 0));
+      g.fillStyle = P.fill; g.fillRect(pad, 4, w - pad - 4, h - 20);
+      g.fillStyle = P.text; g.font = '11px system-ui'; g.fillText(fmax + '/min', 2, 14); g.fillText('0', 2, h - 18);
+      g.fillStyle = P.err;
+      ms.forEach(m => { if (m.faults) { const bh = (h - 22) * m.faults / fmax; g.fillRect(X(m.t, w), h - 18 - bh, Math.max(2, X(m.t + 60, w) - X(m.t, w) - 1), bh); } });
+      longAxis(g, w, h, pad, t0, t1);
+    }
+  }
+  function longHtml(L) {
+    if (!L || !(L.minutes || []).length) return '<div class="usbpNote">Since power-on history: waiting for data…</div>';
+    const t1 = L.now, t0 = L.boot_unix || L.minutes[0].t, mins = Math.max(0, Math.round((t1 - t0) / 60));
+    const byHub = Object.entries(L.faults_by_hub || {}).filter(e => e[1]).map(e => `hub ${esc(e[0])}: ${e[1]}`).join(' • ');
+    const bad = (L.faults_total || 0) > 0;
+    return `<div class="usbpHead" style="margin-top:6px"><h3>SINCE POWER-ON • ${hhmm(t0)} → now (${Math.floor(mins / 60)} h ${mins % 60} min)</h3></div>
+      <div class="usbpBanner ${bad ? 'bad' : 'ok'}">${bad ? `⚠ ${L.faults_total} USB fault${L.faults_total === 1 ? '' : 's'} since power-on (${byHub})` : 'No USB faults since power-on on any hub'}</div>
+      <div class="usbpNote"><span style="color:${P.volt}">━ Jetson VDD_IN volts (line = 1-min average, shade = min…max)</span></div><canvas id="usbpLongV" style="height:110px"></canvas>
+      <div class="usbpNote"><span style="color:${P.ok}">━ Battery charge %</span></div><canvas id="usbpLongB" style="height:110px"></canvas>
+      <div class="usbpNote"><span style="color:${P.amp}">━ Battery current (A, above 0 = charging, below 0 = running on battery)</span></div><canvas id="usbpLongA" style="height:70px"></canvas>
+      <div class="usbpNote"><span style="color:${P.err}">▮ USB faults per minute (all hubs)</span></div><canvas id="usbpLongF" style="height:56px"></canvas>
+      <div class="usbpNote">${esc(L.note || '')}</div>`;
+  }
+
   function render(d) {
     const span = d.window_s || 600, hubs = d.hubs || {}, devs = d.devices || {};
     const suspect = d.suspect_hub, sh = suspect && hubs[suspect];
@@ -141,9 +208,10 @@
       });
       html += '</div>';
     });
-    html += `<div class="usbpNote">${esc(d.note || '')}</div></div>`;
+    html += `<div class="usbpNote">${esc(d.note || '')}</div>` + longHtml(longData) + '</div>';
     root.innerHTML = html;
     drawRail(d);
+    if (longData) drawLong(longData);
     order.forEach((hub, hi) => hubs[hub].devices.forEach((p, di) => drawHealth(`usbpH${hi}_${di}`, d.t || [], devs[p].health || [], span)));
   }
 
@@ -151,6 +219,9 @@
     if (busy || document.hidden || (drawer && !drawer.open)) return;
     busy = true;
     try {
+      if (Date.now() - longAt > 60000) {
+        try { const lr = await fetch('/api/usb_power?long=1', { cache: 'no-store' }); if (lr.ok) { longData = await lr.json(); longAt = Date.now(); } } catch (e) { /* keep the last long view */ }
+      }
       const r = await fetch('/api/usb_power', { cache: 'no-store' });
       const d = await r.json();
       if (!r.ok) throw Error(d.error || ('HTTP ' + r.status));

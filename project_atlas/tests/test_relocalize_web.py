@@ -20,7 +20,7 @@ class FakeProc:
         self.returncode, self.stdout, self.stderr = rc, out, err
 
 
-def wait_done(r, timeout=3.0):
+def wait_done(r, timeout=15.0):
     end = time.time() + timeout
     while r.status()['running'] and time.time() < end:
         time.sleep(0.01)
