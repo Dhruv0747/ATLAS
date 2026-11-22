@@ -1,5 +1,23 @@
 # ATLAS current blockers
 
+### 2026-11-22 10:38 IST — "All sensors" panel DEPLOYED (owner "Yes, deploy")
+- Before the deploy: parked (motion quiet, mission READY), autonomy armed true, stop not latched. Only rover-status-web was restarted, at 10:38:20; no motion.
+- Backups: `~/project_atlas/backups/sensor_panel_20261122/` (atlas_gate_view 36694951, lidar.html 99c64d49, lidar.js a732bcb2).
+- Deployed md5s: atlas_gate_view 150f3311, lidar.html 2050b845, lidar.js e04a2ee3, sensor-panel.js ceae025b. Compiled OK; service active.
+- Live API check: gate LIVE (lidar 70, map 2); astra_fresh true with 10 obstacle directions; forward, reverse and spin OK. sensor-panel.js 200; /camera.jpg 200 (28.5 kB).
+- Journal: one BrokenPipeError at 10:38:06, from the old process before the restart.
+- The page over Tailscale shows blue Astra dots ahead at about 1.2–2.6 m, 10 sensor tiles, and the live IMX708 frame (1280 px wide). No console errors.
+- Live values: AMCL ±0.047 m; radar 2 targets, nearest 0.32 m (DANGER); GPS no fix indoors; encoders DEGRADED (M3 excluded).
+
+### 2026-11-22 — "All sensors" panel on What ATLAS sees STAGED (owner "add kar do"; not deployed)
+- New `web/v2/sensor-panel.js` (loaded by lidar.html, `?v=20261122sensors`), read-only. It polls /api/status every 1 s and the latest IMX708 frame every 2 s, only while the page is visible.
+- Tiles for every sensor: LiDAR, Astra depth, ultrasonic front/rear, ultrasonic left/right, AMCL location, radar RD-03D, IMU, wheels/encoders, GPS and IMX708. Each shows freshness and a label saying whether the Nav2 LiDAR safety gate uses it.
+  - Used by the gate: LiDAR, Astra, front/rear ultrasonic, AMCL/map.
+  - Not used: left/right ultrasonic (no measured mounts), radar, IMU, encoders, GPS, IMX708.
+- `atlas_gate_view.build()` now also returns `astra_obstacles` (per bin, distance from the laser; empty when coverage is stale) and `astra_fresh`. lidar.js draws them as blue dots on the ring view. 1 new test (10/10); the rover temp copy passes gate view, executor-split and estop-safety (28, 1 skipped).
+- Browser preview with fake data: blue dots are at the correct side and distance; tiles readable on the dark panel; long lines wrap; the camera tile shows "waiting for a frame…" until a frame loads.
+- Live values read at 10:31, for reference: AMCL xy_std back to 0.054 m (the collapsed covariance at 10:25 was temporary); radar 1 target at 0.13 m, x 57 mm / y 122 mm, "DANGER" while parked (likely a reflection off ATLAS itself, not checked); GPS NMEA live, no fix (indoors); encoders DEGRADED with M3 excluded.
+
 ### 2026-11-22 10:25 IST — "What ATLAS sees" window DEPLOYED (owner "Yes, deploy")
 - State before the deploy: ATLAS parked (motion quiet, mission READY), autonomy armed true, stop not latched. Only rover-status-web was restarted (no base, mux, Nav2 or LiDAR restart; no motion).
 - Rover files differed from the repo only by this change. Backups are in `~/project_atlas/backups/gate_view_20261122/` (status web, index.html, home-nav.js, lidar.html, lidar.js).

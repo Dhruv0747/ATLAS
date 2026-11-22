@@ -125,7 +125,10 @@ def build(guard, scan, steady_now, ros_now, grid=None, pose=None, xy_std=None, y
     counts = {}
     for it in bins:
         counts[it['source']] = counts.get(it['source'], 0) + 1
-    return {'state': 'LIVE', 'bins': bins, 'counts': counts, 'probes': probes,
+    # Astra depth obstacles per robot bin (distance from the laser), for drawing; empty when coverage is stale
+    astra_obstacles = [{'bin': b, 'distance_m': round(d, 2)} for b, d in sorted(guard.obstacles(steady_now).items())]
+    return {'state': 'LIVE', 'bins': bins, 'counts': counts, 'probes': probes, 'astra_obstacles': astra_obstacles,
+            'astra_fresh': bool(astra) or bool(astra_obstacles),
             'map_fallback': 'ready' if map_ready else ('no map' if grid is None else 'location not confident or stale'),
             'pose': None if pose is None else [round(pose[0], 2), round(pose[1], 2), round(math.degrees(pose[2]))],
             'xy_std_m': None if xy_std is None else round(xy_std, 3),

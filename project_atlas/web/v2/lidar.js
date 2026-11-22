@@ -5,12 +5,14 @@ const GATE_COL={lidar:'#2fd47a',astra:'#3d8bff',ultrasonic:'#b06cff',map:'#ffd23
 const GATE_TXT={lidar:'LiDAR sees it',astra:'Astra camera sees it',ultrasonic:'Ultrasonic sees it',map:'No echo; map or virtual obstacle explains it',none:'NOTHING sees it; Nav2 is stopped if it needs this way'};
 function drawGate(g,dpr){
  const gv=data&&data.gate,el=document.getElementById('gate');if(!el)return;
+ window.__atlasGate=gv||{};
  if(!gv||gv.state!=='LIVE'){el.innerHTML=`<b>What ATLAS sees:</b> ${gv?(gv.reason||gv.state):'not available'}`;return;}
  const r0=g.r*g.s*1.02,r1=r0+16*dpr;
  for(const it of gv.bins){const a1=it.from_deg*Math.PI/180,a2=(it.from_deg+5)*Math.PI/180;
   ctx.beginPath();ctx.arc(g.cx,g.cy,r1,-Math.PI/2-a1,-Math.PI/2-a2,true);ctx.arc(g.cx,g.cy,r0,-Math.PI/2-a2,-Math.PI/2-a1,false);ctx.closePath();
   ctx.fillStyle=GATE_COL[it.source]||'#888';ctx.globalAlpha=it.source==='lidar'?.55:.95;ctx.fill();ctx.globalAlpha=1;
   if(it.source==='none'){ctx.strokeStyle='rgba(255,59,78,.35)';ctx.lineWidth=1*dpr;const am=-Math.PI/2-(a1+a2)/2;ctx.beginPath();ctx.moveTo(g.cx,g.cy);ctx.lineTo(g.cx+Math.cos(am)*r0,g.cy+Math.sin(am)*r0);ctx.stroke();}}
+ for(const o of gv.astra_obstacles||[]){const a=(o.bin*5+2.5)*Math.PI/180,x=-0.05+o.distance_m*Math.cos(a),y=o.distance_m*Math.sin(a);if(Math.hypot(x,y)>g.r)continue;ctx.fillStyle='#3d8bff';ctx.beginPath();ctx.arc(g.cx-y*g.s,g.cy-x*g.s,5*dpr,0,2*Math.PI);ctx.fill();}
  const p=gv.probes||{},chip=(n,k)=>{const x=p[k]||{};return `<span class="gchip ${x.ok?'ok':'bad'}">${n}: ${x.ok?'OK':'STOP'}</span>`;};
  const legend=Object.keys(GATE_COL).map(k=>`<span class="glegend"><i style="background:${GATE_COL[k]}"></i>${GATE_TXT[k]} (${(gv.counts||{})[k]||0})</span>`).join('');
  const deg=b=>{let d=b.from_deg+2.5;if(d>180)d-=360;return d;};

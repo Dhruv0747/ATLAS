@@ -113,6 +113,15 @@ class GateViewTests(unittest.TestCase):
         self.assertEqual(out['ultrasonic_m'], {'front': 1.5})
         self.assertEqual(out['bins'][0]['source'], 'ultrasonic')
 
+    def test_astra_obstacles_reported_when_fresh(self):
+        g = self.guard([2.0] * 360)
+        g.cover_obstacles, g.cover_received, g.cover_bins = {3: 0.9}, 10.0, set()
+        out = gv.build(g, scan([2.0] * 360), 10.1, 100.1)
+        self.assertEqual(out['astra_obstacles'], [{'bin': 3, 'distance_m': 0.9}])
+        self.assertTrue(out['astra_fresh'])
+        stale = gv.build(g, scan([2.0] * 360), 12.0, 100.1)
+        self.assertEqual(stale['astra_obstacles'], [])
+
     def test_stale_ultrasonic_ignored(self):
         val = {'sensors': {'front': {'state': 'VALID', 'range_mm': 1500, 'sample_age_s': 2.0}}}
         self.assertEqual(gv.ultrasonic_ranges(val), {})
