@@ -1,5 +1,41 @@
 # ATLAS current blockers
 
+### 2026-11-22 13:45 IST — Home pose keeps the start heading DEPLOYED (owner "Yes, deploy", B pressed)
+- **Before the deploy:** first check found the latch released and autonomy armed, so I asked the owner. After B: stop_latched true, armed false, motion quiet, mission READY.
+- **Files:** backup `~/project_atlas/backups/home_heading_20261122/atlas_mission_control.py` (d35ac0c4); the diff is only the docstring + the final-yaw lines. Compiled OK; installed 6501a6d2.
+- **Restart:** `atlas-mission-control` restarted 13:45:37 → active; log "READY". Still latched, autonomy off; load average 8–10.
+- **On-rover check of the deployed helper:** the reversed route starts at yaw +85° (leaving the hall toward the door); home pose (0.28, 0.66) at **-75° = route start yaw** (return_home heading error 0° when started at the route start heading).
+- Not yet verified: a real "Go dhruv room" ending with the on-the-spot turn.
+- Earlier today, also recorded: reboot at 13:09 (owner, dashboard Restart) to retry the 4G modem. The modem still fails ("usb 1-2.2-port1: Cannot enable … unable to enumerate"); boot seeder seeded at (1.715, -4.975). Kernel also logged "imx708: probe of 9-001a failed with error -121", while the dashboard camera stream still reported streaming; not investigated.
+
+### 2026-11-22 — Reversed taught route: home pose keeps the start heading STAGED (owner "#1 fix करो"; not deployed)
+- **Problem:** with the 12:14 fix every reversed waypoint faces the travel direction, including the final "dhruv room" pose. That pose would be (0.28, 0.66) at about +105°, roughly 180° from the round-trip start heading (about -60…-75°, facing the door). Stage-3 `return_home` needs the final AMCL pose within 0.30 m / 20° of the pose at the first dispatch, so it would always FAIL.
+- **Fix:** `reversed_route()` keeps yaw + π for all waypoints except the last, which takes the route's original start yaw (-1.309 rad = -75°). ATLAS turns on the spot at home.
+- **Room check** (map + virtual obstacles): at (0.28, 0.66) the footprint clears by ≥ 0.17 m at every heading; a 0.34 m circle is free.
+- **Tests:**
+  - `test_taught_route` gains `test_home_pose_keeps_start_heading_for_return_home`; the reverse test now checks all but the last waypoint. Mac OK.
+  - Rover repo copy: all tests that touch mission control pass.
+- **Operating note:** start the round trip at about (0.28, 0.66) facing the door (about -60…-90°) so the start heading is within 20° of -75°.
+- **Deploy:** `atlas_mission_control.py` + restart of `atlas-mission-control` (parked, E-STOP latched).
+
+### 2026-11-22 12:30–12:55 IST — Taught route field test, a 4-min network outage, Wi-Fi retry fix (owner sudo)
+- **Go hall #1 (12:30)**
+  - "TAUGHT ROUTE DISPATCHED name=hall waypoints=21 corridor_error=0.34m": the new route was used.
+  - Stopped after about 0.6 m at (0.50, 0.62).
+  - 8× `AUTONOMY BLOCKED: RIGHT 0.16–0.17 m (stop 0.23–0.26 m)` while turning right, although the LiDAR showed 0.85–1.09 m clear on the right; seconds later the right HC-SR04 read 0.67 m. Hypothesis, NOT verified: the sensor sits above the front-right wheel and sees the steered tyre. Parked steering test proposed.
+  - Then the Astra obstacle scan went `BLINDED` (valid_fraction 0.279 < min 0.30), so mission control cancelled: "camera obstacles lost (2.4s stale)", status 5.
+  - Two further Go presses were refused with "camera obstacles OFF". After a small manual repositioning the Astra returned OK (valid 0.46).
+- **Go hall #2 (12:34)**
+  - The taught route was used again; D1 and D2 passed unaided, and the right ultrasonic did not false-trigger (min 0.27 m).
+  - At D3/D4: "no valid path found to (1.90, -3.95)", "Failed to make progress", and 4× "Starting point in lethal space". Goal failed at 12:37:29 (status 6) at (1.93, -2.91). 82 LIDAR AVAILABILITY STOPs, 1 remote assist.
+  - Costmap read once while parked: the robot centre was at cost 31. In D3 the band where the centre is below the inscribed cost is only about 0.10–0.25 m wide (live LiDAR marks on the jamb 0.25–0.35 m left; static walls). With moving AMCL std 0.1–0.2 m the planner sees the start in lethal/inscribed space. Root cause: localisation accuracy vs doorway width (D4 tolerance about ±0.12 m), not the rover's size.
+  - Proposed (not started): a "doorway assist" mode that centres reactively on LiDAR side distances inside known doorway zones, with the gate unchanged. Meanwhile the owner assists at D3/D4. The owner passed D4 by remote to (1.69, -4.60).
+- **Outage 12:42:22–12:46:41**
+  - The rover was unreachable on Tailscale and Wi-Fi; Jetson up the whole time (uptime 3 h 23 min, 2.6 GB RAM free, all services active). Not a CPU crash.
+  - The home Wi-Fi "Airtel_dhruv_9030" is a mesh (8 BSSIDs seen). Roaming to b4:a7:c6:41:fc:9a ended in "CTRL-EVENT-DISCONNECTED reason=15 … 4-Way Handshake failed - pre-shared key may be incorrect". NetworkManager went to need-auth and blocked autoconnect until 12:46:41.
+  - **4G backup absent:** "usb 1-2.2-port1: Cannot enable. Maybe the USB cable is bad? … unable to enumerate" since 12:00:47; `mmcli -L` "No modems were found"; 1-2.2.1 is missing from sysfs. So there was no failover. Owner to check the hub 1-2.2 supply and reseat the modem cable.
+- **Fix applied by the owner (typed the sudo password in the Terminal tab):** `sudo nmcli connection modify Airtel_dhruv_9030 connection.auth-retries 0 connection.autoconnect-retries 0`. Verified: auth-retries 0, autoconnect-retries 0 (forever), still connected at 192.168.1.19. A handshake failure on one mesh node no longer blocks reconnecting.
+
 ### 2026-11-22 12:14 IST — New taught route + reversed-route yaw fix DEPLOYED (owner "Yes, deploy")
 - **Before the deploy:** stop_latched true (reason "joystick unavailable"), autonomy armed false, motion quiet, mission READY.
 - **Backups** in `~/project_atlas/backups/taught_route_20261122/`: old route 773f7b3b, mission control db0b27c4.

@@ -71,14 +71,17 @@ from atlas_scan_fit_core import (
 
 def reversed_route(points: list) -> list:
     """The taught route is stored room -> hall. Driving it back, the order is reversed AND every pose must face
-    the new travel direction (yaw + pi); before 2026-11-22 the yaw was kept, so each waypoint (and the final
-    'dhruv room' pose) faced backwards."""
+    the new travel direction (yaw + pi); before 2026-11-22 the yaw was kept, so each waypoint faced backwards.
+    The FINAL pose (home) keeps the route's original start heading, so ATLAS ends where and how a round trip
+    starts (Stage-3 return_home: within 0.30 m / 20 deg of the start pose); it turns on the spot at home."""
     out = []
     for point in reversed(points):
         p = dict(point)
         yaw = float(p["yaw"]) + math.pi
         p["yaw"] = math.atan2(math.sin(yaw), math.cos(yaw))
         out.append(p)
+    if out:
+        out[-1]["yaw"] = float(points[0]["yaw"])
     return out
 
 class AtlasMissionControl(Node):
