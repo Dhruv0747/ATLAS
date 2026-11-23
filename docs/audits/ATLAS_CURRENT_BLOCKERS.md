@@ -1,5 +1,27 @@
 # ATLAS current blockers
 
+### 2026-11-23 13:37 IST — STAGE 2 PASS (gentle left/right turn sequence); entry gate 3/3, step 4 unlocked
+- **Run 3:** `turn_check_20261123_133747.json` **PASS**, with the swept-path guard fix deployed at 13:36.
+  - **LEFT:** ended by YAW, IM10A +25.1° / LiDAR-ICP +25.9°, 0.324 m, start 0.82 s, peak 0.151 m/s, still in 0.16 s.
+  - **RIGHT:** ended by YAW, −25.3° / −26.7°, 0.334 m, start 0.68 s, peak 0.223 m/s, still in 0.05 s.
+  - Net heading −0.2°. Path clearance stayed "inf" on both arcs.
+- **Failures kept:**
+  - Run 2 (`turn_check_20261123_133541.json`, 13:35, old tool): FAIL `STOP_SPEED_LOOP_STATUS_STALE` before moving (`/atlas/speed_loop` status older than 0.5 s; seen once before in a Speed check).
+  - Run 1 (13:34): false box-guard stop (entry below).
+- **Board:**
+  - entry gate 3/3 (stage 3 is still an OWNER DECISION, not a single-run checker PASS);
+  - step 4 is NOT DONE and its part A button is unlocked; steps 5–10 are locked.
+- **Watch:** the right arc peaked at 0.223 m/s under the 0.25 limit, with stop-go wheel speed (0.003 → 0.13 m/s) during the turn. The speed loop surges while steering changes.
+
+### 2026-11-23 13:34 IST — Stage-2 run 1 FAIL: false LiDAR stop from my box-shaped guard (fix staged, NOT deployed)
+- **Result:** `turn_check_20261123_133410.json` FAIL after the left arc only (the right arc was correctly not started after a guard stop).
+  - ARM OK; started at 1.57 s; turned LEFT (IM10A +2.3°, LiDAR-ICP +5.7°) over 0.081 m; peak 0.127 m/s; still in 0.11 s.
+  - It then stopped with STOP_LIDAR_0.20M: "clearance" went inf → 0.69 → 0.52 → 0.34 → 0.20 m in 0.3 s while ATLAS moved a few cm.
+- **Cause (my bug):** the guard was a straight box reaching 0.58 m to the turning side and 1 m ahead. A side wall at ~0.6 m slides into that box as soon as ATLAS yaws 1–2°. The real footprint keeps ≥ 0.27 m from such a wall over the whole 25° arc (replayed in a test).
+- **Fix:** `swept_clearance()` now uses the true annulus the footprint sweeps around the turning centre (R = 0.667 m, inner edge − 0.10 m … outer front corner + 0.10 m), only up to the 25° target + 0.30 m. The distance is measured along the curve. The start needs that path empty.
+- **Tests:** side-wall replay both directions (never < 0.30 m); an on-curve post is seen at 0.45 m and stops the arc after 15°; ahead counts, behind / other side / beyond 25° do not. test_turn_ground_check 12/12 OK.
+- **Also:** the IM10A lags the LiDAR at the start of the turn (2.3° vs 5.7° over 8 cm; 0.061°/s steps at 10 Hz). Over 25° this should catch up; watch it in run 2.
+
 ### 2026-11-23 ~13:40 IST — Step 4 part A (parked IMU/EKF/TF check) built (NOT deployed); every later step has a locked button
 - **Owner:** "when the stage is passed, unlock stage 4; make every stage button but don't enable it".
 - **Board state:** Stage 2 is still NOT DONE (no turn_check file on the rover). GitHub CI for c6b0ced is green.

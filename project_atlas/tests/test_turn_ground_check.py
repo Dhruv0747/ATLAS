@@ -1,5 +1,6 @@
 """Pure parts of tools/drive/turn_ground_check.py (Stage-2 gentle turns). No ROS. 2026-11-23."""
 import ast
+import math
 import sys
 import unittest
 from pathlib import Path
@@ -71,14 +72,44 @@ class TurnCheckTests(unittest.TestCase):
         r = g.evaluate([left, bad_right])
         self.assertIn('right:ended_by_heading_target', r['failed'])
 
-    def test_swept_clearance_looks_only_at_the_turning_side(self):
-        bumper = g.FRONT_BUMPER_X_M
-        wall_left = [(bumper + 0.5, 0.45)]          # 0.45 m to the left, 0.5 m ahead of the bumper
-        self.assertAlmostEqual(g.swept_clearance(wall_left, +1), 0.5)
-        self.assertEqual(g.swept_clearance(wall_left, -1), float('inf'))
-        self.assertEqual(g.swept_clearance([(bumper + 0.3, -1.0)], +1), float('inf'))   # far to the right
-        self.assertEqual(g.swept_clearance([(-0.4, 0.0)], +1), float('inf'))            # behind
-        self.assertAlmostEqual(g.swept_clearance([(bumper + 0.2, 0.0)], -1), 0.2)       # straight ahead counts
+    @staticmethod
+    def world_to_base(points, yaw_deg, direction):
+        """Rover pose after turning yaw_deg on the commanded arc; return the world points in base_link."""
+        th = math.radians(yaw_deg) * direction
+        R = g.RADIUS_M
+        px, py = R * math.sin(abs(th)), direction * R * (1 - math.cos(th))
+        out = []
+        for x, y in points:
+            dx, dy = x - px, y - py
+            out.append((dx * math.cos(th) + dy * math.sin(th), -dx * math.sin(th) + dy * math.cos(th)))
+        return out
+
+    def test_recorded_side_wall_case_does_not_stop_the_arc(self):
+        # 2026-11-23 run 1: wall ~0.6 m to the side of the turn. Sweep the whole 25 deg turn both ways.
+        for d in (+1, -1):
+            wall = [(x / 100, d * 0.60) for x in range(-50, 300, 2)]
+            for k in range(0, 26):
+                pts = self.world_to_base(wall, k, d)
+                self.assertGreaterEqual(g.swept_clearance(pts, d, 25 - k), g.STOP_CLEAR_M, (d, k))
+
+    def test_obstacle_on_the_curve_is_seen_and_distance_shrinks(self):
+        for d in (+1, -1):
+            # a post exactly on the arc 0.45 m (arc length) ahead of the bumper
+            phi = (g.FRONT_BUMPER_X_M + 0.45) / g.RADIUS_M
+            post = [(g.RADIUS_M * math.sin(phi), d * g.RADIUS_M * (1 - math.cos(phi)))]
+            c0 = g.swept_clearance(post, d, 25)
+            self.assertAlmostEqual(c0, 0.45, places=2)
+            c1 = g.swept_clearance(self.world_to_base(post, 15, d), d, 10)   # 0.45 - 0.175 m travelled
+            self.assertLess(c1, c0)
+            self.assertLess(c1, g.STOP_CLEAR_M)          # would stop the arc
+
+    def test_straight_ahead_and_inner_side_count_but_far_and_behind_do_not(self):
+        b = g.FRONT_BUMPER_X_M
+        for d in (+1, -1):
+            self.assertLess(g.swept_clearance([(b + 0.2, 0.0)], d, 25), g.STOP_CLEAR_M)   # in front of the bumper
+            self.assertEqual(g.swept_clearance([(-0.4, 0.0)], d, 25), float('inf'))       # behind
+            self.assertEqual(g.swept_clearance([(b + 0.3, -d * 1.0)], d, 25), float('inf'))  # far on the other side
+            self.assertEqual(g.swept_clearance([(3.0, 0.0)], d, 25), float('inf'))        # beyond the 25 deg path
 
     def test_tool_records_on_the_master_plan_and_stops_after_a_guard(self):
         src = (ROOT / 'tools' / 'drive' / 'turn_ground_check.py').read_text(encoding='utf-8')

@@ -10,8 +10,8 @@ What it does, twice (arc 1 = LEFT, arc 2 = RIGHT):
   * arms the mux COMMISSION lease (20 s; the mux itself clamps COMMISSION to |vx| <= 0.12 m/s, |wz| <= 0.15 rad/s);
   * sends ONE gentle forward arc: vx 0.10 m/s, wz +-0.15 rad/s (radius ~0.67 m, ~15 deg wheel angle);
   * stops (zero + disarm) at the first of: IM10A heading change >= --yaw deg (default 25, max 35) = normal end,
-    wheel distance 0.6 m without that turn, 12 s, LiDAR clearance < 0.30 m inside the swept box on the turning
-    side, front sector blind for 3 scans, /scan, /yahboom/odom, IM10A or /atlas/speed_loop older than 0.5 s,
+    wheel distance 0.6 m without that turn, 12 s, a LiDAR point on the curved path ATLAS will sweep (footprint
+    + 0.10 m) closer than 0.30 m along that path, front sector blind for 3 scans, /scan, /yahboom/odom, IM10A or /atlas/speed_loop older than 0.5 s,
     speed > 0.30 m/s for 2 samples, a speed-loop 'fail_closed' reason, or Ctrl-C;
   * waits for ATLAS to stand still between the arcs.
 Saves ~/.local/state/project_atlas/turn_check_<time>.json and records the result on the master-plan board.
@@ -37,7 +37,6 @@ TIMEOUT_S = 12.0
 STALE_S = 0.5
 RUNAWAY_MPS = 0.30
 PEAK_LIMIT_MPS = 0.25
-START_CLEAR_M = 0.70
 STOP_CLEAR_M = 0.30
 STILL_MPS = 0.02
 STOP_SETTLE_S = 1.5
@@ -48,8 +47,7 @@ LASER_X_M = -0.05
 FRONT_BUMPER_X_M = 0.25
 HALF_WIDTH_M = 0.18
 SIDE_MARGIN_M = 0.10
-TURN_SIDE_EXTRA_M = 0.30      # the swept path drifts ~0.06 m sideways in 25 deg at R 0.67; generous margin
-BOX_AHEAD_M = 1.0
+RADIUS_M = VX / WZ            # turning radius of the commanded arc (~0.67 m)
 
 
 def bounded_yaw(yaw_deg):
@@ -58,16 +56,27 @@ def bounded_yaw(yaw_deg):
     return yaw_deg
 
 
-def swept_clearance(points, direction):
-    """Distance ahead of the front bumper to the nearest point inside the box the arc sweeps.
-    points: (x, y) in base_link; direction +1 = left, -1 = right. Pure; unit-tested."""
-    inner = HALF_WIDTH_M + SIDE_MARGIN_M
-    outer = inner + TURN_SIDE_EXTRA_M
+def swept_clearance(points, direction, remaining_deg):
+    """Distance ALONG THE ARC from the front bumper to the nearest LiDAR point inside the band the footprint sweeps
+    (inner edge - margin .. outer front corner + margin) between now and the heading target + STOP_CLEAR_M.
+    points: (x, y) in base_link; direction +1 = left, -1 = right. inf = path clear. Pure; unit-tested.
+    2026-11-23 run 1: the former straight box (|y| <= 0.58 on the turning side, 1 m ahead) took a side wall ~0.6 m
+    away for an obstacle as soon as ATLAS yawed 1-2 deg (0.69 -> 0.20 m in 0.3 s) although the arc stays ~0.27 m
+    from it; this band follows the real circle instead."""
+    r_in = RADIUS_M - HALF_WIDTH_M - SIDE_MARGIN_M
+    r_out = math.hypot(RADIUS_M + HALF_WIDTH_M, FRONT_BUMPER_X_M) + SIDE_MARGIN_M
+    phi_max = math.radians(max(0.0, remaining_deg)) + (FRONT_BUMPER_X_M + STOP_CLEAR_M) / RADIUS_M
+    cy = direction * RADIUS_M                       # turning centre (0, +-R) in base_link
     best = math.inf
     for x, y in points:
-        side = y * direction            # > 0 = towards the turn
-        if 0.0 < x <= FRONT_BUMPER_X_M + BOX_AHEAD_M and -inner <= side <= outer:
-            best = min(best, max(0.0, x - FRONT_BUMPER_X_M))
+        r = math.hypot(x, y - cy)
+        if not r_in <= r <= r_out:
+            continue
+        # angle travelled from the rover's position to the point, positive in the direction of motion
+        phi = direction * (math.atan2(y - cy, x) + direction * math.pi / 2)
+        phi = (phi + math.pi) % (2 * math.pi) - math.pi
+        if 0.0 < phi <= phi_max:
+            best = min(best, max(0.0, RADIUS_M * phi - FRONT_BUMPER_X_M))
     return best
 
 
@@ -197,9 +206,10 @@ def main():
                 rclpy.spin_once(self, timeout_sec=0.05)
 
     def run_arc(n, direction):
-        clear = swept_clearance(n.points, direction)
-        if clear < START_CLEAR_M:
-            print(f'ABORT: {"left" if direction > 0 else "right"} arc path clearance {clear:.2f} m < {START_CLEAR_M:.2f} m')
+        clear = swept_clearance(n.points, direction, yaw_target)
+        if clear < math.inf:
+            print(f'ABORT: something is on the {"left" if direction > 0 else "right"} arc path, {clear:.2f} m ahead '
+                  f'along the curve; clear the floor and start again')
             return None
         r = n.call(n.arm_c, 12.0)
         print(f'ARM success={getattr(r, "success", None)} message={getattr(r, "message", "no response")}', flush=True)
@@ -213,7 +223,7 @@ def main():
                 rclpy.spin_once(n, timeout_sec=0.05)
                 now = time.monotonic(); t = now - t0
                 d = math.hypot(n.odom[0] - x0, n.odom[1] - y0); v = n.odom[2]; yaw = n.imu_yaw - yaw0
-                clear = swept_clearance(n.points, direction)
+                clear = swept_clearance(n.points, direction, yaw_target - yaw * direction)
                 if not samples or t - samples[-1]['t'] >= 0.1:
                     samples.append({'t': round(t, 2), 'v': round(v, 3), 'd': round(d, 3), 'yaw': round(yaw, 2),
                                     'clear': None if math.isinf(clear) else round(clear, 2),
