@@ -50,6 +50,16 @@ class Stage3Tests(unittest.TestCase):
         base['pose'] = [(1.5, 0.4, 0.0, 0.0), (35.0, 3.0, 0.0, 180.0), (70.0, 0.05, 0.0, 5.0)]   # only after moving
         self.assertFalse(evaluate('dhruv room', **base)['checks']['return_home']['ok'])
 
+    def test_encoder_fault_during_remote_driving_is_excluded_but_autonomous_one_is_not(self):
+        base = trip()
+        base['joy'] = [(30.0 + i * 0.1, True) for i in range(5)]                 # owner drives 30.0-30.4 s
+        base['encoder'] = [(30.2, 'CRITICAL')]
+        base['odom'] = [(t, 0.2 if 30 <= t <= 31 else v) for t, v in base['odom']]
+        r = evaluate('dhruv room', **base)['checks']['encoders']
+        self.assertTrue(r['ok'], r); self.assertIn('excluded 1', r['detail'])
+        base['encoder'] = [(30.2, 'CRITICAL'), (10.5, 'CRITICAL')]              # 10.5 s: Nav2 driving
+        self.assertFalse(evaluate('dhruv room', **base)['checks']['encoders']['ok'])
+
     def test_tf_does_not_hide_a_real_miss(self):
         base = trip()
         base['pose'] = [(0.0, 0.0, 0.0, 0.0), (70.0, 0.6, 0.0, 40.0)]

@@ -32,6 +32,24 @@ def four_wheel_path_scales(curvature, wheelbase_m, track_width_m, positions):
     return tuple(scales)
 
 
+class ConsensusDebounce:
+    """2026-11-23: declare encoder consensus lost only after `required` CONSECUTIVE failed intervals.
+
+    Evidence (four Stage-3 bags, about 65,000 health samples at 10 Hz, 2026-11-22/23): all 20 consensus CRITICALs
+    were single 0.1 s intervals, never two in a row. Bursty controller counts put the three remaining pairs
+    (M3 excluded) a fraction of a millimetre outside tolerance for one interval. A real disagreement (slip, broken
+    encoder, unplugged channel) persists and is still declared within required x 0.1 s (0.2 s = 3 cm at 0.15 m/s).
+    Any non-failed interval resets the count; stale packets and hardware faults are handled elsewhere, unchanged.
+    """
+    def __init__(self, required=2):
+        self.required = max(1, int(required))
+        self.count = 0
+
+    def update(self, failed_now):
+        self.count = self.count + 1 if failed_now else 0
+        return self.count >= self.required
+
+
 class EncoderLinkMonitor:
     """Track shared controller-packet loss and post-recovery qualification.
 

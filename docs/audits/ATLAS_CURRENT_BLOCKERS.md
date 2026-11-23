@@ -1,5 +1,44 @@
 # ATLAS current blockers
 
+### 2026-11-23 12:11–12:18 IST — Speed checks after the encoder-debounce deploy: 2 PASS (speed evidence current again)
+- **12:11:19 FAIL** `STOP_LIDAR_0.59M`: the LiDAR safety stopped the run at an obstacle 0.59 m ahead after 0.47 m (wheels) / 0.53 m (ICP); steady 0.108 m/s. The test space was too short; the owner moved ATLAS to open space.
+- **12:15:21 FAIL** `STOP_SPEED_LOOP_STATUS_STALE`: wheels 0.072 m; steady-mean and ended-by-distance checks failed. Not investigated; the next two runs were clean.
+- **12:16:41 PASS** (DISTANCE): wheels 0.598 m, ICP 0.672 m, steady 0.113 m/s, coast 0.022 m.
+- **12:17:41 PASS** (DISTANCE): wheels 0.592 m, ICP 0.680 m, steady 0.106 m/s, coast 0.022 m.
+- **Readiness:** speed passed [0.15, 0.15], nothing blocking. The two new PASSes postdate the 12:05 yahboom_base change.
+- **Next:** clear the stale goal (Abort), then a Stage-3 one-click run with the debounce live.
+
+### 2026-11-23 12:05 IST — Encoder consensus debounce DEPLOYED (owner "e stop dene deploy")
+- **Before the deploy:** stop latched ("REMOTE STOP: voice stop requested"), autonomy armed false, motion quiet. The Stage-3 runner was CANCELLED by the owner, recording off.
+- **Change:** the deployed yahboom_base diff vs the backup is only the import, the constant, the debounce member, and the `consensus_failed = self._consensus_debounce.update(...)` wrap.
+- **Install:** yahboom_base.py 57655cb2, atlas_encoder_selection.py 93c3542f; compiled OK. Backups: `~/project_atlas/backups/encoder_debounce_20261123/` (a9c378fc / d26e648d).
+- **Restart:** `rover-base-telemetry` restarted 12:05:27 → active; no errors in the journal.
+- **Live after restart:** encoder health DEGRADED (M3 excluded, normal), fresh; odom fresh; stop still latched; autonomy off.
+- **Readiness blocks autonomy as designed: "Speed check pending: 0/2 PASS at 0.15 m/s".** The owner must run the Speed check twice (Readiness page) before autonomy can be switched on.
+- The mission status still showed an old "NAMED GOAL ACCEPTED name=dhruv room taught-route" from the cancelled run. Autonomy is off and the stop is latched; to be cleared with Abort if Nav2 still holds a goal.
+
+### 2026-11-23 10:25–11:05 IST — One-click run #2: 4/5 (only encoders); encoder consensus debounce STAGED; checker remote-exclusion DEPLOYED
+- **Run #2** (bag `stage3_auto_20261123_102501`), checker with TF start:
+  - PASS legs, **return_home 0.30 m / 3° (TF)**, safe_stop (v 0.157 → still in 0.30 s, 0.018 m), turn_sign (875/6).
+  - **FAIL encoders:** 2 bad samples while moving.
+  - The home leg again needed 17 Go attempts: D2 failures, and "localization still moving" refusals including a 0.66 m pose shift while stopped.
+- **Encoder CRITICALs in this run:** +146 s NAV2 (v ≈ 0), +849 s NAV2 (0.137 m/s, cmd wz -0.66), +1081 s REMOTE (0.21 m/s), +1182 s NAV2 (0.077 m/s).
+  - Every one is "encoder consensus unavailable; fewer than three wheel channels agree", with M3 excluded.
+  - Example normalized deltas: M1 0.006 / M2 0.020 / M4 0.011 m, so all three pairs sit just outside tolerance (0.45 relative / 4 mm).
+- **Evidence for B** (four bags: runs #8, #9 and today's two; about 65,000 health samples at 10 Hz): **20 consensus CRITICAL episodes, every one exactly 1 sample (0.1 s), never 2 in a row.**
+- **A (owner "do it") — checker change.** The encoders check now excludes samples while the owner drives by remote (/cmd_vel_joy within TURN_REMOTE_WINDOW_S), like turn_sign, and reports how many it excluded.
+  - Today's run: "1 bad sample while moving autonomously; excluded 1 during owner remote driving". Still FAIL.
+  - Tests +1 (13 in the checker file).
+  - **Deployed 11:04** as a file copy only: `tools/drive/stage3_autonomy_check.py` e5c7efae (backup in `~/project_atlas/backups/encoder_debounce_20261123/`).
+- **B (owner "fix deploy karo") — debounce, STAGED, NOT DEPLOYED.**
+  - New `atlas_encoder_selection.ConsensusDebounce`: consensus is declared lost only after 2 consecutive failed intervals (0.2 s, about 3 cm at 0.15 m/s).
+  - `yahboom_base.py`: `ENCODER_CONSENSUS_DEBOUNCE_INTERVALS = 2`, wrapping the existing condition.
+  - Hardware freeze faults, stale packets and link qualification are unchanged and still immediate.
+  - On the four bags this removes all 20 false CRITICALs.
+  - Tests: `tests/test_encoder_consensus_debounce.py` 5/5, added to CI. On the rover repo copy, every encoder / yahboom / speed-loop / curvature / drive-PID test passes. The 8 failures in that run were stage31 UI / vision3d tests picked up by the name filter, unrelated.
+- **Not deployed yet:** a Stage-3 run was in progress (runner OUT, autonomy armed, stop not latched). The deploy needs ATLAS parked with the E-STOP latched and a restart of `rover-base-telemetry` (the Yahboom base). Because `yahboom_base.py` changes, **2 Speed check PASSes are required afterwards** (arm gate / speed evidence).
+- Backups taken: yahboom_base.py a9c378fc, atlas_encoder_selection.py d26e648d.
+
 ### 2026-11-23 09:45–10:11 IST — First one-click Stage-3 run: 3/5 (return_home, encoders); checker TF start + 5 s record lead DEPLOYED
 - **Run** (bag `~/atlas_bags/stage3_auto_20261123_094529`):
   - Go hall: 2 attempts (#1 cancelled); hall SUCCEEDED.

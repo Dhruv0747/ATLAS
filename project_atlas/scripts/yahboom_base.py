@@ -38,7 +38,7 @@ except Exception:  # pragma: no cover - missing module must never stop the motor
     _RcFrameForwarder = _RcReportForwarder = None
 from atlas_steering_commission import SteeringCommission
 from atlas_encoder_selection import (
-    ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator, EncoderLinkMonitor,
+    ENCODER_NAMES, WHEEL_NAMES, EncoderDeltaEstimator, EncoderLinkMonitor, ConsensusDebounce,
     WheelStillnessDetector, feedback_state, four_wheel_path_scales,
     validate_selection,
 )
@@ -113,6 +113,7 @@ CMD_ODOM_WZ_SCALE = 0.45
 ODOM_STATE_SAVE_PERIOD_S = 0.20
 ENCODER_FREEZE_S = 1.20
 ENCODER_START_GRACE_S = 0.80
+ENCODER_CONSENSUS_DEBOUNCE_INTERVALS = 2   # 2026-11-23: see atlas_encoder_selection.ConsensusDebounce
 FREEZE_CHECK_SEARCH_PWM = 70   # speed-loop breakaway search below this PWM is not 'traction' for the freeze check
 ENCODER_SINGLE_GRACE_S = 5.0
 ENCODER_LINK_QUALIFY_S = 3.0
@@ -447,6 +448,7 @@ class YahboomBase(Node):
         self._encoder_motion_started = 0.0
         self._encoder_fault_since = {}
         self._dynamic_encoder_rejected = set()
+        self._consensus_debounce = ConsensusDebounce(ENCODER_CONSENSUS_DEBOUNCE_INTERVALS)
         self._encoder_stale = True
         self._x = 0.0
         self._y = 0.0
@@ -2032,11 +2034,11 @@ class YahboomBase(Node):
         }
         faults = sorted(hardware_faults)
         consensus_rejected = sorted(self._dynamic_encoder_rejected)
-        consensus_failed = bool(
+        consensus_failed = self._consensus_debounce.update(bool(
             traction
             and len(self._encoder_delta_estimator.last_accepted) < 3
             and len(consensus_rejected) >= 3
-        )
+        ))
         longest = max(
             (now - self._encoder_fault_since[i] for i in hardware_faults),
             default=0.0,

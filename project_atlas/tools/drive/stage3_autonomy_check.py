@@ -154,9 +154,18 @@ def evaluate(home, mission, safety, encoder, amcl, odom, cmd, imu, joy=None, pos
                            'detail': f'autonomous: same {same}, opposite {opp}' + note}
 
     # encoders ----------------------------------------------------------------------------------------------------
-    bad = [(t, st) for t, st in encoder if st in BAD_ENCODER and (speed_at(t) or 0.0) > 0.02]
-    checks['encoders'] = {'ok': not bad, 'detail': f'{len(bad)} bad samples while moving' +
-                          (f' (first {bad[0][1]})' if bad else '')}
+    # 2026-11-23: like turn_sign, the gate grades the AUTONOMOUS drive; samples while the owner drives by remote
+    # (/cmd_vel_joy active within TURN_REMOTE_WINDOW_S) are excluded and reported. Without /cmd_vel_joy nothing is.
+    def remote_at(t):
+        if joy is None or not jt:
+            return False
+        k = bisect.bisect_right(jt, t) - 1
+        return k >= 0 and t - joy[k][0] <= TURN_REMOTE_WINDOW_S and joy[k][1]
+    moving_bad = [(t, st) for t, st in encoder if st in BAD_ENCODER and (speed_at(t) or 0.0) > 0.02]
+    bad = [b for b in moving_bad if not remote_at(b[0])]
+    checks['encoders'] = {'ok': not bad, 'detail': f'{len(bad)} bad samples while moving autonomously' +
+                          (f' (first {bad[0][1]})' if bad else '') +
+                          (f'; excluded {len(moving_bad) - len(bad)} during owner remote driving' if len(moving_bad) > len(bad) else '')}
 
     # info --------------------------------------------------------------------------------------------------------
     info['localization_blocks_while_moving'] = sum(1 for t, s in safety if 'LOCALIZATION' in s and (speed_at(t) or 0) > 0.02)
