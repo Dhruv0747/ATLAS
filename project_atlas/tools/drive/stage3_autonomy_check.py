@@ -34,7 +34,7 @@ def _wrap_deg(a):
     return (a + 180.0) % 360.0 - 180.0
 
 
-def evaluate(home, mission, safety, encoder, amcl, odom, cmd, imu, joy=None):
+def evaluate(home, mission, safety, encoder, amcl, odom, cmd, imu, joy=None, pose=None):
     """Pure. Each input is a time-sorted list:
     mission/safety: (t, text); encoder: (t, state); amcl: (t, x, y, yaw_deg); odom: (t, vx); cmd: (t, vx, wz);
     imu: (t, gz). Returns {'verdict', 'checks': {name: {'ok', 'detail'}}, 'info': {...}}."""
@@ -59,16 +59,31 @@ def evaluate(home, mission, safety, encoder, amcl, odom, cmd, imu, joy=None):
 
     # return home -----------------------------------------------------------------------------------------------
     t_first = next((t for t, s in mission if DISPATCHED.search(s)), None)
-    start = next((a for a in amcl if t_first is not None and a[0] >= t_first), None)
+    # 2026-11-23: AMCL publishes /amcl_pose only after the rover moves, so "first AMCL after the dispatch" was taken
+    # 0.2-0.5 m into the drive (one-click run: start read as (0.37, 0.18) while ATLAS was parked at about (0.28,
+    # 0.66)). When the bag has /tf, use the map->base_link pose (map->odom x odom->base_link) AT the dispatch and AT
+    # the home finish; otherwise fall back to AMCL as before.
+    src = 'AMCL'
+    if pose:
+        start = next((a for a in reversed(pose) if t_first is not None and a[0] <= t_first), None)
+        if start is None and t_first is not None:
+            # no TF before the dispatch (recording started with it): first TF pose while ATLAS has not moved yet
+            moved_t = next((o[0] for o in odom if o[0] >= t_first and abs(o[1]) >= 0.03), None)
+            start = next((a for a in pose if a[0] >= t_first and (moved_t is None or a[0] < moved_t)
+                          and a[0] - t_first <= 10.0), None)
+        src = 'TF'
+    else:
+        start = next((a for a in amcl if t_first is not None and a[0] >= t_first), None)
     end_t = home_t if home_t is not None else (amcl[-1][0] if amcl else None)
     end = None
     if end_t is not None:
-        before = [a for a in amcl if a[0] <= end_t + 3.0]
+        series = pose if pose else amcl
+        before = [a for a in series if a[0] <= end_t + (1.0 if pose else 3.0)]
         end = before[-1] if before else None
     if start and end and home_t is not None:
         dxy = math.hypot(end[1] - start[1], end[2] - start[2]); dyaw = abs(_wrap_deg(end[3] - start[3]))
         checks['return_home'] = {'ok': dxy <= RETURN_XY_M and dyaw <= RETURN_YAW_DEG,
-                                 'detail': f'{dxy:.2f} m / {dyaw:.0f} deg from the start pose'}
+                                 'detail': f'{dxy:.2f} m / {dyaw:.0f} deg from the start pose ({src})'}
     else:
         checks['return_home'] = {'ok': False, 'detail': 'no HOME goal success or no AMCL pose'}
 
@@ -160,14 +175,17 @@ def read_bag(path):
     from geometry_msgs.msg import Twist, PoseWithCovarianceStamped
     from nav_msgs.msg import Odometry
     from sensor_msgs.msg import Imu
+    from tf2_msgs.msg import TFMessage
     r = rosbag2_py.SequentialReader()
     r.open(rosbag2_py.StorageOptions(uri=path, storage_id='sqlite3'), rosbag2_py.ConverterOptions('cdr', 'cdr'))
     want = ['/atlas/mission_status', '/atlas/motion_safety', '/atlas/encoder_health', '/amcl_pose', '/cmd_vel',
-            '/yahboom/odom', '/im10a/imu/bias_corrected_candidate', '/cmd_vel_joy']
+            '/yahboom/odom', '/im10a/imu/bias_corrected_candidate', '/cmd_vel_joy', '/tf']
     present = {t.name for t in r.get_all_topics_and_types()}
     r.set_filter(rosbag2_py.StorageFilter(topics=[t for t in want if t in present]))
     d = {k: [] for k in ('mission', 'safety', 'encoder', 'amcl', 'odom', 'cmd', 'imu')}
     d['joy'] = [] if '/cmd_vel_joy' in present else None
+    d['pose'] = [] if '/tf' in present else None
+    map_odom = None
     while r.has_next():
         topic, data, ts = r.read_next(); t = ts / 1e9
         if topic == '/atlas/mission_status': d['mission'].append((t, deserialize_message(data, String).data))
@@ -182,6 +200,16 @@ def read_bag(path):
             m = deserialize_message(data, Twist); d['cmd'].append((t, m.linear.x, m.angular.z))
         elif topic == '/cmd_vel_joy':
             m = deserialize_message(data, Twist); d['joy'].append((t, abs(m.linear.x) > 0.01 or abs(m.angular.z) > 0.01))
+        elif topic == '/tf':
+            for tr in deserialize_message(data, TFMessage).transforms:
+                q, v = tr.transform.rotation, tr.transform.translation
+                xyz = (v.x, v.y, 2 * math.atan2(q.z, q.w))
+                if tr.header.frame_id == 'map' and tr.child_frame_id == 'odom':
+                    map_odom = xyz
+                elif tr.header.frame_id == 'odom' and tr.child_frame_id == 'base_link' and map_odom is not None:
+                    mx, my, myaw = map_odom; ox, oy, oyaw = xyz
+                    d['pose'].append((t, mx + ox * math.cos(myaw) - oy * math.sin(myaw),
+                                      my + ox * math.sin(myaw) + oy * math.cos(myaw), math.degrees(myaw + oyaw)))
         elif topic == '/yahboom/odom':
             d['odom'].append((t, deserialize_message(data, Odometry).twist.twist.linear.x))
         else:

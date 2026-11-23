@@ -48,7 +48,7 @@ class RunnerTests(unittest.TestCase):
         s.run(2, pose=(1.0, -1.0, -60.0), mission='NAMED GOAL ACCEPTED name=dhruv room taught-route')
         s.run(1, mission='NAMED GOAL FINISHED name=dhruv room taught-route status=4')
         self.assertEqual(s.r.state, 'SETTLE')
-        s.run(8, mission='NAMED GOAL FINISHED name=dhruv room taught-route status=4')
+        s.run(13, mission='NAMED GOAL FINISHED name=dhruv room taught-route status=4')
         self.assertEqual(s.gos(), ['dhruv room', 'hall'])
         self.assertIn(('start_recording',), s.actions)
 
@@ -61,7 +61,7 @@ class RunnerTests(unittest.TestCase):
 
     def test_full_round_trip_with_b_and_doorway_retry(self):
         s = Sim(); s.r.start(0.0)
-        s.run(7)                                                       # -> OUT, go hall
+        s.run(12)                                                      # -> OUT, go hall
         s.run(1, mission='NAMED GOAL ACCEPTED name=hall taught-route', source='NAV2', speed=0.12, pose=(0.5, 0.3, -60))
         s.run(2, mission='NAMED GOAL ACCEPTED name=hall taught-route', source='NAV2', speed=0.12, pose=(0.6, 0.2, -60))
         self.assertTrue(s.r.b_prompt)                                  # PRESS B NOW while rolling
@@ -90,14 +90,14 @@ class RunnerTests(unittest.TestCase):
 
     def test_b_press_while_still_does_not_count(self):
         s = Sim(); s.r.start(0.0)
-        s.run(7)
+        s.run(12)
         s.run(1, mission='NAMED GOAL ACCEPTED name=hall taught-route', source='NAV2', speed=0.0)
         s.run(1, mission='NAMED GOAL ACCEPTED name=hall taught-route', latched=True, speed=0.0)
         self.assertFalse(s.r.stop_done)
 
     def test_cancel_stops_recording_and_sends_nothing_more(self):
         s = Sim(); s.r.start(0.0)
-        s.run(7)
+        s.run(12)
         acts = s.r.cancel(s.t)
         self.assertEqual(acts, [('stop_recording', 'cancelled')])
         n = len(s.gos())
@@ -107,7 +107,7 @@ class RunnerTests(unittest.TestCase):
 
     def test_mission_error_waits_and_retries(self):
         s = Sim(); s.r.start(0.0)
-        s.run(7)
+        s.run(12)
         s.run(1, mission='ERROR navigate named place hall: saved-map navigation blocked: current pose is not in known clear space')
         self.assertIsNone(s.r.leg)
         s.run(10, mission='ERROR navigate named place hall: saved-map navigation blocked: current pose is not in known clear space')
@@ -147,7 +147,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_records_sends_and_checks(self):
         svc, rec = self.make()
-        self.tick(svc, 7)
+        self.tick(svc, 12)
         self.assertEqual(rec.calls, ['start']); self.assertEqual(self.sent, ['hall'])
         self.cur = obs(mission='NAMED GOAL FINISHED name=hall taught-route status=4', pose=HALL); self.tick(svc, 9)
         self.assertEqual(self.sent, ['hall', 'dhruv room'])
@@ -160,7 +160,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_refused_go_is_retried_later_not_lost(self):
         svc, rec = self.make(go_ok=False)
-        self.tick(svc, 7)
+        self.tick(svc, 12)
         self.assertEqual(self.sent, ['hall'])
         self.assertIsNone(svc.runner.leg)
         self.assertIn('not sent', svc.runner.message)
@@ -180,3 +180,15 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(res['verdict'], 'FAIL')
         self.assertFalse(res['checks']['return_home']['ok'])
         self.assertTrue(res['checks']['safe_stop']['ok'])
+
+
+class RecordLeadTests(unittest.TestCase):
+    def test_records_before_go_and_restarts_if_moved(self):
+        s = Sim(); s.r.start(0.0)
+        s.run(6)
+        self.assertIn(('start_recording',), s.actions)
+        self.assertEqual(s.gos(), [])                                  # Go hall waits RECORD_LEAD_S after recording
+        s.run(1, pose=(1.0, -1.0, -60.0))                              # someone drives it away before Go
+        self.assertIn(('stop_recording', 'moved before start'), s.actions)
+        self.assertEqual(s.r.state, 'POSITION')
+        self.assertEqual(s.gos(), [])

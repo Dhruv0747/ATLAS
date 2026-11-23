@@ -28,6 +28,7 @@ STILL_DEG = 3.0
 B_PROMPT_SPEED = 0.08         # m/s: "PRESS B NOW" only while clearly rolling (checker needs >= 0.05 at the press)
 B_PROMPT_MIN_S = 1.0
 RETRY_GAP_S = 8.0
+RECORD_LEAD_S = 5.0          # bag runs this long (parked) before Go hall
 FINISHED = re.compile(r'NAMED GOAL FINISHED name=(.+?) status=(\d+)')
 ACCEPTED = re.compile(r'NAMED GOAL (?:ACCEPTED|DISPATCHED) name=(.+)$')
 
@@ -58,6 +59,7 @@ class Runner:
         self.result = None
         self.started_t = None
         self.last_mission = None
+        self.recording_since = None
 
     # ---------------------------------------------------------------------------------------------------------------
     def _say(self, t, text):
@@ -183,6 +185,11 @@ class Runner:
         if st == 'SETTLE':
             pose = obs.get('pose')
             if not self.at_start(pose):
+                if self.recording_since is not None:          # moved after recording started: restart cleanly
+                    self.recording_since = None
+                    self.state = 'POSITION'; self.leg = None
+                    self._say(t, 'ATLAS moved before the run started; recording stopped. Going back to the start...')
+                    return [('stop_recording', 'moved before start')]
                 self.state = 'POSITION'; self.leg = None
                 self._say(t, 'ATLAS left the start pose. Going back to the start...')
                 return actions
@@ -191,9 +198,16 @@ class Runner:
                 self._say(t, 'Before the run: ' + why); return actions
             if self._still_for(t) < STILL_S:
                 self._say(t, 'Hands off the remote: waiting %.0f s more...' % (STILL_S - self._still_for(t))); return actions
+            # 2026-11-23: record >= RECORD_LEAD_S BEFORE Go hall so the bag holds the parked start pose (TF/AMCL)
+            if self.recording_since is None:
+                self.recording_since = t
+                self._say(t, 'Recording started. Hands off: Go hall in %.0f s.' % RECORD_LEAD_S)
+                return [('start_recording',)]
+            if t - self.recording_since < RECORD_LEAD_S:
+                return []
             self.state = 'OUT'
-            self._say(t, 'Recording started. Going to the hall. Press B once when the screen says PRESS B NOW.')
-            return [('start_recording',)] + self._send(t, OUT)
+            self._say(t, 'Going to the hall. Press B once when the screen says PRESS B NOW.')
+            return self._send(t, OUT)
 
         # OUT / HOME legs -------------------------------------------------------------------------------------------
         place = OUT if st == 'OUT' else HOME

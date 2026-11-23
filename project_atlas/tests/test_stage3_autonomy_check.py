@@ -34,6 +34,27 @@ class Stage3Tests(unittest.TestCase):
         self.assertEqual(r['verdict'], 'PASS', r['checks'])
         self.assertEqual(len(r['stops']), 1)
 
+    def test_tf_pose_at_dispatch_is_the_start_not_the_first_amcl_after_moving(self):
+        base = trip(home_err=0.05)
+        # AMCL only after 0.5 m of motion; TF says the rover was at the origin at dispatch and back there at the end
+        base['amcl'] = [(1.5, 0.5, 0.0, 0.0), (35.0, 3.0, 0.0, 180.0), (70.5, 0.05, 0.0, 5.0)]
+        self.assertFalse(evaluate('dhruv room', **base)['checks']['return_home']['ok'])      # AMCL-only: 0.45 m off
+        base['pose'] = [(-1.0, 0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 0.0), (35.0, 3.0, 0.0, 180.0), (70.0, 0.05, 0.0, 5.0)]
+        r = evaluate('dhruv room', **base)['checks']['return_home']
+        self.assertTrue(r['ok'], r); self.assertIn('(TF)', r['detail'])
+
+    def test_tf_starts_after_dispatch_only_while_still(self):
+        base = trip(home_err=0.05)
+        base['pose'] = [(0.5, 0.0, 0.0, 0.0), (35.0, 3.0, 0.0, 180.0), (70.0, 0.05, 0.0, 5.0)]   # rover moves at 1 s
+        self.assertTrue(evaluate('dhruv room', **base)['checks']['return_home']['ok'])
+        base['pose'] = [(1.5, 0.4, 0.0, 0.0), (35.0, 3.0, 0.0, 180.0), (70.0, 0.05, 0.0, 5.0)]   # only after moving
+        self.assertFalse(evaluate('dhruv room', **base)['checks']['return_home']['ok'])
+
+    def test_tf_does_not_hide_a_real_miss(self):
+        base = trip()
+        base['pose'] = [(0.0, 0.0, 0.0, 0.0), (70.0, 0.6, 0.0, 40.0)]
+        self.assertFalse(evaluate('dhruv room', **base)['checks']['return_home']['ok'])
+
     def test_taught_route_labels_count_as_the_place(self):
         base = trip()
         base['mission'] = [(0.0, 'NAMED GOAL ACCEPTED name=hall taught-route'),

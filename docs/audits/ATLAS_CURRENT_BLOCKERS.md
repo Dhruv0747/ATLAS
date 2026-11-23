@@ -1,5 +1,27 @@
 # ATLAS current blockers
 
+### 2026-11-23 09:45–10:11 IST — First one-click Stage-3 run: 3/5 (return_home, encoders); checker TF start + 5 s record lead DEPLOYED
+- **Run** (bag `~/atlas_bags/stage3_auto_20261123_094529`):
+  - Go hall: 2 attempts (#1 cancelled); hall SUCCEEDED.
+  - **Safe stop PASS while rolling** (v 0.154 → still in 0.27 s, 0.01 m).
+  - Go dhruv room needed **18 attempts**: repeated failures in D2 at (1.05, -1.17); the owner drove ATLAS out by remote; finally SUCCEEDED.
+  - Checker (deployed version): PASS legs, safe_stop, turn_sign (1489/29). FAIL return_home 0.33 m / 32°. FAIL encoders (first CRITICAL; CRITICAL at +432 s with vx 0.12, +454 s, +772 s, +774 s; no remote input).
+  - The runner recorded the result (3/5) on the master-plan board.
+- **Checker flaw found:**
+  - "Start = first AMCL after the dispatch" is taken after the rover has moved, because AMCL publishes only on motion.
+  - **Fix:** the start/end pose comes from /tf (map→odom ∘ odom→base_link). The start is the pose at or before the dispatch; if the recording began with the dispatch, it is the first TF pose before odom shows motion (≥ 0.03 m/s, within 10 s). Otherwise the checker falls back to AMCL.
+  - Run #8 and #9 give the same verdicts with TF (0.24 m / 31°, 0.27 m / 131°).
+  - **Today's run with TF: 0.37 m / 33° — a real miss.** TF start was (0.37, 0.15, 64°), but the runner had judged ATLAS at the start (within 0.25 m / 15° of (0.28, 0.66, 105°)) seconds before. The pose changed by about 0.5 m / 40° in the first 3 s of the recording while odom was 0 (ATLAS parked): an AMCL jump while stationary, the same open issue as the earlier 0.60 m / 42° one-update jump.
+- **Runner fix:**
+  - The recording now starts **RECORD_LEAD_S = 5 s before Go hall**.
+  - If ATLAS leaves the start tolerance during those seconds (moved or localization jump), the recording stops ("moved before start") and the runner repositions.
+  - Tests: checker 12, runner 13, master plan 6 (32 OK on Mac; rover copy OK).
+- **Deploy:** backup `~/project_atlas/backups/stage3_tf_lead_20261123/`. Installed runner 177e695a, checker 39967e58. rover-status-web restarted 10:10:42 → active; runner IDLE; board stage3 IN PROGRESS, best 4/5, history shows today's 3/5.
+- **Open:**
+  - AMCL jumps while parked;
+  - D2 doorway failures (18 retries);
+  - encoder CRITICAL samples while driving autonomously.
+
 ### 2026-11-23 00:10 IST — "Master plan" progress board DEPLOYED (owner "Yes, deploy")
 - **Before the deploy:** stop latched, autonomy off, motion quiet, Stage-3 runner IDLE.
 - **Backups:** `~/project_atlas/backups/master_plan_20261123/` (status web, web_v2, stage3 runner, index, home-nav). The diffs were only this feature (3 / 2 / 11 / 2 / 2 lines).
