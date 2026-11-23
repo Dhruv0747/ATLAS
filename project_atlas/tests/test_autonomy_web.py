@@ -172,6 +172,28 @@ class AutonomyWebTests(unittest.TestCase):
         finally:
             web.GROUND_CHECK = old
 
+    def test_turncheck_refusals_and_stage1_lock(self):
+        import tempfile as _t
+        import atlas_master_plan
+        tool = Path(_t.mkdtemp()) / 'turn_ground_check.py'
+        old, old_ev = web.TURN_CHECK, atlas_master_plan.stage1_evidence
+        try:
+            web.TURN_CHECK = tool
+            r = ros({'autonomy': {'armed': False}, 'stop_latched': False})
+            self.assertEqual(web.start_turncheck(r, '1234')[0], 409)                  # tool missing
+            tool.write_text('# tool')
+            atlas_master_plan.stage1_evidence = lambda *a, **k: None
+            code, msg = web.start_turncheck(r, '1234')
+            self.assertEqual(code, 409); self.assertIn('Stage 1', msg)              # locked until stage 1 PASS
+            atlas_master_plan.stage1_evidence = lambda *a, **k: {'detail': 'ok', 'when': 'w', 'file': 'f'}
+            self.assertEqual(web.start_turncheck(r, '0000')[0], 403)                  # wrong PIN
+            r = ros({'autonomy': {'armed': True}, 'stop_latched': False})
+            self.assertIn('Manual', web.start_turncheck(r, '1234')[1])
+            r = ros({'autonomy': {'armed': False}, 'stop_latched': True})
+            self.assertIn('E-STOP', web.start_turncheck(r, '1234')[1])
+        finally:
+            web.TURN_CHECK, atlas_master_plan.stage1_evidence = old, old_ev
+
     def test_unrelated_paths_not_served(self):
         self.assertFalse(web.serve(Handler('/api/status'), ros(None)))
 

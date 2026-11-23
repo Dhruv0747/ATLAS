@@ -135,3 +135,4 @@ tests.test_taught_route
 tests.test_stage3_runner
 tests.test_master_plan
 tests.test_encoder_consensus_debounce
+tests.test_turn_ground_check

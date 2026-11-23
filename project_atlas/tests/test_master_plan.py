@@ -29,8 +29,10 @@ class MasterPlanTests(unittest.TestCase):
         e = self.ev()
         st = {g['id']: g['status'] for g in e['gate']}
         self.assertEqual(st['stage1'], 'NOT DONE')
-        self.assertEqual(st['stage2'], 'NOT DONE')
-        self.assertEqual(st['stage3'], 'IN PROGRESS')          # history of runs 7-9 is kept
+        self.assertEqual(st['stage2'], 'LOCKED')                # locked until stage 1 passes
+        self.assertEqual(st['stage3'], 'LOCKED')
+        self.assertTrue(e['gate'][1]['locked'] and e['gate'][1]['unlock_after'] == 1)
+        self.assertFalse(e['gate'][0]['locked'])
         self.assertFalse(e['gate_open'])
         self.assertTrue(all(l['status'] == 'LOCKED' for l in e['later']))
         self.assertIn('do stage 1', e['next_step']['text'].lower())
@@ -45,26 +47,46 @@ class MasterPlanTests(unittest.TestCase):
         self.assertEqual(g1['status'], 'PASS')
         self.assertIn('0.59', g1['evidence'])
 
-    def test_next_step_prefers_a_stage_the_owner_can_do_now(self):
+    def test_stage2_unlocks_after_stage1_and_is_next(self):
         speed_file(self.d, 'speed_loop_check_4.json')
         e = self.ev()
-        self.assertIn('do stage 3', e['next_step']['text'].lower())          # stage 3 has the one-click tool
-        self.assertEqual(e['next_step']['href'], '/v2/stage3')
-        self.assertIn('stage 2', e['next_step']['text'].lower())             # and says stage 2 needs a tool
+        self.assertEqual(e['gate'][1]['status'], 'NOT DONE')
+        self.assertFalse(e['gate'][1]['locked'])
+        self.assertEqual(e['gate'][2]['status'], 'LOCKED')     # stage 3 waits for stage 2
+        self.assertIn('do stage 2', e['next_step']['text'].lower())
+        self.assertEqual(e['next_step']['href'], '/v2/stage2')
 
-    def test_only_stage2_left_says_it_needs_a_tool(self):
+    def test_stage2_records_runs_and_pass_is_sticky(self):
         speed_file(self.d, 'speed_loop_check_4.json')
-        mp.record_stage3({'verdict': 'PASS', 'checks': {'legs': {'ok': True}}}, '/b', progress_file=self.prog)
+        fail = {'verdict': 'FAIL', 'checks': {'left_arc': True, 'right_arc': False}, 'detail': 'left +25 deg (YAW)',
+                'failed': ['right_arc']}
+        mp.record_stage2(fail, 'turn_check_1.json', progress_file=self.prog)
+        g2 = self.ev()['gate'][1]
+        self.assertEqual(g2['status'], 'IN PROGRESS')
+        self.assertEqual(g2['history'][-1]['failed'], ['right_arc'])
+        ok = {'verdict': 'PASS', 'checks': {'left_arc': True, 'right_arc': True, 'net_heading_within_15deg': True},
+              'detail': 'left +25 deg (YAW) · right -25 deg (YAW) · net +0 deg'}
+        mp.record_stage2(ok, 'turn_check_2.json', progress_file=self.prog)
+        mp.record_stage2(fail, 'turn_check_3.json', progress_file=self.prog)     # a later FAIL keeps the PASS
         e = self.ev()
-        self.assertIn('needs a test tool', e['next_step']['text'])
-        self.assertIsNone(e['next_step']['href'])
+        self.assertEqual(e['gate'][1]['status'], 'PASS')
+        self.assertIn('right -25', e['gate'][1]['evidence'])
+        self.assertEqual(e['gate'][2]['status'], 'IN PROGRESS')                 # stage 3 now unlocked
+        self.assertIn('do stage 3', e['next_step']['text'].lower())
+
+    def test_passed_stage_stays_pass_even_if_earlier_is_open(self):
+        speed_file(self.d, 'speed_loop_check_4.json')
+        self.prog.write_text(json.dumps({'stage3_owner_decision': {'when': 'w', 'text': 't'}}))
+        e = self.ev()
+        self.assertEqual(e['gate'][2]['status'], 'PASS (OWNER DECISION)')
+        self.assertEqual(e['next_step']['href'], '/v2/stage2')
 
     def test_stage3_pass_only_from_checker_pass_and_gate_opens(self):
         speed_file(self.d, 'speed_loop_check_4.json')
         mp.record_stage3({'verdict': 'FAIL', 'checks': {'legs': {'ok': True}, 'safe_stop': {'ok': False}}}, '/b1',
                          progress_file=self.prog)
         e = self.ev()
-        self.assertEqual(e['gate'][2]['status'], 'IN PROGRESS')
+        self.assertEqual(e['gate'][2]['status'], 'LOCKED')     # stage 2 not passed yet; history is still kept
         self.assertEqual(e['gate'][2]['history'][-1]['failed'], ['safe_stop'])
         mp.record_stage3({'verdict': 'PASS', 'checks': {k: {'ok': True} for k in ('legs', 'return_home', 'safe_stop',
                                                                                     'turn_sign', 'encoders')}},
@@ -77,7 +99,9 @@ class MasterPlanTests(unittest.TestCase):
         (self.prog).write_text(json.dumps(dict(self.prog_data, stage2={'verdict': 'PASS', 'detail': 'turns ok'})))
         e = self.ev()
         self.assertTrue(e['gate_open'])
-        self.assertTrue(all(l['status'] == 'NEEDS DEVELOPER' for l in e['later']))
+        self.assertEqual(e['later'][0]['status'], 'NEEDS DEVELOPER')         # only the next step unlocks
+        self.assertTrue(all(l['status'] == 'LOCKED' for l in e['later'][1:]))
+        self.assertIn('step 4', e['next_step']['text'])
         self.assertEqual(e['gate_done'], 3)
 
     def test_owner_decision_is_shown_as_such(self):

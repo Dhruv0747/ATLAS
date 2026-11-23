@@ -1,5 +1,30 @@
 # ATLAS current blockers
 
+### 2026-11-23 afternoon IST — Stage-2 gentle-turn button built (NOT deployed, NOT run yet); every master-plan stage now locks until the previous one passes
+- **Owner request:** "make next stage button and tell me what to do in it; make all buttons but unlock each after the last one passed".
+- **New tool `tools/drive/turn_ground_check.py`** (owner-triggered, bounded):
+  - left arc, then right arc;
+  - vx 0.10 m/s, wz ±0.15 rad/s (the mux COMMISSION clamp), giving R ≈ 0.67 m and about 15° of wheel angle;
+  - each arc ends at a 25° IM10A heading change;
+  - guards: 0.6 m without turning, 12 s, swept-path LiDAR < 0.30 m, front blind, stale scan/odom/IMU/speed-loop, runaway > 0.30 m/s, speed-loop fail_closed;
+  - it does not start the right arc after any guard stop.
+  - PASS rule: both arcs pass (started ≤ 2 s, ended by heading, correct sign ≥ 10°, LiDAR-ICP heading agrees within max(8°, 35 %), peak < 0.25 m/s, still within 1.5 s) **and** the net heading is within 15°.
+  - It writes `turn_check_*.json` and `atlas_master_plan.record_stage2()`.
+- **Dashboard:**
+  - new page `/v2/stage2` with PIN + START, live log and per-arc result;
+  - `POST/GET /api/readiness/turncheck` with the same refusals as the Speed check (PIN, Manual, E-STOP released, speed loop enabled, one test at a time), **plus a refusal while Stage 1 has no PASS**.
+- **Master plan:**
+  - each gate stage is shown LOCKED (button disabled) until the previous stage passes; a stage that already passed stays shown;
+  - later steps 4–10 have locked buttons, and step 4 becomes "needs developer" when the gate opens (no owner test exists for 4–10 yet, said honestly on the page);
+  - Stage 2 history is kept, and a PASS is sticky.
+- **Tests:**
+  - test_turn_ground_check (10, new), test_master_plan (8, updated for locks), test_autonomy_web (+turncheck refusals);
+  - full offline list on the rover copy: 1225 run, all new and changed tests pass;
+  - 5 unrelated failures from the partial rover copy (missing systemd/monitoring folders, Astra IR mode tests).
+- **Not verified on hardware:**
+  - the turn sign and size of the gentle arc under COMMISSION have not been driven yet;
+  - the first owner run is the test.
+
 ### 2026-11-23 12:25–12:53 IST — One-click run #3: 4/5 (safe_stop); Stage 3 marked PASS BY OWNER DECISION (not a single-run checker PASS)
 - **Run #3** (bag `stage3_auto_20261123_122540`), with the encoder debounce live. It positioned itself first (Go dhruv room to face into the room), then recorded.
   - **PASS legs** (hall=4, dhruv room=4 after retries: hall 6 attempts, dhruv room 12; D2 failures and "localization still moving" refusals with 0.36–0.42 m pose shifts).

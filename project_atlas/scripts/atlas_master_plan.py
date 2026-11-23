@@ -8,10 +8,13 @@ Source of the plan: docs/AI_ROBOTICS_ADAPTATION_PHASE0_2026-09-30.md
 
 Status comes only from recorded evidence, never from a button that just says "done":
   stage 1  a Speed check PASS file (bounded straight run, ended by DISTANCE, >= 0.20 m by wheels AND LiDAR ICP)
-  stage 2  a turn-sequence result file (tool not built yet -> NOT DONE, says so)
+  stage 2  the Stage-2 gentle turn check (tools/drive/turn_ground_check.py) records every result here; PASS only on
+           its own PASS (left arc + right arc + net heading)
   stage 3  the one-click Stage-3 runner records every checker result here; PASS only on "STAGE 3: PASS"
   later steps are engineering work: shown as LOCKED until 1-3 pass, then "needs developer" with what it involves.
-Read-only except record_stage3(), which the Stage-3 runner calls after its checker finishes.
+Every stage is LOCKED (button disabled) until the stage before it has passed (2026-11-23 owner: "unlock it after the
+last one passed").
+Read-only except record_stage2()/record_stage3(), which the test tools call after they finish.
 """
 import json
 import time
@@ -39,9 +42,11 @@ GATE = [
      'tool': {'label': 'Open Speed check', 'href': '/v2/readiness'}},
     {'id': 'stage2', 'n': 2, 'title': 'Gentle left/right turns (bounded)',
      'goal': 'ATLAS makes a bounded gentle left turn and right turn with correct wheel/IMU agreement.',
-     'how': ['A one-click turn test is not built yet.',
-             'Until then this stage needs a developer session (ask Claude: "build the Stage 2 turn test button").'],
-     'tool': None},
+     'how': ['Park ATLAS in the hall (open floor): 1.5 m clear in front, 0.6 m clear on both sides.',
+             'Manual mode, E-STOP released, remote in your hand, sticks centred.',
+             'Open Stage 2 turns, type the PIN, press START. ATLAS curves gently LEFT ~25 deg, stops, then curves '
+             'gently RIGHT ~25 deg and stops (about 30 cm each). B on the remote stops it at any time.'],
+     'tool': {'label': 'Open Stage 2 turns', 'href': '/v2/stage2'}},
     {'id': 'stage3', 'n': 3, 'title': 'Dhruv Room → Hall → Dhruv Room (autonomous)',
      'goal': 'One supervised autonomous round trip with a safe stop (B while rolling) and return home.',
      'how': ['Open Stage 3 run and press START.', 'Keep the remote in hand; press B once when PRESS B NOW appears.',
@@ -86,6 +91,28 @@ def stage1_evidence(state_dir=STATE_DIR):
     return best
 
 
+def _write(progress_file, data):
+    Path(progress_file).parent.mkdir(parents=True, exist_ok=True)
+    tmp = Path(str(progress_file) + '.tmp')
+    tmp.write_text(json.dumps(data, indent=1), encoding='utf-8')
+    tmp.replace(progress_file)
+
+
+def record_stage2(result, file_name, progress_file=PROGRESS_FILE, clock=time.time):
+    """Called by turn_ground_check.py. Keeps the last 30 results; a PASS stays the stage-2 evidence."""
+    data = _load(progress_file)
+    checks = (result or {}).get('checks') or {}
+    run = {'when': time.strftime('%Y-%m-%d %H:%M', time.localtime(clock())), 'verdict': (result or {}).get('verdict'),
+           'score': '%d/%d' % (sum(1 for v in checks.values() if v), len(checks)) if checks else '-',
+           'file': file_name, 'note': (result or {}).get('detail', ''),
+           'failed': list((result or {}).get('failed') or [])[:6]}
+    data['stage2_runs'] = (data.get('stage2_runs', []) + [run])[-30:]
+    if run['verdict'] == 'PASS':
+        data['stage2'] = {'verdict': 'PASS', 'when': run['when'], 'file': file_name,
+                          'detail': 'gentle turns: %s (%s)' % (run['note'], run['when'])}
+    _write(progress_file, data)
+
+
 def record_stage3(result, bag, progress_file=PROGRESS_FILE, clock=time.time):
     """Called by the Stage-3 runner after its checker. Keeps the last 30 results."""
     data = _load(progress_file)
@@ -96,16 +123,14 @@ def record_stage3(result, bag, progress_file=PROGRESS_FILE, clock=time.time):
                  'score': '%d/%d' % (passed, len(checks)) if checks else '-', 'bag': bag,
                  'failed': [k for k, v in checks.items() if not v.get('ok')]})
     data['stage3_runs'] = runs[-30:]
-    Path(progress_file).parent.mkdir(parents=True, exist_ok=True)
-    tmp = Path(str(progress_file) + '.tmp')
-    tmp.write_text(json.dumps(data, indent=1), encoding='utf-8')
-    tmp.replace(progress_file)
+    _write(progress_file, data)
 
 
 def evaluate(state_dir=STATE_DIR, progress_file=PROGRESS_FILE):
     prog = _load(progress_file)
     s1 = stage1_evidence(state_dir)
-    s2 = prog.get('stage2')                              # written by a future turn-test tool
+    s2 = prog.get('stage2')                              # written by record_stage2 on a turn-check PASS
+    s2_runs = prog.get('stage2_runs', [])
     runs = STAGE3_HISTORY + prog.get('stage3_runs', [])
     s3_pass = next((r for r in reversed(runs) if r.get('verdict') == 'PASS'), None)
     # 2026-11-23: an explicit, recorded OWNER DECISION may accept combined evidence. It is shown as such, never as a
@@ -115,32 +140,38 @@ def evaluate(state_dir=STATE_DIR, progress_file=PROGRESS_FILE):
     status = {
         'stage1': ('PASS', s1['detail'] + ' (' + s1['when'] + ')') if s1 else ('NOT DONE', 'No bounded straight-run PASS yet.'),
         'stage2': ('PASS', s2.get('detail', '')) if (s2 or {}).get('verdict') == 'PASS' else
-                  ('NOT DONE', 'No turn-sequence test recorded (tool not built yet).'),
+                  ('IN PROGRESS', 'last try %s: %s' % (s2_runs[-1]['when'], s2_runs[-1].get('note') or 'FAIL'))
+                  if s2_runs else ('NOT DONE', 'No gentle-turn test recorded yet.'),
         'stage3': ('PASS', 'checker PASS ' + s3_pass['when']) if s3_pass else
                   ('PASS (OWNER DECISION)', 'OWNER DECISION %s: %s' % (s3_owner.get('when', ''), s3_owner.get('text', '')))
                   if s3_owner and s3_owner.get('text') else
                   ('IN PROGRESS' if runs else 'NOT DONE',
                    ('best so far %s (%s)' % (best['score'], best['when'])) if best else 'No run yet.'),
     }
-    gate = []
+    gate, prev_pass = [], True
     for g in GATE:
         st, detail = status[g['id']]
-        item = dict(g, status=st, evidence=detail)
+        passed = st.startswith('PASS')
+        # a stage unlocks only after the stage before it has passed; a stage that already passed stays shown
+        item = dict(g, status=st if (passed or prev_pass) else 'LOCKED', evidence=detail,
+                    locked=not (passed or prev_pass), unlock_after=None if prev_pass else g['n'] - 1)
         if g['id'] == 'stage3':
             item['history'] = runs[-6:]
+        elif g['id'] == 'stage2':
+            item['history'] = s2_runs[-6:]
         gate.append(item)
+        prev_pass = passed
     gate_open = all(g['status'].startswith('PASS') for g in gate)
-    later = [{'n': i + 4, 'title': t, 'what': w, 'status': 'NEEDS DEVELOPER' if gate_open else 'LOCKED'}
+    # later steps: no owner test exists yet. Only the first one unlocks (as developer work) when the gate is open.
+    later = [{'n': i + 4, 'title': t, 'what': w, 'tool': None,
+              'status': 'NEEDS DEVELOPER' if (gate_open and i == 0) else 'LOCKED',
+              'unlock_after': 'entry gate' if i == 0 else 'step %d' % (i + 3)}
              for i, (t, w) in enumerate(LATER)]
-    # prefer what the owner can do right now (a stage with a tool); otherwise name the first open stage
-    nxt = next((g for g in gate if not g['status'].startswith('PASS') and g.get('tool')), None) or \
-        next((g for g in gate if not g['status'].startswith('PASS')), None)
+    nxt = next((g for g in gate if not g['status'].startswith('PASS')), None)
     if nxt is None:
-        next_step = {'text': 'Entry gate complete! Next: ' + LATER[0][0] + ' (developer work).', 'href': None}
+        next_step = {'text': 'Entry gate complete! Next: step 4, ' + LATER[0][0] + ' (developer work).', 'href': None}
     elif nxt.get('tool'):
-        others = [g for g in gate if not g['status'].startswith('PASS') and g is not nxt and not g.get('tool')]
-        next_step = {'text': 'Do stage %d: %s.' % (nxt['n'], nxt['title']) +
-                     ''.join(' Stage %d (%s) still needs a test tool (developer).' % (o['n'], o['title']) for o in others),
+        next_step = {'text': 'Do stage %d: %s.' % (nxt['n'], nxt['title']),
                      'href': nxt['tool']['href'], 'label': nxt['tool']['label']}
     else:
         next_step = {'text': 'Stage %d (%s) needs a test tool that is not built yet.' % (nxt['n'], nxt['title']),
@@ -148,7 +179,7 @@ def evaluate(state_dir=STATE_DIR, progress_file=PROGRESS_FILE):
     done = sum(1 for g in gate if g['status'].startswith('PASS'))
     return {'gate': gate, 'later': later, 'gate_done': done, 'gate_total': len(gate), 'gate_open': gate_open,
             'next_step': next_step, 'source': 'docs/AI_ROBOTICS_ADAPTATION_PHASE0_2026-09-30.md',
-            'note': 'Status comes only from recorded test results (Speed check files, Stage-3 checker), not from buttons.'}
+            'note': 'Status comes only from recorded test results (Speed check, Stage-2 turn check, Stage-3 checker), not from buttons. Each stage unlocks after the one before it passes.'}
 
 
 def serve(handler, json_response):
