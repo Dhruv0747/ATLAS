@@ -303,6 +303,61 @@ def _latest_turn_results(n=4):
     return out
 
 
+# 2026-11-23 Stage-4 part A: parked IM10A/EKF/TF check. Read-only (publishes nothing), so no PIN; locked until the
+# entry gate (stages 1-3) has passed.
+IMU_CHECK = Path('/home/jetson/project_atlas/tools/localization/imu_ekf_tf_parked_check.py')
+IMUCHECK_LOG = STATE_DIR / 'imucheck_dashboard.log'
+_IMU = {'proc': None, 'started': None}
+
+
+def imucheck_running():
+    p = _IMU['proc']
+    return p is not None and p.poll() is None
+
+
+def imucheck_status():
+    try:
+        log = IMUCHECK_LOG.read_text(encoding='utf-8', errors='replace')[-4000:]
+    except OSError:
+        log = ''
+    results = []
+    for f in sorted(STATE_DIR.glob('imu_check_*.json'))[-4:]:
+        try:
+            r = json.loads(f.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        results.append({'file': f.name, 'when': r.get('when'), 'verdict': r.get('verdict'), 'detail': r.get('detail'),
+                        'checks': r.get('checks', {}), 'measured': r.get('measured', {}), 'failed': r.get('failed', [])})
+    return {'running': imucheck_running(), 'started': _IMU['started'], 'log': log,
+            'tool_installed': IMU_CHECK.is_file(), 'results': results}
+
+
+def start_imucheck(ros):
+    if not IMU_CHECK.is_file():
+        return 409, 'IMU check tool is not installed on the rover yet'
+    import atlas_master_plan
+    if not atlas_master_plan.evaluate().get('gate_open'):
+        return 409, 'Stage 4 is locked: pass stages 1, 2 and 3 first'
+    pol = policy(ros)
+    if pol is None:
+        return 409, 'no fresh mux state'
+    if ((pol.get('autonomy') or {}).get('armed')):
+        return 409, 'switch to Manual mode first (ATLAS must stay parked)'
+    with _RUN['lock']:
+        if speedcheck_running() or turncheck_running() or imucheck_running():
+            return 409, 'another check is already running'
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        log = open(IMUCHECK_LOG, 'w', encoding='utf-8')
+        cmd = ('source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null; '
+               f'cd {IMU_CHECK.parent}; exec python3 -u {IMU_CHECK.name} --duration 60')
+        _IMU['proc'] = subprocess.Popen(['bash', '-lc', cmd], stdout=log, stderr=subprocess.STDOUT,
+                                        stdin=subprocess.DEVNULL, start_new_session=True,
+                                        env=dict(os.environ, PYTHONUNBUFFERED='1'))
+        _IMU['started'] = time.time()
+    ros.estop_log.write('imucheck_start')
+    return 202, 'parked IMU/EKF/TF check started: 60 s. Do not touch ATLAS or the remote.'
+
+
 def turncheck_status():
     try:
         log = TURNCHECK_LOG.read_text(encoding='utf-8', errors='replace')[-4000:]
@@ -397,8 +452,8 @@ def start_speedcheck(ros, speed, pin):
     if not arm.speed_evidence().get('enabled'):
         return 409, 'speed loop is not enabled on this rover'
     with _RUN['lock']:
-        if speedcheck_running() or turncheck_running():
-            return 409, 'a speed check or turn check is already running'
+        if speedcheck_running() or turncheck_running() or imucheck_running():
+            return 409, 'another check is already running'
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         log = open(SPEEDCHECK_LOG, 'w', encoding='utf-8')
         cmd = ('source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null; '
@@ -438,8 +493,8 @@ def start_turncheck(ros, pin):
     if not arm.speed_evidence().get('enabled'):
         return 409, 'speed loop is not enabled on this rover'
     with _RUN['lock']:
-        if speedcheck_running() or turncheck_running():
-            return 409, 'a speed check or turn check is already running'
+        if speedcheck_running() or turncheck_running() or imucheck_running():
+            return 409, 'another check is already running'
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         log = open(TURNCHECK_LOG, 'w', encoding='utf-8')
         cmd = ('source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null; '
@@ -456,7 +511,7 @@ def start_turncheck(ros, pin):
 def serve_readiness(handler, ros, post=False):
     path = handler.path.split('?')[0]
     if path not in ('/api/readiness', '/api/readiness/bridge', '/api/readiness/speedcheck',
-                    '/api/readiness/turncheck'):
+                    '/api/readiness/turncheck', '/api/readiness/imucheck'):
         return False
     if not post:
         if path == '/api/readiness':
@@ -465,6 +520,8 @@ def serve_readiness(handler, ros, post=False):
             json_response(handler, 200, speedcheck_status())
         elif path == '/api/readiness/turncheck':
             json_response(handler, 200, turncheck_status())
+        elif path == '/api/readiness/imucheck':
+            json_response(handler, 200, imucheck_status())
         else:
             handler.send_error(405)
         return True
@@ -493,6 +550,10 @@ def serve_readiness(handler, ros, post=False):
         except (TypeError, ValueError):
             speed = None
         code, msg = start_speedcheck(ros, speed, payload.get('pin'))
+        json_response(handler, code, {'ok': code == 202, 'message': msg})
+        return True
+    if path == '/api/readiness/imucheck':
+        code, msg = start_imucheck(ros)
         json_response(handler, code, {'ok': code == 202, 'message': msg})
         return True
     if path == '/api/readiness/turncheck':

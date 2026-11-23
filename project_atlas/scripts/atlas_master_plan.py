@@ -113,6 +113,18 @@ def record_stage2(result, file_name, progress_file=PROGRESS_FILE, clock=time.tim
     _write(progress_file, data)
 
 
+def record_stage4a(result, file_name, progress_file=PROGRESS_FILE, clock=time.time):
+    """Called by imu_ekf_tf_parked_check.py (step 4 part A, parked, no motion). A PASS stays the evidence."""
+    data = _load(progress_file)
+    run = {'when': time.strftime('%Y-%m-%d %H:%M', time.localtime(clock())), 'verdict': (result or {}).get('verdict'),
+           'file': file_name, 'note': (result or {}).get('detail', ''),
+           'failed': list((result or {}).get('failed') or [])[:8]}
+    data['stage4a_runs'] = (data.get('stage4a_runs', []) + [run])[-30:]
+    if run['verdict'] == 'PASS':
+        data['stage4a'] = dict(run, detail='parked IM10A/EKF/TF check PASS: %s (%s)' % (run['note'], run['when']))
+    _write(progress_file, data)
+
+
 def record_stage3(result, bag, progress_file=PROGRESS_FILE, clock=time.time):
     """Called by the Stage-3 runner after its checker. Keeps the last 30 results."""
     data = _load(progress_file)
@@ -162,14 +174,31 @@ def evaluate(state_dir=STATE_DIR, progress_file=PROGRESS_FILE):
         gate.append(item)
         prev_pass = passed
     gate_open = all(g['status'].startswith('PASS') for g in gate)
-    # later steps: no owner test exists yet. Only the first one unlocks (as developer work) when the gate is open.
-    later = [{'n': i + 4, 'title': t, 'what': w, 'tool': None,
-              'status': 'NEEDS DEVELOPER' if (gate_open and i == 0) else 'LOCKED',
-              'unlock_after': 'entry gate' if i == 0 else 'step %d' % (i + 3)}
-             for i, (t, w) in enumerate(LATER)]
+    # Later steps: every one has a button, LOCKED until the step before it is done (2026-11-23 owner). Step 4 has
+    # an owner test for its parked part (A); its turn/full-workload part (B) is developer work, so step 4 never
+    # reads PASS from part A alone and steps 5-10 stay locked.
+    s4a = prog.get('stage4a') if isinstance(prog.get('stage4a'), dict) else None
+    s4_runs = prog.get('stage4a_runs', [])
+    later = []
+    for i, (t, w) in enumerate(LATER):
+        item = {'n': i + 4, 'title': t, 'what': w, 'tool': None, 'status': 'LOCKED',
+                'unlock_after': 'entry gate (stages 1-3)' if i == 0 else 'step %d' % (i + 3)}
+        if i == 0:
+            item['tool'] = {'label': 'Open Stage 4 · parked IMU/EKF/TF check', 'href': '/v2/stage4'}
+            item['history'] = s4_runs[-6:]
+            if gate_open:
+                item['status'] = 'IN PROGRESS' if s4a else 'NOT DONE'
+                item['evidence'] = (s4a['detail'] + '. Part B (controlled turns + full-workload timing) needs a '
+                                    'developer session.') if s4a else (
+                    'last try %s: %s' % (s4_runs[-1]['when'], s4_runs[-1]['verdict']) if s4_runs else
+                    'Part A (parked check) not run yet.')
+        later.append(item)
     nxt = next((g for g in gate if not g['status'].startswith('PASS')), None)
     if nxt is None:
-        next_step = {'text': 'Entry gate complete! Next: step 4, ' + LATER[0][0] + ' (developer work).', 'href': None}
+        next_step = ({'text': 'Entry gate complete! Do step 4 part A: parked IMU/EKF/TF check.', 'href': '/v2/stage4',
+                      'label': 'Open Stage 4'} if not s4a else
+                     {'text': 'Step 4 part A passed. Part B (controlled turns + full-workload timing) needs a developer '
+                              'session.', 'href': None})
     elif nxt.get('tool'):
         next_step = {'text': 'Do stage %d: %s.' % (nxt['n'], nxt['title']),
                      'href': nxt['tool']['href'], 'label': nxt['tool']['label']}

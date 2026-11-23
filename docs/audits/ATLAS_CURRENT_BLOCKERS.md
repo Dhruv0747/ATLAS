@@ -1,5 +1,27 @@
 # ATLAS current blockers
 
+### 2026-11-23 ~13:40 IST — Step 4 part A (parked IMU/EKF/TF check) built (NOT deployed); every later step has a locked button
+- **Owner:** "when the stage is passed, unlock stage 4; make every stage button but don't enable it".
+- **Board state:** Stage 2 is still NOT DONE (no turn_check file on the rover). GitHub CI for c6b0ced is green.
+- **Read-only 30 s probe on parked ATLAS (publishes nothing):**
+  - IM10A corrected gyro: 10.1 Hz, max gap 0.12 s, gyro-Z covariance 1e-4, mean 0.00000 rad/s, drift 0.00° (exact zero is expected: 0.061°/s LSB, as in the 2026-10-02 requalification);
+  - EKF /odom: 10.0 Hz, yaw drift 0.00°;
+  - TF odom→base_link 10.0 Hz, map→odom 7.4 Hz.
+- **New `tools/localization/imu_ekf_tf_parked_check.py`** (no publishers, no clients):
+  - records 60 s and checks parked (< 0.01 m/s), IMU rate/gap, covariance, bias ≤ 0.002 rad/s, drift ≤ 1°, EKF rate and drift (≤ 1°, ≤ 0.02 m), TF rates;
+  - reports MOVED if ATLAS moved;
+  - records via `record_stage4a`.
+- **New `/v2/stage4` page and `/api/readiness/imucheck`:**
+  - no PIN (read-only);
+  - refused until the entry gate is open, while autonomy is armed, or while another check runs.
+- **Board:**
+  - steps 4–10 each show a button that stays locked until the step before it is done;
+  - step 4 unlocks when stages 1–3 pass; part A PASS shows step 4 as IN PROGRESS, because part B (controlled turns + full-workload timing) is developer work, so steps 5–10 stay locked.
+- **Found:** an older `scripts/atlas_bounded_arc_test.py` (single-arc steering-curvature commissioning, not on the dashboard) overlaps the new Stage-2 tool. Both are kept.
+- **Tests:**
+  - test_imu_ekf_tf_parked_check (8, new), test_master_plan (stage-4 locks), test_autonomy_web (imucheck lock);
+  - rover-copy suite: 1234 run, the same 5 rover-copy-only failures as before.
+
 ### 2026-11-23 afternoon IST — Stage-2 gentle-turn button built (NOT deployed, NOT run yet); every master-plan stage now locks until the previous one passes
 - **Owner request:** "make next stage button and tell me what to do in it; make all buttons but unlock each after the last one passed".
 - **New tool `tools/drive/turn_ground_check.py`** (owner-triggered, bounded):

@@ -20,10 +20,16 @@
       return `<div class="card"><span class="st ${cls(g.status)}">${esc(g.status)}</span><b>Stage ${g.n} · ${esc(g.title)}</b>` +
         `<div class="goal">${esc(g.goal)}</div><div class="ev">Evidence: ${esc(g.evidence)}</div>${how}${hist}</div>`;
     }).join('');
-    $('later').innerHTML = (d.later || []).map(l => `<div class="later"><span class="st ${cls(l.status)}">${esc(l.status)}</span>` +
-      `<b>${l.n}. ${esc(l.title)}</b><div class="ev">${esc(l.what)}</div>` +
-      (l.status === 'LOCKED' ? `<button class="tool" disabled>🔒 Unlocks after ${esc(l.unlock_after)}</button>`
-        : `<button class="tool" disabled>Needs a developer session — no owner test yet</button>`) + `</div>`).join('');
+    $('later').innerHTML = (d.later || []).map(l => {
+      const label = l.tool ? l.tool.label : 'Step ' + l.n + ' test';
+      const btn = l.status === 'LOCKED' ? `<button class="tool" disabled>🔒 ${esc(label)} · unlocks after ${esc(l.unlock_after)}</button>`
+        : l.tool ? `<a class="tool" href="${esc(l.tool.href)}">${esc(label)}</a>`
+        : `<button class="tool" disabled>Needs a developer session — no owner test yet</button>`;
+      const hist = l.history && l.history.length && l.status !== 'LOCKED' ? `<table>${l.history.slice().reverse().map(h =>
+        `<tr><td>${esc(h.when)}</td><td>${esc(h.verdict)}</td><td>${esc(h.note || '')}</td></tr>`).join('')}</table>` : '';
+      return `<div class="later"><span class="st ${cls(l.status)}">${esc(l.status)}</span><b>${l.n}. ${esc(l.title)}</b>` +
+        `<div class="ev">${esc(l.what)}</div>${l.evidence ? `<div class="ev">Evidence: ${esc(l.evidence)}</div>` : ''}${btn}${hist}</div>`;
+    }).join('');
     $('note').textContent = (d.note || '') + ' Plan: ' + (d.source || '');
   }
 

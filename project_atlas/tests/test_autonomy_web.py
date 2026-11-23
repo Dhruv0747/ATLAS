@@ -194,6 +194,25 @@ class AutonomyWebTests(unittest.TestCase):
         finally:
             web.TURN_CHECK, atlas_master_plan.stage1_evidence = old, old_ev
 
+    def test_imucheck_locked_until_gate_open(self):
+        import tempfile as _t
+        import atlas_master_plan
+        tool = Path(_t.mkdtemp()) / 'imu_ekf_tf_parked_check.py'
+        old, old_ev = web.IMU_CHECK, atlas_master_plan.evaluate
+        try:
+            web.IMU_CHECK = tool
+            r = ros({'autonomy': {'armed': False}, 'stop_latched': False})
+            self.assertEqual(web.start_imucheck(r)[0], 409)                           # tool missing
+            tool.write_text('# tool')
+            atlas_master_plan.evaluate = lambda *a, **k: {'gate_open': False}
+            code, msg = web.start_imucheck(r)
+            self.assertEqual(code, 409); self.assertIn('locked', msg)
+            atlas_master_plan.evaluate = lambda *a, **k: {'gate_open': True}
+            r = ros({'autonomy': {'armed': True}, 'stop_latched': False})
+            self.assertIn('Manual', web.start_imucheck(r)[1])
+        finally:
+            web.IMU_CHECK, atlas_master_plan.evaluate = old, old_ev
+
     def test_unrelated_paths_not_served(self):
         self.assertFalse(web.serve(Handler('/api/status'), ros(None)))
 

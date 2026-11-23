@@ -36,6 +36,9 @@ class MasterPlanTests(unittest.TestCase):
         self.assertFalse(e['gate_open'])
         self.assertTrue(all(l['status'] == 'LOCKED' for l in e['later']))
         self.assertIn('do stage 1', e['next_step']['text'].lower())
+        self.assertEqual(e['later'][0]['tool']['href'], '/v2/stage4')      # every step has a (locked) button slot
+        self.assertEqual(e['later'][0]['unlock_after'], 'entry gate (stages 1-3)')
+        self.assertEqual(e['later'][1]['unlock_after'], 'step 4')
 
     def test_stage1_needs_a_real_bounded_straight_pass(self):
         speed_file(self.d, 'speed_loop_check_1.json', verdict='FAIL')
@@ -99,9 +102,22 @@ class MasterPlanTests(unittest.TestCase):
         (self.prog).write_text(json.dumps(dict(self.prog_data, stage2={'verdict': 'PASS', 'detail': 'turns ok'})))
         e = self.ev()
         self.assertTrue(e['gate_open'])
-        self.assertEqual(e['later'][0]['status'], 'NEEDS DEVELOPER')         # only the next step unlocks
+        self.assertEqual(e['later'][0]['status'], 'NOT DONE')                # only step 4 unlocks
         self.assertTrue(all(l['status'] == 'LOCKED' for l in e['later'][1:]))
         self.assertIn('step 4', e['next_step']['text'])
+        self.assertEqual(e['next_step']['href'], '/v2/stage4')
+        # step 4 part A PASS: shown as IN PROGRESS (part B is developer work); steps 5-10 stay locked
+        mp.record_stage4a({'verdict': 'FAIL', 'failed': ['imu_rate'], 'detail': 'd1'}, 'imu_check_1.json',
+                          progress_file=self.prog)
+        self.assertEqual(self.ev()['later'][0]['status'], 'NOT DONE')
+        mp.record_stage4a({'verdict': 'PASS', 'failed': [], 'detail': 'parked 60 s ok'}, 'imu_check_2.json',
+                          progress_file=self.prog)
+        e = self.ev()
+        self.assertEqual(e['later'][0]['status'], 'IN PROGRESS')
+        self.assertIn('Part B', e['later'][0]['evidence'])
+        self.assertEqual(len(e['later'][0]['history']), 2)
+        self.assertTrue(all(l['status'] == 'LOCKED' for l in e['later'][1:]))
+        self.assertIsNone(e['next_step']['href'])
         self.assertEqual(e['gate_done'], 3)
 
     def test_owner_decision_is_shown_as_such(self):

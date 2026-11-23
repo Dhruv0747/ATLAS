@@ -136,3 +136,4 @@ tests.test_stage3_runner
 tests.test_master_plan
 tests.test_encoder_consensus_debounce
 tests.test_turn_ground_check
+tests.test_imu_ekf_tf_parked_check
