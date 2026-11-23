@@ -345,7 +345,7 @@ def start_imucheck(ros):
     if ((pol.get('autonomy') or {}).get('armed')):
         return 409, 'switch to Manual mode first (ATLAS must stay parked)'
     with _RUN['lock']:
-        if speedcheck_running() or turncheck_running() or imucheck_running():
+        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running():
             return 409, 'another check is already running'
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         log = open(IMUCHECK_LOG, 'w', encoding='utf-8')
@@ -357,6 +357,64 @@ def start_imucheck(ros):
         _IMU['started'] = time.time()
     ros.estop_log.write('imucheck_start')
     return 202, 'parked IMU/EKF/TF check started: 60 s. Do not touch ATLAS or the remote.'
+
+
+# 2026-11-23 later master-plan steps with read-only owner tests (no motion, no PIN). Locked until the board unlocks them.
+STEP_CHECKS = {
+    5: (Path('/home/jetson/project_atlas/tools/nav/nav2_recovery_audit.py'), 'nav2_audit_'),
+    6: (Path('/home/jetson/project_atlas/tools/drive/wheel_pid_evaluation.py'), 'pid_eval_'),
+}
+_STEP = {'proc': None, 'n': None, 'started': None}
+
+
+def stepcheck_running():
+    p = _STEP['proc']
+    return p is not None and p.poll() is None
+
+
+def stepcheck_status(n):
+    log_file = STATE_DIR / ('stepcheck_%s_dashboard.log' % n)
+    try:
+        log = log_file.read_text(encoding='utf-8', errors='replace')[-4000:]
+    except OSError:
+        log = ''
+    tool, prefix = STEP_CHECKS.get(n, (None, None))
+    results = []
+    if prefix:
+        for f in sorted(STATE_DIR.glob(prefix + '*.json'))[-4:]:
+            try:
+                r = json.loads(f.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                continue
+            results.append({'file': f.name, 'when': r.get('when'), 'verdict': r.get('verdict'), 'detail': r.get('detail'),
+                            'checks': r.get('checks', {}), 'measured': r.get('measured', {}),
+                            'failed': r.get('failed', []), 'notes': r.get('notes', []) or r.get('blockers', [])})
+    return {'n': n, 'running': stepcheck_running() and _STEP['n'] == n, 'busy': stepcheck_running(),
+            'log': log if _STEP['n'] == n else '', 'tool_installed': bool(tool and tool.is_file()), 'results': results}
+
+
+def start_stepcheck(ros, n):
+    if n not in STEP_CHECKS:
+        return 400, 'no owner test for this step'
+    tool, _ = STEP_CHECKS[n]
+    if not tool.is_file():
+        return 409, 'step %d tool is not installed on the rover yet' % n
+    import atlas_master_plan
+    step = next((l for l in atlas_master_plan.evaluate().get('later', []) if l.get('n') == n), None)
+    if not step or step.get('status') == 'LOCKED':
+        return 409, 'Step %d is locked: finish %s first' % (n, (step or {}).get('unlock_after', 'the step before'))
+    with _RUN['lock']:
+        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running():
+            return 409, 'another check is already running'
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        log = open(STATE_DIR / ('stepcheck_%s_dashboard.log' % n), 'w', encoding='utf-8')
+        cmd = (f'cd {tool.parent}; exec /usr/bin/python3 -u {tool.name}')
+        _STEP['proc'] = subprocess.Popen(['bash', '-lc', cmd], stdout=log, stderr=subprocess.STDOUT,
+                                         stdin=subprocess.DEVNULL, start_new_session=True,
+                                         env=dict(os.environ, PYTHONUNBUFFERED='1'))
+        _STEP['n'], _STEP['started'] = n, time.time()
+    ros.estop_log.write('stepcheck_start', step=n)
+    return 202, 'step %d check started (read-only; ATLAS does not move)' % n
 
 
 def turncheck_status():
@@ -454,7 +512,7 @@ def start_speedcheck(ros, speed, pin):
     if not arm.speed_evidence().get('enabled'):
         return 409, 'speed loop is not enabled on this rover'
     with _RUN['lock']:
-        if speedcheck_running() or turncheck_running() or imucheck_running():
+        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running():
             return 409, 'another check is already running'
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         log = open(SPEEDCHECK_LOG, 'w', encoding='utf-8')
@@ -497,7 +555,7 @@ def start_turncheck(ros, pin, workload=False):
     if not arm.speed_evidence().get('enabled'):
         return 409, 'speed loop is not enabled on this rover'
     with _RUN['lock']:
-        if speedcheck_running() or turncheck_running() or imucheck_running():
+        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running():
             return 409, 'another check is already running'
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         log = open(TURNCHECK_LOG, 'w', encoding='utf-8')
@@ -515,7 +573,7 @@ def start_turncheck(ros, pin, workload=False):
 def serve_readiness(handler, ros, post=False):
     path = handler.path.split('?')[0]
     if path not in ('/api/readiness', '/api/readiness/bridge', '/api/readiness/speedcheck',
-                    '/api/readiness/turncheck', '/api/readiness/imucheck'):
+                    '/api/readiness/turncheck', '/api/readiness/imucheck', '/api/readiness/stepcheck'):
         return False
     if not post:
         if path == '/api/readiness':
@@ -526,6 +584,13 @@ def serve_readiness(handler, ros, post=False):
             json_response(handler, 200, turncheck_status())
         elif path == '/api/readiness/imucheck':
             json_response(handler, 200, imucheck_status())
+        elif path == '/api/readiness/stepcheck':
+            from urllib.parse import parse_qs, urlsplit
+            try:
+                n = int((parse_qs(urlsplit(handler.path).query).get('n') or ['0'])[0])
+            except ValueError:
+                n = 0
+            json_response(handler, 200, stepcheck_status(n))
         else:
             handler.send_error(405)
         return True
@@ -554,6 +619,14 @@ def serve_readiness(handler, ros, post=False):
         except (TypeError, ValueError):
             speed = None
         code, msg = start_speedcheck(ros, speed, payload.get('pin'))
+        json_response(handler, code, {'ok': code == 202, 'message': msg})
+        return True
+    if path == '/api/readiness/stepcheck':
+        try:
+            n = int(payload.get('n'))
+        except (TypeError, ValueError):
+            n = 0
+        code, msg = start_stepcheck(ros, n)
         json_response(handler, code, {'ok': code == 202, 'message': msg})
         return True
     if path == '/api/readiness/imucheck':

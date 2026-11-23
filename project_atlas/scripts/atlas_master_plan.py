@@ -66,6 +66,15 @@ LATER = [
 ]
 
 
+# 2026-11-23: later steps with an owner-runnable, read-only test. verdicts that complete the step -> board status.
+STEP_TOOLS = {
+    5: {'label': 'Open Step 5 · Nav2 recovery audit', 'href': '/v2/steps?n=5',
+        'done': {'PASS': 'PASS'}},
+    6: {'label': 'Open Step 6 · wheel PID evaluation', 'href': '/v2/steps?n=6',
+        'done': {'ADVISED': 'PASS (PID ADVISED)', 'NOT ADVISED': 'DONE (PID NOT ADVISED)'}},
+}
+
+
 def _load(path):
     try:
         return json.loads(Path(path).read_text(encoding='utf-8'))
@@ -137,6 +146,19 @@ def record_stage4b(result, file_name, progress_file=PROGRESS_FILE, clock=time.ti
     _write(progress_file, data)
 
 
+def record_later(n, result, file_name, progress_file=PROGRESS_FILE, clock=time.time):
+    """Called by the step-n tool (steps 5, 6). Keeps the last 30 runs; a completing verdict stays the evidence."""
+    data = _load(progress_file)
+    run = {'when': time.strftime('%Y-%m-%d %H:%M', time.localtime(clock())), 'verdict': (result or {}).get('verdict'),
+           'file': file_name, 'note': (result or {}).get('detail', ''),
+           'failed': list((result or {}).get('failed') or [])[:8]}
+    key = 'step%d' % n
+    data[key + '_runs'] = (data.get(key + '_runs', []) + [run])[-30:]
+    if run['verdict'] in STEP_TOOLS.get(n, {}).get('done', {}):
+        data[key] = dict(run, detail='%s (%s)' % (run['note'], run['when']))
+    _write(progress_file, data)
+
+
 def record_stage3(result, bag, progress_file=PROGRESS_FILE, clock=time.time):
     """Called by the Stage-3 runner after its checker. Keeps the last 30 results."""
     data = _load(progress_file)
@@ -205,6 +227,16 @@ def evaluate(state_dir=STATE_DIR, progress_file=PROGRESS_FILE):
                 item['evidence'] = ' · '.join([
                     ('Part A: ' + s4a['detail']) if s4a else 'Part A (parked check): not passed yet',
                     ('Part B: ' + s4b['detail']) if s4b else 'Part B (turns under full workload): not passed yet'])
+        elif (i + 4) in STEP_TOOLS:
+            n = i + 4
+            ev, runs = prog.get('step%d' % n), prog.get('step%d_runs' % n, [])
+            item['tool'] = {'label': STEP_TOOLS[n]['label'], 'href': STEP_TOOLS[n]['href']}
+            item['history'] = runs[-6:]
+            done = isinstance(ev, dict) and ev.get('verdict') in STEP_TOOLS[n]['done']
+            if prev_done:
+                item['status'] = STEP_TOOLS[n]['done'][ev['verdict']] if done else ('IN PROGRESS' if runs else 'NOT DONE')
+                item['evidence'] = ev['detail'] if done else (
+                    'last try %s: %s' % (runs[-1]['when'], runs[-1]['verdict']) if runs else 'Not run yet.')
         elif prev_done:
             item['status'] = 'NEEDS DEVELOPER'
         later.append(item)
@@ -216,7 +248,16 @@ def evaluate(state_dir=STATE_DIR, progress_file=PROGRESS_FILE):
                                 if not ok)
             next_step = {'text': 'Entry gate complete! Do step 4 %s.' % todo, 'href': '/v2/stage4', 'label': 'Open Stage 4'}
         else:
-            next_step = {'text': 'Step 4 PASS. Next: step 5, %s (developer session).' % LATER[1][0], 'href': None}
+            nl = next((l for l in later if l['status'] not in ('LOCKED',) and not l['status'].startswith(('PASS', 'DONE'))),
+                      None)
+            if nl is None:
+                next_step = {'text': 'All owner-runnable steps are done.', 'href': None}
+            elif nl.get('tool'):
+                next_step = {'text': 'Do step %d: %s.' % (nl['n'], nl['title']), 'href': nl['tool']['href'],
+                             'label': nl['tool']['label']}
+            else:
+                next_step = {'text': 'Next: step %d, %s (developer session: no owner test yet).' % (nl['n'], nl['title']),
+                             'href': None}
     elif nxt.get('tool'):
         next_step = {'text': 'Do stage %d: %s.' % (nxt['n'], nxt['title']),
                      'href': nxt['tool']['href'], 'label': nxt['tool']['label']}

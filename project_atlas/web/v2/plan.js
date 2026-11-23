@@ -3,7 +3,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const cls = s => String(s || '').startsWith('PASS') ? 'PASS' : String(s || '').replace(/ /g, '_');
+  const cls = s => /^(PASS|DONE)/.test(String(s || '')) ? 'PASS' : String(s || '').replace(/ /g, '_');
 
   function render(d) {
     const n = d.next_step || {};

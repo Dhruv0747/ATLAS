@@ -218,6 +218,23 @@ class AutonomyWebTests(unittest.TestCase):
         finally:
             web.IMU_CHECK, atlas_master_plan.evaluate = old, old_ev
 
+    def test_stepcheck_locked_and_unknown(self):
+        import tempfile as _t
+        import atlas_master_plan
+        tool = Path(_t.mkdtemp()) / 'nav2_recovery_audit.py'
+        old, old_ev = dict(web.STEP_CHECKS), atlas_master_plan.evaluate
+        try:
+            web.STEP_CHECKS[5] = (tool, 'nav2_audit_')
+            r = ros({'autonomy': {'armed': False}, 'stop_latched': False})
+            self.assertEqual(web.start_stepcheck(r, 9)[0], 400)                       # no owner test for step 9
+            self.assertEqual(web.start_stepcheck(r, 5)[0], 409)                       # tool missing
+            tool.write_text('# tool')
+            atlas_master_plan.evaluate = lambda *a, **k: {'later': [{'n': 5, 'status': 'LOCKED', 'unlock_after': 'step 4'}]}
+            code, msg = web.start_stepcheck(r, 5)
+            self.assertEqual(code, 409); self.assertIn('locked', msg); self.assertIn('step 4', msg)
+        finally:
+            web.STEP_CHECKS.clear(); web.STEP_CHECKS.update(old); atlas_master_plan.evaluate = old_ev
+
     def test_unrelated_paths_not_served(self):
         self.assertFalse(web.serve(Handler('/api/status'), ros(None)))
 

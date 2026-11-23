@@ -125,10 +125,31 @@ class MasterPlanTests(unittest.TestCase):
         mp.record_stage4b({'verdict': 'PASS', 'failed': [], 'detail': 'ok'}, 'w2.json', progress_file=self.prog)
         e = self.ev()
         self.assertEqual(e['later'][0]['status'], 'PASS')
-        self.assertEqual(e['later'][1]['status'], 'NEEDS DEVELOPER')
+        self.assertEqual(e['later'][1]['status'], 'NOT DONE')                 # step 5 has an owner test now
         self.assertTrue(all(l['status'] == 'LOCKED' for l in e['later'][2:]))
         self.assertIn('step 5', e['next_step']['text'])
-        self.assertIsNone(e['next_step']['href'])
+        self.assertEqual(e['next_step']['href'], '/v2/steps?n=5')
+        # step 5 audit: FAIL keeps it open; PASS unlocks step 6
+        mp.record_later(5, {'verdict': 'FAIL', 'failed': ['runner_retry_budget'], 'detail': 'd'}, 'a1.json',
+                        progress_file=self.prog)
+        self.assertEqual(self.ev()['later'][1]['status'], 'IN PROGRESS')
+        self.assertEqual(self.ev()['later'][2]['status'], 'LOCKED')
+        mp.record_later(5, {'verdict': 'PASS', 'failed': [], 'detail': 'bounded'}, 'a2.json', progress_file=self.prog)
+        e = self.ev()
+        self.assertEqual(e['later'][1]['status'], 'PASS')
+        self.assertEqual(e['later'][2]['status'], 'NOT DONE')
+        self.assertEqual(e['next_step']['href'], '/v2/steps?n=6')
+        # step 6: NOT ADVISED completes the evaluation honestly; step 7 needs a developer (no owner test)
+        mp.record_later(6, {'verdict': 'NOT ADVISED', 'detail': 'M3 excluded'}, 'p1.json', progress_file=self.prog)
+        e = self.ev()
+        self.assertEqual(e['later'][2]['status'], 'DONE (PID NOT ADVISED)')
+        self.assertIn('M3 excluded', e['later'][2]['evidence'])
+        self.assertEqual(e['later'][3]['status'], 'NEEDS DEVELOPER')
+        self.assertTrue(all(l['status'] == 'LOCKED' for l in e['later'][4:]))
+        self.assertIn('step 7', e['next_step']['text']); self.assertIsNone(e['next_step']['href'])
+        # a FAIL of step 6 (unsafe/no data) does not complete it
+        mp.record_later(6, {'verdict': 'FAIL', 'detail': 'x'}, 'p2.json', progress_file=self.prog)
+        self.assertEqual(self.ev()['later'][2]['status'], 'DONE (PID NOT ADVISED)')   # earlier completion stays
         self.assertEqual(e['gate_done'], 3)
 
     def test_owner_decision_is_shown_as_such(self):

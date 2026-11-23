@@ -113,6 +113,23 @@ class RunnerTests(unittest.TestCase):
         s.run(10, mission='ERROR navigate named place hall: saved-map navigation blocked: current pose is not in known clear space')
         self.assertEqual(s.gos(), ['hall', 'hall'])
 
+    def test_retry_budget_ends_the_run_cleanly(self):
+        # 2026-11-23 step 5: no endless Go retries (18 were needed once at the doorways; budget 25 per place)
+        s = Sim(); s.r.start(0.0)
+        s.run(12)
+        for i in range(40):
+            m = 'ERROR navigate named place hall: blocked #%d' % i
+            s.run(1, mission=m); s.run(10, mission=m)
+            if s.r.state == 'ERROR':
+                break
+        self.assertEqual(s.gos().count('hall'), s3.MAX_ATTEMPTS_PER_PLACE)
+        self.assertEqual(s.r.state, 'ERROR')
+        self.assertIn('Retry budget used up', s.r.message)
+        self.assertIn(('stop_recording', 'retry budget used up'), s.actions)
+        n = len(s.gos()); s.run(30)
+        self.assertEqual(len(s.gos()), n)                    # nothing more is sent
+        self.assertTrue(s.r.start(s.t)[0])                   # owner can press START again
+
     def test_start_twice_refused_while_running(self):
         r = s3.Runner()
         self.assertTrue(r.start(0.0)[0])

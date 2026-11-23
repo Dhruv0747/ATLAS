@@ -28,6 +28,9 @@ STILL_DEG = 3.0
 B_PROMPT_SPEED = 0.08         # m/s: "PRESS B NOW" only while clearly rolling (checker needs >= 0.05 at the press)
 B_PROMPT_MIN_S = 1.0
 RETRY_GAP_S = 8.0
+# 2026-11-23 master-plan step 5 (Nav2 recovery budget audit): no endless Go retries. A completed leg needed 18 Go
+# attempts at the doorways on 2026-11-22/23; 25 per place keeps that and ends the run cleanly beyond it.
+MAX_ATTEMPTS_PER_PLACE = 25
 RECORD_LEAD_S = 5.0          # bag runs this long (parked) before Go hall
 FINISHED = re.compile(r'NAMED GOAL FINISHED name=(.+?) status=(\d+)')
 ACCEPTED = re.compile(r'NAMED GOAL (?:ACCEPTED|DISPATCHED) name=(.+)$')
@@ -122,6 +125,13 @@ class Runner:
         return (pose is not None and math.hypot(pose[0] - START_X, pose[1] - START_Y) <= START_TOL_M
                 and abs(_dyaw(pose[2], START_YAW_DEG)) <= START_TOL_DEG)
 
+    def _budget_used(self, t, place):
+        recording = self.state in ('OUT', 'HOME')
+        self.state = 'ERROR'; self.leg = None; self.b_prompt = False
+        self._say(t, 'Retry budget used up: %d Go attempts for %s. The run stopped. Drive ATLAS out of the doorway '
+                     'with the remote, then press START again.' % (MAX_ATTEMPTS_PER_PLACE, place))
+        return [('stop_recording', 'retry budget used up')] if recording else []
+
     def _send(self, t, place):
         self.leg, self.leg_sent_t, self.leg_accepted = place, t, False
         self.attempts[place] = self.attempts.get(place, 0) + 1
@@ -178,6 +188,8 @@ class Runner:
                     self._say(t, 'To go to the start: ' + why); return actions
                 if self._still_for(t) < STILL_S or t - self.last_fail_t < RETRY_GAP_S:
                     self._say(t, 'Waiting for ATLAS to be still before going to the start...'); return actions
+                if self.attempts.get(HOME, 0) >= MAX_ATTEMPTS_PER_PLACE:
+                    return self._budget_used(t, HOME)
                 self._say(t, 'Going to the start pose (Go dhruv room)...')
                 return self._send(t, HOME)
             return actions
@@ -251,6 +263,8 @@ class Runner:
                 self._say(t, ('Safe stop done. ' if self.stop_done else '') + why); return actions
             if self._still_for(t) < STILL_S or t - self.last_fail_t < RETRY_GAP_S:
                 return actions
+            if self.attempts.get(place, 0) >= MAX_ATTEMPTS_PER_PLACE:
+                return self._budget_used(t, place)
             self._say(t, 'Sending Go %s (attempt %d)...' % (place, self.attempts.get(place, 0) + 1))
             return self._send(t, place)
         return actions

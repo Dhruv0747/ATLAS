@@ -1,5 +1,39 @@
 # ATLAS current blockers
 
+### 2026-11-23 15:00 IST — Step 5 PASS, Step 6 DONE (PID NOT ADVISED); next is step 7 (developer: VO/VIO code)
+- **Deployed at 14:58** (backup `~/atlas_backups/backup_steps56_20261123_145808`): steps 5/6 tools, `/v2/steps`, runner budget 25.
+- **Step 5:** `nav2_audit_20261123_150007.json` PASS.
+  - BT retries [6, 6], stuck after 45 s, mux cut 0.50/0.35 s, home retries 1, runner budget 25.
+  - Worst case one goal keeps retrying: 679 s.
+- **Step 6:** `pid_eval_20261123_150037.json` NOT ADVISED.
+  - Blockers: encoder M3 excluded; steering has no angle sensor (commanded only).
+  - Speed control stays the validated 3-encoder speed loop. The board shows "DONE (PID NOT ADVISED)".
+- **Board:** steps 4/5 PASS, 6 DONE, step 7 Camera VO/VIO NEEDS DEVELOPER (no owner test until VO code exists), steps 8–10 locked.
+
+### 2026-11-23 ~14:40 IST — Steps 5 and 6 owner checks built (NOT deployed); Stage-3 runner gets a Go retry budget
+- **Owner:** "build the remaining stages; calling a developer after every stage is not right".
+  - Built read-only one-click checks for the steps whose work IS a check.
+  - Steps 7 (VO/VIO) and 9 (semantic goals) need code first; step 8 (YOLO benchmark) and step 10 (arm hardware check) stay behind step 7 in the locked order.
+- **Live-config finding:** Nav2 runs with `project_atlas_ws/src/tortoisebot_bringup/config/nav2_params.yaml` (11-16 settings). The rover's `project_atlas/config/nav2_params.yaml` is an unused 2026-10-11 copy. The live mux lacks the staged 11-19 side-ultrasonic change (not deployed, as recorded).
+- **Step 5 — `tools/nav/nav2_recovery_audit.py`** reads the running files: the params from the bt_navigator process, the BT XMLs, the mux, mission-control and runner sources, and the service overrides.
+  - Live result:
+    - BT retries bounded (outer 6, inner 1); no Spin; BackUp 0.18 m / 5 s;
+    - progress checker 0.10 m / 45 s;
+    - mux nav 0.50 s / manual 0.35 s / watchdog 0.05 s;
+    - home retries 1.
+  - **FAIL: the Stage-3 runner had no Go retry budget** (18 retries were seen at the doorways).
+  - Information: the worst case one goal keeps retrying is ≈ 679 s (bounded, not endless).
+- **Fix (staged):** `atlas_stage3_runner.MAX_ATTEMPTS_PER_PLACE = 25`. Beyond it the run ends in ERROR, recording stops and the owner presses START again. With this runner the live audit dry-run PASSES.
+- **Step 6 — `tools/drive/wheel_pid_evaluation.py`** reads /api/status:
+  - live encoder DEGRADED, M3 excluded, selected 1/2/4;
+  - steering feedback "COMMANDED, NOT MEASURED";
+  - drive_pid.yaml disabled; speed loop enabled with a Speed-check PASS.
+  - Live dry-run verdict: **NOT ADVISED** (M3 excluded; no steering angle sensor). It completes the evaluation as "DONE (PID NOT ADVISED)".
+- **Board / dashboard:**
+  - `record_later(n)`; step 5 PASS unlocks 6, step 6 PASS/NOT ADVISED unlocks 7 (developer);
+  - `/v2/steps?n=5|6` and `/api/readiness/stepcheck` (read-only, no PIN, refused while locked or while another check runs).
+- **Tests:** test_nav2_recovery_audit (6), test_wheel_pid_evaluation (4), runner retry budget, master plan 5/6 flow, stepcheck refusals. Rover-copy suite 1256 run, the same 5 known copy-only failures.
+
 ### 2026-11-23 14:02 IST — STEP 4 PASS (part A 13:39 + part B 14:02); step 5 unlocked (developer)
 - **Part B run 3:** `imu_workload_check_20261123_140238.json` **PASS**, with the measurement fix + 0.8 s limit deployed at 14:01. Full stack running, load average 10.9.
   - **LEFT:** YAW, IM10A +25.1° / ICP +27.7°, 0.315 m, peak 0.181 m/s.
