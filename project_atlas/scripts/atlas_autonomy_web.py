@@ -288,9 +288,9 @@ def turncheck_running():
     return p is not None and p.poll() is None
 
 
-def _latest_turn_results(n=4):
+def _latest_turn_results(n=4, prefix='turn_check_'):
     out = []
-    for f in sorted(STATE_DIR.glob('turn_check_*.json'))[-n:]:
+    for f in sorted(STATE_DIR.glob(prefix + '*.json'))[-n:]:
         try:
             r = json.loads(f.read_text(encoding='utf-8'))
         except (OSError, ValueError):
@@ -299,7 +299,8 @@ def _latest_turn_results(n=4):
                     'failed': r.get('failed', []), 'checks': r.get('checks', {}),
                     'arcs': [{k: a.get(k) for k in ('direction', 'end_reason', 'imu_yaw_deg', 'icp_yaw_deg',
                                                      'wheel_distance_m', 'peak_mps', 'settle_s', 'checks', 'verdict')}
-                             for a in r.get('arcs', [])]})
+                             for a in r.get('arcs', [])],
+                    'workload': (r.get('workload') or {}).get('measured')})
     return out
 
 
@@ -364,7 +365,8 @@ def turncheck_status():
     except OSError:
         log = ''
     return {'running': turncheck_running(), 'started': _TURN['started'], 'log': log,
-            'tool_installed': TURN_CHECK.is_file(), 'results': _latest_turn_results()}
+            'tool_installed': TURN_CHECK.is_file(), 'results': _latest_turn_results(),
+            'workload_results': _latest_turn_results(prefix='imu_workload_check_'), 'workload': _TURN.get('workload')}
 
 
 def _latest_speed_results(n=4):
@@ -467,7 +469,7 @@ def start_speedcheck(ros, speed, pin):
                  '~0.6 m forward slowly and stops. B on the remote stops it.')
 
 
-def start_turncheck(ros, pin):
+def start_turncheck(ros, pin, workload=False):
     """Owner-triggered from the Stage-2 page. Same refusals as the Speed check, plus: Stage 1 (bounded straight
     run) must have passed first. The tool bounds itself (two ~25 deg arcs, <= 0.6 m, <= 12 s each, swept-path LiDAR
     stop) and the mux clamps COMMISSION to 0.12 m/s / 0.15 rad/s; the remote and E-STOP pre-empt it at any time."""
@@ -476,6 +478,8 @@ def start_turncheck(ros, pin):
     import atlas_master_plan
     if not atlas_master_plan.stage1_evidence():
         return 409, 'Stage 2 is locked: pass Stage 1 (Speed check straight run) first'
+    if workload and not atlas_master_plan.evaluate().get('gate_open'):
+        return 409, 'Stage 4 is locked: pass stages 1, 2 and 3 first'
     if ros.reset_lockout.remaining() > 0:
         return 429, f'too many wrong PINs; wait {int(ros.reset_lockout.remaining())} s'
     if not ros.reset_pins.verify(str(pin or '')):
@@ -498,12 +502,12 @@ def start_turncheck(ros, pin):
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         log = open(TURNCHECK_LOG, 'w', encoding='utf-8')
         cmd = ('source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash 2>/dev/null; '
-               f'cd {TURN_CHECK.parent}; exec python3 -u {TURN_CHECK.name} --yaw 25')
+               f'cd {TURN_CHECK.parent}; exec python3 -u {TURN_CHECK.name} --yaw 25' + (' --workload' if workload else ''))
         _TURN['proc'] = subprocess.Popen(['bash', '-lc', cmd], stdout=log, stderr=subprocess.STDOUT,
                                          stdin=subprocess.DEVNULL, start_new_session=True,
                                          env=dict(os.environ, PYTHONUNBUFFERED='1'))
-        _TURN['started'] = time.time()
-    ros.estop_log.write('turncheck_start')
+        _TURN['started'], _TURN['workload'] = time.time(), bool(workload)
+    ros.estop_log.write('turncheck_start', workload=bool(workload))
     return 202, ('turn check started: ATLAS curves gently LEFT ~25 deg, stops, then RIGHT ~25 deg, and stops. '
                  'B on the remote stops it.')
 
@@ -557,7 +561,7 @@ def serve_readiness(handler, ros, post=False):
         json_response(handler, code, {'ok': code == 202, 'message': msg})
         return True
     if path == '/api/readiness/turncheck':
-        code, msg = start_turncheck(ros, payload.get('pin'))
+        code, msg = start_turncheck(ros, payload.get('pin'), workload=payload.get('workload') is True)
         json_response(handler, code, {'ok': code == 202, 'message': msg})
         return True
     return False

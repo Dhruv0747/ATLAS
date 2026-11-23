@@ -111,6 +111,80 @@ class TurnCheckTests(unittest.TestCase):
             self.assertEqual(g.swept_clearance([(b + 0.3, -d * 1.0)], d, 25), float('inf'))  # far on the other side
             self.assertEqual(g.swept_clearance([(3.0, 0.0)], d, 25), float('inf'))        # beyond the 25 deg path
 
+    # ---- step 4 part B (workload timing) ----
+    OFFSETS = {'imu': 0.0, 'ekf': 0.0, 'tf_odom_base': 0.2, 'tf_map_odom': 1.0}
+
+    @staticmethod
+    def streams(seconds=10.0, imu_age=0.005, ekf_age=0.07, tf_raw=-0.19, map_raw=-0.85, gap_at=None):
+        def rows(hz, age):
+            out = [(k / hz, age) for k in range(int(seconds * hz))]
+            return [(t + (0.6 if gap_at is not None and t >= gap_at else 0.0), a) for t, a in out]
+        return {'imu': rows(10, imu_age), 'ekf': rows(10, ekf_age), 'tf_odom_base': rows(10, tf_raw),
+                'tf_map_odom': rows(7.4, map_raw)}
+
+    def test_workload_like_the_live_rover_passes(self):     # 2026-11-23 15 s probe under the full stack
+        w = g.evaluate_workload(self.streams(), 10.0, self.OFFSETS, [(24.0, 25.9), (-26.0, -26.7)], [], 13.4)
+        self.assertEqual(w['failed'], [], w)
+        self.assertAlmostEqual(w['measured']['tf_odom_base']['age_p95_s'], 0.01, places=2)
+
+    def test_workload_failures(self):
+        w = g.evaluate_workload(self.streams(ekf_age=0.4), 10.0, self.OFFSETS, [(25, 25), (-25, -25)], [])
+        self.assertIn('ekf_age', w['failed'])
+        w = g.evaluate_workload(self.streams(gap_at=5.0), 10.0, self.OFFSETS, [(25, 25), (-25, -25)], [])
+        self.assertIn('imu_rate', w['failed'])
+        # an unexplained future stamp (offset not configured) fails the age check
+        w = g.evaluate_workload(self.streams(), 10.0, dict(self.OFFSETS, tf_odom_base=0.0), [(25, 25)], [])
+        self.assertIn('tf_odom_base_age', w['failed'])
+        w = g.evaluate_workload(self.streams(), 10.0, self.OFFSETS, [(10.0, 25.0)], ['atlas-camera'])
+        self.assertIn('ekf_heading_agrees', w['failed']); self.assertIn('full_workload_running', w['failed'])
+        self.assertIn('ekf_heading_agrees', g.evaluate_workload(self.streams(), 10.0, self.OFFSETS, [], [])['failed'])
+
+    def test_pause_between_arcs_is_not_a_gap(self):
+        # 2026-11-23 part B runs 1-2: every stream showed the same ~1.2 s "gap" = the pause between the two arcs
+        def two_arcs(hz, age):
+            return [(k / hz, age, 1) for k in range(int(4 * hz))] + [(5.2 + k / hz, age, 2) for k in range(int(4 * hz))]
+        st = {'imu': two_arcs(10, 0.01), 'ekf': two_arcs(10, 0.05), 'tf_odom_base': two_arcs(10, -0.19),
+              'tf_map_odom': two_arcs(8, -0.85)}
+        w = g.evaluate_workload(st, 8.0, self.OFFSETS, [(25, 25), (-25, -25)], [])
+        self.assertEqual(w['failed'], [], w)
+        self.assertLess(w['measured']['imu']['max_gap_s'], 0.2)
+        # a real gap inside one arc is still caught
+        st['ekf'] = [r for r in st['ekf'] if not (r[2] == 2 and 6.0 < r[0] < 6.6)]
+        self.assertIn('ekf_rate', g.evaluate_workload(st, 8.0, self.OFFSETS, [(25, 25), (-25, -25)], [])['failed'])
+
+    def test_timing_starts_after_warmup_and_stops_with_the_drive(self):
+        src = (ROOT / 'tools' / 'drive' / 'turn_ground_check.py').read_text(encoding='utf-8')
+        self.assertIn('if t_on is None and t >= TIMING_WARMUP_S:', src)
+        self.assertLess(src.index('n.timing_on = False; n.active_s'), src.index('n.call(n.disarm_c, 0.5)'))
+
+    def test_map_odom_limit_is_back_to_0_5(self):
+        self.assertEqual(g.AGE_P95_MAX_S['tf_map_odom'], 0.50)
+        # PASS run 3 (0.256 s real age) passes; runs 1-2 values (0.755 s) fail
+        ok = g.evaluate_workload(self.streams(map_raw=-0.744), 10.0, self.OFFSETS, [(25, 25), (-25, -25)], [])
+        self.assertNotIn('tf_map_odom_age', ok['failed'])
+        bad = g.evaluate_workload(self.streams(map_raw=-0.245), 10.0, self.OFFSETS, [(25, 25), (-25, -25)], [])
+        self.assertIn('tf_map_odom_age', bad['failed'])
+
+    def test_part_b_needs_turns_and_timing(self):
+        left = g.evaluate_arc(arc(+1), +1, 'YAW', settle_s=0.5)
+        right = g.evaluate_arc(arc(-1), -1, 'YAW', settle_s=0.5)
+        ok_w = g.evaluate_workload(self.streams(), 10.0, self.OFFSETS, [(25, 25), (-25, -25)], [])
+        self.assertEqual(g.combine_part_b(g.evaluate([left, right]), ok_w)['verdict'], 'PASS')
+        bad_w = g.evaluate_workload(self.streams(ekf_age=0.4), 10.0, self.OFFSETS, [(25, 25), (-25, -25)], [])
+        r = g.combine_part_b(g.evaluate([left, right]), bad_w)
+        self.assertEqual(r['verdict'], 'FAIL'); self.assertIn('timing:ekf_age', r['failed'])
+        self.assertEqual(g.combine_part_b(g.evaluate([left]), ok_w)['verdict'], 'FAIL')
+
+    def test_configured_offsets_read_from_repo_config(self):
+        off = g.configured_offsets(ROOT)
+        self.assertEqual(off['tf_odom_base'], 0.2)        # atlas_ekf.yaml transform_time_offset
+        self.assertEqual(off['tf_map_odom'], 1.0)         # nav2_params.yaml amcl transform_tolerance
+
+    def test_workload_mode_records_step4b_not_stage2(self):
+        src = (ROOT / 'tools' / 'drive' / 'turn_ground_check.py').read_text(encoding='utf-8')
+        self.assertIn('atlas_master_plan.record_stage4b(res, out.name)', src)
+        self.assertIn("'imu_workload_check_'", src)
+
     def test_tool_records_on_the_master_plan_and_stops_after_a_guard(self):
         src = (ROOT / 'tools' / 'drive' / 'turn_ground_check.py').read_text(encoding='utf-8')
         self.assertIn('atlas_master_plan.record_stage2(res, out.name)', src)

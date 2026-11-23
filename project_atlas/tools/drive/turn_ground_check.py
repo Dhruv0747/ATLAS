@@ -21,7 +21,13 @@ An arc PASSES when it started within 2 s, ended by the heading target, the IM10A
 < 0.25 m/s and ATLAS was still (< 0.02 m/s) within 1.5 s of the stop. The sequence PASSES when both arcs pass and
 the net heading after left + right is within 15 deg.
 
-Usage (on the Jetson):  python3 turn_ground_check.py [--yaw 25]
+--workload (2026-11-23, master-plan step 4 part B "controlled turns + full workload timing"): the same two arcs,
+refused unless the full autonomy stack is running (WORKLOAD_SERVICES), and additionally recording while each arc runs:
+IM10A, EKF /odom and TF odom->base_link / map->odom arrival rate, largest gap and REAL message age (now - stamp +
+the configured future-dating: EKF transform_time_offset, AMCL transform_tolerance), and the EKF heading change of
+each arc against LiDAR-ICP. Writes imu_workload_check_<time>.json and records step 4 part B (not stage 2).
+
+Usage (on the Jetson):  python3 turn_ground_check.py [--yaw 25] [--workload]
 """
 import argparse
 import json
@@ -121,6 +127,83 @@ def evaluate(arcs):
             'detail': (detail + ' · net %+.0f deg' % net) if arcs else 'no arc ran'}
 
 
+# ---- step 4 part B: timing under full workload -------------------------------------------------------------------
+WORKLOAD_SERVICES = ('atlas-localization', 'atlas-ekf', 'atlas-im10a', 'atlas-lidar', 'atlas-icp-odometry',
+                     'atlas-astra-bridge', 'atlas-camera', 'atlas-mission-control', 'atlas-cmd-vel-mux',
+                     'rover-base-telemetry')
+# 2026-11-23: map->odom 0.50 s. The owner briefly allowed 0.80 s after runs 1-2 showed 0.725-0.755 s, but those were
+# inflated by the since-fixed backlog bug; the PASS run 3 measured 0.256 s, so the owner restored 0.50 s ("Yes, back
+# to 0.5 s").
+AGE_P95_MAX_S = {'imu': 0.10, 'ekf': 0.15, 'tf_odom_base': 0.15, 'tf_map_odom': 0.50}
+RATE_MIN_HZ = {'imu': 8.0, 'ekf': 8.0, 'tf_odom_base': 8.0, 'tf_map_odom': 1.0}
+GAP_MAX_S = {'imu': 0.30, 'ekf': 0.30, 'tf_odom_base': 0.30, 'tf_map_odom': 2.0}
+FUTURE_SLACK_S = 0.05        # a real age below -0.05 s means an unexplained future stamp
+TIMING_WARMUP_S = 0.5        # 2026-11-23 part B runs 1-2: messages queued while the arm service call blocked arrived
+                             # up to ~1 s old right after it; judge timing from 0.5 s into each arc
+
+
+def percentile(values, q):
+    v = sorted(values)
+    return v[min(len(v) - 1, int(q * len(v)))] if v else None
+
+
+def evaluate_workload(streams, active_s, offsets, ekf_turns, missing_services, load_avg=None):
+    """streams: {name: [(t_arrival, raw_age_s, arc_index)]} recorded while arcs ran (active_s seconds in total); gaps
+    are measured WITHIN each arc (2026-11-23 runs 1-2 counted the ~1.2 s pause between the two arcs as a gap);
+    offsets: {name: configured future-dating s}; ekf_turns: [(ekf_deg, icp_deg)] per arc. Pure; unit-tested."""
+    c, m = {'full_workload_running': not missing_services}, {'missing_services': list(missing_services),
+                                                              'load_avg_1m': load_avg, 'active_s': round(active_s, 1)}
+    for name in ('imu', 'ekf', 'tf_odom_base', 'tf_map_odom'):
+        rows = streams.get(name, [])
+        ages = [r[1] + offsets.get(name, 0.0) for r in rows]
+        gap = -math.inf
+        for seg in sorted({(r[2] if len(r) > 2 else 0) for r in rows}):
+            ts = sorted(r[0] for r in rows if (r[2] if len(r) > 2 else 0) == seg)
+            gap = max([gap] + [b - a for a, b in zip(ts, ts[1:])])
+        gap = math.inf if gap == -math.inf else gap
+        hz = len(rows) / active_s if active_s > 0 else 0.0
+        p95 = percentile(ages, 0.95)
+        m[name] = {'hz': round(hz, 1), 'max_gap_s': None if math.isinf(gap) else round(gap, 3),
+                   'age_p95_s': None if p95 is None else round(p95, 3),
+                   'age_min_s': None if not ages else round(min(ages), 3), 'offset_s': offsets.get(name, 0.0)}
+        c[name + '_rate'] = len(rows) > 1 and hz >= RATE_MIN_HZ[name] and gap <= GAP_MAX_S[name]
+        c[name + '_age'] = p95 is not None and p95 <= AGE_P95_MAX_S[name] and min(ages) >= -FUTURE_SLACK_S
+    c['ekf_heading_agrees'] = bool(ekf_turns) and all(
+        e is not None and i is not None and abs(e - i) <= max(8.0, 0.35 * abs(i)) for e, i in ekf_turns)
+    m['ekf_turns'] = [(None if e is None else round(e, 1), None if i is None else round(i, 1)) for e, i in ekf_turns]
+    return {'checks': c, 'measured': m, 'failed': [k for k, v in c.items() if not v]}
+
+
+def combine_part_b(turns, workload):
+    """Step 4 part B = the turn sequence PASS + every workload timing check."""
+    failed = list(turns['failed']) + ['timing:' + k for k in workload['failed']]
+    t = workload['measured']
+    detail = '%s · under workload: IMU %s Hz / p95 %s s, EKF %s Hz / p95 %s s, TF %s / %s Hz, EKF turns %s' % (
+        turns['detail'], t['imu']['hz'], t['imu']['age_p95_s'], t['ekf']['hz'], t['ekf']['age_p95_s'],
+        t['tf_odom_base']['hz'], t['tf_map_odom']['hz'], t['ekf_turns'])
+    return dict(turns, verdict='PASS' if not failed else 'FAIL', failed=failed, workload=workload, detail=detail)
+
+
+def configured_offsets(root):
+    """Future-dating configured on the rover (EKF transform_time_offset, AMCL transform_tolerance)."""
+    import re
+    out = {'imu': 0.0, 'ekf': 0.0, 'tf_odom_base': 0.0, 'tf_map_odom': 0.0}
+    try:
+        txt = (Path(root) / 'config' / 'atlas_ekf.yaml').read_text()
+        mm = re.search(r'transform_time_offset:\s*([0-9.]+)', txt)
+        out['tf_odom_base'] = float(mm.group(1)) if mm else 0.0
+    except OSError:
+        pass
+    try:
+        txt = (Path(root) / 'config' / 'nav2_params.yaml').read_text()
+        amcl = txt.split('amcl:', 1)[1] if 'amcl:' in txt else ''
+        mm = re.search(r'transform_tolerance:\s*([0-9.]+)', amcl)
+        out['tf_map_odom'] = float(mm.group(1)) if mm else 0.0
+    except (OSError, IndexError):
+        pass
+    return out
+
+
 def _yaw(q):
     return math.degrees(math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)))
 
@@ -128,8 +211,19 @@ def _yaw(q):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--yaw', type=float, default=25.0)
+    ap.add_argument('--workload', action='store_true')
     a = ap.parse_args()
     yaw_target = bounded_yaw(a.yaw)
+    missing_services = []
+    if a.workload:
+        import subprocess
+        for unit in WORKLOAD_SERVICES:
+            r = subprocess.run(['systemctl', '--user', 'is-active', '--quiet', unit + '.service'])
+            if r.returncode != 0:
+                missing_services.append(unit)
+        if missing_services:
+            print('ABORT: not the full workload, inactive: ' + ', '.join(missing_services))
+            return
 
     import sys
     import rclpy
@@ -155,7 +249,13 @@ def main():
             self.gz = None; self.imu_t = 0.0; self.imu_yaw = 0.0
             self.loop = {}; self.loop_t = 0.0
             self.points = []; self.scan_t = 0.0; self.blind = 0
+            self.timing_on = False; self.streams = {k: [] for k in ('imu', 'ekf', 'tf_odom_base', 'tf_map_odom')}
+            self.ekf_yaw = None; self.active_s = 0.0; self.ekf_turns = []; self.arc_index = 0
             self.create_subscription(Odometry, '/yahboom/odom', self.on_odom, 20)
+            if a.workload:
+                from tf2_msgs.msg import TFMessage
+                self.create_subscription(Odometry, '/odom', self.on_ekf, 20)
+                self.create_subscription(TFMessage, '/tf', self.on_tf, 50)
             self.create_subscription(Odometry, '/lidar/icp_odom', self.on_icp, 20)
             self.create_subscription(Imu, '/im10a/imu/bias_corrected_candidate', self.on_imu, qos_profile_sensor_data)
             self.create_subscription(String, '/atlas/speed_loop', self.on_loop, 20)
@@ -164,6 +264,23 @@ def main():
         def on_odom(self, m):
             p = m.pose.pose.position
             self.odom = (p.x, p.y, m.twist.twist.linear.x); self.odom_t = time.monotonic()
+
+        def age(self, stamp):
+            return (self.get_clock().now().nanoseconds - (stamp.sec * 10 ** 9 + stamp.nanosec)) / 1e9
+
+        def on_ekf(self, m):
+            self.ekf_yaw = _yaw(m.pose.pose.orientation)
+            if self.timing_on:
+                self.streams['ekf'].append((time.monotonic(), self.age(m.header.stamp), self.arc_index))
+
+        def on_tf(self, m):
+            if not self.timing_on:
+                return
+            for tr in m.transforms:
+                k = tr.header.frame_id.lstrip('/') + '->' + tr.child_frame_id.lstrip('/')
+                name = {'odom->base_link': 'tf_odom_base', 'map->odom': 'tf_map_odom'}.get(k)
+                if name:
+                    self.streams[name].append((time.monotonic(), self.age(tr.header.stamp), self.arc_index))
 
         def on_icp(self, m):
             self.icp_yaw = _yaw(m.pose.pose.orientation)
@@ -174,6 +291,8 @@ def main():
             if self.gz is not None and now - self.imu_t < 0.5:
                 self.imu_yaw += math.degrees(0.5 * (gz + self.gz) * (now - self.imu_t))
             self.gz = gz; self.imu_t = now
+            if self.timing_on:
+                self.streams['imu'].append((now, self.age(m.header.stamp), self.arc_index))
 
         def on_loop(self, m):
             try:
@@ -215,13 +334,16 @@ def main():
         print(f'ARM success={getattr(r, "success", None)} message={getattr(r, "message", "no response")}', flush=True)
         if r is None or not r.success:
             return None
-        x0, y0 = n.odom[:2]; yaw0 = n.imu_yaw; icp0 = n.icp_yaw
+        x0, y0 = n.odom[:2]; yaw0 = n.imu_yaw; icp0 = n.icp_yaw; ekf0 = n.ekf_yaw
+        n.arc_index += 1; t_on = None
         cmd = Twist(); cmd.linear.x = VX; cmd.angular.z = WZ * direction
         samples, end, runaway, t0 = [], 'RUNNING', 0, time.monotonic()
         try:
             while rclpy.ok() and end == 'RUNNING':
                 rclpy.spin_once(n, timeout_sec=0.05)
                 now = time.monotonic(); t = now - t0
+                if t_on is None and t >= TIMING_WARMUP_S:
+                    n.timing_on = True; t_on = now
                 d = math.hypot(n.odom[0] - x0, n.odom[1] - y0); v = n.odom[2]; yaw = n.imu_yaw - yaw0
                 clear = swept_clearance(n.points, direction, yaw_target - yaw * direction)
                 if not samples or t - samples[-1]['t'] >= 0.1:
@@ -246,6 +368,8 @@ def main():
         except KeyboardInterrupt:
             end = 'STOP_CTRL_C'
         finally:
+            if t_on is not None:                           # timing covers the driven arc only
+                n.timing_on = False; n.active_s += time.monotonic() - t_on
             for _ in range(5):
                 n.pub.publish(Twist()); time.sleep(0.02)
             n.call(n.disarm_c, 0.5)
@@ -256,6 +380,9 @@ def main():
                 settle = round(time.monotonic() - t_stop, 2); break
         n.spin_for(1.0)
         icp_turn = wrap_deg(n.icp_yaw - icp0) if (n.icp_yaw is not None and icp0 is not None) else None
+        if a.workload:
+            n.ekf_turns.append((wrap_deg(n.ekf_yaw - ekf0) if (n.ekf_yaw is not None and ekf0 is not None) else None,
+                                icp_turn))
         res = evaluate_arc(samples, direction, end, icp_turn, settle)
         res['samples'] = samples
         print(json.dumps({k: v for k, v in res.items() if k != 'samples'}), flush=True)
@@ -287,18 +414,31 @@ def main():
     if not arcs:
         n.destroy_node(); rclpy.shutdown(); return
     res = evaluate(arcs)
+    label, prefix = 'STAGE 2', 'turn_check_'
+    if a.workload:
+        try:
+            load = round(__import__('os').getloadavg()[0], 2)
+        except OSError:
+            load = None
+        wl = evaluate_workload(n.streams, n.active_s, configured_offsets('/home/jetson/project_atlas'),
+                               n.ekf_turns, missing_services, load)
+        res = combine_part_b(res, wl)
+        label, prefix = 'STAGE 4 PART B', 'imu_workload_check_'
     res['yaw_target_deg'] = yaw_target
     res['when'] = time.strftime('%Y-%m-%d %H:%M')
-    out = Path.home() / '.local/state/project_atlas' / f'turn_check_{time.strftime("%Y%m%d_%H%M%S")}.json'
+    out = Path.home() / '.local/state/project_atlas' / f'{prefix}{time.strftime("%Y%m%d_%H%M%S")}.json'
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(res, indent=1))
     try:
         import atlas_master_plan
-        atlas_master_plan.record_stage2(res, out.name)
+        if a.workload:
+            atlas_master_plan.record_stage4b(res, out.name)
+        else:
+            atlas_master_plan.record_stage2(res, out.name)
     except Exception as exc:                              # the board must never break the test result
         print(f'note: master plan not updated ({exc})')
     print(json.dumps({k: v for k, v in res.items() if k != 'arcs'}, indent=1))
-    print(f'STAGE 2: {res["verdict"]}')
+    print(f'{label}: {res["verdict"]}')
     print(f'saved {out}')
     n.destroy_node(); rclpy.shutdown()
 

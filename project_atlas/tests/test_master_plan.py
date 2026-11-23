@@ -117,6 +117,17 @@ class MasterPlanTests(unittest.TestCase):
         self.assertIn('Part B', e['later'][0]['evidence'])
         self.assertEqual(len(e['later'][0]['history']), 2)
         self.assertTrue(all(l['status'] == 'LOCKED' for l in e['later'][1:]))
+        self.assertIn('part B', e['next_step']['text'])
+        self.assertEqual(e['next_step']['href'], '/v2/stage4')
+        # part B FAIL keeps it in progress; part B PASS -> step 4 PASS, step 5 unlocks (developer), 6-10 locked
+        mp.record_stage4b({'verdict': 'FAIL', 'failed': ['timing:ekf_age'], 'detail': 'x'}, 'w1.json', progress_file=self.prog)
+        self.assertEqual(self.ev()['later'][0]['status'], 'IN PROGRESS')
+        mp.record_stage4b({'verdict': 'PASS', 'failed': [], 'detail': 'ok'}, 'w2.json', progress_file=self.prog)
+        e = self.ev()
+        self.assertEqual(e['later'][0]['status'], 'PASS')
+        self.assertEqual(e['later'][1]['status'], 'NEEDS DEVELOPER')
+        self.assertTrue(all(l['status'] == 'LOCKED' for l in e['later'][2:]))
+        self.assertIn('step 5', e['next_step']['text'])
         self.assertIsNone(e['next_step']['href'])
         self.assertEqual(e['gate_done'], 3)
 

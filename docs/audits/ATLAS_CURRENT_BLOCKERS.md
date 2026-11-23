@@ -1,5 +1,63 @@
 # ATLAS current blockers
 
+### 2026-11-23 14:02 IST — STEP 4 PASS (part A 13:39 + part B 14:02); step 5 unlocked (developer)
+- **Part B run 3:** `imu_workload_check_20261123_140238.json` **PASS**, with the measurement fix + 0.8 s limit deployed at 14:01. Full stack running, load average 10.9.
+  - **LEFT:** YAW, IM10A +25.1° / ICP +27.7°, 0.315 m, peak 0.181 m/s.
+  - **RIGHT:** YAW, −24.3° / −27.3°, 0.337 m, peak 0.154 m/s.
+  - **EKF vs ICP:** 27.0/27.7°, −26.0/−27.3°.
+- **Timing during the drive (real age p95, max in-arc gap):**
+  - IM10A: 10.3 Hz, 0.049 s, 0.147 s;
+  - EKF: 10.1 Hz, 0.050 s, 0.129 s;
+  - odom→base_link: 10.3 Hz, 0.081 s, 0.161 s;
+  - map→odom: 7.7 Hz, **0.256 s**, 0.19 s.
+- **Honest note:** map→odom was 0.256 s in this run. It would also have passed the original 0.50 s limit, so the 0.725–0.755 s of runs 1–2 were likely inflated by the same backlog bug. The 0.8 s owner decision did not decide this result.
+- **After the run:** ATLAS was unreachable on Tailscale and Wi-Fi for ~1–2 min. It came back on Wi-Fi 192.168.1.19 (mesh node F0:ED:B8:33:16:4A, signal 62); the host key was verified identical to the Tailscale key.
+- **Board:** step 4 PASS; step 5 (Nav2 recovery budget audit) NEEDS DEVELOPER; steps 6–10 locked.
+- **14:09 owner: "Yes, back to 0.5 s".** The map→odom limit is restored to 0.50 s and deployed (backup `~/atlas_backups/backup_stage4b05_20261123_140901`). The step-4 PASS stands under the stricter limit (0.256 s).
+
+### 2026-11-23 13:56–13:57 IST — Step 4 part B runs 1–2 FAIL (mostly my measurement bugs; AMCL lag is real); fix staged, NOT deployed
+- **Files:** `imu_workload_check_20261123_135643.json` and `_135733.json`.
+- **Turns PASS in both runs:** left and right ended by YAW (+25/−25°, +24/−26°); EKF agreed with ICP (27.4/28.0°, −27.2/−26.7°); all 10 workload services were active; load average 15.9.
+- **Bug 1 (mine):** IMU, EKF, odom→base_link and map→odom all showed the same max gap of 1.10–1.21 s. That was the pause between the two arcs, counted because the timestamps of both arcs were joined. Inside the arcs the tool's loop never paused more than 0.15 s.
+- **Bug 2 (mine):** in run 2 the EKF age p95 was 0.95 s and odom→base_link 1.08 s, from messages queued while the arm service call blocked and delivered old right after it. Run 1 (no backlog) had EKF p95 0.044 s and odom TF 0.111 s.
+- **Fix:**
+  - gaps are measured per arc;
+  - timing starts 0.5 s into each driven arc and stops when the drive loop ends (before disarm/settle);
+  - tests replay the recorded two-arc pattern; a real in-arc gap is still caught.
+- **REAL finding:** the AMCL map→odom real age (stamp minus the configured 1.0 s transform_tolerance) is 0.725–0.755 s p95 while turning under full load, against 0.15 s parked. That is above my 0.5 s limit. Nav2 accepts up to its 1.0 s tolerance.
+  - The owner decides: keep 0.5 s (part B stays FAIL until AMCL/CPU is improved — developer work), or use tolerance − 0.2 s = 0.8 s.
+- **14:01 OWNER DECISION ("0.8 s, then deploy"):** the map→odom limit is now 0.80 s (AMCL tolerance 1.0 − 0.2).
+  - It was chosen after seeing 0.725–0.755 s, which is close to the limit; AMCL lag while moving remains a known weakness.
+  - Deployed together with the measurement fix; backup `~/atlas_backups/backup_stage4bfix_20261123_140132`.
+
+### 2026-11-23 ~14:00 IST — Step 4 part B (turns + timing under full workload) built, NOT deployed / NOT run
+- **Read-only 15 s latency probe** under the full stack (load average ~13.4), real age = now − stamp:
+  - IM10A p95 0.005 s;
+  - EKF /odom p95 0.070 s;
+  - TF odom→base_link −0.19 s (stamped in the future by EKF `transform_time_offset: 0.2`);
+  - map→odom −0.85 s (AMCL `transform_tolerance: 1.0`).
+  - Both offsets are confirmed in the live rover config. The real ages with the offset taken back out are ≈ 0.01 s and ≈ 0.15 s.
+- **`turn_ground_check.py --workload`:**
+  - the same bounded arcs, refused unless 10 stack services are active (localization, ekf, im10a, lidar, icp-odometry, astra-bridge, camera, mission-control, cmd-vel-mux, base);
+  - while the arcs run it records IM10A, EKF, odom→base_link and map→odom: rate, largest gap and real-age p95;
+  - limits: IMU ≤ 0.10 s, EKF and odom TF ≤ 0.15 s, map→odom ≤ 0.50 s; rates ≥ 8 Hz (map→odom ≥ 1 Hz); no unexplained future stamp (< −0.05 s);
+  - per-arc EKF heading must agree with LiDAR-ICP within max(8°, 35 %);
+  - writes `imu_workload_check_*.json` and `record_stage4b`.
+- **Board:** step 4 PASS needs part A + part B. Step 5 then becomes NEEDS DEVELOPER; steps 6–10 stay locked.
+- **Dashboard:**
+  - `/v2/stage4` now has a part B section (PIN + START);
+  - `/api/readiness/turncheck` takes `workload: true`, which is refused until the gate is open.
+- **Tests:** test_turn_ground_check 17 (part B timing, offsets from the repo config), test_master_plan (A + B), test_autonomy_web; rover-copy suite 1241 run with the same 5 known copy-only failures.
+
+### 2026-11-23 13:39 IST — Step 4 part A PASS (parked IM10A/EKF/TF, 60 s); step 4 stays IN PROGRESS
+- **Result:** `imu_check_20261123_133930.json` PASS, all 9 checks.
+  - Parked the whole time (wheels 0.0 m/s).
+  - IM10A: 10.0 Hz, max gap 0.123 s, mean gyro-Z 0.0, drift 0.0°.
+  - EKF: 10.0 Hz, yaw 0.0°, position change 0.0 m.
+  - TF: odom→base_link 10.0 Hz, map→odom 7.4 Hz.
+- **Board:** step 4 shows IN PROGRESS by design. Part B (controlled turns and timing under full workload) has no evidence yet. Steps 5–10 stay locked.
+- **Partial part-B evidence:** the Stage-2 PASS (13:37) gives controlled-turn IM10A vs LiDAR-ICP agreement (+25.1/+25.9°, −25.3/−26.7°). It was not run under full workload, and EKF/TF timing during motion was not recorded.
+
 ### 2026-11-23 13:37 IST — STAGE 2 PASS (gentle left/right turn sequence); entry gate 3/3, step 4 unlocked
 - **Run 3:** `turn_check_20261123_133747.json` **PASS**, with the swept-path guard fix deployed at 13:36.
   - **LEFT:** ended by YAW, IM10A +25.1° / LiDAR-ICP +25.9°, 0.324 m, start 0.82 s, peak 0.151 m/s, still in 0.16 s.

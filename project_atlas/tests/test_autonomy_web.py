@@ -187,6 +187,11 @@ class AutonomyWebTests(unittest.TestCase):
             self.assertEqual(code, 409); self.assertIn('Stage 1', msg)              # locked until stage 1 PASS
             atlas_master_plan.stage1_evidence = lambda *a, **k: {'detail': 'ok', 'when': 'w', 'file': 'f'}
             self.assertEqual(web.start_turncheck(r, '0000')[0], 403)                  # wrong PIN
+            old_plan = atlas_master_plan.evaluate
+            atlas_master_plan.evaluate = lambda *a, **k: {'gate_open': False}
+            code, msg = web.start_turncheck(r, '1234', workload=True)
+            self.assertEqual(code, 409); self.assertIn('Stage 4 is locked', msg)     # part B needs the gate
+            atlas_master_plan.evaluate = old_plan
             r = ros({'autonomy': {'armed': True}, 'stop_latched': False})
             self.assertIn('Manual', web.start_turncheck(r, '1234')[1])
             r = ros({'autonomy': {'armed': False}, 'stop_latched': True})
