@@ -108,12 +108,17 @@ def evaluate(state_dir=STATE_DIR, progress_file=PROGRESS_FILE):
     s2 = prog.get('stage2')                              # written by a future turn-test tool
     runs = STAGE3_HISTORY + prog.get('stage3_runs', [])
     s3_pass = next((r for r in reversed(runs) if r.get('verdict') == 'PASS'), None)
+    # 2026-11-23: an explicit, recorded OWNER DECISION may accept combined evidence. It is shown as such, never as a
+    # plain checker PASS, and it must name the runs it combines.
+    s3_owner = prog.get('stage3_owner_decision') if isinstance(prog.get('stage3_owner_decision'), dict) else None
     best = max(runs, key=lambda r: int(str(r.get('score', '0/1')).split('/')[0] or 0), default=None)
     status = {
         'stage1': ('PASS', s1['detail'] + ' (' + s1['when'] + ')') if s1 else ('NOT DONE', 'No bounded straight-run PASS yet.'),
         'stage2': ('PASS', s2.get('detail', '')) if (s2 or {}).get('verdict') == 'PASS' else
                   ('NOT DONE', 'No turn-sequence test recorded (tool not built yet).'),
         'stage3': ('PASS', 'checker PASS ' + s3_pass['when']) if s3_pass else
+                  ('PASS (OWNER DECISION)', 'OWNER DECISION %s: %s' % (s3_owner.get('when', ''), s3_owner.get('text', '')))
+                  if s3_owner and s3_owner.get('text') else
                   ('IN PROGRESS' if runs else 'NOT DONE',
                    ('best so far %s (%s)' % (best['score'], best['when'])) if best else 'No run yet.'),
     }
@@ -124,23 +129,23 @@ def evaluate(state_dir=STATE_DIR, progress_file=PROGRESS_FILE):
         if g['id'] == 'stage3':
             item['history'] = runs[-6:]
         gate.append(item)
-    gate_open = all(g['status'] == 'PASS' for g in gate)
+    gate_open = all(g['status'].startswith('PASS') for g in gate)
     later = [{'n': i + 4, 'title': t, 'what': w, 'status': 'NEEDS DEVELOPER' if gate_open else 'LOCKED'}
              for i, (t, w) in enumerate(LATER)]
     # prefer what the owner can do right now (a stage with a tool); otherwise name the first open stage
-    nxt = next((g for g in gate if g['status'] != 'PASS' and g.get('tool')), None) or \
-        next((g for g in gate if g['status'] != 'PASS'), None)
+    nxt = next((g for g in gate if not g['status'].startswith('PASS') and g.get('tool')), None) or \
+        next((g for g in gate if not g['status'].startswith('PASS')), None)
     if nxt is None:
         next_step = {'text': 'Entry gate complete! Next: ' + LATER[0][0] + ' (developer work).', 'href': None}
     elif nxt.get('tool'):
-        others = [g for g in gate if g['status'] != 'PASS' and g is not nxt and not g.get('tool')]
+        others = [g for g in gate if not g['status'].startswith('PASS') and g is not nxt and not g.get('tool')]
         next_step = {'text': 'Do stage %d: %s.' % (nxt['n'], nxt['title']) +
                      ''.join(' Stage %d (%s) still needs a test tool (developer).' % (o['n'], o['title']) for o in others),
                      'href': nxt['tool']['href'], 'label': nxt['tool']['label']}
     else:
         next_step = {'text': 'Stage %d (%s) needs a test tool that is not built yet.' % (nxt['n'], nxt['title']),
                      'href': None}
-    done = sum(1 for g in gate if g['status'] == 'PASS')
+    done = sum(1 for g in gate if g['status'].startswith('PASS'))
     return {'gate': gate, 'later': later, 'gate_done': done, 'gate_total': len(gate), 'gate_open': gate_open,
             'next_step': next_step, 'source': 'docs/AI_ROBOTICS_ADAPTATION_PHASE0_2026-09-30.md',
             'note': 'Status comes only from recorded test results (Speed check files, Stage-3 checker), not from buttons.'}

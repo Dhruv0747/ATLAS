@@ -80,6 +80,17 @@ class MasterPlanTests(unittest.TestCase):
         self.assertTrue(all(l['status'] == 'NEEDS DEVELOPER' for l in e['later']))
         self.assertEqual(e['gate_done'], 3)
 
+    def test_owner_decision_is_shown_as_such(self):
+        speed_file(self.d, 'speed_loop_check_4.json')
+        self.prog.write_text(json.dumps({'stage3_owner_decision': {'when': '2026-11-23 13:00',
+                                                                   'text': 'return_home from run A, safe stop from run B'}}))
+        g3 = self.ev()['gate'][2]
+        self.assertEqual(g3['status'], 'PASS (OWNER DECISION)')
+        self.assertIn('OWNER DECISION', g3['evidence']); self.assertIn('run B', g3['evidence'])
+        self.assertEqual(self.ev()['gate_done'], 2)
+        self.prog.write_text(json.dumps({'stage3_owner_decision': {'when': 'x'}}))       # no text -> ignored
+        self.assertNotEqual(self.ev()['gate'][2]['status'], 'PASS (OWNER DECISION)')
+
     def test_history_is_bounded(self):
         for i in range(40):
             mp.record_stage3({'verdict': 'FAIL', 'checks': {}}, '/b%d' % i, progress_file=self.prog)

@@ -3,7 +3,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const cls = s => String(s || '').replace(/ /g, '_');
+  const cls = s => String(s || '').startsWith('PASS') ? 'PASS' : String(s || '').replace(/ /g, '_');
 
   function render(d) {
     const n = d.next_step || {};
@@ -13,7 +13,7 @@
     $('gate').innerHTML = (d.gate || []).map(g => {
       const hist = g.history && g.history.length ? `<table>${g.history.slice().reverse().map(h =>
         `<tr><td>${esc(h.when)}</td><td>${esc(h.verdict)} ${esc(h.score || '')}</td><td>${esc(h.note || (h.failed && h.failed.length ? 'failed: ' + h.failed.join(', ') : ''))}</td></tr>`).join('')}</table>` : '';
-      const how = g.status === 'PASS' ? '' : `<ol>${(g.how || []).map(s => `<li>${esc(s)}</li>`).join('')}</ol>` +
+      const how = String(g.status).startsWith('PASS') ? '' : `<ol>${(g.how || []).map(s => `<li>${esc(s)}</li>`).join('')}</ol>` +
         (g.tool ? `<a class="tool" href="${esc(g.tool.href)}">${esc(g.tool.label)}</a>` : '');
       return `<div class="card"><span class="st ${cls(g.status)}">${esc(g.status)}</span><b>Stage ${g.n} · ${esc(g.title)}</b>` +
         `<div class="goal">${esc(g.goal)}</div><div class="ev">Evidence: ${esc(g.evidence)}</div>${how}${hist}</div>`;

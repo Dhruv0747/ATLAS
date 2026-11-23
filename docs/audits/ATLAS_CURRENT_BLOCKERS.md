@@ -1,5 +1,17 @@
 # ATLAS current blockers
 
+### 2026-11-23 12:25–12:53 IST — One-click run #3: 4/5 (safe_stop); Stage 3 marked PASS BY OWNER DECISION (not a single-run checker PASS)
+- **Run #3** (bag `stage3_auto_20261123_122540`), with the encoder debounce live. It positioned itself first (Go dhruv room to face into the room), then recorded.
+  - **PASS legs** (hall=4, dhruv room=4 after retries: hall 6 attempts, dhruv room 12; D2 failures and "localization still moving" refusals with 0.36–0.42 m pose shifts).
+  - **PASS return_home 0.02 m / 15° (TF)**; **PASS turn_sign** (1703/21); **PASS encoders (0 bad while moving autonomously)**: the debounce removed the false CRITICALs.
+  - **FAIL safe_stop:** four B latches, at +67.9 s (odom 0.039 m/s), +95.7 s (0), +1355.4 s (cmd 0.15 but odom -0.012) and +1421.6 s (0). None was while ATLAS was rolling ≥ 0.05 m/s, so none counts as a stop of a moving rover. The runner's PRESS B NOW never coincided with a press (stop_done false).
+- **Owner decision**, in chat ("pass e stop it done many time … i command it press pass it"):
+  - I explained that the Phase-0 criterion is ONE round trip including the safe stop, and offered one more run or a recorded owner decision. The owner chose the decision.
+  - **Recorded** in `~/.local/state/project_atlas/master_plan_progress.json` as `stage3_owner_decision`: return home / legs / encoders from run #3 (12:25), safe stop from run #2 (10:25: v 0.157 → still in 0.30 s, 0.018 m). That safe stop was recorded **before** the 12:05 base change, and earlier safe-stop PASSes exist (run #8 0.18 s, run #1 09:45 0.27 s).
+- **Board:** `atlas_master_plan` shows it as **"PASS (OWNER DECISION)"**, with that text as the evidence, never as a plain checker PASS. The gate counter is 2/3; the next step is Stage 2 (needs a turn-test tool). Test added (master plan 7/7).
+  - Deployed 12:53: atlas_master_plan 9b8180c9, plan.js 438af523, plan.html 1850ba00. Backups (incl. the previous progress file) in `~/project_atlas/backups/stage3_owner_decision_20261123/`.
+- **Still true:** no single recorded run has passed all five checks. A clean single-run PASS remains available with the Stage 3 button: press B only on PRESS B NOW.
+
 ### 2026-11-23 12:11–12:18 IST — Speed checks after the encoder-debounce deploy: 2 PASS (speed evidence current again)
 - **12:11:19 FAIL** `STOP_LIDAR_0.59M`: the LiDAR safety stopped the run at an obstacle 0.59 m ahead after 0.47 m (wheels) / 0.53 m (ICP); steady 0.108 m/s. The test space was too short; the owner moved ATLAS to open space.
 - **12:15:21 FAIL** `STOP_SPEED_LOOP_STATUS_STALE`: wheels 0.072 m; steady-mean and ended-by-distance checks failed. Not investigated; the next two runs were clean.
