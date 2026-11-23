@@ -204,6 +204,34 @@ def configured_offsets(root):
     return out
 
 
+VO_STATUS_FILE = Path.home() / '.local/state/project_atlas/vo_shadow_status.json'
+
+
+def vo_shadow_pose(path=None, now=None):
+    """2026-11-23 master-plan step 7: the shadow VO pose from its status file (never a ROS topic, never a
+    command), or None when the file is missing or older than 2 s. Read only at arc start and after the settle."""
+    try:
+        s = json.loads(Path(path or VO_STATUS_FILE).read_text(encoding='utf-8'))
+        if abs((now or time.time()) - float(s.get('wall_time') or 0)) > 2.0 or not s.get('pose'):
+            return None
+        return {'pose': s['pose'], 'state': s.get('state')}
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def vo_arc(vo0, icp0, icp1, path=None):
+    """Per-arc VO vs LiDAR-ICP record for step 7 (information only: never changes the arc verdict)."""
+    vo1 = vo_shadow_pose(path)
+    if not (vo0 and vo1 and icp0[0] and icp1[0] and icp0[1] is not None and icp1[1] is not None):
+        return None
+    try:
+        import atlas_vo_core
+    except ImportError:
+        return None
+    cmp = atlas_vo_core.arc_compare(vo0['pose'], vo1['pose'], (*icp0[0], icp0[1]), (*icp1[0], icp1[1]))
+    return dict(cmp, state=vo1['state'], state_start=vo0['state']) if cmp else None
+
+
 def _yaw(q):
     return math.degrees(math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)))
 
@@ -246,6 +274,7 @@ def main():
             self.disarm_c = self.create_client(Trigger, '/atlas/commission/disarm')
             self.odom = None; self.odom_t = 0.0
             self.icp_yaw = None
+            self.icp_xy = None
             self.gz = None; self.imu_t = 0.0; self.imu_yaw = 0.0
             self.loop = {}; self.loop_t = 0.0
             self.points = []; self.scan_t = 0.0; self.blind = 0
@@ -284,6 +313,7 @@ def main():
 
         def on_icp(self, m):
             self.icp_yaw = _yaw(m.pose.pose.orientation)
+            self.icp_xy = (m.pose.pose.position.x, m.pose.pose.position.y)
 
         def on_imu(self, m):
             now = time.monotonic()
@@ -335,6 +365,7 @@ def main():
         if r is None or not r.success:
             return None
         x0, y0 = n.odom[:2]; yaw0 = n.imu_yaw; icp0 = n.icp_yaw; ekf0 = n.ekf_yaw
+        vo0, icpp0 = vo_shadow_pose(), (n.icp_xy, n.icp_yaw)      # step 7: shadow VO, read-only (file)
         n.arc_index += 1; t_on = None
         cmd = Twist(); cmd.linear.x = VX; cmd.angular.z = WZ * direction
         samples, end, runaway, t0 = [], 'RUNNING', 0, time.monotonic()
@@ -384,6 +415,7 @@ def main():
             n.ekf_turns.append((wrap_deg(n.ekf_yaw - ekf0) if (n.ekf_yaw is not None and ekf0 is not None) else None,
                                 icp_turn))
         res = evaluate_arc(samples, direction, end, icp_turn, settle)
+        res['vo'] = vo_arc(vo0, icpp0, (n.icp_xy, n.icp_yaw))
         res['samples'] = samples
         print(json.dumps({k: v for k, v in res.items() if k != 'samples'}), flush=True)
         return res if end != 'STOP_CTRL_C' else dict(res, aborted=True)

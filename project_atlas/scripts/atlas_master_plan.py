@@ -72,6 +72,15 @@ STEP_TOOLS = {
         'done': {'PASS': 'PASS'}},
     6: {'label': 'Open Step 6 · wheel PID evaluation', 'href': '/v2/steps?n=6',
         'done': {'ADVISED': 'PASS (PID ADVISED)', 'NOT ADVISED': 'DONE (PID NOT ADVISED)'}},
+    7: {'label': 'Open Step 7 · shadow visual odometry', 'href': '/v2/steps?n=7',
+        'done': {'PASS': 'PASS', 'NOT USABLE': 'DONE (VO NOT USABLE, STAYS SHADOW)'},
+        # 2026-11-23: a parked run that still needs the motion data points the owner to the Stage-2 turn check
+        'needs': {'NEEDS MOTION': {'text': 'Step 7 needs motion data: run the Stage-2 turn check once, then step 7 again.',
+                                   'href': '/v2/stage2', 'label': 'Open Stage 2 · turn check'}}},
+    8: {'label': 'Open Step 8 · YOLO benchmark', 'href': '/v2/steps?n=8',
+        'done': {'PASS': 'PASS', 'NOT ADVISED': 'DONE (YOLO ON DEMAND ONLY)'}},
+    9: {'label': 'Open Step 9 · advisory semantic perception', 'href': '/v2/steps?n=9',
+        'done': {'PASS': 'PASS (ADVISORY ONLY, NO GOALS SENT)'}},
 }
 
 
@@ -252,6 +261,8 @@ def evaluate(state_dir=STATE_DIR, progress_file=PROGRESS_FILE):
                       None)
             if nl is None:
                 next_step = {'text': 'All owner-runnable steps are done.', 'href': None}
+            elif nl.get('tool') and (nl.get('history') or [{}])[-1].get('verdict') in STEP_TOOLS.get(nl['n'], {}).get('needs', {}):
+                next_step = dict(STEP_TOOLS[nl['n']]['needs'][nl['history'][-1]['verdict']])
             elif nl.get('tool'):
                 next_step = {'text': 'Do step %d: %s.' % (nl['n'], nl['title']), 'href': nl['tool']['href'],
                              'label': nl['tool']['label']}

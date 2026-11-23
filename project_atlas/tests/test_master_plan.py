@@ -139,18 +139,40 @@ class MasterPlanTests(unittest.TestCase):
         self.assertEqual(e['later'][1]['status'], 'PASS')
         self.assertEqual(e['later'][2]['status'], 'NOT DONE')
         self.assertEqual(e['next_step']['href'], '/v2/steps?n=6')
-        # step 6: NOT ADVISED completes the evaluation honestly; step 7 needs a developer (no owner test)
+        # step 6: NOT ADVISED completes the evaluation honestly; step 7 (shadow VO) has an owner test since 2026-11-23
         mp.record_later(6, {'verdict': 'NOT ADVISED', 'detail': 'M3 excluded'}, 'p1.json', progress_file=self.prog)
         e = self.ev()
         self.assertEqual(e['later'][2]['status'], 'DONE (PID NOT ADVISED)')
         self.assertIn('M3 excluded', e['later'][2]['evidence'])
-        self.assertEqual(e['later'][3]['status'], 'NEEDS DEVELOPER')
+        self.assertEqual(e['later'][3]['status'], 'NOT DONE')
         self.assertTrue(all(l['status'] == 'LOCKED' for l in e['later'][4:]))
-        self.assertIn('step 7', e['next_step']['text']); self.assertIsNone(e['next_step']['href'])
+        self.assertIn('step 7', e['next_step']['text']); self.assertEqual(e['next_step']['href'], '/v2/steps?n=7')
         # a FAIL of step 6 (unsafe/no data) does not complete it
         mp.record_later(6, {'verdict': 'FAIL', 'detail': 'x'}, 'p2.json', progress_file=self.prog)
         self.assertEqual(self.ev()['later'][2]['status'], 'DONE (PID NOT ADVISED)')   # earlier completion stays
         self.assertEqual(e['gate_done'], 3)
+        # step 7: NEEDS MOTION keeps it open; NOT USABLE completes the evaluation (VO stays shadow); then step 8
+        mp.record_later(7, {'verdict': 'NEEDS MOTION', 'detail': 'parked OK'}, 'v1.json', progress_file=self.prog)
+        self.assertEqual(self.ev()['later'][3]['status'], 'IN PROGRESS')
+        self.assertEqual(self.ev()['next_step']['href'], '/v2/stage2')              # the owner is sent to the turn check
+        mp.record_later(7, {'verdict': 'NOT USABLE', 'detail': 'heading off'}, 'v2.json', progress_file=self.prog)
+        e = self.ev()
+        self.assertEqual(e['later'][3]['status'], 'DONE (VO NOT USABLE, STAYS SHADOW)')
+        self.assertEqual(e['later'][4]['status'], 'NOT DONE')                 # step 8 has an owner test
+        self.assertEqual(e['next_step']['href'], '/v2/steps?n=8')
+        mp.record_later(7, {'verdict': 'PASS', 'detail': 'agrees'}, 'v3.json', progress_file=self.prog)
+        self.assertEqual(self.ev()['later'][3]['status'], 'PASS')
+        # step 8: NOT ADVISED completes the benchmark honestly; step 9 then needs its advisory check, 10 a developer
+        mp.record_later(8, {'verdict': 'NOT ADVISED', 'detail': 'too hot'}, 'y1.json', progress_file=self.prog)
+        e = self.ev()
+        self.assertEqual(e['later'][4]['status'], 'DONE (YOLO ON DEMAND ONLY)')
+        self.assertEqual(e['later'][5]['status'], 'NOT DONE')
+        mp.record_later(9, {'verdict': 'NEEDS SCENE', 'detail': 'no object'}, 's1.json', progress_file=self.prog)
+        self.assertEqual(self.ev()['later'][5]['status'], 'IN PROGRESS')
+        mp.record_later(9, {'verdict': 'PASS', 'detail': 'chair'}, 's2.json', progress_file=self.prog)
+        e = self.ev()
+        self.assertEqual(e['later'][5]['status'], 'PASS (ADVISORY ONLY, NO GOALS SENT)')
+        self.assertEqual(e['later'][6]['status'], 'NEEDS DEVELOPER')               # step 10 robot arm
 
     def test_owner_decision_is_shown_as_such(self):
         speed_file(self.d, 'speed_loop_check_4.json')

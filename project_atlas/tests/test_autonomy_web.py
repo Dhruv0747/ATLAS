@@ -226,7 +226,7 @@ class AutonomyWebTests(unittest.TestCase):
         try:
             web.STEP_CHECKS[5] = (tool, 'nav2_audit_')
             r = ros({'autonomy': {'armed': False}, 'stop_latched': False})
-            self.assertEqual(web.start_stepcheck(r, 9)[0], 400)                       # no owner test for step 9
+            self.assertEqual(web.start_stepcheck(r, 10)[0], 400)                      # no owner test for step 10 (arm)
             self.assertEqual(web.start_stepcheck(r, 5)[0], 409)                       # tool missing
             tool.write_text('# tool')
             atlas_master_plan.evaluate = lambda *a, **k: {'later': [{'n': 5, 'status': 'LOCKED', 'unlock_after': 'step 4'}]}

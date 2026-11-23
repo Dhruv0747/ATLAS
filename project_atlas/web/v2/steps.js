@@ -1,4 +1,4 @@
-/* ATLAS master-plan later-step page (2026-11-23): /v2/steps?n=5|6. Read-only owner checks; ATLAS does not move. */
+/* ATLAS master-plan later-step page (2026-11-23): /v2/steps?n=5|6|7|8|9. Read-only owner checks; ATLAS does not move. */
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -16,6 +16,34 @@
       foot: 'The plan says: evaluate wheel PID only if feedback quality permits. "NOT ADVISED" completes this step honestly and names what blocks it (for example the excluded M3 encoder). The validated 3-encoder speed loop keeps controlling speed.',
       names: { live_data: 'Live encoder data', four_encoders_trusted: 'All 4 encoders trusted', steering_angle_measured: 'Steering angle measured',
         speed_loop_validated: 'Speed loop validated', per_wheel_pid_safe_off: 'Per-wheel PID safely off' } },
+    7: { title: 'Step 7 · camera visual odometry (shadow mode)',
+      how: ['ATLAS does not move. Park it facing a corner, furniture or boxes (not one plain wall), 0.5–3 m away.',
+        'Press START and keep ATLAS still for 20 s. ATLAS checks its depth-camera odometry: speed, freshness, GOOD / DEGRADED / LOST state, CPU use, and that it feeds nothing.',
+        'The moving part comes from the Stage-2 turn check: every turn check now also records the camera estimate against the LiDAR. If this page says NEEDS MOTION, run the Stage-2 turn check once (operator PIN, remote in hand), then press START here again.'],
+      foot: 'Shadow mode: the camera estimate is only watched and compared. It never goes into the EKF, Nav2 or the motors. "NOT USABLE" completes this step honestly: the camera estimate disagreed with the LiDAR while turning and stays shadow-only.',
+      names: { vo_running: 'Camera odometry running', shadow_only: 'Shadow only (feeds nothing)', atlas_parked: 'ATLAS stood still',
+        rate_ok: 'Rate ≥ 4 Hz', age_ok: 'Fresh (p95 age ≤ 0.5 s)', mostly_good_parked: 'GOOD ≥ 80 % when parked',
+        parked_drift_ok: 'No drift when parked', cpu_within_budget: 'CPU ≤ 25 % of one core',
+        motion_heading_agrees: 'Turn angle agrees with LiDAR', motion_distance_agrees: 'Distance agrees with LiDAR',
+        motion_tracking_kept: 'Not LOST while turning' },
+      motion: { href: '/v2/stage2', label: 'Open Stage 2 · turn check',
+        text: 'Next: run the Stage-2 turn check once (operator PIN, remote in hand). It records the camera estimate against the LiDAR. Then come back and press START here once more.' } },
+    8: { title: 'Step 8 · TensorRT YOLO benchmark',
+      how: ['ATLAS does not move. Keep it parked with the normal navigation stack running (about 30 s).',
+        'Press START. ATLAS first measures itself for 5 s without YOLO, then runs its existing YOLO object detector on live camera frames (at most 10 per second) for 20 s.',
+        'It stops YOLO at once if CPU stays at 75 % or more, RAM reaches 80 % or any temperature reaches 70 °C.'],
+      foot: 'Nothing is rebuilt: this measures the YOLO that ATLAS already has. "NOT ADVISED" completes this step honestly: YOLO works but is too slow or too heavy next to navigation, so it stays off by default (Eco mode) and runs only on demand.',
+      names: { parked: 'ATLAS parked', engine_loaded: 'YOLO engine loaded', inference_ran: 'YOLO ran', latency_p95_ok: 'Fast (p95 ≤ 100 ms)',
+        rate_ok: '≥ 9 detections per second', cpu_limit_held: 'CPU below 75 %', ram_limit_held: 'RAM below 80 %',
+        temp_limit_held: 'Temperature below 70 °C', under_nav_stack: 'Measured with navigation running' } },
+    9: { title: 'Step 9 · advisory semantic perception',
+      how: ['ATLAS does not move and no goal is sent. Park it facing a chair, table, bottle, bag or similar, 0.5–3 m away.',
+        'Centre the camera (straight ahead) and make sure ATLAS is localised on the map.',
+        'Press START (about 15 s). ATLAS names the objects it sees, confirms each one with the LiDAR, places it on the map and works out where it would stop in front of it, but only writes that down.'],
+      foot: 'Advisory only: object names and positions are suggestions. Sending ATLAS to an object through Nav2 comes later, only after these recorded results and with the owner\'s approval.',
+      names: { parked: 'ATLAS parked', camera_forward: 'Camera centred forward', localised: 'Localised on the map', lidar_live: 'LiDAR live',
+        yolo_ran: 'Object detector ran', limits_held: 'CPU / RAM / temperature limits held', objects_found: 'Object found',
+        positions_stable: 'Object position steady (≤ 25 cm)', goals_resolved_not_sent: 'Stop point worked out (not sent)' } },
   };
   const info = INFO[n] || { title: 'Unknown step', how: [], foot: '', names: {} };
   $('title').textContent = info.title; document.title = 'ATLAS · ' + info.title;
@@ -32,11 +60,13 @@
       : d.busy ? 'Another check is running.' : locked ? 'This step unlocks after the step before it is done.' : 'Ready.';
     const last = (d.results || []).slice(-1)[0];
     if (!last) { $('result').innerHTML = ''; } else {
-      const good = /^(PASS|ADVISED|NOT ADVISED)$/.test(last.verdict);
+      const good = /^(PASS|ADVISED|NOT ADVISED|NOT USABLE)$/.test(last.verdict);
+      const wait = /^NEEDS/.test(last.verdict);
       const rows = Object.entries(last.checks || {}).map(([k, v]) => `<tr><td>${esc(info.names[k] || k)}</td><td class="${v ? 'ok' : 'bad'}">${v ? 'YES' : 'NO'}</td></tr>`).join('');
-      $('result').innerHTML = `<div class="big ${good ? 'ok' : 'bad'}" style="background:${good ? '#124d2f' : '#5c1420'}">STEP ${n}: ${esc(last.verdict)}</div>` +
+      $('result').innerHTML = `<div class="big ${good ? 'ok' : wait ? '' : 'bad'}" style="background:${good ? '#124d2f' : wait ? '#5a4a12' : '#5c1420'}">STEP ${n}: ${esc(last.verdict)}</div>` +
         `<table>${rows}</table><small>${esc(last.when || '')} · ${esc(last.detail || '')}</small>` +
-        ((last.notes || []).length ? `<small>${esc(last.notes.join(' · '))}</small>` : '');
+        ((last.notes || []).length ? `<small>${esc(last.notes.join(' · '))}</small>` : '') +
+        (wait && info.motion ? `<p style="margin:14px 0 6px">${esc(info.motion.text)}</p><a href="${info.motion.href}" style="display:block;text-align:center;padding:16px;border-radius:10px;background:#1f5fae;color:#fff;font-size:1.2em;font-weight:700;text-decoration:none">${esc(info.motion.label)} →</a>` : '');
     }
     $('log').textContent = d.log || '';
   }

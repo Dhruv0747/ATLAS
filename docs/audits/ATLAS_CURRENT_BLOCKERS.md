@@ -1,5 +1,135 @@
 # ATLAS current blockers
 
+### 2026-11-23 16:38 IST — Steps 8 and 9 checks DEPLOYED (owner "Yes, deploy")
+- **Before deploy:** no check was running and ATLAS was still. The live files equalled the previous deploy (master_plan c67ab9bb, steps.js e41127c9).
+- **Copied:** 5 files with md5 match: `yolo_benchmark.py`, `semantic_advisory_check.py`, `atlas_master_plan.py`, `atlas_autonomy_web.py`, `steps.js`.
+- **Backup:** `~/atlas_backups/backup_steps89_20261123_163841`. `rover-status-web` was restarted.
+- **Verified:**
+  - `/api/master_plan`: steps 8 and 9 are LOCKED and have buttons `/v2/steps?n=8|9`; step 10 has none. Both report `tool_installed` true.
+  - The real pages show "LOCKED — finish step 7 first" (step 8) and "finish step 8 first" (step 9), with no console errors.
+- **Not run yet:** neither check. Both wait for step 7.
+
+### 2026-11-23 ~16:50 IST — Steps 8 and 9 owner checks BUILT (NOT deployed; owner: "8 9 ka button bhi bana do")
+- **Step 8 (`tools/perception/yolo_benchmark.py`):** benchmarks the EXISTING TensorRT YOLO (`scripts/yolov8n_fp16.engine` via `trt_yolo_detector`; nothing rebuilt). Read-only, parked.
+  - It measures a 5 s baseline without YOLO, then live IMX708 frames for 20 s, capped at 10 Hz.
+  - Hard stop: CPU ≥ 75 % ×3, RAM ≥ 80 % or ≥ 70 °C.
+  - **Verdicts:** PASS (p95 ≤ 100 ms, ≥ 9/s, limits held with Nav2 running) / NOT ADVISED (completes the step: YOLO stays Eco / on demand) / FAIL.
+  - **Live smoke (5 inferences, nothing recorded):** the engine loads under `/usr/bin/python3`, ~21 ms per inference.
+  - **Baseline now:** CPU ~64 %, RAM ~62 %, 65 °C. These are already close to the limits, so NOT ADVISED is plausible.
+  - **Finding:** Nav2 runs inside `atlas-localization.service`, and `atlas-nav2.service` is inactive. The check therefore looks for the bt_navigator / controller / planner processes.
+- **Step 9 (`tools/perception/semantic_advisory_check.py`):** ADVISORY semantic perception plus a goal-resolution DRY-RUN. It has no ROS, Nav2 or motion interface, and no goal is sent.
+  - Ten rounds: YOLO on a live frame; navigation classes ≥ 0.45; bearing (66° HFOV); LiDAR-confirmed (`/api/lidar-view`, ≤ 3 m); map frame via `map_pose`.
+  - Objects are grouped at 0.40 m. An object counts when seen in ≥ 60 % of rounds with a spread ≤ 0.25 m. Each gets a standoff goal 0.70 m short, written to `semantic_advisory.json` only.
+  - Geometry and class list come from the existing `atlas_vision_lidar_fusion`.
+  - **Verdicts:** PASS (advisory only) / NEEDS SCENE / FAIL.
+  - **Requires:** parked, camera forward (pan 2300±90 / tilt 1500±180 µs, the fusion node's values), and localised (AMCL xy std ≤ 0.10 m).
+  - **Evidence gap:** the live pan reads 1801 µs right now, so step 9 would report "camera not forward". 2300 = the PTZ driver's start value. It is NOT re-verified that 2300 really is straight ahead on the current mount.
+- **Registration:** `STEP_TOOLS` 8 (done: PASS / NOT ADVISED), 9 (done: PASS); `STEP_CHECKS` 8/9; `INFO[8]` and `INFO[9]`; all NEEDS-* results are shown amber. Both steps stay LOCKED until step 7 is done.
+- **Tests:** 75 OK in `/tmp/vo_cand`: new `test_perception_steps` (14), plus master_plan, autonomy_web, vo_core and turn_ground_check.
+
+### 2026-11-23 16:22 IST — Step 7 NEEDS MOTION now sends the owner to the Stage-2 turn check (DEPLOYED, owner "Yes, deploy")
+- The owner pressed step 7 three times (16:17–16:18). Each time the parked part PASSED (best: drift 1.0 cm / 0.49°). The result stayed NEEDS MOTION because no turn check had run since VO started; the last one was at 13:37.
+- **Fix:**
+  - `STEP_TOOLS[7]['needs']`: a NEEDS MOTION last run sets the board's next step to `/v2/stage2`.
+  - `steps.js`: a big "Open Stage 2 · turn check" button under a NEEDS MOTION result.
+  - Test `test_master_plan`: 42 OK.
+- **Deployed:** `atlas_master_plan.py` c67ab9bb…, `steps.js` e41127c9…; backup `~/atlas_backups/backup_step7btn_20261123_162202`. `rover-status-web` restarted with no check running.
+- **Verified on the real page:** the button is shown and there are no console errors. The board's next step points to `/v2/stage2`.
+- **PENDING:** the owner's Stage-2 turn check, then step 7 once more.
+
+### 2026-11-23 16:12 IST — Step-7 owner run FAILED (parked drift); VO keyframe bugs fixed and DEPLOYED (owner "Yes, fix and deploy")
+- **Owner run** `vo_shadow_check_20261123_160248.json`: FAIL on `parked_drift_ok`, with 0.139 m and 4.79° in 20 s.
+  - Everything else passed: 5.4 Hz, p95 age 0.30 s, GOOD 100 %, CPU 6.9 %, wheels still, shadow isolation.
+  - **The state said GOOD the whole time. That was the real defect.**
+- **Live trace after the run:** the pose stepped (for example 0.16 → 0.22 m, 0.3 → 4.4°) exactly when scans were rejected.
+- **Cause 1, reproduced offline (5.2 cm / 4.1° while GOOD):** every rejected scan, and every weak accepted scan, became the new keyframe. This policy was copied from the LiDAR ICP core.
+  - **Fix:** a rejected scan is dropped. The keyframe is replaced only after 3 rejects in a row; this counts as `resets` and the state is at most DEGRADED for 3 s.
+  - A weak match refreshes the keyframe only after ≥ 5 cm or ≥ 3° of motion.
+- **Fix 1 was deployed at 16:05, and live it was still not good enough:** 43 rejects and 13 resets in ~60 s, with the pose drifting through the resets. The state did show DEGRADED there, honestly.
+- **Recording:** 30 s of `/astra/obstacle_scan` (domain 77, parked, 200 scans, `/tmp/vo_cand/astra_scan_capture.npy` on the Jetson). The scene does not change (per-bin medians first vs last are equal).
+  - With a full keyframe the parked spread is ±7 mm / ±0.2°.
+  - **Cause 2:** PARTIAL scans (52–69 of ~93 points; the sizes ramp 52 → 69 → 82 → 95 right after a start) used as keyframes biased matches by 2.5–5 cm / 1–3.6°, with no reject at all.
+  - **Fix:** a warm-up (the first keyframe only after 5 scans whose sizes agree within 10 %). Only a full scan (≥ 80 % of the recent median) may become a keyframe, and a full scan replaces a partial keyframe before matching.
+  - **Replay of the capture after the fix:** end drift 7 mm / 0.14°, worst sample 2.4 cm, p95 1.2 cm.
+- **Also fixed:** the node exited with status 1 on stop ("rcl_shutdown already called"). It now shuts down only if the context is still valid.
+- **Tests:** 62 OK on the Jetson in `/tmp/vo_cand`. There are 3 new VO tests: bad scans while parked, reset reads DEGRADED, partial and start-up scans.
+- **Deployed 16:11:**
+  - `atlas_vo_core.py` md5 5e9d5ca7…, `atlas_vo_shadow.py` md5 09cda4dc…
+  - Backups: `~/atlas_backups/backup_step7fix_20261123_160546` (original core) and `backup_step7fix2_20261123_161102` (fix 1). Only `atlas-vo-shadow` was restarted.
+- **Live, parked, 90 s (18 samples):**
+  - GOOD 18/18, 4.8–6.6 Hz, age ≤ 0.25 s
+  - drift ≤ 9 mm / ≤ 0.2°, 0 rejects, 0 resets
+  - CPU 5.5–7.2 %
+- **PENDING:**
+  - The owner reruns step 7. NEEDS MOTION is expected.
+  - Then the Stage-2 turn check, then step 7 again.
+  - Still no physical motion comparison. Nothing is committed.
+
+
+### 2026-11-23 15:55 IST — Step 7 DEPLOYED (owner "Yes, deploy"); shadow VO live GOOD while parked; owner check not run yet
+- **Backup:** `~/atlas_backups/backup_step7_20261123_155524` holds the 4 edited files: master_plan, autonomy_web, steps.js, turn_ground_check.
+- **Before deploy:** the live files equalled the repo base plus only the step-7 changes (diff checked).
+- **Installed:** 8 runtime files, md5 match.
+  - Unit `atlas-vo-shadow` enabled at boot and started at 15:55:38.
+  - `rover-status-web` restarted.
+- **Live, parked, 4 samples over 20 s:**
+  - GOOD, 5.0–5.8 Hz, age 0.11–0.21 s, confidence 1.0
+  - CPU 4.9–6.7 % of one core, 0 rejects
+  - pose drift ≤ 2 mm and 0.05°
+  - no warnings
+- **Effective rate is ~5 Hz, not 10.** That is the rate of `/astra/obstacle_scan` itself, and it is above the 4 Hz GOOD limit.
+- **Board:** step 7 NOT DONE, with the `/v2/steps?n=7` button. `tool_installed` true. Steps 8–10 locked.
+- **Not done:**
+  - The owner has not pressed START on step 7.
+  - No turn check with VO data has run yet, so the motion comparison is PENDING. No physical PASS is claimed.
+- **Rollback:**
+  1. `systemctl --user disable --now atlas-vo-shadow`
+  2. Copy the backup files back.
+  3. Restart `rover-status-web`.
+
+
+### 2026-11-23 ~16:00 IST — Step 7 shadow visual odometry + owner check BUILT (NOT deployed, nothing committed)
+- **Plan text:** "Evaluate camera VO/VIO in shadow mode with rate, age, confidence and GOOD/DEGRADED/LOST states."
+- **Camera choice: Astra depth, not the IMX708.**
+  - The Astra runs at boot in domain 77 (`atlas-astra-obstacles`, active 15:22).
+  - Its validated 160x120 depth frames already become `/astra/obstacle_scan` (base_link, ±30°, ≤ 10 Hz). Depth is metric.
+  - The IMX708 is monocular, so it has no scale without IMU fusion, and its 1280x720 JPEG stream would need decoding plus feature tracking at load average 7–16.
+  - **Honest label:** this is depth-camera odometry (point-to-line ICP on the depth scan), not feature VIO. It uses no IMU, so its heading is independent of IM10A/EKF.
+- **Shadow isolation:**
+  - `scripts/atlas_vo_shadow.py` refuses any ROS domain except 77 (exit 78). It publishes `/astra/vo/odom` (frames `vo_odom`/`vo_base_link`, no TF) and `/astra/vo/status`, and writes `~/.local/state/project_atlas/vo_shadow_status.json` at 2 Hz.
+  - Nothing consumes these outputs. The bridge relays only the obstacle scans, and the EKF and Nav2 configs name no VO topic (checked by `isolation_texts_ok`, also against the repo configs in a unit test).
+- **CPU:**
+  - Rate cap 10 Hz, extra scans dropped.
+  - ~5 ms per scan on the Jetson (synthetic, `nice 19`).
+  - Unit `atlas-vo-shadow.service`: CPUQuota 20 %, Nice 10, MemoryMax 200M, PartOf `atlas-astra-obstacles`. The node reports its own `cpu_pct`.
+- **States** (`scripts/atlas_vo_core.py`):
+  - GOOD: age ≤ 0.5 s, ≥ 4 Hz, confidence ≥ 0.5.
+  - LOST: age > 1.5 s or < 1 Hz.
+  - DEGRADED: everything else.
+  - Confidence = inlier fraction × point count × geometry × acceptance. Geometry is the weakest translation direction of the ICP information matrix, so a plain wall or a corridor end reads DEGRADED.
+- **Rejected experiment (synthetic, recorded):**
+  - Point-to-point ICP slid along walls on the narrow scan: heading −2.0° and lateral −0.17 m over a 0.37 m arc.
+  - Pure point-to-line without corners drifted 0.22 m while parked in a scene with no side faces.
+  - Kept: point-to-line for flat points, point-to-point for corners, with damping. On the synthetic room arc (5 mm noise) this gives heading −0.2° and position 1 mm. Parked: 1 mm and 0.01°.
+- **Step-7 owner test** (`tools/perception/vo_shadow_check.py`, read-only, no PIN, no ROS):
+  - Parked for 20 s, it checks: VO running, rate, p95 age, GOOD ≥ 80 %, drift ≤ 3 cm / 1.5°, CPU ≤ 25 %, wheels still, and shadow isolation.
+  - The moving comparison comes from the existing bounded Stage-2 / step-4B turn check. `turn_ground_check.py` now only READS the VO status file at arc start and after the settle, and stores per-arc VO vs `/lidar/icp_odom` heading change and chord distance. This is never a verdict input, and no new motion path is added.
+  - Agreement: heading within max(5°, 25 %), distance within max(0.08 m, 25 %), not LOST.
+  - **Verdicts:**
+    - PASS
+    - NOT USABLE: completes the step, VO stays shadow
+    - NEEDS MOTION: run the Stage-2 turn check once, then step 7 again
+    - FAIL
+  - Writes `vo_shadow_check_*.json`. Step 7 is registered in `STEP_TOOLS`, `STEP_CHECKS` and `INFO[7]`.
+- **Tests:**
+  - On the Jetson, in the candidate tree `/tmp/vo_cand` (not installed): `test_vo_core` 17, `test_master_plan`, `test_turn_ground_check`, `test_autonomy_web`. All OK.
+  - The Mac has no usable Python (Xcode licence prompt).
+- **Evidence gaps / PENDING:**
+  - NOT run on live depth data yet, so no physical claim is made. Real rate, CPU and parked GOOD share are unknown.
+  - Corridor and plain-wall views are expected to be DEGRADED.
+  - Needs the owner's "Yes, deploy": install the unit and enable it, then restart the dashboard web for STEP_CHECKS and `turn_ground_check.py`.
+  - Then the owner runs step 7 (parked), runs the Stage-2 turn check once, and runs step 7 again.
+
 ### 2026-11-23 15:00 IST — Step 5 PASS, Step 6 DONE (PID NOT ADVISED); next is step 7 (developer: VO/VIO code)
 - **Deployed at 14:58** (backup `~/atlas_backups/backup_steps56_20261123_145808`): steps 5/6 tools, `/v2/steps`, runner budget 25.
 - **Step 5:** `nav2_audit_20261123_150007.json` PASS.

@@ -363,6 +363,9 @@ def start_imucheck(ros):
 STEP_CHECKS = {
     5: (Path('/home/jetson/project_atlas/tools/nav/nav2_recovery_audit.py'), 'nav2_audit_'),
     6: (Path('/home/jetson/project_atlas/tools/drive/wheel_pid_evaluation.py'), 'pid_eval_'),
+    7: (Path('/home/jetson/project_atlas/tools/perception/vo_shadow_check.py'), 'vo_shadow_check_'),
+    8: (Path('/home/jetson/project_atlas/tools/perception/yolo_benchmark.py'), 'yolo_bench_'),
+    9: (Path('/home/jetson/project_atlas/tools/perception/semantic_advisory_check.py'), 'semantic_check_'),
 }
 _STEP = {'proc': None, 'n': None, 'started': None}
 
