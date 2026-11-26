@@ -57,6 +57,7 @@ from atlas_map_acceptance_core import (
 )
 from atlas_map_footprint_sanitizer import sanitize_saved_map
 import atlas_final_map_consistency as final_map
+import atlas_map_extend_session as extend_session   # 2026-11-26 add-only map extension sessions
 from atlas_mapping_guard_core import GuardPolicy, GuardSample, MappingGuard, cpu_idle_fraction
 from atlas_scan_fit_core import (
     OccupiedIndex,
@@ -307,6 +308,10 @@ class AtlasMissionControl(Node):
         self.mapping_session_file = (
             Path.home() / ".config/project_atlas/mapping_session.json"
         )
+        # 2026-11-26 extend sessions: start needs the localization monitor's fresh VERIFIED result; at stop a request
+        # for the (separate) extend job is written here. Extend sessions never promote a map.
+        self.extend_state_dir = Path.home() / ".local/state/project_atlas/map_extend"
+        self.localization_check_file = Path.home() / ".local/state/project_atlas/localization_check.json"
         self.mapping_recorder_process = None
         self.mapping_recorder_script = Path(__file__).with_name(
             "record_atlas_demonstration.sh"
@@ -408,6 +413,7 @@ class AtlasMissionControl(Node):
         bindings = {
             "/atlas/start_exploration": self.request_start_exploration,
             "/atlas/start_manual_mapping": self.request_start_manual_mapping,
+            "/atlas/start_extend_mapping": self.request_start_extend_mapping,
             "/atlas/stop_exploration": self.request_stop_exploration,
             "/atlas/set_home": self.request_set_home,
             "/atlas/return_home": self.request_return_home,
@@ -474,6 +480,12 @@ class AtlasMissionControl(Node):
             Trigger, "/atlas/start_manual_mapping",
             lambda req, res: self.service_submit(
                 res, self.start_manual_mapping, "manual mapping start queued"
+            )
+        )
+        self.create_service(
+            Trigger, "/atlas/start_extend_mapping",
+            lambda req, res: self.service_submit(
+                res, lambda: self.start_manual_mapping(extend=True), "extend mapping start queued"
             )
         )
 
@@ -894,6 +906,10 @@ class AtlasMissionControl(Node):
     def request_start_manual_mapping(self, _msg: Empty) -> None:
         self.submit("start manual mapping", self.start_manual_mapping)
 
+    def request_start_extend_mapping(self, _msg: Empty) -> None:
+        """2026-11-26 add-only map extension: a mapping session that never replaces the saved map."""
+        self.submit("start extend mapping", lambda: self.start_manual_mapping(extend=True))
+
     def request_stop_exploration(self, _msg: Empty) -> None:
         self.submit("stop exploration", self.stop_exploration)
 
@@ -1029,6 +1045,16 @@ class AtlasMissionControl(Node):
             except Exception as exc:
                 failures.append(f"{frame_id}: {exc}")
         raise RuntimeError("no map/odom pose available; " + " | ".join(failures))
+
+    def odom_pose(self) -> dict:
+        """odom->base_link now (2026-11-26 extend sessions: with current_pose() it gives map->odom)."""
+        transform = self.tf_buffer.lookup_transform(
+            "odom", "base_link", rclpy.time.Time(),
+            timeout=rclpy.duration.Duration(seconds=1.0)
+        )
+        t, r = transform.transform.translation, transform.transform.rotation
+        return {"frame_id": "odom", "x": t.x, "y": t.y, "z": t.z,
+                "qx": r.x, "qy": r.y, "qz": r.z, "qw": r.w}
 
     @staticmethod
     def atomic_write_json(path: Path, value: dict) -> None:
@@ -1688,20 +1714,43 @@ class AtlasMissionControl(Node):
             raise
         self.status(f"EXPLORATION ACTIVE session={session['id'][:8]}")
 
-    def start_manual_mapping(self) -> None:
+    def start_manual_mapping(self, extend: bool = False) -> None:
         """Start a versioned SLAM session without autonomous wheel motion.
 
         This is the teaching mode used while Dhruv drives with the physical
         remote.  It deliberately leaves explore_lite stopped, but creates the
         same map-session identity used by the atomic map acceptance path.
+
+        2026-11-26 extend=True (add-only map extension): refused unless the
+        localization monitor has a fresh unique LiDAR VERIFIED result; records
+        the saved-map/odom relation as the merge's starting guess; never
+        overwrites the saved home; at stop the session is never promoted.
         """
+        extend_block = None
+        if extend:
+            try:
+                check = json.loads(self.localization_check_file.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                check = None
+            refusal = extend_session.extend_start_refusal(check, time.time())
+            if refusal:
+                raise RuntimeError(f"extend mapping refused: {refusal}")
+            map_pose, odom_pose = self.current_pose(), self.odom_pose()
+            extend_block = {
+                "base_map_id": self.current_map_id(),
+                "init": list(extend_session.compose_init(map_pose, odom_pose)),
+                "start_map_pose": map_pose,
+                "start_odom_pose": odom_pose,
+            }
         session = {
             "id": uuid.uuid4().hex,
             "state": "starting",
-            "mode": "manual_teaching",
+            "mode": extend_session.EXTEND_MODE if extend else "manual_teaching",
             "started_unix": time.time(),
             "drive_ready": False,
         }
+        if extend_block:
+            session["extend"] = extend_block
         start_odom = self.wheel_odom_snapshot()
         self.atomic_write_json(self.mapping_session_file, session)
         self.start_mapping_recording(session["id"])
@@ -1731,12 +1780,19 @@ class AtlasMissionControl(Node):
             )
             self.atomic_write_json(self.mapping_session_file, session)
             self.begin_map_acceptance_observation(session)
-            self.set_home()
+            if not extend:
+                self.set_home()          # an extend session keeps the saved map's home pose
         except Exception:
             self.stop_mapping_recording()
             self.mapping_session_file.unlink(missing_ok=True)
             self.restore_mapping_background()
             raise
+        if extend:
+            self.status(
+                f"EXTEND MAPPING ACTIVE session={session['id'][:8]}; drive into the new area, then stop; "
+                "the saved map is not changed by this session"
+            )
+            return
         self.status(
             f"MANUAL MAPPING ACTIVE session={session['id'][:8]}; "
             "exploration stopped, operator has drive authority"
@@ -2223,8 +2279,9 @@ class AtlasMissionControl(Node):
                 ["systemctl", "--user", "is-active", "--quiet", self.explore_unit],
                 check=False, timeout=4,
             ).returncode == 0
+            extend = extend_session.is_extend(session)
             manual_session = bool(
-                session and session.get("mode") == "manual_teaching"
+                session and (session.get("mode") == "manual_teaching" or extend)
             )
             if not session or (not explore_active and not manual_session):
                 self.cancel_all_nav_goals()
@@ -2232,7 +2289,7 @@ class AtlasMissionControl(Node):
                 self.status("MAPPING NOT ACTIVE; ACCEPTED MAP PRESERVED")
                 return
             self.mapping_guard.disarm()
-            if manual_session:
+            if manual_session and not extend:
                 self.ensure_nav2_for_acceptance()
             if explore_active:
                 result = subprocess.run(
@@ -2247,7 +2304,11 @@ class AtlasMissionControl(Node):
             # Capture the settled endpoint while this exact SLAM map is still
             # active.  The next localization boot must never reuse a seed
             # from an older map/session.
-            self.save_localization_seed()
+            # 2026-11-26 an extend session keeps the saved map's seed: its end
+            # pose (SLAM frame) goes into the extend request instead.
+            end_pose_slam = self.stable_current_pose() if extend else None
+            if not extend:
+                self.save_localization_seed()
             candidate_prefix = self.map_prefix.parent / (
                 f".atlas_candidate_{session['id']}"
             )
@@ -2262,6 +2323,19 @@ class AtlasMissionControl(Node):
             self.zero_pub.publish(Twist())
             if save.returncode:
                 raise RuntimeError(save.stderr.strip() or "map save failed; accepted map preserved")
+            if extend:
+                # 2026-11-26 add-only extension: NEVER promote here. The extend
+                # job aligns + merges the piece offline; the saved map changes
+                # only after the preview, the checks and the owner's OK.
+                request = extend_session.write_request(
+                    self.extend_state_dir, session,
+                    candidate_prefix.with_suffix(".yaml"), end_pose_slam)
+                self.mapping_session_file.unlink(missing_ok=True)
+                self.status(
+                    f"EXTEND PIECE SAVED session={session['id'][:8]}; SAVED MAP UNCHANGED; "
+                    f"preview follows on the Mapping page (request {request.name})"
+                )
+                return
             map_id = self.accept_saved_map(candidate_prefix, session)
             self.mapping_session_file.unlink(missing_ok=True)
             self.status(

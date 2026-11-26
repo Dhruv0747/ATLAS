@@ -244,6 +244,45 @@ def visible_plan(plan_item, goal_item, mission_item):
     return None
 
 
+MAP_EXTEND_DIR = Path.home() / ".local/state/project_atlas/map_extend"
+MAP_EXTEND_MAX_AGE_S = 7 * 86400.0
+
+
+def read_map_extend(now=None, state_dir=None):
+    """2026-11-26 add-only map extension: the extend job's latest result for the Mapping page (read-only; no file
+    paths are passed to the browser). None when missing, unreadable or older than 7 days."""
+    state_dir = Path(MAP_EXTEND_DIR if state_dir is None else state_dir)
+    now = time.time() if now is None else now
+    try:
+        r = json.loads((state_dir / "latest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(r, dict) or not isinstance(r.get("created_unix"), (int, float)):
+        return None
+    age = now - float(r["created_unix"])
+    if age > MAP_EXTEND_MAX_AGE_S:
+        return None
+    out = {k: r.get(k) for k in ("session_id", "ok", "failures", "match", "stats", "T", "used_wide_search",
+                                 "created_unix")}
+    out["age_s"] = round(age, 1)
+    out["has_preview"] = bool(r.get("preview"))
+    out["has_candidate"] = bool(r.get("candidate_yaml"))
+    return out
+
+
+def map_extend_preview_path(state_dir=None):
+    """Path of the latest preview PNG, only if it lies inside the extend state directory (no traversal)."""
+    root = Path(MAP_EXTEND_DIR if state_dir is None else state_dir).resolve()
+    try:
+        r = json.loads((root / "latest.json").read_text(encoding="utf-8"))
+        p = Path(r.get("preview") or "").resolve()
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    if root not in p.parents or p.suffix != ".png":
+        return None
+    return p
+
+
 MAPPING_QUALITY_MAX_AGE_S = 10.0
 
 
@@ -2403,6 +2442,26 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/api/status"):
             json_response(self, 200, snapshot())
+            return
+        # 2026-11-26 add-only map extension preview (read-only). Must stay ABOVE the "/api/map" prefix route.
+        if self.path.split("?")[0] == "/api/map_extend":
+            json_response(self, 200, {"extend": read_map_extend()})
+            return
+        if self.path.split("?")[0] == "/map_extend_preview.png":
+            p = map_extend_preview_path()
+            try:
+                body = p.read_bytes() if p else None
+            except OSError:
+                body = None
+            if not body:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return
         if self.path.startswith("/api/map"):
             json_response(self, 200, ROS.map_snapshot())

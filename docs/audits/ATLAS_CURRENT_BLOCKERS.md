@@ -1,5 +1,71 @@
 # ATLAS current blockers
 
+### 2026-11-26 17:44 IST — Extend-map sessions DEPLOYED (owner "Yes, deploy")
+
+- **Drift check before deploying:** live `atlas_mission_control.py` md5 be467749… = the pre-change base = HEAD. Live status web ab4fa980… and `mapping.html` 28660c5d… = the last deployed versions.
+- **Script:** `tools/mapping/deploy_map_extend.sh`, upgrade-safe, based on `deploy_guided_1b.sh`.
+  - Extra preflight: mission control must be READY.
+  - Sandbox test (fake dirs, stub systemctl/curl, live untouched): deploy+rollback, first install+rollback, refusal during a mapping session, refusal while mission control is busy: ALL PASS.
+  - Separately confirmed it restarts exactly the job, the dashboard and mission control.
+- **Preflight passed:** no session, no goal, E-STOP latched, Manual, mission READY.
+- **Backup and rollback:** `~/atlas_backups/backup_map_extend_20261126_174358` (rollback script inside).
+- **Live md5:**
+
+| File | md5 |
+|---|---|
+| `atlas_mission_control.py` | c5332832… |
+| `atlas_map_extend_session.py` | 4bceee77… |
+| `atlas_map_extend_core.py` | 7ff86379… |
+| `atlas_map_extend_job.py` | 842ab64d… |
+| `atlas_status_web.py` | 0c8ea7fa… |
+| `map-extend.js` | 2b778873… |
+| `mapping.html` | 90fe7db9… |
+
+- Unit `atlas-map-extend-job` enabled. Restarted `atlas-mission-control`, `rover-status-web` and the job.
+- **Verified live:**
+  - Mission control READY and "bindings ready", no errors in the log.
+  - `/api/map` 200; the saved-map check is back; `/api/map_extend` = null (no extension yet); preview 404 as expected; `map-extend.js` 200; job started.
+  - E-STOP still latched, Manual.
+- **Not verified:** `/atlas/start_extend_mapping` was not probed with the ROS CLI (no DDS probe); mission control's `__init__` completed without errors. Nothing has been driven yet.
+- **Next:** the first supervised extend drive (start from a LiDAR-VERIFIED spot), then localization restart on the saved map, then an owner-approved promotion if the preview passes.
+
+### 2026-11-26 IST — Extend-map sessions integrated (mission control + job + dashboard) — BUILT, NOT deployed (owner "Yes, build it")
+
+- **Mission control:** `/atlas/start_extend_mapping`.
+  - Refused unless the localization check is VERIFIED and fresh.
+  - Records the merge's starting guess; keeps the saved home.
+  - At stop: saves the piece and writes an extend request. It never promotes, never overwrites the saved map's localization seed, and never starts Nav2 for acceptance.
+  - Normal sessions are unchanged; 2 tests pin that.
+- **New:**
+  - `atlas_map_extend_session.py` (helpers);
+  - `atlas_map_extend_job.py` + unit `atlas-map-extend-job` (preview, report, candidate only when the checks pass; never writes the saved map; waits during sessions; refuses if the saved map changed);
+  - status-web `/api/map_extend` + `/map_extend_preview.png` (path-confined, above the `/api/map` prefix route);
+  - `web/v2/map-extend.js` card.
+- **Tests (Jetson copy, ROS sourced):** extend session 8, job 6, web 7, core 10; with all mission-control, mapping and dashboard suites: 167 run, all pass.
+  - One pre-existing path quirk: `test_final_map_consistency` imports a helper from `tests/` and errors without `PYTHONPATH=tests`; with it, 11/11 OK.
+- **Not done:**
+  - Deploy (restarts mission control and the dashboard; owner "Yes, deploy"; parked, E-STOP latched).
+  - Automatic localization restart after an extend session (manual, as after every session today).
+  - The promotion step for an extension (owner-approved each time).
+  - The first real extension drive.
+
+### 2026-11-26 IST — Add-only map extension: offline core BUILT (owner "Yes, build it"; NOT integrated, nothing live changed)
+
+- **Owner request:** extend the saved map with new places while driving, without disturbing the saved map. Design and preview mockup shown first; owner approved.
+- **New:** `scripts/atlas_map_extend_core.py` (align, add-only merge, fail-closed checks, map IO) and `tools/mapping/extend_map.py` (offline candidate + preview + JSON). Design: `docs/design/guided_mapping_assistant.md` section 10.
+- **Tests:** `test_map_extend_core` 10/10 on the Jetson copy.
+- **Real-data evidence (Jetson copy, read-only on maps):**
+  - **Hall blanked and given back in a moved frame:** transform recovered exactly; 0 saved cells changed; 98.7 % of hall cells restored exactly.
+  - **Remap-10 candidate vs accepted map, no start pose:** match 97.1 %, disagreement 2.9 %, 0 saved cells changed.
+  - **Same map with a wrong start:** refused (match 56 %, disagreement 44 %), no candidate written.
+- **Found:** stored candidate YAMLs name `atlas_latest.pgm` as their image (not their own PGM). Not changed; noted for whoever reads them.
+- **Not done:**
+  - mission-control "extend" session mode;
+  - dashboard preview card;
+  - first real extension drive.
+
+  Each needs the owner's approval.
+
 ### 2026-11-26 17:09 IST — Saved-map check fixes DEPLOYED (owner "Yes, deploy")
 
 - **Preflight passed** (no session, no goal, E-STOP latched, Manual).

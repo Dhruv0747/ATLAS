@@ -267,3 +267,60 @@ only with an AMCL pose within 0.5 s). A frame is used only while the scan fits t
 a localization error is never reported as a changed room. It is paused while autonomy is armed and when the CPU is
 busy. The mapping page shows a "SAVED MAP CHECK" card with orange "Map change N" boxes and the advice "update the map,
 or confirm it as a fixed object". Cost on bag 8: about 0.4 % of one core. Details and evidence: blockers log, 2026-11-26.
+
+## 10. Add-only map extension (2026-11-26, owner "Yes, build it") — offline core BUILT, not integrated
+
+Owner: "the saved map is right, don't disturb it; when I take the rover where there is no map yet, add that place, so
+the whole house map grows". The accepted map has no SLAM posegraph, so SLAM cannot continue from it; the extension is a
+merge instead.
+
+Flow (shown to the owner as a diagram and a preview mockup before building):
+1. Start a session at a LiDAR-verified spot; the localization map->odom at that moment is the starting guess.
+2. The owner drives into the new area; SLAM builds a separate piece in its own frame.
+3. `align()` matches the piece's walls to the saved walls, coarse to fine (±0.5 m / ±10°, then ±0.1 m / ±2°), with
+   distance-weighted matches so the score peaks at the true pose.
+4. `merge()` copies every saved cell bit-exact and fills only saved-unknown cells; the grid grows by whole cells.
+5. `evaluate()` refuses (fail-closed, English reasons) when the piece does not line up (match < 80 % or < 100
+   overlapping wall points), claims walls in saved free space (> 15 %), adds nothing (< 0.25 m²), or adds free space
+   that cannot be reached from the saved free space (> 0.5 m²). "Saved cells changed" is counted, not assumed (must be 0).
+6. Preview (gray saved, green added, red disagreeing walls), then the existing acceptance gate, parked review,
+   backup and transactional promotion after the owner's OK. Nothing here promotes anything.
+
+Files: `scripts/atlas_map_extend_core.py` (pure), `tools/mapping/extend_map.py` (offline; `--init X Y YAW_DEG` or
+`--wide`; refuses to write over the live map name; writes a candidate only when every check passes).
+
+Evidence (Jetson copy, nothing live touched):
+- Unit tests `test_map_extend_core` 10/10 (synthetic house: recovery of a 7° / 2.7 m transform from a rough start,
+  bit-exact saved cells, growth, and each refusal).
+- Real geometry with a known answer: hall blanked from the accepted map, corridor+hall given back in a frame moved
+  by (1.3, −0.7, −12°), start 0.32 m / 5° off → found exactly (1.3, −0.7, −12.0°), match 100 %, 10.1 m² added, 98.7 % of
+  hall cells restored exactly, 0 saved cells changed, 1.6 s.
+- Real SLAM vs SLAM: remap-10 candidate (de55c1d3) against the accepted map with `--wide` (no start pose): match
+  97.1 %, disagreement 2.9 %, 0 saved cells changed, 21 s (`docs/design/extend_map_preview_remap10_ok_20261126.png`).
+  The same map with a wrong start (1 m / 35° off): refused, match 56 %, disagreement 44 %, no candidate written
+  (`..._wrong_20261126.png`). The limits sit well between real-good and real-wrong.
+- Note: stored candidate YAMLs (`maps/.atlas_candidate_*.yaml`) name `atlas_latest.pgm` as their image, not their own
+  PGM; read them through a corrected copy.
+
+Not done (each needs the owner's approval): a mission-control "extend" session mode (record the start map->odom, run
+the merge instead of replacing the map), the preview card on the dashboard, and the first real extension drive.
+
+### 10.1 Integration (2026-11-26, owner "Yes, build it") — DEPLOYED 17:44
+
+- **Mission control** (`atlas_mission_control.py`, helpers in `atlas_map_extend_session.py`): new `/atlas/start_extend_mapping`
+  (Empty topic and Trigger service). `start_manual_mapping(extend=True)` is refused unless the localization monitor's
+  result is VERIFIED (written ≤ 15 s ago, compared ≤ 60 s ago); it records `T = P_map ∘ P_odom⁻¹` as the merge's starting
+  guess and the saved map id, does NOT overwrite the saved home, and reports "EXTEND MAPPING ACTIVE". At stop an extend
+  session saves the piece, does NOT save a localization seed, does NOT start Nav2 for acceptance and NEVER calls
+  `accept_saved_map`; it writes `~/.local/state/project_atlas/map_extend/<id>.request.json` and reports
+  "EXTEND PIECE SAVED …; SAVED MAP UNCHANGED". Normal mapping sessions are unchanged (tests pin both).
+- **Extend job** (`atlas_map_extend_job.py`, unit `atlas-map-extend-job`, Nice 19, CPUQuota 40 %): waits while any mapping
+  session is active; refuses if the saved map changed since the session; aligns from the recorded guess and retries
+  with the wide search when the piece does not line up; writes `<id>/result.json`, `<id>/preview.png`, `latest.json`, and
+  `<id>/candidate.{pgm,yaml}` only when every check passes. It never writes the saved map.
+- **Dashboard**: `/api/map_extend` (latest result, no file paths) and `/map_extend_preview.png` (path confined to the
+  state directory), routed above the `/api/map` prefix route; `web/v2/map-extend.js` shows the "MAP EXTENSION PREVIEW"
+  card on the Mapping page (read-only).
+- **Still manual (owner-approved each time):** promoting an extension into the saved map (backup + transactional
+  promotion, parked, E-STOP latched), and restarting localization on the saved map after an extend session (as after
+  every mapping session today; the job reports `end_pose_saved` for the seed).
