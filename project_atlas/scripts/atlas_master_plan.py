@@ -79,8 +79,13 @@ STEP_TOOLS = {
                                    'href': '/v2/stage2', 'label': 'Open Stage 2 · turn check'}}},
     8: {'label': 'Open Step 8 · YOLO benchmark', 'href': '/v2/steps?n=8',
         'done': {'PASS': 'PASS', 'NOT ADVISED': 'DONE (YOLO ON DEMAND ONLY)'}},
-    9: {'label': 'Open Step 9 · advisory semantic perception', 'href': '/v2/steps?n=9',
-        'done': {'PASS': 'PASS (ADVISORY ONLY, NO GOALS SENT)'}},
+    9: {'label': 'Open Step 9 · semantic perception and goals', 'href': '/v2/steps?n=9',
+        'done': {'PASS': 'PASS (ADVISORY ONLY, NO GOALS SENT)'},
+        # 2026-11-26 part B (semantic_goal_check.py): the plan's "then semantic goal resolution through Nav2". Part A
+        # alone still unlocks step 10; the step shows PASS only when part B has passed too.
+        'part_b': {'done': {'PASS': 'PASS (GOES TO OBJECTS THROUGH NAV2)'},
+                   'pending': 'PART A PASS · PART B (GO TO OBJECT) NOT DONE',
+                   'name': 'Part B (go to the object through Nav2)'}},
 }
 
 
@@ -155,15 +160,18 @@ def record_stage4b(result, file_name, progress_file=PROGRESS_FILE, clock=time.ti
     _write(progress_file, data)
 
 
-def record_later(n, result, file_name, progress_file=PROGRESS_FILE, clock=time.time):
-    """Called by the step-n tool (steps 5, 6). Keeps the last 30 runs; a completing verdict stays the evidence."""
+def record_later(n, result, file_name, progress_file=PROGRESS_FILE, clock=time.time, part=''):
+    """Called by the step-n tool. Keeps the last 30 runs; a completing verdict stays the evidence.
+    part='b': the second owner test of a two-part step (step 9 part B), stored as step<n>b."""
     data = _load(progress_file)
     run = {'when': time.strftime('%Y-%m-%d %H:%M', time.localtime(clock())), 'verdict': (result or {}).get('verdict'),
            'file': file_name, 'note': (result or {}).get('detail', ''),
            'failed': list((result or {}).get('failed') or [])[:8]}
-    key = 'step%d' % n
+    key = 'step%d%s' % (n, part)
+    done_map = (STEP_TOOLS.get(n, {}).get('part_' + part) or {}).get('done', {}) if part else \
+        STEP_TOOLS.get(n, {}).get('done', {})
     data[key + '_runs'] = (data.get(key + '_runs', []) + [run])[-30:]
-    if run['verdict'] in STEP_TOOLS.get(n, {}).get('done', {}):
+    if run['verdict'] in done_map:
         data[key] = dict(run, detail='%s (%s)' % (run['note'], run['when']))
     _write(progress_file, data)
 
@@ -246,6 +254,16 @@ def evaluate(state_dir=STATE_DIR, progress_file=PROGRESS_FILE):
                 item['status'] = STEP_TOOLS[n]['done'][ev['verdict']] if done else ('IN PROGRESS' if runs else 'NOT DONE')
                 item['evidence'] = ev['detail'] if done else (
                     'last try %s: %s' % (runs[-1]['when'], runs[-1]['verdict']) if runs else 'Not run yet.')
+            pb = STEP_TOOLS[n].get('part_b')
+            if pb and prev_done:
+                evb, runs_b = prog.get('step%db' % n), prog.get('step%db_runs' % n, [])
+                item['history'] = sorted(runs[-6:] + runs_b[-6:], key=lambda r: r.get('when', ''))[-8:]
+                b_done = isinstance(evb, dict) and evb.get('verdict') in pb['done']
+                item['part_a_done'], item['part_b_done'] = done, b_done
+                if done:
+                    item['status'] = pb['done'][evb['verdict']] if b_done else pb['pending']
+                    item['evidence'] = 'Part A: %s · %s: %s' % (ev['detail'], pb['name'], evb['detail'] if b_done else (
+                        'last try %s: %s' % (runs_b[-1]['when'], runs_b[-1]['verdict']) if runs_b else 'not run yet'))
         elif prev_done:
             item['status'] = 'NEEDS DEVELOPER'
         later.append(item)

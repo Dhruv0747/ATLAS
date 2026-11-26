@@ -51,9 +51,10 @@ ATLAS follows a staged master plan. A stage is marked **PASS** only with recorde
 | Stage | Goal | Status |
 |---|---|---|
 | 1 | Bounded 20 cm straight ground run | ✅ **PASS** (3-encoder mode, 12/12 runs, 2026-11-14) |
-| 2 | Gentle left/right turn sequence | 🟡 Exercised in drives; formal evidence still to record |
-| 3 | Supervised autonomous **Dhruv Room → Hall → Dhruv Room** round trip with safe-stop and return-home evidence | 🟠 **In progress** |
-| 4+ | Wheel PID, visual odometry, semantic navigation, human-aware navigation | ⏳ Planned, only after Stage 3 |
+| 2 | Gentle left/right turn sequence | ✅ **PASS** (Stage-2 turn check, 2026-11-23; again 2026-11-26) |
+| 3 | Supervised autonomous **Dhruv Room → Hall → Dhruv Room** round trip with safe-stop and return-home evidence | ✅ **PASS (owner decision)** 2026-11-23, combining recorded runs (board shows it as such) |
+| 4-9 | IMU/EKF/TF, Nav2 recovery audit, wheel PID evaluation, shadow camera VO, YOLO benchmark, semantic perception | ✅ Owner checks PASS/DONE by 2026-11-26 (PID not advised; VO stays shadow-only). Step 9 part B (go to an object through Nav2) built 2026-11-26, not yet deployed or run |
+| 10 | Robot arm | ⏸️ On hold (owner, 2026-11-26) |
 
 **Stage 3 so far**
 

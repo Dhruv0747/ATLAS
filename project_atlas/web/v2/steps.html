@@ -6,7 +6,7 @@ main{max-width:760px;margin:auto;padding:12px}
 h1{font-size:22px;margin:0;color:#fff}
 .stop{background:#a71d35!important;margin-left:auto}
 #go{width:100%;min-height:92px;font:800 26px system-ui;background:#0a7f4c!important;border:0!important;border-radius:18px;cursor:pointer;margin-top:10px}
-#go:disabled{opacity:.45;cursor:not-allowed}
+#go:disabled,#goB:disabled{opacity:.45;cursor:not-allowed}
 #pin{width:100%;box-sizing:border-box;padding:14px;font:20px system-ui;border-radius:12px;border:1px solid #58badb;background:#0b1c29;color:#fff}
 #msg{margin:16px 0;padding:16px;border-radius:14px;background:#0b1c29;border:1px solid #2a5770;font-size:19px;line-height:1.4;color:#fff}
 ol{padding-left:22px;line-height:1.8;color:#cfe3f1}
@@ -25,7 +25,15 @@ small{display:block;color:#9fb9cc;margin-top:12px;line-height:1.5}
 <div id="result"></div>
 <details><summary>Run log</summary><div id="log"></div></details>
 <small id="foot"></small>
+<section id="partB" hidden style="margin-top:28px;border-top:2px solid #2a5770;padding-top:12px">
+<h2 style="margin:6px 0;color:#fff">Part B · go to the object (ATLAS MOVES)</h2>
+<ol id="howB"></ol>
+<button id="goB" type="button" style="width:100%;min-height:92px;font:800 26px system-ui;background:#1f5fae!important;border:0!important;border-radius:18px;cursor:pointer;margin-top:10px">GO TO OBJECT</button>
+<div id="msgB" role="status" style="margin:16px 0;padding:16px;border-radius:14px;background:#0b1c29;border:1px solid #2a5770;font-size:19px;line-height:1.4;color:#fff">Loading…</div>
+<div id="resultB"></div>
+<details><summary>Part B run log</summary><div id="logB" style="font-size:13px;color:#9fb9cc;white-space:pre-line;max-height:240px;overflow:auto;background:#0b1c29;border-radius:10px;padding:10px"></div></details>
+</section>
 </main>
 <script src="/v2/estop.js"></script>
-<script src="/v2/steps.js?v=20261123a"></script>
+<script src="/v2/steps.js?v=20261126b"></script>
 </body></html>

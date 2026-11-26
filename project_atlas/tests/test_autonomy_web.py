@@ -235,6 +235,38 @@ class AutonomyWebTests(unittest.TestCase):
         finally:
             web.STEP_CHECKS.clear(); web.STEP_CHECKS.update(old); atlas_master_plan.evaluate = old_ev
 
+    def test_semanticgo_refusals(self):
+        """2026-11-26 step 9 part B: refused unless installed, part A passed, AUTONOMOUS ON and E-STOP released."""
+        import tempfile as _t
+        import atlas_master_plan
+        tool = Path(_t.mkdtemp()) / 'semantic_goal_check.py'
+        old, old_ev, old_popen = web.SEMANTIC_GO, atlas_master_plan.evaluate, web.subprocess.Popen
+        started = []
+        try:
+            web.SEMANTIC_GO = tool
+            armed = ros({'autonomy': {'armed': True}, 'stop_latched': False})
+            self.assertIn('not installed', web.start_semanticgo(armed)[1])
+            tool.write_text('# tool')
+            atlas_master_plan.evaluate = lambda *a, **k: {'later': [{'n': 9, 'part_a_done': False}]}
+            self.assertIn('part A', web.start_semanticgo(armed)[1])
+            atlas_master_plan.evaluate = lambda *a, **k: {'later': [{'n': 9, 'part_a_done': True}]}
+            code, msg = web.start_semanticgo(ros({'autonomy': {'armed': False}, 'stop_latched': False}))
+            self.assertEqual(code, 409); self.assertIn('AUTONOMOUS mode is OFF', msg)
+            code, msg = web.start_semanticgo(ros({'autonomy': {'armed': True}, 'stop_latched': True}))
+            self.assertEqual(code, 409); self.assertIn('E-STOP', msg)
+            self.assertEqual(web.start_semanticgo(ros(None))[0], 409)                    # no fresh mux state
+            web.subprocess.Popen = lambda *a, **k: started.append(a) or types.SimpleNamespace(poll=lambda: 0)
+            old_log = web.SEMGO_LOG
+            web.SEMGO_LOG = tool.parent / 'log.txt'
+            old_state = web.STATE_DIR
+            web.STATE_DIR = tool.parent
+            code, msg = web.start_semanticgo(armed)
+            web.SEMGO_LOG, web.STATE_DIR = old_log, old_state
+            self.assertEqual(code, 202); self.assertIn('B on the remote', msg); self.assertEqual(len(started), 1)
+        finally:
+            web.SEMANTIC_GO, atlas_master_plan.evaluate, web.subprocess.Popen = old, old_ev, old_popen
+            web._SGO['proc'] = None
+
     def test_unrelated_paths_not_served(self):
         self.assertFalse(web.serve(Handler('/api/status'), ros(None)))
 

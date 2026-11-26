@@ -1,5 +1,121 @@
 # ATLAS current blockers
 
+### 2026-11-26 ~11:55 IST — Live camera/LiDAR semantic fusion is OFF during goals (wrong forward constant). No effect on Nav2 today. Investigation only; nothing changed.
+
+- **Confirmed (code):** `atlas_vision_lidar_fusion.py` (live md5 `99117df8…` = repo) treats "forward" as `FORWARD_PAN_US = 2300` ±90 / tilt 1500 ±180. With the servo at the calibrated home 1801 (|Δ| = 499 µs), every 0.2 s tick publishes `state: SUSPENDED_CAMERA_NOT_FORWARD` on `/atlas/vision_navigation/status` and an **empty** `/camera/semantic_obstacles` cloud. Detections are never read. The node also starts with `pan_us = 2300`, so before the first servo message it assumes forward.
+- **Confirmed (live, read-only):** the dashboard API reports `camera_servo_status = cam1_us=1801 cam2_us=1501`, and camera-home.conf is 1801/1501. Feature-on-demand starts the fusion unit on autonomy demand (journal 11:26:06 and 11:39:38, `demand: autonomy`). So during every goal today, fusion is running but suspended.
+- **Confirmed (live):** Nav2 does not consume the cloud. The running controller and planner use `~/project_atlas_ws/src/tortoisebot_bringup/config/nav2_params.yaml`. In that file, local `observation_sources: scan` (plus `astra_layer: astra`) and global `observation_sources: scan`. The `semantic_camera` block is defined there but not listed, which is deliberate per the yaml comment ("LiDAR is the commissioned collision authority"). The `/tmp/launch_params_*` overrides only set `use_sim_time`. A grep finds no consumer of the status topic in mission control or the mux; step 9 has its own copy of the logic.
+- **Secondary (not verified):** even with the right constant, fusion would usually be `SUSPENDED_CAMERA_AI_STALE`. Feature-on-demand starts `atlas-ai-annotator` with autonomy and then stops it about 10 s later (11:26:06→11:26:16 and 11:39:38→11:39:48, demand still `autonomy`). The reason has not been looked up.
+- **Also:** pixel bearings are not pan-compensated, so the forward gate is the only thing that keeps the bearings valid. With the camera at 2300 (as in the step-9 runs before the fix), the node would have reported ACTIVE with bearings about 45° off. That was harmless only because Nav2 ignores the cloud.
+- **Verdict:** FAIL for the fusion node's forward gate; no navigation safety impact today. Nav2, the mux and mission control do not depend on its output.
+- **Minimal fix proposal (not built or deployed):** read forward from camera-home.conf, the same parser as `semantic_advisory_check.camera_home()` and mission control `load_camera_home()`. If the file is missing or unreadable, never assume forward: new state `SUSPENDED_CAMERA_HOME_UNKNOWN`. Start `pan_us` and `tilt_us` as `None`, not forward. Add `camera_home_us` to the status JSON. Add tests for 1801 → ACTIVE path, 2300 → NOT_FORWARD, missing file → HOME_UNKNOWN, and no servo message yet → NOT_FORWARD. Enabling `semantic_camera` in Nav2 is a separate decision and is **not** proposed.
+- **Evidence gaps:** the status topic was not echoed (no ROS CLI probe, to avoid the DDS-join CPU spike). The state is derived from the code plus the live servo value.
+
+### 2026-11-26 12:25 IST — Auto step-back DEPLOYED (owner "Yes, deploy")
+
+- Before: ATLAS still, mission READY, no step-9 tool running.
+- Copied `semantic_goal_check.py` (md5 7ff2600b, compiles). No restart needed.
+- Backup: `~/atlas_backups/backup_step9b_stepback_20261126_122551`.
+- Not run yet. The 12:19 advisory stays valid until 12:49 if ATLAS is not moved.
+
+### 2026-11-26 ~12:30 IST — Part A PASS (chair); part B refused by map clearance; auto step-back BUILT (NOT deployed)
+
+- **12:19 part A PASS** (`semantic_check_20261126_121927.json`): chair seen in 7 of 10 rounds, conf 0.53, map (0.54, 0.87), spread 0.22 m. Stop point (−0.11, 0.60).
+- **12:22 part B** (`semantic_goal_20261126_122226.json`): mission control refused in 0.3 s with "map point refused: too close to a wall/obstacle (occupied within 0.35 m)". The new refusal handling and reason box worked; ATLAS did not move and switched back to Manual. A read-only map check along the line of sight: 0.7 / 0.9 m not clear, 1.1 / 1.3 m clear. The chair spot itself is occupied on the saved map.
+- **Fix (owner "Yes, auto step back"):** `pick_target(..., clear_fn)` steps back along the same line of sight in 0.1 m steps from 0.7 to 1.3 m. It uses mission control's own `check_point` on the accepted map (read-only) and stores `standoff_m`. If nothing is clear it refuses with the map reason; without a map it keeps 0.7 m. Mission control still re-checks everything.
+- **Checked:** 52 affected tests pass on the Jetson copy. Replaying the 12:19 advisory on the live map gives a 1.1 m stop point (−0.48, 0.45), 1.42 m from ATLAS, still facing the chair (22.6°).
+
+### 2026-11-26 12:16 IST — Chair range: LiDAR flips, depth bins misleading; depth-first idea DROPPED after the owner measured
+
+- **12:12 part A:** YOLO saw the chair in 9 of 10 rounds (0.46-0.53), but the LiDAR-confirmed map position alternated between two spots about 0.6 m apart, so the result was NEEDS SCENE.
+- **Read-only probe**, 8 rounds, chair box −3..18°:
+  - LiDAR 20th-percentile range alternates 2.34 m / 2.71 m (thin legs vs the wall behind).
+  - Astra `astra_obstacles` bins are steady: bin 2 (10-15°) 1.75 m, bin 3 1.38 m, bins 0/1/71 2.47-2.54 m.
+- **Owner measurement:** the chair legs are at about **2.31 m**, read from the 3D depth view. So LiDAR 2.34 m is the chair; the 1.75 m depth bin is another object in the same bearing sector, not the chair. A depth-first range would have placed the chair about 0.56 m short. **Not implemented** (owner had said "Yes, use depth camera"; reversed on the evidence before any code was written).
+- **Remaining cause:** the thin chair legs are only intermittently hit by the LiDAR. Workaround: put a solid object at LiDAR height under or at the chair. A possible later code change is a nearest-consistent-range rule across rounds; it is not built.
+
+### 2026-11-26 12:06 IST — Part A NEEDS SCENE with a chair in view: YOLO scores the chair at 0.03 max (image quality)
+
+- At 12:04-12:05 the owner placed a chair about 1 m ahead. It is clearly visible to a person in `/camera.jpg` (pan 1801). Part A still got 0 detections.
+- **Read-only YOLO probe** on live frames, existing engine:
+  - At a 0.10 threshold: nothing. The best raw class score is 0.033 (sports ball); an all-black frame gives 0.010.
+  - Contrast stretch, CLAHE, an RGB swap, a crop, a resize and gamma 1.8 all give nothing above 0.06.
+  - The frame has mean 135 and std 29 (low contrast). It looks milky and blurred, with window glare top-left, and the dark chair sits against a dark door.
+- **Reading:** an image-quality problem: dirty or fogged lens, or focus, plus backlight. It is not a step-9 code fault: the same engine scored bed 0.75 and person earlier today on other scenes. No sample image was on the rover to re-check the engine itself. That is an evidence gap.
+
+### 2026-11-26 12:00 IST — Part B fast-refusal + no-person fix DEPLOYED (owner "Yes, deploy")
+
+- Before: ATLAS still, mission READY, no step-9 tool running.
+- Copied `semantic_goal_check.py` (md5 6b69a638, compiles). No restart needed.
+- Backup: `~/atlas_backups/backup_step9b_fix2_20261126_120054`.
+- Not run yet.
+
+### 2026-11-26 ~12:05 IST — Part B: fast refusal missed + "person" target; both fixed (BUILT, NOT deployed)
+
+- **11:52 owner run** (`semantic_goal_20261126_115223.json`): the target was a **person** at map (0.12, −0.55), stop point (0.55, −1.10). Mission control refused it at once: "map point refused: too close to a wall/obstacle (unknown within 0.35 m)". ATLAS did not move.
+  - The status, sampled at 1 Hz, never showed QUEUED. The tool counted results only after seeing QUEUED, so it ignored the refusal, waited 15 s and ended NOT_DISPATCHED without a reason.
+- **Fixes:** `accept_event()` counts a refusal that names our goal when its text is new since the send. Success still requires our goal to have been seen, so a stale success can never PASS. `NOT_GOALS = {person, cat, dog}`: people and animals are never a part-B goal (that is the later human-aware step), though part A may still list them.
+- **Tests:** 51 affected tests pass on the Jetson copy. The 11:52 refusal text now maps to the wall hint.
+- **Scene:** part A at 11:57-11:58 was NEEDS SCENE (0 detections). The camera frame shows a door about 0.5 m ahead and a bottle cut off at the bottom edge. The image is hazy and low-contrast, so a dirty lens or exposure is suspected (not verified).
+
+### 2026-11-26 11:46 IST — Step 9 camera-forward fix DEPLOYED (owner "Yes, deploy")
+
+- Before: ATLAS still, mission READY, no step-9 tool running, camera at pan 1801 / tilt 1501.
+- Copied 2 files with md5 match: `semantic_advisory_check.py`, `semantic_goal_check.py`. Both compile on the rover, and the live `camera_home()` reads (1801, 1501). No service restart.
+- Backup: `~/atlas_backups/backup_step9_camfwd_20261126_114627`.
+- Not run yet: the owner must re-run part A (START CHECK) with the camera at home, then part B.
+
+### 2026-11-26 ~11:55 IST — Step 9 camera "forward" was WRONG; fixed to the calibrated camera home (BUILT, NOT deployed)
+
+- **Found:** part A failed 3× at 11:39-11:40 (camera_forward NO) with the servo at pan 1801 / tilt 1501. ATLAS has two "forward" values: `camera-home.conf` (2026-10-30) at 1801/1501, which mission control centres to for every goal, and `atlas_vision_lidar_fusion.py` `FORWARD_PAN_US = 2300`, which step 9 had copied. The owner looked at the camera: **1801 is straight ahead** ("Yes, straight now").
+- **Consequence:** the part-A PASS runs at 10:54 and 11:30 were taken at pan 2300, a camera turned roughly 45° (≈500 µs, not measured). Their object map positions and stop points are therefore **not valid**. The 11:32 part-B goal came from the 11:30 result. These passes stay in history, but they are not physical evidence of correct object placement.
+- **Fix:** `semantic_advisory_check.py` now reads forward from `camera-home.conf` (`camera_home()`, `camera_is_forward()`, tolerance 90/180 µs). Without a calibration it never assumes forward. Results and the advisory file record `camera_home_us`. `semantic_goal_check.py` refuses advisory files without `camera_home_us`, and confirms the object on arrival only with the camera forward.
+- **Tests:** 49 affected tests pass on the Jetson copy. The live calibration reads (1801, 1501).
+- **Open (not fixed here):** `atlas_vision_lidar_fusion.py` still uses 2300 as forward while navigation centres to 1801. If that node gates on it, the semantic fusion may treat the camera as not forward during goals. This is not verified; it needs its own investigation.
+
+### 2026-11-26 11:36 IST — "Show reason" DEPLOYED (owner "Yes, deploy")
+
+- Before: ATLAS still, mission READY, no check running.
+- Copied 3 files with md5 match: `semantic_goal_check.py` (compiles), `steps.js`, `steps.html` (v=20261126b). No service restart was needed; the tool starts fresh per run.
+- Backup: `~/atlas_backups/backup_step9b_reason_20261126_113604`.
+- The real page loads steps.js v=20261126b with no console errors. The 11:32 result predates the change, so it has no reason box; the next run will show one.
+
+### 2026-11-26 ~11:50 IST — Part B now names WHY ATLAS stopped (owner "Yes, show reason"; BUILT, NOT deployed)
+
+- When a run does not arrive, `semantic_goal_check.py` reads the `atlas-cmd-vel-mux` journal for the run window (read-only). It counts the ERROR/WARN veto reasons; numbers and our own Abort lines are dropped. It also keeps the mission-control failure text. The result stores `blocked_by`, `hint` and `mux_stops`, and the detail adds "blocked by the safety chain: …".
+- `/v2/steps?n=9` shows an amber "Why ATLAS stopped / What to do" box. A REFUSED run shows "Not started: <reason>".
+- English hints cover: LiDAR availability, ultrasonic loss, too close, wall-near or occupied stop point, localisation, obstacle camera.
+- **Checked:** the real 11:31 mux log gives `LIDAR AVAILABILITY STOP: unobserved motion sector` (156×) with the LiDAR hint. 48 affected tests pass on the Jetson copy. No guard or limit changed.
+
+### 2026-11-26 11:32 IST — Step 9 part B first owner run: FAIL (TIMEOUT); ATLAS did not move (mux LiDAR-availability veto)
+
+- 11:27-11:29: three GO TO OBJECT presses were REFUSED, nothing sent. Part A had not been re-run, so the advisory file had no time/pose (the guard worked as designed).
+- 11:30:56: part A PASS (`semantic_check_20261126_113056.json`): bed at map (0.23, −4.95), 2.1 m, stop point (0.93, −5.01), 1.37 m away.
+- 11:31:02: part B (`semantic_goal_20261126_113202.json`). go_at → HTTP 202; mission control QUEUED → SCAN CHECK OK (fit 99 %) → camera centred → NAMED GOAL DISPATCHED/ACCEPTED. Nav2 computed control, but **atlas_cmd_vel_mux logged 156 × `LIDAR AVAILABILITY STOP: unobserved motion sector (1-2 bins)`** and ATLAS stayed still (off course 0.02 m, stop error 1.34 m). controller_server: "Failed to make progress", then recovery. At 60 s the tool sent Abort → Manual, goal cancelled (status 5). Verdict FAIL: nav2_succeeded, within_time, arrived, facing, object_confirmed.
+- **Reading:** the safety chain vetoed motion as designed. The part-B tool did dispatch, bound and end the run correctly. Read-only LiDAR view afterwards (ATLAS at map 2.26, −5.15, yaw −161°): front-left bearings +8° and +20…+28° have no returns (others 1.7-2.6 m). This is the known no-echo / swept-path availability blocker (2026-11-15 entries), not a part-B defect. Suspected cause: dark or absorbing surface or open space front-left; not verified.
+- **Not changed:** no guard, limit or mux setting was touched.
+
+### 2026-11-26 11:23 IST — Step 9 PART B DEPLOYED (owner "Yes, deploy")
+
+- **Before deploy:** ATLAS still (vx 0, wz 0), mission READY, Stage-3 runner IDLE, no check running. All 5 live files equalled HEAD c37f641.
+- **Copied:** 6 files with md5 match: `atlas_master_plan.py`, `atlas_autonomy_web.py`, `semantic_advisory_check.py`, `semantic_goal_check.py` (new), `steps.js`, `steps.html`. They compile on the rover.
+- **Backup:** `~/atlas_backups/backup_step9b_20261126_112331`. Only `rover-status-web` was restarted; it is active and the mux policy is fresh.
+- **Verified:**
+  - `/api/master_plan`: step 9 = `PART A PASS · PART B (GO TO OBJECT) NOT DONE` (part_a_done true); next step = step 9.
+  - `/api/readiness/semanticgo`: tool_installed true, not running.
+  - The real page `/v2/steps?n=9` shows Part B with GO TO OBJECT enabled ("Autonomous mode ON and E-STOP released are needed"), with no console errors.
+- **Not run yet:** part B. The existing 10:54 advisory file has no time/pose, so the owner must re-run part A first.
+
+### 2026-11-26 ~11:40 IST — Step 9 PART B (go to the object through Nav2) BUILT, NOT deployed (owner: "plan 8 to ko pura karo")
+
+- **Why:** the plan item reads "Add advisory semantic perception, then semantic goal resolution through Nav2 only after recorded validation". Part A (advisory + recorded validation) passed at 10:54; the Nav2 half was missing.
+- **What:** `tools/perception/semantic_goal_check.py` sends ONE goal: the part-A stop point (0.70 m in front of the object) through the existing map-point path (`/api/places go_at` -> mission control `/atlas/navigate_to_point` -> Nav2). That path is refused unless Autonomous is ON and the E-STOP released; mission control keeps every map-tap check. The tool never arms autonomy, releases the E-STOP or sends velocity.
+- **Bounds:** refused before sending if the advisory result is > 30 min old, ATLAS moved > 0.30 m / 20° since part A, the stop point is outside 0.15-2.5 m, the Stage-3 runner is active, or ATLAS is moving. While driving it sends Abort (Manual + cancel goal) after 60 s, > 1.0 m off the start->stop corridor, CPU >= 75 % x3 / RAM >= 80 % / 70 °C, or no goal event within 15 s. It always ends in Manual.
+- **PASS needs:** Nav2 SUCCEEDED, stop within 0.25 m and 25°, no owner stop, and the same label re-seen within 0.40 m of its recorded map position in 3 of 5 YOLO+LiDAR rounds after arrival.
+- **Board:** step 9 now shows `PART A PASS · PART B (GO TO OBJECT) NOT DONE` until part B passes (`PASS (GOES TO OBJECTS THROUGH NAV2)`). Part A alone still unlocks step 10 (on hold). Web `/api/readiness/semanticgo` plus a GO TO OBJECT button on `/v2/steps?n=9`. Part A now also stores `written_unix` and the robot pose.
+- **Tests (offline, Jetson copy `/tmp/semgo_full`):** new `tests.test_semantic_goal` plus updated master-plan and autonomy-web tests. Full offline list: 1309 run, 2 failures (`test_vision3d_stage32_ir`, `test_vision3d_startup_shutdown`), the same 2 as unchanged HEAD on the Jetson (environment-dependent; GitHub CI green).
+- **Evidence gap:** NOT run on the rover. A refuse-only live dry-run was blocked by the session permission check before deploy approval. The physical result needs the owner run after deploy.
+
 ### 2026-11-26 10:54 IST — Step 9 PASS (physical, owner-run; advisory only, no goals sent)
 
 - `semantic_check_20261126_105411.json`: **PASS**, all 9 checks YES, 10 frames. One stable object: bed at map (0.25, −4.92), seen 9/10, spread 0.008 m, confidence 0.68; advisory stop point (0.92, −5.14, 162°) written to `semantic_advisory.json`, NOT sent (tool has no Nav2/ROS/motion interface).

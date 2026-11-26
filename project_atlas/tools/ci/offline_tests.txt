@@ -141,3 +141,4 @@ tests.test_nav2_recovery_audit
 tests.test_wheel_pid_evaluation
 tests.test_vo_core
 tests.test_perception_steps
+tests.test_semantic_goal

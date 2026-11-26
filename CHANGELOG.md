@@ -1,5 +1,15 @@
 # Changelog
 
+2026-11-26 — Step 9 part B (DEPLOYED 12:25): when the 0.70 m stop point is not clear on the accepted map, it steps back along the line of sight (0.1 m steps, up to 1.3 m) to the first map-clear point; refuses with the map reason otherwise.
+
+2026-11-26 — Step 9 part B (DEPLOYED 12:00): an immediate mission-control refusal of our goal is now counted and shown (it was missed when QUEUED was never sampled); people and animals are never part-B goals.
+
+2026-11-26 — Step 9 camera "forward" fixed (DEPLOYED 11:46): forward = calibrated camera home (camera-home.conf, pan 1801 / tilt 1501, owner-confirmed straight) instead of the fusion constant 2300; part B refuses older advisory results and confirms on arrival only with a forward camera.
+
+2026-11-26 — Step 9 part B shows WHY ATLAS stopped (DEPLOYED 11:36): the safety-mux veto reason from the mux journal (read-only) or the mission-control refusal, with an English hint, on /v2/steps?n=9.
+
+2026-11-26 — Master-plan step 9 PART B (DEPLOYED 11:23, owner run pending): semantic goal through Nav2, the plan's "then semantic goal resolution through Nav2". tools/perception/semantic_goal_check.py sends ATLAS ONCE to the step-9 advisory stop point (0.70 m in front of the object) through the existing map-point path (/api/places go_at -> mission control -> Nav2; refused unless Autonomous is ON and the E-STOP released), bounded (advisory <= 30 min old, ATLAS not moved since, stop point 0.15-2.5 m, Abort after 60 s, > 1 m off course or CPU/RAM/temp limits), then re-sees the object and switches back to Manual. Never arms autonomy, releases the E-STOP or sends velocity. Web POST/GET /api/readiness/semanticgo, GO TO OBJECT on /v2/steps?n=9; board: step 9 shows PASS only after part B passes (part A alone still unlocks step 10). Part A now stores written_unix + robot pose in semantic_advisory.json.
+
 2026-11-23 — Master-plan steps 8 and 9 owner checks DEPLOYED 16:38: TensorRT YOLO benchmark (tools/perception/yolo_benchmark.py, resource-capped, read-only) and advisory semantic perception with a goal-resolution dry-run (tools/perception/semantic_advisory_check.py; no goal is sent). Board buttons /v2/steps?n=8 and n=9, locked behind step 7.
 
 2026-11-23 — Master-plan step 7 DEPLOYED 15:55 (live GOOD parked, ~5 Hz, CPU ~6 %; owner check pending); 16:11 VO keyframe fixes deployed after the owner run failed on parked drift (rejected / partial scans no longer become keyframes, start-up warm-up, DEGRADED after a reset): camera visual odometry in SHADOW MODE on the Astra depth scan (domain 77 only; scripts/atlas_vo_shadow.py + atlas_vo_core.py, unit atlas-vo-shadow, GOOD/DEGRADED/LOST with rate, age, confidence; feeds nothing). One-click read-only step-7 owner check (tools/perception/vo_shadow_check.py, /v2/steps?n=7). The Stage-2 / step-4B turn check now also records per-arc VO vs LiDAR-ICP (information only).

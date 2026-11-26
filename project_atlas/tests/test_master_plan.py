@@ -171,8 +171,26 @@ class MasterPlanTests(unittest.TestCase):
         self.assertEqual(self.ev()['later'][5]['status'], 'IN PROGRESS')
         mp.record_later(9, {'verdict': 'PASS', 'detail': 'chair'}, 's2.json', progress_file=self.prog)
         e = self.ev()
-        self.assertEqual(e['later'][5]['status'], 'PASS (ADVISORY ONLY, NO GOALS SENT)')
+        # 2026-11-26: part A alone unlocks step 10 but step 9 stays open until part B (go to the object) passes
+        self.assertEqual(e['later'][5]['status'], 'PART A PASS · PART B (GO TO OBJECT) NOT DONE')
+        self.assertTrue(e['later'][5]['part_a_done']); self.assertFalse(e['later'][5]['part_b_done'])
+        self.assertIn('not run yet', e['later'][5]['evidence'])
         self.assertEqual(e['later'][6]['status'], 'NEEDS DEVELOPER')               # step 10 robot arm
+        self.assertEqual(e['next_step']['href'], '/v2/steps?n=9')
+        mp.record_later(9, {'verdict': 'REFUSED', 'detail': 'moved'}, 'g1.json', progress_file=self.prog, part='b')
+        mp.record_later(9, {'verdict': 'FAIL', 'detail': 'timeout'}, 'g2.json', progress_file=self.prog, part='b')
+        e = self.ev()
+        self.assertEqual(e['later'][5]['status'], 'PART A PASS · PART B (GO TO OBJECT) NOT DONE')
+        self.assertIn('FAIL', e['later'][5]['evidence'])
+        self.assertEqual(self.ev()['later'][5]['history'][-1]['verdict'], 'FAIL')
+        mp.record_later(9, {'verdict': 'PASS', 'detail': 'went to the bed'}, 'g3.json', progress_file=self.prog, part='b')
+        e = self.ev()
+        self.assertEqual(e['later'][5]['status'], 'PASS (GOES TO OBJECTS THROUGH NAV2)')
+        self.assertIn('went to the bed', e['later'][5]['evidence'])
+        self.assertIn('chair', e['later'][5]['evidence'])
+        self.assertIn('step 10', e['next_step']['text'])
+        self.assertEqual(json.loads(self.prog.read_text())['step9b']['file'], 'g3.json')             # stored apart
+        self.assertEqual(json.loads(self.prog.read_text())['step9']['file'], 's2.json')
 
     def test_owner_decision_is_shown_as_such(self):
         speed_file(self.d, 'speed_loop_check_4.json')

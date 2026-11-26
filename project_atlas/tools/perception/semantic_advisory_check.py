@@ -4,7 +4,8 @@ no ROS, no Nav2 goal). 2026-11-23.
 
 Plan text: "Add advisory semantic perception, then semantic goal resolution through Nav2 only after recorded
 validation." This step is the advisory half and the recorded validation. Sending a semantic goal to Nav2 is NOT part
-of it (that would be a later, owner-approved motion step).
+of it: that is part B (semantic_goal_check.py, 2026-11-26), an owner-triggered bounded drive that uses the
+advisory result this part writes.
 
 With ATLAS PARKED, the camera centred forward and the robot localised, for 10 rounds (~1 per second):
   * the existing TensorRT YOLO (scripts/trt_yolo_detector) runs on a live IMX708 frame (/camera.jpg);
@@ -30,8 +31,12 @@ HERE = Path(__file__).resolve()
 for p in (ROOT / 'scripts', HERE.parents[2] / 'scripts', HERE.parent):
     sys.path.insert(0, str(p))
 
-# geometry and class list of the existing camera/LiDAR fusion (scripts/atlas_vision_lidar_fusion.py)
-FORWARD_PAN_US, FORWARD_TILT_US, PAN_TOL_US, TILT_TOL_US = 2300, 1500, 90, 180
+# geometry and class list of the existing camera/LiDAR fusion (scripts/atlas_vision_lidar_fusion.py).
+# 2026-11-26: "forward" is the calibrated camera home that mission control centres to for navigation
+# (camera-home.conf, 2026-10-30: pan 1801 / tilt 1501). The owner confirmed it is straight ahead. The old fusion constant
+# 2300 was ~45 deg to one side, so the 10:54 and 11:30 part-A passes were taken with a turned camera.
+CAMERA_HOME_FILE = Path.home() / '.config/systemd/user/atlas-uno-r4-sensor-hub.service.d/camera-home.conf'
+PAN_TOL_US, TILT_TOL_US = 90, 180
 HFOV_RAD = math.radians(66.0)
 MIN_CONF, MAX_RANGE_M = 0.45, 3.0
 NAV_CLASSES = {'person', 'bicycle', 'car', 'motorcycle', 'bus', 'truck', 'bench', 'cat', 'dog', 'backpack',
@@ -157,6 +162,25 @@ def evaluate(parked, camera_forward, localised, lidar_live, frames, rounds, robo
             'notes': ['No goal is sent: this tool has no Nav2, ROS or motion interface.']}
 
 
+def camera_home(path=None):
+    """(pan_us, tilt_us) from the calibrated camera home (same file and keys as mission control), or (None, None)."""
+    vals = {}
+    try:
+        for line in Path(path or CAMERA_HOME_FILE).read_text(encoding='utf-8').splitlines():
+            line = line.strip()
+            for key in ('ATLAS_CAMERA_PAN_HOME_US', 'ATLAS_CAMERA_TILT_HOME_US'):
+                if line.startswith('Environment=' + key + '='):
+                    vals[key] = int(line.split('=', 2)[2])
+    except (OSError, ValueError):
+        return None, None
+    return vals.get('ATLAS_CAMERA_PAN_HOME_US'), vals.get('ATLAS_CAMERA_TILT_HOME_US')
+
+
+def camera_is_forward(pan, tilt, home):
+    hp, ht = home
+    return (None not in (pan, tilt, hp, ht) and abs(pan - hp) <= PAN_TOL_US and abs(tilt - ht) <= TILT_TOL_US)
+
+
 def parse_servo(text):
     """'online via=... cam1_us=1801 cam2_us=1501' -> (pan_us, tilt_us) or (None, None)."""
     vals = {}
@@ -185,13 +209,13 @@ def main():
     except Exception:
         ros = {}
     pan, tilt = parse_servo(ros_val(ros, 'camera_servo_status'))
-    camera_forward = (pan is not None and tilt is not None and abs(pan - FORWARD_PAN_US) <= PAN_TOL_US
-                      and abs(tilt - FORWARD_TILT_US) <= TILT_TOL_US)
+    home = camera_home()
+    camera_forward = camera_is_forward(pan, tilt, home)
     q = ros_val(ros, 'amcl_quality') or {}
     localised = (isinstance(q, dict) and not q.get('uncertain') and q.get('xy_std_m') is not None
                  and float(q['xy_std_m']) <= MAX_POSE_STD_M)
     parked = yb.wheel_still()
-    print(f'camera pan {pan} us tilt {tilt} us (forward {FORWARD_PAN_US}/{FORWARD_TILT_US}), localised {localised}, '
+    print(f'camera pan {pan} us tilt {tilt} us (forward = calibrated home {home[0]}/{home[1]}), localised {localised}, '
           f'parked {parked}', flush=True)
     rounds, frames, stop, lidar_live, robot = [], 0, None, False, None
     if parked and camera_forward and localised:
@@ -229,16 +253,17 @@ def main():
         if det:
             det.close()
     res = evaluate(parked, camera_forward, localised, lidar_live, frames, rounds, robot, stop)
-    res['measured'].update({'pan_us': pan, 'tilt_us': tilt})
+    res['measured'].update({'pan_us': pan, 'tilt_us': tilt, 'camera_home_us': list(home)})
     res['when'] = time.strftime('%Y-%m-%d %H:%M')
     state = Path.home() / '.local/state/project_atlas'
     out = state / f'semantic_check_{time.strftime("%Y%m%d_%H%M%S")}.json'
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(res, indent=1))
     if res['verdict'] == 'PASS':                       # the advisory semantic map (labels + goals), never sent
+        # 2026-11-26: written_unix + robot pose let part B (semantic_goal_check.py) refuse stale or moved results
         (state / 'semantic_advisory.json').write_text(json.dumps(
-            {'when': res['when'], 'frame': 'map', 'advisory_only': True, 'objects': res['measured']['stable_objects']},
-            indent=1))
+            {'when': res['when'], 'written_unix': time.time(), 'robot': robot, 'camera_home_us': list(home), 'frame': 'map', 'advisory_only': True,
+             'objects': res['measured']['stable_objects']}, indent=1))
     try:
         import atlas_master_plan
         atlas_master_plan.record_later(9, res, out.name)

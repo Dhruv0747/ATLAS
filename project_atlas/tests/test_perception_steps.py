@@ -115,6 +115,21 @@ class SemanticTests(unittest.TestCase):
         g = sa.resolve_goal(ROBOT, {'map_x': 1.0, 'map_y': 2.6})
         self.assertEqual((g['x'], g['y']), (1.0, 2.0))
 
+    def test_forward_comes_from_the_calibrated_camera_home(self):
+        """2026-11-26: the owner confirmed pan 1801 / tilt 1501 (camera-home.conf, 2026-10-30) is straight ahead; the
+        old fusion constant 2300 is ~45 deg to one side. Forward = the same home mission control centres to."""
+        import tempfile
+        d = Path(tempfile.mkdtemp())
+        conf = d / 'camera-home.conf'
+        conf.write_text('[Service]\nEnvironment=ATLAS_CAMERA_PAN_HOME_US=1801\nEnvironment=ATLAS_CAMERA_TILT_HOME_US=1501\n')
+        self.assertEqual(sa.camera_home(conf), (1801, 1501))
+        self.assertEqual(sa.camera_home(d / 'missing.conf'), (None, None))
+        self.assertTrue(sa.camera_is_forward(1801, 1501, (1801, 1501)))
+        self.assertTrue(sa.camera_is_forward(1850, 1600, (1801, 1501)))
+        self.assertFalse(sa.camera_is_forward(2300, 1500, (1801, 1501)))       # the old constant: turned
+        self.assertFalse(sa.camera_is_forward(1801, 1501, (None, None)))       # no calibration: never assume
+        self.assertFalse(sa.camera_is_forward(None, 1501, (1801, 1501)))
+
     def test_parse_servo(self):
         self.assertEqual(sa.parse_servo('online via=uno_r4_i2c_hub cam1_us=1801 cam2_us=1501'), (1801, 1501))
         self.assertEqual(sa.parse_servo(None), (None, None))

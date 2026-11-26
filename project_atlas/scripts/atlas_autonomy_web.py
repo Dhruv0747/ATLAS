@@ -345,7 +345,7 @@ def start_imucheck(ros):
     if ((pol.get('autonomy') or {}).get('armed')):
         return 409, 'switch to Manual mode first (ATLAS must stay parked)'
     with _RUN['lock']:
-        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running():
+        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running() or semgo_running():
             return 409, 'another check is already running'
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         log = open(IMUCHECK_LOG, 'w', encoding='utf-8')
@@ -407,7 +407,7 @@ def start_stepcheck(ros, n):
     if not step or step.get('status') == 'LOCKED':
         return 409, 'Step %d is locked: finish %s first' % (n, (step or {}).get('unlock_after', 'the step before'))
     with _RUN['lock']:
-        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running():
+        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running() or semgo_running():
             return 409, 'another check is already running'
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         log = open(STATE_DIR / ('stepcheck_%s_dashboard.log' % n), 'w', encoding='utf-8')
@@ -418,6 +418,62 @@ def start_stepcheck(ros, n):
         _STEP['n'], _STEP['started'] = n, time.time()
     ros.estop_log.write('stepcheck_start', step=n)
     return 202, 'step %d check started (read-only; ATLAS does not move)' % n
+
+
+# 2026-11-26 step 9 PART B: go to the object through Nav2 (owner-triggered, bounded; ATLAS MOVES). Same authority as
+# the Stage-3 runner and the map-tap "Move here": the tool sends ONE go_at through /api/places (refused unless
+# AUTONOMOUS is ON and the E-STOP is released), never arms autonomy, never releases the E-STOP, never sends velocity.
+SEMANTIC_GO = Path('/home/jetson/project_atlas/tools/perception/semantic_goal_check.py')
+SEMGO_LOG = STATE_DIR / 'semantic_goal_dashboard.log'
+_SGO = {'proc': None, 'started': None}
+
+
+def semgo_running():
+    p = _SGO['proc']
+    return p is not None and p.poll() is None
+
+
+def semgo_status():
+    try:
+        log = SEMGO_LOG.read_text(encoding='utf-8', errors='replace')[-4000:]
+    except OSError:
+        log = ''
+    results = []
+    for f in sorted(STATE_DIR.glob('semantic_goal_*.json'))[-4:]:
+        try:
+            r = json.loads(f.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        results.append({'file': f.name, 'when': r.get('when'), 'verdict': r.get('verdict'), 'detail': r.get('detail'),
+                        'checks': r.get('checks', {}), 'measured': r.get('measured', {}),
+                        'failed': r.get('failed', []), 'notes': r.get('notes', [])})
+    return {'running': semgo_running(), 'started': _SGO['started'], 'log': log,
+            'tool_installed': SEMANTIC_GO.is_file(), 'results': results}
+
+
+def start_semanticgo(ros):
+    if not SEMANTIC_GO.is_file():
+        return 409, 'step 9 part B tool is not installed on the rover yet'
+    import atlas_master_plan
+    step = next((l for l in atlas_master_plan.evaluate().get('later', []) if l.get('n') == 9), None)
+    if not step or not step.get('part_a_done'):
+        return 409, 'Part B is locked: pass step 9 part A (START CHECK above) first'
+    why = go_refusal(ros)
+    if why:
+        return 409, 'GO TO OBJECT refused: ' + why
+    with _RUN['lock']:
+        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running() or semgo_running():
+            return 409, 'another check is already running'
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        log = open(SEMGO_LOG, 'w', encoding='utf-8')
+        cmd = f'cd {SEMANTIC_GO.parent}; exec /usr/bin/python3 -u {SEMANTIC_GO.name}'
+        _SGO['proc'] = subprocess.Popen(['bash', '-lc', cmd], stdout=log, stderr=subprocess.STDOUT,
+                                        stdin=subprocess.DEVNULL, start_new_session=True,
+                                        env=dict(os.environ, PYTHONUNBUFFERED='1'))
+        _SGO['started'] = time.time()
+    ros.estop_log.write('semantic_go_start')
+    return 202, ('go to object started: ATLAS drives through Nav2 to the stop point in front of the object and stops. '
+                 'B on the remote stops it; Abort mission cancels it.')
 
 
 def turncheck_status():
@@ -515,7 +571,7 @@ def start_speedcheck(ros, speed, pin):
     if not arm.speed_evidence().get('enabled'):
         return 409, 'speed loop is not enabled on this rover'
     with _RUN['lock']:
-        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running():
+        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running() or semgo_running():
             return 409, 'another check is already running'
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         log = open(SPEEDCHECK_LOG, 'w', encoding='utf-8')
@@ -558,7 +614,7 @@ def start_turncheck(ros, pin, workload=False):
     if not arm.speed_evidence().get('enabled'):
         return 409, 'speed loop is not enabled on this rover'
     with _RUN['lock']:
-        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running():
+        if speedcheck_running() or turncheck_running() or imucheck_running() or stepcheck_running() or semgo_running():
             return 409, 'another check is already running'
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         log = open(TURNCHECK_LOG, 'w', encoding='utf-8')
@@ -576,7 +632,8 @@ def start_turncheck(ros, pin, workload=False):
 def serve_readiness(handler, ros, post=False):
     path = handler.path.split('?')[0]
     if path not in ('/api/readiness', '/api/readiness/bridge', '/api/readiness/speedcheck',
-                    '/api/readiness/turncheck', '/api/readiness/imucheck', '/api/readiness/stepcheck'):
+                    '/api/readiness/turncheck', '/api/readiness/imucheck', '/api/readiness/stepcheck',
+                    '/api/readiness/semanticgo'):
         return False
     if not post:
         if path == '/api/readiness':
@@ -587,6 +644,8 @@ def serve_readiness(handler, ros, post=False):
             json_response(handler, 200, turncheck_status())
         elif path == '/api/readiness/imucheck':
             json_response(handler, 200, imucheck_status())
+        elif path == '/api/readiness/semanticgo':
+            json_response(handler, 200, semgo_status())
         elif path == '/api/readiness/stepcheck':
             from urllib.parse import parse_qs, urlsplit
             try:
@@ -630,6 +689,10 @@ def serve_readiness(handler, ros, post=False):
         except (TypeError, ValueError):
             n = 0
         code, msg = start_stepcheck(ros, n)
+        json_response(handler, code, {'ok': code == 202, 'message': msg})
+        return True
+    if path == '/api/readiness/semanticgo':
+        code, msg = start_semanticgo(ros)
         json_response(handler, code, {'ok': code == 202, 'message': msg})
         return True
     if path == '/api/readiness/imucheck':
