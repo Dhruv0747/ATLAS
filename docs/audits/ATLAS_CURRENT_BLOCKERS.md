@@ -1,5 +1,28 @@
 # ATLAS current blockers
 
+### 2026-11-26 18:02–18:04 IST — Localization recovered after the reboot (owner "Yes, restart it")
+
+- **Preflight:** stop latched, Manual, mission READY, no Nav2 goal, no mapping session file.
+- **18:02:50:** `systemctl --user restart atlas-localization` (only that unit).
+- **18:03:38:** start check VERIFIED ("unique LiDAR match on the saved map") and live check VERIFIED ("LiDAR confirms the AMCL pose") at (−0.75, 0.28). Recovery took about 50 s.
+- **Cause:** the boot start check ran before wheel odometry was up (see the 17:51–18:02 entry). The restart re-ran it with odometry available.
+
+### 2026-11-26 17:51–18:02 IST — First extend drive ABORTED by an owner reboot; saved map unchanged; two findings
+
+- **17:51:12:** extend session 5a1ebb8b started (owner "Yes, start it"). The LiDAR check was VERIFIED (after the owner moved off the ambiguous corner at x −1.78, y −0.09, which was DEGRADED 0.96 vs 0.94). The service call reported queued, then PREPARING, then EXTEND MAPPING ACTIVE at 17:51:33. Recorded init (−1.085, −6.360, −158.0°).
+- **Finding 1 (open bug from 2026-11-14, reconfirmed):** the light mapping profile does not start `atlas-map-footprint-filter`. SLAM publishes `/map_raw`, so `/map` (dashboard, guided assistant, map_saver at stop) was not updated.
+  - The dashboard kept the old saved map (234×243, map age 547 s) and drew the SLAM-frame pose on it, so the owner saw ATLAS "in the wrong place". It was a display mismatch, not a localization fault.
+  - The guided assistant stayed "waiting_for_map".
+  - A stop would have failed at map_saver (saved map safe).
+  - Starting the filter was proposed; the owner rebooted the rover instead (~17:53).
+- **After the reboot:** saved map id 350de9b5ec3eb7f4d6f1, identical to the session start. No piece and no extend request were written.
+  - Owner "Yes, clean it": the stale session file was moved aside to `~/.config/project_atlas/aborted_session_5a1ebb8b_20261126.json` (+ `.mapping_session_5a1ebb8b.moved`). The stale paused-services list was moved aside to `aborted_session_5a1ebb8b_paused_services.json` (all six units were already active after boot). The saved localization seed was untouched (extend sessions do not overwrite it).
+- **Finding 2:** the boot start check ran before wheel odometry was up ("UNKNOWN: no odometry while the startup scan was collected"), so AMCL had no initial pose ("Please set the initial pose", no map frame). The LiDAR itself is LIVE at 8.5 Hz, about 400 points.
+  - Proposed: restart `atlas-localization`, parked and latched, so the start check runs with odometry (the usual recovery). Waiting for the owner's OK.
+- **Before the next extend drive:**
+  - Start `atlas-map-footprint-filter` with mapping sessions (fix the light profile; needs approval).
+  - Optionally draw the live SLAM map only when its age is under 10 s, so the page never mixes frames.
+
 ### 2026-11-26 17:44 IST — Extend-map sessions DEPLOYED (owner "Yes, deploy")
 
 - **Drift check before deploying:** live `atlas_mission_control.py` md5 be467749… = the pre-change base = HEAD. Live status web ab4fa980… and `mapping.html` 28660c5d… = the last deployed versions.
