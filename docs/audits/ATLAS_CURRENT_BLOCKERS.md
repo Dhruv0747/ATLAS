@@ -1,5 +1,47 @@
 # ATLAS current blockers
 
+### 2026-11-26 13:31 IST — Guided mapping assistant phase 1b DEPLOYED (owner "Yes, deploy" in this session)
+
+- **Before:**
+  - The first run at 13:29 was REFUSED by the script's preflight: E-STOP not latched. Nothing changed.
+  - The owner pressed B. Preflight then passed: no mapping session file, Nav2 goal not active, `stop_latched` true, `manual_only` true, `py_compile` OK.
+  - The live `atlas_status_web.py` (md5 28dd4ca1…) and `mapping.html` (md5 5cf82520…) differed from the new versions only by this change.
+  - The approval relayed earlier by another session ("YES DEAPY") was not used. The deploy waited for the owner's words in this session.
+- **Deployed with `tools/mapping/deploy_guided_1b.sh`:**
+  - Backup: `~/atlas_backups/backup_guided1b_20261126_133113`, which also holds a copy of the script.
+  - Rollback: `bash ~/atlas_backups/backup_guided1b_20261126_133113/deploy_guided_1b.sh --rollback ~/atlas_backups/backup_guided1b_20261126_133113`.
+  - New: `atlas_map_quality_core.py`, `atlas_invisible_objects_core.py`, `atlas_guided_mapping_engine.py`, `atlas_guided_mapping.py`, `web/v2/mapping-quality.js`, unit `atlas-guided-mapping` (enabled).
+  - Changed: `atlas_status_web.py` (md5 ab4fa980…), `web/v2/mapping.html` (md5 198ac787…).
+  - Restarted: only `rover-status-web`.
+- **Verified live:**
+  - Both units are active, and the node log shows a clean start.
+  - `/api/map` `mapping_quality` = state `inactive`, "Mapping assistant: no mapping session".
+  - `/v2/mapping-quality.js` HTTP 200 and `/v2/mapping` HTTP 200.
+  - The node uses 0.3 % of one core idle (10 s sample), RSS 63 MB.
+  - Afterwards the E-STOP was still latched and the rover in Manual.
+  - The only failed unit is the pre-existing `update-notifier-crash`.
+- **Not verified yet:** behaviour in a real mapping session (subscriptions, tiles, prompts on the page), and the overlay rendering in a browser. The first owner-driven manual mapping session is the real check. Depth is absent in light-mapping sessions (Astra paused by that profile); the page says so.
+
+### 2026-11-26 IST — Guided mapping assistant phase 1b BUILT (owner "Yes, start 1b"; NOT deployed)
+
+- **What:** a live, read-only assistant for owner-driven mapping sessions (`docs/design/guided_mapping_assistant.md` sections 5 and 8).
+  - New node `atlas_guided_mapping.py` and pure engine `atlas_guided_mapping_engine.py`, unit `atlas-guided-mapping` (Nice 10, CPUQuota 15 %).
+  - It publishes only `/atlas/mapping_quality` (JSON <= 4 KB every 2 s), and only while `mapping_session.json` says `active`. Outside a session it has no subscriptions. It pauses below 25 % CPU idle.
+  - `/api/map` gains `mapping_quality`. The mapping page gets an overlay and a "MAPPING ASSISTANT" card (`web/v2/mapping-quality.js`).
+  - No motion, goals, places, map or parameter writes. SLAM, the acceptance gate, mux and Nav2 are unchanged.
+- **Tests (Jetson temp copy `/tmp/guided1b`, not the live tree):** written first (red: import errors), then green. 29 new; with the affected suites 83/83 OK. `py_compile` OK for status web, node and engine.
+- **Cost (offline, Jetson, bag `stage3_roundtrip8_20261116` + accepted map):** about 4.3 % of one core. Summary 76 ms median / 86 ms max every 2 s; payload <= 2.2 KB.
+- **Known limits / evidence gaps:**
+  - The light mapping profile pauses `atlas-astra-obstacles`, so live sessions have no depth source. The page states it. Changing that is a separate owner decision.
+  - The overlay JS was not executed (no Node.js on the Mac or the Jetson); it was checked statically only.
+  - The node was tested with stubbed rclpy/tf2. It has not run against live DDS.
+- **Deploy plan (needs owner "Yes, deploy"; rover parked, E-STOP latched, no mapping session):**
+  - Back up `atlas_status_web.py`, `atlas_map_quality_core.py` and `web/v2/mapping.html`.
+  - Copy the new and changed files, install and enable `atlas-guided-mapping`, then restart `rover-status-web`.
+  - Check `/api/map` has `mapping_quality` = inactive.
+  - The first real check is the next owner-driven mapping session.
+- Also noticed (not changed, not in scope): `web/v2/map-waypoints.js` still has a Hinglish link text ("kya rok raha hai / kaise kholein"), against the English-only dashboard rule.
+
 ### 2026-11-26 12:49 IST — Fusion forward fix DEPLOYED (owner "Yes, deploy" in this session); live status check PENDING
 
 - **Before (12:49:15):** ATLAS parked (motor speed 0), Manual (`manual_only` true, autonomy not armed), mission READY, no check running, camera 1801/1501. The fusion unit was inactive (no autonomy demand).

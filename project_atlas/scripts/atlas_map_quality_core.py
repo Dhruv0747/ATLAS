@@ -358,9 +358,10 @@ class QualityTracker:
     def _dist_to_path(self, x, y):
         return min((math.hypot(x - px, y - py) for px, py in self.path), default=float('inf'))
 
-    def summary(self, grid, robot=None, include_frontiers=True):
+    def summary(self, grid, robot=None, include_frontiers=True, frontiers=None):
         """{'tiles': [[ix, iy, code, reason]], 'counts', 'frontiers', 'prompts', 'ready', 'verdict_text'}.
-        code: 'A' accepted, 'W' weak (UNSEEN tiles are omitted). Text is English (dashboard rule)."""
+        code: 'A' accepted, 'W' weak (UNSEEN tiles are omitted). Text is English (dashboard rule).
+        frontiers: optional precomputed self.frontiers(grid) (the live node refreshes them less often)."""
         p = self.p
         corridor = self._corridor_tiles(grid)
         tiles, counts = [], {'ACCEPTED': 0, 'WEAK': 0, 'UNSEEN': 0}
@@ -375,7 +376,8 @@ class QualityTracker:
                 weak.append((key, reason))
         fronts = []
         if include_frontiers:
-            fronts = [f for f in self.frontiers(grid) if self._dist_to_path(f['x'], f['y']) <= p.frontier_near_m]
+            fronts = [f for f in (self.frontiers(grid) if frontiers is None else frontiers)
+                      if self._dist_to_path(f['x'], f['y']) <= p.frontier_near_m]
         prompts = []
         if robot is not None:
             rx, ry = robot[0], robot[1]

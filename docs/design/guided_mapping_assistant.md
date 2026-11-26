@@ -235,3 +235,26 @@ Evidence gap, to verify on the rover (read-only, parked): with `free_thresh: 0.2
 would load PGM value 205 as FREE (1 − 205/255 = 0.196 < 0.25). The replay therefore treats 205 explicitly as unknown. Whether
 the live `/map` shows 205 cells as −1 or 0 was not checked here; the guard's map-known-gaps logic and the costmaps depend
 on it.
+
+## 8. Phase 1b (2026-11-26, owner "Yes, start 1b") — DEPLOYED 13:31 (live mapping-session check pending)
+
+- `scripts/atlas_guided_mapping_engine.py` (pure): session handling (a new session id resets everything), CPU pause
+  (< 25 % idle, resume > 35 %; unknown CPU never pauses), compact payload (run-length tile rows, <= 4 KB, detail lists
+  trimmed first), English prompts and notes. The frontier scan (whole map) is refreshed at most every 5 s.
+- `scripts/atlas_guided_mapping.py` (node): subscriptions and the TF listener exist only while the session is `active`.
+  It publishes only `/atlas/mapping_quality`. Rates: scans <= 2 Hz, depth <= 2.5 Hz, ultrasonic <= 4 Hz, payload every 2 s.
+  Engine times are wall/ROS time (scan stamps); the monotonic clock only paces work.
+- `systemd/user/atlas-guided-mapping.service`: Nice 10, CPUQuota 15 %, CPUWeight 20, MemoryMax 250M.
+- `atlas_status_web.py`: `/api/map` gains `mapping_quality` (None when missing, older than 10 s or not schema 1).
+- `web/v2/mapping-quality.js` + one script tag in `web/v2/mapping.html`: overlay (green/amber tiles, cyan openings,
+  magenta objects) and a "MAPPING ASSISTANT" card. It makes no request of its own and is hidden outside a session.
+  No Node.js on the Mac or the Jetson, so the JS is checked statically only (read-only, English, escaping, fields).
+- Tests (Jetson copy `/tmp/guided1b`): engine 15, node with stubbed rclpy/tf2 6, web/overlay 8; with the affected suites
+  (quality core, invisible objects, replay, status-web plan, web v2, default route, systemd ordering, virtual obstacles)
+  83/83 OK.
+- Cost, measured offline on the Jetson (bag 8, real map, 29 min): scan 0.27 ms, depth 4.4 ms, ultrasonic 0.5 ms,
+  payload median 76 ms (max 86) every 2 s → about 4.3 % of one core; payload <= 2.2 KB.
+- Known limit: the light mapping profile pauses `atlas-astra-obstacles`, so during a mapping session the depth source
+  is absent and the page says so ("Depth camera: no data …"). Keeping Astra on while mapping is a separate owner
+  decision (CPU), not part of this change.
+- Not done: deploy (owner "Yes, deploy"; parked + E-STOP latched), a live mapping session check, commit/push ("Yes, push").

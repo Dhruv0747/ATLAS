@@ -244,6 +244,23 @@ def visible_plan(plan_item, goal_item, mission_item):
     return None
 
 
+MAPPING_QUALITY_MAX_AGE_S = 10.0
+
+
+def visible_mapping_quality(item):
+    """2026-11-26 guided mapping assistant (phase 1b): the latest /atlas/mapping_quality JSON (schema 1) for the
+    mapping page, or None when missing, stale (> 10 s; the node publishes every 2 s) or malformed. Read-only advice."""
+    if not item or item.get("age") is None or item["age"] > MAPPING_QUALITY_MAX_AGE_S:
+        return None
+    try:
+        value = json.loads(item.get("value") or "")
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(value, dict) or value.get("schema") != 1:
+        return None
+    return value
+
+
 def map_markers(map_meta=None):
     """Return poses belonging to the map currently shown by the dashboard."""
     markers = []
@@ -689,6 +706,8 @@ class AtlasRosNode:
             n.create_subscription(NavPath, "/plan", self._plan_cb, 10)
             n.create_subscription(PoseStamped, "/goal_pose", self._goal_cb, 10)
             n.create_subscription(String, "/atlas/mission_status", lambda m: self._set("mission_status", m.data), 10)
+            # 2026-11-26 guided mapping assistant (read-only advice, <= 4 KB every 2 s, only during mapping sessions)
+            n.create_subscription(String, "/atlas/mapping_quality", lambda m: self._set("mapping_quality", m.data), 1)
             n.create_subscription(String, "/camera/detections/json", self._ai_detections_cb, 10)
             n.create_subscription(Float32, "/steering/front_angle_deg", lambda m: self._set("front_steer", m.data), 10)
             n.create_subscription(Float32, "/steering/rear_angle_deg", lambda m: self._set("rear_steer", m.data), 10)
@@ -1123,6 +1142,8 @@ class AtlasRosNode:
                 "mission": item("mission_status"),
                 "localization": item("amcl_quality"),
             }
+            mapping_quality = item("mapping_quality")
+        result["mapping_quality"] = visible_mapping_quality(mapping_quality)
         result["markers"] = map_markers(meta)
         result["start_verdict"] = read_start_verdict(now)
         result["localization_check"] = read_localization_check(now)
