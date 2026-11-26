@@ -1,5 +1,21 @@
 # ATLAS current blockers
 
+### 2026-11-26 10:54 IST — Step 9 PASS (physical, owner-run; advisory only, no goals sent)
+
+- `semantic_check_20261126_105411.json`: **PASS**, all 9 checks YES, 10 frames. One stable object: bed at map (0.25, −4.92), seen 9/10, spread 0.008 m, confidence 0.68; advisory stop point (0.92, −5.14, 162°) written to `semantic_advisory.json`, NOT sent (tool has no Nav2/ROS/motion interface).
+- Board now: steps 4–9 PASS/DONE; next is step 10 (robot arm), NEEDS DEVELOPER (no owner test yet).
+
+### 2026-11-26 10:53 IST — Step 8 PASS (physical, owner-run)
+
+- `yolo_bench_20261126_105337.json`: **PASS**, no blockers. Existing TensorRT YOLO 9.9 inferences/s, p95 38 ms; CPU 63.5 → 65.7 %, peak temperature 59.4 °C; measured with the running navigation stack, all limits held. Step 9 unlocked.
+- 10:54 read-only pre-check for step 9: camera servo reads cam1_us=2300 cam2_us=1500 (= forward), AMCL xy_std 0.024 m / yaw_std 0.7° (localised).
+
+### 2026-11-26 10:52 IST — Step 7 PASS (physical, owner-run)
+
+- 10:46 owner step-7 run: parked part OK (39 samples, 5.6 Hz, p95 age 0.28 s, GOOD 100 %, drift 0.012 m / 0.33°, CPU 7.2 %) → NEEDS MOTION.
+- 10:48 owner Stage-2 turn check PASS (`turn_check_20261126_104821.json`): VO vs LiDAR-ICP left +24.5° vs +26.5°, 0.477 vs 0.443 m; right −25.7° vs −26.1°, 0.397 vs 0.419 m; never LOST (DEGRADED at arc end).
+- 10:52 owner step-7 run: **PASS** (`vo_shadow_check_20261126_105239.json`), all 11 checks YES; recorded on the board as step 7 PASS. VO stays shadow-only (feeds no EKF/Nav2). Step 8 unlocked.
+
 ### 2026-11-23 16:38 IST — Steps 8 and 9 checks DEPLOYED (owner "Yes, deploy")
 - **Before deploy:** no check was running and ATLAS was still. The live files equalled the previous deploy (master_plan c67ab9bb, steps.js e41127c9).
 - **Copied:** 5 files with md5 match: `yolo_benchmark.py`, `semantic_advisory_check.py`, `atlas_master_plan.py`, `atlas_autonomy_web.py`, `steps.js`.
