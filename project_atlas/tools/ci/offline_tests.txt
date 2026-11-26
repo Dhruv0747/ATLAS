@@ -25,6 +25,7 @@ tests.test_atlas_scan_geometry
 tests.test_atlas_scan_self_filter
 tests.test_atlas_usb_identity
 tests.test_atlas_vision_lidar_core
+tests.test_atlas_vision_lidar_camera_home
 tests.test_atlas_visual_cloud_core
 tests.test_atlas_visual_cloud_server
 tests.test_atlas_web_v2

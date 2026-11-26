@@ -1,5 +1,30 @@
 # ATLAS current blockers
 
+### 2026-11-26 12:49 IST — Fusion forward fix DEPLOYED (owner "Yes, deploy" in this session); live status check PENDING
+
+- **Before (12:49:15):** ATLAS parked (motor speed 0), Manual (`manual_only` true, autonomy not armed), mission READY, no check running, camera 1801/1501. The fusion unit was inactive (no autonomy demand).
+- **Backup:** `~/atlas_backups/backup_fusion_camhome_20261126_124925`. It holds the old fusion `99117df8…` and the old core `9467c75e…`. The live core differed from the candidate only by the added helpers.
+- **Copied 2 files only:** `atlas_vision_lidar_fusion.py` (`16258242…`) and `atlas_vision_lidar_core.py` (`c160b69c…`). The md5 matches. Both compile. Live `read_camera_home()` gives (1801, 1501), and `atlas_person_fusion_core` still imports.
+- **Restarted only `atlas-vision-lidar-fusion`** at 12:49:33 (NRestarts 0). Journal 12:49:36: `Camera forward = calibrated home pan 1801 us / tilt 1501 us`, then `fusion ready`.
+- **Not yet verified live:** feature-on-demand stopped the unit at 12:49:44 (`demand: {}`; Manual means no autonomy demand, as designed). A one-shot status read got no message. The state at pan 1801 is therefore proven only by the tests and the stubbed-node smoke run, not on the live topic.
+  - Verify on the next autonomy session: the journal must show the new home line. A status read must show `camera_forward: true` and `camera_home_us: [1801, 1501]`, with a state other than `SUSPENDED_CAMERA_NOT_FORWARD`. `AI_STALE` is expected while the annotator keeps stopping about 10 s after it starts.
+- **Rollback:** copy both files back from the backup, then `systemctl --user restart atlas-vision-lidar-fusion` (only when parked).
+- **Not changed:** Nav2 params, the mux, guards and limits, feature-on-demand, the step-9 files. Nothing committed or pushed.
+
+### 2026-11-26 IST — Fusion forward gate fixed to the calibrated camera home (owner "kar do fix"; BUILT, NOT deployed)
+
+- **Change:** `atlas_vision_lidar_fusion.py` no longer has `FORWARD_PAN_US = 2300` or `FORWARD_TILT_US = 1500`. Forward is now `read_camera_home()`, which reads camera-home.conf with the same keys as mission control `load_camera_home()` and step-9 `camera_home()`. The tolerance stays 90 µs pan / 180 µs tilt (unchanged).
+  - A missing or unreadable home gives `SUSPENDED_CAMERA_HOME_UNKNOWN`; forward is never assumed.
+  - `pan_us` and `tilt_us` start as `None`. Before, they started at the forward value. Servo feedback arrives periodically with every UNO hub sensor line.
+  - The file is re-checked by mtime once a second.
+  - The status JSON adds `camera_home_us`.
+  - The helpers are in `atlas_vision_lidar_core.py`. The change is additive only, and the core is also imported by person fusion and step 9.
+- **Not changed:** Nav2 params (`semantic_camera` stays out of `observation_sources`), the mux, guards and limits, the step-9 files, mission control.
+- **Tests (Jetson copy `/tmp/fusion_cand`):** the new `test_atlas_vision_lidar_camera_home` has 13 tests, red before the fix (import error) and green after. It passes together with `test_atlas_vision_lidar_core`, `test_atlas_person_fusion_core` and `test_perception_steps`: 35 OK.
+- **Node smoke (stubbed rclpy, no DDS participant):** no servo yet gives NOT_FORWARD. Pan 1801 gives ACTIVE with a chair confirmed at 1.45 m and 1 costmap point. Pan 2300 gives NOT_FORWARD with 0 points. A deleted home gives HOME_UNKNOWN. A home re-saved at 1850 gives ACTIVE with no restart.
+- **Expected after deploy (not verified):** the state during goals will mostly read `SUSPENDED_CAMERA_AI_STALE`, not ACTIVE. Feature-on-demand stops `atlas-ai-annotator` about 10 s after it starts (see the entry below). That reason is still open.
+- **Deploy needs owner "Yes, deploy":** copy the two scripts (back them up first), then `systemctl --user restart atlas-vision-lidar-fusion` while parked. Then read the status JSON once. The deploy is not done yet.
+
 ### 2026-11-26 ~11:55 IST — Live camera/LiDAR semantic fusion is OFF during goals (wrong forward constant). No effect on Nav2 today. Investigation only; nothing changed.
 
 - **Confirmed (code):** `atlas_vision_lidar_fusion.py` (live md5 `99117df8…` = repo) treats "forward" as `FORWARD_PAN_US = 2300` ±90 / tilt 1500 ±180. With the servo at the calibrated home 1801 (|Δ| = 499 µs), every 0.2 s tick publishes `state: SUSPENDED_CAMERA_NOT_FORWARD` on `/atlas/vision_navigation/status` and an **empty** `/camera/semantic_obstacles` cloud. Detections are never read. The node also starts with `pan_us = 2300`, so before the first servo message it assumes forward.

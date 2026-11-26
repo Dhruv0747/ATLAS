@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-26 — Camera/LiDAR semantic fusion forward fixed (DEPLOYED 12:49; live status check pending the next autonomy session). `atlas_vision_lidar_fusion.py` now takes "forward" from the calibrated camera home in `camera-home.conf` (the same file and keys as mission control and step 9; pan 1801 / tilt 1501 live). It used to take it from the constant 2300, so it was always SUSPENDED during goals. If the file is missing, the node never assumes forward (new state `SUSPENDED_CAMERA_HOME_UNKNOWN`). The servo pose starts unknown. A re-saved home is picked up within 1 s. The status JSON adds `camera_home_us`. The pure helpers `read_camera_home()` and `camera_forward_state()` are in `atlas_vision_lidar_core.py`. Nav2 is unchanged: `semantic_camera` stays out of `observation_sources`, and LiDAR stays the collision authority.
+
 2026-11-26 — Step 9 part B (DEPLOYED 12:25): when the 0.70 m stop point is not clear on the accepted map, it steps back along the line of sight (0.1 m steps, up to 1.3 m) to the first map-clear point; refuses with the map reason otherwise.
 
 2026-11-26 — Step 9 part B (DEPLOYED 12:00): an immediate mission-control refusal of our goal is now counted and shown (it was missed when QUEUED was never sampled); people and animals are never part-B goals.
