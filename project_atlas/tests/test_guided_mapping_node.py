@@ -19,7 +19,8 @@ class String:
 
 class FakeNode:
     def __init__(self, name):
-        self.name, self.pubs, self.subs, self.destroyed, self.timers, self.logs = name, [], [], [], [], []
+        self.name, self.pubs, self.created, self.destroyed, self.timers, self.logs = name, [], [], [], [], []
+        self.subs = []                        # the node under test keeps its ACTIVE subscriptions here
 
     def create_publisher(self, typ, topic, qos):
         pub = NS(typ=typ, topic=topic, sent=[])
@@ -29,7 +30,7 @@ class FakeNode:
 
     def create_subscription(self, typ, topic, cb, qos):
         s = NS(typ=typ, topic=topic, cb=cb)
-        self.subs.append(s)
+        self.created.append(s)
         return s
 
     def destroy_subscription(self, s):
@@ -105,18 +106,40 @@ class NodeTests(unittest.TestCase):
         self.assertEqual([p.topic for p in self.node.pubs], ['/atlas/mapping_quality'])
         self.assertEqual(self.node.timers[0][0], 1.0)
 
-    def test_idle_no_subscriptions_and_slow_publish(self):
+    def test_no_session_runs_the_saved_map_check(self):
+        """2026-11-26 (owner: "where can I see that the map needs updating"): outside a mapping session the node
+        checks the saved map (/map_nav = accepted map + confirmed virtual obstacles)."""
         for _ in range(12):
             self.tick()
-        self.assertEqual(self.node.subs, [])
-        self.assertEqual(len(self.node.pubs[0].sent), 2)                  # first tick + after 10 s
-        self.assertEqual(self.last_payload()['state'], 'inactive')
+        self.assertEqual(sorted(s.topic for s in self.node.subs), ['/amcl_pose', '/atlas/control_policy', '/map_nav', '/scan'])
+        self.assertEqual(len(self.node.pubs[0].sent), 6)                  # every 2 s
+        self.assertEqual(self.last_payload()['state'], 'waiting_for_map')
+        cbs = {s.topic: s.cb for s in self.node.subs}
+        cbs['/map_nav'](occ_msg(room()))
+        self.tick(2.0)
+        self.assertEqual(self.last_payload()['state'], 'map_check')
+
+    def test_autonomy_armed_pauses_map_check(self):
+        self.tick()
+        cbs = {s.topic: s.cb for s in self.node.subs}
+        cbs['/map_nav'](occ_msg(room()))
+        cbs['/atlas/control_policy'](NS(data=json.dumps({'autonomy': {'armed': True}})))
+        self.tick(2.0)
+        self.assertEqual(self.last_payload()['state'], 'map_check_paused')
+        cbs['/atlas/control_policy'](NS(data='{broken'))                 # unreadable: treated as armed (pause)
+        self.tick(2.0)
+        self.assertEqual(self.last_payload()['state'], 'map_check_paused')
+        cbs['/atlas/control_policy'](NS(data=json.dumps({'autonomy': {'armed': False}})))
+        self.tick(2.0)
+        self.assertEqual(self.last_payload()['state'], 'map_check')
 
     def test_session_lifecycle(self):
+        self.tick()                                                     # map-check mode first
         self.session.write_text(json.dumps({'id': 'abc', 'state': 'active'}))
         self.tick()
         self.assertEqual(sorted(s.topic for s in self.node.subs),
                          ['/astra/obstacle_scan', '/map', '/scan', '/ultrasonic/validity'])
+        self.assertEqual(len(self.node.destroyed), 4)                   # map-check subscriptions removed
         self.assertEqual(self.last_payload()['state'], 'waiting_for_map')
         cbs = {s.topic: s.cb for s in self.node.subs}
         g = room()
@@ -129,9 +152,9 @@ class NodeTests(unittest.TestCase):
         self.assertEqual(p['session_id'], 'abc')
         self.session.unlink()
         self.tick()
-        self.assertEqual(len(self.node.destroyed), 4)
-        self.assertEqual(self.tf.unregistered, 1)
-        self.assertEqual(self.node.subs, [])
+        self.assertEqual(len(self.node.destroyed), 8)                   # mapping subscriptions removed too
+        self.assertEqual(sorted(s.topic for s in self.node.subs), ['/amcl_pose', '/atlas/control_policy', '/map_nav', '/scan'])
+        self.assertEqual(self.tf.unregistered, 1)                       # TF listener only while mapping
 
     def test_scan_rate_is_limited(self):
         self.session.write_text(json.dumps({'id': 'abc', 'state': 'active'}))
@@ -164,6 +187,60 @@ class NodeTests(unittest.TestCase):
         jump_ts = [t.jump_t for t in self.node.engine.quality.tiles.values() if t.jump_t is not None]
         self.assertTrue(jump_ts)
         self.assertGreater(min(jump_ts), 1e9)                           # wall time, same clock as scan stamps
+
+
+class CheckPoseTests(NodeTests):
+    """Saved-map check uses /amcl_pose (no TF listener outside mapping sessions)."""
+    def amcl(self, t, x, y, yaw):
+        return NS(header=NS(stamp=NS(sec=int(t), nanosec=int((t % 1) * 1e9))),
+                  pose=NS(pose=NS(position=NS(x=x, y=y), orientation=NS(x=0.0, y=0.0, z=math.sin(yaw / 2),
+                                                                         w=math.cos(yaw / 2)))))
+
+    def test_scan_needs_fresh_amcl_pose(self):
+        self.tick()
+        self.assertIsNone(self.node.tf_listener)
+        cbs = {s.topic: s.cb for s in self.node.subs}
+        g = room()
+        cbs['/map_nav'](occ_msg(g))
+        cbs['/atlas/control_policy'](NS(data=json.dumps({'autonomy': {'armed': False}})))
+        t = self.wall[0]
+        cbs['/scan'](scan_msg(t, simulate(g, (1.0, 1.5, 0.0))))                    # no AMCL pose yet
+        self.assertEqual(self.node.monitor.used, 0)
+        cbs['/amcl_pose'](self.amcl(t - 2.0, 1.0, 1.5, 0.0))                     # too old
+        self.mono[0] += 1.1
+        cbs['/scan'](scan_msg(t + 1.1, simulate(g, (1.0, 1.5, 0.0))))
+        self.assertEqual(self.node.monitor.used, 0)
+        cbs['/amcl_pose'](self.amcl(t + 2.1, 1.0, 1.5, 0.0))                     # fresh
+        self.mono[0] += 1.1
+        cbs['/scan'](scan_msg(t + 2.2, simulate(g, (1.0, 1.5, 0.0))))
+        self.assertEqual(self.node.monitor.used, 1)
+
+    def test_policy_parser(self):
+        self.assertTrue(node_mod.autonomy_armed(None))
+        self.assertTrue(node_mod.autonomy_armed('{"autonomy": {}}'))
+        self.assertFalse(node_mod.autonomy_armed('{"autonomy": {"armed": false}}'))
+
+
+class ScanDropTests(NodeTests):
+    """Owner 2026-11-26: while autonomy is armed the saved-map check drops /scan and /amcl_pose (rclpy would decode
+    every 7 Hz scan only to skip it); they come back when autonomy is off."""
+    def test_scan_and_amcl_dropped_while_armed(self):
+        self.tick()
+        cbs = {s.topic: s.cb for s in self.node.subs}
+        cbs['/atlas/control_policy'](NS(data=json.dumps({'autonomy': {'armed': True}})))
+        self.assertEqual(sorted(s.topic for s in self.node.subs), ['/atlas/control_policy', '/map_nav'])
+        self.assertEqual(sorted(s.topic for s in self.node.destroyed), ['/amcl_pose', '/scan'])
+        cbs['/atlas/control_policy'](NS(data=json.dumps({'autonomy': {'armed': True}})))   # repeat: no churn
+        self.assertEqual(len(self.node.destroyed), 2)
+        cbs['/atlas/control_policy'](NS(data=json.dumps({'autonomy': {'armed': False}})))
+        self.assertEqual(sorted(s.topic for s in self.node.subs), ['/amcl_pose', '/atlas/control_policy', '/map_nav', '/scan'])
+
+    def test_mapping_mode_ignores_policy(self):
+        self.session.write_text(json.dumps({'id': 'abc', 'state': 'active'}))
+        self.tick()
+        before = sorted(s.topic for s in self.node.subs)
+        self.node.on_policy(NS(data=json.dumps({'autonomy': {'armed': True}})))
+        self.assertEqual(sorted(s.topic for s in self.node.subs), before)
 
 
 if __name__ == '__main__':

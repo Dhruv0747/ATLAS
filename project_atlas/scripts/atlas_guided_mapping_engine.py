@@ -246,3 +246,117 @@ class GuidedMappingEngine:
             while len(json.dumps(out, separators=(',', ':'))) > MAX_PAYLOAD_BYTES and out[key]:
                 out[key] = out[key][:-1]
         return out
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# 2026-11-26 saved-map check (owner: "where can I see that the map is ok or needs updating"). Outside mapping sessions:
+# LiDAR returns on cells the SAVED map calls free (no mapped wall within 2 cells), seen from >= 2 positions, are shown
+# as "Map change N" boxes. The map is /map_nav (accepted map + owner-confirmed virtual obstacles), so confirmed objects
+# are not reported again. A frame counts only while the scan fits the map (>= 85 % of returns within 0.15 m, the
+# scan-fit gate's bar): a wrong position must not look like a changed room. Paused while autonomy is armed (drive CPU
+# budget) and when the CPU is busy. Evidence is in memory only and resets when the map changes or the node restarts.
+# ---------------------------------------------------------------------------------------------------------------------
+MAP_CHECK_FIT_MIN = 0.85
+MAP_CHECK_PERIOD_S = 1.0
+MAP_CHECK_MAX_CELLS = 60000
+MAP_CHECK_NOTE = 'Checked only while the LiDAR scan fits the saved map (at least 85 %)'
+
+
+class MapChangeMonitor:
+    def __init__(self, max_cells=MAP_CHECK_MAX_CELLS, fit_min=MAP_CHECK_FIT_MIN, period_s=MAP_CHECK_PERIOD_S):
+        self.max_cells, self.fit_min, self.period_s = max_cells, fit_min, period_s
+        self.grid = None
+        self.map_key = None
+        self.armed = False
+        self.paused = False
+        self._reset()
+
+    def _reset(self):
+        self.changes = ioc.InvisibleObjects(ioc.MAP_CHANGE_POLICY)
+        self.last_t = None
+        self.used = 0
+        self.skipped = 0
+        self.viewpoints = set()                # distinct positions (0.3 m / 30 deg buckets) of the frames used
+
+    def on_map(self, grid: mq.Grid):
+        key = (grid.w, grid.h, round(grid.res, 6), round(grid.ox, 4), round(grid.oy, 4), hash(tuple(grid.data)))
+        if key != self.map_key:
+            self.map_key = key
+            self._reset()
+        self.grid = grid
+
+    def set_autonomy_armed(self, armed):
+        self.armed = bool(armed)
+
+    def on_cpu_idle(self, idle):
+        if idle is None or not _finite(idle):
+            self.paused = False
+        elif idle < CPU_PAUSE_BELOW:
+            self.paused = True
+        elif idle > CPU_RESUME_ABOVE:
+            self.paused = False
+
+    def on_scan(self, t, pose, angle_min, angle_increment, ranges, range_min, range_max):
+        if self.grid is None or self.armed or self.paused or pose is None or not _finite(t, *pose):
+            return False
+        if self.last_t is not None and t - self.last_t < self.period_s:
+            return False
+        self.last_t = t
+        _, pts = mq.scan_endpoints(pose, ioc.LASER_IN_BASE, angle_min, angle_increment, ranges,
+                                   max(range_min, 0.15), range_max, step=2, max_range=6.0)
+        fit = mq.scan_fit(self.grid, pts)
+        if fit is None or fit < self.fit_min:
+            self.skipped += 1
+            return False
+        self.changes.add_unmapped_lidar(t, pose, angle_min, angle_increment, ranges, range_min, range_max, self.grid,
+                                        ioc.LASER_IN_BASE)
+        self.used += 1
+        if len(self.viewpoints) < 10000:
+            self.viewpoints.add(self.changes._vp(pose))
+        self._prune()
+        return True
+
+    def _prune(self):
+        cells = self.changes.cells
+        if len(cells) <= self.max_cells:
+            return
+        for k in [k for k, c in cells.items() if c[0] <= 1.0]:
+            del cells[k]
+        if len(cells) > self.max_cells:
+            keep = sorted(cells.items(), key=lambda kv: -kv[1][0])[:self.max_cells]
+            self.changes.cells = dict(keep)
+
+    def payload(self, now):
+        base = {'schema': SCHEMA, 'session_id': None, 'samples': 0, 'ready': False, 'prompts': [],
+                'notes': [MAP_CHECK_NOTE], 'counts': {'frames_used': self.used, 'frames_skipped_fit': self.skipped,
+                           'positions': len(self.viewpoints)},
+                'tile_m': 0.5, 'rows': [], 'weak': [], 'frontiers': [], 'objects': [], 'map_changes': []}
+        if self.grid is None:
+            return dict(base, state='waiting_for_map', verdict_text='Saved map check: waiting for the saved map')
+        if self.paused:
+            return dict(base, state='paused_cpu',
+                        verdict_text='Saved map check paused: the rover CPU is busy (idle below 25 %)')
+        if self.armed:
+            return dict(base, state='map_check_paused',
+                        verdict_text='Saved map check paused while autonomy is on (drive CPU budget)')
+        found = [{'name': c['name'].replace('Candidate', 'Map change'), 'polygon': c['polygon'],
+                  'area_m2': c['evidence']['area_m2']} for c in self.changes.candidates()[:MAX_OBJECTS]]
+        n = len(found)
+        if n:
+            text = f"{n} place{'s' if n != 1 else ''} look{'s' if n == 1 else ''} different from the saved map"
+            prompts = [f"Map out of date here: {found[0]['name']} (update the map, or confirm it as a fixed object)"]
+        elif len(self.viewpoints) == 1:
+            # 2026-11-26 owner: parked scans are ONE position (a change needs >= 2 viewpoints to be reported at all)
+            text, prompts = 'Saved map matches so far (checked from 1 position only: drive around to check more)', []
+        elif self.used:
+            text, prompts = (f'Saved map matches what the LiDAR sees (checked from {len(self.viewpoints)} '
+                             f'positions)'), []
+        elif self.skipped:
+            text, prompts = ('Saved map check: the position does not match the map well enough to judge '
+                             '(LiDAR fit below 85 %)'), []
+        else:
+            text, prompts = 'Saved map check: drive around to check the map', []
+        out = dict(base, state='map_check', verdict_text=text, prompts=prompts, map_changes=found)
+        while len(json.dumps(out, separators=(',', ':'))) > MAX_PAYLOAD_BYTES and out['map_changes']:
+            out['map_changes'] = out['map_changes'][:-1]
+        return out

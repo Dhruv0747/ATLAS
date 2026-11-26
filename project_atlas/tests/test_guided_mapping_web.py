@@ -62,6 +62,19 @@ class OverlayTests(unittest.TestCase):
     def test_overlay_only_when_mapping(self):
         self.assertRegex(JS, r"q\.state\s*!==\s*'active'|q\.state\s*===\s*'inactive'")
 
+    def test_saved_map_check_view(self):
+        """2026-11-26 owner: "where can I see that the map needs updating" -> orange map-change boxes + card."""
+        self.assertIn('SAVED MAP CHECK', JS)
+        self.assertIn('map_changes', JS)
+        self.assertRegex(JS, r"q\.state\s*===\s*'map_check'")
+        self.assertIn('Orange = the LiDAR keeps seeing something the saved map does not have', JS)
+
+
+class PositionsUiTests(unittest.TestCase):
+    def test_card_shows_positions_and_scans(self):
+        self.assertIn('c.positions', JS)
+        self.assertIn('scans used', JS)
+
 
 if __name__ == '__main__':
     unittest.main()

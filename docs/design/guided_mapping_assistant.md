@@ -258,3 +258,12 @@ on it.
   is absent and the page says so ("Depth camera: no data …"). Keeping Astra on while mapping is a separate owner
   decision (CPU), not part of this change.
 - Not done: deploy (owner "Yes, deploy"; parked + E-STOP latched), a live mapping session check, commit/push ("Yes, push").
+
+## 9. Saved-map check (2026-11-26, owner "Yes, build it") — DEPLOYED 17:02
+
+Outside mapping sessions the same node answers "is my saved map still right?". The map-change layer of section 3.3b
+runs live against `/map_nav` (accepted map + confirmed virtual obstacles), with the pose from `/amcl_pose` (a scan counts
+only with an AMCL pose within 0.5 s). A frame is used only while the scan fits the map (at least 85 % within 0.15 m), so
+a localization error is never reported as a changed room. It is paused while autonomy is armed and when the CPU is
+busy. The mapping page shows a "SAVED MAP CHECK" card with orange "Map change N" boxes and the advice "update the map,
+or confirm it as a fixed object". Cost on bag 8: about 0.4 % of one core. Details and evidence: blockers log, 2026-11-26.

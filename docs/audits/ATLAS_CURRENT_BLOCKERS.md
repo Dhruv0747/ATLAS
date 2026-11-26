@@ -1,5 +1,79 @@
 # ATLAS current blockers
 
+### 2026-11-26 17:09 IST — Saved-map check fixes DEPLOYED (owner "Yes, deploy")
+
+- **Preflight passed** (no session, no goal, E-STOP latched, Manual).
+- **Backup and rollback:** `~/atlas_backups/backup_guided_20261126_170936`.
+- **Live md5:**
+
+| File | md5 |
+|---|---|
+| `atlas_guided_mapping_engine.py` | e79468cf… |
+| `atlas_guided_mapping.py` | b366c502… |
+| `mapping-quality.js` | 0072471c… |
+| `mapping.html` | 28660c5d… (`?v=20261126c`) |
+
+- **Verified live (parked):** "Saved map matches so far (checked from 1 position only: drive around to check more)"; counts: 11 frames used, 0 skipped, 1 position. Log: "mode: saved-map check", no errors. E-STOP still latched, Manual, autonomy not armed.
+- **CPU with autonomy off:** 3.55 % of one core (unchanged, as expected).
+- **Not verified:** the drop of `/scan` + `/amcl_pose` while autonomy is armed (unit-tested only). Measure it during the next armed session: the node should fall to about the idle cost.
+
+### 2026-11-26 IST — Saved-map check: "positions" wording + /scan dropped while autonomy is armed (owner "Yes, fix both"; BUILT, NOT deployed)
+
+- **Wording:** the check now counts distinct positions (0.3 m / 30° buckets) separately from scans.
+  - Parked: "Saved map matches so far (checked from 1 position only: drive around to check more)". Before, it said "checked from 9 positions" for 9 scans from one spot.
+  - The card shows "Positions checked · scans used · skipped".
+- **CPU while driving:** in saved-map mode, `/scan` and `/amcl_pose` are unsubscribed while autonomy is armed, or while the control policy is unreadable, and come back when it is off. Before, rclpy decoded every 7 Hz scan only to skip it (3.5 % of one core measured live). `/map_nav` and `/atlas/control_policy` stay. Mapping-session mode ignores the policy.
+- **Tests (Jetson copy):** 2 new monitor tests, 2 node tests, 1 page test; affected suites 106/106 OK.
+  - Fixed in the test stub: the fake ROS node and the node under test shared the attribute name `subs`, which double-counted subscriptions in tests only.
+- **Not done:** deploy (owner "Yes, deploy"; E-STOP latched), then measure the node's CPU parked and armed.
+
+### 2026-11-26 17:02 IST — Saved-map check DEPLOYED (owner "Yes, deploy" in this session)
+
+- **Preflight passed:** no mapping session, no Nav2 goal, E-STOP latched, Manual.
+- **Backup:** `~/atlas_backups/backup_guided_20261126_170202` (holds the previous live versions, the unit and the script). Rollback: `bash ~/atlas_backups/backup_guided_20261126_170202/deploy_guided_1b.sh --rollback ~/atlas_backups/backup_guided_20261126_170202`.
+- **Live md5:**
+
+| File | md5 |
+|---|---|
+| `atlas_guided_mapping_engine.py` | 53ae61c8… |
+| `atlas_guided_mapping.py` | 38244df5… |
+| `mapping-quality.js` | 9fee04a6… |
+| `mapping.html` | 1b6c02af… |
+
+- Status web unchanged (ab4fa980…). Restarted `atlas-guided-mapping` and `rover-status-web`.
+- **Verified live:**
+  - First payload `paused_cpu`: the restart burst.
+  - About 30 s later: `map_check`, "Saved map matches what the LiDAR sees", 9 frames used, 0 skipped (rover parked).
+  - System idle 36 %. Node log: "mode: saved-map check", no errors.
+  - E-STOP still latched; Manual.
+- **Measured cost: 3.5 % of one core (≈0.6 % of the 6-core CPU), above the 0.4 % replay estimate.** rclpy decodes every `/scan` (7 Hz) and `/atlas/control_policy` (10 Hz) message even though the check uses 1 Hz. The subscriptions stay while autonomy is armed (only the work pauses). Possible improvement: drop the `/scan` subscription while armed.
+- **Wording issue:** while parked, the verdict says "checked from N positions", but these are N scans from one position. Map changes still need at least 2 different viewpoints. Text fix pending.
+- **Not verified yet:** a real "Map change" box while driving.
+
+### 2026-11-26 IST — Saved-map check ("map out of date here") BUILT (owner "Yes, build it"; NOT deployed)
+
+- **Owner request:** "where can I see that the map is ok or needs updating". Before this, the live dashboard showed map quality only during mapping sessions. The out-of-date map evidence existed only in the offline replay tool.
+- **What:** outside mapping sessions, `atlas_guided_mapping.py` now runs a saved-map check (`MapChangeMonitor` in `atlas_guided_mapping_engine.py`).
+  - LiDAR returns on cells the saved map calls free, with no mapped wall within 2 cells and seen from at least 2 positions, become "Map change N" boxes.
+  - The mapping page card is titled "SAVED MAP CHECK" and draws the boxes in orange.
+- **False-alarm guards:**
+  - A frame counts only while the scan fits the map (at least 85 % of returns within 0.15 m), so a wrong position is never shown as a changed room. Tested: 0 frames used with a 0.45 m / 14° pose error.
+  - It uses `/map_nav` (accepted map plus owner-confirmed virtual obstacles), so the sofa, table and cabinets are not reported again.
+  - It uses `/amcl_pose` and counts a scan only with an AMCL pose within 0.5 s. There is no TF listener in this mode; TF exists only during mapping sessions.
+  - It pauses while autonomy is armed (or the control policy is unreadable) and when CPU idle is below 25 %.
+  - Evidence is in memory only (capped at 60 000 cells) and resets on a map change or restart.
+- **Read-only** as before: it publishes only `/atlas/mapping_quality`.
+- **Tests (Jetson copy):** `test_map_change_monitor` 10, node tests updated for the two modes plus the AMCL pairing. Together with the affected suites: 94/94 OK.
+- **Bag-8 replay as live** (accepted map plus virtual obstacles, `/amcl_pose`, 1 Hz):
+  - Cost: 2.9 ms per check, about 0.4 % of one core; payload 543 B.
+  - 693 positions used and 1 skipped.
+  - Result: "1 place looks different from the saved map", Map change 1 at x −0.3…0.25, y 2.2…2.55 (Dhruv Room; the offline replay found the same spot). The sofa corner is no longer reported because it is a confirmed virtual obstacle.
+- **Deploy script fixed for upgrades:**
+  - `deploy_guided_1b.sh` now restarts `atlas-guided-mapping`. Before, it used only `enable --now`, which would have kept the old code running.
+  - It backs up every file and the unit, and rollback restores the previous state exactly. Older backup layouts are handled too.
+  - Sandbox test (fake dirs, stub systemctl/curl, live untouched): upgrade+rollback, first install+rollback, refusal during a mapping session, old-layout backup: ALL PASS.
+- **Not done:** deploy (needs owner "Yes, deploy"; parked, E-STOP latched); a live check while driving.
+
 ### 2026-11-26 16:15 IST — Guided mapping assistant phase 1b RE-DEPLOYED (owner "yes depay" in this session)
 
 - **Before:**
