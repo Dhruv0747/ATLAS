@@ -1,5 +1,34 @@
 # ATLAS current blockers
 
+### 2026-11-26 16:15 IST — Guided mapping assistant phase 1b RE-DEPLOYED (owner "yes depay" in this session)
+
+- **Before:**
+  - Read-only review of 13:31–16:09: no fault found. The node log was clean, it used 37.7 s of CPU in 2.6 h (≈0.4 %), and no mapping session ran.
+  - The card stayed hidden: `base.css` has `[hidden]{display:none!important}`.
+  - The only dashboard error was one BrokenPipe on a USB-power-monitor request, unrelated.
+  - The owner gave no reason for the rollback.
+- **Deploy:** staging refreshed and 73 affected tests OK on the Jetson copy. Preflight passed (no session, no goal, E-STOP latched, Manual).
+  - Same files and md5s as 13:31.
+  - Backup and rollback script: `~/atlas_backups/backup_guided1b_20261126_161501`.
+- **Verified:**
+  - Both units active.
+  - `/api/map` `mapping_quality` = inactive.
+  - `/v2/mapping-quality.js` and `/v2/mapping` HTTP 200.
+  - E-STOP still latched and Manual afterwards.
+- **Pending:** the first owner-driven mapping session (the live behaviour check).
+
+### 2026-11-26 16:09 IST — Guided mapping assistant phase 1b ROLLED BACK (owner ran the rollback command)
+
+- **Trigger:** the owner typed the rollback command, then "Try again". The first try ran on the Mac, where the backup path does not exist, and failed. No reason was given.
+- **Before:** no mapping session; Nav2 goal not active; mission READY; E-STOP latched; Manual.
+- **Ran on the Jetson:** `bash ~/atlas_backups/backup_guided1b_20261126_133113/deploy_guided_1b.sh --rollback ~/atlas_backups/backup_guided1b_20261126_133113`.
+  - Unit `atlas-guided-mapping` disabled, stopped and removed.
+  - Removed: `atlas_guided_mapping*.py`, `atlas_map_quality_core.py`, `atlas_invisible_objects_core.py` (none were on the rover before 13:31), and `mapping-quality.js`.
+  - Restored: `atlas_status_web.py` (md5 28dd4ca1…) and `mapping.html` (md5 5cf82520…), identical to before the deploy.
+  - Restarted: only `rover-status-web`.
+- **Verified:** `rover-status-web` active; `atlas-guided-mapping` inactive; `/api/map` no longer has `mapping_quality`; `/v2/mapping` HTTP 200.
+- **Repo:** the code stays in local commit 60e483d (not pushed). The live rover no longer matches that commit for these files.
+
 ### 2026-11-26 13:31 IST — Guided mapping assistant phase 1b DEPLOYED (owner "Yes, deploy" in this session)
 
 - **Before:**
