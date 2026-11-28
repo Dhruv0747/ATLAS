@@ -745,6 +745,8 @@ class AtlasRosNode:
             n.create_subscription(NavPath, "/plan", self._plan_cb, 10)
             n.create_subscription(PoseStamped, "/goal_pose", self._goal_cb, 10)
             n.create_subscription(String, "/atlas/mission_status", lambda m: self._set("mission_status", m.data), 10)
+            # 2026-11-28 home "Why isn't ATLAS moving?": the mux's own stop reason, read-only, newest only (status group)
+            n.create_subscription(String, "/atlas/motion_safety", lambda m: self._set("motion_safety", m.data), 1)
             # 2026-11-26 guided mapping assistant (read-only advice, <= 4 KB every 2 s, only during mapping sessions)
             n.create_subscription(String, "/atlas/mapping_quality", lambda m: self._set("mapping_quality", m.data), 1)
             n.create_subscription(String, "/camera/detections/json", self._ai_detections_cb, 10)

@@ -267,6 +267,33 @@ class AutonomyWebTests(unittest.TestCase):
             web.SEMANTIC_GO, atlas_master_plan.evaluate, web.subprocess.Popen = old, old_ev, old_popen
             web._SGO['proc'] = None
 
+    def test_why_endpoint_reads_three_topics_and_next_step(self):
+        """2026-11-28 home 'Why isn't ATLAS moving?': GET /api/why, read-only, newest mux reason + board next step."""
+        import atlas_master_plan
+        now = time.time()
+        items = {'control_policy': {'value': json.dumps({'autonomy': {'armed': True}, 'stop_latched': False}), 'ts': now},
+                 'motion_safety': {'value': 'LIDAR AVAILABILITY STOP: unobserved motion sector (2 bins)', 'ts': now},
+                 'mission_status': {'value': 'NAMED GOAL ACCEPTED name=hall', 'ts': now}}
+        r = types.SimpleNamespace(_item=items.get)
+        old_ev, old_next = atlas_master_plan.evaluate, dict(web._NEXT)
+        try:
+            atlas_master_plan.evaluate = lambda *a, **k: {'next_step': {'text': 'Do step 9', 'href': '/v2/steps?n=9'}}
+            web._NEXT.update(t=0.0, v=None)
+            h = Handler('/api/why')
+            self.assertTrue(web.serve(h, r))
+            d = h.json()
+            self.assertEqual(h.code, 200)
+            self.assertEqual(d['why']['level'], 'stop')
+            self.assertIn('LiDAR', d['why']['title'])
+            self.assertEqual(d['next']['href'], '/v2/steps?n=9')
+            items['motion_safety']['ts'] = now - 10                 # an old reason is not shown as current
+            web._NEXT.update(t=0.0, v=None)
+            self.assertIn('Driving to hall', web.why_payload(r)['why']['title'])
+            self.assertEqual(web.why_payload(types.SimpleNamespace(_item=lambda k: None))['why']['level'], 'unknown')
+        finally:
+            atlas_master_plan.evaluate = old_ev
+            web._NEXT.clear(); web._NEXT.update(old_next)
+
     def test_unrelated_paths_not_served(self):
         self.assertFalse(web.serve(Handler('/api/status'), ros(None)))
 

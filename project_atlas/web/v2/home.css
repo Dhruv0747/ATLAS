@@ -158,3 +158,24 @@
 @media (max-width:380px){.hm-cards{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){.hm-drawer>summary::before{transition:none}}
 .lite .hm-card{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(11,26,43,.95)}
+
+/* ---- 2026-11-28 "Next step" banner + "Why isn't ATLAS moving?" card (why-card.js, read-only) ---- */
+.hm-guide{display:grid;gap:10px;order:0}
+.hg-next{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:12px 16px;border-radius:16px;
+  border:1px solid var(--sky);background:rgba(31,95,174,.22);color:var(--ink)}
+.hg-k{font:800 13px system-ui;letter-spacing:.08em;text-transform:uppercase;color:var(--sky)}
+.hg-t{flex:1 1 260px;font-size:17px;line-height:1.35}
+.hg-btn{padding:10px 16px;border-radius:12px;background:#1f5fae;color:#fff;font-weight:700;text-decoration:none;white-space:nowrap}
+.hg-why{display:flex;gap:14px;align-items:flex-start;padding:14px 16px;border-radius:16px;border:1px solid var(--line);
+  background:rgba(11,26,43,.85);color:var(--ink)}
+.hg-badge{flex:0 0 auto;padding:6px 12px;border-radius:999px;font:800 13px system-ui;letter-spacing:.06em;background:#2a3b4d;color:#fff}
+.hg-body{min-width:0;display:grid;gap:4px}
+.hg-title{font-size:19px;font-weight:700;line-height:1.3}
+.hg-fix{font-size:16px;line-height:1.4;color:var(--mute)}
+.hg-more summary{cursor:pointer;color:var(--mute);font-size:14px}
+.hg-more div{font-size:13px;color:var(--mute);word-break:break-word;margin-top:4px}
+.hg-why[data-level="ok"]{border-color:#2e8b57}.hg-why[data-level="ok"] .hg-badge{background:#1d6b43}
+.hg-why[data-level="wait"]{border-color:#d9a520;background:rgba(58,42,8,.85)}.hg-why[data-level="wait"] .hg-badge{background:#9a6f0c}
+.hg-why[data-level="stop"]{border-color:#e0485e;background:rgba(92,20,32,.85)}.hg-why[data-level="stop"] .hg-badge{background:#b3263b}
+.hg-why[data-level="stop"] .hg-fix,.hg-why[data-level="wait"] .hg-fix{color:#fff}
+@media (max-width:720px){.hg-why{flex-direction:column;gap:8px}.hg-title{font-size:17px}}

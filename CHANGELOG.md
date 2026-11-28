@@ -1,5 +1,9 @@
 # Changelog
 
+2026-11-28 — Voice narrator says the exact stop/refusal reason (side, distance, sensor, refusal kind) and what to do, in Hindi; repeats suppressed per reason (built, NOT deployed).
+
+2026-11-28 — Home "Next step" banner and "Why isn't ATLAS moving?" card (built, NOT deployed): plain-English reason + fix from the mux policy, the mux safety text and the mission status (/api/why, read-only; one new read-only /atlas/motion_safety subscription in the status web).
+
 2026-11-26 — Extend-map sessions (DEPLOYED 17:44, owner "Yes, deploy"; first extend drive pending). Mission control `/atlas/start_extend_mapping` starts a mapping session that is refused unless the LiDAR check is VERIFIED. It keeps the saved home and seed, and at stop it only saves the piece and an extend request; it never promotes. The new `atlas-map-extend-job` builds the preview and, only when all checks pass, a candidate map; it never writes the saved map. The dashboard Mapping page shows a "MAP EXTENSION PREVIEW" card (`/api/map_extend`, `/map_extend_preview.png`). Normal mapping sessions are unchanged.
 
 2026-11-26 — Add-only map extension, offline core (BUILT, not integrated). `atlas_map_extend_core.py` aligns a new SLAM piece to the saved map and fills only saved-unknown cells: saved cells are copied bit-exact, and the count of changed saved cells is checked to be 0. It refuses a poor fit, walls in saved free space, nothing new, or added space that is not reachable. `tools/mapping/extend_map.py` writes a candidate map, a preview PNG and a JSON report, never the live map. Real-data check: remap 10 vs the accepted map gives 97.1 % match and 0 saved cells changed; a wrong start is refused.

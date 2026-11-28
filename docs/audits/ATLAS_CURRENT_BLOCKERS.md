@@ -1,5 +1,41 @@
 # ATLAS current blockers
 
+### 2026-11-28 IST — Voice narrator speaks the EXACT reason + what to do (BUILT, NOT deployed; Jetson off)
+
+- **Owner (2026-11-28):** "audio only keeps saying one thing … I need the exact reason spoken, not one or two recordings, easy to understand."
+- **Found:** `atlas_autonomy_voice_core.py` had fixed sentences. Every unmatched mission refusal (for example the 2026-11-26 12:27 "start pose not clear") was spoken as the bare "यह काम नहीं हो पाया।" ("it could not be done"). Obstacle stops gave neither side nor distance.
+- **Change** (speech only; the node, topics, rate limits and the quiet-after-goal rule are unchanged):
+  - side + distance ("आगे 18 सेंटीमीटर पर कुछ है … रास्ता साफ़ होते ही खुद चलूँगा");
+  - which ultrasonic sensor;
+  - the LiDAR blind-spot fix;
+  - three different localisation sentences (jump / stale / uncertain);
+  - encoder stop and radar slow-down;
+  - E-STOP with how to release it;
+  - specific refusals: start pose not clear, target near a wall, BUSY, localisation, scan mismatch, camera;
+  - named-place arrival and no-path;
+  - an unknown refusal now points to the dashboard Why card.
+  - Repeat suppression is now per reason, so a changing distance is not re-spoken every 4 s.
+- **Tests:** `tests.test_autonomy_voice` 19/19 (11 old + 8 new) on the Mac; with the why-core and web tests, 47 OK. Not heard on the rover yet.
+- **Follow-up (owner: "one two three, not ek do teen; right and left, not daayein/baayein"):** distances are spoken as English number words ("eighteen centimeter", `number_words()`), sides as "left side" / "right side", and no digits remain in spoken distances. 20/20 voice tests; 48 OK in total. Not verified: how the companion TTS pronounces the Latin words.
+- **Follow-up 2 (owner: "use Hinglish, not pure Hindi"):** every spoken sentence now keeps Hindi grammar but uses the everyday English words in Latin script (path, sensor, data, location, map, wall, furniture, open, goal, cancel, remote, camera, check, clear, slow, Front / Back / Left side / Right side), for example "Front में eighteen centimeter पर कुछ है, इसलिए मैं रुक गया हूँ। Path clear होते ही खुद चलूँगा।". Voice tests 21/21; 49 OK in total.
+
+- **Deploy later** (owner "Yes, deploy", rover parked): `scripts/atlas_autonomy_voice_core.py`, then restart `atlas-autonomy-voice`.
+
+### 2026-11-28 IST — Home "Next step" + "Why isn't ATLAS moving?" cards BUILT (NOT deployed; Jetson off; owner: "Next-step + why-stopped")
+
+- **Why:** on 2026-11-26 the owner repeatedly could not see what to do next, or why ATLAS did not move. The page said TIMEOUT or REFUSED and the owner had to ask in chat.
+- **What:**
+  - `scripts/atlas_why_core.py` (pure) turns `/atlas/control_policy`, `/atlas/motion_safety` (fresh ≤ 1.5 s) and `/atlas/mission_status` into one English line with a fix and a level: stop / your turn / OK / no data.
+  - It covers E-STOP, LiDAR availability, ultrasonic, localisation, encoder and too-close stops, plus radar slow-down and degraded speed (OK with a note).
+  - It also covers mission-control refusals (start pose not clear, target not clear, localisation, camera obstacles), Nav2 status 6, a goal while in Manual, and the idle states (showing arm blockers).
+  - `GET /api/why` in `atlas_autonomy_web.py` adds the board `next_step` (cached 5 s).
+  - `atlas_status_web.py` gains ONE read-only subscription, `/atlas/motion_safety` (status group, depth 1).
+  - Home: `web/v2/why-card.js` adds a banner and card at the top of `index.html`, with styles in `home.css`. It adds no control action.
+- **Checked (offline only):**
+  - `tests.test_why_core` 12/12 plus the new `/api/why` test. `test_autonomy_web` and `test_master_plan` pass on the Mac (36 tests). `atlas_status_web.py` compiles.
+  - A local preview with fake data shows the stop, your-turn and OK states, desktop and phone width, with no console errors.
+- **Not checked:** the live rover (Jetson off). The deploy needs the Jetson on, the rover parked, the owner's "Yes, deploy", and a `rover-status-web` restart for the new subscription.
+
 ### 2026-11-26 18:02–18:04 IST — Localization recovered after the reboot (owner "Yes, restart it")
 
 - **Preflight:** stop latched, Manual, mission READY, no Nav2 goal, no mapping session file.
@@ -233,6 +269,21 @@
   - Check `/api/map` has `mapping_quality` = inactive.
   - The first real check is the next owner-driven mapping session.
 - Also noticed (not changed, not in scope): `web/v2/map-waypoints.js` still has a Hinglish link text ("kya rok raha hai / kaise kholein"), against the English-only dashboard rule.
+
+### 2026-11-26 ~12:55 IST — Why the AI annotator stops ~10 s after it starts (investigation only; nothing changed)
+
+- **Cause (confirmed):** the AI annotator is started by systemd, not by feature-on-demand. `atlas-vision-lidar-fusion.service` and `atlas-person-sensor-fusion.service` both have `Wants=atlas-ai-annotator.service`. Starting either unit therefore pulls the annotator in too.
+- **Why it is stopped:** by the owner's decision of 2026-11-16 (live `config/atlas_feature_on_demand.yaml`, md5 `ae74fa90…`, same as the repo), the annotator's triggers are only `[ai_object, follow, tracking]`. It no longer starts for autonomy, because autonomous drives measured 371 % CPU and the dashboard stalled. Feature-on-demand never started this instance, so `on_since` is old and `min_on_s` (60 s) does not protect it. It is stopped at the next state check (`state_check_s` 15 s).
+- **Evidence:**
+  - 11:26:06→11:26:16 and 11:39:38→11:39:48: fusion starts on autonomy, the annotator starts at the same second, and it is stopped with `demand: {autonomy: true}`.
+  - 12:49:33→12:49:44: my fusion restart pulled the annotator in. It logged "AI annotator ready" at 12:49:40, was stopped at 12:49:44, and consumed 2.7 CPU-s.
+  - The annotator started 5 times today.
+- **Effect:** this is a start/stop fight on every fusion start, wasting about 1.2–2.7 CPU-s each time. During autonomy, fusion can at best be `SUSPENDED_CAMERA_AI_STALE`, now that the forward fix is in. This follows from the 11-16 CPU decision; it is not a crash.
+- **Options (owner decision, not done):**
+  - (A) Remove `Wants=atlas-ai-annotator.service` from the two fusion units and keep `After=`. This ends the fight and keeps the 11-16 decision. Fusion stays honestly AI_STALE while driving.
+  - (A+) Also give the vision-lidar fusion `triggers: []` for autonomy, to save its own CPU (22.9 CPU-s in 12 min at 11:26-11:38). It cannot do anything without the annotator.
+  - (B) Put `autonomy` back into the annotator's triggers. That reverses the 11-16 decision, so it would need a fresh CPU measurement against the 75 % guard first.
+- **Owner decision (2026-11-26): "Leave it".** No change. The start/stop behaviour is accepted. While driving, fusion is expected to read `SUSPENDED_CAMERA_AI_STALE`. Do not re-propose this unless the owner asks.
 
 ### 2026-11-26 12:49 IST — Fusion forward fix DEPLOYED (owner "Yes, deploy" in this session); live status check PENDING
 

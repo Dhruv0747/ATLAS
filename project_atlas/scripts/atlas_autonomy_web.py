@@ -134,10 +134,45 @@ def json_response(handler, code, payload):
     handler.wfile.write(body)
 
 
+# 2026-11-28 home "Next step" + "Why isn't ATLAS moving?" (read-only; atlas_why_core decides nothing).
+_NEXT = {'t': 0.0, 'v': None}
+
+
+def _age_value(ros, key):
+    item = ros._item(key)
+    if not item:
+        return None, None
+    return item.get('value'), max(0.0, time.time() - float(item.get('ts', 0.0)))
+
+
+def why_payload(ros, clock=time.time):
+    import atlas_why_core
+    pol, pol_age = _age_value(ros, 'control_policy')
+    try:
+        pol = json.loads(pol) if isinstance(pol, str) else pol
+    except ValueError:
+        pol = None
+    safety, safety_age = _age_value(ros, 'motion_safety')
+    mission, mission_age = _age_value(ros, 'mission_status')
+    out = {'why': atlas_why_core.explain(pol, pol_age, safety, safety_age, mission, mission_age)}
+    if clock() - _NEXT['t'] > 5.0:                      # the board reads files: refresh at most every 5 s
+        try:
+            import atlas_master_plan
+            _NEXT['v'] = atlas_master_plan.evaluate().get('next_step')
+        except Exception:
+            _NEXT['v'] = None
+        _NEXT['t'] = clock()
+    out['next'] = _NEXT['v']
+    return out
+
+
 def serve(handler, ros, post=False):
     if serve_readiness(handler, ros, post):
         return True
     path = handler.path.split('?')[0]
+    if path == '/api/why' and not post:
+        json_response(handler, 200, why_payload(ros))
+        return True
     if path not in ('/api/autonomy', '/api/places'):
         return False
     if not post:
