@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 @dataclass
 class BatteryAlertState:
-    low_threshold: float = 20.0
-    low_reset_threshold: float = 25.0
+    low_threshold: float = 10.0
+    low_reset_threshold: float = 15.0
     full_threshold: float = 99.0
     full_reset_threshold: float = 95.0
     full_samples_required: int = 3

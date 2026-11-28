@@ -14,6 +14,7 @@ __pycache__/
 venv*/
 .venv/
 visual-cloud-test.sqlite3*
+project_atlas/commissioning/drive_pid/*.json
 
 # Models and generated binaries
 *.engine
@@ -50,6 +51,11 @@ Thumbs.db
 
 # Local document rendering/QA intermediates
 tmp/
+
+# Local-only folders that are not part of ATLAS (separate project; remote-desktop connection file)
+photo-organizer-mcp/
+remote/
+*.rdp
 
 # Monitoring credential: local secret, never commit
 monitoring/atlas/grafana_admin_password.txt

@@ -1,0 +1,99 @@
+/* ATLAS Glass UI V2 — overrides for the mapping, commissioning and Wi-Fi pages.
+   Loaded after each page's own V1 <style>, so these rules win by cascade order.
+   Every rule is scoped to html.v2page; V1 markup, IDs and scripts are untouched. */
+
+/* ---- shared ---- */
+html.v2page{--glass:rgba(13,30,49,.58)}
+.v2page body{background:transparent;font-family:var(--ui)}
+.v2page h1,.v2page h2{font-family:var(--display);font-weight:400;letter-spacing:.04em}
+.v2page button,.v2page input,.v2page select{font-family:var(--ui)}
+.v2page button:not(.v2estop):not(.stop):not(.power){border-radius:var(--r-ctl);border:1px solid var(--line-strong);
+  background:linear-gradient(180deg,rgba(30,62,94,.75),rgba(14,32,52,.85));color:var(--ink);min-height:44px}
+.v2page button:not(:disabled):hover{border-color:var(--sky)}
+.v2page input:not([type=checkbox]),.v2page select{background:rgba(5,14,26,.75);border:1px solid var(--line-strong);border-radius:var(--r-ctl);color:var(--ink)}
+
+/* ---- bottom dock (all V2 sub-pages) ---- */
+.v2dock{position:fixed;left:0;right:0;bottom:0;z-index:35;display:flex;align-items:center;gap:12px;min-height:var(--dock);
+  padding:8px 14px calc(8px + env(safe-area-inset-bottom));background:rgba(5,11,20,.86);border-top:1px solid var(--line);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.v2estop{display:inline-flex;align-items:center;justify-content:center;gap:9px;flex:0 0 auto;min-width:min(46vw,280px);min-height:54px;
+  border-radius:14px;border:1px solid #FF8A95;color:#fff;font:400 16px/1 var(--display);letter-spacing:.08em;cursor:pointer;
+  background:radial-gradient(120% 140% at 50% 0%,#FF6B78,#D21F33 60%,#9E1322);box-shadow:0 8px 26px rgba(210,31,51,.45),inset 0 1px 0 rgba(255,255,255,.3)}
+.v2estop:active{transform:translateY(1px);background:#B5172A}
+.v2icon{width:1.3em;height:1.3em;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.v2dock-msg{font-size:12.5px;color:var(--mute);line-height:1.35;min-width:0;max-width:52ch}
+.v2dock-link{margin-left:auto;font-size:12.5px;color:var(--mute);white-space:nowrap}
+@media (max-width:759px){
+  .v2estop{flex:1;min-width:0}
+  .v2dock-msg{display:none}
+  .v2dock-latch .v2dock-msg{display:block;flex:1}
+}
+
+/* ---- Live map ---- */
+html.v2-mapping{--bg:var(--night);--line:rgba(128,190,236,.16);--cyan:var(--sky);--green:var(--terrain);--amber:#F2B33D;--red:var(--signal);--muted:var(--mute)}
+.v2-mapping header{background:rgba(5,11,20,.72);border-bottom:1px solid var(--line);gap:14px;padding:10px 16px}
+.v2-mapping header img{width:40px;height:40px;border-radius:10px}
+.v2-mapping h1{color:var(--ink);font-size:17px}
+.v2-mapping .sub{font-size:12px}
+.v2-mapping .back{border:1px solid var(--line-strong);border-radius:var(--r-ctl);background:rgba(14,32,52,.8);font-weight:600;padding:10px 14px;min-height:44px;display:inline-flex;align-items:center}
+.v2-mapping .back.power{border-color:rgba(255,77,94,.6);background:rgba(60,10,18,.55);color:#FFC4CA}
+.v2-mapping main{height:calc(100vh - 66px - var(--dock));gap:12px;padding:12px}
+.v2-mapping .panel{border-radius:var(--r-panel);border-color:var(--line);box-shadow:0 18px 40px rgba(0,0,0,.35)}
+.v2-mapping .mapPanel{background:var(--deep);backdrop-filter:none;-webkit-backdrop-filter:none} /* canvas redraws: no blur under it */
+.v2-mapping .mapHead strong{color:var(--ink);font-family:var(--display);font-weight:400;font-size:13px;letter-spacing:.04em}
+.v2-mapping .live{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:var(--r-chip);border:1px solid var(--line);font-weight:700;font-size:12.5px}
+
+.v2-mapping .live.ok{border-color:rgba(124,194,66,.55)}
+.v2-mapping .live.warn{border-color:rgba(242,179,61,.55)}
+.v2-mapping .live.fail{border-color:rgba(255,77,94,.6);background:rgba(80,10,20,.55)}
+.v2-mapping .canvasWrap{border-radius:12px;border-color:rgba(128,190,236,.22)}
+.v2-mapping .card{border-radius:14px;border-color:var(--line);background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.v2-mapping .card h2{color:var(--sky);font-size:11.5px}
+.v2-mapping .row{border-bottom-color:rgba(128,190,236,.1)}
+.v2-mapping .status{background:rgba(5,14,26,.7);border-radius:10px}
+@media (max-width:850px){
+  .v2-mapping header{flex-wrap:wrap;position:relative}
+  .v2-mapping header>div{flex:1 1 60%}
+  .v2-mapping .back{margin-left:0}
+  .v2-mapping main{height:auto}
+  .v2-mapping .mapPanel{height:62vh}
+  .v2-mapping .mapHead{flex-wrap:wrap;gap:6px 10px}.v2-mapping .mapHead strong{font-size:12px}.v2-mapping .live{margin-left:0;font-size:12px}
+}
+
+/* ---- Commissioning ---- */
+html.v2-commissioning{--blue:var(--sky);--green:#8FD45A;--yellow:#F2B33D;--red:#FF6B78}
+.v2-commissioning main{max-width:1320px}
+.v2-commissioning header{border-bottom:1px solid var(--line)}
+.v2-commissioning header h1{font-size:19px;color:var(--ink)}
+.v2-commissioning .card,.v2-commissioning section{background:var(--glass);border:1px solid var(--line);border-radius:var(--r-panel);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 14px 34px rgba(0,0,0,.3)}
+.v2-commissioning section section,.v2-commissioning .card .card{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(5,14,26,.45)}
+.v2-commissioning .notice{background:rgba(60,44,10,.35);border-left-color:var(--amber);border-radius:0 12px 12px 0;color:#F7D58C}
+.v2-commissioning nav button.active{background:rgba(34,184,240,.24);border-color:var(--sky)}
+.v2-commissioning pre,.v2-commissioning canvas{background:rgba(3,9,16,.8);border-radius:10px}
+.v2-commissioning td,.v2-commissioning th{border-bottom-color:rgba(128,190,236,.12)}
+.v2-commissioning .camera{border-radius:14px}
+/* The existing LATCH DRIVE STOP (#stop, same element and handler) is pinned in the dock on every screen size. */
+.v2-commissioning #stop{position:fixed;left:14px;bottom:calc(9px + env(safe-area-inset-bottom));z-index:36;margin:0;
+  min-width:min(46vw,300px);min-height:54px;border-radius:14px;border:1px solid #FF8A95;color:#fff;font:400 14px/1 var(--display);letter-spacing:.06em;
+  background:radial-gradient(120% 140% at 50% 0%,#FF6B78,#D21F33 60%,#9E1322);box-shadow:0 8px 26px rgba(210,31,51,.45)}
+.v2-commissioning .v2dock-latch{padding-left:calc(min(46vw,300px) + 28px)}
+@media (max-width:759px){
+  .v2-commissioning #stop{width:auto;right:auto;min-width:0;max-width:52vw;font-size:12px}
+  .v2-commissioning .v2dock-latch{padding-left:calc(52vw + 26px)}
+  .v2-commissioning .v2dock-latch .v2dock-msg{font-size:11px}
+  .v2-commissioning .v2dock-link{display:none}
+}
+
+/* ---- Wi-Fi ---- */
+.v2-wifi body{padding:20px 20px calc(var(--dock) + 20px)}
+.v2-wifi h1{font-size:22px}
+.v2-wifi h2{font-size:15px;color:var(--sky)}
+.v2-wifi section{background:var(--glass);border:1px solid var(--line);border-radius:var(--r-panel);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 14px 34px rgba(0,0,0,.3)}
+.v2-wifi #status{color:#9FDCF2}
+.v2-wifi .warning{color:#F7D58C}
+.v2-wifi #nearby button{background:rgba(5,14,26,.6)}
+@media (max-width:759px){.v2-wifi body{padding:14px 14px calc(var(--dock) + 14px)}}
+
+@supports not ((backdrop-filter:blur(2px)) or (-webkit-backdrop-filter:blur(2px))){.v2page .card,.v2page section{background:var(--deep)}.v2dock{background:#06101C}}

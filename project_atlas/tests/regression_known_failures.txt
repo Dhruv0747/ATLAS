@@ -1,0 +1,2 @@
+# Pre-existing test failures tolerated by tools/regression/atlas_regression.py (one test id per line).
+# 2026-11-14: emptied - the 11 mux fixture failures were fixed (tests now extract controller_accepts / flysky_reset_observe).

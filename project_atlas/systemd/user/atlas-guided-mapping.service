@@ -1,0 +1,21 @@
+[Unit]
+Description=ATLAS guided mapping assistant (read-only advice during manual mapping sessions; publishes /atlas/mapping_quality only) - design docs/design/guided_mapping_assistant.md phase 1b
+After=atlas-mission-control.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+Environment=OMP_NUM_THREADS=1
+Environment=OPENBLAS_NUM_THREADS=1
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_guided_mapping.py'
+Restart=on-failure
+RestartSec=10
+# Idle cost ~0 (reads the mapping session file once a second); while mapping it self-pauses below 25 % CPU idle.
+CPUQuota=15%
+Nice=10
+CPUWeight=20
+MemoryMax=250M
+
+[Install]
+WantedBy=default.target

@@ -71,10 +71,16 @@ on local safety.
 - **Git version**: deployed repository commit when available, otherwise a
   deterministic navigation-config hash.
 
-The full ROS graph refreshes every five seconds; telemetry publishes once per
-second. Full camera frames, costmap grids and bags are not uploaded by this
-lightweight first stage. Compact LiDAR/path/pose data is uploaded for live
-visualization, while bag paths and mission evidence remain local.
+During motion, mapping, navigation, or bounded recovery, the full ROS graph
+refreshes every five seconds and telemetry publishes once per second. While
+ATLAS is stationary, the read-only agent automatically uses a lower-cost
+cadence: graph discovery every 30 seconds and telemetry every five seconds.
+Every monitored receive timestamp is still recorded, so message rate, age, and
+health remain live evidence. Activity restores the original cadence
+immediately and renews it for 30 seconds. Full camera frames, costmap grids and
+bags are not uploaded by this lightweight first stage. Compact
+LiDAR/path/pose data is uploaded for visualization, while bag paths and mission
+evidence remain local.
 
 ## Remaining live acceptance gates
 

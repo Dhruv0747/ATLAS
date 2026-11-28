@@ -1,0 +1,40 @@
+2026-10-21T14:28:45+05:30
+ 14:28:45 up  3:51,  3 users,  load average: 7.05, 9.18, 9.57
+estop_latched True | REMOTE STOP: joystick unavailable
+policy manual_only True stop_latched True commission_armed False source STOPPED age 0.1
+cmd_vel {'lin': 0.0, 'ang': 0.0} age 0.0
+mission READY odom {'x': 0.0002, 'y': -0.0, 'vx': -0.0, 'wz': -0.0}
+age lidar 0.4 hz 1.88
+age imu_yaw 0.0 hz None
+age enc_m1 0.0 hz 10.0
+age enc_m2 0.0 hz 10.0
+age enc_m3 0.0 hz 10.0
+age enc_m4 0.0 hz 10.0
+age encoder_health 0.0 hz 9.99
+age camera_info 0.7 hz 0.95
+age drive_pid 0.0 hz 10.0
+system cpu 66.1 ram 69 temp 60 C
+atlas-camera 1982 0 active 
+rover-base-telemetry 3534 1 active 
+atlas-cmd-vel-mux 1975 0 active 
+atlas-ekf 3260 0 active 
+atlas-localization 5713 1 active 
+atlas-lidar 5523 5 active 
+rover-status-web 67677 0 active 
+atlas-stage20-public-capture 0 0 inactive 
+astra procs: 0  vision workers: 0
+domain77 users: 0
+19d5bb1f114ccbab  web/v2/index.html
+47380d1bd2379a6c  web/v2/vision3d.html
+f2939d19fb2ef227  web/v2/vision3d.js
+339e810203a4e50d  web/v2/vision3d.css
+6a0e9c1cefcf89e1  scripts/atlas_vision3d_runtime.py
+b51a1870b0bb4831  scripts/atlas_vision3d_web.py
+new-file: web/v2/classic.html
+new-file: web/v2/home-cards.js
+new-file: web/v2/home.css
+cat: /sys/class/thermal/thermal_zone2/temp: Resource temporarily unavailable
+cat: /sys/class/thermal/thermal_zone3/temp: Resource temporarily unavailable
+cat: /sys/class/thermal/thermal_zone4/temp: Resource temporarily unavailable
+thermal max: 60375
+pi camera jpg 200 24693

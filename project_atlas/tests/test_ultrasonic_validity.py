@@ -129,12 +129,45 @@ class ValidityTests(unittest.TestCase):
         self.assertIn('REAR', self.window.veto(-.1, 0, 10, .3, .3, .28))
         self.assertIsNone(self.window.veto(0, 0, 10, .3, .3, .28))
 
-    def test_side_veto_uses_validated_echo_only(self):
+    def side_window(self, left_mm=None, right_mm=None):
         d = report()
-        d['sensors']['left'] = dict(d['sensors']['front'], range_mm=200)
-        self.window.ingest(d, 10)
-        self.assertIn('LEFT', self.window.veto(.1, .1, 10, .3, .3, .28))
-        self.assertIsNone(self.window.veto(.1, -.1, 10, .3, .3, .28))
+        if left_mm is not None:
+            d['sensors']['left'] = dict(d['sensors']['front'], range_mm=left_mm)
+        if right_mm is not None:
+            d['sensors']['right'] = dict(d['sensors']['front'], range_mm=right_mm)
+        w = ValidityWindow()
+        w.ingest(d, 10)
+        return w
+
+    def test_side_veto_uses_validated_echo_only(self):
+        # 2026-11-20 radius-aware rule: a gentle left turn (R = 1 m) sweeps the left side only ~3 cm -> limit 0.10 m.
+        w = self.side_window(left_mm=90)
+        self.assertIn('LEFT', w.veto(.1, .1, 10, .3, .3, .28))
+        self.assertIsNone(w.veto(.1, -.1, 10, .3, .3, .28))      # right turn: left is the outer side
+
+    def test_gentle_turn_no_longer_blocked_at_20cm(self):
+        self.assertIsNone(self.side_window(left_mm=200).veto(.1, .1, 10, .3, .3, .28))
+
+    def test_tight_turn_keeps_a_larger_stop(self):
+        w = self.side_window(left_mm=150)
+        self.assertIn('LEFT', w.veto(.1, .1 / .35, 10, .3, .3, .28))          # R 0.35 m: limit about 0.165 m
+        self.assertIsNone(self.side_window(left_mm=200).veto(.1, .1 / .35, 10, .3, .3, .28))
+
+    def test_reverse_checks_the_inner_side(self):
+        # reversing with angular > 0: ICR on the RIGHT, so the right (inner) side sweeps
+        self.assertIn('RIGHT', self.side_window(right_mm=80).veto(-.1, .1, 10, .3, .3, .28))
+        self.assertIsNone(self.side_window(left_mm=80).veto(-.1, .1, 10, .3, .3, .28))
+
+    def test_steering_only_keeps_full_limit(self):
+        self.assertIn('LEFT', self.side_window(left_mm=200).veto(0, .1, 10, .3, .3, .28))
+
+    def test_limit_bounds(self):
+        from atlas_ultrasonic_validity import side_stop_limit_m, SIDE_MIN_STOP_M
+        for v, a in ((.1, .1 / .2), (.1, .1 / .35), (.1, .1), (.1, .001), (-.1, -1.0)):
+            lim = side_stop_limit_m(v, a, .28)
+            self.assertGreaterEqual(lim, SIDE_MIN_STOP_M)
+            self.assertLessEqual(lim, .28)
+        self.assertLess(side_stop_limit_m(.1, .1, .28), side_stop_limit_m(.1, .1 / .35, .28))
 
     def test_future_time_at_read_and_bad_timeout(self):
         self.window.ingest(report(), 10)
@@ -168,6 +201,10 @@ def extracted_class(filename, name, methods):
                           and any(isinstance(t, ast.Name) and t.id == 'LINE_RE' for t in n.targets))
         scope['re'] = re
         exec(compile(ast.Module(body=[assignment], type_ignores=[]), filename, 'exec'), scope)
+        # 2026-11-20 left/right swap support (default off, as without the env variable)
+        swap_fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'swap_left_right_payload')
+        exec(compile(ast.Module(body=[swap_fn], type_ignores=[]), filename, 'exec'), scope)
+        scope['SWAP_LEFT_RIGHT'] = False
     exec(compile(ast.Module(body=[cls], type_ignores=[]), filename, 'exec'), scope)
     return scope[name]
 
@@ -185,6 +222,15 @@ class MuxIntegrationTests(unittest.TestCase):
         self.mux.auto_side_stop_m = .28
         self.mux.auto_reaction_time_s = 1
         self.mux.auto_stop_margin_m = .15
+        # ``watchdog`` now expires the bounded commissioning lease before it
+        # selects any live source.  Keep this extracted-method fixture aligned
+        # with the real node without creating ROS publishers or channels.
+        self.mux.commission_until = 0.0
+        self.mux.channels = {
+            'COMMISSION': NS(engaged=False, command=NS(
+                linear=NS(x=0), angular=NS(z=0)
+            ))
+        }
         self.command = NS(linear=NS(x=.1), angular=NS(z=0))
 
     def test_bare_positive_float_never_grants_authority(self):
@@ -194,6 +240,9 @@ class MuxIntegrationTests(unittest.TestCase):
         m.remote_stop, m.active_name = NS(check=lambda _: False), None
         m.encoder_health_rx, m.encoder_health = 10, {'state': 'HEALTHY', 'autonomy_ready': True}
         m.localization_guard = lambda _: None
+        # Isolate ultrasound from the independently tested localization guard;
+        # this AST fixture does not load that subsystem.
+        m.navigation_localization_guard = lambda *_: None
         m.output, m.safety_output = Mock(), Mock()
         m.get_logger = lambda: NS(error=Mock())
         m.last_blocked_reason = None
@@ -253,7 +302,7 @@ class BridgeIntegrationTests(unittest.TestCase):
         b.ser = NS(in_waiting=0)
         b.rx_lines = NS(data=b'', pop=lambda: None)
         b.rx_high_water = b.rx_processed = 0
-        b.rx_diag_time, b.last_serial_rx, b.last_ok = 10, 1000, 1000
+        b.rx_diag_time, b.last_serial_rx_mono, b.last_ok = 10, 10, 1000
 
     def published(self):
         return json.loads(self.bridge.validity_pub.publish.call_args.args[0].data)

@@ -1,0 +1,105 @@
+<!doctype html><html lang="en" class="v2-vision"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATLAS 3D Vision Lab</title><link rel="icon" href="/v2/assets/atlas-logo-96.png">
+<link rel="stylesheet" href="/v2/base.css"><link rel="stylesheet" href="/v2/glass.css"><link rel="stylesheet" href="/v2/vision3d.css">
+<script src="/v2/vision3d_state.js" defer></script><script src="/v2/vision3d.js" defer></script><link rel="stylesheet" href="/v2/material.css"></head><body>
+<header class="topbar vl-top">
+ <a class="brand" href="/v2/" aria-label="Back to ATLAS Home"><picture><source srcset="/v2/assets/atlas-logo-96.webp" type="image/webp"><img src="/v2/assets/atlas-logo-96.png" width="40" height="40" alt=""></picture>
+  <span><h1>3D Vision Lab</h1><span class="sub">Orbbec Astra Pro · read-only viewer</span></span></a>
+ <span class="chip info">No driving or navigation authority</span>
+ <a class="btn ghost vl-home" href="/v2/"><svg class="icon"><use href="/v2/assets/icons.svg#i-home"/></svg>Home</a>
+</header>
+<main id="visionLab">
+ <section class="vl-state" id="vlState" aria-live="polite">
+  <div class="vl-state-main">
+   <span class="vl-dot"></span>
+   <div><h2 id="vlTitle">Checking viewer</h2><p id="vlText">Waiting for the Vision Lab service.</p></div>
+  </div>
+  <dl class="vl-res" id="vlRes">
+   <div><dt>CPU</dt><dd><span class="vl-bar"><i id="vlCpuBar"></i><em style="left:75%"></em></span><b id="vlCpu">—</b><small>limit 75%</small></dd></div>
+   <div><dt>RAM</dt><dd><span class="vl-bar"><i id="vlRamBar"></i><em style="left:80%"></em></span><b id="vlRam">—</b><small>limit 80%</small></dd></div>
+   <div><dt>Temperature</dt><dd><span class="vl-bar"><i id="vlTempBar"></i><em style="left:70%"></em></span><b id="vlTemp">—</b><small>limit 70 °C</small></dd></div>
+   <div><dt>Camera driver</dt><dd><b id="vlDriver">—</b></dd></div>
+  </dl>
+ </section>
+
+ <section class="panel vl-controls" aria-label="Viewer controls">
+  <div class="vl-seg vl-modes" id="vlModes" role="radiogroup" aria-label="Stream mode">
+   <label data-mode="depth"><input type="radio" name="vlMode" value="depth" checked><span><b>Depth</b><small data-note>Tested</small></span></label>
+   <label data-mode="concurrent"><input type="radio" name="vlMode" value="concurrent"><span><b>Depth + RGB</b><small data-note>Not yet tested here</small></span></label>
+   <label data-mode="ir"><input type="radio" name="vlMode" value="ir"><span><b>Infrared</b><small data-note>Not yet tested</small></span></label>
+   <label data-mode="ir_depth"><input type="radio" name="vlMode" value="ir_depth"><span><b>Infrared + Depth</b><small data-note>Not yet tested</small></span></label>
+   <label data-mode="rgb_ir"><input type="radio" name="vlMode" value="rgb_ir"><span><b>Infrared + RGB</b><small data-note>Not yet tested</small></span></label>
+   <label data-mode="depth_cloud"><input type="radio" name="vlMode" value="depth_cloud" disabled><span><b>Depth + 3D cloud</b><small data-note>Needs calibration</small></span></label>
+  </div>
+  <p class="vl-modenote" id="vlModeNote" aria-live="polite"></p>
+  <button class="btn vl-start" id="startViewer"><svg class="icon"><use href="/v2/assets/icons.svg#i-eye"/></svg>Start 60-second view</button>
+  <button class="btn" id="freeze" aria-pressed="false" disabled>Pause preview</button>
+  <button class="btn" id="pause"><svg class="icon"><use href="/v2/assets/icons.svg#i-stop"/></svg>Stop camera</button>
+  <span class="vl-run" id="runtimeState">Camera off · press Start</span>
+  <p class="vl-note">Leaving or hiding this page stops the camera within about 4 seconds. Nothing is recorded.</p>
+ </section>
+
+ <section class="vl-streams" aria-label="Live camera streams">
+  <article class="panel vl-stream vl-depth">
+   <header><h2>Depth</h2><span class="vl-chip" id="depthState">Off</span><span class="vl-fps" id="depthFps"></span></header>
+   <div class="image-box"><img id="depthImage" alt="Colour-coded live depth. Click a pixel to read its distance."><div class="vl-empty" id="depthEmpty">No depth frames. Start the viewer to see live depth.</div></div>
+   <div class="vl-legend" aria-hidden="true"><span>near</span><i></i><span>5 m</span><span class="vl-invalid">black = no reading</span></div>
+   <p class="vl-meta" id="depthMeta"></p>
+   <div class="vl-measure"><b>Click to measure</b><output id="measurement" aria-live="polite">Start the viewer, then click a point on the depth image.</output>
+    <small>Distance is the sensor's raw axial reading. Calibration is not valid yet, so accuracy is not verified.</small></div>
+  </article>
+  <article class="panel vl-stream">
+   <header><h2>Colour (RGB)</h2><span class="vl-chip" id="rgbState">Off</span><span class="vl-fps" id="rgbFps"></span></header>
+   <div class="image-box"><img id="rgbImage" alt="Live Astra colour image"><div class="vl-empty" id="rgbEmpty">Colour runs only in Depth + RGB mode.</div></div>
+   <p class="vl-meta" id="rgbMeta"></p>
+  </article>
+  <article class="panel vl-stream vl-ir">
+   <header><h2>Infrared (IR)</h2><span class="vl-chip" id="irState">Off</span><span class="vl-fps" id="irFps"></span></header>
+   <div class="image-box"><canvas id="irCanvas" aria-label="Live infrared intensity in grayscale. Click a pixel to read its raw value."></canvas><div class="vl-empty" id="irEmpty">Infrared runs only in an Infrared mode.</div></div>
+   <p class="vl-meta" id="irScale">Grayscale shows the camera's own infrared intensity. Brightness is stretched for viewing; click a pixel for its raw value.</p>
+   <p class="vl-meta" id="irMeta"></p>
+   <output class="vl-probe" id="irProbe" aria-live="polite"></output>
+  </article>
+ </section>
+
+ <section class="panel vl-cloud cloud-panel" aria-label="3D point cloud">
+  <header class="vl-cloud-head"><h2>3D point cloud</h2><span class="vl-chip" id="cloudState">Off</span><span class="vl-fps" id="cloudFps"></span>
+   <label class="vl-check vl-cloud-toggle"><input type="checkbox" id="showCloud" disabled> Show cloud</label>
+   <label class="vl-check vl-preview-toggle"><input type="checkbox" id="showPreview" disabled> Uncalibrated preview</label></header>
+  <p class="vl-preview-warn" id="previewWarn" hidden>UNCALIBRATED — DIAGNOSTIC ONLY. Real depth frames shown in 3D with the camera's nominal field of view.
+   Shape is approximate; distances across the image are not accurate. Not used for navigation or any ATLAS decision.</p>
+  <p class="vl-cal" id="cloudCal">Checking camera calibration…</p>
+  <canvas id="cloudCanvas" aria-label="3D cloud view. Drag to orbit, shift-drag or Pan mode to pan, scroll or buttons to zoom, click a point to measure." tabindex="0"></canvas>
+  <div class="cloud-tools"><button class="btn" id="resetView">Reset view</button><button class="btn" id="panMode" aria-pressed="false">Pan mode</button><button class="btn" id="zoomIn">Zoom +</button><button class="btn" id="zoomOut">Zoom −</button></div>
+  <p class="vl-meta" id="cloudMeta">No point cloud</p>
+  <p class="vl-meta">Axes: X right (red), Y down (green), Z forward (blue), metres, camera optical frame. At most 6,000 points are drawn.</p>
+ </section>
+
+ <details class="hm-drawer vl-drawer">
+  <summary><span>Developer diagnostics</span><small>Raw runtime, stream and calibration data</small></summary>
+  <div class="vl-dev">
+   <p class="vl-meta" id="sourceNotice">Waiting for status</p>
+   <label class="vl-check">Verified hardware modes <select id="mode" disabled><option>Not yet verified</option></select></label>
+   <pre id="diagnostics">Waiting</pre>
+   <h3 class="vl-sub">Shadow obstacle prototype (camera frame only)</h3><pre id="obstacles">Not active</pre>
+  </div>
+ </details>
+<!-- ATLAS-SIX-FEATURE-UI-BEGIN -->
+<link rel="stylesheet" href="/v2/vision_features.css">
+<section id="astraFeatureUi" class="vl-state" aria-labelledby="afuiTitle" style="display:block;padding:20px;margin:20px 0;max-width:100%;box-sizing:border-box">
+<h2 id="afuiTitle">Astra feature tests</h2>
+<p id="featureNotice" aria-live="polite">Loading feature status…</p>
+<p>Five features are live: Object Detection, Target Tracking, Gesture Recognition, Body pose and Face Detection (no identity). Read-only 2D results, one 30-second test at a time, stopped automatically by the CPU/RAM/temperature and E-STOP guard. No servo or motor commands, no images or face data stored. RGB-D Mapping stays blocked until the Astra is calibrated.</p>
+<div id="featureCards" class="feature-cards"></div>
+<figure style="margin:16px 0 0"><canvas id="featureOverlay" hidden></canvas><figcaption id="featureOverlayStatus">Overlay unavailable: no matching fresh RGB result</figcaption></figure>
+<p>Manual PASS needs a READY test with at least one real detection. Reports stay on the Jetson; no images are saved.</p>
+</section>
+<script src="/v2/vision_features.js" defer></script>
+<!-- ATLAS-SIX-FEATURE-UI-END -->
+</main>
+<div class="dock" role="region" aria-label="Emergency stop">
+ <button class="estop" id="v2Estop" type="button" title="Sends the same immediate zero-speed command as the Home E-STOP"><svg class="icon"><use href="/v2/assets/icons.svg#i-stop"/></svg> E-STOP</button>
+ <span class="dock-note" id="v2EstopMsg">E-STOP sends one zero-speed command to the drive.</span>
+</div>
+<script src="/v2/estop.js" defer></script>
+</body></html>

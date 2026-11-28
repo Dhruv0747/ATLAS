@@ -6,6 +6,93 @@ WHEEL_NAMES = ('back_left', 'back_right', 'front_left', 'front_right')
 ENCODER_NAMES = ('M1_REAR_LEFT', 'M2_REAR_RIGHT', 'M3_FRONT_LEFT', 'M4_FRONT_RIGHT')
 
 
+def four_wheel_path_scales(curvature, wheelbase_m, track_width_m, positions):
+    """Return wheel-path/body-centre ratios for four-wheel steering."""
+    curvature = float(curvature)
+    wheelbase_m = float(wheelbase_m)
+    track_width_m = float(track_width_m)
+    if (not math.isfinite(curvature) or not math.isfinite(wheelbase_m)
+            or not math.isfinite(track_width_m) or wheelbase_m <= 0.0
+            or track_width_m <= 0.0 or len(positions) != 4):
+        raise ValueError(
+            'valid curvature, wheelbase, track width and four positions required'
+        )
+    half_l, half_t = wheelbase_m / 2.0, track_width_m / 2.0
+    coordinates = {
+        'rear_left': (-half_l, half_t), 'back_left': (-half_l, half_t),
+        'rear_right': (-half_l, -half_t), 'back_right': (-half_l, -half_t),
+        'front_left': (half_l, half_t), 'front_right': (half_l, -half_t),
+    }
+    scales = []
+    for position in positions:
+        if position not in coordinates:
+            raise ValueError(f'unknown wheel position: {position}')
+        x_m, y_m = coordinates[position]
+        scales.append(math.hypot(1.0 - curvature * y_m, curvature * x_m))
+    return tuple(scales)
+
+
+class ConsensusDebounce:
+    """2026-11-23: declare encoder consensus lost only after `required` CONSECUTIVE failed intervals.
+
+    Evidence (four Stage-3 bags, about 65,000 health samples at 10 Hz, 2026-11-22/23): all 20 consensus CRITICALs
+    were single 0.1 s intervals, never two in a row. Bursty controller counts put the three remaining pairs
+    (M3 excluded) a fraction of a millimetre outside tolerance for one interval. A real disagreement (slip, broken
+    encoder, unplugged channel) persists and is still declared within required x 0.1 s (0.2 s = 3 cm at 0.15 m/s).
+    Any non-failed interval resets the count; stale packets and hardware faults are handled elsewhere, unchanged.
+    """
+    def __init__(self, required=2):
+        self.required = max(1, int(required))
+        self.count = 0
+
+    def update(self, failed_now):
+        self.count = self.count + 1 if failed_now else 0
+        return self.count >= self.required
+
+
+class EncoderLinkMonitor:
+    """Track shared controller-packet loss and post-recovery qualification.
+
+    Wheel disagreement is deliberately handled separately by
+    ``EncoderDeltaEstimator``.  Mixing those two failure classes made a
+    two-versus-two wheel disagreement look like all four encoders had vanished.
+    """
+
+    def __init__(self, timeout_s, qualify_s=3.0):
+        self.timeout_s = float(timeout_s)
+        self.qualify_s = float(qualify_s)
+        self.fresh = False
+        self.healthy_since = 0.0
+        self.stale_events = 0
+        self.recoveries = 0
+        self.ever_fresh = False
+
+    def update(self, packet_stamp, now):
+        packet_stamp = float(packet_stamp)
+        now = float(now)
+        fresh = (
+            packet_stamp > 0.0
+            and 0.0 <= now - packet_stamp <= self.timeout_s
+        )
+        if fresh and not self.fresh:
+            if self.ever_fresh:
+                self.recoveries += 1
+            self.healthy_since = now
+            self.ever_fresh = True
+        elif not fresh and self.fresh:
+            self.stale_events += 1
+            self.healthy_since = 0.0
+        self.fresh = fresh
+        qualifying = (
+            fresh
+            and (
+                self.healthy_since <= 0.0
+                or now - self.healthy_since < self.qualify_s
+            )
+        )
+        return fresh, qualifying
+
+
 def validate_selection(config):
     """Fail closed on missing/invalid commissioning configuration."""
     if not isinstance(config, dict):
@@ -13,8 +100,10 @@ def validate_selection(config):
     excluded = config.get('excluded_encoders')
     if not isinstance(excluded, list) or any(type(i) is not int for i in excluded):
         raise ValueError('excluded_encoders must be an explicit list of channel numbers')
-    if excluded not in ([], [4]):
-        raise ValueError('only all-four or explicitly commissioned M1/M2/M3 is supported')
+    if excluded != sorted(set(excluded)) or any(i not in (1, 2, 3, 4) for i in excluded):
+        raise ValueError('excluded_encoders must contain unique M1..M4 channel numbers')
+    if len(excluded) > 1:
+        raise ValueError('at least three explicitly commissioned encoder channels are required')
     validated = config.get('navigation_validated')
     if type(validated) is not bool:
         raise ValueError('navigation_validated must be explicitly true or false')
@@ -32,7 +121,10 @@ def feedback_state(excluded, faults, packet_fresh, qualifying, traction, fault_a
     if excluded:
         if faults:
             return 'CRITICAL', 0.0, 'additional selected encoder failed'
-        return 'DEGRADED', 0.5, 'M1/M2/M3 selected; M4 feedback excluded'
+        selected = [f'M{i + 1}' for i in range(4) if i not in excluded]
+        rejected = [f'M{i + 1}' for i in excluded]
+        return ('DEGRADED', 0.5,
+                f'{"/".join(selected)} selected; {"/".join(rejected)} feedback excluded')
     if len(faults) >= 2 or (faults and fault_age > 5.0):
         return 'CRITICAL', 0.0, 'multiple or persistent encoder fault'
     if faults:
@@ -40,27 +132,170 @@ def feedback_state(excluded, faults, packet_fresh, qualifying, traction, fault_a
     return ('HEALTHY' if traction else 'READY'), 1.0, 'all selected feedback available'
 
 
-class EncoderDeltaEstimator:
-    """Median of per-wheel increments, never a jump between cumulative medians.
+def all_counts_unchanged(previous, current, packet_fresh):
+    """True only when a fresh packet shows every one of the four raw wheel
+    distances exactly unchanged since the previous odometry update.
 
-    At least three channels must be valid in BOTH samples. Invalid intervals
-    are rebased, not integrated later as a catch-up jump. This remains a wheel
-    distance approximation; steering geometry and metric scales need ground
-    validation and are not magically corrected by rejecting M4.
+    Used to keep a trustworthy zero-velocity observation when three-of-four
+    consensus cannot be formed (stale/faulted channels): if no channel counted,
+    including excluded ones, no wheel turned.  A single dead encoder cannot
+    produce this while the rover moves, because the other channels still count.
+    It never asserts motion and never changes the consensus or stop policy.
     """
-    def __init__(self):
+    if not packet_fresh or previous is None or current is None:
+        return False
+    if len(previous) != 4 or len(current) != 4:
+        return False
+    for before, after in zip(previous, current):
+        before, after = float(before), float(after)
+        if not (math.isfinite(before) and math.isfinite(after)) or before != after:
+            return False
+    return True
+
+
+class WheelStillnessDetector:
+    """Decide when a zero-velocity observation may be trusted without consensus.
+
+    True only after ALL of these have held continuously for ``hold_s``:
+    the packet stream is fresh, every applied motor output is exactly zero,
+    and all four raw wheel distances are identical; and at least one packet
+    newer than the start of that interval has been received (so a re-read of
+    one stale packet cannot qualify).  Any change, stale stream or non-zero
+    motor output resets it.  Recorded 9 Oct drives showed all four counts
+    unchanged for up to 0.79 s while moving, so ``hold_s`` must exceed that.
+
+    Residual limit: a counter that freezes while the rover is pushed by hand
+    with motors off looks identical to rest.  This only affects odometry
+    covariance; it never asserts motion, consensus or stop policy.
+    """
+    def __init__(self, hold_s=1.0):
+        self.hold_s = float(hold_s)
+        self.reset()
+
+    def reset(self):
+        self.reference = None
+        self.since = None
+        self.since_packet_stamp = None
+
+    def update(self, distances, packet_stamp, packet_fresh, outputs_zero, now):
+        current = None if distances is None else tuple(float(d) for d in distances)
+        if (not packet_fresh or not outputs_zero or current is None or len(current) != 4
+                or not all(math.isfinite(d) for d in current)):
+            self.reset()
+            return False
+        if self.reference is None or not all_counts_unchanged(self.reference, current, True):
+            self.reference = current
+            self.since = float(now)
+            self.since_packet_stamp = float(packet_stamp or 0.0)
+            return False
+        return (float(now) - self.since >= self.hold_s
+                and float(packet_stamp or 0.0) > self.since_packet_stamp)
+
+
+class EncoderDeltaEstimator:
+    """Dynamic three-of-four consensus over per-wheel increments.
+
+    Every non-statically-excluded channel remains a candidate.  For each sample
+    interval the largest group of at least three mutually coherent wheel deltas
+    is selected and its median is integrated.  A weak/intermittent channel can
+    therefore move between M3 and M4 without silently corrupting odometry.
+    A two-versus-two split fails closed. Invalid intervals are rebased, not
+    integrated later as a catch-up jump.
+    """
+    def __init__(self, relative_tolerance=0.45, absolute_tolerance_m=0.004):
+        # Controller counts arrive in short bursts.  During a very slow 4WS
+        # arc the three commissioned channels can legitimately quantize to
+        # body-centre increments spread by just under 4 mm even after wheel-
+        # path normalization.  A 2 mm floor falsely removed all three before
+        # enough travel accumulated.  The relative tolerance still governs
+        # larger increments, while stale/missing channels remain fail-closed.
         self.previous = None
         self.previous_valid = set()
+        self.relative_tolerance = float(relative_tolerance)
+        self.absolute_tolerance_m = float(absolute_tolerance_m)
+        self.last_accepted = ()
+        self.last_rejected = ()
+        self.last_deltas = (0.0, 0.0, 0.0, 0.0)
 
-    def update(self, distances, valid_indexes):
+    def _cluster(self, deltas):
+        best = ()
+        for center_index, center in deltas.items():
+            group = []
+            for index, value in deltas.items():
+                tolerance = max(
+                    self.absolute_tolerance_m,
+                    self.relative_tolerance * max(abs(center), abs(value)),
+                )
+                if abs(value - center) <= tolerance:
+                    group.append(index)
+            candidate = tuple(sorted(group))
+            if len(candidate) > len(best):
+                best = candidate
+            elif len(candidate) == len(best) and candidate:
+                current_spread = max(deltas[i] for i in candidate) - min(deltas[i] for i in candidate)
+                best_spread = max(deltas[i] for i in best) - min(deltas[i] for i in best)
+                if current_spread < best_spread:
+                    best = candidate
+        return best
+
+    def _agree(self, a, b):
+        return abs(a - b) <= max(self.absolute_tolerance_m, self.relative_tolerance * max(abs(a), abs(b)))
+
+    def _pair(self, deltas):
+        """Best coherent pair among exactly three channels, or () (fail closed)."""
+        best, best_spread = (), None
+        for i, j in ((a, b) for a in deltas for b in deltas if a < b):
+            if not self._agree(deltas[i], deltas[j]):
+                continue
+            third = next(k for k in deltas if k not in (i, j))
+            # 'stalled' = essentially no counts (< 0.5 mm). Bursty-but-moving pairs (1-3 mm while the third
+            # reads a 6-11 mm burst) are normal controller timing and are accepted (2026-11-15 replay).
+            pair_still = max(abs(deltas[i]), abs(deltas[j])) < 0.0005
+            if pair_still and abs(deltas[third]) > self.absolute_tolerance_m:
+                continue
+            if deltas[i] * deltas[j] < 0.0 and not pair_still:
+                continue
+            spread = abs(deltas[i] - deltas[j])
+            if best_spread is None or spread < best_spread:
+                best, best_spread = (i, j), spread
+        return best
+
+    def update(self, distances, valid_indexes, normalization_scales=None):
         if len(distances) != 4:
             raise ValueError('four raw diagnostic distances required')
         current = tuple(float(d) for d in distances)
+        scales = ((1.0,) * 4 if normalization_scales is None
+                  else tuple(float(value) for value in normalization_scales))
+        if len(scales) != 4 or any(
+                not math.isfinite(value) or value <= 0.0 for value in scales):
+            raise ValueError('four positive finite normalization scales required')
         valid = {i for i in valid_indexes if 0 <= i < 4 and math.isfinite(current[i])}
         common = valid & self.previous_valid
         delta = 0.0
+        accepted = ()
+        deltas = {}
         if self.previous is not None and len(common) >= 3:
-            delta = statistics.median(current[i] - self.previous[i] for i in common)
+            deltas = {
+                i: (current[i] - self.previous[i]) / scales[i]
+                for i in common
+            }
+            accepted = self._cluster(deltas)
+            if len(accepted) >= 3:
+                delta = statistics.median(deltas[i] for i in accepted)
+            elif len(common) == 3:
+                # 2026-11-15 three-channel rule (one encoder excluded, e.g. M3): requiring all three to agree in
+                # every ~0.1 s interval failed 4-6 % of moving intervals (bursty counts), i.e. CRITICAL / speed 0.
+                # Accept the tightest coherent PAIR, but fail closed when the pair reads ~zero while the third
+                # channel moves (two stalled channels must not outvote a moving one).
+                accepted = self._pair(deltas)
+                delta = (sum(deltas[i] for i in accepted) / 2.0) if accepted else 0.0
+            else:
+                accepted = ()
+        self.last_accepted = accepted
+        self.last_rejected = tuple(sorted(common - set(accepted))) if accepted else tuple(sorted(common))
+        self.last_deltas = tuple(
+            deltas.get(i, 0.0) for i in range(4)
+        )
         self.previous = current
         self.previous_valid = valid
         return delta

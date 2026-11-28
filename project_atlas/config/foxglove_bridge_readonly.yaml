@@ -1,0 +1,23 @@
+# Least-privilege Foxglove bridge (PROPOSED, not deployed; owner approval required).
+# Production today uses the launch-file defaults: address 0.0.0.0, capabilities
+# clientPublish/parameters/parametersSubscribe/services/connectionGraph/assets and every
+# whitelist '.*' - any device on the home Wi-Fi or tailnet can publish any topic
+# (including /goal_pose -> Nav2 via atlas-foxglove-nav-goal), call services and set parameters.
+#
+# This file keeps read-only viewing of every topic for the owner over Tailscale (WireGuard
+# encryption + tailnet membership is the access control) and removes every write path.
+# '(?!)' is a regex that never matches, so it denies everything.
+foxglove_bridge:
+  ros__parameters:
+    port: 8765
+    address: 100.87.208.71          # tailscale0 only; not the home Wi-Fi or cellular interface
+    tls: false                      # Tailscale already encrypts; bridge TLS adds cert management
+    topic_whitelist: ['.*']         # read access unchanged (viewing, recording)
+    client_topic_whitelist: ['(?!)']
+    service_whitelist: ['(?!)']
+    param_whitelist: ['(?!)']
+    capabilities: ['connectionGraph']
+    include_hidden: false
+    send_buffer_limit: 10000000
+    min_qos_depth: 1
+    max_qos_depth: 10

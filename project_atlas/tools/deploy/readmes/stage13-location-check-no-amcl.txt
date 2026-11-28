@@ -1,0 +1,12 @@
+ATLAS stage 13: CHECK MY LOCATION runs the independent LiDAR search when AMCL has no pose
+Source 9c04c92 (base 7f8ee2e). Record: docs/deploy/ATLAS_LOCATION_CHECK_NO_AMCL_2026-10-11.md
+
+Changes: scripts/atlas_location_check_ros.py, scripts/atlas_location_check_job.py (location monitor process),
+         web/v2/location-check.js (static; both V2 pages pick it up on reload).
+Read-only: no publisher, no reseed, no AMCL/map/Nav2/motor/mux change.
+
+PRECONDITIONS  rover parked, stop LATCHED.
+INSTALL        bash install.sh        (restarts nothing)
+RESTART        systemctl --user restart atlas-localization-monitor.service   (monitor only; AMCL, Nav2, mux untouched)
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage13-location-check-no-amcl/ROLLBACK.sh,
+               then restart atlas-localization-monitor.service and reload the dashboard pages

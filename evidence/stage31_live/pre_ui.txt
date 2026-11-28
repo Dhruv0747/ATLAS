@@ -1,0 +1,40 @@
+2026-10-21T14:25:27+05:30
+ 14:25:27 up  3:48,  3 users,  load average: 9.35, 9.81, 9.76
+estop_latched True | REMOTE STOP: joystick unavailable
+policy manual_only True stop_latched True commission_armed False source STOPPED age 0.1
+cmd_vel {'lin': 0.0, 'ang': 0.0} age 0.2
+mission READY odom {'x': 0.0002, 'y': -0.0, 'vx': -0.0, 'wz': -0.0}
+age lidar 0.5 hz 1.88
+age imu_yaw 0.0 hz None
+age enc_m1 0.0 hz 9.98
+age enc_m2 0.0 hz 9.98
+age enc_m3 0.0 hz 9.98
+age enc_m4 0.0 hz 9.98
+age encoder_health 0.0 hz 9.99
+age camera_info 0.4 hz 0.95
+age drive_pid 0.0 hz 9.98
+system cpu 65.1 ram 67 temp 60 C
+atlas-camera 1982 0 active 
+rover-base-telemetry 3534 1 active 
+atlas-cmd-vel-mux 1975 0 active 
+atlas-ekf 3260 0 active 
+atlas-localization 5713 1 active 
+atlas-lidar 5523 5 active 
+rover-status-web 67677 0 active 
+atlas-stage20-public-capture 0 0 inactive 
+astra procs: 0  vision workers: 0
+domain77 users: 0
+f53d68120ecdb82e  web/v2/index.html
+2d5b6bf89756b0d8  web/v2/vision3d.html
+d27d6907508fc06c  web/v2/vision3d.js
+f422f69e7d391bbf  web/v2/vision3d.css
+6a0e9c1cefcf89e1  scripts/atlas_vision3d_runtime.py
+b51a1870b0bb4831  scripts/atlas_vision3d_web.py
+new-file: ls: cannot access 'web/v2/home.css': No such file or directory
+new-file: ls: cannot access 'web/v2/home-cards.js': No such file or directory
+new-file: ls: cannot access 'web/v2/classic.html': No such file or directory
+cat: /sys/class/thermal/thermal_zone2/temp: Resource temporarily unavailable
+cat: /sys/class/thermal/thermal_zone3/tempthermal max: 60656
+: Resource temporarily unavailable
+cat: /sys/class/thermal/thermal_zone4/temp: Resource temporarily unavailable
+pi camera jpg 200 24895

@@ -1,0 +1,22 @@
+{
+  "enabled": false,
+  "camera_domain": 77,
+  "mapping_domain": 178,
+  "production_domain": null,
+  "serial": "17122120830",
+  "rgb_topic": "/astra/color/image_raw",
+  "registered_depth_topic": null,
+  "rgb_info_topic": "/astra/color/camera_info",
+  "depth_info_topic": "/astra/depth/camera_info",
+  "rgb_calibration": null,
+  "depth_calibration": null,
+  "registration_evidence": null,
+  "tf_evidence": null,
+  "odom_topic": null,
+  "scan_topic": "/scan",
+  "tf_edges": [],
+  "duration_s": 60,
+  "max_session_bytes": 2147483648,
+  "free_reserve_bytes": 1073741824,
+  "storage": "/home/jetson/.local/share/atlas/maps3d"
+}

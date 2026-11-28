@@ -2,7 +2,49 @@
 """Pure geometry helpers for ATLAS camera/LiDAR semantic fusion."""
 
 import math
+from pathlib import Path
 from typing import Iterable, Optional, Sequence, Tuple
+
+
+# Calibrated camera "forward" pose. It is the same file and keys that mission control
+# (load_camera_home / center_camera_for_navigation) and semantic_advisory_check.camera_home()
+# use. 2026-11-26: the fixed 2300 us constant that was here before was wrong (owner: 1801 is
+# straight ahead).
+CAMERA_HOME_FILE = (
+    Path.home() / ".config/systemd/user/atlas-uno-r4-sensor-hub.service.d/camera-home.conf"
+)
+CAMERA_HOME_KEYS = ("ATLAS_CAMERA_PAN_HOME_US", "ATLAS_CAMERA_TILT_HOME_US")
+PAN_TOLERANCE_US = 90
+TILT_TOLERANCE_US = 180
+
+
+def read_camera_home(path=None) -> Tuple[Optional[int], Optional[int]]:
+    """(pan_us, tilt_us) from camera-home.conf, or None for each value that is missing."""
+    values = {}
+    try:
+        for raw_line in Path(path or CAMERA_HOME_FILE).read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            for key in CAMERA_HOME_KEYS:
+                if line.startswith("Environment=" + key + "="):
+                    values[key] = int(line.split("=", 2)[2])
+    except (OSError, ValueError):
+        return None, None
+    return values.get(CAMERA_HOME_KEYS[0]), values.get(CAMERA_HOME_KEYS[1])
+
+
+def camera_forward_state(pan_us, tilt_us, home) -> Tuple[bool, Optional[str]]:
+    """(forward, suspend_reason). Forward is never assumed without a calibration and servo feedback."""
+    home_pan, home_tilt = home
+    if home_pan is None or home_tilt is None:
+        return False, "SUSPENDED_CAMERA_HOME_UNKNOWN"
+    if (
+        pan_us is None
+        or tilt_us is None
+        or abs(pan_us - home_pan) > PAN_TOLERANCE_US
+        or abs(tilt_us - home_tilt) > TILT_TOLERANCE_US
+    ):
+        return False, "SUSPENDED_CAMERA_NOT_FORWARD"
+    return True, None
 
 
 def wrap_angle(angle: float) -> float:

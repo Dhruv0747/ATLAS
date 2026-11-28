@@ -1,0 +1,30 @@
+name: Offline unit tests
+
+# Runs the robot-free unit tests (no ROS, no hardware) on every push and pull request.
+# The module list lives in project_atlas/tools/ci/offline_tests.txt; tests that need ROS 2,
+# hardware or the Jetson file layout are listed in project_atlas/tools/ci/not_in_ci.txt.
+# This workflow never contacts the rover (the Jetson health check is atlas-health.yml).
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    name: Python 3.10 offline tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'   # same as the Jetson (Ubuntu 22.04)
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip pyyaml numpy
+      - name: Run offline unit tests
+        working-directory: project_atlas
+        run: python -m unittest -v $(grep -v '^#' tools/ci/offline_tests.txt)

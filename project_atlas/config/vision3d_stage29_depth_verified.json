@@ -1,0 +1,15 @@
+{
+  "identity": "Astra Pro 2bc5:0403 + RGB 2bc5:0501; Stage29 bounded ROS depth verified; factory calibration query returned NaNs",
+  "usb_verified": true,
+  "deployment_verified": false,
+  "topics": {
+    "depth": "/astra/depth/image_raw",
+    "rgb": "/astra/color/image_raw"
+  },
+  "modes": [
+    "Depth 160x120, 16UC1 millimetres, astra_depth_optical_frame; bounded ROS verification only",
+    "Axial depth only: accuracy unmeasured. CameraInfo deliberately omitted from metric XYZ until calibration is verified.",
+    "RGB 320x240 rgb8 received 15.10 Hz with depth 10.53 Hz during a bounded concurrent test; CPU exception required, not endurance-qualified.",
+    "Cloud/IR not verified. Dashboard NOT deployed."
+  ]
+}

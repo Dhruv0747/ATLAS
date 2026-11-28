@@ -1,0 +1,17 @@
+ATLAS stage 5: Glass UI V2 becomes the only dashboard (V2 at /; classic V1 pages disabled, not deleted)
+Record: docs/deploy/ATLAS_V2_DEFAULT_2026-10-11.md   REQUIRES: stages 1-4 installed; operator approval 13:39
+
+Changes:
+  scripts/atlas_web_v2.py       serve_default(): V2 index at / and /index.html; /mapping, /commissioning, /wifi -> 302 /v2/...
+  scripts/atlas_status_web.py   one call to serve_default() after the /v2 hook; unknown GET paths 404 instead of the classic page
+  web/v2/{mapping,commissioning,wifi,index}.html   "Classic page" links now go to the V2 command center
+Unchanged: every /api/*, POST /, camera streams, JS assets, manifest, logo, map, E-STOP and web RESET, ROS nodes.
+V1 sources (render_control_page, atlas_mapping.html, atlas_commissioning.html, atlas_wifi_web.PAGE) stay on disk.
+
+PRECONDITIONS  rover parked, stop LATCHED, autonomy disabled.
+INSTALL        bash install.sh        (restarts nothing)
+RESTART        systemctl --user restart rover-status-web.service   (about 5 s dashboard gap; mux untouched)
+VERIFY         bash verify.sh stage5
+FAST FALLBACK  (no file change) systemctl --user set-environment ATLAS_CLASSIC_UI=1 is NOT enough for a running unit;
+               use a drop-in: Environment=ATLAS_CLASSIC_UI=1, then daemon-reload and restart rover-status-web.
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage5-v2-default/ROLLBACK.sh, then restart rover-status-web

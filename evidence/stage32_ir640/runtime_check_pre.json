@@ -1,0 +1,32 @@
+{
+  "cmd": "check",
+  "time": "2026-10-21T17:45:47+0530",
+  "live_before": {
+    "lib/libastra_camera.so": "6ae876010c824be97d2545996f897e40e07e0c97fa7a45694f96f342cf6e22a6",
+    "manifest.json": "c1a6d1c02f1620850cd160022eb0d10dd269a1152f91c5436a0ada82e4e17dfb"
+  },
+  "restart": false,
+  "camera_started": false,
+  "state_before": {
+    "lib/libastra_camera.so": "baseline",
+    "manifest.json": "baseline"
+  },
+  "integrity": "PASS",
+  "safety_preview": {
+    "estop_latched": true,
+    "policy": {
+      "manual_only": true,
+      "commission_armed": false,
+      "commission_remaining_s": 0.0,
+      "stop_latched": true,
+      "stop_reason": "REMOTE STOP: joystick unavailable",
+      "source": "STOPPED",
+      "mapping_remote_limited": false,
+      "mapping_remote_max_linear_mps": 0.3,
+      "mapping_remote_max_angular_radps": 1.2
+    },
+    "camera_processes": [],
+    "domain77_free": true
+  },
+  "camera_processes": []
+}

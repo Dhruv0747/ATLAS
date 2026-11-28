@@ -8,14 +8,30 @@ import math
 import re
 import socket
 import atlas_wifi_web
+import atlas_web_v2
+import atlas_location_check_web
+import atlas_testlab_web   # Motor & Encoder Test Lab (additive; own node, read-only unless the lifted gates are open)
+import atlas_flysky_web   # FlySky Remote Test Lab (additive; read-only, lazy subscriber, no publishers)
+import atlas_manual_controller_web   # ATLAS Stage 29 manual controller: Xbox/FlySky selection + FlySky drive status
+import atlas_controller_input_web   # ATLAS Stage 29 controller input view: read-only live Xbox /joy for the page
+import atlas_map3d_web  # Read-only local stored map API
+import atlas_vision3d_web  # Isolated read-only Vision Lab
+import atlas_camera_settings_web  # Camera settings (issue #11; additive)
+import atlas_relocalize_web  # 2026-11-21: dashboard FIX MY LOCATION (boot LiDAR seed, no motion)
 import subprocess
 import threading
 SHUTDOWN_PENDING = threading.Event()
 import time
 import signal
 from collections import deque
+from pathlib import Path
 from atlas_web_diagnostics import DiagnosticCache, service_logs
 from atlas_commissioning import Console, hardware_check
+from atlas_localization_display import summarize_amcl_pose
+import atlas_estop_reset as estop_reset
+import atlas_autonomy_web
+import atlas_stage3_runner
+import atlas_master_plan
 import sqlite3
 
 import cv2
@@ -24,17 +40,34 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 
 import rclpy
-from rclpy.qos import qos_profile_sensor_data
-from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
+import rclpy.executors
+from atlas_dashboard_executor import create_executor as _atlas_create_executor, spin as _atlas_spin
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
+from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
+from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
+from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import NavSatFix, LaserScan, CompressedImage, Joy
 from std_msgs.msg import Bool, Float32, String, Int32, Empty
+from tf2_ros import Buffer, TransformListener
+from std_srvs.srv import Trigger
 
 PORT = 8088
 CAMERA_PAN_STEP_US = 150
 CAMERA_TILT_STEP_US = 150
 CAMERA_PAN_HOME_US = 1725
 CAMERA_TILT_HOME_US = 1500
+# Camera requests arrive every 125 ms while the dashboard is visible.  A short
+# lease lets the ROS callback keep the latest-frame cache warm for live clients
+# without copying and decoding 720p JPEGs indefinitely after the page closes.
+CAMERA_CLIENT_LEASE_SECONDS = 2.0
+CAMERA_HEALTH_PERIOD_SECONDS = 1.0
+CAMERA_FRAME_MAX_AGE_SECONDS = 2.0
+CAMERA_WAKE_TIMEOUT_SECONDS = 0.35
+CAMERA_SUBSCRIPTION_PERIOD_SECONDS = 0.10
+CAMERA_HOME_CONFIG = os.environ.get(
+    "ATLAS_CAMERA_HOME_CONFIG",
+    "/home/jetson/.config/systemd/user/atlas-uno-r4-sensor-hub.service.d/camera-home.conf",
+)
 SENSOR_HUB_CAMERA_SOCKET = os.environ.get(
     "ATLAS_SENSOR_HUB_CAMERA_SOCKET",
     "/run/user/1000/atlas-sensor-hub-camera.sock",
@@ -70,6 +103,30 @@ TODO = [
 ]
 
 
+class CameraClientDemand:
+    """Thread-safe monotonic lease renewed by camera HTTP requests."""
+
+    def __init__(self, lease_seconds, clock=time.monotonic):
+        self.lease_seconds = float(lease_seconds)
+        self.clock = clock
+        self.last_request = None
+        self.lock = threading.Lock()
+
+    def touch(self):
+        with self.lock:
+            self.last_request = self.clock()
+
+    def active(self, now=None):
+        if now is None:
+            now = self.clock()
+        with self.lock:
+            last_request = self.last_request
+        return (
+            last_request is not None
+            and 0.0 <= now - last_request <= self.lease_seconds
+        )
+
+
 def run(cmd, timeout=2):
     try:
         return subprocess.check_output(cmd, text=True, timeout=timeout, stderr=subprocess.STDOUT).strip()
@@ -83,6 +140,216 @@ def run_quiet(cmd, timeout=2):
         return True, "ok"
     except Exception as exc:
         return False, str(exc)
+
+
+def reboot_sudo_rule_present(listing=None):
+    """2026-11-20 dashboard Restart: True only if sudo grants exactly `/sbin/shutdown -r now` WITHOUT a password.
+    `sudo -n -l <cmd>` also succeeds for password rules, so the NOPASSWD listing is checked instead."""
+    if listing is None:
+        try:
+            listing = subprocess.run(['sudo', '-n', '-l'], capture_output=True, text=True, timeout=3).stdout
+        except Exception:
+            return False
+    for line in listing.splitlines():
+        if 'NOPASSWD:' in line and any(part.strip() == '/sbin/shutdown -r now'
+                                       for part in line.split('NOPASSWD:', 1)[1].split(',')):
+            return True
+    return False
+
+
+START_VERDICT_FILE = Path.home() / ".local/state/project_atlas/localization_verdict.json"
+
+
+def read_start_verdict(now=None, path=None):
+    """Startup localization verdict written by seed_atlas_localization.py.
+
+    Display only. A verdict from another boot is reported as not current so
+    the map page never inherits an old VERIFIED state after a reboot.
+    """
+    path = START_VERDICT_FILE if path is None else path
+    now = time.time() if now is None else now
+    try:
+        record = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(record, dict):
+        return None
+    try:
+        current_boot = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError:
+        current_boot = None
+    written = record.get("written_unix")
+    return {
+        "value": {
+            "state": str(record.get("state", "UNKNOWN")),
+            "mode": record.get("mode"),
+            "reason": record.get("reason"),
+            "pose": record.get("pose"),
+            "best_fit": record.get("best_fit"),
+            "margin": record.get("margin"),
+            "current_boot": bool(current_boot) and record.get("boot_id") == current_boot,
+        },
+        "age": round(now - float(written), 3) if isinstance(written, (int, float)) else None,
+    }
+
+
+LOCALIZATION_CHECK_FILE = Path.home() / ".local/state/project_atlas/localization_check.json"
+
+
+def read_localization_check(now=None, path=None):
+    """Live LiDAR check from atlas_localization_monitor.py (display only).
+
+    ``age`` is how old the monitor's last write is (it writes every second);
+    ``value.check_age_s`` is how long ago the LiDAR comparison itself ran.
+    """
+    path = LOCALIZATION_CHECK_FILE if path is None else path
+    now = time.time() if now is None else now
+    try:
+        record = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(record, dict):
+        return None
+    written, checked = record.get("written_unix"), record.get("checked_unix")
+    value = {k: record.get(k) for k in ("state", "reason", "amcl_fit", "distance_m", "heading_deg",
+                                         "recovery_pose", "action", "relocalize_mode", "timing", "rechecking")}
+    value["check_age_s"] = round(now - float(checked), 1) if isinstance(checked, (int, float)) else None
+    return {"value": value,
+            "age": round(now - float(written), 3) if isinstance(written, (int, float)) else None}
+
+
+NAV_ACTIVE_MARKERS = ("GOAL ACCEPTED", "GOAL DISPATCHED")
+
+
+def nav_goal_active(mission_item, max_age_s=5.0):
+    """2026-11-16: True while mission control reports a named/tapped goal in progress. mission_status repeats its
+    latest line about once a second, so a fresh ACCEPTED/DISPATCHED line means Nav2 still owns the goal."""
+    if not mission_item or mission_item.get("age") is None or mission_item["age"] > max_age_s:
+        return False
+    return any(m in str(mission_item.get("value", "")) for m in NAV_ACTIVE_MARKERS)
+
+
+def visible_plan(plan_item, goal_item, mission_item):
+    """Plan shown on the dashboard map. 2026-11-14 rule kept: a plan older than 30 s is hidden (an old plan-only
+    check in another map frame was drawn pointing the wrong way). 2026-11-16 (owner: "I can't see its planned
+    route"): the replan-only-if-blocked tree publishes /plan only when it (re)plans — 4 times in a whole goal — so
+    the live path vanished after 30 s. While a goal is active, keep the plan if it was computed for that goal
+    (not older than the goal itself)."""
+    if not plan_item:
+        return None
+    if plan_item["age"] <= 30.0:
+        return plan_item
+    if nav_goal_active(mission_item) and goal_item and plan_item["age"] <= goal_item["age"] + 2.0:
+        return plan_item
+    return None
+
+
+MAP_EXTEND_DIR = Path.home() / ".local/state/project_atlas/map_extend"
+MAP_EXTEND_MAX_AGE_S = 7 * 86400.0
+
+
+def read_map_extend(now=None, state_dir=None):
+    """2026-11-26 add-only map extension: the extend job's latest result for the Mapping page (read-only; no file
+    paths are passed to the browser). None when missing, unreadable or older than 7 days."""
+    state_dir = Path(MAP_EXTEND_DIR if state_dir is None else state_dir)
+    now = time.time() if now is None else now
+    try:
+        r = json.loads((state_dir / "latest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(r, dict) or not isinstance(r.get("created_unix"), (int, float)):
+        return None
+    age = now - float(r["created_unix"])
+    if age > MAP_EXTEND_MAX_AGE_S:
+        return None
+    out = {k: r.get(k) for k in ("session_id", "ok", "failures", "match", "stats", "T", "used_wide_search",
+                                 "created_unix")}
+    out["age_s"] = round(age, 1)
+    out["has_preview"] = bool(r.get("preview"))
+    out["has_candidate"] = bool(r.get("candidate_yaml"))
+    return out
+
+
+def map_extend_preview_path(state_dir=None):
+    """Path of the latest preview PNG, only if it lies inside the extend state directory (no traversal)."""
+    root = Path(MAP_EXTEND_DIR if state_dir is None else state_dir).resolve()
+    try:
+        r = json.loads((root / "latest.json").read_text(encoding="utf-8"))
+        p = Path(r.get("preview") or "").resolve()
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    if root not in p.parents or p.suffix != ".png":
+        return None
+    return p
+
+
+MAPPING_QUALITY_MAX_AGE_S = 10.0
+
+
+def visible_mapping_quality(item):
+    """2026-11-26 guided mapping assistant (phase 1b): the latest /atlas/mapping_quality JSON (schema 1) for the
+    mapping page, or None when missing, stale (> 10 s; the node publishes every 2 s) or malformed. Read-only advice."""
+    if not item or item.get("age") is None or item["age"] > MAPPING_QUALITY_MAX_AGE_S:
+        return None
+    try:
+        value = json.loads(item.get("value") or "")
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(value, dict) or value.get("schema") != 1:
+        return None
+    return value
+
+
+def map_markers(map_meta=None):
+    """Return poses belonging to the map currently shown by the dashboard."""
+    markers = []
+    candidate_files = sorted(
+        Path("/home/jetson/project_atlas/maps/candidates").glob("*/commissioning_metadata.json"),
+        key=lambda path: path.stat().st_mtime if path.exists() else 0,
+        reverse=True,
+    )
+    if candidate_files:
+        try:
+            payload = json.loads(candidate_files[0].read_text(encoding="utf-8"))
+            candidate_size = payload.get("map_size_cells")
+            candidate_is_active = (
+                isinstance(map_meta, dict)
+                and isinstance(candidate_size, list)
+                and len(candidate_size) == 2
+                and int(map_meta.get("width", -1)) == int(candidate_size[0])
+                and int(map_meta.get("height", -1)) == int(candidate_size[1])
+            )
+            if candidate_is_active:
+                for key, label in (("hall_start_pose", "Hall"), ("dhruv_room_end_pose", "Dhruv Room")):
+                    pose = payload.get(key, {})
+                    if all(isinstance(pose.get(field), (int, float)) for field in ("x_m", "y_m")):
+                        markers.append({
+                            "name": label, "x": float(pose["x_m"]), "y": float(pose["y_m"]),
+                            "yaw": math.radians(float(pose.get("yaw_deg", 0.0))),
+                            "source": "active mapping candidate",
+                        })
+                if markers:
+                    return markers
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            pass
+    try:
+        payload = json.loads(
+            (Path.home() / ".config/project_atlas/named_places.json").read_text(encoding="utf-8")
+        )
+        for key, pose in payload.items():
+            if key == "map_id" or not isinstance(pose, dict):
+                continue
+            if not all(isinstance(pose.get(field), (int, float)) for field in ("x", "y")):
+                continue
+            markers.append({
+                "name": key.title(), "x": float(pose["x"]), "y": float(pose["y"]),
+                "yaw": 2.0 * math.atan2(float(pose.get("qz", 0.0)), float(pose.get("qw", 1.0))),
+                "source": "accepted named places",
+                "map_id": pose.get("map_id"),
+            })
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        pass
+    return markers
 
 
 SENSOR_HUB_CACHE_KEYS = {
@@ -131,16 +398,54 @@ def sensor_hub_cache_snapshot():
         return _sensor_hub_cache_payload
 
 
+# Topics delivered at >= 5 Hz on ATLAS (measured 2026-10-11). They, the TF listener, every timer, every
+# publisher and the on-demand camera subscriptions stay on the original node ("atlas_web_control") and
+# its executor thread. All other status topics move to a second node ("atlas_web_status") with its own
+# executor thread. Topic names, types, QoS and callbacks are unchanged; only which executor dispatches
+# them changes. rclpy's executor scans every entity of its node on each wake, so separating the two
+# groups cuts the per-message cost (isolated benchmark: 55.7% -> 39.6% of one core).
+# 2026-11-13: executor batching (see atlas_dashboard_executor._batched). The hot node also serves the web
+# drive/E-STOP path, so it waits only 30 ms; the low-rate status node waits 100 ms.
+HOT_EXECUTOR_BATCH_S = 0.03
+STATUS_EXECUTOR_BATCH_S = 0.10
+HOT_STATUS_TOPICS = frozenset({
+    '/radar/hub/status', '/radar/targets', '/joy', '/ultrasonic/status', '/scan', '/odom',
+    '/im10a/dashboard_json', '/atlas/drive_pid/diagnostics', '/atlas/encoder_health',
+    '/yahboom/encoder/m1', '/yahboom/encoder/m2', '/yahboom/encoder/m3', '/yahboom/encoder/m4',
+    '/yahboom/imu/roll', '/yahboom/imu/pitch', '/yahboom/imu/heading',
+    '/steering/front_angle_deg', '/steering/rear_angle_deg', '/steering/mode',
+    '/atlas/steering_calibration/status', '/atlas/control_policy',
+})
+
+
+class _SubscriptionRouter:
+    """Stand-in for ``node`` while subscriptions are declared: hot topics and every timer go to
+    the original node, the remaining status subscriptions to the status node. Callbacks in the
+    two groups share mutable state only through AtlasRosNode.lock (tests/test_status_web_executor_split.py)."""
+
+    def __init__(self, hot, cold, hot_topics=HOT_STATUS_TOPICS):
+        self.hot, self.cold, self.hot_topics = hot, cold, hot_topics
+
+    def create_subscription(self, msg_type, topic, callback, qos, **kwargs):
+        node = self.hot if topic in self.hot_topics else self.cold
+        return node.create_subscription(msg_type, topic, callback, qos, **kwargs)
+
+    def create_timer(self, *args, **kwargs):
+        return self.hot.create_timer(*args, **kwargs)
+
+
 class AtlasRosNode:
     def __init__(self):
         self.ready = False
         self.data = {}
         self.update_times = {}
         self.lock = threading.Lock()
+        self.camera_frame_condition = threading.Condition(self.lock)
         # HTTP requests are handled concurrently. Serialize incremental camera
         # updates so a touch hold cannot race itself and jump several steps.
         self.camera_lock = threading.Lock()
         self.node = None
+        self.status_node = None
         self.pub = None
         self.pan_pub = None
         self.tilt_pub = None
@@ -151,11 +456,45 @@ class AtlasRosNode:
         self.steering_cal_pub = None
         self.pan_us = CAMERA_PAN_HOME_US
         self.tilt_us = CAMERA_TILT_HOME_US
+        self.camera_home_pan_us = CAMERA_PAN_HOME_US
+        self.camera_home_tilt_us = CAMERA_TILT_HOME_US
+        self._load_camera_home()
+        self.pan_us = self.camera_home_pan_us
+        self.tilt_us = self.camera_home_tilt_us
         self.actual_pan_us = CAMERA_PAN_HOME_US
         self.actual_tilt_us = CAMERA_TILT_HOME_US
         self.last_camera_manual = 0.0
         self.last_drive_command = 0.0
+        self.web_estop_at = float('-inf')
+        # Web E-STOP reset (stage 1b): server-side policy in atlas_estop_reset.py.
+        self.last_drive_request = float('-inf')     # any drive POST, accepted or refused
+        # Fresh-press rule: after ANY release of the stop latch (remote or web reset), a drive request
+        # is accepted only for a press whose start (start=1, press=<id>) reached the server after that
+        # release. A held button, a stale tab or a client whose requests resume after a network outage
+        # carries an older (or unknown) press id and is refused.
+        self.release_at = float('-inf')
+        self.seen_latched = None
+        self.presses = {}                          # press id -> monotonic time its start arrived
+        self.press_lock = threading.Lock()
+        self.remote_stop_reset_client = None
+        self.estop_log = estop_reset.EventLog()
+        self.reset_pins = estop_reset.PinStore()
+        self.reset_lockout = estop_reset.Lockout()
+        self.reset_challenges = estop_reset.Challenges()
+        self.logged_latch = None
         self.drive_active = False
+        self.camera_clients = CameraClientDemand(CAMERA_CLIENT_LEASE_SECONDS)
+        # Prime one frame after service start so the existing commissioning
+        # check has a real byte count.  After the short lease expires, the ROS
+        # executor releases both JPEG subscriptions until an HTTP camera
+        # request renews demand.
+        self.camera_subscription = None
+        self.ai_camera_subscription = None
+        # Issue #11: (arrival monotonic, camera header stamp) of every Pi camera frame the dashboard receives,
+        # so the measured camera rate is reported instead of the 1 Hz camera_info health heartbeat.
+        self.camera_rx = deque(maxlen=200)
+        self.last_camera_bytes = 0
+        self.last_camera_health = 0.0
         self.last_raw_camera_encode = 0.0
         self.last_compressed_camera = 0.0
         self.panel_camera_frame = None
@@ -163,6 +502,19 @@ class AtlasRosNode:
         self.overview_camera_frame = None
         self.overview_camera_source_ts = 0.0
         self.last_scan_summary = 0.0
+        self.last_map_encode = 0.0
+        self.map_png = None
+        self.map_meta = {}
+        self.map_received_at = 0.0
+        self.previous_amcl_pose = None
+        self.last_large_amcl_step_at = 0.0
+        self.map_lock = threading.Lock()
+        self.rgbd_context = None
+        if os.environ.get("ATLAS_RGBD_EVIDENCE_CACHE") == "1":
+            from atlas_rgbd_context import ContextCache
+            self.rgbd_context = ContextCache()
+        self.tf_buffer = None
+        self.tf_listener = None
         self.last_motion_check = 0.0
         self.prev_motion_gray = None
         self.yolo_ready = os.path.exists(
@@ -193,20 +545,59 @@ class AtlasRosNode:
     def _set(self, key, value):
         with self.lock:
             self.data[key] = {"value": value, "ts": time.time()}
-            samples = self.update_times.setdefault(key, deque(maxlen=128))
+            samples = self.update_times.get(key)
+            if samples is None:
+                samples = self.update_times[key] = deque(maxlen=128)
             samples.append(time.monotonic())
+
+    def _spin_status(self):
+        """Executor thread for the low-rate status node. A failure here fails the same way a
+        failure of the single executor did before: record it and stop publishing drive."""
+        executor = _atlas_create_executor(batch_s=STATUS_EXECUTOR_BATCH_S)
+        try:
+            executor.add_node(self.status_node)
+            executor.spin()
+        except Exception as exc:
+            self._set("web_error", "status executor: " + str(exc))
+            self.ready = False
+        finally:
+            try:
+                executor.shutdown()
+            except Exception:
+                pass
 
     def _spin(self):
         try:
             rclpy.init(args=None)
             self.node = rclpy.create_node("atlas_web_control")
+            self.tf_buffer = Buffer()
+            if self.rgbd_context is None:
+                self.tf_listener = TransformListener(self.tf_buffer, self.node)
+            else:
+                from atlas_rgbd_context import listener_class
+                self.tf_listener = listener_class(TransformListener)(self.tf_buffer,self.node,self.rgbd_context)
             self.pub = self.node.create_publisher(Twist, "/cmd_vel_web", 10)
             self.voice_mute_pub = self.node.create_publisher(Bool, '/atlas/voice/mic_mute', 10)
             # Reuse the existing mux latch; never create a second motor path.
             self.commissioning_stop_pub = self.node.create_publisher(Empty, '/atlas/voice/stop', 10)
             self.steering_cal_pub = self.node.create_publisher(String, '/atlas/steering_calibration/request', 10)
+            # Existing mux service; the mux grants it only with the physical remote connected and neutral.
+            self.remote_stop_reset_client = self.node.create_client(Trigger, '/atlas/remote_stop/reset')
+            # 2026-11-15 dashboard AUTONOMY ON/OFF + waypoints (atlas_autonomy_web); the mux / mission control decide.
+            self.autonomy_clients = {op: self.node.create_client(Trigger, '/atlas/autonomy/' + op) for op in ('arm', 'disarm')}
+            # 2026-11-16 dashboard "Abort mission": mission control's existing cancel (zero Twist + cancel all Nav2 goals).
+            self.cancel_nav_pub = self.node.create_publisher(Empty, '/atlas/cancel_navigation', 10)
+            self.place_pubs = {op: self.node.create_publisher(String, topic, 10) for op, topic in (
+                ('save', '/atlas/save_named_place'), ('go', '/atlas/navigate_named_place'),
+                ('delete', '/atlas/delete_named_place'), ('save_at', '/atlas/save_named_place_at'),
+                ('go_at', '/atlas/navigate_to_point'))}
+            self.location_check_clients = {op: self.node.create_client(Trigger, '/atlas/location_check/'+op) for op in ('start','cancel')}
             self.node.create_subscription(String, '/atlas/steering_calibration/status', lambda m: self._set('steering_calibration', m.data), 10)
             self.node.create_subscription(String, '/atlas/control_policy', lambda m: self._set('control_policy', m.data), 10)
+            # ATLAS Stage 29 manual controller: FlySky drive status (read-only) and the mux selection services.
+            self.node.create_subscription(String, '/atlas/flysky/drive_status', lambda m: self._set('flysky_drive', m.data), 10)
+            self.manual_controller_clients = {t: self.node.create_client(Trigger, '/atlas/manual_controller/select_' + t.lower())
+                                              for t in ('XBOX', 'FLYSKY')}
             self.pan_pub = self.node.create_publisher(
                 Int32, "/camera/bottom_servo_cmd_us", 10
             )
@@ -219,7 +610,8 @@ class AtlasRosNode:
             self.ai_pub = self.node.create_publisher(
                 Bool, "/atlas/ai_enabled", 10
             )
-            n = self.node
+            self.status_node = rclpy.create_node("atlas_web_status")
+            n = _SubscriptionRouter(self.node, self.status_node)
             n.create_subscription(String, "/ultrasonic/status", self._ultrasonic_status_cb, 10)
             n.create_subscription(String, "/ultrasonic/validity", lambda m: self._set('us_validity', m.data), 1)
             n.create_subscription(
@@ -296,7 +688,7 @@ class AtlasRosNode:
             n.create_subscription(Float32, "/battery/voltage", lambda m: self._set("bat_voltage", m.data), 10)
             n.create_subscription(Float32, "/battery/current", lambda m: self._set("bat_current", m.data), 10)
             n.create_subscription(Float32, "/battery/percent", lambda m: self._set("bat_percent", m.data), 10)
-            n.create_subscription(String, "/bms/status", lambda m: self._set("bms_status", m.data), 10)
+            n.create_subscription(String, "/bms/status", self._on_bms_status, 10)
             n.create_subscription(String, "/bms/json", lambda m: self._set("bms_json", m.data), 10)
             n.create_subscription(Float32, "/bms/voltage", lambda m: self._set("bms_voltage", m.data), 10)
             n.create_subscription(Float32, "/bms/current", lambda m: self._set("bms_current", m.data), 10)
@@ -337,15 +729,33 @@ class AtlasRosNode:
             n.create_subscription(Int32, "/yahboom/encoder/m3", lambda m: self._set("enc_m3", m.data), 10)
             n.create_subscription(Int32, "/yahboom/encoder/m4", lambda m: self._set("enc_m4", m.data), 10)
             n.create_subscription(String, "/atlas/encoder_health", lambda m: self._set("encoder_health", m.data), 10)
+            n.create_subscription(String, "/atlas/drive_pid/diagnostics", lambda m: self._set("drive_pid", m.data), 10)
             n.create_subscription(LaserScan, "/scan", self._scan_cb, qos_profile_sensor_data)
-            n.create_subscription(CompressedImage, "/camera/image_raw/compressed", self._camera_cb, qos_profile_sensor_data)
-            n.create_subscription(CompressedImage, "/camera/detections/compressed", self._ai_camera_cb, 10)
+            # 2026-11-22 "What ATLAS sees": the mux gate's own inputs, display only (atlas_gate_view).
+            n.create_subscription(LaserScan, "/astra/obstacle_coverage", self._gate_coverage_cb, qos_profile_sensor_data)
+            # 2026-11-14: the Astra obstacle scan exactly as Nav2 sees it (domain 0, via the bridge).
+            n.create_subscription(LaserScan, "/astra/obstacle_scan",
+                                  lambda m: self._set("astra_nav2", {"beams": len(m.ranges)}), qos_profile_sensor_data)
+            map_qos = QoSProfile(
+                depth=1,
+                reliability=ReliabilityPolicy.RELIABLE,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            )
+            n.create_subscription(OccupancyGrid, "/map", self._map_cb, map_qos)
+            n.create_subscription(NavPath, "/plan", self._plan_cb, 10)
+            n.create_subscription(PoseStamped, "/goal_pose", self._goal_cb, 10)
+            n.create_subscription(String, "/atlas/mission_status", lambda m: self._set("mission_status", m.data), 10)
+            # 2026-11-28 home "Why isn't ATLAS moving?": the mux's own stop reason, read-only, newest only (status group)
+            n.create_subscription(String, "/atlas/motion_safety", lambda m: self._set("motion_safety", m.data), 1)
+            # 2026-11-26 guided mapping assistant (read-only advice, <= 4 KB every 2 s, only during mapping sessions)
+            n.create_subscription(String, "/atlas/mapping_quality", lambda m: self._set("mapping_quality", m.data), 1)
             n.create_subscription(String, "/camera/detections/json", self._ai_detections_cb, 10)
             n.create_subscription(Float32, "/steering/front_angle_deg", lambda m: self._set("front_steer", m.data), 10)
             n.create_subscription(Float32, "/steering/rear_angle_deg", lambda m: self._set("rear_steer", m.data), 10)
             n.create_subscription(String, "/steering/mode", lambda m: self._set("steer_mode", m.data), 10)
             n.create_subscription(NavSatFix, "/gps/fix", lambda m: self._set("gps_fix", {"status": m.status.status, "lat": m.latitude, "lon": m.longitude}), 10)
             n.create_subscription(Odometry, "/odom", self._odom_cb, 10)
+            n.create_subscription(PoseWithCovarianceStamped, "/amcl_pose", self._amcl_cb, 10)
             n.create_subscription(Twist, "/cmd_vel", lambda m: self._set("cmd_vel", {"lin": m.linear.x, "ang": m.angular.z}), 10)
             n.create_subscription(String, "/atlas/health", lambda m: self._set("atlas_health", m.data), 10)
             n.create_subscription(String, "/atlas/readiness", lambda m: self._set("atlas_readiness", m.data), 10)
@@ -386,19 +796,30 @@ class AtlasRosNode:
                 10,
             )
             n.create_timer(0.1, self._drive_watchdog)
+            n.create_timer(0.5, self._map_pose_tick)
+            # Start the one-frame health probe only after the node and all
+            # callbacks are ready; slow process startup must not consume the
+            # entire client lease before the subscription timer exists.
+            self.camera_clients.touch()
+            n.create_timer(
+                CAMERA_SUBSCRIPTION_PERIOD_SECONDS,
+                self._camera_subscription_tick,
+            )
             self.ready = True
-            rclpy.spin(n)
+            threading.Thread(target=self._spin_status, name="atlas-web-status-spin", daemon=True).start()
+            _atlas_spin(self.node, batch_s=HOT_EXECUTOR_BATCH_S)
         except Exception as exc:
             self._set("web_error", str(exc))
             self.ready = False
         finally:
             self.ready = False
-            try:
-                if self.node is not None:
-                    self.node.destroy_node()
-            except Exception:
-                pass
-            self.node = None
+            for attr in ("status_node", "node"):
+                try:
+                    if getattr(self, attr) is not None:
+                        getattr(self, attr).destroy_node()
+                except Exception:
+                    pass
+                setattr(self, attr, None)
 
     def close(self):
         self.ready = False
@@ -411,12 +832,34 @@ class AtlasRosNode:
             self.spin_thread.join(timeout=3.0)
 
     def _odom_cb(self, msg):
+        if getattr(self,"rgbd_context",None) is not None:self.rgbd_context.put("odom",msg)
         self._set("odom", {
             "x": msg.pose.pose.position.x,
             "y": msg.pose.pose.position.y,
             "vx": msg.twist.twist.linear.x,
             "wz": msg.twist.twist.angular.z,
         })
+
+    def _amcl_cb(self, msg):
+        pose = msg.pose.pose
+        q = pose.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                         1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        current = (float(pose.position.x), float(pose.position.y), yaw)
+        cov = msg.pose.covariance      # same std formulas as the cmd_vel mux (on_localization)
+        self.gate_pose = current
+        self.gate_pose_std = (math.sqrt(max(0.0, cov[0]) + max(0.0, cov[7])), math.degrees(math.sqrt(max(0.0, cov[35]))))
+        self.gate_pose_rx = time.monotonic()
+        quality = summarize_amcl_pose(*current, msg.pose.covariance,
+                                      previous=self.previous_amcl_pose)
+        self.previous_amcl_pose = current
+        if quality["large_step"]:
+            self.last_large_amcl_step_at = time.monotonic()
+        quality["recent_jump_s"] = (
+            round(time.monotonic() - self.last_large_amcl_step_at, 1)
+            if self.last_large_amcl_step_at else None
+        )
+        self._set("amcl_quality", quality)
 
     def _ultrasonic_status_cb(self, msg):
         now = time.time()
@@ -505,8 +948,71 @@ class AtlasRosNode:
             ):
                 self.data[key] = {"value": value, "ts": now}
 
+    def _gate_guard(self):
+        guard = getattr(self, 'gate_guard', None)
+        if guard is None:
+            import atlas_lidar_availability as lidar_avail
+            guard = self.gate_guard = lidar_avail.LidarAvailability()
+        return guard
+
+    def _gate_coverage_cb(self, msg):
+        try:
+            now = time.monotonic()
+            with self.lock:          # /scan (hot) and coverage (cold) run on different executor threads
+                self._gate_guard().update_coverage(msg, now)
+        except Exception:
+            pass
+
+    def _gate_guard_copy(self):
+        """Consistent copy of the display guard for the HTTP thread (taken under self.lock)."""
+        import copy
+        with self.lock:
+            guard = getattr(self, 'gate_guard', None)
+            if guard is None:
+                return None
+            g = copy.copy(guard)
+            g.bins = set(guard.bins)
+            g.cover_bins = set(getattr(guard, 'cover_bins', set()))
+            g.cover_obstacles = dict(getattr(guard, 'cover_obstacles', {}))
+            return g
+
+    def gate_view_snapshot(self):
+        """2026-11-22 read-only 'What ATLAS sees' (see atlas_gate_view). Never raises."""
+        try:
+            import atlas_gate_view
+            sample = getattr(self, 'surround_scan', None)
+            pose_rx = getattr(self, 'gate_pose_rx', None)
+            item = self._item('us_validity')
+            try:
+                validity = json.loads(item['value']) if item and isinstance(item.get('value'), str) else None
+            except ValueError:
+                validity = None
+            if validity is not None and item:
+                age = max(0.0, time.time() - float(item.get('ts', 0.0)))
+                for s in (validity.get('sensors') or {}).values():
+                    if isinstance(s, dict):
+                        s['sample_age_s'] = float(s.get('sample_age_s', 99)) + age
+            std = getattr(self, 'gate_pose_std', (None, None))
+            return atlas_gate_view.build(
+                self._gate_guard_copy(), sample[0] if sample else None, time.monotonic(),
+                self.node.get_clock().now().nanoseconds * 1e-9, grid=getattr(self, 'gate_grid', None),
+                pose=getattr(self, 'gate_pose', None), xy_std=std[0], yaw_std=std[1],
+                pose_age_s=(time.monotonic() - pose_rx) if pose_rx else None, validity=validity)
+        except Exception as exc:
+            return {'state': 'ERROR', 'reason': str(exc)[:200]}
+
     def _scan_cb(self, msg):
+        if getattr(self,"rgbd_context",None) is not None:self.rgbd_context.put("scan",msg)
+        try:
+            now = time.monotonic()
+            with self.lock:
+                self._gate_guard().update(msg, now)
+        except Exception:
+            pass
         now = time.time()
+        previous = getattr(self, 'surround_scan', None)
+        dt = now-previous[1] if previous else 0
+        self.surround_scan = (msg, now, 1/dt if dt > 0 else None)
         if now - self.last_scan_summary < 0.50:
             return
         self.last_scan_summary = now
@@ -520,11 +1026,199 @@ class AtlasRosNode:
             "frame": msg.header.frame_id,
         })
 
+    def surround_snapshot(self):
+        from atlas_lidar_view import project
+        sample = getattr(self, 'surround_scan', None)
+        if sample is None:
+            return {'state': 'MISSING', 'points': [], 'reason': 'No /scan received'}
+        msg, received, hz = sample
+        age = max(0, time.time()-received)
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec/1e9
+        stamp_age = self.node.get_clock().now().nanoseconds/1e9-stamp
+        out = dict(state='STALE' if age > 2 else 'LIVE', age_s=age,
+                   stamp_s=stamp, source='/scan', frame=msg.header.frame_id,
+                   hz=hz, points=[], total=len(msg.ranges), stamp_age_s=stamp_age)
+        if age > 2 or stamp <= 0 or not -0.2 <= stamp_age <= 2:
+            out.update(state='STALE', reason='Scan receipt or source timestamp is stale/invalid')
+            return out
+        try:
+            # Exact scan-time transform. Never silently substitute latest TF.
+            tf = self.tf_buffer.lookup_transform('base_link', msg.header.frame_id,
+                                                 rclpy.time.Time.from_msg(msg.header.stamp))
+            out.update(project(msg, tf.transform))
+            out['display_frame'] = 'base_link'
+            out['reason'] = 'Distances from base_link origin, not chassis clearance'
+        except Exception as exc:
+            out.update(state='TF UNAVAILABLE', reason=str(exc)[:220])
+        return out
+
+    def _map_cb(self, msg):
+        """Cache a browser-ready occupancy image without changing Nav2 data."""
+        try:   # 2026-11-22 gate view: the same map + virtual obstacles the mux guard uses
+            import atlas_lidar_availability as lidar_avail
+            import atlas_virtual_obstacles
+            grid = lidar_avail.OccGrid.from_msg(msg)
+            try:
+                polys = atlas_virtual_obstacles.load_polygons(atlas_virtual_obstacles.DEFAULT_CONFIG)
+            except (OSError, ValueError, TypeError, IndexError, KeyError):
+                polys = []
+            self.gate_grid = atlas_virtual_obstacles.overlay_grid(grid, polys) if polys else grid
+        except Exception:
+            self.gate_grid = None
+        now = time.time()
+        if now - self.last_map_encode < 0.75:
+            return
+        width, height = int(msg.info.width), int(msg.info.height)
+        if width <= 0 or height <= 0 or len(msg.data) != width * height:
+            return
+        self.last_map_encode = now
+        cells = np.asarray(msg.data, dtype=np.int16).reshape((height, width))
+        image = np.full((height, width), 62, dtype=np.uint8)
+        image[cells == 0] = 232
+        image[cells >= 65] = 8
+        uncertain = (cells > 0) & (cells < 65)
+        image[uncertain] = np.clip(232 - cells[uncertain] * 2, 74, 220).astype(np.uint8)
+        image = np.flipud(image)
+        ok, encoded = cv2.imencode(".png", image)
+        if not ok:
+            return
+        q = msg.info.origin.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        meta = {
+            "frame": msg.header.frame_id or "map",
+            "width": width,
+            "height": height,
+            "resolution": float(msg.info.resolution),
+            "origin_x": float(msg.info.origin.position.x),
+            "origin_y": float(msg.info.origin.position.y),
+            "origin_yaw": yaw,
+        }
+        with self.map_lock:
+            self.map_png = encoded.tobytes()
+            self.map_meta = meta
+            self.map_received_at = now
+        self._set("map_info", meta)
+
+    def _on_bms_status(self, msg):
+        """2026-11-16: also feed the phone-style battery time estimate (read-only advice, never a safety input)."""
+        self._set("bms_status", msg.data)
+        try:
+            eta = getattr(self, "battery_eta", None)
+            if eta is None:
+                from atlas_battery_eta import BatteryEta
+                cap = charger = charger_v = None
+                try:
+                    import yaml
+                    cfg = yaml.safe_load(open(Path(__file__).resolve().parents[1] / "config" / "battery_eta.yaml"))
+                    cap = (cfg or {}).get("capacity_ah")
+                    charger = (cfg or {}).get("charger_current_a")
+                    charger_v = (cfg or {}).get("charger_voltage_v")
+                except (OSError, ValueError, TypeError, AttributeError):
+                    cap = charger = charger_v = None
+                eta = self.battery_eta = BatteryEta(
+                    capacity_ah=cap, state_path=Path.home() / ".local/state/project_atlas/battery_capacity.json",
+                    charger_current_a=charger, charger_voltage_v=charger_v)
+            b = json.loads(msg.data)
+            eta.update(time.time(), float(b.get("soc_percent")), float(b.get("current_a")), bool(b.get("ok")),
+                       voltage=b.get("voltage_v"))
+            self._set("battery_eta", eta.estimate())
+        except Exception:                      # never let the estimate break the BMS telemetry
+            pass
+
+    def _plan_cb(self, msg):
+        poses = msg.poses
+        stride = max(1, math.ceil(len(poses) / 500))
+        self._set("nav_plan", [
+            [float(p.pose.position.x), float(p.pose.position.y)]
+            for p in poses[::stride]
+        ])
+
+    def _goal_cb(self, msg):
+        q = msg.pose.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        self._set("nav_goal", {
+            "x": float(msg.pose.position.x), "y": float(msg.pose.position.y),
+            "yaw": yaw, "frame": msg.header.frame_id or "map",
+        })
+
+    def _map_pose_tick(self):
+        self.note_latch_state()
+        self.log_latch_transition()
+        if self.tf_buffer is None:
+            return
+        try:
+            transform = self.tf_buffer.lookup_transform("map", "base_link", rclpy.time.Time())
+            t, q = transform.transform.translation, transform.transform.rotation
+            yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+            self._set("map_pose", {
+                "x": float(t.x), "y": float(t.y), "yaw": yaw,
+                "frame": "map", "source": "authoritative map→base_link TF",
+            })
+        except Exception:
+            return
+
+    def map_frame(self):
+        with self.map_lock:
+            return self.map_png
+
+    def map_snapshot(self):
+        now = time.time()
+        with self.map_lock:
+            meta = dict(self.map_meta)
+            map_age = None if not self.map_received_at else round(now - self.map_received_at, 3)
+        with self.lock:
+            def item(name):
+                value = self.data.get(name)
+                if not value:
+                    return None
+                return {"value": value["value"], "age": round(now - value["ts"], 3)}
+            result = {
+                "map": meta, "map_age": map_age,
+                "pose": item("map_pose"), "goal": item("nav_goal"),
+                # 2026-11-14: hide a plan older than 30 s. Nav2 replans about every second while navigating; an old
+                # plan (e.g. the map-acceptance plan-only check, in a rejected candidate map's frame) was drawn
+                # over the live map pointing the wrong way.
+                "plan": visible_plan(item("nav_plan"), item("nav_goal"), item("mission_status")),
+                "nav_active": nav_goal_active(item("mission_status")),
+                "mission": item("mission_status"),
+                "localization": item("amcl_quality"),
+            }
+            mapping_quality = item("mapping_quality")
+        result["mapping_quality"] = visible_mapping_quality(mapping_quality)
+        result["markers"] = map_markers(meta)
+        result["start_verdict"] = read_start_verdict(now)
+        result["localization_check"] = read_localization_check(now)
+        return result
+
     def _camera_cb(self, msg):
         now = time.time()
+        now_mono = time.monotonic()
+        try:
+            self.camera_rx.append((now_mono, msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9))
+        except Exception:
+            pass
         if now - self.last_compressed_camera < 0.05:
             return
         self.last_compressed_camera = now
+        self.last_camera_bytes = len(msg.data)
+
+        # DDS delivery is also the camera-health signal.  When nobody is
+        # requesting an image, retain only lightweight metadata at 1 Hz: do
+        # not materialize another bytes object and do not JPEG-decode motion.
+        if not self.camera_clients.active(now_mono):
+            # Do not compare a future client session with a frame captured
+            # before this idle period and report that gap as physical motion.
+            self.prev_motion_gray = None
+            if now_mono - self.last_camera_health >= CAMERA_HEALTH_PERIOD_SECONDS:
+                self.last_camera_health = now_mono
+                self._set("camera_info", {
+                    "bytes": len(msg.data),
+                    "source": "compressed",
+                    "streaming": False,
+                    "motion": "paused; no camera client",
+                })
+            return
+
         frame_bytes = bytes(msg.data)
         motion_text = "motion waiting"
         if now - self.last_motion_check >= 0.90:
@@ -553,13 +1247,109 @@ class AtlasRosNode:
             ai_status = "YOLO ready, off in Eco Mode" if self.yolo_ready else "YOLO model missing"
         else:
             ai_status = f"{self.ai_mode.title()} mode staged; safe preview only"
-        with self.lock:
+        with self.camera_frame_condition:
             self.data["camera_frame"] = {"value": frame_bytes, "ts": time.time()}
-            self.data["camera_info"] = {"value": {"bytes": len(frame_bytes), "source": "compressed", "motion": motion_text, "ai": ai_status}, "ts": time.time()}
+            self.data["camera_info"] = {
+                "value": {
+                    "bytes": len(frame_bytes),
+                    "source": "compressed",
+                    "streaming": True,
+                    "motion": motion_text,
+                    "ai": ai_status,
+                },
+                "ts": time.time(),
+            }
             self.data["ai_status"] = {"value": ai_status, "ts": time.time()}
+            self.camera_frame_condition.notify_all()
+
+    def camera_rate(self, window=4.0):
+        """Measured Pi camera rate from frames the dashboard actually received (issue #11).
+
+        source_fps uses the camera's own frame timestamps (true capture/publish rate); delivered_fps uses arrival
+        times. None when no frame arrived in the last 1.5 s (no viewer lease, so the dashboard is not subscribed)."""
+        now = time.monotonic()
+        rows = [r for r in list(self.camera_rx) if now - r[0] <= window]
+        if len(rows) < 3 or now - rows[-1][0] > 1.5:
+            return None
+        span_rx = rows[-1][0] - rows[0][0]
+        span_src = rows[-1][1] - rows[0][1]
+        return {'frames': len(rows), 'window_s': round(span_rx, 2),
+                'delivered_fps': round((len(rows) - 1) / span_rx, 2) if span_rx > 0 else None,
+                'source_fps': round((len(rows) - 1) / span_src, 2) if span_src > 0 else None,
+                'last_age_s': round(now - rows[-1][0], 2)}
 
     def _ai_camera_cb(self, msg):
+        if self.ai_mode != "object" or not self.camera_clients.active():
+            return
         self._set("ai_camera_frame", bytes(msg.data))
+        with self.camera_frame_condition:
+            self.camera_frame_condition.notify_all()
+
+    def _camera_subscription_tick(self):
+        """Own camera JPEG subscriptions only while an HTTP client needs them.
+
+        Subscription create/destroy stays inside the ROS executor thread.  An
+        idle web process therefore avoids DDS deserialisation and Python
+        callback dispatch for both 720p JPEG streams, while topic/publisher
+        names and every HTTP endpoint remain unchanged.
+        """
+        node = self.node
+        if node is None:
+            return
+        demand = self.camera_clients.active()
+        wants_ai = demand and self.ai_mode == "object"
+        try:
+            if demand and self.camera_subscription is None:
+                self.camera_subscription = node.create_subscription(
+                    CompressedImage,
+                    "/camera/image_raw/compressed",
+                    self._camera_cb,
+                    qos_profile_sensor_data,
+                )
+            elif not demand and self.camera_subscription is not None:
+                node.destroy_subscription(self.camera_subscription)
+                self.camera_subscription = None
+                self.prev_motion_gray = None
+                with self.camera_frame_condition:
+                    self.data.pop("camera_frame", None)
+                    self.data.pop("ai_camera_frame", None)
+                    self.panel_camera_frame = None
+                    self.panel_camera_source_ts = 0.0
+                    self.overview_camera_frame = None
+                    self.overview_camera_source_ts = 0.0
+                    self.camera_frame_condition.notify_all()
+
+            if wants_ai and self.ai_camera_subscription is None:
+                self.ai_camera_subscription = node.create_subscription(
+                    CompressedImage,
+                    "/camera/detections/compressed",
+                    self._ai_camera_cb,
+                    10,
+                )
+            elif not wants_ai and self.ai_camera_subscription is not None:
+                node.destroy_subscription(self.ai_camera_subscription)
+                self.ai_camera_subscription = None
+                with self.camera_frame_condition:
+                    self.data.pop("ai_camera_frame", None)
+                    self.camera_frame_condition.notify_all()
+        except Exception as exc:
+            self._set("camera_subscription_error", str(exc))
+
+        now_mono = time.monotonic()
+        if not demand and now_mono - self.last_camera_health >= CAMERA_HEALTH_PERIOD_SECONDS:
+            self.last_camera_health = now_mono
+            publisher_count = node.count_publishers(
+                "/camera/image_raw/compressed"
+            )
+            if publisher_count <= 0:
+                self.last_camera_bytes = 0
+            self._set("camera_info", {
+                "bytes": self.last_camera_bytes,
+                "source": "compressed topic graph",
+                "publisher_count": publisher_count,
+                "streaming": False,
+                "motion": "paused; no camera client",
+            })
 
     def _ai_detections_cb(self, msg):
         try:
@@ -699,8 +1489,8 @@ class AtlasRosNode:
                 if ros_sent or socket_sent:
                     return True, f"manual tilt {self.tilt_us}us"
             if axis == "center":
-                self.pan_us = CAMERA_PAN_HOME_US
-                self.tilt_us = CAMERA_TILT_HOME_US
+                self.pan_us = self.camera_home_pan_us
+                self.tilt_us = self.camera_home_tilt_us
                 ros_sent = self.pan_pub is not None and self.tilt_pub is not None
                 if self.pan_pub is not None:
                     self.pan_pub.publish(Int32(data=self.pan_us))
@@ -713,6 +1503,53 @@ class AtlasRosNode:
                 if ros_sent or socket_sent:
                     return True, "manual camera centred"
         return False, "camera command path unavailable"
+
+    def _load_camera_home(self):
+        try:
+            text = open(CAMERA_HOME_CONFIG, encoding="utf-8").read()
+        except OSError:
+            return
+        pan = re.search(r"ATLAS_CAMERA_PAN_HOME_US=(\d+)", text)
+        tilt = re.search(r"ATLAS_CAMERA_TILT_HOME_US=(\d+)", text)
+        if pan and 700 <= int(pan.group(1)) <= 2300:
+            self.camera_home_pan_us = int(pan.group(1))
+        if tilt and 700 <= int(tilt.group(1)) <= 2300:
+            self.camera_home_tilt_us = int(tilt.group(1))
+
+    def save_camera_home(self):
+        with self.lock:
+            feedback = dict(self.data.get("camera_servo_status", {}))
+        age = time.time() - feedback.get("ts", 0)
+        if not (0 <= age <= 2.0 and str(feedback.get("value", "")).startswith("online ")):
+            return False, "Camera controller offline/stale; home was not changed"
+        with self.camera_lock:
+            pan = int(self.actual_pan_us)
+            tilt = int(self.actual_tilt_us)
+            if not (700 <= pan <= 2300 and 700 <= tilt <= 2300):
+                return False, "Invalid live camera position; home was not changed"
+            directory = os.path.dirname(CAMERA_HOME_CONFIG)
+            temp_path = CAMERA_HOME_CONFIG + ".tmp"
+            try:
+                os.makedirs(directory, exist_ok=True)
+                with open(temp_path, "w", encoding="utf-8") as output:
+                    output.write(
+                        "[Service]\n"
+                        "# Saved from the ATLAS web dashboard using fresh PCA9685 feedback.\n"
+                        f"Environment=ATLAS_CAMERA_PAN_HOME_US={pan}\n"
+                        f"Environment=ATLAS_CAMERA_TILT_HOME_US={tilt}\n"
+                    )
+                os.replace(temp_path, CAMERA_HOME_CONFIG)
+            except OSError as exc:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+                return False, f"Could not save camera home: {exc}"
+            self.camera_home_pan_us = pan
+            self.camera_home_tilt_us = tilt
+            self.pan_us = pan
+            self.tilt_us = tilt
+        return True, f"Camera home saved: pan {pan}us, tilt {tilt}us"
 
     def set_camera_tracking(self, enabled):
         if self.camera_tracking_pub is None:
@@ -803,13 +1640,191 @@ class AtlasRosNode:
             self._set("web_drive", "STOP")
         return True
 
+    def latch_drive_stop(self):
+        """Latch the cmd_vel mux stop through its existing stop-only input.
+
+        This is the same ``/atlas/voice/stop`` latch the commissioning page's
+        LATCH DRIVE STOP uses. The mux drops every drive source while latched
+        and only the physical remote can release it (sticks neutral, hold LB,
+        let go). The web server never publishes a release.
+        """
+        self.web_estop_at = time.monotonic()
+        if not self.ready or self.commissioning_stop_pub is None:
+            return False
+        self.commissioning_stop_pub.publish(Empty())
+        return True
+
+    def autonomy_armed(self, max_policy_age_s=2.0):
+        """True/False from a fresh mux control policy; None when unknown (callers must treat None as armed)."""
+        with self.lock:
+            item = self.data.get('control_policy')
+        if not item or time.time() - float(item.get('ts', 0.0)) > max_policy_age_s:
+            return None
+        try:
+            armed = json.loads(item['value']).get('autonomy', {}).get('armed')
+        except (TypeError, ValueError, AttributeError):
+            return None
+        return armed if isinstance(armed, bool) else None
+
+    def drive_stop_latched(self, max_policy_age_s=1.0, estop_grace_s=1.0):
+        """True while a web E-STOP is recent or fresh mux policy reports a latch."""
+        if time.monotonic() - self.web_estop_at < estop_grace_s:
+            return True
+        with self.lock:
+            item = self.data.get('control_policy')
+        if not item or time.time() - float(item.get('ts', 0.0)) > max_policy_age_s:
+            return False
+        try:
+            return json.loads(item['value']).get('stop_latched') is True
+        except (TypeError, ValueError, AttributeError):
+            return False
+
+    def _item(self, key):
+        with self.lock:
+            item = self.data.get(key)
+            return (dict(item) if item else None)
+
+    def estop_observations(self):
+        now = time.time()
+        age = lambda it: (now - float(it.get('ts', 0.0))) if it else None
+        pol_item, joy, odom, cmd = (self._item(k) for k in ('control_policy', 'joy', 'odom', 'cmd_vel'))
+        try:
+            policy = json.loads(pol_item['value']) if pol_item else None
+        except (TypeError, ValueError):
+            policy = None
+        since = time.monotonic() - self.last_drive_request
+        return {
+            'ros_ready': bool(self.ready), 'shutdown_pending': SHUTDOWN_PENDING.is_set(),
+            'policy': policy, 'policy_age_s': age(pol_item), 'joy_age_s': age(joy),
+            'odom': odom and odom.get('value'), 'odom_age_s': age(odom),
+            'cmd_vel': cmd and cmd.get('value'), 'cmd_vel_age_s': age(cmd),
+            'drive_active': bool(self.drive_active), 'since_drive_request_s': since if since != float('inf') else None,
+            'pin_configured': self.reset_pins.configured(), 'lockout_s': self.reset_lockout.remaining(),
+        }
+
+    def estop_state(self, client):
+        obs = self.estop_observations()
+        blocked = estop_reset.evaluate(obs)
+        policy = obs['policy'] if obs['policy_age_s'] is not None and obs['policy_age_s'] <= estop_reset.POLICY_MAX_AGE_S else None
+        latched = None if policy is None else policy.get('stop_latched') is True
+        available = latched is True and not blocked
+        return {
+            'latched': latched, 'reason': policy and policy.get('stop_reason'),
+            'drive_requires_fresh_press': self.release_at > max(self.presses.values(), default=float('-inf')),
+            'reset': {'available': available, 'blocked': [] if available else blocked,
+                      'challenge': self.reset_challenges.issue(client) if available else None,
+                      'challenge_ttl_s': estop_reset.CHALLENGE_TTL_S, 'pin_configured': obs['pin_configured'],
+                      'lockout_s': round(obs['lockout_s'], 1)},
+        }
+
+    def request_location_check(self, action):
+        client = getattr(self, 'location_check_clients', {}).get(action)
+        if not self.ready or client is None or not client.service_is_ready():
+            return dict(accepted=False, state='UNAVAILABLE', reason='Location-check monitor unavailable')
+        future = client.call_async(Trigger.Request())
+        end = time.monotonic() + 2.
+        while not future.done() and time.monotonic() < end:
+            time.sleep(.02)
+        if not future.done():
+            future.cancel()
+            return dict(accepted=False, state='UNCERTAIN', reason='Request acknowledgement timed out; check status before retrying')
+        reply = future.result()
+        result = json.loads(reply.message)
+        result['accepted'] = bool(reply.success)
+        return result
+
+    def request_mux_reset(self, timeout_s=2.0):
+        client = self.remote_stop_reset_client
+        if not self.ready or client is None or not client.service_is_ready():
+            return False, 'mux reset service unavailable'
+        future = client.call_async(Trigger.Request())
+        end = time.monotonic() + timeout_s
+        while not future.done() and time.monotonic() < end:
+            time.sleep(0.02)          # the ROS executor thread completes the future
+        if not future.done():
+            future.cancel()
+            return False, 'mux did not answer'
+        result = future.result()
+        return bool(result.success), str(result.message)
+
+    def note_latch_state(self):
+        """Track latched -> released transitions from fresh mux policy (any release path)."""
+        item = self._item('control_policy')
+        if not item or time.time() - float(item.get('ts', 0.0)) > 1.0:
+            return
+        try:
+            latched = json.loads(item['value']).get('stop_latched') is True
+        except (TypeError, ValueError, AttributeError):
+            return
+        with self.press_lock:
+            if latched:
+                self.seen_latched = True
+            elif self.seen_latched:
+                self.seen_latched = False
+                self.release_at = time.monotonic()
+                self.estop_log.write('release_observed', note='fresh press required for web drive')
+
+    def drive_press_allowed(self, press, start):
+        """Apply the fresh-press rule. Returns (allowed, message-if-refused)."""
+        now = time.monotonic()
+        with self.press_lock:
+            if press and start:
+                self.presses[press] = now
+                if len(self.presses) > 64:
+                    for old in sorted(self.presses, key=self.presses.get)[:len(self.presses) - 64]:
+                        del self.presses[old]
+            if self.release_at == float('-inf'):
+                return True, ''
+            if not press:
+                return False, 'Reload the dashboard: this page is too old to drive after an E-STOP release.'
+            started = self.presses.get(press)
+            if started is None or started <= self.release_at:
+                return False, 'Release all drive buttons, then press again to drive.'
+            return True, ''
+
+    def log_latch_transition(self):
+        item = self._item('control_policy')
+        if not item:
+            return
+        try:
+            policy = json.loads(item['value'])
+        except (TypeError, ValueError):
+            return
+        state = (policy.get('stop_latched'), policy.get('stop_reason'))
+        if state != self.logged_latch:
+            self.logged_latch = state
+            self.estop_log.write('latch_state', latched=state[0], reason=state[1])
+
+    ATTITUDE_KEYS = ("imu_roll", "imu_pitch", "imu_yaw", "imu_full", "front_steer", "rear_steer", "odom")
+
+    def attitude_snapshot(self):
+        """Small, cheap payload for the IMU flight instruments (polled ~5 Hz only while that panel is open)."""
+        now = time.time()
+        with self.lock:
+            out = {}
+            for key in self.ATTITUDE_KEYS:
+                item = self.data.get(key)
+                if item is None:
+                    continue
+                value = item["value"]
+                if key == "imu_full" and isinstance(value, dict):
+                    value = {"gz": value.get("gz")}
+                elif key == "odom" and isinstance(value, dict):
+                    value = {"vx": value.get("vx"), "wz": value.get("wz")}
+                out[key] = {"value": value, "age": round(max(0.0, now - item["ts"]), 2)}
+        return {"ros": out, "time": now}
+
     def snapshot(self):
         with self.lock:
             data = {key: dict(item) for key, item in self.data.items()}
             now_mono = time.monotonic()
             rates = {}
             for key, times in self.update_times.items():
-                samples = [stamp for stamp in times if now_mono - stamp < 10]
+                # Monotonic timestamps are ordered under this same lock.
+                # Expired prefixes can never become fresh again.
+                while times and now_mono - times[0] >= 10:
+                    times.popleft()
+                samples = times
                 rates[key] = round((len(samples) - 1) / (samples[-1] - samples[0]), 2) if len(samples) > 1 and samples[-1] > samples[0] else None
         fallback = sensor_hub_cache_snapshot()
         for key, item in fallback["data"].items():
@@ -840,22 +1855,36 @@ class AtlasRosNode:
         out["web_control_ready"] = {"value": self.ready, "age": 0}
         return out
 
+    def _fresh_camera_source(self, prefer_ai=False, wait_seconds=CAMERA_WAKE_TIMEOUT_SECONDS):
+        """Wait briefly for a post-idle frame, then return its bytes and time."""
+        deadline = time.monotonic() + max(0.0, wait_seconds)
+        with self.camera_frame_condition:
+            while True:
+                now = time.time()
+                item = self.data.get("ai_camera_frame") if prefer_ai else None
+                if not item or now - item["ts"] > 1.5:
+                    item = self.data.get("camera_frame")
+                if item and now - item["ts"] <= CAMERA_FRAME_MAX_AGE_SECONDS:
+                    return item["value"], item["ts"]
+                remaining = deadline - time.monotonic()
+                if remaining <= 0.0:
+                    return None
+                self.camera_frame_condition.wait(remaining)
+
     def camera_frame(self):
-        with self.lock:
-            item = self.data.get("ai_camera_frame") if self.ai_mode == "object" else None
-            if not item or time.time() - item["ts"] > 1.5:
-                item = self.data.get("camera_frame")
-            return item["value"] if item else None
+        self.camera_clients.touch()
+        source = self._fresh_camera_source(prefer_ai=self.ai_mode == "object")
+        return source[0] if source else None
 
     def camera_panel_frame(self):
         """Return a small cached JPEG sized for the 1024x600 CrowPanel."""
+        self.camera_clients.touch()
+        source = self._fresh_camera_source()
+        if not source:
+            return None
+        source_jpeg, source_ts = source
         now = time.time()
         with self.lock:
-            source = self.data.get("camera_frame")
-            if not source:
-                return None
-            source_jpeg = source["value"]
-            source_ts = source["ts"]
             if (self.panel_camera_frame is not None and
                     self.panel_camera_source_ts == source_ts and
                     now - source_ts < 2.0):
@@ -891,13 +1920,13 @@ class AtlasRosNode:
 
     def camera_overview_frame(self):
         """Return a cached native-size JPEG for CrowPanel Overview."""
+        self.camera_clients.touch()
+        source = self._fresh_camera_source()
+        if not source:
+            return None
+        source_jpeg, source_ts = source
         now = time.time()
         with self.lock:
-            source = self.data.get("camera_frame")
-            if not source:
-                return None
-            source_jpeg = source["value"]
-            source_ts = source["ts"]
             if (self.overview_camera_frame is not None and
                     self.overview_camera_source_ts == source_ts and
                     now - source_ts < 2.0):
@@ -1006,6 +2035,33 @@ def cpu_percent():
     return "--"
 
 
+def gpu_status():
+    """Read Orin GPU utilisation/frequency without starting tegrastats."""
+    roots = (
+        "/sys/devices/platform/17000000.gpu/devfreq/17000000.gpu",
+        "/sys/class/devfreq/17000000.gpu",
+    )
+    for root in roots:
+        try:
+            raw_load = Path(root, "load").read_text(encoding="utf-8").strip()
+            # NVIDIA's devfreq load is normally per-mille (0..1000).
+            load_value = float(raw_load)
+            load_percent = load_value / 10.0
+            load_percent = round(max(0.0, min(100.0, load_percent)), 1)
+        except (OSError, ValueError):
+            continue
+        frequency_mhz = None
+        try:
+            raw_frequency = float(
+                Path(root, "cur_freq").read_text(encoding="utf-8").strip()
+            )
+            frequency_mhz = round(raw_frequency / 1_000_000.0, 1)
+        except (OSError, ValueError):
+            pass
+        return {"gpu_percent": load_percent, "gpu_frequency_mhz": frequency_mhz}
+    return {"gpu_percent": None, "gpu_frequency_mhz": None}
+
+
 def voice_usb_status():
     preferred = (
         "/dev/serial/by-id/"
@@ -1052,6 +2108,7 @@ def system_status():
         temp = f"{int(temp) / 1000:.0f} C"
     return {
         "cpu_percent": cpu,
+        **gpu_status(),
         "ram": ram,
         "ram_percent": ram_percent,
         "temp": temp or "--",
@@ -1061,29 +2118,87 @@ def system_status():
 
 
 _slow_cache_lock = threading.Lock()
-_slow_cache = {"ts": 0.0, "network": {}, "system": {}, "services": {}}
+_slow_cache = {"ts": 0.0, "attempted": 0.0, "pending": False,
+               "network": {}, "system": {}, "services": {}}
+
+
+def _refresh_status_cache(started):
+    # Expensive subprocess/filesystem work must not hold the HTTP reader lock.
+    # Publish all fields together, with collection START time, never completion
+    # time: slow work must not make old resource values appear newly sampled.
+    value = None
+    try:
+        value = {"network": network_status(), "system": system_status(), "services": services()}
+    except Exception:
+        pass  # No partial data or zero-as-healthy fallback.
+    finally:
+        with _slow_cache_lock:
+            if value is not None:
+                _slow_cache.update(value, ts=started)
+            _slow_cache["pending"] = False
+
+
+_cache_viewer = {"last_request": 0.0, "thread": None}
+
+
+def _status_cache_refresher():
+    # 2026-11-12: refresh the slow diagnostics about once a second WHILE someone is viewing (an /api/status request in
+    # the last 30 s), independent of request timing. Before, a refresh only started inside a request that already
+    # found the cache >= 2.0 s old, so a page polling every 2.0 s got blank Jetson CPU/RAM/temp/network in most
+    # responses (measured 11 of 20). Same refresh function, same "never stale-as-fresh" rule; idle when nobody views.
+    while True:
+        time.sleep(1.0)
+        now = time.monotonic()
+        with _slow_cache_lock:
+            if now - _cache_viewer["last_request"] > 30.0 or _slow_cache["pending"]:
+                continue
+            _slow_cache.update(pending=True, attempted=now)
+        _refresh_status_cache(now)
+
+
+def _ensure_cache_refresher():
+    t = _cache_viewer["thread"]
+    if t is None or not t.is_alive():
+        t = threading.Thread(target=_status_cache_refresher, daemon=True, name="atlas-web-status-refresher")
+        _cache_viewer["thread"] = t
+        t.start()
 
 
 def snapshot():
-    # Network discovery, top/free and systemctl previously ran independently
-    # for every connected dashboard.  CrowPanel + browser + diagnostics could
-    # therefore launch dozens of subprocesses per second.  Share a short cache
-    # while keeping ROS sensor values fresh on every response.
+    # Reuse the existing cache, with one owned refresh in flight. Never wait for
+    # OS diagnostics in an API request. ROS safety values are NOT cached here.
     now = time.monotonic()
+    refresh = False
+    _cache_viewer["last_request"] = now
+    try:
+        _ensure_cache_refresher()
+    except Exception:
+        pass  # the on-request refresh below still works
     with _slow_cache_lock:
-        if now - _slow_cache["ts"] >= 2.0:
-            _slow_cache["network"] = network_status()
-            _slow_cache["system"] = system_status()
-            _slow_cache["services"] = services()
-            _slow_cache["ts"] = now
-        network = dict(_slow_cache["network"])
-        system = dict(_slow_cache["system"])
-        service_state = dict(_slow_cache["services"])
+        # Refresh ahead of the unchanged two-second diagnostic cache expiry.
+        if not _slow_cache["pending"] and now-_slow_cache["attempted"] >= 1.0 and now-_slow_cache["ts"] >= 1.0:
+            _slow_cache.update(pending=True, attempted=now)
+            refresh = True
+        age = now-_slow_cache["ts"] if _slow_cache["ts"] else None
+        fresh = age is not None and 0 <= age < 2.0
+        network = dict(_slow_cache["network"]) if fresh else {
+            "wifi_ip": "--", "cell_ip": "--", "tailscale_ip": "--", "route": "unavailable", "ssh": "--"}
+        system = dict(_slow_cache["system"]) if fresh else {
+            "cpu_percent": "--", "ram": "--", "ram_percent": None, "temp": "--"}
+        service_state = dict(_slow_cache["services"]) if fresh else {}
+    if refresh:
+        try:
+            threading.Thread(target=_refresh_status_cache, args=(now,), daemon=True,
+                             name="atlas-web-status-cache").start()
+        except Exception:
+            with _slow_cache_lock:
+                _slow_cache["pending"] = False
     return {
         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
         "network": network,
         "system": system,
         "services": service_state,
+        "diagnostic_cache": {"fresh": fresh, "age_s": age},
         "ros": ROS.snapshot(),
         "todo": TODO,
     }
@@ -1147,6 +2262,50 @@ def json_response(handler, status, payload):
     handler.wfile.write(body)
 
 
+
+# 2026-11-22 one-click Stage-3 run (atlas_stage3_runner): same Go path and refusals as the dashboard Go buttons.
+def _stage3_obs():
+    def val(key):
+        item = ROS._item(key)
+        return (item or {}).get('value'), (time.time() - float(item.get('ts', 0.0))) if item else None
+    pose_v, pose_age = val('map_pose')
+    odom_v, _ = val('odom')
+    q_v, _ = val('amcl_quality')
+    ms_v, _ = val('mission_status')
+    pol = atlas_autonomy_web.policy(ROS)
+    pose = None
+    if isinstance(pose_v, dict) and pose_age is not None and pose_age < 2.0 and pose_v.get('x') is not None:
+        pose = (float(pose_v['x']), float(pose_v['y']), math.degrees(float(pose_v['yaw'])))
+    return {'pose': pose, 'speed': float((odom_v or {}).get('vx') or 0.0) if isinstance(odom_v, dict) else 0.0,
+            'xy_std': (q_v or {}).get('xy_std_m') if isinstance(q_v, dict) else None,
+            'latched': None if pol is None else bool(pol.get('stop_latched')),
+            'armed': None if pol is None else bool((pol.get('autonomy') or {}).get('armed')),
+            'source': None if pol is None else pol.get('source'),
+            'mission': str(ms_v or '')}
+
+
+def _stage3_go(place):
+    why = atlas_autonomy_web.go_refusal(ROS)
+    if why:
+        return False, why
+    ok = atlas_autonomy_web.publish((getattr(ROS, 'place_pubs', {}) or {}).get('go'), place)
+    try:
+        ROS.estop_log.write('stage3_runner_go', place=place, ok=ok)
+    except Exception:
+        pass
+    return ok, ('sent' if ok else 'ROS link not ready')
+
+
+STAGE3 = None
+
+
+def stage3_service():
+    global STAGE3
+    if STAGE3 is None:
+        STAGE3 = atlas_stage3_runner.Service(_stage3_obs, _stage3_go)
+    return STAGE3
+
+
 class Handler(BaseHTTPRequestHandler):
     def client_allowed(self):
         try:
@@ -1163,7 +2322,31 @@ class Handler(BaseHTTPRequestHandler):
         if not self.client_allowed():
             self.send_error(403)
             return
+        if atlas_location_check_web.serve(self, ROS):
+            return
+        if atlas_relocalize_web.serve(self, lambda: ROS.autonomy_armed(), json_response):
+            return
+        if atlas_testlab_web.serve(self, ROS):
+            return
+        if atlas_flysky_web.serve(self, ROS):
+            return
+        if atlas_manual_controller_web.serve(self, ROS):   # ATLAS Stage 29 manual controller
+            return
+        if atlas_controller_input_web.serve(self, ROS):   # ATLAS Stage 29 controller input view (GET, read only)
+            return
+        if atlas_map3d_web.serve(self):
+            return
+        if atlas_vision3d_web.serve(self):
+            return
+        if atlas_camera_settings_web.serve(self, ROS):
+            return
+        if atlas_web_v2.handles(self.path):   # Glass UI V2 static files (additive; V1 routes unchanged)
+            atlas_web_v2.serve(self)
+            return
+        if atlas_web_v2.serve_default(self):  # V2 at /; old V1 page paths redirect to /v2/...
+            return
         commissioning_assets = {'/commissioning': ('atlas_commissioning.html', 'text/html'),
+                                '/mapping': ('atlas_mapping.html', 'text/html'),
                                 '/commissioning.js': ('atlas_commissioning_ui.js', 'application/javascript'),
                                 '/steering-commissioning.js': ('atlas_steering_ui.js', 'application/javascript'),
                                 '/commissioning-evidence.js': ('atlas_evidence_ui.js', 'application/javascript')}
@@ -1181,6 +2364,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             except OSError:
                 self.send_error(404)
+            return
+        if atlas_autonomy_web.serve(self, ROS):
+            return
+        if self.path.split('?')[0] == '/api/estop/state':
+            json_response(self, 200, ROS.estop_state(self.client_address[0]))
             return
         if self.path == '/api/commissioning':
             data = ROS.snapshot()
@@ -1229,7 +2417,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/diagnostics":
             json_response(self, 200, DIAGNOSTICS.snapshot())
             return
-        if self.path == "/diagnostics.js":
+        if self.path.split("?")[0] == "/diagnostics.js":   # 2026-11-20: allow ?v= cache busting
             try:
                 with open(os.path.join(os.path.dirname(__file__), 'atlas_diagnostics_ui.js'), 'rb') as stream:
                     body = stream.read()
@@ -1242,8 +2430,65 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 self.send_error(404)
             return
+        if self.path.split('?')[0] == '/api/usb_power':   # 2026-11-21: per-hub USB health + VDD_IN (read-only)
+            try:
+                import atlas_usb_power_monitor
+                mon = atlas_usb_power_monitor.monitor()
+                long_view = 'long=1' in (self.path.split('?', 1)[1] if '?' in self.path else '')
+                json_response(self, 200, mon.long_snapshot() if long_view else mon.snapshot())
+            except Exception as exc:
+                json_response(self, 503, {"error": "USB power monitor unavailable: " + str(exc)[:120]})
+            return
+        if self.path.split('?')[0] == '/api/attitude':
+            json_response(self, 200, ROS.attitude_snapshot())
+            return
         if self.path.startswith("/api/status"):
             json_response(self, 200, snapshot())
+            return
+        # 2026-11-26 add-only map extension preview (read-only). Must stay ABOVE the "/api/map" prefix route.
+        if self.path.split("?")[0] == "/api/map_extend":
+            json_response(self, 200, {"extend": read_map_extend()})
+            return
+        if self.path.split("?")[0] == "/map_extend_preview.png":
+            p = map_extend_preview_path()
+            try:
+                body = p.read_bytes() if p else None
+            except OSError:
+                body = None
+            if not body:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/api/map"):
+            json_response(self, 200, ROS.map_snapshot())
+            return
+        if atlas_master_plan.serve(self, json_response):      # 2026-11-23 master-plan progress board
+            return
+        if self.path.split('?')[0] == '/api/stage3':          # 2026-11-22 one-click Stage-3 run (status)
+            atlas_stage3_runner.serve(self, stage3_service(), json_response)
+            return
+        if self.path.split('?')[0] == '/api/lidar-view':
+            out = ROS.surround_snapshot()
+            out['gate'] = ROS.gate_view_snapshot()      # 2026-11-22 "What ATLAS sees" (display only)
+            json_response(self, 200, out)
+            return
+        if self.path.startswith("/map.png"):
+            frame = ROS.map_frame()
+            if frame:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(frame)))
+                self.end_headers()
+                self.wfile.write(frame)
+            else:
+                self.send_error(404)
             return
         if self.path.startswith("/logo.png"):
             path = "/home/jetson/project_atlas/scripts/atlas_rover_logo_preferred.png"
@@ -1321,6 +2566,11 @@ class Handler(BaseHTTPRequestHandler):
                 except (BrokenPipeError, ConnectionResetError, TimeoutError):
                     break
             return
+        if not atlas_web_v2.CLASSIC_UI:
+            # Unknown paths used to fall through to the classic page. With V2 the default they
+            # are 404; render_control_page() is kept for ATLAS_CLASSIC_UI=1 and V2's build.
+            self.send_error(404)
+            return
         body = render_control_page().encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
@@ -1333,6 +2583,27 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.client_allowed():
             self.send_error(403)
+            return
+        if atlas_location_check_web.serve(self, ROS, post=True):
+            return
+        if atlas_stage3_runner.serve(self, stage3_service(), json_response, post=True):   # 2026-11-22
+            return
+        if atlas_relocalize_web.serve(self, lambda: ROS.autonomy_armed(), json_response, post=True):
+            return
+        if atlas_testlab_web.serve(self, ROS, post=True):
+            return
+        if atlas_flysky_web.serve(self, ROS, post=True):
+            return
+        if atlas_manual_controller_web.serve(self, ROS, post=True):   # ATLAS Stage 29 manual controller
+            return
+        if atlas_vision3d_web.serve(self, post=True):
+            return
+        if atlas_camera_settings_web.serve(self, ROS, post=True):
+            return
+        if self.path == '/api/estop/reset':
+            self.handle_estop_reset()
+            return
+        if atlas_autonomy_web.serve(self, ROS, post=True):
             return
         if self.path.startswith('/api/commissioning'):
             if self.path != '/api/commissioning' or not atlas_wifi_web.same_origin(self.headers):
@@ -1350,6 +2621,7 @@ class Handler(BaseHTTPRequestHandler):
                         json_response(self, 503, {'error': 'Stop publisher unavailable; use remote stop'})
                     else:
                         ROS.commissioning_stop_pub.publish(Empty())
+                        ROS.estop_log.write('commissioning_latch_stop', client=self.client_address[0])
                         json_response(self, 202, {'message': 'Mux latch requested, not physical stop confirmation'})
                 elif payload.get('action') == 'camera':
                     if SHUTDOWN_PENDING.is_set():
@@ -1358,6 +2630,11 @@ class Handler(BaseHTTPRequestHandler):
                     if axis not in ('pan', 'tilt', 'center') or type(direction) is not int or direction not in (-1, 0, 1):
                         raise ValueError('Invalid camera direction')
                     ok, message = ROS.camera_move(axis, direction, payload.get('step_us', 25))
+                    json_response(self, 200 if ok else 503, {'ok': ok, 'message': message})
+                elif payload.get('action') == 'camera_home_save':
+                    if SHUTDOWN_PENDING.is_set():
+                        raise ValueError('Shutdown pending')
+                    ok, message = ROS.save_camera_home()
                     json_response(self, 200 if ok else 503, {'ok': ok, 'message': message})
                 elif payload.get('action') == 'steering':
                     if SHUTDOWN_PENDING.is_set() or not ROS.ready or ROS.steering_cal_pub is None:
@@ -1427,14 +2704,40 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0") or "0")
         form = parse_qs(self.rfile.read(length).decode())
         action = form.get("action", [""])[0]
+        # A stop is never refused, including while a shutdown is pending.
+        if action == "stop":
+            detail = stop_rover()
+            ROS.estop_log.write('stop', client=self.client_address[0], zero=detail, shutdown_pending=SHUTDOWN_PENDING.is_set())
+            json_response(self, 200, {"ok": True, "message": "Drive stopped", "detail": detail})
+            return
+        if action == "e_stop":
+            detail = stop_rover()
+            latched = ROS.latch_drive_stop()
+            ROS.estop_log.write('e_stop', client=self.client_address[0], zero=detail, latched=latched,
+                                shutdown_pending=SHUTDOWN_PENDING.is_set())
+            if latched:
+                json_response(self, 200, {"ok": True, "latched": True, "detail": detail,
+                                          "message": "EMERGENCY STOP LATCHED. Release with the remote: sticks neutral, hold LB, let go."})
+            else:
+                zero = "Zero speed sent" if detail == "published" else "Zero speed NOT sent (ROS link not ready)"
+                json_response(self, 503, {"ok": False, "latched": False, "detail": detail,
+                                          "message": f"{zero}; the stop latch is unavailable. Use the remote stop (B)."})
+            return
         if SHUTDOWN_PENDING.is_set():
             json_response(self, 409, {"ok": False, "message": "Shutdown already requested; controls disabled"})
             return
-        if action == "stop":
-            json_response(self, 200, {"ok": True, "message": "Drive stopped", "detail": stop_rover()})
-        elif action == "e_stop":
-            json_response(self, 200, {"ok": True, "message": "EMERGENCY STOP ACTIVE", "detail": stop_rover()})
-        elif action == "drive":
+        if action == "drive":
+            ROS.last_drive_request = time.monotonic()
+            ROS.note_latch_state()
+            allowed, why = ROS.drive_press_allowed(form.get("press", [""])[0][:32], form.get("start", ["0"])[0] == "1")
+            if not allowed:
+                stop_rover()
+                json_response(self, 409, {"ok": False, "message": why})
+                return
+            if ROS.drive_stop_latched():
+                stop_rover()
+                json_response(self, 409, {"ok": False, "message": "Drive stop latched. Release it with the remote: sticks neutral, hold LB, let go."})
+                return
             out = drive_pulse(form.get("linear", ["0"])[0], form.get("angular", ["0"])[0])
             json_response(self, 200, {"ok": True, "message": "Short safe drive pulse sent", "detail": out})
         elif action == "ai_mode":
@@ -1445,6 +2748,9 @@ class Handler(BaseHTTPRequestHandler):
                 form.get("axis", [""])[0],
                 form.get("direction", ["0"])[0],
             )
+            json_response(self, 200 if ok else 503, {"ok": ok, "message": msg})
+        elif action == "camera_home_save":
+            ok, msg = ROS.save_camera_home()
             json_response(self, 200 if ok else 503, {"ok": ok, "message": msg})
         elif action == "camera_tracking":
             enabled = form.get("enabled", ["0"])[0].strip().lower() in {
@@ -1482,9 +2788,8 @@ class Handler(BaseHTTPRequestHandler):
             verb = {"restart": "restart", "start": "start", "stop_service": "stop"}[action]
             ok, detail = run_quiet(["systemctl", "--user", verb, svc], timeout=8)
             json_response(self, 200 if ok else 500, {"ok": ok, "message": f"{verb} {svc}", "detail": detail})
-        elif action == "reboot":
-            subprocess.Popen(["bash", "-lc", "sleep 1; echo password | sudo -S reboot"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            json_response(self, 200, {"ok": True, "message": "Reboot requested"})
+        # "reboot" was removed on 2026-10-11: it piped a hard-coded sudo password and had
+        # no confirmation, same-origin check or stop. No page used it; it now gets 400.
         elif action == "shutdown":
             if form.get('confirm', [''])[0] != 'POWER_OFF_ATLAS' or not atlas_wifi_web.same_origin(self.headers):
                 json_response(self, 403, {"ok": False, "message": "Shutdown requires dashboard confirmation"})
@@ -1495,6 +2800,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             SHUTDOWN_PENDING.set()
             stop_rover()
+            # Also latch the mux so no other drive source can resume during the
+            # poweroff delay; release remains physical (remote) after reboot.
+            ROS.latch_drive_stop()
+            ROS.estop_log.write('shutdown_latch', client=self.client_address[0])
             def power_off():
                 time.sleep(2)
                 ok, detail = run_quiet(['sudo', '-n', '/sbin/shutdown', '-h', 'now'], timeout=8)
@@ -1503,8 +2812,78 @@ class Handler(BaseHTTPRequestHandler):
                     print('Dashboard shutdown failed: '+str(detail), flush=True)
             threading.Thread(target=power_off, daemon=True).start()
             json_response(self, 202, {"ok": True, "message": "Shutdown requested. Wait for Jetson to power off before disconnecting power."})
+        # 2026-11-20 owner: Restart button next to Shut down. Same protections as shutdown (explicit confirmation token,
+        # same-origin dashboard request, rover stopped and drive latched first, logged); needs a sudoers rule that allows
+        # exactly `/sbin/shutdown -r now` without a password. Unlike the removed 2026-10-11 reboot it never pipes a password.
+        elif action == "reboot":
+            if form.get('confirm', [''])[0] != 'RESTART_ATLAS' or not atlas_wifi_web.same_origin(self.headers):
+                json_response(self, 403, {"ok": False, "message": "Restart requires dashboard confirmation"})
+                return
+            if not reboot_sudo_rule_present():
+                json_response(self, 503, {"ok": False, "message": "Restart permission unavailable (sudoers rule for /sbin/shutdown -r now missing)"})
+                return
+            SHUTDOWN_PENDING.set()
+            stop_rover()
+            ROS.latch_drive_stop()
+            ROS.estop_log.write('reboot_latch', client=self.client_address[0])
+            def reboot():
+                time.sleep(2)
+                ok, detail = run_quiet(['sudo', '-n', '/sbin/shutdown', '-r', 'now'], timeout=8)
+                if not ok:
+                    SHUTDOWN_PENDING.clear()
+                    print('Dashboard restart failed: '+str(detail), flush=True)
+            threading.Thread(target=reboot, daemon=True).start()
+            json_response(self, 202, {"ok": True, "message": "Restart requested. ATLAS will be back in about 2 minutes; the remote stop stays latched after boot."})
         else:
             json_response(self, 400, {"ok": False, "message": "unknown action"})
+
+    def handle_estop_reset(self):
+        """Release the software E-STOP latch: every check is made here, on the server."""
+        client = self.client_address[0]
+        def deny(code, why, event='reset_denied', **extra):
+            ROS.estop_log.write(event, result='denied', reason=why, client=client, **extra)
+            json_response(self, code, {'ok': False, 'released': False, 'message': 'RESET BLOCKED: ' + why})
+        if not atlas_wifi_web.same_origin(self.headers):
+            return deny(403, 'request did not come from the ATLAS dashboard page')
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+            if not 0 < length <= 1024 or self.headers.get_content_type() != 'application/json':
+                raise ValueError
+            payload = json.loads(self.rfile.read(length))
+            if not isinstance(payload, dict):
+                raise ValueError
+        except (ValueError, TypeError):
+            return deny(400, 'invalid request')
+        if payload.get('confirm') != estop_reset.CONFIRM_PHRASE:
+            return deny(400, 'confirmation missing')
+        if ROS.reset_lockout.remaining() > 0:
+            return deny(429, f'too many wrong PINs; wait {int(ROS.reset_lockout.remaining())} s')
+        if not ROS.reset_challenges.consume(payload.get('nonce'), client):
+            return deny(409, 'confirmation expired or page out of date; check the state and try again')
+        blocked = estop_reset.evaluate(ROS.estop_observations())
+        if blocked:
+            return deny(409, '; '.join(blocked))
+        if not ROS.reset_pins.verify(str(payload.get('pin', ''))):
+            ROS.reset_lockout.fail()
+            return deny(403, 'wrong operator PIN', event='reset_denied_pin')
+        ROS.reset_lockout.success()
+        zero = stop_rover()                              # motor commands stay at zero through the reset
+        with ROS.press_lock:                             # set BEFORE the release: no older press can drive
+            ROS.release_at = time.monotonic(); ROS.seen_latched = False
+        ROS.last_drive_request = time.monotonic()
+        ok, mux_message = ROS.request_mux_reset()
+        if not ok:
+            ROS.estop_log.write('reset_refused_by_mux', result='denied', reason=mux_message, client=client, zero=zero)
+            return json_response(self, 409, {'ok': False, 'released': False, 'message': 'RESET BLOCKED by the stop multiplexer: ' + mux_message})
+        end = time.monotonic() + 1.0
+        while time.monotonic() < end and ROS.drive_stop_latched(estop_grace_s=0.0):
+            time.sleep(0.05)
+        released = not ROS.drive_stop_latched(estop_grace_s=0.0)
+        ROS.estop_log.write('reset_granted', result='released' if released else 'unconfirmed', client=client,
+                            mux=mux_message, zero=zero)
+        json_response(self, 200, {'ok': True, 'released': released, 'message': (
+            'E-STOP RELEASED. Nothing moves until you press a drive button again.' if released else
+            'Reset accepted by the mux but release not yet confirmed; treat as latched.')})
 
     def log_message(self, fmt, *args):
         return
@@ -1609,35 +2988,36 @@ header{background:rgba(5,20,32,.22);backdrop-filter:blur(18px) saturate(155%);-w
 .selfTestStamp{font-size:9px;color:var(--muted);margin:0 0 7px;line-height:1.35}
 .bootBanner{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:7px 8px 0;padding:8px 12px;border:1px solid rgba(23,213,255,.72);border-radius:10px;background:rgba(4,20,33,.18);backdrop-filter:blur(13px) saturate(160%);-webkit-backdrop-filter:blur(13px) saturate(160%);box-shadow:0 0 24px rgba(23,213,255,.18);font-size:11px;font-weight:800}.bootBanner b{color:var(--cyan)}.bootBanner span{color:#ffcc3d}.buildTag{margin-left:auto;color:#b4d7e9;font:9px ui-monospace,monospace}
 .grid{height:calc(100vh - 99px)}
-.batteryBadge{display:flex;align-items:center;gap:9px;flex-shrink:0;border:1px solid #45809a;border-radius:12px;background:#0b2236aa;color:white;padding:6px 10px;cursor:pointer;text-align:left}.batteryBadge strong{font-size:18px}.batteryBadge small{display:block;font-size:9px;letter-spacing:.4px}.batteryShell{position:relative;display:block;width:38px;height:20px;border:2px solid #d4e6ef;border-radius:5px;padding:2px;margin-right:3px}.batteryShell:after{content:'';position:absolute;right:-5px;top:5px;width:3px;height:7px;background:#d4e6ef;border-radius:0 2px 2px 0}.batteryFill{display:block;height:100%;border-radius:2px;transition:width .5s}.batteryBolt{position:absolute;inset:-3px 0;text-align:center;color:white;text-shadow:0 1px 3px #000;font-size:24px;font-weight:bold}header{height:auto;min-height:58px;flex-wrap:wrap}@media(max-width:700px){header h1{font-size:13px}.batteryBadge{padding:5px 8px}.grid{height:auto}}
+.batteryBadge{display:flex;align-items:center;gap:9px;flex-shrink:0;border:1px solid #45809a;border-radius:12px;background:#0b2236aa;color:white;padding:6px 10px;cursor:pointer;text-align:left;min-width:164px}.batteryBadge strong{font-size:18px}.batteryBadge small{display:block;font-size:10px;letter-spacing:.4px}.batteryMetrics{display:block;color:#6ae9ff;font-size:14px;font-weight:800;white-space:nowrap;margin-top:2px}.batteryShell{position:relative;display:block;width:38px;height:20px;border:2px solid #d4e6ef;border-radius:5px;padding:2px;margin-right:3px}.batteryShell:after{content:'';position:absolute;right:-5px;top:5px;width:3px;height:7px;background:#d4e6ef;border-radius:0 2px 2px 0}.batteryFill{display:block;height:100%;border-radius:2px;transition:width .5s}.batteryBolt{position:absolute;inset:-3px 0;text-align:center;color:white;text-shadow:0 1px 3px #000;font-size:24px;font-weight:bold}header{height:auto;min-height:58px;flex-wrap:wrap}@media(max-width:700px){header h1{font-size:13px}.batteryBadge{padding:5px 8px}.grid{height:auto}}
 section.col:nth-of-type(3) .panel:has(#heatmap){order:-3;border-color:#34e58b}
 section.col:nth-of-type(3) .panel:has(#healthGrid){order:-2}
 section.col:nth-of-type(3) .panel:has(#power){order:-1}
 #toast{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:#122b40;border:1px solid var(--cyan);padding:8px 14px;border-radius:20px;display:none;z-index:8}
-.diagTable{width:100%;border-collapse:collapse;font-size:12px}.diagTable th,.diagTable td{text-align:left;padding:9px;border-bottom:1px solid #25475b;vertical-align:top}.diagTable th{color:#17d5ff}.diagTable tr:hover{background:#122b3d}.rawData{overflow-wrap:anywhere}.sensorModal{display:none;position:fixed;inset:0;z-index:20;background:rgba(0,5,10,.88);padding:3vh 3vw}.sensorModal.open{display:flex}.sensorSheet{width:min(980px,94vw);max-height:94vh;margin:auto;overflow:auto;background:#07131f;border:2px solid var(--cyan);border-radius:14px;padding:14px;box-shadow:0 0 38px rgba(23,213,255,.28)}.sensorHead{display:flex;align-items:center;gap:10px;border-bottom:1px solid #214761;padding-bottom:9px;margin-bottom:10px}.sensorHead h2{font-size:18px;margin:0}.closeDetail{margin-left:auto;background:#7f1722;border:1px solid #ff5966;color:#fff;border-radius:8px;padding:10px 18px;font-weight:800}.detailGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.detailTile{background:#0b1d2c;border:1px solid #214761;border-radius:9px;padding:10px}.detailTile b{display:block;color:var(--cyan);font-size:11px}.detailTile strong{display:block;font-size:22px;margin-top:5px}.rangeBar{height:18px;background:#13283a;border-radius:9px;overflow:hidden;margin-top:8px}.rangeFill{height:100%;background:linear-gradient(90deg,#ff4655,#ffcc3d,#34e58b);transition:width .25s}.modalCamera{width:100%;max-height:65vh;object-fit:contain;background:#000;border-radius:8px}.modalHeat{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;max-width:460px;aspect-ratio:1;margin:auto}.modalHeat i{display:block;border-radius:3px}.rawData{font:12px ui-monospace,monospace;white-space:pre-wrap;color:#bcd3e5;background:#040a12;border-radius:8px;padding:10px;margin-top:9px}.sensorHint{color:#8ca6bb;font-size:11px;margin-top:8px}
+.diagTable{width:100%;border-collapse:collapse;font-size:12px}.diagTable th,.diagTable td{text-align:left;padding:9px;border-bottom:1px solid #25475b;vertical-align:top}.diagTable th{color:#17d5ff}.diagTable tr:hover{background:#122b3d}.rawData{overflow-wrap:anywhere}.sensorModal{display:none;position:fixed;inset:0;z-index:20;background:rgba(0,5,10,.88);padding:3vh 3vw}.sensorModal.open{display:flex}.sensorSheet{width:min(980px,94vw);max-height:94vh;margin:auto;overflow:auto;background:#07131f;border:2px solid var(--cyan);border-radius:14px;padding:14px;box-shadow:0 0 38px rgba(23,213,255,.28)}.sensorHead{display:flex;align-items:center;gap:10px;border-bottom:1px solid #214761;padding-bottom:9px;margin-bottom:10px}.sensorHead h2{font-size:18px;margin:0}.closeDetail{margin-left:auto;background:#7f1722;border:1px solid #ff5966;color:#fff;border-radius:8px;padding:10px 18px;font-weight:800}.detailGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.detailTile{background:#0b1d2c;border:1px solid #214761;border-radius:9px;padding:10px;min-width:0}.detailTile b{display:block;color:var(--cyan);font-size:11px}.detailTile strong{display:block;font-size:22px;margin-top:5px;overflow-wrap:anywhere}.rangeBar{height:18px;background:#13283a;border-radius:9px;overflow:hidden;margin-top:8px}.rangeFill{height:100%;background:linear-gradient(90deg,#ff4655,#ffcc3d,#34e58b);transition:width .25s}.modalCamera{width:100%;max-height:65vh;object-fit:contain;background:#000;border-radius:8px}.modalHeat{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;max-width:460px;aspect-ratio:1;margin:auto}.modalHeat i{display:block;border-radius:3px}.rawData{font:12px ui-monospace,monospace;white-space:pre-wrap;color:#bcd3e5;background:#040a12;border-radius:8px;padding:10px;margin-top:9px}.sensorHint{color:#8ca6bb;font-size:11px;margin-top:8px}
 @media(max-width:700px){.detailGrid{grid-template-columns:1fr}.sensorModal{padding:1vh 2vw}.sensorSheet{max-height:98vh}}
 @media(max-width:900px){.grid{display:block;height:auto;width:100%;overflow:hidden}.col,.panel{overflow:visible;margin-bottom:8px;min-width:0}.camera{height:42vh}.envgrid{grid-template-columns:1fr}.heatmap{max-width:180px}canvas{max-width:100%}header .sub{display:none}.headerBtn{padding:7px 9px}.headerText{display:none}}
+.estopReset[hidden]{display:none}.estopReset{display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:8px;padding:8px;border:1px solid #31546b;border-radius:8px;font-size:12px}.estopReset b,.estopReset span{grid-column:1/-1}.estopReset b.bad{color:#ff6d7a}.estopReset b.warn{color:#ffcc3d}.estopReset b.ok{color:#53e7b1}.estopReset input{min-width:0;padding:8px;border-radius:6px;border:1px solid #385b70;background:#06121e;color:#fff;font:inherit}
 @media(min-width:1500px){body{font-size:15px}.grid{grid-template-columns:minmax(300px,20vw) minmax(600px,1fr) minmax(350px,23vw)}.camera{height:min(52vh,610px)}.speechText{font-size:16px}}
 @media(max-width:1150px) and (min-width:901px){.grid{grid-template-columns:265px minmax(390px,1fr) 295px}.companionGrid{grid-template-columns:1fr}.companionStatus{grid-template-columns:1fr 1fr}.voiceLedStates{grid-template-columns:repeat(3,1fr)}}
 </style></head><body>
 <header><img src="/logo.png"><div><h1>PROJECT ATLAS COMMAND CENTER</h1><div class="sub">Headless rover control • hold-to-drive • automatic stop watchdog</div></div><div class="live" id="online">CONNECTING</div><a class="headerBtn cloud" href="https://project-atlas-jetson.tail12f5ff.ts.net:8443/" title="Open the read-only ATLAS Visual Cloud live ROS observability dashboard."><span class="headerIcon">◈</span><span class="headerText">VISUAL CLOUD</span></a><a class="headerBtn" href="https://project-atlas-jetson.tail12f5ff.ts.net/" title="Open two-way ATLAS intercom. The camera stream closes to preserve call quality and AI Voice pauses during the call."><span class="headerIcon">☎</span><span class="headerText">TALK / LISTEN</span></a></header>
-<div class="bootBanner"><b>LIVE TELEMETRY CHECK</b><a class="btn" href="/commissioning">COMMISSIONING / HARDWARE CHECK</a><a class="btn" href="#diagnosticsPanel" onclick="document.getElementById('diagnosticsPanel').open=true;refreshDiagnostics(true)">DIAGNOSTICS / LOGS</a><button class="btn" id="shutdownButton" style="border-color:#ff5966;color:#ffbdc4" onclick="shutdownAtlas()">⏻ SHUT DOWN</button><span id="bootBannerState">COLLECTING LIVE DATA…</span><div class="buildTag">WEB DIAGNOSTICS v4</div></div>
+<div class="bootBanner"><b>LIVE TELEMETRY CHECK</b><a class="btn" href="/mapping">LIVE MAP / ROVER POSITION</a><a class="btn" href="/commissioning">COMMISSIONING / HARDWARE CHECK</a><a class="btn" href="#diagnosticsPanel" onclick="document.getElementById('diagnosticsPanel').open=true;refreshDiagnostics(true)">DIAGNOSTICS / LOGS</a><button class="btn" id="shutdownButton" style="border-color:#ff5966;color:#ffbdc4" onclick="shutdownAtlas()">⏻ SHUT DOWN</button><span id="bootBannerState">COLLECTING LIVE DATA…</span><div class="buildTag">WEB DIAGNOSTICS v5</div></div>
 <main class="grid">
 <section class="col">
  <div class="panel"><h2>ROVER DRIVE — HOLD BUTTON</h2><div class="drive">
   <button class="btn" data-l=".45" data-a=".90">↖ FWD-L</button><button class="btn" data-l=".65" data-a="0">▲ FORWARD</button><button class="btn" data-l=".45" data-a="-.90">FWD-R ↗</button>
   <button class="btn" data-l="-.65" data-a=".90">BACK-L</button><button class="btn stop" id="stop">E-STOP</button><button class="btn" data-l="-.65" data-a="-.90">BACK-R</button>
   <span></span><button class="btn" data-l="-.65" data-a="0">▼ BACK</button><span></span>
- </div></div>
+ </div><div class="estopReset" id="estopResetPanel"><b id="estopState">STOP STATE CHECKING…</b><span id="estopWhy"></span><input id="estopPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Operator PIN" aria-label="Operator PIN for E-STOP reset"><button class="btn" id="estopReset" disabled>RESET E-STOP</button></div></div>
  <div class="panel"><h2>CAMERA PAN / TILT</h2><div class="camctl">
   <span></span><button class="btn" data-cam="tilt" data-dir="-1">▲ UP</button><span></span>
   <button class="btn" data-cam="pan" data-dir="-1">◀ LEFT</button><button class="btn" data-cam="center" data-dir="0">CENTER</button><button class="btn" data-cam="pan" data-dir="1">RIGHT ▶</button>
   <span></span><button class="btn" data-cam="tilt" data-dir="1">▼ DOWN</button><span></span>
- </div><div class="cards" style="margin-top:8px"><button class="btn" data-track="0">MANUAL CONTROL</button><button class="btn" data-track="1">FACE FOLLOW</button></div><div class="detail" id="cameraTracking">Camera mode checking</div></div>
+  </div><div class="cards" style="margin-top:8px"><button class="btn" data-track="0">MANUAL CONTROL</button><button class="btn" data-track="1">FACE FOLLOW</button><button class="btn" id="saveCameraHome">SAVE CURRENT AS HOME</button><button class="btn" data-cam="center" data-dir="0">GO TO SAVED HOME</button></div><div class="detail" id="cameraTracking">Camera mode checking</div></div>
  <div class="panel"><h2>JETSON AI POWER</h2><div class="cards">
   <button class="btn ai-on" data-ai="object">AI ON</button><button class="btn ai-off" data-ai="eco">AI ECO / OFF</button>
  </div><div class="detail" id="ai">AI status waiting</div></div>
- <div class="panel card touch" onclick="openDetail('encoders')"><h2>MOTION / ENCODERS — TOUCH FOR ALL FOUR</h2><div id="motion"></div></div>
+ <div class="panel card touch" onclick="openDetail('encoders')"><h2>SMART DRIVE REPORT — ALL 4 WHEELS</h2><div id="motion"></div><div class="detail">One combined view: link, selected feedback, exclusions, steering, odometry and readiness.</div></div>
 </section>
 <section class="col">
  <div class="panel"><h2>LIVE CAMERA — LATEST FRAME / NO BUFFER <span class="cameraStatus warn" id="cameraStatus">CONNECTING</span><button class="btn" style="float:right;padding:5px 9px" onclick="openDetail('camera')">OPEN DATA</button></h2><img class="camera" id="camera" src="/camera.jpg?latest=boot" onclick="openDetail('camera')"></div>
@@ -1682,7 +3062,7 @@ section.col:nth-of-type(3) .panel:has(#power){order:-1}
  </div>
  <div class="panel"><h2>NETWORK</h2><div id="network"></div></div>
  <div class="panel"><h2>GNSS / CELLULAR</h2><div id="gnss"></div><div class="constellation-grid" id="constellationGrid"></div><div class="constellation-note">Primary: Hiwonder GPS V1 USB. Bars show receiver-reported satellites in view, NOT signal strength. Zero means zero reported satellites. NMEA labels alone do not mean satellites detected. No report does not mean unsupported constellation. Touch GPS diagnostics for source, age and errors.</div></div>
- <div class="panel"><h2>SYSTEM</h2><div id="system"></div></div>
+ <div class="panel card touch" onclick="openDetail('jetson')"><h2>JETSON LIVE REPORT — TOUCH FOR DETAILS</h2><div id="system"></div></div>
 </section></main>
 <details class="panel" id="diagnosticsPanel" style="margin:10px" ontoggle="if(this.open){renderDiagnostics();refreshDiagnostics(true)}">
 <summary style="padding:12px;font-size:18px;color:#17d5ff;cursor:pointer">DIAGNOSTIC WORKBENCH — SERVICES / LIVE DATA / LOGS / USB</summary>
@@ -1710,6 +3090,21 @@ const row=(a,b)=>`<div class="row"><span>${a}</span><span>${b}</span></div>`;
 const age=(r,k)=>r[k]&&r[k].age!==null&&Number.isFinite(Number(r[k].age))?Number(r[k].age):9999;
 const dashboardStarted=Date.now();
 const recent=(r,k,seconds)=>age(r,k)<seconds;
+function bmsSnapshot(r){
+ if(!recent(r,'bms_status',10))return null;
+ try{
+  const b=JSON.parse(val(r,'bms_status','{}')||'{}');
+  const valid=x=>typeof x==='number'&&Number.isFinite(x);
+  if(b.ok!==true||b.cells_complete!==true||!Array.isArray(b.cells_v)||b.cells_v.length!==4)return null;
+  if(![b.soc_percent,b.voltage_v,b.current_a,b.power_w,...b.cells_v].every(valid))return null;
+  if(b.soc_percent<0||b.soc_percent>100||b.voltage_v<=0||b.cells_v.some(v=>v<=0))return null;
+  return b;
+ }catch(e){return null}
+}
+function bmsLive(r){return bmsSnapshot(r)!==null}
+function bmsMode(b){return b.current_a>0.15?'CHARGING':b.current_a< -0.15?'DISCHARGING':'IDLE / NEAR ZERO'}
+function bmsSocSource(b){return b.soc_source==='daly_coulomb_counter'?'DALY COUNTER':b.soc_source==='voltage_estimate_lifepo4'?'VOLTAGE ESTIMATE':'SOURCE UNKNOWN'}
+const radarFrameHealthy=(r,seconds=2.5)=>recent(r,'radar_decoder_status',seconds)&&/\bstate=VALID\b/i.test(String(val(r,'radar_decoder_status','')));
 function cellGeneration(raw){let t=String(raw||'').toLowerCase();if(t.includes('5g')||t.includes('nr'))return '5G';if(t.includes('lte'))return '4G';if(t.includes('umts')||t.includes('hspa'))return '3G';if(t.includes('gsm')||t.includes('edge')||t.includes('gprs'))return '2G';return 'CELLULAR'}
 function healthItem(name,state,hint,seconds=null,detailKey=''){
  let ageText=seconds===null?'':seconds<60?`${seconds.toFixed(1)}s`:`${Math.round(seconds/60)}m`;
@@ -1721,40 +3116,41 @@ function renderHealth(r,net){
  let carrier={};try{carrier=JSON.parse(val(r,'carrier_json','{}')||'{}')}catch(e){}
  let brain={};try{brain=JSON.parse(val(r,'atlas_health','{}')||'{}')}catch(e){}
  let encoderHealth={};try{encoderHealth=JSON.parse(val(r,'encoder_health','{}')||'{}')}catch(e){}
+ let drivePid={};try{drivePid=JSON.parse(val(r,'drive_pid','{}')||'{}')}catch(e){}
  let ultrasonicEnabled=brain.ultrasonic_enabled!==false;
+ // 2026-11-14: only sides the UNO hub reports as enabled count (USTAT,F=ONLINE,L=DISABLED,...).
+ let usRaw=String(val(r,'us_status',''));if(usRaw.startsWith('USTAT'))window.atlasLastUstat=usRaw; // the topic alternates HEARTBEAT/USTAT
+ let usStat=window.atlasLastUstat||usRaw,usMap=[['us_front','front','F'],['us_left','left','L'],['us_right','right','R'],['us_rear','rear','B']],usDisabled=c=>new RegExp('(^|,)'+c+'=DISABLED(,|$)').test(usStat),usSides=usMap.filter(x=>!usDisabled(x[2])).map(x=>[x[0],x[1]]),usOff=usMap.filter(x=>usDisabled(x[2])).map(x=>x[1]);
+ let imuFusedNav=(()=>{const f=val(r,'imu_full',{})||{};return f.qualified_for_navigation===true&&String(f.navigation_fusion||'').startsWith('ENABLED')})();
  let cellGen=cellGeneration(val(r,'cell_tech',''));
  const gpsCheck=gnssInfo(r);
  let i2c=i2cInfo(r);
  let items=[
   ['CAMERA',recent(r,'camera_info',4)?'ok':'fail',recent(r,'camera_info',4)?'IMX708 video frames live':'No frames: check CSI ribbon and camera service','camera_info','camera'],
-  ['MOTOR BOARD LINK',recent(r,'encoder_health',3)&&encoderHealth.packet_fresh===true?'ok':'fail',recent(r,'encoder_health',3)&&encoderHealth.packet_fresh===true?`Encoder packets live • age ${n(encoderHealth.packet_age_s,2)} s`:'No fresh encoder packets: check board power / serial link','encoder_health','encoders'],
-  ['ENCODER SAFETY',recent(r,'encoder_health',3)?(encoderHealth.autonomy_ready===true?'ok':(['DEGRADED','QUALIFYING','READY','HEALTHY'].includes(encoderHealth.state)?'warn':'fail')):'fail',recent(r,'encoder_health',3)?`${encoderHealth.state||'UNKNOWN'} • ${encoderHealth.reason||encoderHealth.faults?.join(', ')||'Validation pending'}`:'Safety heartbeat stale — autonomy blocked','encoder_health','encoders'],
-  ['ENCODER M1 • BACK LEFT',recent(r,'enc_m1',4)?'ok':'fail',recent(r,'enc_m1',4)?`Live count ${val(r,'enc_m1')} • zero is valid while stopped`:'No current M1 reading','enc_m1','encoders'],
-  ['ENCODER M2 • BACK RIGHT',recent(r,'enc_m2',4)?'ok':'fail',recent(r,'enc_m2',4)?`Live count ${val(r,'enc_m2')} • zero is valid while stopped`:'No current M2 reading','enc_m2','encoders'],
-  ['ENCODER M3 • FRONT LEFT',recent(r,'enc_m3',4)?'ok':'fail',recent(r,'enc_m3',4)?`Live count ${val(r,'enc_m3')} • zero is valid while stopped`:'No current M3 reading','enc_m3','encoders'],
-  ['ENCODER M4 • FRONT RIGHT',(encoderHealth.excluded_encoders||[]).includes(4)?'warn':(recent(r,'enc_m4',4)?'ok':'fail'),(encoderHealth.excluded_encoders||[]).includes(4)?`EXCLUDED / FAULTY • raw ${val(r,'enc_m4','--')} • motor remains enabled`:(recent(r,'enc_m4',4)?`Raw count ${val(r,'enc_m4')}`:'No current M4 reading'),'enc_m4','encoders'],
+  ['DRIVE FEEDBACK • ALL 4 WHEELS',recent(r,'encoder_health',3)?(encoderHealth.autonomy_ready===true?'ok':(['DEGRADED','QUALIFYING','READY','HEALTHY'].includes(encoderHealth.state)?'warn':'fail')):'fail',recent(r,'encoder_health',3)&&encoderHealth.packet_fresh===true?`${encoderHealth.state||'UNKNOWN'} • selected ${(encoderHealth.selected_encoders||[]).map(i=>'M'+i).join(', ')||'NONE'} • excluded ${(encoderHealth.excluded_encoders||[]).map(i=>'M'+i).join(', ')||'NONE'} • counts ${val(r,'enc_m1')} / ${val(r,'enc_m2')} / ${val(r,'enc_m3')} / ${val(r,'enc_m4')}`:'No fresh motor-board/encoder packets: check board power and serial link','encoder_health','encoders'],
+  ['DRIVE PID',recent(r,'drive_pid',3)?(drivePid.active?'ok':(drivePid.state==='FAULT_STOP'?'fail':(drivePid.state==='DISABLED'&&drivePid.inhibited_reason==='controller_disabled'?'off':'warn'))):'warn',recent(r,'drive_pid',3)?`${drivePid.state||'UNKNOWN'} • ${drivePid.fault_reason||drivePid.inhibited_reason||'active'}`:'No PID diagnostic yet; controller remains safely disabled until commissioned','drive_pid','drive_pid'],
   ['XBOX REMOTE',recent(r,'joy',8)?'ok':'warn',recent(r,'joy',8)?'Controller input received':'Wake controller, then press a stick or button','joy'],
-  ['IMU / COMPASS',recent(r,'imu_heading',4)?'warn':'fail',recent(r,'imu_heading',4)?'Hiwonder IM10A live — navigation fusion not validated':'IM10A USB data stale or disconnected','imu_heading','imu'],
+  ['IMU / COMPASS',recent(r,'imu_heading',4)?(imuFusedNav?'ok':'warn'):'fail',recent(r,'imu_heading',4)?(imuFusedNav?'Hiwonder IM10A live • gyro Z fused in EKF (heading) • compass diagnostics-only':'Hiwonder IM10A live — EKF gyro fusion not enabled'):'IM10A USB data stale or disconnected','imu_heading','imu'],
   ['RPLIDAR',recent(r,'lidar',4)?'ok':'fail',recent(r,'lidar',4)?'Laser scan live':'Check LiDAR USB, motor and cable','lidar','lidar'],
-  ['RD-03D RADAR',recent(r,'radar',3)?'ok':'fail',recent(r,'radar',3)?'Valid 30-byte target frames live':(recent(r,'radar_link',3)?`UNO bytes received, but no valid target frame • ${val(r,'radar_decoder_status','decoder checking')}`:'No radar UART bytes: check power, GND, TX → D12 and RX → D11'),'radar','radar'],
-  ['ULTRASONIC',!ultrasonicEnabled?'warn':(['us_front','us_left','us_right','us_rear'].every(k=>recent(r,k,4)&&Number(val(r,k,-1))>0)?'ok':'warn'),'Each range checked separately; -1 means no valid echo, NOT clear space. Uninstalled sensors are expected to be unavailable.','us_status','ultrasonic'],
+  ['RD-03D RADAR',radarFrameHealthy(r,3)?'ok':'fail',radarFrameHealthy(r,3)?(Number(val(r,'radar_count',0))>0?'Valid 30-byte target frames live':'Valid frames live • no current target'):(recent(r,'radar_link',3)?`UNO bytes received, but no valid target frame • ${val(r,'radar_decoder_status','decoder checking')}`:'No radar UART bytes: check power, GND, TX → D12 and RX → D11'),'radar_decoder_status','radar'],
+  ['ULTRASONIC',!ultrasonicEnabled||!usSides.length?'off':(usSides.every(([k])=>recent(r,k,4)&&Number(val(r,k,-1))>0)?'ok':'warn'),`${usSides.length?usSides.map(([k,n])=>n+' '+(Number(val(r,k,-1))>0?Math.round(Number(val(r,k,-1)))+' mm':'no echo')).join(' • '):'all sides disabled'}${usOff.length?' • '+usOff.join('/')+' not installed (disabled in hub)':''} • -1 = no valid echo, NOT clear space`,'us_status','ultrasonic'],
   ['I2C SENSOR BUS',i2c.liveCount?'ok':(i2c.bridgeLive?'warn':'fail'),i2c.liveCount?`${i2c.liveCount}/3 sensor${i2c.liveCount===1?'':'s'} live through ${i2c.route}`:(i2c.bridgeLive?'UNO R4 bridge live, but sensor data is stale':'No live I2C sensor telemetry'),i2c.freshestKey,'i2c'],
   ['INSIDE IR 8x8',thermal.ok&&recent(r,'thermal_json',5)?'ok':'fail',thermal.ok?'AMG8833 heatmap live':'Not detected: check 3.3V, GND, SDA pin 3, SCL pin 5','thermal_json','thermal'],
   ['OUTSIDE TEMP',recent(r,'outside_temperature',9)?'ok':'fail',recent(r,'outside_temperature',9)?'BME680 ambient temperature live':'Check BME680 wiring/address 0x77','outside_temperature','environment'],
   ['CAMERA SERVOS',cameraControlLive(r)?'ok':'fail',cameraControlLive(r)?`${val(r,'camera_servo_status','')} — commanded pulses, not position feedback`:`Camera control unavailable: ${val(r,'camera_servo_status','no heartbeat')}`,'camera_servo_status'],
-  ['DALY BMS',recent(r,'bms_status',20)?'ok':'fail',recent(r,'bms_status',20)?'Battery telemetry live':'Check BMS Bluetooth connection','bms_status'],
+  ['DALY BMS',bmsLive(r)?'ok':'fail',bmsLive(r)?'Battery telemetry live':'Battery reading invalid or stale • check BMS Bluetooth connection','bms_status'],
   ['ORIN IO BASE',recent(r,'carrier_status',25)&&carrier.ok?'ok':'fail',carrier.ok?`${carrier.power_mode} • NVMe ${carrier.nvme.free_gb}GB free • ${carrier.usb_devices} USB devices`:'Carrier health service offline','carrier_status'],
   [`${cellGen} MODEM`,cellRegistered?'ok':recent(r,'cell_registration',20)?'warn':'fail',`Registration: ${val(r,'cell_registration','NO HEARTBEAT')} • signal report is not an Internet test`,'cell_registration','cellular'],
   ['VOICE USB',sys.voice_usb?'ok':'fail',sys.voice_usb?'ESP32-S3 enumerated; check voice service for response':(sys.voice_usb_reason||'Voice USB not enumerated'),null,'diagnostics'],
   ['GNSS',gpsCheck.fixed?'ok':gpsCheck.live?'warn':'fail',gpsCheck.fixed?'Current position fix valid':gpsCheck.live?'NMEA communication live, but NO position fix':'No fresh valid NMEA — open diagnostics','gps_diagnostics','gps'],
   ['WEB / TAILSCALE',net&&net.tailscale_ip!='--'?'ok':'warn',net&&net.tailscale_ip!='--'?`Reachable at ${net.tailscale_ip}`:'Tailscale address unavailable',null]
  ];
- let ok=items.filter(x=>x[1]=='ok').length,warn=items.filter(x=>x[1]=='warn').length,fail=items.filter(x=>x[1]=='fail').length;
- $('healthSummary').textContent=`${ok} OK / ${warn} WARN / ${fail} FAULT`;
+ let ok=items.filter(x=>x[1]=='ok').length,warn=items.filter(x=>x[1]=='warn').length,fail=items.filter(x=>x[1]=='fail').length,off=items.filter(x=>x[1]=='off').length;
+ $('healthSummary').textContent=`${ok} OK${off?` / ${off} OFF`:''} / ${warn} WARN / ${fail} FAULT`;
  $('healthSummary').style.color=fail?'#ff4655':warn?'#ffcc3d':'#34e58b';
  let elapsed=(Date.now()-dashboardStarted)/1000;
  $('selfTestStamp').textContent=elapsed<8?`TELEMETRY CHECK • collecting messages for ${Math.ceil(8-elapsed)} more seconds`:`LIVE TELEMETRY ONLY • no physical motor test • ${items.length} channels • ${new Date().toLocaleTimeString()}`;
- let banner=$('bootBannerState');banner.textContent=elapsed<8?`RUNNING • ${Math.ceil(8-elapsed)}s • ${ok} LIVE`:`COMPLETE • ${ok} OK / ${warn} WARN / ${fail} FAULT`;banner.style.color=fail?'#ff4655':warn?'#ffcc3d':'#34e58b';
+ let banner=$('bootBannerState');banner.textContent=elapsed<8?`RUNNING • ${Math.ceil(8-elapsed)}s • ${ok} LIVE`:`COMPLETE • ${ok} OK${off?` / ${off} OFF`:''} / ${warn} WARN / ${fail} FAULT`;banner.style.color=fail?'#ff4655':warn?'#ffcc3d':'#34e58b';
  $('healthGrid').innerHTML=items.map(x=>healthItem(x[0],x[1],x[2],x[3]?age(r,x[3]):null,x[4]||(x[3]?'telemetry:'+x[3]:'diagnostics'))).join('');
 }
 function renderConstellations(r){$('constellationGrid').innerHTML=diagnosticConstellations(r)}
@@ -1769,8 +3165,14 @@ function cameraControlLive(r){return recent(r,'camera_servo_status',2)&&/^online
 function i2cInfo(r){
  let raw=String(val(r,'i2c_status','')),pcaRaw=String(val(r,'pca_status','')),cameraRaw=String(val(r,'camera_servo_status','')),arduinoBus=(raw.match(/(?:^|,)BUS=([^,]*)/i)||[])[1]||'UNO R4 A4/A5',arduinoAddresses=raw.match(/0x[0-9a-f]{2}/gi)||[];
  arduinoAddresses=[...new Set(arduinoAddresses.map(x=>x.toUpperCase()))];
-  let thermalLive=recent(r,'thermal_json',5)||recent(r,'thermal_status',5);
- let outsideLive=recent(r,'outside_temperature',9)||recent(r,'bme680_json',9)||recent(r,'outside_status',9);
+ let thermalStatus=String(val(r,'thermal_status','')),thermalData={};
+ try{thermalData=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}
+ let thermalPixels=Array.isArray(thermalData.pixels_c)?thermalData.pixels_c:(Array.isArray(thermalData.pixels)?thermalData.pixels:[]);
+ let thermalLive=(recent(r,'thermal_json',5)&&thermalData.ok===true&&thermalPixels.length===64)||(recent(r,'thermal_status',5)&&/^online\b/i.test(thermalStatus));
+ let outsideStatus=String(val(r,'outside_status','')),outsideData={};
+ try{outsideData=JSON.parse(val(r,'bme680_json','{}')||'{}')}catch(e){}
+ let outsideTemp=Number(val(r,'outside_temperature',NaN));
+ let outsideLive=(recent(r,'bme680_json',9)&&outsideData.ok===true)||(recent(r,'outside_temperature',9)&&Number.isFinite(outsideTemp))||(recent(r,'outside_status',9)&&/^BME680_(?!OFFLINE|PARSE_ERROR)/i.test(outsideStatus));
  let pcaLive=(recent(r,'pca_status',5)&&(/pca=1|ACK,PCA,1|PCA=1/i.test(pcaRaw)))||cameraControlLive(r);
  let bridgeLive=(recent(r,'i2c_status',8)&&!/^offline/i.test(raw))||thermalLive||outsideLive||pcaLive;
   let sensors=[
@@ -1783,40 +3185,69 @@ function i2cInfo(r){
 }
 function renderDetail(){if(!activeDetail||!latestStatus)return;let r=latestStatus.ros,body='',title='LIVE SENSOR',fresh='LIVE';
  if(activeDetail==='ultrasonic'){title='FOUR ULTRASONIC SENSORS';body=`<div class="detailGrid">${rangeTile('LEFT',val(r,'us_left'),age(r,'us_left'))}${rangeTile('FRONT',val(r,'us_front'),age(r,'us_front'))}${rangeTile('RIGHT',val(r,'us_right'),age(r,'us_right'))}${rangeTile('REAR',val(r,'us_rear'),age(r,'us_rear'))}</div><div class="rawData">STATUS: ${val(r,'us_status','waiting')}\nREFRESH: latest received telemetry; measured callback rates are in Diagnostics\nROLE: secondary near-field safety layer; LiDAR remains the primary navigation sensor.</div>`;fresh=Math.max(age(r,'us_left'),age(r,'us_front'),age(r,'us_right'),age(r,'us_rear'))<3?'● LIVE':'STALE';}
+ else if(activeDetail==='bms_status'){
+  title='MAIN DALY BMS — LIVE PACK REPORT';const b=bmsSnapshot(r);
+  if(!b){body='<div class="rawData">BMS DATA UNAVAILABLE OR OLDER THAN 10 SECONDS. Last-known values are hidden. Check the DALY Bluetooth link before relying on battery telemetry.</div>';fresh='STALE / INVALID';}
+  else{const spread=Math.max(...b.cells_v)-Math.min(...b.cells_v),mode=bmsMode(b);body=`<div class="detailGrid">${tile('CHARGE',n(b.soc_percent,1),' %')}${tile('NET STATE',mode)}${tile('PACK VOLTAGE',n(b.voltage_v,2),' V')}${tile('PACK CURRENT',n(Math.abs(b.current_a),2),' A '+mode)}${tile('PACK POWER',n(Math.abs(b.power_w),1),' W '+mode)}${tile('CELL SPREAD',n(spread,3),' V')}${b.cells_v.map((v,i)=>tile('CELL '+(i+1),n(v,3),' V')).join('')}${tile('BMS DATA AGE',n(age(r,'bms_status'),1),' s')}${tile('CHARGE SOURCE',bmsSocSource(b))}</div><div class="rawData">Current and power are NET values at the battery pack: negative means discharging, positive means charging. They do not separately measure charger input or Jetson-only consumption. Near zero is labelled idle, not proof that the charger is disconnected.\nThe BMS hardware protection/balancing is separate from this read-only dashboard. A valid status packet does not prove that every protective function was tested.</div>`;fresh='● LIVE';}
+ }
  else if(activeDetail==='cellular'){title='CELLULAR / INTERNET DIAGNOSTICS';body=cellularDetails(r,latestStatus.network);fresh=recent(r,'cell_registration',20)?'● TELEMETRY LIVE':'STALE';}
  else if(activeDetail==='gps'){title='PRIMARY GNSS / GLONASS DIAGNOSTICS';body=gnssDetails(r);fresh=gnssInfo(r).live?'● NMEA LIVE':'STALE / OFFLINE';}
  else if(activeDetail.startsWith('telemetry:')){let key=activeDetail.slice(10),item=r[key];title='TELEMETRY — '+key;body='<pre class="rawData">'+diagEscape(JSON.stringify(item||{error:'not received'},null,2))+'</pre>';fresh=item&&item.age!==null&&item.age<10?'● RECENT':'OLDER / UNKNOWN';}
  else if(activeDetail==='camera'){title='IMX708 CAMERA — LIVE OUTPUT';let c=val(r,'camera_info',{});body=`<img id="modalCamera" class="modalCamera" src="/camera.jpg?latest=${Date.now()}"><div class="detailGrid" style="margin-top:10px">${tile('SOURCE',c.source||'--')}${tile('JPEG FRAME',c.bytes||'--',' bytes')}${tile('AGE',n(age(r,'camera_info'),1),' s')}</div><div class="rawData">AI: ${val(r,'ai_status','--')}\nMOTION: ${val(r,'motion_state','--')} (${n(val(r,'motion_percent'),1)}%)\nLATEST-FRAME MODE: old video frames are discarded instead of buffered.\nCamera processing remains single-source; this window does not start another detector.</div>`;fresh=age(r,'camera_info')<3?'● LIVE':'STALE';}
- else if(activeDetail==='radar'){title='RD-03D RADAR — ALL LIVE TARGETS';let targets=parseRadarTargets(val(r,'radar','')),link=String(val(r,'radar_link','--')),targetTiles=targets.length?targets.map(t=>`${tile(t.id+' POSITION',`X ${t.x} / Y ${t.y}`,' mm')}${tile(t.id+' DISTANCE',n(Math.hypot(t.x,t.y)/1000,2),' m')}${tile(t.id+' SPEED',`${t.speed>0?'+':''}${t.speed}`,' cm/s')}`).join(''):tile('TARGETS','0',' detected');body=`<div class="detailGrid">${tile('TARGET COUNT',targets.length)}${tile('NEAREST',n(val(r,'radar_dist'),0),' mm')}${tile('SAFETY ZONE',val(r,'radar_zone','--'))}${targetTiles}</div><div class="rawData">TRACKS: ${val(r,'radar','NO CURRENT TARGETS')}\nUART LINK: ${link}\nDECODER: ${val(r,'radar_decoder_status','--')}\nDATA AGE: ${n(age(r,'radar'),1)} s\n\nT1/T2/T3 are current radar slots, not permanent person identities. Position is radar-relative X/Y; speed sign follows the installed decoder convention.</div>`;fresh=age(r,'radar')<3?'● LIVE':'STALE';}
+ else if(activeDetail==='radar'){title='RD-03D RADAR — LIVE SPEED & DIRECTION';let targets=parseRadarTargets(val(r,'radar','')),link=String(val(r,'radar_link','--')),frameLive=radarFrameHealthy(r,3),targetTiles=targets.length?targets.map(t=>{let m=radarMotion(t);return `${tile(t.id+' POSITION',`X ${t.x} / Y ${t.y}`,' mm')}${tile(t.id+' DISTANCE',n(Math.hypot(t.x,t.y)/1000,2),' m')}${tile(t.id+' DIRECTION',`${m.arrow} ${m.label}`)}${tile(t.id+' RADIAL SPEED',n(m.speed,0),' cm/s')}`}).join(''):tile('TARGETS','0',frameLive?'valid frame • no target':'not live');body=`<div class="detailGrid">${tile('TARGET COUNT',targets.length)}${tile('NEAREST',n(val(r,'radar_dist'),0),' mm')}${tile('SAFETY ZONE',val(r,'radar_zone','--'))}${targetTiles}</div><div class="rawData">DIRECTION LEGEND: ↓ APPROACHING • ↑ MOVING AWAY • ■ STATIONARY • ? TRACK JUMP\nTRACKS: ${val(r,'radar','NO CURRENT TARGETS')}\nUART LINK: ${link}\nDECODER: ${val(r,'radar_decoder_status','--')}\nDATA AGE: ${n(age(r,'radar_decoder_status'),1)} s\n\nDirection and radial speed are derived from live distance change, so they do not depend on an unverified firmware speed sign. T1/T2/T3 are temporary radar slots, not permanent people identities. Camera/LiDAR confirmation is still required before calling a target a person.</div>`;fresh=frameLive?'● LIVE':'STALE';}
+ else if(activeDetail==='jetson'){
+  title='JETSON ORIN — SMART LIVE REPORT';
+  const s=latestStatus.system||{},services=latestStatus.services||{};
+  let carrier={};try{carrier=JSON.parse(val(r,'carrier_json','{}')||'{}')}catch(e){}
+  const tempC=Number.parseFloat(String(s.temp||'')),activeServices=Object.entries(services).filter(x=>x[1]==='active'),inactiveServices=Object.entries(services).filter(x=>x[1]!=='active');
+  const thermalState=!Number.isFinite(tempC)?'UNKNOWN':tempC>=99?'THROTTLING ZONE':tempC>=95?'NEAR THROTTLE':tempC>=80?'HOT • BELOW THROTTLE':'NORMAL';
+  const gpuText=s.gpu_percent==null?'NOT EXPOSED':`${n(s.gpu_percent,1)}%`;
+  body=`<div class="detailGrid">${tile('CPU LOAD',n(s.cpu_percent,1),'%')}${tile('GPU LOAD',gpuText)}${tile('RAM LOAD',s.ram_percent==null?'--':n(s.ram_percent,0),'%')}${tile('JETSON TEMPERATURE',Number.isFinite(tempC)?n(tempC,0):'--','°C')}${tile('THERMAL STATE',thermalState)}${tile('POWER MODE',carrier.power_mode||'--')}${tile('JETSON INPUT POWER',n(val(r,'jetson_power'),2),' W')}${tile('CPU / GPU RAIL',n(val(r,'jetson_cpu_gpu_power'),2),' W')}${tile('SOC RAIL',n(val(r,'jetson_soc_power'),2),' W')}${tile('GPU CLOCK',s.gpu_frequency_mhz==null?'--':n(s.gpu_frequency_mhz,0),' MHz')}${tile('NVME FREE',carrier.nvme?n(carrier.nvme.free_gb,1):'--',' GB')}${tile('ACTIVE SERVICES',activeServices.length)}${tile('INACTIVE SERVICES',inactiveServices.length)}${tile('USB / I²C / CSI',carrier.ok?`${carrier.usb_devices} / ${carrier.i2c_buses} / ${carrier.csi_video_devices}`:'--')}${tile('MISSION AI',val(r,'agent_status','waiting'))}</div><div class="rawData">THERMAL GUIDE: NORMAL under 80°C • HOT 80–94°C • NEAR THROTTLE 95–98°C • NVIDIA software throttling begins at 99°C. This is a monitoring guide, not permission to bypass battery or motor safety gates.\n\nRAM: ${s.ram||'--'}\nCARRIER: ${carrier.board||'--'}\nINA3221: ${val(r,'jetson_power_status','--')}\nAGENT TEAM: ${val(r,'agent_team_status','--')}\nEXPERIENCE STORE: ${val(r,'experience_status','--')}\nINACTIVE SERVICES: ${inactiveServices.length?inactiveServices.map(x=>x[0]).join(', '):'NONE'}\nREPORT TIME: ${latestStatus.time||'--'}</div>`;
+  fresh='● LIVE';
+ }
  else if(activeDetail==='encoders'){
-  title='MOTOR ENCODERS — SELECTED FEEDBACK';
+  title='SMART DRIVE & ENCODER REPORT — ALL 4 WHEELS';
   let odom=val(r,'odom',{}),eh={};try{eh=JSON.parse(val(r,'encoder_health','{}')||'{}')}catch(e){}
   const selected=eh.selected_encoders||[],excluded=eh.excluded_encoders||[];
   const live=recent(r,'encoder_health',3)&&eh.packet_fresh===true;
-  body=`<div class="detailGrid">${tile('SAFETY STATE',live?(eh.state||'MISSING'):'STALE')}${tile('SELECTED',selected.map(i=>'M'+i).join(', ')||'UNKNOWN')}${tile('EXCLUDED',excluded.map(i=>'M'+i).join(', ')||'NONE')}${tile('AUTONOMY',live&&eh.autonomy_ready===true?'FEEDBACK QUALIFIED':'BLOCKED / VALIDATION')}${tile('FAILED SELECTED CHANNELS',(eh.faults||[]).join(', ')||'NONE')}${tile('ENCODER PACKET AGE',n(eh.packet_age_s,3),' s')}${tile('M1 • BACK LEFT',val(r,'enc_m1'))}${tile('M2 • BACK RIGHT',val(r,'enc_m2'))}${tile('M3 • FRONT LEFT',val(r,'enc_m3'))}${tile(excluded.includes(4)?'M4 • EXCLUDED / RAW ONLY':'M4 • FRONT RIGHT',val(r,'enc_m4'))}${tile('LINEAR VELOCITY',n(odom.vx,3),' m/s')}${tile('YAW RATE',n(odom.wz,3),' rad/s')}${tile('ODOM X',n(odom.x,3),' m')}${tile('ODOM Y',n(odom.y,3),' m')}${tile('IMU HEADING',n(val(r,'imu_heading'),2),'°')}</div><div class="rawData">REASON: ${eh.reason||'waiting'}\nSAFETY HEARTBEAT AGE: ${n(age(r,'encoder_health'),1)} s\nLAST CHANGE AGE M1–M4: ${(eh.last_change_age_s||[]).join(' / ')||'--'} s\nPOLICY: ${eh.policy||'waiting'}\nSTEERING: front ${n(val(r,'front_steer'),1)}° • rear ${n(val(r,'rear_steer'),1)}°\n\nExclusion applies to encoder feedback, NOT the motor. M4 can still drive. A selected encoder fault or stale shared packet blocks autonomous use. Three healthy encoders can support autonomy after measured distance/turn validation. Fresh packets at rest do not prove individual encoder operation.</div>`;
+  const changeAges=eh.last_change_age_s||[],encoderState=i=>!live?'LINK STALE':(eh.faults||[]).includes('M'+i)?'FAULT':Number(changeAges[i-1])<3?'RESPONDING / MOVING':excluded.includes(i)?'RAW LIVE • EXCLUDED':'PACKET LIVE • STOPPED';
+  body=`<div class="detailGrid">${tile('SAFETY STATE',live?(eh.state||'MISSING'):'STALE')}${tile('SELECTED',selected.map(i=>'M'+i).join(', ')||'UNKNOWN')}${tile('EXCLUDED',excluded.map(i=>'M'+i).join(', ')||'NONE')}${tile('AUTONOMY',live&&eh.autonomy_ready===true?'FEEDBACK QUALIFIED':'BLOCKED / VALIDATION')}${tile('FAILED SELECTED CHANNELS',(eh.faults||[]).join(', ')||'NONE')}${tile('ENCODER PACKET AGE',n(eh.packet_age_s,3),' s')}${tile(excluded.includes(1)?'M1 • REAR LEFT • EXCLUDED':'M1 • REAR LEFT',`${val(r,'enc_m1')} • ${encoderState(1)}`)}${tile(excluded.includes(2)?'M2 • REAR RIGHT • EXCLUDED':'M2 • REAR RIGHT',`${val(r,'enc_m2')} • ${encoderState(2)}`)}${tile(excluded.includes(3)?'M3 • FRONT LEFT • EXCLUDED':'M3 • FRONT LEFT',`${val(r,'enc_m3')} • ${encoderState(3)}`)}${tile(excluded.includes(4)?'M4 • FRONT RIGHT • EXCLUDED':'M4 • FRONT RIGHT',`${val(r,'enc_m4')} • ${encoderState(4)}`)}${tile('FRONT STEERING',n(val(r,'front_steer'),1),'°')}${tile('REAR STEERING',n(val(r,'rear_steer'),1),'°')}${tile('LINEAR VELOCITY',n(odom.vx,3),' m/s')}${tile('YAW RATE',n(odom.wz,3),' rad/s')}${tile('ODOM X / Y',`${n(odom.x,3)} / ${n(odom.y,3)}`,' m')}${tile('IMU HEADING',n(val(r,'imu_heading'),2),'°')}</div><div class="rawData">ONE PANEL IS AUTHORITATIVE FOR ALL FOUR WHEELS.\nENCODER LEGEND: RESPONDING / MOVING = count changed recently • PACKET LIVE / STOPPED = healthy link with stationary wheel • RAW LIVE / EXCLUDED = displayed but not used for navigation • FAULT/STALE = unsafe.\n\nREASON: ${eh.reason||'waiting'}\nSAFETY HEARTBEAT AGE: ${n(age(r,'encoder_health'),1)} s\nLAST CHANGE AGE M1–M4: ${changeAges.join(' / ')||'--'} s\nPOLICY: ${eh.policy||'waiting'}\n\nLive packet reception does not prove correct wheel distance. The channel named EXCLUDED above remains diagnostic-only until controlled validation changes the saved safety policy.</div>`;
   fresh=live?`● ${selected.length}/4 SELECTED — ${eh.state||'UNKNOWN'}`:'STALE / NO FEEDBACK';
  }
+ else if(activeDetail==='drive_pid'){
+  title='CLOSED-LOOP DRIVE PID — LIVE DIAGNOSTICS';
+  let p={};try{p=JSON.parse(val(r,'drive_pid','{}')||'{}')}catch(e){}
+  let wheels=Array.isArray(p.wheels)?p.wheels:[];
+  let wheelTiles=wheels.map(w=>`${tile(w.wheel||'WHEEL',w.encoder_valid===false?'ENCODER INVALID':n(w.measured_mps,3)+' m/s')}${tile('TARGET / ERROR',`${n(w.target_mps,3)} / ${n(w.error_mps,3)}`,' m/s')}${tile('P / I / D / FF',`${n(w.p,3)} / ${n(w.i,3)} / ${n(w.d,3)} / ${n(w.feed_forward,3)}`)}${tile('OUTPUT / AGE',`${n(w.output,1)} / ${n(w.encoder_age_s,3)}`,' s')}`).join('');
+  body=`<div class="detailGrid">${tile('STATE',p.state||'NO DATA')}${tile('ACTIVE',p.active?'YES':'NO')}${tile('FAULT',p.fault_reason||'NONE')}${tile('INHIBITED',p.inhibited_reason||'NONE')}${tile('YAW COMMAND',n(p.commanded_yaw_rate,3),' rad/s')}${tile('YAW MEASURED',p.measured_yaw_rate==null?'--':n(p.measured_yaw_rate,3),' rad/s')}${tile('STEERING CORRECTION',n(p.steering_correction_deg,2),'°')}${wheelTiles}</div><div class="rawData">This is the sole low-level controller diagnostic, not a second motor-control interface. Repository defaults are DISABLED, hardware NOT commissioned, navigation NOT validated, and M4 excluded. A FAULT_STOP output is zero and remains latched until reset while stopped.</div>`;
+  fresh=recent(r,'drive_pid',3)?(p.state==='FAULT_STOP'?'FAULT STOP':'● LIVE'):'STALE';
+ }
  else if(activeDetail==='lidar'){title='RPLIDAR — LIVE SCAN DETAILS';let li=val(r,'lidar',{});body=`<div class="detailGrid">${tile('NEAREST RETURN',n(li.nearest_m,3),' m')}${tile('VALID POINTS',li.points||0)}${tile('TOTAL SAMPLES',li.total||0)}${tile('MAX RANGE',n(li.range_max,1),' m')}${tile('FRAME',li.frame||'--')}${tile('DATA AGE',n(age(r,'lidar'),1),' s')}</div><div class="rawData">ROLE: PRIMARY obstacle geometry and navigation ranging.\nTOPIC: /scan\nThe dashboard summary does not modify, filter, or replace the LaserScan used by Nav2.</div>`;fresh=age(r,'lidar')<3?'● LIVE':'STALE';}
- else if(activeDetail==='imu'){title='HIWONDER IM10A — LIVE MONITORING';let f=val(r,'imu_full',{});body=`<div class="detailGrid">${tile('ROLL',n(val(r,'imu_roll'),2),'°')}${tile('PITCH',n(val(r,'imu_pitch'),2),'°')}${tile('SENSOR YAW',n(val(r,'imu_yaw'),2),'°')}${tile('ACCEL X',n(f.ax,3),' m/s²')}${tile('ACCEL Y',n(f.ay,3),' m/s²')}${tile('ACCEL Z',n(f.az,3),' m/s²')}${tile('GYRO X',n(f.gx,3),' rad/s')}${tile('GYRO Y',n(f.gy,3),' rad/s')}${tile('GYRO Z',n(f.gz,3),' rad/s')}${tile('MAG X RAW',n(f.mx_raw,2))}${tile('MAG Y RAW',n(f.my_raw,2))}${tile('MAG Z RAW',n(f.mz_raw,2))}</div><div class="rawData">SOURCE: ${f.source||'Hiwonder IM10A'}\nROLE: PRIMARY DISPLAY SOURCE — NAVIGATION NOT VALIDATED\nORIENTATION QUATERNION: x ${n(f.qx,5)}  y ${n(f.qy,5)}  z ${n(f.qz,5)}  w ${n(f.qw,5)}\nHEADING MODE: ${f.heading_reference_mode||'sensor heading; mounting unvalidated'}\nNAVIGATION FUSION: ${f.navigation_fusion||'disabled pending dynamic yaw validation'}\n\nThe magnetic values are sensor-native raw units; they are not mislabeled as µT.</div>`;fresh=age(r,'imu_full')<3?'● LIVE':'STALE';}
+ else if(activeDetail==='imu'){title='HIWONDER IM10A — LIVE MONITORING';let f=val(r,'imu_full',{}),fused=String(f.navigation_fusion||'').startsWith('ENABLED');body=`<div class="detailGrid">${tile('ROLL',n(val(r,'imu_roll'),2),'°')}${tile('PITCH',n(val(r,'imu_pitch'),2),'°')}${tile('SENSOR YAW',n(val(r,'imu_yaw'),2),'°')}${tile('EKF AUTHORITY',fused?'GYRO-Z ENABLED':'DISABLED / REVALIDATE')}${tile('ACCEL X',n(f.ax,3),' m/s²')}${tile('ACCEL Y',n(f.ay,3),' m/s²')}${tile('ACCEL Z',n(f.az,3),' m/s²')}${tile('GYRO X',n(f.gx,3),' rad/s')}${tile('GYRO Y',n(f.gy,3),' rad/s')}${tile('GYRO Z',n(f.gz,3),' rad/s')}${tile('MAG X RAW',n(f.mx_raw,2))}${tile('MAG Y RAW',n(f.my_raw,2))}${tile('MAG Z RAW',n(f.mz_raw,2))}</div><div class="rawData">SOURCE: ${f.source||'Hiwonder IM10A'}\nROLE: ${fused?'PRIMARY NAVIGATION YAW-RATE — GYRO-Z ONLY':'MONITORING ONLY — NAVIGATION AUTHORITY REVOKED'}\nORIENTATION QUATERNION: x ${n(f.qx,5)}  y ${n(f.qy,5)}  z ${n(f.qz,5)}  w ${n(f.qw,5)}\nHEADING MODE: ${f.heading_reference_mode||'magnetic/Euler heading excluded from navigation'}\nNAVIGATION FUSION: ${f.navigation_fusion||'waiting for live corrected gyro-Z status'}\n\nThe magnetic values are sensor-native raw units; they are not mislabeled as µT and are not fused into navigation.</div>`;fresh=age(r,'imu_full')<3?'● LIVE':'STALE';}
  else if(activeDetail==='thermal'){title='AMG8833 8×8 THERMAL ARRAY';let thermalLive=age(r,'thermal_json')<4;body=heatCells(r)+`<div class="rawData">${thermalLive?'STATUS: LIVE via UNO R4 I²C hub':val(r,'thermal_status','Thermal sensor waiting')}\nEach square is one live infrared temperature pixel. Brightest square is the current hotspot.</div>`;fresh=thermalLive?'● LIVE':'STALE';}
  else if(activeDetail==='environment'){title='BME680 OUTSIDE AIR / GAS';let j={};try{j=JSON.parse(val(r,'bme680_json','{}')||'{}')}catch(e){}body=`<div class="detailGrid">${tile('TEMPERATURE',n(val(r,'outside_temperature'),2),'°C')}${tile('HUMIDITY',n(val(r,'outside_humidity'),1),'% RH')}${tile('PRESSURE',n(val(r,'outside_pressure'),1),' hPa')}${tile('GAS RESISTANCE',n(Number(val(r,'outside_gas'))/1000,1),' kΩ')}${tile('IAQ ESTIMATE',n(j.iaq,0))}${tile('HEATER',j.heat_stable?'STABLE':'WARMING')}</div><div class="rawData">STATUS: ${val(r,'outside_status','waiting')}\nGas resistance is a relative VOC/air-quality signal, not a calibrated safety alarm. Compare its trend and IAQ estimate after the heater becomes stable.</div>`;fresh=age(r,'outside_gas')<8?'● LIVE':'STALE';}
- else if(activeDetail==='i2c'){title='ATLAS I²C ROUTES — LIVE INVENTORY';let q=i2cInfo(r),sensorText=q.sensors.map(x=>`${x.live?'LIVE   ':'OFFLINE'} ${x.name}  ${x.address}`).join('\n'),arduinoText=q.arduinoAddresses.length?q.arduinoAddresses.join(', '):'not present in latest status frame';body=`<div class="detailGrid">${tile('UNO R4 I2C HUB',q.liveCount+'/3 LIVE')}${tile('PCA9685',q.pcaLive?'0x40 LIVE':'OFFLINE')}${tile('AMG8833',q.thermalLive?'0x69 LIVE':'OFFLINE')}${tile('BME680',q.outsideLive?'0x77 LIVE':'OFFLINE')}${tile('USB BRIDGE',q.bridgeLive?'ONLINE':'OFFLINE')}</div><div class="rawData">LIVE SENSOR ROUTE: Jetson USB → UNO R4 → I²C A4/A5\n${sensorText}\n\nIM10A ROUTE: dedicated USB → atlas-im10a → /im10a/* (EKF fusion disabled)\n\nI²C STATUS:\n${q.raw||'waiting for /arduino/i2c/status'}\nPCA STATUS:\n${q.pcaRaw||q.cameraRaw||'waiting for PCA9685 feedback'}\nSCANNED ADDRESSES: ${arduinoText}\n\nEach LIVE/OFFLINE result is calculated from that sensor's own fresh ROS data. One failed sensor no longer hides the working sensors.</div>`;fresh=q.liveCount?`● ${q.liveCount}/3 LIVE`:(q.bridgeLive?'● BRIDGE ONLY':'STALE');}
+ else if(activeDetail==='i2c'){title='ATLAS I²C ROUTES — LIVE INVENTORY';let q=i2cInfo(r),sensorText=q.sensors.map(x=>`${x.live?'LIVE   ':'OFFLINE'} ${x.name}  ${x.address}`).join('\n'),arduinoText=q.arduinoAddresses.length?q.arduinoAddresses.join(', '):'not present in latest status frame';body=`<div class="detailGrid">${tile('UNO R4 I2C HUB',q.liveCount+'/3 LIVE')}${tile('PCA9685',q.pcaLive?'0x40 LIVE':'OFFLINE')}${tile('AMG8833',q.thermalLive?'0x69 LIVE':'OFFLINE')}${tile('BME680',q.outsideLive?'0x77 LIVE':'OFFLINE')}${tile('USB BRIDGE',q.bridgeLive?'ONLINE':'OFFLINE')}</div><div class="rawData">LIVE SENSOR ROUTE: Jetson USB → UNO R4 → I²C A4/A5\n${sensorText}\n\nIM10A ROUTE: dedicated USB → atlas-im10a → corrected gyro-Z → EKF. Magnetic/Euler heading remains diagnostics-only.\n\nI²C STATUS:\n${q.raw||'waiting for /arduino/i2c/status'}\nPCA STATUS:\n${q.pcaRaw||q.cameraRaw||'waiting for PCA9685 feedback'}\nSCANNED ADDRESSES: ${arduinoText}\n\nEach LIVE/OFFLINE result is calculated from that sensor's own fresh ROS data. One failed sensor no longer hides the working sensors.</div>`;fresh=q.liveCount?`● ${q.liveCount}/3 LIVE`:(q.bridgeLive?'● BRIDGE ONLY':'STALE');}
  $('detailTitle').textContent=title;$('detailFresh').textContent=fresh;$('detailFresh').style.color=fresh.includes('LIVE')?'#34e58b':'#ff4655';$('detailBody').innerHTML=body;
 }
 function openDetail(key){if(key==='diagnostics'){$('diagnosticsPanel').open=true;$('diagnosticsPanel').scrollIntoView({behavior:'smooth'});refreshDiagnostics(true);return}activeDetail=key;$('sensorModal').classList.add('open');renderDetail()}
 function closeDetail(){activeDetail='';$('sensorModal').classList.remove('open');$('detailBody').innerHTML=''}
 $('sensorModal').addEventListener('click',e=>{if(e.target===$('sensorModal'))closeDetail()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail()});
 async function stop(){await post({action:'stop'},false)}
-let hold=null;function beginDrive(b){stopDrive(false);b.classList.add('on');let send=()=>post({action:'drive',linear:b.dataset.l,angular:b.dataset.a},false);send();hold=setInterval(send,120)}
+let hold=null;function beginDrive(b){stopDrive(false);b.classList.add('on');const press=Math.random().toString(36).slice(2,12);let start=1;let send=()=>{post({action:'drive',linear:b.dataset.l,angular:b.dataset.a,press,start},false);start=0};send();hold=setInterval(send,120)}
 function stopDrive(send=true){if(hold){clearInterval(hold);hold=null}document.querySelectorAll('[data-l]').forEach(b=>b.classList.remove('on'));if(send)stop()}
 document.querySelectorAll('[data-l]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);beginDrive(b)};b.onpointerup=()=>stopDrive();b.onpointercancel=()=>stopDrive();b.onlostpointercapture=()=>stopDrive()});
-$('stop').onclick=()=>post({action:'e_stop'});window.addEventListener('blur',()=>stopDrive());document.addEventListener('visibilitychange',()=>{if(document.hidden)stopDrive()});
+let estopNonce=null;function showEstop(text,cls,why,canReset){$('estopState').textContent=text;$('estopState').className=cls;$('estopWhy').textContent=why;$('estopReset').disabled=!canReset}
+async function pollEstop(){try{let r=await fetch('/api/estop/state',{cache:'no-store'});if(r.status===404){$('estopResetPanel').hidden=true;return}let d=await r.json();let rs=d.reset||{};estopNonce=rs.challenge||null;if(d.latched===true){if(rs.available)showEstop('STOP LATCHED — RESET AVAILABLE','warn','Remote connected, rover still, drive buttons released. Reset needs the operator PIN and does not move the rover.',true);else showEstop('STOP LATCHED — RESET BLOCKED','bad',(rs.blocked||[]).join(' • ')||'Conditions not confirmed',false)}else if(d.latched===false)showEstop(d.drive_requires_fresh_press?'NOT LATCHED — RELEASE ALL DRIVE BUTTONS, THEN PRESS AGAIN':'NOT LATCHED','ok','',false);else showEstop('STOP STATE UNKNOWN — RESET BLOCKED','bad','No fresh stop state from ATLAS.',false)}catch(e){estopNonce=null;showEstop('CONNECTION LOST — RESET BLOCKED','bad','The latch stays engaged; use the physical remote.',false)}}
+async function resetEstop(){stopDrive(false);stopCameraHold();const nonce=estopNonce,pin=$('estopPin').value;if(!nonce){toast('RESET BLOCKED');return}if(!confirm('Release the E-STOP latch?\n\nThe rover will NOT move by itself. Release every drive button first; a new press is needed to drive.'))return;$('estopReset').disabled=true;try{let r=await fetch('/api/estop/reset',{method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Wifi':'1'},body:JSON.stringify({nonce,pin,confirm:'RESET_ESTOP'})});let d=await r.json();toast(d.message||('RESET '+r.status))}catch(e){toast('RESET NOT CONFIRMED — CONNECTION LOST')}finally{$('estopPin').value='';estopNonce=null;pollEstop()}}
+$('estopReset').onclick=resetEstop;setInterval(()=>{if(!document.hidden)pollEstop()},1000);pollEstop();
+let eStopPtrAt=0;const eStop=()=>{stopDrive(false);stopCameraHold();post({action:'e_stop'})};$('stop').onpointerdown=e=>{e.preventDefault();eStopPtrAt=Date.now();eStop()};$('stop').onclick=e=>{if(e.detail===0&&Date.now()-eStopPtrAt>1000)eStop()};window.addEventListener('blur',()=>stopDrive());document.addEventListener('visibilitychange',()=>{if(document.hidden)stopDrive()});
 let cameraHold=null,cameraBusy=false;
 function stopCameraHold(){if(cameraHold){clearInterval(cameraHold);cameraHold=null}document.querySelectorAll('[data-cam]').forEach(b=>b.classList.remove('on'))}
 async function cameraStep(b){if(cameraBusy)return;cameraBusy=true;try{await post({action:'camera',axis:b.dataset.cam,direction:b.dataset.dir})}finally{cameraBusy=false}}
 document.querySelectorAll('[data-cam]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();stopCameraHold();b.classList.add('on');b.setPointerCapture(e.pointerId);cameraStep(b);if(b.dataset.cam!=='center')cameraHold=setInterval(()=>cameraStep(b),90)};b.onpointerup=stopCameraHold;b.onpointercancel=stopCameraHold;b.onlostpointercapture=stopCameraHold});
 window.addEventListener('pointerup',stopCameraHold);window.addEventListener('pointercancel',stopCameraHold);window.addEventListener('blur',stopCameraHold);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCameraHold()});
-document.querySelectorAll('[data-track]').forEach(b=>b.onclick=()=>post({action:'camera_tracking',enabled:b.dataset.track}));
+ document.querySelectorAll('[data-track]').forEach(b=>b.onclick=()=>post({action:'camera_tracking',enabled:b.dataset.track}));
+ $('saveCameraHome').onclick=async()=>{let r=await post({action:'camera_home_save'});toast(r.message||r.error||'Camera home request complete')};
 document.querySelectorAll('[data-ai]').forEach(b=>b.onclick=()=>post({action:'ai_mode',mode:b.dataset.ai}));
 let cameraFrameBusy=false,cameraRequestStarted=0,cameraLastSuccess=0,cameraGeneration=0,cameraFailures=0;
 function cameraState(text,state){let e=$('cameraStatus');if(!e)return;e.textContent=text;e.className=`cameraStatus ${state}`}
@@ -1839,16 +3270,27 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollLatest
 let insideHistory=[],outsideHistory=[];
 const radarTrails={T1:[],T2:[],T3:[]};let radarSweep=0,lastRadarRaw='',radarView='3d',lastRadarTargets=[],lastRadarLive=false,lastRadarLink='';
 function parseRadarTargets(raw){return String(raw||'').split('|').map(part=>{let m=part.trim().match(/^(T\d+):x=(-?\d+)mm,y=(-?\d+)mm,spd=(-?\d+)cm\/s$/);return m?{id:m[1],x:Number(m[2]),y:Number(m[3]),speed:Number(m[4])}:null}).filter(Boolean)}
+function radarMotion(t){
+ let trail=radarTrails[t.id]||[],now=Date.now(),last=trail.at(-1);
+ if(!last||now-last.at>900)return {label:'STATIONARY',arrow:'■',speed:0,quality:'position unchanged'};
+ let previous=[...trail].reverse().find(p=>last.at-p.at>=350);
+ if(!previous)return Math.abs(t.speed)<2?{label:'STATIONARY',arrow:'■',speed:0,quality:'radar speed'}:{label:'MOVING',arrow:'◆',speed:Math.abs(t.speed),quality:'radar speed sign uncalibrated'};
+ let delta=Math.hypot(last.x,last.y)-Math.hypot(previous.x,previous.y),dt=last.at-previous.at,radial=delta/dt*100;
+ if(Math.abs(radial)>250)return {label:'TRACK JUMP',arrow:'?',speed:Math.abs(radial),quality:'slot association uncertain'};
+ if(radial<-3)return {label:'APPROACHING',arrow:'↓',speed:Math.abs(radial),quality:'derived from distance change'};
+ if(radial>3)return {label:'MOVING AWAY',arrow:'↑',speed:Math.abs(radial),quality:'derived from distance change'};
+ return {label:'STATIONARY',arrow:'■',speed:Math.abs(radial),quality:'derived from distance change'};
+}
 function setRadarView(view){radarView=view==='3d'?'3d':'2d';$('radarScope').classList.toggle('radarHidden',radarView!=='2d');$('radarTwin').classList.toggle('radarHidden',radarView!=='3d');$('radar2dBtn').classList.toggle('active',radarView==='2d');$('radar3dBtn').classList.toggle('active',radarView==='3d');if(radarView==='3d')drawRadarTwins(lastRadarTargets,lastRadarLive)}
 function radarColor(t){let d=Math.hypot(t.x,t.y);return d<750?'#ff4655':d<1500?'#ffcf3c':t.id==='T2'?'#19cfff':'#38ff9b'}
 function drawPerson(g,x,y,scale,color,label,detail){let head=Math.max(5,8*scale),body=Math.max(17,28*scale),arm=Math.max(10,17*scale),leg=Math.max(12,21*scale);g.save();g.strokeStyle=color;g.fillStyle=color;g.lineWidth=Math.max(2,4*scale);g.shadowColor=color;g.shadowBlur=12;g.beginPath();g.arc(x,y-body-head-3,head,0,Math.PI*2);g.fill();g.beginPath();g.moveTo(x,y-body);g.lineTo(x,y);g.moveTo(x-arm,y-body*.68);g.lineTo(x,y-body*.82);g.lineTo(x+arm,y-body*.68);g.moveTo(x,y);g.lineTo(x-leg*.62,y+leg);g.moveTo(x,y);g.lineTo(x+leg*.62,y+leg);g.stroke();g.shadowBlur=0;g.fillStyle='#eefaff';g.font='bold 12px system-ui';g.textAlign='center';g.fillText(label,x,y+leg+18);g.font='10px system-ui';g.fillStyle='#a9c7d9';g.fillText(detail,x,y+leg+31);g.restore()}
-function drawRadarTwins(targets,live){let c=$('radarTwin'),g=c.getContext('2d'),w=c.width,h=c.height,cx=w/2,horizon=66,floor=h-27;g.clearRect(0,0,w,h);let bg=g.createLinearGradient(0,0,0,h);bg.addColorStop(0,'#061628');bg.addColorStop(.42,'#07131d');bg.addColorStop(1,'#020806');g.fillStyle=bg;g.fillRect(0,0,w,h);g.strokeStyle='rgba(23,213,255,.22)';g.lineWidth=1;for(let i=-6;i<=6;i++){g.beginPath();g.moveTo(cx+i*22,horizon);g.lineTo(cx+i*70,floor);g.stroke()}for(let m=1;m<=8;m++){let q=m/8,y=horizon+(floor-horizon)*q*q;g.beginPath();g.moveTo(30+(1-q)*cx*.76,y);g.lineTo(w-30-(1-q)*cx*.76,y);g.stroke()}g.fillStyle='#17d5ff';g.font='bold 12px system-ui';g.textAlign='left';g.fillText('RD-03D DIGITAL TWIN ROOM',14,22);g.fillStyle='#8ca6bb';g.font='10px system-ui';g.fillText('AVATARS REPRESENT LIVE RADAR X/Y — NOT A BODY SCAN',14,38);let visible=targets.filter(t=>t.y>=0).slice(0,3).sort((a,b)=>b.y-a.y);visible.forEach(t=>{let depth=Math.max(0,Math.min(1,t.y/8000)),py=floor-(floor-horizon)*Math.pow(depth,.62),spread=54+(1-depth)*270,px=cx+Math.max(-1,Math.min(1,t.x/4000))*spread,scale=.55+(1-depth)*.62,d=Math.hypot(t.x,t.y);drawPerson(g,px,py,scale,radarColor(t),t.id,`${(d/1000).toFixed(2)}m  ${t.speed>0?'+':''}${t.speed}cm/s`)});g.fillStyle='#eefaff';g.font='bold 12px system-ui';g.textAlign='right';g.fillText(`${visible.length}/3 PEOPLE`,w-14,22);if(!live){g.fillStyle='rgba(2,8,12,.76)';g.fillRect(0,0,w,h);g.fillStyle='#ff5966';g.font='bold 18px system-ui';g.textAlign='center';g.fillText('RADAR OFFLINE — NO LIVE TARGET FRAMES',cx,h/2)}else if(!visible.length){g.fillStyle='#8ca6bb';g.font='bold 16px system-ui';g.textAlign='center';g.fillText('NO PERSON MOTION DETECTED',cx,h/2)}}
-function drawRadar(raw,live){let c=$('radarScope'),g=c.getContext('2d'),w=c.width,h=c.height,cx=w/2,base=h-18,maxY=4000,maxX=2400,targets=parseRadarTargets(raw);g.fillStyle='#020b09';g.fillRect(0,0,w,h);g.lineWidth=1;for(let meters=1;meters<=4;meters++){let ry=meters*1000/maxY*(h-42);g.strokeStyle=meters===1?'rgba(255,187,45,.35)':'rgba(44,224,143,.20)';g.beginPath();g.ellipse(cx,base,meters*1000/maxX*(w*.46),ry,0,Math.PI,Math.PI*2);g.stroke();g.fillStyle='#6fae94';g.font='11px system-ui';g.fillText(`${meters}m`,cx+5,base-ry+12)}g.strokeStyle='rgba(44,224,143,.28)';g.beginPath();g.moveTo(cx,base);g.lineTo(cx,18);g.moveTo(20,base);g.lineTo(w-20,base);g.stroke();radarSweep=(radarSweep+0.09)%(Math.PI*2);let grad=g.createLinearGradient(cx,base,cx+Math.sin(radarSweep)*w,base-Math.cos(radarSweep)*h);grad.addColorStop(0,'rgba(43,255,149,.32)');grad.addColorStop(1,'rgba(43,255,149,0)');g.strokeStyle=grad;g.lineWidth=2;g.beginPath();g.moveTo(cx,base);g.lineTo(cx+Math.sin(radarSweep)*w,base-Math.cos(radarSweep)*h);g.stroke();if(live&&raw!==lastRadarRaw){targets.forEach(t=>{let trail=radarTrails[t.id]||(radarTrails[t.id]=[]),previous=trail.at(-1);if(!previous||previous.x!==t.x||previous.y!==t.y)trail.push({x:t.x,y:t.y,at:Date.now()});radarTrails[t.id]=trail.filter(p=>Date.now()-p.at<12000).slice(-60)});lastRadarRaw=raw}let colors={T1:'#38ff9b',T2:'#19cfff',T3:'#ffcf3c'};Object.entries(radarTrails).forEach(([id,trail])=>{if(trail.length<2)return;g.strokeStyle=colors[id]||'#fff';g.lineWidth=2;g.beginPath();trail.forEach((p,i)=>{let px=cx+p.x/maxX*(w*.46),py=base-p.y/maxY*(h-42);i?g.lineTo(px,py):g.moveTo(px,py)});g.stroke()});targets.forEach(t=>{let px=cx+t.x/maxX*(w*.46),py=base-t.y/maxY*(h-42),color=colors[t.id]||'#fff';g.fillStyle=color;g.shadowColor=color;g.shadowBlur=14;g.beginPath();g.arc(px,py,9,0,Math.PI*2);g.fill();g.shadowBlur=0;g.fillStyle='#eafff5';g.font='bold 12px system-ui';g.fillText(`${t.id} ${Math.hypot(t.x,t.y).toFixed(0)}mm`,px+13,py-4);g.font='11px system-ui';g.fillText(`${t.speed>0?'+':''}${t.speed}cm/s`,px+13,py+11)});if(!live){g.fillStyle='#ff5966';g.font='bold 18px system-ui';g.textAlign='center';g.fillText('RADAR OFFLINE — NO VALID TARGET FRAMES',cx,h/2);g.textAlign='left'}$('radarCaption').textContent=live?`${targets.length} MOVING TARGET${targets.length===1?'':'S'} • trails show last 12 seconds • forward range 4m`:'Check RD-03D power, common GND, radar TX → UNO D12 and radar RX → UNO D11'}
+function drawRadarTwins(targets,live){let c=$('radarTwin'),g=c.getContext('2d'),w=c.width,h=c.height,cx=w/2,horizon=66,floor=h-27;g.clearRect(0,0,w,h);let bg=g.createLinearGradient(0,0,0,h);bg.addColorStop(0,'#061628');bg.addColorStop(.42,'#07131d');bg.addColorStop(1,'#020806');g.fillStyle=bg;g.fillRect(0,0,w,h);g.strokeStyle='rgba(23,213,255,.22)';g.lineWidth=1;for(let i=-6;i<=6;i++){g.beginPath();g.moveTo(cx+i*22,horizon);g.lineTo(cx+i*70,floor);g.stroke()}for(let m=1;m<=8;m++){let q=m/8,y=horizon+(floor-horizon)*q*q;g.beginPath();g.moveTo(30+(1-q)*cx*.76,y);g.lineTo(w-30-(1-q)*cx*.76,y);g.stroke()}g.fillStyle='#17d5ff';g.font='bold 12px system-ui';g.textAlign='left';g.fillText('RD-03D DIGITAL TWIN ROOM',14,22);g.fillStyle='#8ca6bb';g.font='10px system-ui';g.fillText('LIVE X/Y • DIRECTION IS DERIVED FROM DISTANCE CHANGE',14,38);let visible=targets.filter(t=>t.y>=0).slice(0,3).sort((a,b)=>b.y-a.y);visible.forEach(t=>{let depth=Math.max(0,Math.min(1,t.y/8000)),py=floor-(floor-horizon)*Math.pow(depth,.62),spread=54+(1-depth)*270,px=cx+Math.max(-1,Math.min(1,t.x/4000))*spread,scale=.55+(1-depth)*.62,d=Math.hypot(t.x,t.y),motion=radarMotion(t);drawPerson(g,px,py,scale,radarColor(t),t.id,`${(d/1000).toFixed(2)}m ${motion.arrow} ${motion.label} ${motion.speed.toFixed(0)}cm/s`)});g.fillStyle='#eefaff';g.font='bold 12px system-ui';g.textAlign='right';g.fillText(`${visible.length}/3 TARGETS`,w-14,22);if(!live){g.fillStyle='rgba(2,8,12,.76)';g.fillRect(0,0,w,h);g.fillStyle='#ff5966';g.font='bold 18px system-ui';g.textAlign='center';g.fillText('RADAR OFFLINE — NO LIVE TARGET FRAMES',cx,h/2)}else if(!visible.length){g.fillStyle='#8ca6bb';g.font='bold 16px system-ui';g.textAlign='center';g.fillText('NO RADAR TARGET DETECTED',cx,h/2)}}
+function drawRadar(raw,live){let c=$('radarScope'),g=c.getContext('2d'),w=c.width,h=c.height,cx=w/2,base=h-18,maxY=4000,maxX=2400,targets=parseRadarTargets(raw);g.fillStyle='#020b09';g.fillRect(0,0,w,h);g.lineWidth=1;for(let meters=1;meters<=4;meters++){let ry=meters*1000/maxY*(h-42);g.strokeStyle=meters===1?'rgba(255,187,45,.35)':'rgba(44,224,143,.20)';g.beginPath();g.ellipse(cx,base,meters*1000/maxX*(w*.46),ry,0,Math.PI,Math.PI*2);g.stroke();g.fillStyle='#6fae94';g.font='11px system-ui';g.fillText(`${meters}m`,cx+5,base-ry+12)}g.strokeStyle='rgba(44,224,143,.28)';g.beginPath();g.moveTo(cx,base);g.lineTo(cx,18);g.moveTo(20,base);g.lineTo(w-20,base);g.stroke();radarSweep=(radarSweep+0.09)%(Math.PI*2);let grad=g.createLinearGradient(cx,base,cx+Math.sin(radarSweep)*w,base-Math.cos(radarSweep)*h);grad.addColorStop(0,'rgba(43,255,149,.32)');grad.addColorStop(1,'rgba(43,255,149,0)');g.strokeStyle=grad;g.lineWidth=2;g.beginPath();g.moveTo(cx,base);g.lineTo(cx+Math.sin(radarSweep)*w,base-Math.cos(radarSweep)*h);g.stroke();if(live&&raw!==lastRadarRaw){targets.forEach(t=>{let trail=radarTrails[t.id]||(radarTrails[t.id]=[]),previous=trail.at(-1);if(!previous||previous.x!==t.x||previous.y!==t.y)trail.push({x:t.x,y:t.y,at:Date.now()});radarTrails[t.id]=trail.filter(p=>Date.now()-p.at<12000).slice(-60)});lastRadarRaw=raw}let colors={T1:'#38ff9b',T2:'#19cfff',T3:'#ffcf3c'};Object.entries(radarTrails).forEach(([id,trail])=>{if(trail.length<2)return;g.strokeStyle=colors[id]||'#fff';g.lineWidth=2;g.beginPath();trail.forEach((p,i)=>{let px=cx+p.x/maxX*(w*.46),py=base-p.y/maxY*(h-42);i?g.lineTo(px,py):g.moveTo(px,py)});g.stroke()});targets.forEach(t=>{let px=cx+t.x/maxX*(w*.46),py=base-t.y/maxY*(h-42),color=colors[t.id]||'#fff',motion=radarMotion(t);g.fillStyle=color;g.shadowColor=color;g.shadowBlur=14;g.beginPath();g.arc(px,py,9,0,Math.PI*2);g.fill();g.shadowBlur=0;g.fillStyle='#eafff5';g.font='bold 12px system-ui';g.fillText(`${t.id} ${Math.hypot(t.x,t.y).toFixed(0)}mm`,px+13,py-4);g.font='11px system-ui';g.fillText(`${motion.arrow} ${motion.label} ${motion.speed.toFixed(0)}cm/s`,px+13,py+11)});if(!live){g.fillStyle='#ff5966';g.font='bold 18px system-ui';g.textAlign='center';g.fillText('RADAR OFFLINE — NO VALID TARGET FRAMES',cx,h/2);g.textAlign='left'}let summary=targets.map(t=>{let m=radarMotion(t);return `${t.id} ${m.arrow} ${m.label} ${m.speed.toFixed(0)}cm/s`}).join(' • ');$('radarCaption').textContent=live?(summary||'NO TARGETS • live radar frames'):'Check RD-03D power, common GND, radar TX → UNO D12 and radar RX → UNO D11'}
 function drawRadarHubWaiting(status){
  for(const id of ['radarScope','radarTwin']){let c=$(id),g=c.getContext('2d');g.fillStyle='rgba(2,8,12,.88)';g.fillRect(0,c.height/2-38,c.width,76);g.fillStyle='#ffcf3c';g.font='bold 17px system-ui';g.textAlign='center';g.fillText('UNO R4 ONLINE — RADAR FRAMES INVALID',c.width/2,c.height/2-7);g.fillStyle='#9bb9ca';g.font='11px system-ui';g.fillText(status,c.width/2,c.height/2+16)}
  $('radarCaption').textContent=status+' • bytes arrive, but no AA FF 03 00 … 55 CC frame decodes • radar TX → UNO D12, radar RX → UNO D11';
 }
-async function pollRadar(){try{let d=await fetch('/api/radar',{cache:'no-store'}).then(x=>x.json()),r=d.radar||{},raw=val(r,'radar',''),live=!!r.radar&&r.radar.age<1,linkFresh=!!r.radar_link&&r.radar_link.age<2.5,decoder=String(val(r,'radar_decoder_status','decoder checking'));lastRadarLink=linkFresh?String(val(r,'radar_link','')):'';lastRadarTargets=parseRadarTargets(raw);lastRadarLive=live;drawRadar(raw,live);if(radarView==='3d')drawRadarTwins(lastRadarTargets,live);if(!live&&linkFresh)drawRadarHubWaiting(decoder)}catch(e){lastRadarTargets=[];lastRadarLive=false;lastRadarLink='';drawRadar('',false);if(radarView==='3d')drawRadarTwins([],false)}}setInterval(pollRadar,125);pollRadar();
+async function pollRadar(){try{let d=await fetch('/api/radar',{cache:'no-store'}).then(x=>x.json()),r=d.radar||{},raw=val(r,'radar',''),live=radarFrameHealthy(r,1.5),linkFresh=!!r.radar_link&&r.radar_link.age<2.5,decoder=String(val(r,'radar_decoder_status','decoder checking'));lastRadarLink=linkFresh?String(val(r,'radar_link','')):'';lastRadarTargets=parseRadarTargets(raw);lastRadarLive=live;drawRadar(raw,live);if(radarView==='3d')drawRadarTwins(lastRadarTargets,live);if(!live&&linkFresh)drawRadarHubWaiting(decoder)}catch(e){lastRadarTargets=[];lastRadarLive=false;lastRadarLink='';drawRadar('',false);if(radarView==='3d')drawRadarTwins([],false)}}setInterval(pollRadar,125);pollRadar();
 function graph(id,history,color,label){let c=$(id),x=c.getContext('2d'),w=c.width,h=c.height;x.clearRect(0,0,w,h);x.fillStyle='#06101a';x.fillRect(0,0,w,h);x.strokeStyle='#18364d';for(let i=1;i<4;i++){x.beginPath();x.moveTo(0,i*h/4);x.lineTo(w,i*h/4);x.stroke()}if(!history.length)return;let lo=Math.min(...history),hi=Math.max(...history);if(hi-lo<2){lo-=1;hi+=1}x.strokeStyle=color;x.lineWidth=2;x.beginPath();history.forEach((v,i)=>{let px=8+i*(w-16)/Math.max(1,history.length-1),py=h-10-(v-lo)*(h-24)/(hi-lo);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke();x.fillStyle=color;x.font='11px system-ui';x.fillText(`${label} ${history.at(-1).toFixed(1)}°C  MIN ${Math.min(...history).toFixed(1)}  MAX ${Math.max(...history).toFixed(1)}`,7,13)}
 function environment(r){let t={};try{t=JSON.parse(val(r,'thermal_json','{}')||'{}')}catch(e){}let pix=Array.isArray(t.pixels_c)?t.pixels_c:(Array.isArray(t.pixels)?t.pixels:[]),mn=Number(t.min_c),mx=Number(t.max_c),avg=Number(t.avg_c),map=$('heatmap');map.innerHTML='';for(let i=0;i<64;i++){let d=document.createElement('div');d.className='heat';if(pix.length===64){let q=Math.max(0,Math.min(1,(Number(pix[i])-mn)/Math.max(.2,mx-mn)));d.style.background=`hsl(${220-q*220} 88% ${28+q*28}%)`}map.appendChild(d)}let outside=Number(val(r,'outside_temperature',NaN)),humidity=Number(val(r,'outside_humidity',NaN));if(Number.isFinite(avg)){insideHistory.push(avg);insideHistory=insideHistory.slice(-90)}if(Number.isFinite(outside)){outsideHistory.push(outside);outsideHistory=outsideHistory.slice(-90)}$('thermalStats').textContent=Number.isFinite(avg)?`INSIDE AVG ${avg.toFixed(1)}°C • MIN ${mn.toFixed(1)} • MAX ${mx.toFixed(1)}`:val(r,'thermal_status','Inside sensor waiting');$('outsideStats').textContent=Number.isFinite(outside)?`OUTSIDE ${outside.toFixed(1)}°C • HUMIDITY ${n(humidity,0)}%`:`OUTSIDE SENSOR ${val(r,'outside_status','WAITING')}`;graph('insideChart',insideHistory,'#ff8c42','INSIDE');graph('outsideChart',outsideHistory,'#17d5ff','OUTSIDE')}
 function companion(r,s){
@@ -1887,25 +3329,58 @@ async function refresh(){try{let d=await fetch('/api/status',{cache:'no-store'})
  $('cameraTracking').textContent=cameraTracking;
  let trackingOn=/^(ON:|TRACKING|SEARCHING)/i.test(cameraTracking);
  document.querySelectorAll('[data-track]').forEach(b=>b.classList.toggle('on',(b.dataset.track==='1')===trackingOn));
- $('motion').innerHTML=row('Web drive',val(r,'web_drive','STOP'))+row('Odometry',JSON.stringify(val(r,'odom',{})))+row('Encoders',`${val(r,'enc_m1')} / ${val(r,'enc_m2')} / ${val(r,'enc_m3')} / ${val(r,'enc_m4')}`);
- let li=val(r,'lidar',{}),radarLive=!!r.radar_count&&r.radar_count.age<2.0,radarHub=!!r.radar_link&&r.radar_link.age<3.0,i2c=i2cInfo(r);
- let radarTitle=radarLive?`${val(r,'radar_count')} targets`:(radarHub?'UART INVALID':'OFFLINE');
- let radarDetail=radarLive?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:(radarHub?String(val(r,'radar_decoder_status','Bytes received; no valid frame')):'Check power/GND • radar TX → UNO D12 • radar RX → UNO D11');
- let imuLive=recent(r,'imu_full',4)||recent(r,'imu_heading',4);
- $('sensors').innerHTML=card('LiDAR',`${n(li.nearest_m,2)} m`,`${li.points||0} points`,'lidar')+card('Ultrasonic',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')} • B ${val(r,'us_rear')}`,'ultrasonic')+card('RD-03D Radar',radarTitle,radarDetail,'radar')+card('Hiwonder IM10A',imuLive?`${n(val(r,'imu_yaw'),0)}° SENSOR`:'OFFLINE',imuLive?`MONITORING • roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`:'Check IM10A USB connection and atlas-im10a service','imu')+card('I²C Sensor Bus',i2c.liveCount?`${i2c.liveCount}/3 LIVE`:(i2c.bridgeLive?'BRIDGE ONLY':'OFFLINE'),i2c.liveCount?`${i2c.route} • ${i2c.liveSensors.map(x=>x.address).join(' • ')}`:(i2c.bridgeLive?'UNO R4 live; sensor data stale':'No fresh sensor telemetry'),'i2c');
- $('power').innerHTML=card('Main BMS',`${n(val(r,'bms_percent'),0)}%`,`${n(val(r,'bms_voltage'),2)}V ${n(val(r,'bms_current'),2)}A ${n(val(r,'bms_power'),1)}W • CELLS ${n(val(r,'bms_cell1'),3)} / ${n(val(r,'bms_cell2'),3)} / ${n(val(r,'bms_cell3'),3)} / ${n(val(r,'bms_cell4'),3)}`)+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,'Current NOT MEASURED • driver publishes a placeholder','telemetry:bat_current')+card('Jetson INA3221',`${n(val(r,'jetson_power'),1)}W`,`${n(val(r,'jetson_voltage'),3)}V ${n(val(r,'jetson_current'),2)}A • CPU/GPU ${n(val(r,'jetson_cpu_gpu_power'),1)}W • SoC ${n(val(r,'jetson_soc_power'),1)}W`)+card(`${cellGen} MODEM`,val(r,'cell_registration','--'),`${n(val(r,'cell_signal'),0)}% reported signal • not an Internet test`,'cellular');
+ let driveHealth={};try{driveHealth=JSON.parse(val(r,'encoder_health','{}')||'{}')}catch(e){}
+ $('motion').innerHTML=row('Safety',driveHealth.state||'WAITING')+row('Selected',(driveHealth.selected_encoders||[]).map(i=>'M'+i).join(', ')||'NONE')+row('Excluded',(driveHealth.excluded_encoders||[]).map(i=>'M'+i).join(', ')||'NONE')+row('M1 RL / M2 RR',`${val(r,'enc_m1')} / ${val(r,'enc_m2')}`)+row('M3 FL / M4 FR',`${val(r,'enc_m3')} / ${val(r,'enc_m4')}`)+row('Steering',`F ${n(val(r,'front_steer'),0)}° / R ${n(val(r,'rear_steer'),0)}°`)+row('Autonomy',driveHealth.autonomy_ready===true?'FEEDBACK READY':'VALIDATION BLOCKED');
+ let agent={};try{agent=JSON.parse(val(r,'agent_state','{}')||'{}')}catch(e){}
+ let autonomy=(agent.live||{}).autonomy||{},clearanceChannels=autonomy.clearance_channels||{},frontClear=clearanceChannels.front||{},rearClear=clearanceChannels.rear||{},centerline=autonomy.lidar_centerline_m||{};
+ let distanceAuthority=`LiDAR corridor ±35° F ${n(frontClear.lidar_m,2)} m / R ${n(rearClear.lidar_m,2)} m`;
+ let distanceCenter=`Centre ±15° F ${n(centerline.front,2)} m / R ${n(centerline.rear,2)} m`;
+ let distanceGuards=`Ultrasonic F ${n(frontClear.ultrasonic_m,2)} m / R ${n(rearClear.ultrasonic_m,2)} m • fused F ${n(frontClear.fused_m,2)} m (${frontClear.fused_source||'--'})`;
+ let li=val(r,'lidar',{}),radarLive=radarFrameHealthy(r,2.0),radarHub=!!r.radar_link&&r.radar_link.age<3.0,i2c=i2cInfo(r);
+ let radarTitle=radarLive?`${val(r,'radar_count',0)} targets`:(radarHub?'UART INVALID':'OFFLINE');
+ let radarDetail=radarLive?(Number(val(r,'radar_count',0))>0?`${n(val(r,'radar_dist'),0)} mm • ${val(r,'radar_zone')} • X ${n(val(r,'radar_x'),0)} Y ${n(val(r,'radar_y'),0)} • ${n(val(r,'radar_speed'),0)} cm/s`:'VALID FRAMES • NO CURRENT TARGET'):(radarHub?String(val(r,'radar_decoder_status','Bytes received; no valid frame')):'Check power/GND • radar TX → UNO D12 • radar RX → UNO D11');
+ let imuLive=recent(r,'imu_full',4)||recent(r,'imu_heading',4),imuFull=val(r,'imu_full',{}),imuFused=String(imuFull.navigation_fusion||'').startsWith('ENABLED');
+ $('sensors').innerHTML=card('LiDAR • nearest any direction',`${n(li.nearest_m,2)} m`,`${li.points||0} points • navigation-primary`,'lidar')+card('LiDAR distance sectors',distanceAuthority,`${distanceCenter} • corridor minimum is used for safety`,'lidar')+card('Fused safety guard',`${n(frontClear.fused_m,2)} m FRONT`,distanceGuards,'ultrasonic')+card('Ultrasonic • secondary guard',`${val(r,'us_front')} mm`,`L ${val(r,'us_left')} • R ${val(r,'us_right')} • B ${val(r,'us_rear')} • never labelled as LiDAR`,'ultrasonic')+card('RD-03D Radar',radarTitle,radarDetail,'radar')+card('Hiwonder IM10A',imuLive?`${n(val(r,'imu_yaw'),0)}° SENSOR`:'OFFLINE',imuLive?`${imuFused?'EKF GYRO-Z':'MONITORING ONLY • REVALIDATE'} • magnetic heading diagnostics-only • roll ${n(val(r,'imu_roll'))} pitch ${n(val(r,'imu_pitch'))}`:'Check IM10A USB connection and atlas-im10a service','imu')+card('I²C Sensor Bus',i2c.liveCount?`${i2c.liveCount}/3 LIVE`:(i2c.bridgeLive?'BRIDGE ONLY':'OFFLINE'),i2c.liveCount?`${i2c.route} • ${i2c.liveSensors.map(x=>x.address).join(' • ')}`:(i2c.bridgeLive?'UNO R4 live; sensor data stale':'No fresh sensor telemetry'),'i2c');
+ let bms=bmsSnapshot(r),bmsState=bms?bmsMode(bms):'UNAVAILABLE';
+ $('power').innerHTML=card('Main BMS',bms?`${n(bms.soc_percent,0)}% • ${bmsState}`:'UNAVAILABLE',bms?`${n(bms.voltage_v,2)} V • ${n(Math.abs(bms.current_a),2)} A / ${n(Math.abs(bms.power_w),1)} W ${bmsState} • cells Δ ${n(Math.max(...bms.cells_v)-Math.min(...bms.cells_v),3)} V • ${n(age(r,'bms_status'),1)} s old`:'BMS reading invalid or older than 10 s • last-known values hidden','bms_status')+card('Motor board',`${n(val(r,'bat_voltage'),2)}V`,'Current NOT MEASURED • driver publishes a placeholder','telemetry:bat_current')+card('Jetson INA3221',`${n(val(r,'jetson_power'),1)}W`,`${n(val(r,'jetson_voltage'),3)}V ${n(val(r,'jetson_current'),2)}A • CPU/GPU ${n(val(r,'jetson_cpu_gpu_power'),1)}W • SoC ${n(val(r,'jetson_soc_power'),1)}W`)+card(`${cellGen} MODEM`,val(r,'cell_registration','--'),`${n(val(r,'cell_signal'),0)}% reported signal • not an Internet test`,'cellular');
  environment(r);
  $('network').innerHTML=row('Wi-Fi / AP',net.wifi_ip)+row(`${cellGen} data`,`${net.cell_ip} • ${val(r,'cell_operator','--')} • ${n(val(r,'cell_signal'),0)}%`)+row('Tailscale',net.tailscale_ip)+row('Active route',net.route)+networkFallbackSummary(net)+`<button class="btn" onclick="openDetail('cellular')">CELLULAR / ROUTE DETAILS</button><a class="btn" href="/wifi">WI-FI SETUP / SAVED NETWORKS</a>`;
  $('gnss').innerHTML=gnssSummary(r);renderConstellations(r);renderDiagnostics();refreshDiagnostics();
- let agent={};try{agent=JSON.parse(val(r,'agent_state','{}')||'{}')}catch(e){}
  let carrier={};try{carrier=JSON.parse(val(r,'carrier_json','{}')||'{}')}catch(e){}
- $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('RAM',s.ram)+row('Jetson temp',s.temp)+row('Carrier',carrier.board||'--')+row('Power mode',carrier.power_mode||'--')+row('NVMe',carrier.nvme?`${carrier.nvme.free_gb} GB free / ${carrier.nvme.total_gb} GB`:'--')+row('Carrier I/O',carrier.ok?`${carrier.usb_devices} USB • ${carrier.i2c_buses} I²C • ${carrier.csi_video_devices} CSI video`:'--')+row('Mission AI',`${agent.mode||'--'} / ${agent.phase||'--'}`)+row('Agent team',val(r,'agent_team_status','starting'))+row('Experience memory',val(r,'experience_status','starting'))+row('Agent decision',val(r,'agent_decision','No mission selected'))+row('Time',d.time);renderDetail();
+ let jetsonTemp=Number.parseFloat(String(s.temp||'')),thermalLabel=!Number.isFinite(jetsonTemp)?'UNKNOWN':jetsonTemp>=99?'THROTTLING':jetsonTemp>=95?'NEAR THROTTLE':jetsonTemp>=80?'HOT / BELOW THROTTLE':'NORMAL';
+ $('system').innerHTML=row('CPU',`${s.cpu_percent}%`)+row('GPU',s.gpu_percent==null?'NOT EXPOSED':`${n(s.gpu_percent,1)}%`)+row('RAM',s.ram)+row('Jetson temp',`${s.temp} • ${thermalLabel}`)+row('Jetson power',`${n(val(r,'jetson_power'),2)} W`)+row('Power mode',carrier.power_mode||'--')+row('NVMe',carrier.nvme?`${carrier.nvme.free_gb} GB free / ${carrier.nvme.total_gb} GB`:'--')+row('Services',`${Object.values(d.services||{}).filter(v=>v==='active').length} active / ${Object.keys(d.services||{}).length} monitored`)+row('Mission AI',`${agent.mode||'--'} / ${agent.phase||'--'}`)+row('Time',d.time);renderDetail();
  }catch(e){$('online').textContent='● OFFLINE';$('online').style.color='#ff4655'}}
 refresh();setInterval(refresh,2000);
 </script></body></html>"""
 
 
+def bms_for_power_history(max_age_s=15.0):
+    """Battery pack reading for the since-boot power history: {'soc','current_a','voltage_v'} or None."""
+    item = ROS._item('bms_status')
+    if not item or time.time() - float(item.get('ts', 0.0)) > max_age_s:
+        return None
+    try:
+        b = json.loads(item['value']) if isinstance(item.get('value'), str) else item.get('value')
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(b, dict) or not b.get('ok', True):
+        return None
+    return {'soc': b.get('soc_percent'), 'current_a': b.get('current_a'), 'voltage_v': b.get('voltage_v')}
+
+
 def main():
+    # 2026-11-13: the server was found deadlocked (all threads in futex wait, CLOSE-WAIT sockets). SIGUSR1 now dumps
+    # every thread's Python stack to the journal so the lock can be identified; the watchdog sends it before restarting.
+    import faulthandler
+    faulthandler.register(signal.SIGUSR1, all_threads=True)
+    try:   # 2026-11-21: start USB power-health history at boot (read-only; 1 Hz sysfs + kernel-log reader)
+        import atlas_usb_power_monitor
+        atlas_usb_power_monitor.monitor(extra_fn=bms_for_power_history)
+    except Exception as exc:
+        print('USB power monitor not started: ' + str(exc), flush=True)
+    # 2026-11-13: listen backlog 64 (stdlib default 5): several dashboard tabs/phones polling at once could fill
+    # a 5-deep queue while a slow request was served, and new connections were refused ("dashboard not loading").
+    ThreadingHTTPServer.request_queue_size = 64
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     server.daemon_threads = True
 

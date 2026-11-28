@@ -1,0 +1,4 @@
+ATLAS stage 15: CHECK MY LOCATION motion gate uses the EKF's IM10A gyro (diagnostic only)
+Source 686fb03 (base 2e10355 = stage 13). File: scripts/atlas_location_check_ros.py.
+PRECONDITIONS  rover parked, stop LATCHED.  RESTART  systemctl --user restart atlas-localization-monitor.service
+ROLLBACK       bash ~/project_atlas/data/backups/<stamp>-stage15-location-check-gyro/ROLLBACK.sh, then restart the monitor

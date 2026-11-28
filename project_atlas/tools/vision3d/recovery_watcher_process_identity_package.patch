@@ -1,0 +1,104 @@
+--- a/recovery_snapshot_supervisor.py
++++ b/recovery_snapshot_supervisor.py
+@@ -46,11 +46,62 @@
+ 
+ def stopped(*_):raise KeyboardInterrupt('supervisor interrupted')
+ 
++RECOVERY_SCRIPT='/home/jetson/project_atlas/scripts/atlas_sensor_recovery.py'
++RECOVERY_CGROUP='/user.slice/user-1000.slice/user@1000.service/app.slice/atlas-sensor-recovery.service'
++
++
++def process_identity(cgroup=None, proc=Path('/proc')):
++    """Direct kernel evidence only. ABSENT/STARTING never mean service healthy."""
++    cgroup=Path(cgroup) if cgroup is not None else Path('/sys/fs/cgroup'+RECOVERY_CGROUP)
++    proc=Path(proc);began=time.monotonic()
++    def read(path,limit=8192):
++        with path.open('rb') as stream:data=stream.read(limit+1)
++        if len(data)>limit:raise ValueError('process evidence quota')
++        return data
++    if not cgroup.parent.is_dir():raise ValueError('cgroup parent unavailable')
++    try:raw=read(cgroup/'cgroup.procs',4096).decode().split()
++    except FileNotFoundError:
++        if cgroup.exists():raise ValueError('cgroup process evidence unavailable')
++        raw=[]
++    if len(raw)>32 or any(not x.isdigit() or int(x)<=0 for x in raw):raise ValueError('cgroup member evidence')
++    found=[]
++    for pid in raw:
++        directory=proc/pid
++        try:
++            first=read(directory/'stat').decode();fields=first[first.rfind(')')+2:].split()
++            membership=read(directory/'cgroup').decode().splitlines()
++            if '0::'+RECOVERY_CGROUP not in membership:raise ValueError('process cgroup mismatch')
++            uid=next(x.split()[1:] for x in read(directory/'status').decode().splitlines() if x.startswith('Uid:'))
++            if uid!=['1000']*4:raise ValueError('process owner mismatch')
++            argv=read(directory/'cmdline').split(b'\0')
++            if argv[:2]!=[b'/usr/bin/python3',RECOVERY_SCRIPT.encode()]:continue
++            if os.readlink(directory/'exe')!=os.path.realpath(sys.executable):raise ValueError('process executable mismatch')
++            second=read(directory/'stat').decode();end=second[second.rfind(')')+2:].split()
++            if fields[19]!=end[19]:raise ValueError('PID reused during observation')
++            found.append({'state':'VERIFIED','pid':int(pid),'start_ticks':int(end[19]),
++                          'user_ticks':int(end[11]),'system_ticks':int(end[12])})
++        except (FileNotFoundError,ProcessLookupError):continue
++        finally:
++            if time.monotonic()-began>.2:raise ValueError('process observation deadline')
++    if len(found)>1:raise ValueError('ambiguous Recovery process')
++    if time.monotonic()-began>.2:raise ValueError('process observation deadline')
++    row=found[0] if found else {'state':'STARTING' if raw else 'ABSENT','pid':None}
++    row['observed_mono']=time.monotonic()
++    return row
++
++
++def check_process_identity(row, activation, pinned):
++    if not activation and row['state']!='ABSENT':raise ValueError('unexpected Recovery process before start')
++    current=(row['pid'],row['start_ticks']) if row['state']=='VERIFIED' else None
++    if pinned is not None and current!=pinned:raise ValueError('Recovery process lost or replaced')
++    return current or pinned
++
++
+ def watch(root):
+     # Separate process: never waits for systemctl/recovery or reads producer safety.
+     baseline=json.loads((root/'watcher-baseline.json').read_text())
+     start=time.monotonic();stamp=baseline['mono'];count=0
+-    history=[(baseline['ticks'],stamp)]
++    history=[(baseline['ticks'],stamp)];pinned=None;activation_seen=None
+     try:
+         while time.monotonic()-start<80:
+             time.sleep(max(0,stamp+.5-time.monotonic()))
+@@ -70,14 +121,18 @@
+             # Age starts at actual CPU observation, not at publication or diagnostic completion.
+             row.update(mono=now,safe=True,interval=interval,watcher_cpu=time.process_time())
+             if not 0<=time.monotonic()-now<=1.0:raise ValueError('collection already stale')
++            identity=process_identity()
++            intent=root/'transaction.json'
++            activation=json.loads(intent.read_text())['activation'] if intent.exists() else False
++            pinned=check_process_identity(identity,activation,pinned)
++            if activation and activation_seen is None:activation_seen=time.monotonic()
++            if activation_seen is not None and pinned is None and time.monotonic()-activation_seen>8:
++                raise ValueError('Recovery identity startup deadline')
++            row['recovery_identity']=identity
++            row['recovery_process_verified']=identity['state']=='VERIFIED'
++            row['recovery_pid']=str(identity['pid']) if identity['state']=='VERIFIED' else None
++            if not 0<=time.monotonic()-now<=1.0:raise ValueError('collection already stale')
+             save(root/'health.json',row)
+-            pid=subprocess.check_output(['systemctl','--user','show','atlas-sensor-recovery.service','-p','MainPID','--value'],text=True,timeout=.3).strip()
+-            row['recovery_pid']=pid
+-            if pid!='0':
+-                try:
+-                    raw=Path('/proc',pid,'stat').read_text();fields=raw[raw.rfind(')')+2:].split()
+-                    row['recovery_counters']={'user_ticks':int(fields[11]),'system_ticks':int(fields[12]),'start_ticks':int(fields[19]),'rss_pages':int(fields[21]),'hz':os.sysconf('SC_CLK_TCK'),'page_size':os.sysconf('SC_PAGE_SIZE')}
+-                except FileNotFoundError:row['recovery_counters']='process exited during sample'
+             with (root/'samples.jsonl').open('a') as f:f.write(json.dumps(row)+'\n')
+             count+=1
+             if count>160:raise ValueError('sample bound')
+--- a/restore_original_recovery_once.py
++++ b/restore_original_recovery_once.py
+@@ -77,6 +77,9 @@
+         if {k:v for k,v in before.items() if k!=tx.unit}!={k:v for k,v in after.items() if k!=tx.unit}:raise ValueError('protected services changed')
+         if tx.prop('ActiveState')!='active' or tx.prop('NRestarts')!='0':raise ValueError('recovery not healthy')
+         pid=tx.prop('MainPID')
++        identity=health(ROOT).get('recovery_identity',{})
++        if identity.get('state')!='VERIFIED' or str(identity.get('pid'))!=pid:
++            raise ValueError('Recovery process identity not independently verified')
+         journal=subprocess.check_output(['journalctl','--user','-b','_PID='+pid,'--no-pager','-o','cat','-n','50'],text=True,timeout=2)
+         (ROOT/'recovery-startup.txt').write_text(journal)
+         if 'READY: full bounded fault recovery armed' not in journal:raise ValueError('recovery readiness not confirmed')

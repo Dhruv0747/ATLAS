@@ -1,7 +1,14 @@
 # Project ATLAS encoder calibration
-# Wheels were lifted. Physical mapping was visually verified on 2026-08-04.
-# Commissioned encoder counts per wheel revolution. These values are the
-# single source shared with yahboom_base.py after measured ground validation.
+# Physical controller mapping was reverified on 2026-09-17/21.
+# This is the single source for physical position, forward sign and retained
+# counts/revolution used by both yahboom_base.py and drive_pid.yaml. The numeric
+# CPR values predate final motor replacement and require per-wheel ground
+# revalidation; retaining them here is not a renewed commissioning claim.
+# 2026-11-12: CPR values replaced from an owner hand-turn test (wheels lifted, 2 turns per
+# wheel; M1 1585, M2 1496, M4 1490; M3 faulty, 1500 estimated). LiDAR showed the old values
+# reported 0.64-0.66x of true distance. Hand test also showed M1 is physically rear RIGHT and
+# M2 rear LEFT (loader enforces fixed labels; not changed here). Backup on the Jetson:
+# encoder_calibration.yaml.before-cpr-20261112.
 encoder_calibration:
   wheelbase_m: 0.367
   wheel_diameter_m: 0.125
@@ -9,22 +16,31 @@ encoder_calibration:
   wheel_source: https://www.amrobotics.in/products/125mm-heavy-duty-high-density-rc-rubber-wheel-with-flange-for-6mm-shaft-motors
   motors:
     m1:
-      position: front_right
-      counts_per_revolution: 4048.7
-      confidence: commissioned
-      method: measured_ground_calibration
+      position: rear_left
+      # Combined clean 20 cm forward and ~70 cm reverse evidence.
+      encoder_sign: 1.0
+      counts_per_revolution: 1585.0  # 2026-11-12 hand-turn test (was 2238.4)
+      confidence: measured_provisional
+      method: measured_20cm_forward_plus_70cm_reverse
     m2:
-      position: front_left
-      counts_per_revolution: 3300.6
-      confidence: commissioned
-      method: measured_ground_calibration
+      position: rear_right
+      # Combined clean 20 cm forward and ~70 cm reverse evidence.
+      encoder_sign: -1.0
+      counts_per_revolution: 1496.0  # 2026-11-12 hand-turn test (was 2215.0)
+      confidence: measured_provisional
+      method: measured_20cm_forward_plus_70cm_reverse
     m3:
-      position: back_right
-      counts_per_revolution: 4080.1
-      confidence: commissioned
-      method: measured_ground_calibration
+      position: front_left
+      encoder_sign: 1.0
+      counts_per_revolution: 1500.0  # 2026-11-12 hand-turn test (was 2199.1)
+      confidence: intermittent_measured_provisional
+      method: measured_when_coherent_70cm_reverse_dynamic_candidate
     m4:
-      position: back_left
-      counts_per_revolution: 2697.8
-      confidence: commissioned
-      method: measured_ground_calibration
+      position: front_right
+      # 2026-09-25 measured forward run: raw count decreased by 869 and tracked
+      # M4 tracked M1/M2 in the clean 20 cm run but was weak later; dynamic
+      # consensus rejects it only during incoherent intervals.
+      encoder_sign: -1.0
+      counts_per_revolution: 1490.0  # 2026-11-12 hand-turn test (was 2230.5)
+      confidence: intermittent_measured_provisional
+      method: measured_when_coherent_20cm_forward_dynamic_candidate

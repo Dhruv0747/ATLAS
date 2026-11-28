@@ -1,0 +1,15 @@
+[Unit]
+Description=Project ATLAS shadow EKF with LiDAR odometry fusion
+Wants=rover-base-telemetry.service atlas-im10a.service atlas-lidar-odom-gate.service
+After=rover-base-telemetry.service atlas-im10a.service atlas-lidar-odom-gate.service
+
+[Service]
+Type=simple
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; exec /opt/ros/humble/lib/robot_localization/ekf_node --ros-args -r __node:=atlas_ekf_lidar_candidate --params-file /home/jetson/project_atlas/config/atlas_ekf_lidar_candidate.yaml -r odometry/filtered:=/odom/lidar_fused_candidate'
+Restart=always
+RestartSec=3
+TimeoutStopSec=6
+
+[Install]
+WantedBy=default.target

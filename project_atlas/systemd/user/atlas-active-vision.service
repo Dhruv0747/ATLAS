@@ -1,0 +1,14 @@
+[Unit]
+Description=Project ATLAS stopped-only active camera inspection adviser
+Wants=atlas-camera.service atlas-ai-annotator.service atlas-lidar.service atlas-uno-r4-sensor-hub.service
+After=atlas-camera.service atlas-ai-annotator.service atlas-lidar.service atlas-uno-r4-sensor-hub.service
+
+[Service]
+Type=simple
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_active_vision.py'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

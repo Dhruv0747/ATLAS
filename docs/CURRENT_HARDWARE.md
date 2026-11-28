@@ -5,6 +5,7 @@ must not create health faults for hardware outside this list.
 
 | Function | Current hardware | Active route |
 |---|---|---|
+| Chassis | AM Robotics ROVER 4WDXL60R kit: 1 mm sheet metal, 4WD, 4-wheel steering, 125 × 60 mm wheels, 5 kg payload; ATLAS footprint 0.50 × 0.36 m | [Product page](https://www.amrobotics.in/products/rover-4wdxl60r-3-in-1-do-it-yourself-chassis-kit) |
 | Main computer | NVIDIA Jetson Orin Nano Super 8 GB | Ubuntu 22.04 / ROS 2 Humble |
 | Storage | Jetson NVMe | Local maps, missions, bags, and experience database |
 | Drive and wheel feedback | Yahboom ROS Driver Board V3.0, four traction motors and four encoders | USB serial `/dev/yahboom` |
@@ -16,8 +17,12 @@ must not create health faults for hardware outside this list.
 | Sensor hub | Arduino UNO R4 WiFi | USB CDC to Jetson |
 | Inside thermal | AMG8833 8x8 | UNO R4 I2C |
 | Outside environment | BME680 | UNO R4 I2C |
-| Near-field ranging | Installed ultrasonic channels | UNO R4 GPIO; LiDAR remains primary |
-| Main battery | Daly smart BMS | Bluetooth telemetry |
+| Near-field ranging | HC-SR04 ultrasonic, front and rear (front-left / front-right pair planned, pins D4/D5 and D6/D7) | UNO R4 GPIO; LiDAR remains primary |
+| Depth camera | Orbbec Astra Pro (usable view about ±26°, 0.35–3 m) | USB; depth → `/astra/obstacle_scan` for Nav2 and the safety guard |
+| Second IMU | Hiwonder IM10A | USB; gyro-Z candidate for heading checks |
+| Main battery | 4S LiFePO4 (32140 cells), 15 Ah, Daly smart BMS | Bluetooth telemetry |
+| Charger | Riden RD6018 bench supply set to 14.6 V / 5.1 A | Shown on the dashboard battery card |
+| Remotes | FlySky transmitter and Xbox controller | Receiver / USB; remote stop overrides everything |
 | Jetson power | Onboard INA3221 | Linux INA3221 telemetry service |
 | Network | Wi-Fi, Tailscale, SIM8230 cellular modem | Local/Tailscale dashboard and 4G/5G fallback |
 | GNSS | L76K (when physically fitted) | Jetson J12 UART `/dev/ttyTHS1` |

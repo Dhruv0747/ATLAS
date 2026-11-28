@@ -1,0 +1,1355 @@
+{
+ "window_s": 20.17,
+ "ncpu": 6,
+ "busy_pct": 65.42,
+ "breakdown": {
+  "user": 31.23,
+  "nice": 20.13,
+  "system": 10.77,
+  "idle": 34.57,
+  "iowait": 0.01,
+  "irq": 1.8,
+  "softirq": 1.49,
+  "steal": 0.0
+ },
+ "accounted_machine_pct": 60.8,
+ "load": [
+  "8.83",
+  "9.73",
+  "10.11",
+  "3/1437"
+ ],
+ "top": [
+  {
+   "pid": 67677,
+   "one_core_pct": 45.07,
+   "machine_pct": 7.512,
+   "user_share": 0.95,
+   "nice": 10,
+   "busy_threads": 9,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_status_web.py",
+   "top_threads": [
+    [
+     "python3",
+     27.8
+    ],
+    [
+     "python3",
+     14.1
+    ],
+    [
+     "python3",
+     2.3
+    ],
+    [
+     "python3",
+     0.4
+    ],
+    [
+     "python3",
+     0.2
+    ]
+   ]
+  },
+  {
+   "pid": 3010,
+   "one_core_pct": 32.97,
+   "machine_pct": 5.495,
+   "user_share": 0.82,
+   "nice": 0,
+   "busy_threads": 11,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas_ws/install/atlas_camera_driver/lib/atlas_camera_driver/camera_node --ros-args -p width:=1280 -p height:=72",
+   "top_threads": [
+    [
+     "camera_node",
+     23.0
+    ],
+    [
+     "nvarguscamerasr",
+     4.6
+    ],
+    [
+     "argus_thread",
+     3.3
+    ],
+    [
+     "consumer_thread",
+     0.6
+    ],
+    [
+     "camera_node",
+     0.5
+    ]
+   ]
+  },
+  {
+   "pid": 3534,
+   "one_core_pct": 27.12,
+   "machine_pct": 4.52,
+   "user_share": 0.87,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "python3 /home/jetson/project_atlas/scripts/yahboom_base.py",
+   "top_threads": [
+    [
+     "python3",
+     22.9
+    ],
+    [
+     "python3",
+     2.9
+    ],
+    [
+     "python3",
+     0.6
+    ],
+    [
+     "python3",
+     0.5
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2172,
+   "one_core_pct": 25.14,
+   "machine_pct": 4.19,
+   "user_share": 0.95,
+   "nice": 10,
+   "busy_threads": 7,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_voice_companion.py",
+   "top_threads": [
+    [
+     "python3",
+     23.2
+    ],
+    [
+     "python3",
+     0.8
+    ],
+    [
+     "python3",
+     0.8
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 1975,
+   "one_core_pct": 16.21,
+   "machine_pct": 2.702,
+   "user_share": 0.94,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_cmd_vel_mux.py",
+   "top_threads": [
+    [
+     "python3",
+     15.1
+    ],
+    [
+     "python3",
+     0.4
+    ],
+    [
+     "python3",
+     0.3
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2056,
+   "one_core_pct": 16.06,
+   "machine_pct": 2.677,
+   "user_share": 0.95,
+   "nice": 0,
+   "busy_threads": 7,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_sensor_recovery.py",
+   "top_threads": [
+    [
+     "python3",
+     14.7
+    ],
+    [
+     "python3",
+     0.4
+    ],
+    [
+     "python3",
+     0.4
+    ],
+    [
+     "python3",
+     0.4
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 2045,
+   "one_core_pct": 13.24,
+   "machine_pct": 2.206,
+   "user_share": 0.96,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "python3 /home/jetson/project_atlas/scripts/atlas_safety_status.py",
+   "top_threads": [
+    [
+     "python3",
+     12.3
+    ],
+    [
+     "python3",
+     0.3
+    ],
+    [
+     "python3",
+     0.2
+    ],
+    [
+     "python3",
+     0.2
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2951,
+   "one_core_pct": 11.01,
+   "machine_pct": 1.835,
+   "user_share": 0.96,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "/home/jetson/project_atlas_ws/install/rf2o_laser_odometry/lib/rf2o_laser_odometry/rf2o_laser_odometry_node --ros-args --params-file /home/jetson/proje",
+   "top_threads": [
+    [
+     "rf2o_laser_odom",
+     10.3
+    ],
+    [
+     "rf2o_laser_odom",
+     0.2
+    ],
+    [
+     "rf2o_laser_odom",
+     0.2
+    ],
+    [
+     "rf2o_laser_odom",
+     0.1
+    ],
+    [
+     "rf2o_laser_odom",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2156,
+   "one_core_pct": 10.36,
+   "machine_pct": 1.727,
+   "user_share": 0.92,
+   "nice": 10,
+   "busy_threads": 11,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/ai_annotator_node.py",
+   "top_threads": [
+    [
+     "python3",
+     9.1
+    ],
+    [
+     "python3",
+     0.2
+    ],
+    [
+     "python3",
+     0.2
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2094,
+   "one_core_pct": 10.21,
+   "machine_pct": 1.702,
+   "user_share": 0.92,
+   "nice": 10,
+   "busy_threads": 5,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_localization_monitor.py",
+   "top_threads": [
+    [
+     "python3",
+     9.4
+    ],
+    [
+     "python3",
+     0.5
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2050,
+   "one_core_pct": 9.12,
+   "machine_pct": 1.52,
+   "user_share": 0.96,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_mission_control.py --ros-args -p map_acceptance_slam_tf_future_offset_s:=1.5",
+   "top_threads": [
+    [
+     "python3",
+     8.5
+    ],
+    [
+     "python3",
+     0.2
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2068,
+   "one_core_pct": 9.12,
+   "machine_pct": 1.52,
+   "user_share": 0.86,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/ultrasonic_arduino_bridge.py",
+   "top_threads": [
+    [
+     "python3",
+     8.4
+    ],
+    [
+     "python3",
+     0.3
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2192,
+   "one_core_pct": 8.78,
+   "machine_pct": 1.463,
+   "user_share": 0.93,
+   "nice": 10,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_agent_team.py",
+   "top_threads": [
+    [
+     "python3",
+     7.8
+    ],
+    [
+     "python3",
+     0.4
+    ],
+    [
+     "python3",
+     0.2
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 2067,
+   "one_core_pct": 7.93,
+   "machine_pct": 1.322,
+   "user_share": 0.96,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_tight_space_recovery.py",
+   "top_threads": [
+    [
+     "python3",
+     7.4
+    ],
+    [
+     "python3",
+     0.2
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 1995,
+   "one_core_pct": 7.88,
+   "machine_pct": 1.314,
+   "user_share": 0.69,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "python3 /home/jetson/project_atlas/scripts/atlas_im10a_observer.py --ros-args -p auto_usb:=true",
+   "top_threads": [
+    [
+     "python3",
+     7.5
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ],
+    [
+     "python3",
+     0.0
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 1324,
+   "one_core_pct": 6.1,
+   "machine_pct": 1.016,
+   "user_share": 0.72,
+   "nice": 0,
+   "busy_threads": 23,
+   "cmd": "/usr/sbin/nvargus-daemon",
+   "top_threads": [
+    [
+     "CaptureSchedule",
+     0.8
+    ],
+    [
+     "nvargus-daemon",
+     0.7
+    ],
+    [
+     "ViCsiHw frameSt",
+     0.3
+    ],
+    [
+     "SCF Execution",
+     0.3
+    ],
+    [
+     "SCF Execution",
+     0.3
+    ]
+   ]
+  },
+  {
+   "pid": 2171,
+   "one_core_pct": 5.26,
+   "machine_pct": 0.876,
+   "user_share": 0.93,
+   "nice": 10,
+   "busy_threads": 5,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_person_sensor_fusion.py",
+   "top_threads": [
+    [
+     "python3",
+     4.7
+    ],
+    [
+     "python3",
+     0.3
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 2170,
+   "one_core_pct": 5.16,
+   "machine_pct": 0.859,
+   "user_share": 0.93,
+   "nice": 10,
+   "busy_threads": 5,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_follow_person.py",
+   "top_threads": [
+    [
+     "python3",
+     4.6
+    ],
+    [
+     "python3",
+     0.2
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 955,
+   "one_core_pct": 4.81,
+   "machine_pct": 0.802,
+   "user_share": 0.0,
+   "nice": 0,
+   "busy_threads": 1,
+   "cmd": "[sugov:4]",
+   "top_threads": [
+    [
+     "sugov:4",
+     4.8
+    ]
+   ]
+  },
+  {
+   "pid": 953,
+   "one_core_pct": 4.71,
+   "machine_pct": 0.785,
+   "user_share": 0.0,
+   "nice": 0,
+   "busy_threads": 1,
+   "cmd": "[sugov:0]",
+   "top_threads": [
+    [
+     "sugov:0",
+     4.7
+    ]
+   ]
+  },
+  {
+   "pid": 4228,
+   "one_core_pct": 4.56,
+   "machine_pct": 0.76,
+   "user_share": 0.9,
+   "nice": 10,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_experience_store.py",
+   "top_threads": [
+    [
+     "python3",
+     4.0
+    ],
+    [
+     "python3",
+     0.2
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 5821,
+   "one_core_pct": 4.56,
+   "machine_pct": 0.76,
+   "user_share": 0.8,
+   "nice": 0,
+   "busy_threads": 7,
+   "cmd": "/opt/ros/humble/lib/nav2_amcl/amcl --ros-args -r __node:=amcl --params-file /home/jetson/project_atlas_ws/src/tortoisebot_bringup/config/nav2_params.y",
+   "top_threads": [
+    [
+     "amcl",
+     1.6
+    ],
+    [
+     "amcl",
+     1.6
+    ],
+    [
+     "amcl",
+     0.8
+    ],
+    [
+     "amcl",
+     0.2
+    ],
+    [
+     "amcl",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2012,
+   "one_core_pct": 4.46,
+   "machine_pct": 0.744,
+   "user_share": 0.9,
+   "nice": 0,
+   "busy_threads": 5,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_lidar_odom_gate.py",
+   "top_threads": [
+    [
+     "python3",
+     4.0
+    ],
+    [
+     "python3",
+     0.2
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 4492,
+   "one_core_pct": 4.46,
+   "machine_pct": 0.744,
+   "user_share": 0.23,
+   "nice": 8,
+   "busy_threads": 11,
+   "cmd": "/opt/ros/humble/lib/foxglove_bridge/foxglove_bridge --ros-args --params-file /tmp/launch_params_0yuqwcro --params-file /tmp/launch_params_zd88d90q --p",
+   "top_threads": [
+    [
+     "tokio-rt-worker",
+     3.8
+    ],
+    [
+     "foxglove_bridge",
+     0.1
+    ],
+    [
+     "foxglove_bridge",
+     0.1
+    ],
+    [
+     "foxglove_bridge",
+     0.1
+    ],
+    [
+     "foxglove_bridge",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 2093,
+   "one_core_pct": 3.77,
+   "machine_pct": 0.628,
+   "user_share": 0.91,
+   "nice": 0,
+   "busy_threads": 5,
+   "cmd": "python3 /home/jetson/project_atlas/scripts/rd03d_node.py",
+   "top_threads": [
+    [
+     "python3",
+     3.3
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 2157,
+   "one_core_pct": 3.77,
+   "machine_pct": 0.628,
+   "user_share": 0.92,
+   "nice": 0,
+   "busy_threads": 5,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_active_vision.py",
+   "top_threads": [
+    [
+     "python3",
+     3.3
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 5996,
+   "one_core_pct": 3.72,
+   "machine_pct": 0.62,
+   "user_share": 0.64,
+   "nice": 0,
+   "busy_threads": 8,
+   "cmd": "/opt/ros/humble/lib/nav2_controller/controller_server --ros-args -r __node:=controller_server --params-file /home/jetson/project_atlas_ws/src/tortoise",
+   "top_threads": [
+    [
+     "controller_serv",
+     1.7
+    ],
+    [
+     "controller_serv",
+     1.0
+    ],
+    [
+     "controller_serv",
+     0.3
+    ],
+    [
+     "controller_serv",
+     0.2
+    ],
+    [
+     "controller_serv",
+     0.2
+    ]
+   ]
+  },
+  {
+   "pid": 5571,
+   "one_core_pct": 3.67,
+   "machine_pct": 0.612,
+   "user_share": 0.2,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "/opt/ros/humble/lib/rplidar_ros/rplidar_composition --ros-args -r scan:=scan_raw -p serial_port:=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART",
+   "top_threads": [
+    [
+     "rplidar_composi",
+     3.1
+    ],
+    [
+     "rplidar_composi",
+     0.3
+    ],
+    [
+     "rplidar_composi",
+     0.1
+    ],
+    [
+     "rplidar_composi",
+     0.1
+    ],
+    [
+     "rplidar_composi",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 17705,
+   "one_core_pct": 3.37,
+   "machine_pct": 0.562,
+   "user_share": 0.93,
+   "nice": 0,
+   "busy_threads": 5,
+   "cmd": "python3 /home/jetson/project_atlas/scripts/camera_joystick_node.py",
+   "top_threads": [
+    [
+     "python3",
+     2.9
+    ],
+    [
+     "python3",
+     0.2
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 2159,
+   "one_core_pct": 3.17,
+   "machine_pct": 0.529,
+   "user_share": 0.97,
+   "nice": 0,
+   "busy_threads": 5,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_vision_lidar_fusion.py",
+   "top_threads": [
+    [
+     "python3",
+     2.9
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 2965,
+   "one_core_pct": 3.17,
+   "machine_pct": 0.529,
+   "user_share": 0.89,
+   "nice": 0,
+   "busy_threads": 5,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas_ws/install/atlas_gnss_driver/lib/atlas_gnss_driver/gnss_node --ros-args -p auto_usb:=true -p baud:=9600 -p",
+   "top_threads": [
+    [
+     "gnss_node",
+     2.9
+    ],
+    [
+     "gnss_node",
+     0.1
+    ],
+    [
+     "gnss_node",
+     0.0
+    ],
+    [
+     "gnss_node",
+     0.0
+    ],
+    [
+     "gnss_node",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 4224,
+   "one_core_pct": 3.12,
+   "machine_pct": 0.521,
+   "user_share": 0.87,
+   "nice": 10,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_camera_tracker.py",
+   "top_threads": [
+    [
+     "python3",
+     2.6
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2155,
+   "one_core_pct": 2.97,
+   "machine_pct": 0.496,
+   "user_share": 0.93,
+   "nice": 10,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_agent_supervisor.py --ros-args --params-file /home/jetson/project_atlas/config/atlas_agent.y",
+   "top_threads": [
+    [
+     "python3",
+     2.5
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 5823,
+   "one_core_pct": 2.78,
+   "machine_pct": 0.463,
+   "user_share": 0.73,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "/opt/ros/humble/lib/nav2_lifecycle_manager/lifecycle_manager --ros-args -r __node:=lifecycle_manager_localization --params-file /tmp/launch_params_1u_",
+   "top_threads": [
+    [
+     "lifecycle_manag",
+     1.8
+    ],
+    [
+     "lifecycle_manag",
+     0.5
+    ],
+    [
+     "lifecycle_manag",
+     0.2
+    ],
+    [
+     "lifecycle_manag",
+     0.1
+    ],
+    [
+     "lifecycle_manag",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 3262,
+   "one_core_pct": 2.73,
+   "machine_pct": 0.454,
+   "user_share": 0.89,
+   "nice": 15,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_local_llm.py --config /home/jetson/project_atlas/config/local_llm.json",
+   "top_threads": [
+    [
+     "python3",
+     2.2
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2695,
+   "one_core_pct": 2.58,
+   "machine_pct": 0.43,
+   "user_share": 0.4,
+   "nice": 0,
+   "busy_threads": 5,
+   "cmd": "/opt/ros/humble/lib/joy/joy_node --ros-args -p device_id:=0 -p deadzone:=0.08 -p autorepeat_rate:=20.0",
+   "top_threads": [
+    [
+     "joy_node",
+     2.2
+    ],
+    [
+     "joy_node",
+     0.1
+    ],
+    [
+     "joy_node",
+     0.1
+    ],
+    [
+     "joy_node",
+     0.0
+    ],
+    [
+     "joy_node",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 1977,
+   "one_core_pct": 2.48,
+   "machine_pct": 0.413,
+   "user_share": 0.78,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_scan_self_filter.py",
+   "top_threads": [
+    [
+     "python3",
+     2.0
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 5819,
+   "one_core_pct": 2.43,
+   "machine_pct": 0.405,
+   "user_share": 0.73,
+   "nice": 0,
+   "busy_threads": 5,
+   "cmd": "/opt/ros/humble/lib/nav2_map_server/map_server --ros-args -r __node:=map_server --params-file /home/jetson/project_atlas_ws/src/tortoisebot_bringup/co",
+   "top_threads": [
+    [
+     "map_server",
+     1.4
+    ],
+    [
+     "map_server",
+     0.5
+    ],
+    [
+     "map_server",
+     0.2
+    ],
+    [
+     "map_server",
+     0.1
+    ],
+    [
+     "map_server",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2048,
+   "one_core_pct": 2.28,
+   "machine_pct": 0.38,
+   "user_share": 0.89,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_mode_manager.py",
+   "top_threads": [
+    [
+     "python3",
+     1.8
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 3260,
+   "one_core_pct": 2.23,
+   "machine_pct": 0.372,
+   "user_share": 0.73,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "/opt/ros/humble/lib/robot_localization/ekf_node --ros-args -r __node:=atlas_ekf --params-file /home/jetson/project_atlas/config/atlas_ekf.yaml -r odom",
+   "top_threads": [
+    [
+     "ekf_node",
+     1.5
+    ],
+    [
+     "ekf_node",
+     0.3
+    ],
+    [
+     "ekf_node",
+     0.2
+    ],
+    [
+     "ekf_node",
+     0.1
+    ],
+    [
+     "ekf_node",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 6006,
+   "one_core_pct": 2.23,
+   "machine_pct": 0.372,
+   "user_share": 0.51,
+   "nice": 0,
+   "busy_threads": 5,
+   "cmd": "/opt/ros/humble/lib/nav2_lifecycle_manager/lifecycle_manager --ros-args -r __node:=lifecycle_manager_navigation --params-file /tmp/launch_params_xjs5_",
+   "top_threads": [
+    [
+     "lifecycle_manag",
+     1.3
+    ],
+    [
+     "lifecycle_manag",
+     0.5
+    ],
+    [
+     "lifecycle_manag",
+     0.2
+    ],
+    [
+     "lifecycle_manag",
+     0.1
+    ],
+    [
+     "lifecycle_manag",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 3261,
+   "one_core_pct": 1.88,
+   "machine_pct": 0.314,
+   "user_share": 0.84,
+   "nice": 0,
+   "busy_threads": 6,
+   "cmd": "/opt/ros/humble/lib/robot_localization/ekf_node --ros-args -r __node:=atlas_ekf_lidar_candidate --params-file /home/jetson/project_atlas/config/atlas_",
+   "top_threads": [
+    [
+     "ekf_node",
+     1.1
+    ],
+    [
+     "ekf_node",
+     0.4
+    ],
+    [
+     "ekf_node",
+     0.1
+    ],
+    [
+     "ekf_node",
+     0.1
+    ],
+    [
+     "ekf_node",
+     0.1
+    ]
+   ]
+  },
+  {
+   "pid": 2114,
+   "one_core_pct": 1.39,
+   "machine_pct": 0.231,
+   "user_share": 0.93,
+   "nice": 10,
+   "busy_threads": 6,
+   "cmd": "/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_visual_cloud_agent.py",
+   "top_threads": [
+    [
+     "python3",
+     0.9
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.1
+    ],
+    [
+     "python3",
+     0.0
+    ]
+   ]
+  },
+  {
+   "pid": 127,
+   "one_core_pct": 1.19,
+   "machine_pct": 0.198,
+   "user_share": 0.0,
+   "nice": 0,
+   "busy_threads": 1,
+   "cmd": "[kswapd0]",
+   "top_threads": [
+    [
+     "kswapd0",
+     1.2
+    ]
+   ]
+  },
+  {
+   "pid": 243,
+   "one_core_pct": 1.04,
+   "machine_pct": 0.174,
+   "user_share": 0.57,
+   "nice": -1,
+   "busy_threads": 1,
+   "cmd": "/lib/systemd/systemd-journald",
+   "top_threads": [
+    [
+     "systemd-journal",
+     1.0
+    ]
+   ]
+  }
+ ]
+}

@@ -13,11 +13,11 @@ class MappingTests(unittest.TestCase):
     def test_stop(self):
         self.assertEqual(outputs(0, 0), (0, 0, 0, 0))
     def test_forward(self):
-        self.assertEqual(outputs(50, 50), (-50, 50, -50, 50))
+        self.assertEqual(outputs(50, 50), (50, -50, 50, -50))
     def test_reverse(self):
-        self.assertEqual(outputs(-50, -50), (50, -50, 50, -50))
+        self.assertEqual(outputs(-50, -50), (-50, 50, -50, 50))
     def test_left_right_assignment(self):
-        self.assertEqual(outputs(30, 40), (-30, 40, -30, 40))
+        self.assertEqual(outputs(30, 40), (30, -40, 30, -40))
 
 if __name__ == '__main__':
     unittest.main()

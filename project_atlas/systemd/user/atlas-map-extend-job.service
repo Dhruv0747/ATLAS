@@ -1,0 +1,17 @@
+[Unit]
+Description=ATLAS add-only map extension job (turns extend-session requests into a preview + candidate; never writes the saved map) - design docs/design/guided_mapping_assistant.md section 10
+After=atlas-mission-control.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_map_extend_job.py
+Restart=on-failure
+RestartSec=30
+# Offline work after a session (a few seconds, up to ~30 s for the wide search); never during a mapping session.
+Nice=19
+CPUQuota=40%
+CPUWeight=10
+MemoryMax=400M
+
+[Install]
+WantedBy=default.target

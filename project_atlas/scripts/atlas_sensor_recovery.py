@@ -16,12 +16,20 @@ import time
 from dataclasses import dataclass
 
 import rclpy
+import atlas_batched_spin
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import OccupancyGrid, Odometry
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CompressedImage, Imu, LaserScan, NavSatFix
 from std_msgs.msg import Float32, Int32, String
+import contextlib as _atlas_contextlib  # ATLAS Stage 28 base maintenance
+try:  # ATLAS Stage 28 base maintenance: if missing, an existing lease fails closed for the base only
+    import atlas_base_maintenance as _atlas_bm
+except Exception:  # pragma: no cover - exercised by test_recovery_without_module
+    _atlas_bm = None
+_ATLAS_BASE = "rover-base-telemetry.service"  # ATLAS Stage 28 base maintenance
 
 
 @dataclass(frozen=True)
@@ -102,6 +110,28 @@ MAX_STATUS_CHARS = 16384
 DISPLAY_STATUS_CHARS = 240
 STOP_COMMAND_MAX_AGE = 1.0
 STOP_COMMAND_SETTLE = 2.0
+# 26 Oct 2026: an intentional, dashboard-owned restart (Camera settings Apply/Restore) is not a fault. The owner writes
+# ~/.local/state/project_atlas/service_maintenance.json {"<service>": {"until_unix": t, "owner": ...}} right before its
+# restart. Only these services may be held, never for more than MAINTENANCE_MAX_S, and any read/parse error means "no
+# hold" (the existing recovery policy runs unchanged). Locomotion, LiDAR and every other monitor are unaffected.
+MAINTENANCE_SERVICES = frozenset({"atlas-camera.service"})
+MAINTENANCE_MAX_S = 45.0
+
+# These monitors only use message arrival time; none of their payload fields
+# participate in fault classification or a recovery decision.  Ask rclpy for
+# serialized bytes so the recovery node does not construct large/high-rate
+# Python LaserScan, CompressedImage, Imu, Odometry, or OccupancyGrid objects
+# just to mark the stream fresh.  Status-bearing String channels and GPS stay
+# decoded because their fields are part of fail-closed classification.
+RAW_FRESHNESS_MONITORS = frozenset({
+    "lidar",
+    "camera",
+    "imu",
+    "odometry",
+    "wheel_odometry",
+    "encoder_fl",
+    "map",
+})
 
 
 class AtlasRecovery(Node):
@@ -114,6 +144,7 @@ class AtlasRecovery(Node):
         self.attempts = {item.name: [] for item in MONITORS}
         self.last_notice = {item.name: 0.0 for item in MONITORS}
         self.recovering = set()
+        self._atlas_base_init()  # ATLAS Stage 28 base maintenance
         self.lock = threading.Lock()
         self.service_cache = {}
         self.motion_last_seen = None
@@ -128,11 +159,19 @@ class AtlasRecovery(Node):
             String, "/atlas/recovery_state", 10
         )
         for item in MONITORS:
+            qos = 10
+            if item.name == "map":
+                qos = QoSProfile(
+                    depth=1,
+                    durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                    reliability=ReliabilityPolicy.RELIABLE,
+                )
             self.create_subscription(
                 item.msg_type,
                 item.topic,
                 lambda msg, name=item.name: self.on_message(name, msg),
-                10,
+                qos,
+                raw=item.name in RAW_FRESHNESS_MONITORS,
             )
         self.create_subscription(Twist, "/cmd_vel", self.on_velocity, 10)
         self.create_subscription(String, "/atlas/control_policy", self.on_control_policy, 10)
@@ -226,10 +265,37 @@ class AtlasRecovery(Node):
         self.service_cache[service] = (now, active)
         return active
 
+    def restart_pending(self, service):
+        """True while systemd itself is already (re)starting the unit.
+
+        2026-10-10 boot: atlas-lidar.service was in its own Restart=on-failure
+        cycle when this node also ran `systemctl restart`, killing a fresh
+        rplidar handshake one second after systemd started it. One restarter
+        per unit: defer to systemd while it is mid-cycle.
+        """
+        if not service:
+            return False
+        try:
+            result = subprocess.run(
+                ["systemctl", "--user", "show", "-p", "ActiveState", "-p", "SubState", service],
+                capture_output=True, text=True, timeout=5, check=False,
+            )
+        except Exception:
+            return False
+        fields = dict(line.split("=", 1) for line in str(result.stdout).splitlines() if "=" in line)
+        return fields.get("ActiveState") == "activating" or fields.get("SubState") in (
+            "auto-restart", "start-pre", "start", "start-post")
+
     def bad_status(self, name):
         # Preserve the legacy text-monitor scope; JSON keys such as
         # "faults":[] in a BMS payload are not themselves evidence of failure.
         value = self.last_value[name][:DISPLAY_STATUS_CHARS].lower()
+        if name == 'bms':
+            try:
+                payload = json.loads(self.last_value[name])
+                return not isinstance(payload, dict) or payload.get('ok') is not True
+            except (TypeError, ValueError):
+                return True
         if name == "encoder_health":
             try:
                 payload = json.loads(self.last_value[name])
@@ -240,8 +306,150 @@ class AtlasRecovery(Node):
                 return True
         return any(word in value for word in BAD_WORDS)
 
+    def bms_retry_owned(self, item, now):
+        """Fresh explicit transport ownership prevents competing retry loops.
+
+        This does not make battery data healthy or permit motion. A missing or
+        stale heartbeat still falls through to the existing recovery policy.
+        """
+        if item.name != 'bms' or item.service != 'rover-daly-bms.service':
+            return False
+        age = now - self.last_seen.get(item.name, float('-inf'))
+        if not 0 <= age <= item.stale_after:
+            return False
+        try:
+            data = json.loads(self.last_value.get(item.name, ''))
+            wait = data.get('reconnect_in_s')
+            return (data.get('retry_owner') == 'daly_transport_v1'
+                    and type(wait) in (int, float) and math.isfinite(wait)
+                    and 0 <= wait <= 120)
+        except (ValueError, TypeError, AttributeError):
+            return False
+
+    # ATLAS Stage 28 base maintenance: additive and base-only. Other monitors never enter this code.
+    def _atlas_base_init(self):
+        self._atlas_base_hold_state = "NONE"
+        self._atlas_base_stacks = {}
+        self._atlas_base_notice = 0.0
+        self._atlas_base_session = None
+        self._atlas_bm_m = None
+        try:
+            if _atlas_bm is not None:
+                self._atlas_bm_m = _atlas_bm.Maintenance()
+        except Exception as exc:  # pragma: no cover
+            self.get_logger().error(f"ATLAS base maintenance init failed: {exc!r}")
+        self.get_logger().info(
+            "ATLAS base maintenance coordination: " + (
+                "loaded" if self._atlas_bm_m is not None
+                else "UNAVAILABLE (an existing lease withholds base restarts)"))
+
+    def _atlas_base_verdict(self):
+        if self._atlas_bm_m is None:
+            path = f"/run/user/{os.getuid()}/atlas-base-maintenance/lease.json"
+            if os.path.lexists(path):
+                return "INVALID", "maintenance module unavailable while a lease exists", None
+            return "NONE", "no lease", None
+        try:
+            verdict = self._atlas_bm_m.evaluate()
+            return verdict.state, verdict.reason, verdict.lease
+        except Exception as exc:
+            return "INVALID", f"lease evaluation error {type(exc).__name__}", None
+
+    def _atlas_base_busy(self):
+        with self.lock:
+            return any(i.name in self.recovering for i in MONITORS if i.service == _ATLAS_BASE)
+
+    def _atlas_base_maint_tick(self):
+        """Every check(): publish INVALID notices and acknowledge an ACTIVE lease. Never raises."""
+        try:
+            state, reason, lease = self._atlas_base_verdict()
+            self._atlas_base_hold_state = state
+            now = time.monotonic()
+            if state == "INVALID" and now - self._atlas_base_notice >= COOLDOWN:
+                self._atlas_base_notice = now
+                self.publish_status(
+                    f"BASE MAINTENANCE HOLD INVALID: {reason}; base restarts withheld; "
+                    "fault reporting and other recovery active; operator release required")
+            if state != "ACTIVE" or self._atlas_bm_m is None:
+                self._atlas_base_session = None
+                return
+            if lease["session"] != self._atlas_base_session:
+                self._atlas_base_session = lease["session"]
+                self.publish_status(
+                    f"BASE MAINTENANCE HOLD ACTIVE: session {lease['session'][:8]}; base restarts withheld; "
+                    "fault reporting and other recovery active")
+            try:
+                with self._atlas_bm_m.lock("dispatch", timeout=0):
+                    self._atlas_bm_m.write_ack(lease["session"], self._atlas_base_busy(), os.getpid())
+            except _atlas_bm.Refused:
+                self._atlas_bm_m.write_ack(lease["session"], True, os.getpid(), "dispatch busy")
+        except Exception as exc:
+            if time.monotonic() - self._atlas_base_notice >= COOLDOWN:
+                self._atlas_base_notice = time.monotonic()
+                self.publish_status(f"BASE MAINTENANCE ACK FAILED: {type(exc).__name__}: {exc}")
+
+    def _atlas_base_dispatch_enter(self, item):
+        """Final lease check for a base restart, under the dispatch lock kept until restart returns."""
+        if item.service != _ATLAS_BASE:
+            return True
+        if self._atlas_bm_m is None:
+            state, reason, _ = self._atlas_base_verdict()
+            if state != "NONE":
+                self.publish_status(f"RECOVERY CANCELED: {item.name}; base maintenance {state}: {reason}")
+                return False
+            return True
+        stack = _atlas_contextlib.ExitStack()
+        try:
+            verdict = stack.enter_context(self._atlas_bm_m.recovery_dispatch())
+        except Exception as exc:
+            stack.close()
+            self.publish_status(f"RECOVERY CANCELED: {item.name}; base maintenance dispatch unavailable ({exc})")
+            return False
+        if verdict.hold:
+            stack.close()
+            self.publish_status(
+                f"RECOVERY CANCELED: {item.name}; base maintenance {verdict.state}: {verdict.reason}")
+            return False
+        self._atlas_base_stacks[item.name] = stack
+        return True
+
+    def _atlas_base_dispatch_exit(self, item):
+        stack = self._atlas_base_stacks.pop(item.name, None)
+        if stack is not None:
+            stack.close()
+
+    def maintenance_hold(self, item):
+        """True while an intentional, bounded restart of this service is owned by another ATLAS component."""
+        if item.service == _ATLAS_BASE and self._atlas_base_verdict()[0] != "NONE":  # ATLAS Stage 28
+            return True
+        if item.service not in MAINTENANCE_SERVICES:
+            return False
+        try:
+            import os as _os
+            import time as _wall
+            path = _os.environ.get("ATLAS_SERVICE_MAINTENANCE_FILE") or _os.path.join(
+                _os.path.expanduser("~"), ".local/state/project_atlas/service_maintenance.json")
+            with open(path, encoding="utf-8") as stream:
+                entry = (json.load(stream) or {}).get(item.service) or {}
+            remaining = float(entry.get("until_unix", 0)) - _wall.time()
+            return 0 < remaining <= MAINTENANCE_MAX_S
+        except Exception:
+            return False
+
     def schedule_recovery(self, item, reason):
         now = time.monotonic()
+        if self.maintenance_hold(item):
+            if now - self.last_notice[item.name] >= COOLDOWN:
+                self.last_notice[item.name] = now
+                self.publish_status(
+                    f"RECOVERY HELD: {item.name} {reason}; {item.service} is being restarted on purpose "
+                    "(bounded hold, no competing restart)")
+            return
+        if self.bms_retry_owned(item, now):
+            if now - self.last_notice[item.name] >= COOLDOWN:
+                self.last_notice[item.name] = now
+                self.publish_status('BMS OFFLINE: transport retry owner active; no competing restart')
+            return
         attempt_limit = 1 if item.name == "encoder_health" else MAX_ATTEMPTS
         if not self.restart_allowed(item):
             if now - self.last_notice[item.name] >= COOLDOWN:
@@ -289,11 +497,24 @@ class AtlasRecovery(Node):
             if not self.restart_allowed(item):
                 self.publish_status(f"RECOVERY CANCELED: {item.name}; stop guard changed")
                 return
+            if self.maintenance_hold(item):
+                self.publish_status(f"RECOVERY CANCELED: {item.name}; intentional restart of {item.service} in progress")
+                return
+            if self.restart_pending(item.service):
+                # Counts as an attempt (keeps the 60 s cooldown and 3/600 s bound).
+                self.publish_status(
+                    f"RECOVERY DEFERRED: {item.name}; systemd is already restarting {item.service}")
+                return
+            if self.bms_retry_owned(item, time.monotonic()):
+                self.publish_status('RECOVERY DEFERRED: BMS transport retry owner active')
+                return
             attempt = len(self.attempts[item.name])
             self.publish_status(
                 f"RECOVERING: {item.name} ({reason}); restarting "
                 f"{item.service}, attempt {attempt}/{attempt_limit}"
             )
+            if not self._atlas_base_dispatch_enter(item):  # ATLAS Stage 28: last check, under lock
+                return
             subprocess.run(
                 ["systemctl", "--user", "restart", item.service],
                 timeout=15,
@@ -315,6 +536,7 @@ class AtlasRecovery(Node):
                 f"RECOVERY FAILED: {item.name}; {type(exc).__name__}: {exc}"
             )
         finally:
+            self._atlas_base_dispatch_exit(item)  # ATLAS Stage 28 base maintenance
             with self.lock:
                 self.recovering.discard(item.name)
 
@@ -322,6 +544,12 @@ class AtlasRecovery(Node):
         age = now - self.last_seen[item.name]
         if self.bad_status(item.name):
             return "FAULT", age, self.last_value[item.name][:DISPLAY_STATUS_CHARS]
+        # A saved-map server publishes /map as transient-local, usually once.
+        # Receiving one valid OccupancyGrid therefore remains healthy even when
+        # no newer map message follows.  Treating it like a streaming sensor
+        # produced a false STALE warning during normal localization mode.
+        if item.name == "map" and self.last_value[item.name] != "waiting":
+            return "HEALTHY", age, "latched saved map available"
         if age > item.stale_after:
             return "STALE", age, f"no data for {age:.1f}s"
         if item.name == "gps" and self.last_value[item.name].startswith("status=-1"):
@@ -332,6 +560,7 @@ class AtlasRecovery(Node):
 
     def check(self):
         now = time.monotonic()
+        self._atlas_base_maint_tick()  # ATLAS Stage 28 base maintenance
         if now - self.started < STARTUP_GRACE:
             return
         for item in MONITORS:
@@ -376,6 +605,7 @@ class AtlasRecovery(Node):
             "motion_active": self.motion_active,
             "stop_command_confirmed": self.stop_command_confirmed(),
             "recovering": sorted(self.recovering),
+            "base_maintenance": getattr(self, "_atlas_base_hold_state", "UNKNOWN"),  # ATLAS Stage 28
             "systems": systems,
         }
         self.state_pub.publish(
@@ -387,7 +617,7 @@ def main():
     rclpy.init()
     node = AtlasRecovery()
     try:
-        rclpy.spin(node)
+        atlas_batched_spin.spin(node)  # ATLAS_EXECUTOR_BATCH_S (2026-11-13)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:

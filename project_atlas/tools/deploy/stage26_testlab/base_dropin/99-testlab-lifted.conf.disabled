@@ -1,0 +1,7 @@
+# NOT APPLIED by apply.sh. Enables the lifted raw single-wheel interface in the BASE driver (needs a base restart,
+# which is a separate owner-approved step). Rename to .conf and `systemctl --user daemon-reload` only when ALL are true:
+#   rover lifted with all four wheels clear, secure support, a reachable physical motor-power cut-off, owner present.
+# Remove the file and restart the base to disable again.
+[Service]
+Environment=ATLAS_PID_LIFTED_RAW_ENABLED=1
+Environment=ATLAS_PID_LIFTED_PHYSICAL_CUTOFF_READY=1

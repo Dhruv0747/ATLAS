@@ -33,7 +33,15 @@ def ip_json(*args):
 
 
 class Policy:
-    """Hysteresis prevents one missed request from changing the operator link."""
+    """Hysteresis prevents one missed request from changing the operator link.
+
+    2026-11-20: Wi-Fi must fail WIFI_FAIL_CYCLES consecutive checks (about 40-50 s at the 5 s loop + probe time)
+    before Internet is routed through the SIM. Short Wi-Fi dead zones (the hall doorway) used to move traffic to the
+    4G modem within about 20 s; on the bus-powered USB hub the modem then re-enumerated in bursts (167 disconnects,
+    with sensor stalls). Cellular stays the backup for real Wi-Fi outages.
+    """
+    WIFI_FAIL_CYCLES = 6
+
     def __init__(self):
         self.good_wifi = 0
         self.bad_wifi = 0
@@ -49,7 +57,7 @@ class Policy:
             return self.uplink, False
         if wifi and (self.uplink == 'WIFI' or self.good_wifi >= 3):
             self.uplink = 'WIFI'
-        elif self.bad_wifi >= 3 and cellular:
+        elif self.bad_wifi >= self.WIFI_FAIL_CYCLES and cellular:
             self.uplink = 'CELLULAR'
         elif self.bad_both >= 6:
             self.uplink = 'OFFLINE'
@@ -188,7 +196,11 @@ class Manager:
         ap = self.ap_active()
         # Keep standby SIM probing modest (~30 seconds); probe every cycle on
         # Wi-Fi failure or when cellular is the selected uplink.
-        probe_cell = self.cell_probe_result is None or time.monotonic()-self.cell_probe_at >= 30 or ap or self.policy.bad_wifi > 0 or self.policy.uplink == 'CELLULAR'
+        # 2026-11-20: during a short Wi-Fi blip keep the modest 30 s SIM cadence; probe every cycle only when the
+        # failover decision is near (or cellular is already selected), so a doorway dead zone does not wake the modem.
+        near_failover = self.policy.bad_wifi >= self.policy.WIFI_FAIL_CYCLES - 1
+        probe_cell = (self.cell_probe_result is None or time.monotonic()-self.cell_probe_at >= 30 or ap
+                      or near_failover or self.policy.uplink == 'CELLULAR')
         futures = {name: self.pool.submit(probe, iface) for name, iface in
                    [('wifi', self.wifi), ('cellular', self.cell)]
                    if not (ap and name == 'wifi') and not (name == 'cellular' and not probe_cell)}

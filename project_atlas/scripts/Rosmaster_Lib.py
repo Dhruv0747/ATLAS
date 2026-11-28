@@ -44,6 +44,9 @@ class Rosmaster(object):
         self.FUNC_REPORT_IMU_ATT = 0x0C
         self.FUNC_REPORT_ENCODER = 0x0D
         self.FUNC_REPORT_ICM_RAW = 0x0E
+        # ATLAS Stage 28 (proposal): raw SBUS report from ATLAS-patched firmware only.
+        # Stored, never acted on; older firmware simply never sends it.
+        self.FUNC_REPORT_RC_SBUS = 0xE1
         
         self.FUNC_RESET_STATE = 0x0F
 
@@ -98,6 +101,15 @@ class Rosmaster(object):
         # Counts + arrival time are replaced atomically after a valid packet.
         # Cached zero counts alone cannot distinguish stationary from offline.
         self._encoder_sample = ((0, 0, 0, 0), 0.0)
+        self._serial_diagnostics = {
+            'valid_packets': 0,
+            'encoder_packets': 0,
+            'checksum_errors': 0,
+            'write_errors': 0,
+            'last_valid_packet_stamp': 0.0,
+            'last_encoder_packet_stamp': 0.0,
+            'last_error': '',
+        }
 
         self.__read_id = 0
         self.__read_val = 0
@@ -125,6 +137,8 @@ class Rosmaster(object):
         self.__AKM_SERVO_ID = 0x01
 
         self.__read_car_type = 0
+        self._rc_sbus_report = None   # ATLAS Stage 28: (payload bytes, monotonic stamp)
+        self._rc_sbus_reports = 0
 
         if self.__debug:
             print("cmd_delay=" + str(self.__delay_time) + "s")
@@ -204,6 +218,14 @@ class Rosmaster(object):
                 (self.__encoder_m1, self.__encoder_m2,
                  self.__encoder_m3, self.__encoder_m4), time.monotonic()
             )
+            self._serial_diagnostics['encoder_packets'] += 1
+            self._serial_diagnostics['last_encoder_packet_stamp'] = self._encoder_sample[1]
+
+        # ATLAS Stage 28: read-only RC telemetry. Store the payload (checksum byte dropped) for the
+        # owner node to decode; no state here influences any command.
+        elif ext_type == self.FUNC_REPORT_RC_SBUS:
+            self._rc_sbus_report = (bytes(ext_data[:-1]), time.monotonic())
+            self._rc_sbus_reports += 1
 
         else:
             if ext_type == self.FUNC_UART_SERVO:
@@ -267,10 +289,13 @@ class Rosmaster(object):
     def __receive_data(self):
         try:
             self.__receive_data_loop()
-        except (serial.SerialException, OSError, IndexError) as exc:
+        except Exception as exc:
             # A dead receive loop leaves the ROS node alive but with frozen
             # encoder/odometry data. Exit so systemd reopens the USB device.
             print(f"FATAL: Yahboom serial receive stopped: {exc}", flush=True)
+            self._serial_diagnostics['last_error'] = (
+                f'{type(exc).__name__}: {exc}'
+            )
             try:
                 self.ser.close()
             finally:
@@ -297,8 +322,11 @@ class Rosmaster(object):
                         else:
                             check_sum = check_sum + value
                     if check_sum % 256 == rx_check_num:
+                        self._serial_diagnostics['valid_packets'] += 1
+                        self._serial_diagnostics['last_valid_packet_stamp'] = time.monotonic()
                         self.__parse_data(ext_type, ext_data)
                     else:
+                        self._serial_diagnostics['checksum_errors'] += 1
                         if self.__debug:
                             print("check sum error:", ext_len, ext_type, ext_data)
 
@@ -541,8 +569,12 @@ class Rosmaster(object):
             if self.__debug:
                 print("motor:", cmd)
             time.sleep(self.__delay_time)
-        except:
-            print('---set_motor error!---')
+        except Exception as exc:
+            self._serial_diagnostics['write_errors'] += 1
+            self._serial_diagnostics['last_error'] = (
+                f'{type(exc).__name__}: {exc}'
+            )
+            print(f'---set_motor error: {type(exc).__name__}: {exc}---', flush=True)
             pass
 
 
@@ -1172,6 +1204,17 @@ class Rosmaster(object):
     def get_motor_encoder_sample(self):
         """Return the last complete encoder packet and monotonic receipt time."""
         return self._encoder_sample
+
+    def get_rc_sbus_report(self):
+        """ATLAS Stage 28: latest raw RC report as (payload, monotonic stamp, count), or None."""
+        report = self._rc_sbus_report
+        if report is None:
+            return None
+        return report[0], report[1], self._rc_sbus_reports
+
+    def get_serial_diagnostics(self):
+        """Return a snapshot that distinguishes transport loss from bad wheels."""
+        return dict(self._serial_diagnostics)
 
     # 获取小车的运动PID参数, 返回[kp, ki, kd]
     # Get the motion PID parameters of the dolly and return [kp, ki, kd]

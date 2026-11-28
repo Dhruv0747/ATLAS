@@ -1,0 +1,28 @@
+[Unit]
+Description=Optional bounded stationary ATLAS mapping test (approval required)
+StartLimitIntervalSec=300
+StartLimitBurst=1
+
+[Service]
+Type=notify
+NotifyAccess=main
+Environment=PYTHONUNBUFFERED=1
+Environment=OMP_NUM_THREADS=2
+ExecStart=/bin/bash -c 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 @ROOT@/tools/vision3d/onboard_supervisor.py @ROOT@/config/onboard_mapping.json'
+ExecStopPost=/bin/bash -c 'source /opt/ros/humble/setup.bash; exec /usr/bin/python3 @ROOT@/tools/vision3d/onboard_supervisor.py @ROOT@/config/onboard_mapping.json --cleanup-camera'
+WatchdogSec=3
+TimeoutStartSec=10
+RuntimeMaxSec=60
+TimeoutStopSec=5
+KillMode=control-group
+KillSignal=SIGINT
+Restart=no
+MemoryMax=768M
+TasksMax=96
+LimitCORE=0
+LimitFSIZE=2147483648
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+
+# Deliberately no Install section: no boot activation or automatic retry.

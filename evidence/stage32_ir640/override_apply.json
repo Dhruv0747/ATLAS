@@ -1,0 +1,8 @@
+{
+  "cmd": "apply",
+  "state_before": "baseline",
+  "sha_before": "454dd25fd0e5bafbb25b63983af865cca78a01354547e4129c2e2016b8023151",
+  "sha_after": "fc807489b06699d73efdd246913849a3d11315d6bfcba707eedd0e1381c9b5aa",
+  "state_after": "override",
+  "changed_lines": 1
+}

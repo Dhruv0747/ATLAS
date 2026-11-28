@@ -1,0 +1,237 @@
+{
+  "scope": "Stage32 diagnostic candidate only; not an exhaustive deployment registry",
+  "date": "2026-10-21",
+  "branch": "agent/sync-developer-20261011",
+  "startup_guard_74ff38f": {
+    "status": "DEPLOYED AND INSTALLATION VERIFIED; no live camera test",
+    "runtime_sha256": "8f207dc9c7d06cdccc4ec7c82b3e7c6aae29a86121b39c2271ff4e8922226d63",
+    "restart_only": "rover-status-web",
+    "cpu_peak": 99.83416252072969,
+    "settled_by_s": 26.978,
+    "camera_started": false,
+    "report": "ATLAS_STAGE32_STARTUP_GUARD_DEPLOYMENT.md",
+    "backup": "/home/jetson/project-atlas-migration/astra-20261021/coverage-20261021T211557/"
+  },
+  "cleanup_abc6837_followup": {
+    "status": "single-file cleanup DEPLOYED; combined viewing NOT VERIFIED",
+    "installed_sha256": "feedd883cbb9335569dcf50d33aaf5f66e3db85352dab54b2b3dba76c9137500",
+    "attempts": 1,
+    "guard_cpu_percent": 77.10437710437711,
+    "depth_received": 6,
+    "rgb_received": 0,
+    "services_restarted": false,
+    "retry": false,
+    "report": "ATLAS_STAGE32_CLEANUP_LIVE_RESULT_20261021.md",
+    "backup": "/home/jetson/project-atlas-migration/astra-20261021/cleanup-20261021T210340/"
+  },
+  "candidate_source_commit": "baa1f26e96b8976aed0785f62c0891558c5930f0",
+  "result_report_commit": "2376ede16eefa5579bba69ff229da80974ee4811",
+  "status": "IR 640x480 DEPLOYED AND LIVE VERIFIED (production driver); instrumentation candidate not deployed",
+  "candidate_archive_sha256": "1e6704adb163747328b1a9f37dfd0053e713fb8d16aa09afbb1ae7744e5a3473",
+  "failure": "Post-web-restart CPU 95.63758389261746 percent exceeded unchanged 75 percent guard",
+  "ir_test_started": false,
+  "retry_performed": false,
+  "restart_scope": "rover-status-web only: installation and rollback",
+  "backups_and_evidence": "/home/jetson/project-atlas-migration/stage32-instrumented-approved-20261021/",
+  "pc_copy": "artifacts/astra_stationary_20261021/stage32-instrumented-approved-20261021/",
+  "restored_hashes": {
+    "lib/libastra_camera.so": "6ae876010c824be97d2545996f897e40e07e0c97fa7a45694f96f342cf6e22a6",
+    "scripts/atlas_vision3d_web.py": "889881c062717d076430414f57825b14f7f0de36ba4cf8c20b0c74fbff9ec1bf",
+    "web/v2/vision3d.js": "76f9a20267e7d90a9d4b0a3be7f75a6c0e0ca594ddc1254e337e618215cf3fba"
+  },
+  "evidence_sha256": {
+    "result.json": "0153ed3b6b99ff2455c07aaceb30cc3309ef833f3b4b3702ca85657531c151e0",
+    "postrollback.json": "fa9d5ef970b1634686d821422c5b2872469cefde2d3f65ccbf15da6a2553e03b",
+    "terminal.txt": "65d9d8028d1f79275f0abef6f1aaef16c96e4553f360bd2636e619bc5cccc9d9",
+    "rollback-ledger.json": "bbc179cb0c68ae97678d80f1496b216feddbef9710c7b83181f440ef706a670a"
+  },
+  "last_verified_state": "E-STOP latched; manual-only; zero commands; recorder and Astra OFF; Pi Camera healthy; protected identities unchanged except approved web restarts",
+  "state_freshness": "Historical postrollback evidence, not a new live admission",
+  "next_action": "PAUSED 2026-10-21 19:25 IST for 3 days by owner; see ATLAS_3_DAY_PAUSE_HANDOVER.md",
+  "handover": "ATLAS_STAGE32_DEVELOPER_HANDOVER.md",
+  "takeover_20261021": {
+    "from_commit": "c68ba4891645d9985f3da882a13bce8d3b2e965d",
+    "live_verified_readonly": "2026-10-21T17:04+05:30: Stage32 ten hashes equal handover; runtime lib 6ae87601, manifest c1a6d1c0; web PID 189640/0",
+    "restart_spike_finding": "restart transient of rover-status-web itself (see registry ATLAS-WEB-RESTART-CPU-TRANSIENT-20261021); candidate not implicated",
+    "latent_defect": "ATLAS-ASTRA-IR-CANDIDATE-MANIFEST-MISMATCH-20261021",
+    "new_package": {
+      "archive": "s32_irdiag_pkg_v2.tgz",
+      "archive_sha256": "08da79c421a05199c72b88231ce28ef2cb059775dede7940c3f70bcdcb25aa54",
+      "files": {
+        "lib/libastra_camera.so": [
+          "6ae876010c824be97d2545996f897e40e07e0c97fa7a45694f96f342cf6e22a6",
+          "8609f2641d181fb6fccda60e84f83d4c5d399b673dc65b27b723490a8b24cab9"
+        ],
+        "manifest.json": [
+          "c1a6d1c02f1620850cd160022eb0d10dd269a1152f91c5436a0ada82e4e17dfb",
+          "77726de62f98117dba83dc05ce26a895bc1b7375c4e4619c74d2744aeb692fa1"
+        ]
+      },
+      "restart_required": false,
+      "jetson_location": "/home/jetson/project-atlas-migration/stage32-takeover-ir-diag-rehearsal/pkg",
+      "rehearsal": "PASS on byte copy; live check read-only PASS",
+      "status": "APPLIED 17:28:55 and ROLLED BACK 17:29:58 (D1); production on baseline 6ae87601/c1a6d1c0, integrity PASS",
+      "approval_needed": "D1"
+    }
+  },
+  "d1_result": {
+    "session": "2026-10-21 17:29:07-17:29:42 IR-only, Start once, stopped at 25 s without frames, no retry",
+    "earliest_failed_boundary": 1,
+    "counters_final": "wait_ok=0 wait_failed=11 wait_rc=102 ready=0 read_ok=0 callback=0 publish_attempt=0 subscribers=1 during ACTIVE",
+    "restarts": "none",
+    "raw_driver_log": "/home/jetson/project-atlas-migration/stage32-takeover-ir-diag/d1_driver.log sha256 36ab55869f42e48718cee8938426ff46b21f20061fa3bbc5fe93a067cc76c328",
+    "evidence": "evidence/stage32_d1/"
+  },
+  "d2_result": {
+    "session": "2026-10-21 17:38:03-17:39:14 IR-only 640x480@30 GRAY8, Start once, ran full 60 s, no retry",
+    "verdict": "ALL BOUNDARIES PASSED (diagnostic configuration)",
+    "counters_final": "ready=read=callback=converted=published=1656, 0 failures, 640x480 GRAY8 stride 640, 29.70 fps hardware; receiver 1569, 0 rejected",
+    "temporary_changes": {
+      "lib/libastra_camera.so": "6ae87601->8609f264->6ae87601",
+      "manifest.json": "c1a6d1c0->77726de6->c1a6d1c0",
+      "scripts/atlas_vision3d_runtime.py": "454dd25f->fc807489->454dd25f"
+    },
+    "restarts": "none",
+    "rollback": "17:39:33 complete, integrity PASS, identities unchanged",
+    "evidence": "evidence/stage32_d2/"
+  },
+  "ir640_permanent_attempt": {
+    "time": "2026-10-21 17:45-17:49",
+    "change": "scripts/atlas_vision3d_runtime.py 454dd25f->fc807489 (IR 640x480) then restored to 454dd25f",
+    "production_library_untouched": "6ae87601 / manifest c1a6d1c0",
+    "restarts": "none",
+    "result": "IR delivered and rendered ~31 s on production lib; session stopped ~42 s by viewer lease expiry (test-client pause suspected); acceptance FAILED-incomplete; correction NOT retained",
+    "evidence": "evidence/stage32_ir640/"
+  },
+  "ir640_final_acceptance": {
+    "time": "2026-10-21 17:54-18:03",
+    "result": "PASSED - full 60 s on production driver; correction RETAINED",
+    "production_hashes": {
+      "scripts/atlas_vision3d_runtime.py": "fc807489b06699d73efdd246913849a3d11315d6bfcba707eedd0e1381c9b5aa",
+      "lib/libastra_camera.so": "6ae876010c824be97d2545996f897e40e07e0c97fa7a45694f96f342cf6e22a6",
+      "manifest.json": "c1a6d1c02f1620850cd160022eb0d10dd269a1152f91c5436a0ada82e4e17dfb"
+    },
+    "rollback": "stage32_ir_mode_override.py restore -> 454dd25f (backup ~/project-atlas-migration/stage32-ir-640-final/d2/)",
+    "restarts": "none",
+    "evidence": "evidence/stage32_ir640_final/"
+  },
+  "continuation_20261021": {
+    "ui_package": {
+      "archive": "s32_ui_pkg_v2.tgz",
+      "sha256": "7c21ce2dd9f8211839dc7c177fe361c73b956ffdd88b85916144a25ed4d89e79",
+      "U1_static_no_restart": {
+        "web/v2/vision3d.js": [
+          "76f9a20267e7d90a9d4b0a3be7f75a6c0e0ca594ddc1254e337e618215cf3fba",
+          "2c06d110c85671ce4fb02b355e7d3d275e8d0fc59aac30134fe0954a6379f435"
+        ],
+        "web/v2/vision3d_state.js": [
+          null,
+          "641ca00bc4536783e4593d31ce44c859302934114f5ab56e6d09ba275b6162ca"
+        ],
+        "web/v2/vision3d.html": [
+          "a930af8392b0fbaab3380eaf8dbc547780df487f27e44fb4d349ad1447e48c09",
+          "cf19258b030e4009df9797f43ec5ded3d73a44bbede8760c3bb98583b59e4ff4"
+        ],
+        "web/v2/vision3d.css": [
+          "04f98c8c0338b960add11346e84c149ae82dac48954d81ffdd726839b0a6971f",
+          "e92cf062ca99fdf444e575806b8788cc86c716034c757070ee2703af64ef2800"
+        ]
+      },
+      "U2_restart_rover_status_web": {
+        "config/vision3d_live.json": [
+          "e27bc0c0551d22babb7a477c551d49c5ab20937e56b6aa4fe8a8ce6aff9f9c9a",
+          "7f9e5ff655fe3163cc26fe15b0d48fe780cb2fee2f086000afcc72fc52ccb00d"
+        ],
+        "scripts/atlas_vision3d_geometry.py": [
+          "75d020120d22fe31d8cc6b741f1ae8b19192047aafb03396a47669ee9d4b4354",
+          "6eb23c251dc78fb2fbd54e77f51263c43f1bc668f1ace2732b0429e03ef16e4a"
+        ]
+      },
+      "jetson_location": "~/project-atlas-migration/stage32-ui-continuation/pkg",
+      "rehearsal": "Jetson byte copy and local tree: byte-identical rollback",
+      "status": "U1 DEPLOYED 2026-10-21 18:38:16 (no restart; backup ~/project_atlas/.pre_stage32_ui_20261021_183816); U2 READY, awaiting owner confirmation"
+    },
+    "repo_vs_production_note": "repository scripts/atlas_vision3d_web.py is the undeployed candidate a7b9f1f9; production runs 889881c0",
+    "u2_restart_monitored": {
+      "archive": "s32_ui_pkg_v3.tgz",
+      "sha256": "8988b26cffbbfaf54050a97abc27e81d75f8d89923616a34c0030abc90af5748",
+      "jetson": "~/project-atlas-migration/stage32-ui-continuation/pkg_v3",
+      "script": "tools/deploy/stage32_ui/u2_restart_monitored.sh",
+      "status": "STAGED; NOT RUN"
+    }
+  },
+  "production_hashes_after_u1": {
+    "web/v2/vision3d.js": "2c06d110c85671ce4fb02b355e7d3d275e8d0fc59aac30134fe0954a6379f435",
+    "web/v2/vision3d_state.js": "641ca00bc4536783e4593d31ce44c859302934114f5ab56e6d09ba275b6162ca",
+    "web/v2/vision3d.html": "cf19258b030e4009df9797f43ec5ded3d73a44bbede8760c3bb98583b59e4ff4",
+    "web/v2/vision3d.css": "e92cf062ca99fdf444e575806b8788cc86c716034c757070ee2703af64ef2800",
+    "scripts/atlas_vision3d_runtime.py": "fc807489b06699d73efdd246913849a3d11315d6bfcba707eedd0e1381c9b5aa",
+    "scripts/atlas_vision3d_web.py": "889881c062717d076430414f57825b14f7f0de36ba4cf8c20b0c74fbff9ec1bf",
+    "config/vision3d_live.json": "e27bc0c0551d22babb7a477c551d49c5ab20937e56b6aa4fe8a8ce6aff9f9c9a"
+  },
+  "uncalibrated_preview_20261021": {
+    "status": "U2P_DEPLOYED_LIVE_PREVIEW_TEST_NOT_STARTED",
+    "owner_request": "18:57 uncalibrated 3D preview, diagnostic only; metric XYZ and navigation stay blocked",
+    "package": "s32_u2p_pkg_v4_b.tgz md5 5aa7a9636d4cee93ea4906a0f1fc5f0c; Jetson ~/project-atlas-migration/stage32-u2p/pkg_v4 (SHA256SUMS verified)",
+    "replaces": {
+      "config/vision3d_live.json": [
+        "e27bc0c0",
+        "7f9e5ff6"
+      ],
+      "scripts/atlas_vision3d_geometry.py": [
+        "75d02012",
+        "6eb23c25"
+      ],
+      "scripts/atlas_vision3d_web.py": [
+        "889881c0",
+        "10bdc9db"
+      ],
+      "web/v2/vision3d.js": [
+        "2c06d110",
+        "d23fe88b"
+      ],
+      "web/v2/vision3d_state.js": [
+        "641ca00b",
+        "bedbeed1"
+      ],
+      "web/v2/vision3d.html": [
+        "cf19258b",
+        "d6ebc4be"
+      ],
+      "web/v2/vision3d.css": [
+        "e92cf062",
+        "69af9900"
+      ]
+    },
+    "restart": "rover-status-web once, via u2_restart_monitored.sh (requires OWNER_APPROVED=yes); auto rollback-config on any failed check",
+    "rehearsal": "copy of production, NO_RESTART: apply 7/7, re-apply refused, rollback byte-identical, unapproved run refused; production untouched (MainPID 189640, NRestarts 0)",
+    "offline_tests": "236 passed, 8 skipped (pytest -s); synthetic browser session: label drawn, 4680 points, orbit/zoom/pan, click Z 1.200 m, 0 cloud requests, 0 page errors",
+    "safety_unchanged": "calibration gate, cloud() CALIBRATION BLOCKED, no xyz_m, no ROS publisher, lease 4 s, guards 75/80/70, E-STOP, runtime fc807489",
+    "camera_started": false,
+    "restart_performed": true,
+    "a4_target": "tools/vision3d/calibration_target/atlas_astra_checkerboard_9x6_25mm_A4.pdf sha256 c53e2e7e47b1f7e87e7e4aad8e412759ffe1391efb488fa5ad8befec0b7f4c4b; verified 25.0 mm squares at 10 px/mm",
+    "next_action": "on resume: owner re-confirms ONE Depth-only preview session (tools/vision3d/stage32_preview_live.py)",
+    "deployment": {
+      "approved": "2026-10-21 19:16 IST",
+      "restart_at": "2026-10-21 19:17:18 IST",
+      "result": "U2P_DEPLOYED",
+      "settle_s": 30.6,
+      "cpu": "pre mean 65.5/max 69.1; peak 98.9 at +14.4 s (known restart transient, camera off); after +60 s mean 64.8/max 66.7",
+      "rover_status_web_mainpid": "189640 -> 253946",
+      "backup": "~/project_atlas/.pre_stage32_config_u2p_20261021_191658 (SHA256SUMS ok)",
+      "post_checks": "all passed (estop, policy, sensor ages, protected identities, picam 200, IR verified, calibration NOT VALIDATED, raw depth route live, cloud 409)",
+      "evidence": "evidence/stage32_u2p_deploy/"
+    },
+    "live_preview_test": "NOT STARTED: owner pause instruction 19:21 arrived before Start; camera never started; re-approval needed on resume"
+  },
+  "production_hashes_after_u2p": {
+    "config/vision3d_live.json": "7f9e5ff655fe3163",
+    "scripts/atlas_vision3d_geometry.py": "6eb23c251dc78fb2",
+    "scripts/atlas_vision3d_web.py": "10bdc9db35ab8b85",
+    "web/v2/vision3d.js": "d23fe88bf07ccffc",
+    "web/v2/vision3d_state.js": "bedbeed1a16a1a2d",
+    "web/v2/vision3d.html": "d6ebc4bee73f341b",
+    "web/v2/vision3d.css": "69af9900d408bdbc",
+    "scripts/atlas_vision3d_runtime.py": "fc807489b06699d7"
+  }
+}

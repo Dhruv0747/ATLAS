@@ -1,0 +1,18 @@
+Stage32 U2+P deployment evidence (21 Oct 2026, owner approval 19:16 IST)
+Pre-checks 19:16: package pkg_v4 SHA256SUMS intact and identical to commit c23b42c; all 7 production pre-hashes matched
+  (e27bc0c0 75d02012 889881c0 2c06d110 641ca00b cf19258b e92cf062); runtime fc807489; E-STOP latched; manual-only; camera off.
+Run: systemd-run --user --unit=s32-u2p-deploy ... u2_restart_monitored.sh (OWNER_APPROVED=yes); restart at 19:17:18 IST.
+Result: U2P_DEPLOYED (log.txt). Settle 30.6 s. CPU (trace.jsonl, 1 Hz): pre mean 65.5 / max 69.1 %; restart peak 98.9 % at +14.4 s;
+  19 samples > 75 % (all in the restart transient, camera off, no guard involved); after +60 s mean 64.8 / max 66.7 %.
+Installed hashes: 7f9e5ff6 6eb23c25 10bdc9db d23fe88b bedbeed1 d6ebc4be 69af9900; runtime fc807489 unchanged.
+Backup: ~/project_atlas/.pre_stage32_config_u2p_20261021_191658 (SHA256SUMS verified; holds the 7 pre-deployment files).
+Rollback: OWNER_APPROVED=yes bash ~/project-atlas-migration/stage32-u2p/pkg_v4/tools/deploy/stage32_ui/stage32_ui.sh rollback-config
+  (restores the 7 files and restarts rover-status-web once). Rehearsed byte-identical on a copy before deployment. Not needed.
+Post-checks: rover-status-web active (MainPID 189640 -> 253946, NRestarts 0); protected services unchanged
+  (atlas-camera 1982/0, rover-base-telemetry 3534/1, atlas-cmd-vel-mux 1975/0, atlas-ekf 3260/0, atlas-localization 5713/1,
+  atlas-lidar 5523/5); Pi Camera 200; lidar/odom/imu/encoder ages 0.3/0.1/0.1/0.0 s; E-STOP latched; manual-only;
+  Infrared mode "verified" (page note "Tested"); installed manifest serial 17122120830 (read by the calibration gate; not exposed by the status API);
+  calibration NOT VALIDATED; raw depth route with camera off -> "stream unavailable" (new receiver); calibrated cloud route -> 409.
+Final state 19:22: E-STOP latched, commission_armed false, cmd_vel 0/0, motor_speed 0, vision runtime OFF, recording false,
+  no astra/worker/cloud/recorder process, no s32* units.
+Live 3D Preview test: NOT STARTED (owner's 19:21 pause instruction arrived before Start; camera never started).

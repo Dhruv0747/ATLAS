@@ -1,0 +1,43 @@
+--- /home/jetson/project-atlas-migration/monitoring-guard-jitter-20261105/atlas-monitoring-guard.py.original	2026-11-05 10:27:44.306132372 +0530
++++ /home/jetson/project-atlas-migration/monitoring-guard-jitter-20261105/atlas-monitoring-guard.py	2026-11-05 10:27:51.350409043 +0530
+@@ -68,6 +68,12 @@
+ # OBSERVING (stages API/resources/validate) means "cannot verify now": the exporter is stopped at once (fail-closed),
+ # the event goes to the journal, and systemd retries the observer later. Limits and checks are unchanged.
+ VIOLATIONS = frozenset({'stop/manual/commission policy', 'command/speed not zero', 'encoder movement'})
++# 2026-11-05 owner-approved: encoder jitter tolerance. A wheel may change by at most JITTER_COUNTS per ~1 s sample,
++# and at most DRIFT_COUNTS in total from this process's first validated sample. Only reachable after the same
++# sample already passed policy (stop/manual/not commissioned) and exact-zero cmd_vel/motor_speed checks.
++JITTER_COUNTS = 10
++DRIFT_COUNTS = 40
++_BASELINE = None
+ OBSERVING = frozenset({'API', 'resources', 'validate'})
+ TRANSIENT_EXIT = 75   # EX_TEMPFAIL: retried by systemd; 78 (latched) is never retried
+ 
+@@ -220,7 +226,11 @@
+     # another wheel's count is unreadable (that wheel alone becomes 'invalid encoder counts' later).
+     if previous is not None:
+         for (ok, now), before in zip([present('enc_m'+str(i)) for i in range(1, 5)], previous):
+-            if ok and type(now) is int and type(before) is int and now != before:
++            if ok and type(now) is int and type(before) is int and abs(now - before) > JITTER_COUNTS:
++                raise Violation('encoder movement')
++    if _BASELINE is not None:
++        for (ok, now), base in zip([present('enc_m'+str(i)) for i in range(1, 5)], _BASELINE):
++            if ok and type(now) is int and type(base) is int and abs(now - base) > DRIFT_COUNTS:
+                 raise Violation('encoder movement')
+ 
+ def validate(ros, cpu, ram, temperatures, previous):
+@@ -237,10 +247,13 @@
+     require(health.get('link_state')=='LIVE' and health.get('packet_fresh') is True, 'MCU not live')
+     counts = [ros['enc_m'+str(i)]['value'] for i in range(1,5)]
+     require(all(type(x) is int for x in counts), 'invalid encoder counts')
+-    require(previous is None or counts == previous, 'encoder movement')
++    require(previous is None or all(abs(a - b) <= JITTER_COUNTS for a, b in zip(counts, previous)), 'encoder movement')
+     require(finite(cpu) and 0 <= cpu <= 75, 'CPU limit')
+     require(finite(ram) and 0 <= ram <= 80, 'RAM limit')
+     require(temperatures and all(finite(t) and -200 < t < 70 for t in temperatures), 'temperature limit/missing')
++    global _BASELINE
++    if _BASELINE is None:
++        _BASELINE = list(counts)  # drift reference for this observer run
+     return counts
+ 
+ def cpu_counter():

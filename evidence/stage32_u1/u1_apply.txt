@@ -1,0 +1,7 @@
+note: node not available for a syntax check on this host
+backup: /home/jetson/project_atlas/.pre_stage32_ui_20261021_183816
+installed web/v2/vision3d_state.js 641ca00bc4536783
+installed web/v2/vision3d.js 2c06d110c85671ce
+installed web/v2/vision3d.html cf19258b030e4009
+installed web/v2/vision3d.css e92cf062ca99fdf4
+UI applied; no service restarted

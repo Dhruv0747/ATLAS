@@ -1,0 +1,10 @@
+{
+  "_comment": "2026-11-16 owner-confirmed hall objects the RPLIDAR cannot see (black leather sofa, glass coffee table, black cabinet). Map frame metres, polygons as [x, y] corners. They are added ON TOP of /map for Nav2 (/map_nav) and for the LiDAR guard; atlas_latest.pgm and AMCL are untouched. If furniture is moved, edit this file and restart atlas-localization + mux (parked, E-STOP latched).",
+  "map_frame": "map",
+  "obstacles": [
+    {"name": "black leather sofa", "polygon": [[-0.30, -6.40], [0.75, -6.40], [0.75, -4.70], [-0.30, -4.70]]},
+    {"name": "glass coffee table", "polygon": [[0.80, -6.30], [1.35, -6.30], [1.35, -5.60], [0.80, -5.60]]},
+    {"name": "black cabinet", "polygon": [[2.35, -4.60], [2.90, -4.60], [2.90, -4.20], [2.35, -4.20]]},
+    {"name": "dark wood cabinet + open door left of the hall doorway (2026-11-22, owner: stays like this)", "polygon": [[2.95, -2.85], [3.95, -2.85], [3.95, -2.47], [2.95, -2.47]]}
+  ]
+}

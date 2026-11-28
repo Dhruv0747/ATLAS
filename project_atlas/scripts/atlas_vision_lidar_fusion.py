@@ -13,13 +13,19 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan, PointCloud2, PointField
 from std_msgs.msg import Header, Int32, String
 
-from atlas_vision_lidar_core import associate_detection, pixel_to_bearing
+from atlas_vision_lidar_core import (
+    CAMERA_HOME_FILE,
+    associate_detection,
+    camera_forward_state,
+    pixel_to_bearing,
+    read_camera_home,
+)
 
 
-FORWARD_PAN_US = 2300
-FORWARD_TILT_US = 1500
-PAN_TOLERANCE_US = 90
-TILT_TOLERANCE_US = 180
+# Forward = the calibrated camera home in camera-home.conf, the pose mission control centres
+# to for every goal (2026-11-26; the old fixed constant was wrong). Bearings below are not
+# pan-compensated, so fusion runs only with the camera at that home pose.
+CAMERA_HOME_CHECK_S = 1.0
 HORIZONTAL_FOV_RAD = math.radians(66.0)
 MIN_CONFIDENCE = 0.45
 MAX_CONFIRMED_RANGE_M = 3.0
@@ -40,8 +46,13 @@ class AtlasVisionLidarFusion(Node):
         self.scan_time = 0.0
         self.detections = None
         self.detection_time = 0.0
-        self.pan_us = FORWARD_PAN_US
-        self.tilt_us = FORWARD_TILT_US
+        # Unknown until servo feedback arrives: never assume the camera is forward.
+        self.pan_us = None
+        self.tilt_us = None
+        self.camera_home = None  # set (and logged) by the first refresh below
+        self.camera_home_mtime = None
+        self.camera_home_checked = -CAMERA_HOME_CHECK_S
+        self.refresh_camera_home(time.monotonic())
         self.cloud_pub = self.create_publisher(
             # Nav2 obstacle-layer PointCloud2 subscriptions request reliable
             # delivery. A sensor-data (best-effort) publisher is QoS-
@@ -59,6 +70,30 @@ class AtlasVisionLidarFusion(Node):
         self.get_logger().info(
             "Camera/LiDAR navigation fusion ready; visual detections require LiDAR confirmation"
         )
+
+    def refresh_camera_home(self, now: float) -> None:
+        """Re-read camera-home.conf when it changes, so a re-saved home takes effect without a restart."""
+        if now - self.camera_home_checked < CAMERA_HOME_CHECK_S:
+            return
+        self.camera_home_checked = now
+        try:
+            mtime = CAMERA_HOME_FILE.stat().st_mtime
+        except OSError:
+            mtime = None
+        if mtime == self.camera_home_mtime and mtime is not None:
+            return
+        self.camera_home_mtime = mtime
+        home = read_camera_home(CAMERA_HOME_FILE)
+        if home != self.camera_home:
+            if None in home:
+                self.get_logger().warning(
+                    f"Camera home unavailable in {CAMERA_HOME_FILE}; semantic fusion suspended"
+                )
+            else:
+                self.get_logger().info(
+                    f"Camera forward = calibrated home pan {home[0]} us / tilt {home[1]} us"
+                )
+        self.camera_home = home
 
     def on_scan(self, message: LaserScan) -> None:
         self.scan = message
@@ -103,12 +138,12 @@ class AtlasVisionLidarFusion(Node):
         points = []
         confirmed = []
         candidates = []
-        camera_forward = (
-            abs(self.pan_us - FORWARD_PAN_US) <= PAN_TOLERANCE_US
-            and abs(self.tilt_us - FORWARD_TILT_US) <= TILT_TOLERANCE_US
+        self.refresh_camera_home(now)
+        camera_forward, suspend_reason = camera_forward_state(
+            self.pan_us, self.tilt_us, self.camera_home
         )
         if not camera_forward:
-            reason = "SUSPENDED_CAMERA_NOT_FORWARD"
+            reason = suspend_reason
         elif self.scan is None or now - self.scan_time > STALE_SECONDS:
             reason = "SUSPENDED_LIDAR_STALE"
         elif self.detections is None or now - self.detection_time > STALE_SECONDS:
@@ -152,6 +187,7 @@ class AtlasVisionLidarFusion(Node):
                 "camera_forward": camera_forward,
                 "pan_us": self.pan_us,
                 "tilt_us": self.tilt_us,
+                "camera_home_us": list(self.camera_home),
                 "candidates": candidates,
                 "confirmed": confirmed,
                 "costmap_points": len(points),

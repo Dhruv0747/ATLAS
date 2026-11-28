@@ -1,10 +1,10 @@
 amcl:
   ros__parameters:
     use_sim_time: False
-    alpha1: 0.2
-    alpha2: 0.2
-    alpha3: 0.2
-    alpha4: 0.2
+    alpha1: 0.1
+    alpha2: 0.1
+    alpha3: 0.1
+    alpha4: 0.1
     alpha5: 0.2
     base_frame_id: "base_link"
     beam_skip_distance: 0.5
@@ -83,7 +83,7 @@ controller_server:
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.10
-      movement_time_allowance: 20.0
+      movement_time_allowance: 45.0
 
     general_goal_checker:
       stateful: True
@@ -92,8 +92,8 @@ controller_server:
       # progress checker's 10 cm movement radius.  This prevents a car-like
       # chassis from stalling while attempting an impractical final 2-5 cm
       # correction; obstacle clearance remains governed by the costmaps.
-      xy_goal_tolerance: 0.10
-      yaw_goal_tolerance: 0.35
+      xy_goal_tolerance: 0.20   # 2026-11-16 owner OK: 0.10 m made the car-like base manoeuvre for minutes near goals (penalty_test bag)
+      yaw_goal_tolerance: 0.6   # 2026-11-16 owner OK (was 0.35 rad)
 
     FollowPath:
       # ATLAS is a four-wheel-steering car, not a differential-drive robot.
@@ -118,6 +118,9 @@ controller_server:
       max_allowed_time_to_collision_up_to_carrot: 0.8
       use_regulated_linear_velocity_scaling: true
       use_cost_regulated_linear_velocity_scaling: true
+      # Must match local_costmap inflation_layer.cost_scaling_factor. This
+      # converts cell cost back to distance; it is not new inflation tuning.
+      inflation_cost_scaling_factor: 15.0
       regulated_linear_scaling_min_radius: 0.35
       regulated_linear_scaling_min_speed: 0.11
       use_rotate_to_heading: false
@@ -180,6 +183,7 @@ local_costmap:
           observation_persistence: 0.8
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
+        map_topic: /map_nav   # 2026-11-16 /map + owner-confirmed virtual obstacles (atlas_virtual_obstacles.py); AMCL keeps /map
         map_subscribe_transient_local: True
       always_send_full_costmap: True
 
@@ -223,6 +227,7 @@ global_costmap:
           observation_persistence: 0.8
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
+        map_topic: /map_nav   # 2026-11-16 /map + owner-confirmed virtual obstacles (atlas_virtual_obstacles.py); AMCL keeps /map
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
@@ -270,8 +275,8 @@ planner_server:
       minimum_turning_radius: 0.35
       analytic_expansion_ratio: 3.5
       analytic_expansion_max_length: 2.0
-      reverse_penalty: 2.0
-      change_penalty: 0.0
+      reverse_penalty: 5.0   # 2026-11-16 owner OK: bag 8 door + room test3 showed reverse+turn dithering (was 2.0)
+      change_penalty: 1.0   # 2026-11-16 owner OK: penalise forward<->reverse switches (was 0.0)
       non_straight_penalty: 1.2
       cost_penalty: 2.0
       lookup_table_size: 20.0

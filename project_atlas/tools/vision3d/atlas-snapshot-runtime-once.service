@@ -1,0 +1,16 @@
+[Unit]
+Description=ATLAS single approved recovery snapshot validation
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/python3 -B /home/jetson/project-atlas-migration/snapshot-runtime-once-20261031/recovery_snapshot_supervisor.py --stage /home/jetson/project-atlas-migration/snapshot-runtime-once-20261031
+ExecStopPost=/usr/bin/python3 -B /home/jetson/project-atlas-migration/snapshot-runtime-once-20261031/recovery_snapshot_supervisor.py --stage /home/jetson/project-atlas-migration/snapshot-runtime-once-20261031 --cleanup
+Restart=no
+RuntimeMaxSec=90
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077
+MemoryMax=192M
+TasksMax=32
+LimitFSIZE=16777216
+NoNewPrivileges=yes

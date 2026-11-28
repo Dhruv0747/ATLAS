@@ -1,0 +1,52 @@
+<!--
+  Project ATLAS LiDAR-guarded car-like navigation tree.
+
+  ATLAS cannot spin in place. The path is re-checked once per second and replanned around obstacles when it
+  becomes blocked (2026-11-15). When planning or following fails, clear stale costmaps, attempt one short
+  collision-checked reverse escape, and replan.
+  All reverse motion is bounded by the local costmap and the full footprint.
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="6" name="NavigateWithRecovery">
+      <!--
+        2026-11-15 (owner: "if something is in the path ATLAS should find its own way, not just stop"):
+        keep the committed path while it stays valid, but check it once per second against the global costmap
+        (LiDAR obstacle layer) and REPLAN AROUND an obstacle as soon as the path becomes blocked. Same pattern as
+        Nav2's navigate_w_replanning_only_if_path_becomes_invalid.xml. The controller, costmaps and the mux
+        guards (LiDAR availability, ultrasonic stop distance, camera gate) still stop the rover if needed.
+      -->
+      <PipelineSequence name="NavigateReplanIfBlocked">
+        <RateController hz="1.0">
+          <RecoveryNode number_of_retries="1" name="ComputePathToPose">
+            <Fallback name="KeepPathWhileValid">
+              <ReactiveSequence>
+                <Inverter>
+                  <GlobalUpdatedGoal/>
+                </Inverter>
+                <IsPathValid path="{path}"/>
+              </ReactiveSequence>
+              <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+            </Fallback>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
+          </RecoveryNode>
+        </RateController>
+        <RecoveryNode number_of_retries="1" name="FollowPath">
+          <FollowPath path="{path}" controller_id="FollowPath"/>
+          <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+      </PipelineSequence>
+      <ReactiveFallback name="RecoveryFallback">
+        <GoalUpdated/>
+        <RoundRobin name="RecoveryActions">
+          <Sequence name="ClearCostmaps">
+            <ClearEntireCostmap name="ClearLocalCostmap-Recovery" service_name="local_costmap/clear_entirely_local_costmap"/>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Recovery" service_name="global_costmap/clear_entirely_global_costmap"/>
+          </Sequence>
+          <BackUp backup_dist="0.18" backup_speed="0.12" time_allowance="5.0"/>
+          <Wait wait_duration="2"/>
+        </RoundRobin>
+      </ReactiveFallback>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>

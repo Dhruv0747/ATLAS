@@ -20,12 +20,25 @@ from cv_bridge import CvBridge
 
 
 def build_pipeline(sensor_id, width, height, framerate, ee_strength,
-                   tnr_strength, exposure_compensation):
+                   tnr_strength, exposure_compensation, saturation, wbmode,
+                   sensor_mode=-1, ae_lock=False, awb_lock=False, ae_antibanding=1):
+    # Issue #11 (25 Oct 2026): optional Argus controls. Each is added only when it differs from
+    # the Argus default, so the default pipeline string is byte-identical to the earlier one.
+    extra = ''
+    if int(sensor_mode) >= 0:
+        extra += f'sensor-mode={int(sensor_mode)} '
+    if ae_lock:
+        extra += 'aelock=true '
+    if awb_lock:
+        extra += 'awblock=true '
+    if int(ae_antibanding) != 1:
+        extra += f'aeantibanding={int(ae_antibanding)} '
     return (
-        f'nvarguscamerasrc sensor-id={sensor_id} '
+        f'nvarguscamerasrc sensor-id={sensor_id} {extra}'
         f'ee-mode=2 ee-strength={ee_strength} '
         f'tnr-mode=2 tnr-strength={tnr_strength} '
-        f'exposurecompensation={exposure_compensation} ! '
+        f'exposurecompensation={exposure_compensation} '
+        f'saturation={saturation} wbmode={wbmode} ! '
         f'video/x-raw(memory:NVMM),width={width},height={height},'
         f'framerate={framerate}/1 ! '
         f'nvvidconv ! video/x-raw,format=BGRx ! '
@@ -48,10 +61,17 @@ class CameraNode(Node):
         self.declare_parameter('edge_enhancement', 0.40)
         self.declare_parameter('noise_reduction', 0.25)
         self.declare_parameter('exposure_compensation', -0.15)
+        self.declare_parameter('saturation', 1.0)
+        self.declare_parameter('white_balance_mode', 1)
         # Off by default: full-frame CLAHE costs too much latency for rover driving.
         # It remains available for stationary inspection through a ROS parameter.
         self.declare_parameter('adaptive_contrast', False)
         self.declare_parameter('contrast_clip_limit', 1.6)
+        # Issue #11: dashboard camera settings (defaults keep the previous pipeline unchanged).
+        self.declare_parameter('sensor_mode', -1)
+        self.declare_parameter('ae_lock', False)
+        self.declare_parameter('awb_lock', False)
+        self.declare_parameter('ae_antibanding', 1)
 
         self.frame_id = self.get_parameter('frame_id').value
         self.jpeg_quality = self.get_parameter('jpeg_quality').value
@@ -69,6 +89,12 @@ class CameraNode(Node):
             self.get_parameter('edge_enhancement').value,
             self.get_parameter('noise_reduction').value,
             self.get_parameter('exposure_compensation').value,
+            self.get_parameter('saturation').value,
+            self.get_parameter('white_balance_mode').value,
+            self.get_parameter('sensor_mode').value,
+            self.get_parameter('ae_lock').value,
+            self.get_parameter('awb_lock').value,
+            self.get_parameter('ae_antibanding').value,
         )
 
         self.bridge = CvBridge()
@@ -110,22 +136,31 @@ class CameraNode(Node):
             frame = cv2.cvtColor(
                 cv2.merge((light, a_channel, b_channel)), cv2.COLOR_LAB2BGR)
 
+        # Keep Argus drained at the commissioned cadence, but do not construct
+        # multi-megabyte ROS payloads that have no matched DDS consumer.
+        raw_subscribers = self.pub_raw.get_subscription_count()
+        compressed_subscribers = self.pub_compressed.get_subscription_count()
+        if raw_subscribers == 0 and compressed_subscribers == 0:
+            return
+
         stamp = self.get_clock().now().to_msg()
 
-        img_msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
-        img_msg.header.stamp = stamp
-        img_msg.header.frame_id = self.frame_id
-        self.pub_raw.publish(img_msg)
+        if raw_subscribers > 0:
+            img_msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+            img_msg.header.stamp = stamp
+            img_msg.header.frame_id = self.frame_id
+            self.pub_raw.publish(img_msg)
 
-        ok_enc, buf = cv2.imencode(
-            '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
-        if ok_enc:
-            comp_msg = CompressedImage()
-            comp_msg.header.stamp = stamp
-            comp_msg.header.frame_id = self.frame_id
-            comp_msg.format = 'jpeg'
-            comp_msg.data = buf.tobytes()
-            self.pub_compressed.publish(comp_msg)
+        if compressed_subscribers > 0:
+            ok_enc, buf = cv2.imencode(
+                '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
+            if ok_enc:
+                comp_msg = CompressedImage()
+                comp_msg.header.stamp = stamp
+                comp_msg.header.frame_id = self.frame_id
+                comp_msg.format = 'jpeg'
+                comp_msg.data = buf.tobytes()
+                self.pub_compressed.publish(comp_msg)
 
     def destroy_node(self):
         if self.cap is not None:

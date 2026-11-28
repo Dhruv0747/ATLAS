@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "source_commit": "04f9ad09025651e954d4e9bab03314a6a3700252",
+  "deployment_ready": true,
+  "scope": "diagnostic_files_only",
+  "target_root": "/home/jetson",
+  "installation_approval_required": true,
+  "activation_authorized": false,
+  "files": [
+    {
+      "path": "project_atlas/tools/stage20_public/tools/diagnostics/stage20_capture.py",
+      "before": "082284d40b2f5c6c7e829dba8054ac0dbc6b06b95c95fb5d7143312d30ab9862",
+      "after": "38e06951c7c674e157d1312e1666e11b876efef0d73083c562f23008ee0818e5",
+      "source": "project_atlas/tools/diagnostics/stage20_capture.py"
+    },
+    {
+      "path": "project_atlas/tools/stage20_public/tools/diagnostics/stage20_production_gate.py",
+      "before": "5e5451db2acce9bb056abc6492ab09df677d9f80a48ee214959b45de4d5ed3a9",
+      "after": "3c8a1c81567ec2befa9fc03f4ad29234edbc874c8de71863d22e9c0d7ea88eea",
+      "source": "project_atlas/tools/diagnostics/stage20_production_gate.py"
+    },
+    {
+      "path": "project_atlas/tools/stage20_public/tools/diagnostics/stage20_capture_integrity.py",
+      "before": "976cc31a64264fa3c3c4eee591498198a2ab0603df729671428ecee97f0011d1",
+      "after": "5e3d4f84415a56b9df674243c6e96442a5655f0cdf41f5c51b4df27e33c8a7df",
+      "source": "project_atlas/tools/diagnostics/stage20_capture_integrity.py"
+    },
+    {
+      "path": "project_atlas/tools/stage20_public/atlas-stage20-public-capture.service",
+      "before": "7360889d419ac2242f26aacb99435849ae4b4fa97726a5d32aafb17a3098db4a",
+      "after": "324eaaad5b207192fccc5caf6ff3f9a05c5cadb32e8e639568f4b2e1e2284970",
+      "source": "project_atlas/tools/diagnostics/stage20_public_capture.stationary30.service.in"
+    },
+    {
+      "path": ".config/systemd/user/atlas-stage20-public-capture.service",
+      "before": "7360889d419ac2242f26aacb99435849ae4b4fa97726a5d32aafb17a3098db4a",
+      "after": "324eaaad5b207192fccc5caf6ff3f9a05c5cadb32e8e639568f4b2e1e2284970",
+      "source": "project_atlas/tools/diagnostics/stage20_public_capture.stationary30.service.in"
+    }
+  ],
+  "unchanged_baseline": {
+    "project_atlas/tools/stage20_public/scripts/atlas_motion_recorder.py": "7110961ca9692f6b692a2ad5fccbe08f7775d624127d43b1bf087cffc4c63930",
+    "project_atlas/tools/stage20_public/scripts/atlas_motion_recorder_core.py": "c12a735ad05c61e659f405541dc3dbeb6e1c5706aacb44484f0d9f7af87b0e01",
+    "project_atlas/tools/stage20_public/scripts/atlas_motion_recorder_writer.py": "3ca1adb5aa77875c32d99a7af117329da9bfa36eb692099c06788cfc4811a112",
+    "project_atlas/tools/stage20_public/tools/diagnostics/stage19_contract.py": "ace61dce76fe8c39f5524e93cd57139f3645f32b7b799fd06c8eac9491d6a965",
+    "project_atlas/tools/stage20_public/tools/diagnostics/stage20_public_preflight.py": "36b8bcc2f90b44cd3d46add5610f357c7ea765d22155117a7b676a6417f3fa2a"
+  }
+}

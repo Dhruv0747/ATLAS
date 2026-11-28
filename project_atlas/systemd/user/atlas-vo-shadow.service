@@ -1,0 +1,23 @@
+[Unit]
+Description=ATLAS camera visual odometry, SHADOW MODE (Astra depth, private domain 77; publishes estimates only, never feeds EKF/Nav2) - master-plan step 7
+After=atlas-astra-obstacles.service
+PartOf=atlas-astra-obstacles.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+Environment=ROS_DOMAIN_ID=77
+Environment=OMP_NUM_THREADS=1
+Environment=OPENBLAS_NUM_THREADS=1
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec /usr/bin/python3 /home/jetson/project_atlas/scripts/atlas_vo_shadow.py'
+Restart=on-failure
+RestartSec=10
+# 78 = refused (wrong ROS domain): fix, do not restart-loop.
+RestartPreventExitStatus=78
+CPUQuota=20%
+Nice=10
+MemoryMax=200M
+
+[Install]
+WantedBy=default.target

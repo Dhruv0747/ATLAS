@@ -1,0 +1,1568 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-11-12",
+  "timezone": "Asia/Calcutta",
+  "scope": "Initial project-wide historical baseline; incomplete deep audit, not a claim of exhaustive session/log review",
+  "source_baseline": "3d66c3812c968796fed70b7f32dae511aadeed45",
+  "confidence_values": [
+    "CONFIRMED",
+    "SUSPECTED"
+  ],
+  "resolution_values": [
+    "UNRESOLVED",
+    "VERIFIED FIXED"
+  ],
+  "issues": [
+    {
+      "id": "ATLAS-DEPTH-PREVIEW-REPEATED-LAYOUT-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Synthetic160x120 cProfile confirms19201 layout validations per conversion. WSL21.2535->9.6043ms (54.81% less); identical PNG output.94 tests pass.",
+      "candidate": "Single core file validates immutable layout once; standalone measurement validation remains. OFFLINE ONLY, not deployed.",
+      "remaining_gap": "Live aggregate CPU spike attribution unavailable; no Jetson savings or3D Preview success proven. Previous direct launch was deployed08ad26f; test06ed75f reached17frames then stopped76.0757%.",
+      "report": "ATLAS_STAGE32_PREVIEW_CPU_OPTIMIZATION.md"
+    },
+    {
+      "id": "ATLAS-ASTRA-REDUNDANT-WORKER-ROS-SETUP-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Last rejection before hashing/snapshot/driver. Repeated shell ROS setup contributes measurable PC startup work:0.162734 vs0.055208 CPU seconds,7 runs. Actual Jetson savings unknown.",
+      "candidate": "Direct Python inheriting sourced parent environment, same prelaunch seed/guards/driver mode settings;79 tests pass; NOT DEPLOYED.",
+      "report": "ATLAS_STAGE32_DIRECT_WORKER_LAUNCH.md"
+    },
+    {
+      "id": "ATLAS-ASTRA-STARTUP-GUARD-COVERAGE-20261021",
+      "deployment_followup": "74ff38f single file installed/hash verified; approved web restart, CPU peak99.83 settled under75 by27s. Sensor/protected PIDs unchanged.12 offline coverage tests pass; no live worker/camera activation. See ATLAS_STAGE32_STARTUP_GUARD_DEPLOYMENT.md. Hardware coverage validation remains pending.",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Old worker starts CPU baseline after imports/full manifest hashing; observer saw78.8889% before admission. New offline candidate captures baseline before worker spawn and checks during bounded hashing.77 tests pass; deployment and hardware validation pending.",
+      "candidate": "Single-file candidate; PC allocation down97%, CPU time increased. Not a proven aggregate CPU fix. Calibration preparation remains independent.",
+      "report": "ATLAS_STAGE32_STARTUP_COVERAGE_CANDIDATE.md"
+    },
+    {
+      "id": "ATLAS-ASTRA-CONCURRENT-CPU-CANCEL-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Worker CPU78.4615% rejection; driver signal handler precedes invalid context26.874ms; OpenNI connected serial17122120830. Exact original guardian signal monotonic timestamp absent. Additional CPU cause/RGB contention unverified.",
+      "candidate": "abc6837 cleanup DEPLOYED with matching hash; ONE test CPU77.104377% stopped, driver reaped0, Dashboard receiver6 depth/0 RGB. No restart/retry. Startup observer78.8889% before worker admission exposes guard coverage gap; optimization design only, no CPU reduction claim. See ATLAS_STAGE32_CLEANUP_LIVE_RESULT_20261021.md.",
+      "report": "ATLAS_DEPTH_RGB_STARTUP_FAILURE_20261021.md"
+    },
+    {
+      "id": "ATLAS-STAGE32-USB-ACL-LOSS-20261021",
+      "permanent_access_audit": "Owner-restored jetson RW ACLs verified, direct access passes. CPU75.2902% abort before install/Start, no retry. Offline two-interface topology-bound group0660 proposal; eight static tests pass, native isolated matching and deployment approval pending. Serial dialout access already works; radar topic via UNO; motor/IMU/GPS CH340 by-id collision, stale unused motor alias; LiDAR vendor0666 exposure preserved for separate review. No system changes. See ATLAS_PERMANENT_USB_ACCESS_AND_REBOOT_RECOVERY.md.",
+      "approved_recovery_attempt": "2026-10-21 20:44: three fresh safety/resource samples pass; CPU70.4293-73.2026%, RAMmax66.7793%, tempmax59.875C. Protected PIDs unchanged. sudo password required, so no installation/ACL change/camera test. Persistent device-specific permissions proposed only. Original ACL state preserved.",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Depth admission stopped at1.2004s, zero samples. 2bc5:0403 at001/014 and2bc5:0501 at001/011 unchanged; named jetson RW ACL absent; direct open errno13 on both. New boot since prior deployment; exact prior node removal not retained. No attributed Astra power/reset evidence.",
+      "candidate": "Offline diagnostic error split and bounded lsusb; preserve existing node selection, all guards and modes. Targeted ACL restoration requires approval. No camera start or production deployment.",
+      "report": "docs/audits/ATLAS_STAGE32_USB_ACCESS_20261021.md"
+    },
+    {
+      "id": "ATLAS-STAGE32-IR-ACCEPTANCE-EVIDENCE-20261021",
+      "conditional_install_result": "2026-10-21: owner-approved installation passed preflight/hash/ARM64 dependency load; post-web-restart CPU95.6376% failed75% guard. All three files rolled back with exact hashes, web alone restarted for installation and rollback. NO IR SESSION STARTED, no retry. Final E-STOP/manual-only/zero/sensor checks, Pi JPEG200, protected identities and backups verified. Restart CPU cause unverified; IR root cause unresolved. See section19 and durable stage32-instrumented-approved-20261021 evidence.",
+      "driver_instrumentation": "2026-10-21: incremental ARM64 driver instrumentation build PASS; bounded OpenNI readiness/read/callback/conversion/publish/subscriber counters plus API/browser counts. 94 regressions and3 instrumentation tests PASS, one dependency skip; synthetic179/180 received, zero rejects. Three-file package and rollback rehearsed, NOT installed. Ten live hashes unchanged. Root cause remains unresolved; one separately approved instrumented test needed. Stage32 section18.",
+      "offline_follow_up": "2026-10-21: pinned driver silently continues on OpenNI wait failure; no saved frame-read/publish counts or live topic graph. PC native Domain77 synthetic test:180 callbacks, zero rejects. Diagnostic-only status/count-retention fix and two-file rollback package prepared, NOT deployed. Real delivery cause unresolved; need discriminating OpenNI wait/read/publish counters plus receiver discovery, not another unchanged camera start. See report section17.",
+      "instrumented_follow_up": "Separately approved one IR-only revalidation: zero IR callbacks across11 saved ACTIVE samples, monitor stopped after >10s unavailable. Driver reports320x240@30 started; no actual encoding/dimensions/timestamps/FPS delivered. Peak guardCPU69.78%,RAM70.09%,59.47C. Not a resource rejection. Protected services/hashes unchanged; recorder/Astra OFF, E-STOP latched. Delivery failure now confirmed for this attempt, actual publication/receiver cause unverified. A3 held; no retry. Stage32 report section16.",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "evidence": "Recovered A1 deployment and A2 attempt. IR driver started320x240@30; stop reason viewer paused or closed after24.47s, active CPU64.25-69.32%. VisionService.stop clears frame statistics; retained zero counts cannot prove no frames. No Dashboard FPS/encoding/timestamp evidence retained.",
+      "remaining_gap": "A2 delivery unverified, not hardware-failure proof. A3 blocked pending prior browser evidence or separately approved instrumented IR revalidation. No test repeated. A4 firmware5.8.22 identity recovered, calibration remains unvalidated; unsigned zero-plane-distance decoding not usable geometry.",
+      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md#15-recovered-live-handover-evidence--21-october-2026"
+    },
+    {
+      "id": "ATLAS-ASTRA-DDS-DISCOVERY-FANOUT-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "date": "2026-10-21",
+      "description": "Any new ROS participant in production domain 0 makes ~34 existing (mostly Python rclpy) nodes process discovery for ~3 s, adding ~20-27 whole-machine CPU points on a 65% parked baseline. This, not camera frame handling, trips the 75% Vision Lab guard at Astra start (77.9/75.9/83.2/80.8% observed) and also tripped the camera-free Stage30 probe (81.7%).",
+      "evidence": "Passive /proc per-second sampling around one read-only ros2 topic list: domain 0 -> 75.1/92.0/92.1%, 34 processes +3-5% one-core each; domain 77 -> single 76.6% sample (joiner start-up only), no other process affected. evidence/stage31_astra/jp_main.json, jp_iso.json, jp_none.json.",
+      "attempted_fix": "Astra driver launched with ROS_DOMAIN_ID=77 and Vision Lab receiver uses RosTransport(domain_id=77) instead of the production Foxglove bridge; refuses if domain 77 is already in use. Camera-free Jetson probe received 300 synthetic frames at 30.01 Hz with whole-machine CPU 63-68% (one 74.5% probe-start sample). Not deployed; no camera start performed.",
+      "remaining_gap": "Projected start peak ~73% vs 75% limit (2-point margin on a 62-67% baseline). Needs owner-approved install (rover-status-web restart) and one guarded Depth start; if it still trips, a measured owner policy decision (nice-aware CPU accounting, viewing quiet mode or consecutive-sample rule).",
+      "safety": "No threshold, service, DDS configuration, motor, steering, map or navigation change. Production domain untouched.",
+      "reference": "ATLAS_NEW_DEVELOPER_HANDOVER_AND_RECOVERY.md",
+      "deployment_follow_up": "2026-10-21 14:28 owner-approved install (rover-status-web restart only). Live session: driver ROS_DOMAIN_ID=77, domain-0 SHM participant ports unchanged (102), real depth frames on Dashboard ~11 s with post-launch guard samples 63.5-69.4%; then one 77.8% sample stopped it (unattributed; coincided with mid-session SSH observer). Start-up fan-out fixed; sustained viewing not yet verified. Evidence: ATLAS_STAGE31_LIVE_DEPLOYMENT.md.",
+      "verification": "2026-10-21 15:09 after Stage31B 1-s guard window: one 60 s Depth-only session completed, 607 frames, guard samples 63.7-71.1% (limit 75% unchanged). Evidence ATLAS_STAGE31B_LIVE_DEPLOYMENT.md. Single session; not an endurance qualification."
+    },
+    {
+      "id": "ATLAS-VISION-GUARD-CPU-BEFORE-HTTP-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "deployment_follow_up": "2026-10-21 owner-approved three-file ac34cd3 package installed with exact hashes/backups, no restart. Real Dashboard test rejected CPU80.7786 before HTTP and retained Astra43.5182% one-core CPU/54440KiB. Zero depth frames; broader camera startup resource block remains UNRESOLVED. No retry. Evidence: ATLAS_STAGE30_ASTRA_RESOURCE_RECOVERY.md final section.",
+      "evidence": "Code read CPU then waited for dashboard HTTP before rejecting an already-failed sample; isolated runs also exposed HTTP timeouts and missed attribution. Candidate rejects CPU>75/nonfinite before HTTP, batches identical service reads, shares an existing lightweight safety snapshot and preserves process metrics.119 focused tests pass; production unchanged. Wider ROS-startup CPU contention and stable viewing remain unresolved.",
+      "reference": "ATLAS_STAGE30_ASTRA_RESOURCE_RECOVERY.md"
+    },
+    {
+      "id": "ATLAS-ASTRA-FACTORY-CALIBRATION-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "evidence": "Read-only OpenNI property14 returned success and120 bytes but all factory fields NaN. Concurrent ROS RGB/depth passed with FOV-derived fallback CameraInfo; metric PointCloud2 withheld. This does not prove hardware failure or that every alternative calibration access path fails.",
+      "reference": "ATLAS_ASTRA_PRO_CALIBRATION_AND_POINTCLOUD_VALIDATION.md",
+      "follow_up": "120-byte layout matches pinned header, so simple struct-size mismatch is unsupported. Vendor checks only left intrinsics for NaN and ignores property status; weakness confirmed, NaN cause unproven. Alternative supported read paths and physical calibration remain pending. No live modification;94 targeted offline tests pass."
+    },
+    {
+      "id": "ATLAS-ASTRA-USER-CPU-CONTROLLER-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "evidence": "User cgroup controllers contain memory/pids only; cpu.max absent. Requested CPUQuota is not enforcement. Global CPU controller left unchanged to preserve robot timing.",
+      "scoped_fix": "Stage29 continuation built ARM64 runtime offboard and verified concurrent ROS RGB/depth. Owner explicitly authorized CPU-report-only bounded stationary testing; normal production CPU75 safeguard unchanged. Concurrent CPU mean82.586/peak99.860%, RAM67.974%, thermal64.062C. Test runtime stopped; global CPU stability/headroom remains unresolved.",
+      "reference": "ATLAS_ASTRA_PRO_3D_VISION_LAB.md",
+      "deployment_follow_up": "Read-only Vision Lab deployed with default75% CPU guard. First explicit depth-only attempt stopped at77.9097%; no frame reached viewer. Page/guard verified, live camera and CPU headroom not passed. Six protected identities unchanged; no retry/override. See ATLAS_3D_VISION_LAB_LIVE_DEPLOYMENT.md."
+    },
+    {
+      "id": "ATLAS-UNO-SILENCE-WALLCLOCK-20261020",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "date": "2026-10-20",
+      "description": "Serial silence watchdog used calendar time: reproduced delayed stale reopening after backward clock correction and spurious reopening after forward correction. Switched receive/deadline elapsed time to monotonic without changing eight-second threshold.67 offline tests pass; scoped live bridge deployment verified. This does NOT prove the cause of the preceding I2C lockup or subsequent kernel USB enumeration failure; those remain unresolved.",
+      "evidence": [
+        "docs/audits/ATLAS_I2C_USB_RECOVERY_2026-10-20.md",
+        "project_atlas/tests/test_sensor_hub_transport_clock.py"
+      ]
+    },
+    {
+      "id": "20261015-stage24-amcl-seed-success",
+      "confidence": "CONFIRMED",
+      "resolution": "SEEDED_PARKED_STABLE_MOVING_UNVALIDATED",
+      "date": "2026-10-15",
+      "description": "One owner-authorized AMCL seed at 20:52:54 via seed_atlas_localization.py --verify-place 'dhruv room': LiDAR-verified (0.235,-1.435,78.0) fit 0.981 margin 0.105, 0.0 m / 3 deg from Candidate C. AMCL settled at (0.158,-1.400,74.3), std 0.022 m / 1.4 deg. 10-minute parked watch (20 samples): max step 0.015 m, no jump, 21 monitor checks VERIFIED (fit 0.981-0.985), 0 of 2838 cmd_vel non-zero. Dashboard feed reports Localization verified / Stopped; rendered page not seen by the agent. Seed is in the running AMCL only; boot verification unchanged. Global CHECK MY LOCATION ambiguity not proven fixed for other placements. Moving validation pending separate approval.",
+      "evidence": [
+        "ATLAS_STAGE24_AMCL_SEED_VALIDATION.md"
+      ],
+      "safety": "Latched, manual-only true, disarmed, commands zero; Stage 21/22/24 hashes unchanged; no restart, no movement, no recording."
+    },
+    {
+      "id": "20261015-stage24-poses-were-physical-moves",
+      "confidence": "CONFIRMED",
+      "resolution": "RESOLVED_FOR_LOCALIZATION_POSE; ODOMETRY_RESPONSE_TO_HAND_MOVES_UNRESOLVED",
+      "date": "2026-10-15",
+      "description": "Candidates A (0.115,-2.155) and B (0.335,-0.935) were each correct for the rover's placement at the time; ATLAS was physically moved at ~19:46 and ~20:19 and now sits at C (0.235,-1.435,75). Evidence: beam-by-beam range comparison (0 to 3 mm within stationary periods, 0.19 and 0.34 m median across moves), monitor MOVING bursts at those times, owner CHECK MY LOCATION at 20:17:45 returned B. /odom and /yahboom/odom stayed at (-0.0255,-0.0001), so odometry is blind to hand moves (cause lifted vs slid unconfirmed). Blind right/front-right sector at the old spot is placement-dependent, cause unproven. Supersedes the 'stationary rover, two poses' reading in 20261015-stage24-live-deploy-seed-blocked. Tape confirmation and seed approval pending. OWNER CONFIRMED 2026-10-15 20:49: the moves at ~19:46 and ~20:19 were deliberate forward/back tests inside Dhruv Room. Odometry mechanism still unconfirmed (carried, slid, or rolled without registering); raw wheel counts changed only ~90 on one wheel between 20:37 and 20:50.",
+      "evidence": [
+        "ATLAS_STAGE24_POST_DEPLOYMENT_LOCATION_RECOVERY.md"
+      ],
+      "safety": "Read-only. Latched, manual-only true, commands zero, AMCL unseeded; Stage 21/22/24 hashes unchanged; no restart, no movement."
+    },
+    {
+      "id": "20261015-stage24-live-deploy-seed-blocked",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-15",
+      "description": "Stage 24 deployed (3 files MATCH). Stationary ATLAS (/odom -0.012 m since boot) produced two different VERIFIED poses: 19:44 in-room (0.115,-2.155,71.5) vs 20:08 (0.335,-0.935,72.0), fit 1.0 margin 0.116, LiDAR front arcs now populated (cause unknown). AMCL not seeded; seed conditions not met. Global ambiguity not proven fixed.",
+      "evidence": [
+        "ATLAS_STAGE24_LOCALIZATION_DEPLOYMENT.md"
+      ],
+      "safety": "Latched, manual-only true, commands zero; Stage 21/22 hashes unchanged; no restart, no movement."
+    },
+    {
+      "id": "20261015-background-search-cpu-burst",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-15",
+      "description": "Paced suggest-only background search preserves exact results and original deadline; monitor peak falls from74.27 to23.24 percent of one core. Total system still peaks78.696 percent. Largest remaining peak coincides with polkitd32.29 percent of one core, but requester/cause is unverified. Unprivileged header-only system-bus monitor denied; no security/network changes made.",
+      "evidence": [
+        "ATLAS_BACKGROUND_SEARCH_CPU_20261015.md"
+      ],
+      "safety": "Manual-only, E-STOP latched, commands zero, recorder OFF; essential control/localization/camera service identities and steering calibration preserved.56 focused tests pass; not a localization or recorder-admission pass."
+    },
+    {
+      "id": "20261015-unused-ai-preview-and-manual-override",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "description": "AI rendered unconsumed previews; fixed demand-only rendering. Live manual-only override drifted to zero; restored one. These do not explain all CPU peaks: total sustained headroom remains unresolved. Runtime suggest-only search quota trial rejected and restored to original 60 percent without restart.",
+      "date": "2026-10-15",
+      "evidence": [
+        "ATLAS_PARKED_CPU_MANUAL_ONLY_20261015.md"
+      ],
+      "safety": "E-STOP latched, commands zero, recording OFF, steering unchanged. Final short check passes; longer CPU peaks still exceed 75 percent."
+    },
+    {
+      "id": "ATLAS-NANO-CV-THERMAL-POLICY-20261015",
+      "title": "Admission incorrectly requires absent Orin Nano CV thermal readings",
+      "first_available_occurrence": "2026-10-15",
+      "latest_reviewed_occurrence": "2026-10-15",
+      "subsystem": "PC-supervised diagnostic thermal admission",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "confirmed_findings": "NVIDIA staff documents CV0/1/2 as expected offline on Orin Nano because DLA/PVA hardware is absent. Fresh runtime device-tree identifies Orin Nano Super, CV reads return EAGAIN. Requiring every sysfs zone caused a false thermal admission failure.",
+      "attempted_fix": "Only CV-temp EAGAIN on freshly identified Orin Nano is not_applicable with null temperature and retained errno/path. Six CPU/GPU/SoC/TJ readings required. Other models/errors remain strict and all available temperatures retain70C limit. 26 offline tests and one authorized read-only Jetson check verify thermal correction.",
+      "remaining_verification": "Overall admission remains BLOCKED on CPU interval77.891156%>75% and manual_only=false. E-STOP latched, zero commands, commission disarmed and Stage20 OFF verified. No live recording, movement, production deployment or service changes.",
+      "evidence": [
+        "ATLAS_ORIN_NANO_CV_THERMAL_POLICY_FIX.md",
+        "project_atlas/tools/diagnostics/offboard_bridge_preflight.py",
+        "project_atlas/tools/diagnostics/test_offboard_bridge_preflight.py"
+      ]
+    },
+    {
+      "id": "ATLAS-BRIDGE-THERMAL-READ-20261015",
+      "title": "Thermal admission text-read failure loses attribute path and traceback",
+      "first_available_occurrence": "2026-10-15",
+      "latest_reviewed_occurrence": "2026-10-15",
+      "subsystem": "PC-supervised diagnostic admission probe",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "confirmed_findings": "Saved preflight aborted during thermal collection with TypeError: can't concat NoneType to bytes and no attribute path/traceback. Offline UTF-8 TextIOWrapper over a None-returning raw stream reproduces the exact error. The original Jetson failing read and underlying cause are not verified.",
+      "attempted_fix": "Offline software handling only: bounded binary reads, strict parsing, per-path exceptions/tracebacks, duplicate-zone preservation, no retry or default temperature. Every unavailable thermal attribute still blocks admission. 13 new tests and 4 receive-only contract regressions pass on Ubuntu22.04 Python3.10.",
+      "remaining_verification": "VERIFIED FIXED applies to software read/error handling. One later authorized Jetson probe identified EAGAIN at CV0/1/2 with six other readings below70C; current gate remains blocked. Why CV zones are unavailable is unverified. Follow-up safety queries timed out; full stationary admission remains unvalidated. No recording, deployment or movement; safeguards unchanged.",
+      "evidence": [
+        "ATLAS_PC_BRIDGE_STATIONARY_ATTEMPT_20261015.md",
+        "ATLAS_PC_BRIDGE_TEMPERATURE_OFFLINE_FIX.md",
+        "ATLAS_PC_BRIDGE_TEMPERATURE_JETSON_CHECK.md",
+        "project_atlas/tools/diagnostics/test_offboard_bridge_preflight.py"
+      ],
+      "events": [
+        {
+          "date": "2026-10-15",
+          "kind": "authorized_readonly_jetson_probe",
+          "description": "Corrected probe read six zones59.625–60.656C and identified cv0/cv1/cv2 temp EAGAIN. CPU5s mean69.87%, max71.43%, RAM66.46%. Full gate blocked before dashboard/service inspection. Separate safety SSH queries timed out over Tailscale and LAN; fresh stop/recorder state unverified. No recording or movement."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-STATIONARY30-STATIC-TF-20261014",
+      "title": "Candidate stationary recorder missed retained static TF after preflight",
+      "first_available_occurrence": "2026-10-14",
+      "latest_reviewed_occurrence": "2026-10-14",
+      "subsystem": "isolated diagnostic recorder candidate",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "confirmed_findings": "Strict native fixture published static TF only during preflight; candidate bag missed it and correctly failed completeness. Production recorder unchanged.",
+      "attempted_fix": "New profile reliable transient subscription re-created after preflight; native final bag includes retained TF and exact CDR ledger verification passes. Deadline cancellation completeness also unit-tested.",
+      "remaining_verification": "Source-only scope. Live deployment/activation not approved; CPU admission remains blocked. Five AMCL jumps unresolved; fusion candidate performance unknown.",
+      "evidence": [
+        "ATLAS_NEXT_LOCALIZATION_MILESTONE.md",
+        "ATLAS_MINIMAL_WHEEL_POSE_FUSION_EVALUATION.md"
+      ]
+    },
+    {
+      "id": "ATLAS-DASHBOARD-JSON-20261014",
+      "title": "Avoidable dashboard JSON whitespace serialization, insufficient to explain total CPU",
+      "first_available_occurrence": "2026-10-14",
+      "latest_reviewed_occurrence": "2026-10-14",
+      "subsystem": "dashboard API",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "confirmed_findings": "Native isolated actual-response benchmark shows54–61% serialization CPU savings with compact JSON and equal decoded values. Absolute modeled saving about0.06 whole-machine percentage points for one stated client workload; not sufficient headroom recovery.",
+      "attempted_fix": "Source e364e932b997342214738c6196cf856a4de38132; no deployment. Preserve ages, values, rates, safety and nonfinite sanitization. Minimal live-only candidate required because repository contains undeployed steering integration.",
+      "remaining_verification": "Live stack profiler permission denied and sudo requires password. Dominant CPU source, production callback timing and parked-load A/B remain unverified; no service restart authorized.",
+      "evidence": [
+        "ATLAS_STAGE20_CPU_OPTIMIZATION_REPORT.md"
+      ]
+    },
+    {
+      "id": "ATLAS-STAGE20-CPU-20261014",
+      "title": "Stage20 postflight resource refusal lost exact measurement",
+      "first_available_occurrence": "2026-10-14",
+      "latest_reviewed_occurrence": "2026-10-14",
+      "subsystem": "diagnostic installation admission",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "confirmed_findings": "Previous installation succeeded but outer postflight resource refusal required rollback. Exact rejected sample was not retained. Read-only monitoring now observes CPU above75% without installation or collector. Later rollback79.7% is not the original rejected sample.",
+      "attempted_fix": "Installer-only exact five-interval evidence and transactional postflight rollback; thresholds and nine public runtime files unchanged. Source bb8ec665ed5474d7b2b0db22e9b5624ddd137b06. No production installation.",
+      "rejected_experiments": "No threshold relaxation, low-sample retry loop, production workload suppression or live daemon-reload for benchmarking.",
+      "remaining_verification": "Production admission headroom and separately authorized installation. Historical spike attribution cannot be recovered from missing evidence.",
+      "evidence": [
+        "ATLAS_STAGE20_CPU_HEADROOM_AND_INSTALLATION_FIX.md",
+        "ATLAS_STAGE20_SUPERVISED_RETRY_RESULT.md"
+      ]
+    },
+    {
+      "id": "ATLAS-021",
+      "title": "Unknown LiDAR sectors grant recovery motion; controller inflation conversion mismatch",
+      "first_available_occurrence": "2026-10-11",
+      "latest_reviewed_occurrence": "2026-10-11",
+      "subsystem": "recovery / collision decision",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "confirmed_findings": "Actual recovery methods treat missing sectors as infinity and accept above-range-max samples. Four offline safety assertions failed. Runtime controller inflation conversion is 3, local costmap factor 15. No physical incident attribution established.",
+      "test_results": "Full installed RPP/controller-server/obstacle-layer replay plus exact live-based mux guard: 15/15 checks. Native RPP 11/11. Offline 38 tests pass. Unknown rear and old/missing scans produce final zeros with guard; clear straight/arcs and manual source preserved. Physical loaded validation remains open.",
+      "remaining_verification": "Both approved fixes deployed with matching hashes and runtime factor 15; direct ROS stop and remote input verified. Real scans have missing observation bins (68/68 dry checks veto autonomy); safe swept-path observation qualification, loaded stopping/timeout qualification, moving localization and autonomous acceptance remain unresolved.",
+      "evidence": [
+        "docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md",
+        "docs/audits/ATLAS_NAVIGATION_GUARD_DEPLOYMENT_2026-10-11.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_CHECKPOINT_2026-10-11.md"
+      ],
+      "events": [
+        {
+          "date": "2026-10-11",
+          "kind": "parked_decision_audit",
+          "description": "No movement, goals or live configuration changes. E-STOP latched. Read-only costmap capture and no-ROS native checker fixture executed."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "isolated_controller_validation",
+          "description": "Controller-only replay continued commands with old/missing scans and unknown rear. expected_update_rate alone rejected missing arrivals but not old acquisition stamps. User approved stop-only mux guard. Exact live-based candidate passed 15 integration checks; source/live AMCL differences deliberately excluded. Two installation attempts rolled back on dashboard freshness/HTTP-timeout verification failures; direct ROS afterward observed 94 zeros, 199 latched policies, fresh sensors and inactive navigation units. No movement or autonomy enabled."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "approved_staged_deployment",
+          "description": "Guard/recovery deployed from 95add0c/14234fe with exact live-based mux patch; only mux/recovery restarted. Inflation correction 6b0f462 deployed to both YAML copies and dynamically applied 3->15 without AMCL restart. All five hashes match. Final remote check: 338 Joy, 95 zero commands, 202 latched policies; no unsafe observation. Real scan availability dry run vetoes all directions across 68 scans, a conservative unresolved usability limitation, not occupied-space proof. CPU/RAM windows and exact rollback paths in deployment report; no autonomous or physical acceptance claimed."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-020",
+      "title": "Directional LiDAR minimum mistaken for forward wall distance and variable scan density",
+      "first_available_occurrence": "2026-10-11",
+      "latest_reviewed_occurrence": "2026-10-11",
+      "subsystem": "LiDAR / dashboard / shared scan geometry",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "confirmed_findings": "0.509072 m FRONT minimum is ray 318 at base bearing -44.695 degrees; raw sensor range 0.545750 m. All 64 paired samples preserve finite ranges and their minima. Dashboard uses 90-degree quadrants, not centreline wall distance. Raw valid counts varied 1-215 in first capture; second capture 204-212.",
+      "suspected_causes_and_limits": "Physical close-object, reflection, occlusion or cable identity remains unverified. Density variation is upstream of dashboard/filter, but its physical cause is not established. No new cause of historic AMCL jumps proven.",
+      "evidence": [
+        "docs/audits/ATLAS_LIDAR_PROVENANCE_2026-10-11.md"
+      ],
+      "test_results": "26 payload-preserving samples replayed; 15 projection and seven route tests pass, plus UI logic checks and 12 isolated Jetson E-STOP regressions. New provenance core/UI not deployed.",
+      "remaining_verification": "Stage 10 diagnostic UI deployed; parked measured targets and identify persistent front-right return. Combined map/scan overlay and arbitrary-click raw metadata unfinished. No close-return removal or motion until separately qualified.",
+      "events": [
+        {
+          "date": "2026-10-11",
+          "kind": "paired_scan_provenance",
+          "description": "Confirmed measurement semantics and raw point identity; preserved all close returns and production configuration."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "stage10_live_deployment",
+          "description": "Owner-approved 1a9f077 three-file deployment, hashes and byte-identical rollback verified; only dashboard restarted. 60/60 parked requests LIVE. Owner hand-occlusion observation lacks synchronized capture; physical cause remains unknown. Passive BMS btmon denied by OS permissions."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-001",
+      "packet_receipt_timing_20261014": "Read-only Oct 9 SQLite bags: Hall-to-Dhruv encoder topics published about 10 Hz (median 100 ms, p95 about 111 ms); /atlas/encoder_update has 2919 contiguous sequences, no stale packets, packet age 21.1 ms median/41.1 ms p95. Isolated receipt gaps up to 473 ms do not explain the persistent 0.51-0.72x metric distance ratio. Headerless Int32 lacks MCU sample timestamps, so controller-internal batching or missed counts remain unexcluded. See ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md.",
+      "title": "Encoder channel response and post-replacement metric calibration",
+      "first_available_occurrence": "2026-08-04",
+      "latest_reviewed_occurrence": "2026-10-15",
+      "subsystem": "encoders / odometry",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Early M2-M4 counts absent despite visually confirmed motors; replacement restored counts. September manual 40 cm legs produced ~21 cm wheel odometry. October M3 discrepancy is unqualified by isolated pulse.",
+      "confirmed_findings": "Different historical hardware/configuration generations; fresh packets do not establish each channel's response or distance accuracy.",
+      "suspected_causes_and_limits": "Slip, per-channel scale, mapping/sign, encoder hardware, turn normalization and sample timing remain alternatives for current discrepancies.",
+      "attempted_fix_commits": [
+        "8172c00acd4bfcd8f5155a948e823a86c60cb723",
+        "146798da0d75dd4689c6f15f6476a4c26bbab28a",
+        "eeb430b17685fe99efa62cd127320aa8fa055ece",
+        "fda24a7f79719afdde398520ad1b3c2170665e90",
+        "338242b09173d0b6dee42873366ba659e172b98c",
+        "1771b1dcd733f03732a5d75f77c08295a4808c25"
+      ],
+      "evidence": [
+        "docs/NAVIGATION_FOUNDATION_AUDIT_2026-08-04.md",
+        "docs/THREE_ENCODER_GROUND_OBSERVATION_2026-09-17.md",
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md",
+        "docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md",
+        "docs/audits/ATLAS_ENCODER_SCALE_BY_SPEED_2026-10-11.md"
+      ],
+      "test_results": "Replacement had historical dynamic passes; current M3 not qualified; six Oct8 runs had zero pulse requests. Oct9 live idle health selected all M1-M4 with fresh packets; no dynamic M3 qualification follows.",
+      "remaining_verification": "After test-channel qualification: one bounded lifted M3 pulse with physical direction observation, then measured independent loaded forward/reverse runs. Never choose a channel only because it matches a desired distance. 2026-10-10: supervised tape-measured 2 m/4 m straight runs at two speeds with raw counts and /lidar/odom to resolve the ~0.6x distance scale before any CPR change.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-04",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Early M2-M4 counts absent despite visually confirmed motors; replacement restored counts. September manual 40 cm legs produced ~21 cm wheel odometry. October M3 discrepancy is unqualified by isolated pulse."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Replacement had historical dynamic passes; current M3 not qualified; six Oct8 runs had zero pulse requests."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "stopped_runtime_observation",
+          "description": "10:07 IST dashboard API: encoder state READY, packet_fresh true, selected [1,2,3,4], excluded []; physical motion response untested."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "odometry_distance_scale_vs_lidar",
+          "description": "Oct9 drives: scan-pair ICP and keyframe ICP chains (matching AMCL end-to-end displacement within 1-11%) show raw M1/M2/M4 counts at 0.60-0.62x true distance with current CPR; EKF /odom 0.41-0.54x overall and 0.36-0.54x above 0.3 m/s; M3 incoherent (-0.46, 0.31). Consistent with Sep16 (0.52) and Sep25 (0.59) tape results. Cause (CPR after motor replacement vs slip vs lost counts) not separated; no calibration changed. Evidence gap: tape-measured straight runs with raw counts."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "drive_distance_and_consensus",
+          "description": "Same drive: EKF distance 2.77 m vs 3.61 m true (0.77); encoder_health CRITICAL with all four encoders consensus-rejected at the stop (18:31:01)."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "odometry_scale_by_speed_offline",
+          "description": "Oct9 bags, 898 straight ICP scan pairs binned by ICP speed AND by encoder speed. In 0.10-0.45 m/s both binnings agree: raw M1/M4 0.64-0.72x and M2 0.51-0.64x ICP distance; slow-end values move in opposite directions between binnings (binning bias) and are not evidence. Consensus estimator keeps 97.5-99.7% of raw. An in-session claim of speed-dependent loss from the ICP-binned table alone was retracted. Constant CPR error vs constant slip remains unseparated; M2 differs from M1/M4. No calibration changed. Evidence: docs/audits/ATLAS_ENCODER_SCALE_BY_SPEED_2026-10-11.md"
+        },
+        {
+          "date": "2026-10-15",
+          "kind": "lidar_travel_direction_offset",
+          "description": "Same pairs: LiDAR-ICP travel direction is +5.5 deg left of body heading in every drive (+6.5/+4.5/+5.0/+5.8), same sign forward and reverse. Either LiDAR mount yaw error (TF nominal 180.00 deg) or steering-trim crab; not separable from bags. Proposed discriminator: 2 m straight run along a taped line, measure lateral offset (~19 cm = crab, ~0 = mount). No TF or steering change made."
+        },
+        {
+          "date": "2026-10-15",
+          "event": "Stage 25 round trip: M3 near-dead and M2 froze then reversed at 21:40:24; 3-of-4 consensus fail-closed on 37% of travel. See ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md"
+        },
+        {
+          "date": "2026-10-16",
+          "kind": "direction_dependent_channel_loss_history",
+          "description": "Read-only scan of 41 bags (Aug-Oct): channels symmetric until 24 Aug; M4 reverse loss from 2 Oct; M3 forward loss from 8 Oct; M2 fault 15 Oct 21:40:24. Config unchanged since 25 Sep. See ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md section 7. Hardware hand test pending."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-002",
+      "title": "USB role ambiguity and discovery starvation",
+      "first_available_occurrence": "2026-09-03",
+      "latest_reviewed_occurrence": "2026-10-08",
+      "subsystem": "USB / GNSS / motor startup",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "USB discovery busy; expected one unclaimed verified device. Identical CH340 by-id aliases previously bound IMU as motor board.",
+      "confirmed_findings": "Shared identities require protocol verification; exclusive discovery lock contention delayed motor startup while GNSS retried.",
+      "suspected_causes_and_limits": "Exact starvation fairness/backoff solution not yet validated; cable/power faults are separate possibilities.",
+      "attempted_fix_commits": [
+        "be25b57830b3d411e89a956e92200b9a983cc74a",
+        "d81c39af830e313b6efa6e989947096c54753a78",
+        "8e4a2a11b395bf9d207e7b0336181f05cd0bf9fc",
+        "80f6dc87c9e153ac8b45ccfd468925950d22a8f1"
+      ],
+      "evidence": [
+        "docs/IM10A_COMMISSIONING_2026-09-16.md",
+        "docs/USB_AUTO_DISCOVERY_2026-09-19.md",
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md"
+      ],
+      "test_results": "Pausing GNSS around base restart restored startup (workaround). Passive identity unit tests do not prove cold-boot/swap endurance.",
+      "remaining_verification": "Motor power off: repeated simultaneous startup and controlled reconnect, absent/ambiguous device cases. Preserve one serial owner, bounded retries, no blind protocol writes.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-09-03",
+          "kind": "earliest_reviewed_evidence",
+          "description": "USB discovery busy; expected one unclaimed verified device. Identical CH340 by-id aliases previously bound IMU as motor board."
+        },
+        {
+          "date": "2026-10-08",
+          "kind": "latest_assessment",
+          "description": "Pausing GNSS around base restart restored startup (workaround). Passive identity unit tests do not prove cold-boot/swap endurance."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-003",
+      "title": "ROS discovery / transport inconsistency",
+      "first_available_occurrence": "2026-08-26",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "DDS / CLI / dashboard",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "CLI missed topics while nodes ran; later graph/transport changes; current BMS startup logged RTPS_TRANSPORT_SHM open_and_lock_file failed.",
+      "confirmed_findings": "Historical CLI discovery failure was restored by CLI daemon restart; absence in CLI alone was not stack failure.",
+      "suspected_causes_and_limits": "Current SHM warning is not proven cause of BLE connect failure or motor heartbeat expiry.",
+      "attempted_fix_commits": [
+        "f84f5d87a6daa644b60d85d0f34eaa34fa74fbf9",
+        "aac3db8074bdb30b15c1ff96b26dddff730f91df",
+        "d3d91af39c42ebe832bfd83c2b47b2286f86adc7"
+      ],
+      "evidence": [
+        "docs/ENCODER_SAFETY_VALIDATION_2026-09-10.md",
+        "project_atlas/config/atlas-ros-environment.conf",
+        "project_atlas/systemd/user/rover-base-telemetry.service"
+      ],
+      "test_results": "Historical topic restoration recorded; restart/load-wide discovery qualification incomplete.",
+      "remaining_verification": "Compare per-service ROS env/QoS and direct --no-daemon observations; bounded passive subscriber tests after restart, without deleting shared memory or restarting motor owner merely for diagnosis.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-26",
+          "kind": "earliest_reviewed_evidence",
+          "description": "CLI missed topics while nodes ran; later graph/transport changes; current BMS startup logged RTPS_TRANSPORT_SHM open_and_lock_file failed."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Historical topic restoration recorded; restart/load-wide discovery qualification incomplete."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-004",
+      "title": "Cached encoder freshness versus receive-thread freshness",
+      "first_available_occurrence": "2026-10-08",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "motor owner / executor scheduling",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "motor_controller_link_lost despite cached age 0.536 s and receiver age 0.005 s in one stopped observation.",
+      "confirmed_findings": "Single-threaded owner consumes cached encoder state refreshed by a separate ROS timer; cache can lag incoming serial packets.",
+      "suspected_causes_and_limits": "Exact scheduling/blocking mechanism remains unlocalized.",
+      "attempted_fix_commits": [
+        "1771b1dcd733f03732a5d75f77c08295a4808c25",
+        "7e35614ab00a045a157c5ab58cacf8e7d8cf9396"
+      ],
+      "evidence": [
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
+        "project_atlas/scripts/yahboom_base.py::_lifted_snapshot,_publish_board_state"
+      ],
+      "test_results": "Oct9 passive 60 s passed limited window; not LOCKED mode or encoder dynamic pass.",
+      "remaining_verification": "Record client send, owner callback entry/exit, serial receipt and cached sample using common monotonic clock; no-motion shadow instrumentation before any powered pulse.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-10-08",
+          "kind": "earliest_reviewed_evidence",
+          "description": "motor_controller_link_lost despite cached age 0.536 s and receiver age 0.005 s in one stopped observation."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Oct9 passive 60 s passed limited window; not LOCKED mode or encoder dynamic pass."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-005",
+      "title": "Commissioning heartbeat/readiness and observer cleanup",
+      "first_available_occurrence": "2026-10-08",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "commissioning / test harness",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "fresh_latched_stop_required; control_policy_stale; no_active_session; heartbeat_expired; diagnostic ROS shutdown hung.",
+      "confirmed_findings": "Initial policy period equalled its freshness deadline; request discovery and readiness needed gating. Temporary observer cleanup delay left test flags until explicitly restored.",
+      "suspected_causes_and_limits": "Remaining heartbeat delay could be sender, DDS, executor or blocking I/O; client send gap <=0.236 s alone cannot distinguish.",
+      "attempted_fix_commits": [
+        "475de9c9389fb783e399507e2e21af2528284ac5",
+        "677948a09d1f40c5558e373e4f96918da96e55aa",
+        "2c38b07daceb6d5e51778c42db708782905d8746",
+        "7e35614ab00a045a157c5ab58cacf8e7d8cf9396"
+      ],
+      "evidence": [
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
+        "project_atlas/scripts/atlas_drive_pid_lifted_client.py"
+      ],
+      "test_results": "64 previous focused tests recorded. Five-second readiness achieved in one session then heartbeat failed; coalescing experiment reverted.",
+      "remaining_verification": "Three 60 s zero-output no-motion channel runs; injected missing heartbeat must abort; bounded timeout and unconditional cleanup verified. Never assert lifted conditions on a ground rover.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-10-08",
+          "kind": "earliest_reviewed_evidence",
+          "description": "fresh_latched_stop_required; control_policy_stale; no_active_session; heartbeat_expired; diagnostic ROS shutdown hung."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "64 previous focused tests recorded. Five-second readiness achieved in one session then heartbeat failed; coalescing experiment reverted."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-006",
+      "title": "Daly partial frames and polling deadline",
+      "first_available_occurrence": "2026-10-08",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "BMS / Bluetooth parser",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "bms_unhealthy; bms_telemetry_stale; truncated cell data; old fixed poll roughly 11.3 s exceeded 10 s freshness.",
+      "confirmed_findings": "MTU truncation and frame handling were distinct from old fixed-sleep deadline exposure.",
+      "suspected_causes_and_limits": "Not the same as current connection-establishment failure ATLAS-007.",
+      "attempted_fix_commits": [
+        "80f6dc87c9e153ac8b45ccfd468925950d22a8f1",
+        "80e2b56f3fa6aa7702671637a93130091bd59824",
+        "2f501c1e49a0b7d5acac08fb9a92229fe16941b1"
+      ],
+      "evidence": [
+        "project_atlas/scripts/daly_bms_node.py",
+        "project_atlas/scripts/atlas_daly_transport.py",
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md"
+      ],
+      "test_results": "MTU64 and complete-frame parsing had short live success; twelve Daly tests now pass. End-to-end link is not verified fixed.",
+      "remaining_verification": "Replay fragmented/corrupt frames, bounded silence and complete four-cell snapshots; then loaded live soak with no stale data republished as fresh.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-10-08",
+          "kind": "earliest_reviewed_evidence",
+          "description": "bms_unhealthy; bms_telemetry_stale; truncated cell data; old fixed poll roughly 11.3 s exceeded 10 s freshness."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "MTU64 and complete-frame parsing had short live success; twelve Daly tests now pass. End-to-end link is not verified fixed."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-007",
+      "title": "Intermittent Daly Bluetooth connection failure",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "BMS / BLE / recovery",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Daly Bluetooth response deadline exceeded during connect at 09:23:35, 09:23:54, 09:24:02, 09:24:10 and 09:28:39 IST.",
+      "confirmed_findings": "Failure stage is connection establishment, before MTU/data parsing. Recovery restarted BMS at 09:23:36; healthy at 09:23:44 then failure returned.",
+      "suspected_causes_and_limits": "Phone contention, radio conditions, reconnect churn or Bluetooth stack remain unproved alternatives.",
+      "attempted_fix_commits": [
+        "221af9c16a9a6adb7c4aaab0f992c890b50702ec"
+      ],
+      "evidence": [
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
+        "journalctl --user -b -u rover-daly-bms.service",
+        "journalctl --user -b -u atlas-sensor-recovery.service"
+      ],
+      "test_results": "Diagnostic-only labels deployed and 12 tests passed; no BLE repair claim. Healthy readings still alternated with connect failure after Oct9 freshness deployment, including 10:07:12 IST.",
+      "remaining_verification": "Observe existing single BLE owner; compare controlled phone-disconnected condition; capture bounded connection-stage evidence. No global Bluetooth reset that could affect remote control.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-10-09",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Daly Bluetooth response deadline exceeded during connect at 09:23:35, 09:23:54, 09:24:02, 09:24:10 and 09:28:39 IST."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Diagnostic-only labels deployed and 12 tests passed; no repair claim. Healthy 13.20 V readings alternated with failures."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "post_freshness_deployment",
+          "description": "10:07:12 IST new BMS process had another connect-stage deadline, then complete reads resumed. Freshness repair did not fix BLE connectivity."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "bounded_reconnect_rollout",
+          "description": "Baseline 120 s: 15 connect-stage timeouts, zero healthy samples, no bonding failures in this window. Healthy-link reuse and 10/20/40/80/120 s reconnect backoff deployed at bff88ac after 19 focused tests and exact rollback rehearsal. Five-second healthy polling and invalid status heartbeats retained. Owner confirms phone BMS app disconnected. Connection failure remains unresolved; see docs/ATLAS_ROLLOUT_2026-10-11.md."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "rollout_rolled_back_competing_retry_owner",
+          "description": "Recovery supervisor restarted BMS at 60-second intervals while its bounded retry loop was alive, resetting backoff. Stage rolled back and only BMS restarted. Four failures versus fifteen per 120 seconds is confounded by those restarts; no healthy BLE sample in either window. Phone app disconnected per owner. Offline explicit fresh-heartbeat retry ownership fix passes regression tests but is not deployed; supervisor restart needs approval. BLE connection root cause remains unverified."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "owner_approved_single_retry_owner_live",
+          "description": "Stage 8 deployed d5d1c59 three-file fix at 16:21 IST after scratch rollback and live hashes passed. Only BMS/recovery restarted; motor/mux/remote PIDs unchanged. Latest 120 seconds: one connect timeout, no healthy samples, no competing restart or bonding event. BMS CPU 0.70% one core/RSS 66.25 MiB. Backoff reaches approximately 130-second attempt intervals including transaction overhead. Retry contention fixed in this observation; underlying BLE connection still unresolved. Full evidence: docs/ATLAS_MASTER_DEPLOYMENT_2026-10-11.md."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-008",
+      "title": "Recovery parser falsely restarted motor owner",
+      "first_available_occurrence": "2026-09-17",
+      "latest_reviewed_occurrence": "2026-09-17",
+      "subsystem": "recovery / encoder status",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "original_failure_and_evidence": "Fresh ~475-character DEGRADED JSON truncated to 240 characters, parsed invalid, caused base restarts.",
+      "confirmed_findings": "Display truncation applied before structured health parsing.",
+      "suspected_causes_and_limits": "Later unrelated recovery faults remain open; this status covers the exact parser defect only.",
+      "attempted_fix_commits": [
+        "c138ec7a451ddc6ce36dcf53adce5d596ca95a36"
+      ],
+      "evidence": [
+        "docs/AUDIT_REPAIRS_2026-09-17.md",
+        "project_atlas/scripts/atlas_sensor_recovery.py"
+      ],
+      "test_results": "50 targeted tests in combined repair; two ~45 s stationary observations, unchanged base PID, zero commands/recovery attempts.",
+      "remaining_verification": "Retain long/malformed/stale health and stop-latch regression coverage; revalidate on parser/recovery changes. No universal reliability guarantee.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-09-17",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Fresh ~475-character DEGRADED JSON truncated to 240 characters, parsed invalid, caused base restarts."
+        },
+        {
+          "date": "2026-09-17",
+          "kind": "latest_assessment",
+          "description": "50 targeted tests in combined repair; two ~45 s stationary observations, unchanged base PID, zero commands/recovery attempts."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-009",
+      "title": "Shared I2C/serial recovery and servo-startup interaction",
+      "first_available_occurrence": "2026-09-01",
+      "latest_reviewed_occurrence": "2026-09-21",
+      "subsystem": "Mega then UNO / PCA9685 / I2C",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Repeated shared sensor offline/reconnect cycles and camera response interruptions.",
+      "confirmed_findings": "Historical restart loops and automatic servo re-energization paths were removed. Hardware generations changed (Mega retired, UNO active).",
+      "suspected_causes_and_limits": "Electrical brownout/short/pull-up cause not proven for every reported outage; a lit LED is not I2C data proof.",
+      "attempted_fix_commits": [
+        "56a44efc10b4f42698760e3d96ac41f4be897ae8",
+        "1a75ee585627b58ff37c0752690bc30cae99c297",
+        "1159fe38eeaa0ebcb14d68c1a21f299bbc38b678",
+        "5d60a3b5bdcad836b0197a5e2966aa998f9dcdb1",
+        "c508fed157be2f8ec44d90517f0e6d70f89a4a9d",
+        "e7835928edcd4bd8b65fd7fad211486b122cf0b2",
+        "d77195b55d7bc5affc0e2a2f872b2e8ba663db40"
+      ],
+      "evidence": [
+        "CHANGELOG.md",
+        "project_atlas/scripts/ultrasonic_arduino_bridge.py",
+        "docs/USB_AUTO_DISCOVERY_2026-09-19.md"
+      ],
+      "test_results": "Code fixes and historical recovery observations exist; no fresh all-I2C endurance certification in this audit.",
+      "remaining_verification": "Stationary motor/servo power-off bus checks, serial continuity; staged explicit camera motion only with separate clearance. Record power rail evidence before calling a brownout confirmed.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-09-01",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Repeated shared sensor offline/reconnect cycles and camera response interruptions."
+        },
+        {
+          "date": "2026-09-21",
+          "kind": "latest_assessment",
+          "description": "Code fixes and historical recovery observations exist; no fresh all-I2C endurance certification in this audit."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-010",
+      "title": "IMU authority changes and drift",
+      "first_available_occurrence": "2026-08-04",
+      "latest_reviewed_occurrence": "2026-11-12",
+      "subsystem": "IMU / EKF / mounting",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Initial mounting concern; IM10A USB errors; Sep25 corrected gyro -0.00403 rad/s caused ~-6.6 deg/29 s stationary yaw.",
+      "confirmed_findings": "A previously qualified sensor/config was later revoked on measured drift. Oct8 record says EKF gyro-Z input active; authority must be tied to exact runtime config, not old labels.",
+      "suspected_causes_and_limits": "Mounting, bias and wheel-model interactions need current validation; magnetometer not a substitute inside metal chassis.",
+      "attempted_fix_commits": [
+        "c3544a1d106179ea98d961eb04fb6fa875ca673b",
+        "d81c39af830e313b6efa6e989947096c54753a78",
+        "4f74c4ba1bec913db0c4f80114ce26b857d7bb80",
+        "5f3e3091711f08f92b76e6edae089b4bbf2ecf00",
+        "658331916426abd292edb2fded20430867c515f4"
+      ],
+      "evidence": [
+        "docs/IM10A_COMMISSIONING_2026-09-16.md",
+        "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md",
+        "CHANGELOG.md",
+        "docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md"
+      ],
+      "test_results": "Historical static and manual-turn observations; live qualification lifecycle inconsistent across versions, not proof of current permanent pass.",
+      "remaining_verification": "Stationary thermal/bias and signed manual-turn tests on exact deployed config, then synchronized EKF/TF comparison under load; magnetic heading remains excluded unless independently validated.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-04",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Initial mounting concern; IM10A USB errors; Sep25 corrected gyro -0.00403 rad/s caused ~-6.6 deg/29 s stationary yaw."
+        },
+        {
+          "date": "2026-10-08",
+          "kind": "latest_assessment",
+          "description": "Historical static and manual-turn observations; live qualification lifecycle inconsistent across versions, not proof of current permanent pass."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "drive_heading_shortfall",
+          "description": "Same drive: EKF /odom (IM10A gyro-Z yaw) net turn -44.9 deg vs LiDAR-derived truth -97.5 deg (0.46); wheel /yahboom/odom +15.4 deg (wrong sign); rf2o -102.3 deg. On Oct 9 the IM10A matched ICP at all yaw rates (0.87-1.15), so cause unproven (sample loss/dead-band/fast spin hypotheses). No drive bag."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "readonly_reliability_pass",
+          "description": "Parked 60 s: EKF imu0 (/im10a/imu/bias_corrected_candidate) gyro-Z exactly 0.0 for 587/587 samples; Oct 2 qualification bag 471/877 exact zeros with sparse +/-1..3 counts: on-sensor static zeroing likely, so the Oct 2 'zero drift' qualification did not observe bias. Board IMU /imu/data std 0.32 deg/s, orientation drift -0.66 deg/min (not EKF yaw input). Does not explain 0.46x fast-turn. No change made."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "evening_recovery",
+          "description": "2026-10-11 20:00: Yahboom board IMU /imu/data (no gyro-bias calibration, navigation qualification=False) read -0.0298 rad/s (-1.71 deg/s, std 0.0067) parked after the 19:52 boot vs +0.006 deg/s on the previous boot: boot-to-boot bias. Not an EKF input (EKF uses IM10A). It blocked CHECK MY LOCATION as ROVER_MOVING; stage 15 moved that gate to the IM10A corrected gyro. Displays using /imu/data orientation would drift ~100 deg/min on such a boot."
+        },
+        {
+          "date": "2026-11-12",
+          "kind": "signed_turn_validation",
+          "description": "IM10A corrected gyro-Z sign and magnitude agree with an independent LiDAR keyframe heading on two recorded drives (corr +0.93/+0.94, stretch magnitudes within about 1-10 %) and a live turn test (-19.6 vs LiDAR -16.9 deg). The Yahboom board gyro (/imu/data) is sign-inverted relative to both and is NOT used for navigation (owner instruction 2026-11-12: IM10A only). A wrong IM10A sign change was applied 14:30 and reverted ~14:45 (analysis sign bug). Stationary bias/thermal not re-measured."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-011",
+      "startup_trials_20261014": "Stage 16 history: 11 Oct 20:59 alternate search UNKNOWN (best 0.923 below 0.93); 11 Oct 21:08 Home VERIFIED fit 1.000, seeded via service; 13 Oct 21:23 alternate check UNKNOWN (best 0.950 but margin 0.028 below 0.06), same Jetson boot ID since 11 Oct; 14 Oct 10:47 Home VERIFIED fit 1.000, seeded via service. Same accepted map hash, 21-24 scans/attempt, >=58 valid rays per quadrant. PC backup accepted map YAML/PGM hashes d957f0fe/4beb26d5 differ from repo atlas_latest d483d018/7b8a4090; replay must use the accepted pair. Exact physical cause of poor alternate fit and moving-localization loss unresolved; no threshold or live changes. See ATLAS_CORE_LOCALIZATION_RESUMPTION_REPORT.md.",
+      "manual_location_check_20261011": "Stage A diagnostic adapter/API deployed and both dashboard buttons verified using fresh scan, IMU, odometry, TF, map and AMCL evidence. Live checks complete in about 3 seconds and report approximately 1.6-1.7 m disagreement; rotational candidate ambiguity remains. No ground-truth assertion, pose correction, movement or autonomy clearance. New snapshot-clock race fixed with deterministic regression; not evidence of historical AMCL root cause. 73 scoped Python tests and 6 UI assertions pass. See ATLAS_CHECK_MY_LOCATION_IMPLEMENTATION_REPORT.md for resource measurements, limitations and rollback.",
+      "weak_hypothesis_survival": "2026-10-10: room-near support (15 particles, 0.198-0.312 m / 1.6-19.2 deg from the refined room pose) was lost between +351.997 s and +362.854 s over 11 forced no-motion updates; odometry changed 0.23 mm / 0.0003 deg, below AMCL motion thresholds. Recomputed nav2_amcl 1.1.20 likelihood-field weights: exact room pose 5.57-6.51 beat every particle (cloud max 4.67-5.43) on every update, but room-near particles were ~average (0.88-1.13x mean), so scans did not reject them. Multinomial resampling with observed KLD counts (2000->1098) and frozen poses loses all room support in 14.2% (equal weights) / 9.6% (recomputed weights) of 4000 trials; drift is sufficient. No diversity source while parked (zero motion noise, recovery alphas 0); one particle on the peak survives 59% with median 13/1098 copies. Offline, one recording, no candidate fix evaluated, production unchanged. See ATLAS_AMCL_WEAK_HYPOTHESIS_TRACE_2026-10-10.md.",
+      "parked_diversity_experiment": "2026-10-10: AMCL 1.1.20 core (unchanged harness first reproduced published Jetson scores exactly), 3 parked windows x 5 policies x 30 seeds. Return window: baseline 0/30, parked gate 0/30, jitter 0.02 m/1 deg 14/30, 0.05 m/2.5 deg 22/30 (held-out fit 1.000 when recovered), 0.10 m/5 deg 0/30 recovered to refined room pose. Control room and Hall windows: all jitter sizes 30/30 inside reference region; parked gate froze Hall window wrong 0/30 where baseline recovered 30/30. Rejected as standalone repair: parked gate. Promising but not deployable: 0.05 m/2.5 deg jitter (8/30 failures, some up to 3 m wander). One drive, retrospective references, zero-motion core only; production unchanged. See ATLAS_AMCL_PARKED_DIVERSITY_EXPERIMENT_2026-10-10.md.",
+      "parked_diversity_multidrive": "2026-10-10 multi-drive: 12 parked windows from 6 Oct 9 recordings, 5 policies x 30 seeds, reference-free held-out (odd-beam) scan fit. Nudge 0.05 m/2.5 deg: worse than baseline on 2 seed comparisons (1 window), better on 165 (5 windows). Parked gate: worse on 150 (5 windows), never better; rejected standalone. Nudge 0.10 m: worse on 60 (6 windows); rejected. Outbound 1636 parked ~0.5 m from a pose fitting 1.00 vs 0.62: latent offset to investigate. 0.05 m nudge raised max jumps 1->9 and 4->7 in two correcting windows. Offline core runs only; production unchanged. See ATLAS_AMCL_PARKED_DIVERSITY_MULTIDRIVE_2026-10-10.md.",
+      "outbound_1636_start_offset": "2026-10-10: amcl_hall_outbound_20261009_1636 entered recording with AMCL converged at (0.368,-0.975,73.0 deg), cloud 1-2.5 cm wide, zero odometry before 68 s. In all three parked windows AMCL likelihood peaks 0.55 m behind along heading, 0.00 m sideways (6.38-7.32 vs 4.08-4.92; held-out fit 1.00 vs 0.60-0.61); scan-best pose is 7.5-8.5 cm from the operator-confirmed Dhruv Room reseed (0.187,-1.477). Confirmed: stable-but-wrong start pose. Evidence gap: seeding/restart event predates the bag; effect on outbound drive unverified. See ATLAS_OUTBOUND_1636_START_OFFSET_2026-10-10.md.",
+      "outbound_1636_operator_response": "2026-10-10: no restart or reseed logged 16:00-16:38 Oct 9; last seed 12:10. AMCL fit 0.95 at 12:27, 0.61 at 16:36, 0.99 at 16:47 with nearly the same estimate. Operator says it is possible ATLAS was moved by hand. Leading but unconfirmed cause: manual relocation (kidnapped robot). Mitigation: reseed after manual moves; mission-start scan-fit gate.",
+      "outbound_1636_cause_confirmed": "2026-10-10: operator confirms ATLAS was moved by hand on Oct 9. Manual relocation is the confirmed cause class for the 1636 start offset; exact move times not recorded.",
+      "competing_pose_comparison": "2026-10-09: identical bounded refinement on early return scan, later odd-original-index beam evaluation favours room candidate (0.37479,-1.16681,1.38742): 99-100% endpoints within 15cm, 0.214deg corrected-gyro residual; refined false region 78.9-85.6%, 98.229deg. Same-bag retrospective seeds, not independent validation. At +351.997s, 15/2000 particles and 0.75% weight within 0.5m/20deg of refined room pose. Earlier absence claims apply only to their approximate candidate/cloud. Ten helper tests passed; no deployment. Trace weak-hypothesis loss and test actual likelihood next. See ATLAS_COMPETING_POSE_EVIDENCE_2026-10-09.md.",
+      "sensor_stability_validation": "2026-10-09: six eight-second recorded windows, 338 scans, 54 scan/map scores. Encoders unchanged; near-zero odom; early return gyro integrated +0.0642 deg while AMCL spans 1.148 m/76.478 deg. Late-return wrong pose steady, endpoint agreement 77.4-82.7% overlapping late Hall; therefore stillness and endpoint fit are insufficient global-position acceptance. Timestamp brackets found for 54 sampled scans, not proof of callback consumption. Six helper tests passed; no production change. See ATLAS_SENSOR_STABILITY_EVIDENCE_2026-10-09.md.",
+      "mission_sparse_pose_validation": "2026-10-09: saved postrefresh result verified read-only: two poses. Actual mission methods reject even best-case two-pose timing and three poses after one extra startup request; require four spanning 5.6 s in 8 s. Seven new contract tests pass, including original shift/yaw/covariance rejection. No replay rerun, production change or motion. Candidate not deployable; independent estimate-stability evidence must be designed and validated, not synthetic pose messages or extra repeated resampling.",
+      "bounded_refresh_integration": "2026-10-09: opt-in actual mux/mission callback handshake tested with isolated AMCL and stationary recorded data. One refresh request remained blocked on its request tick, two real poses, zero stale-pose guard passes. 45 focused tests passed. All new switches default false; production unchanged. Multi-pose mission preflight and physical localization accuracy unresolved; not a repair of the original five jumps.",
+      "processing_health_implementation": "2026-10-09 isolated AMCL 1.1.20 overlay exposes actual scan-processing and pose-publication sequences separately. Corrected replay: 238 processing events, one pose sequence, 10 unavailable reports after playback stopped. Fixed frozen ROS timer using steady clock. Diagnostic only, navigation_authorized=false; mux and production unchanged. Pose correctness and future health-to-permission integration unvalidated.",
+      "update_gate_validation": "4a4ea9a REJECTED for deployment: actual mux guard fails closed above 2.5 s pose age while candidate suppresses stationary/sub-threshold updates. Five contract tests pass as rejection evidence, not navigation acceptance. Need independent processed-scan/TF/estimate health; no timeout bypass or stale-pose republishing. Production unchanged.",
+      "title": "Mapping startup race, stale places and pose corrections",
+      "first_available_occurrence": "2026-08-24",
+      "latest_reviewed_occurrence": "2026-11-12",
+      "subsystem": "mapping / localization / TF",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Hall goal aborted with lethal start; named home coordinate disagreed with physical location. Oct4 drive preceded active session. Oct8 closure 0.082 m/2.99 deg but continuity gate failed.",
+      "latest_particle_support_evidence": "2026-10-09 evening passive capture: 60 AMCL clouds each contain 2000 particles but one support point at 1e-6 m/rad, at the previously wrong return pose. Saved round-trip clouds also collapse at +104.009 s. Unconditional 1 Hz no-motion requests with resample_interval=1 and zero recovery alphas provide an impoverishment mechanism. Original five-jump likelihood/selection cause remains unverified; no production change. See docs/audits/ATLAS_AMCL_PARTICLE_COLLAPSE_2026-10-09.md.",
+      "latest_policy_experiment": "2026-10-09: actual AMCL-core tests reproduce stationary-switching class but not original exact five events. Less resampling does not fix it; fixed prior stabilizes wrong pose. Repository-only odometry-progress update gate suppresses all 975 unchanged-pose tick requests across five recorded timelines; not deployed, AMCL/mux continuity unvalidated. Reboot at 21:39:42 explicitly seeded saved home. See ATLAS_AMCL_STATIONARY_POLICY_EXPERIMENT_2026-10-09.md. Permanent localization unresolved.",
+      "confirmed_findings": "Start/session race established; map->odom component jump is origin-dependent, not physical displacement. Same-pose composition showed ~0.23 m correction; after hypothesis fit prior map better.",
+      "suspected_causes_and_limits": "Oct9 manual-return evidence supports AMCL hypothesis switching after wheel-derived heading/position diverged from gyro and scan geometry. Cross-bag heading disagreement recurs, including an Oct9 wrong-sign wheel-model interval despite four selected encoders. Delaying commanded steering by up to 0.75 s did not reverse that wrong sign, so a single global command lag is not a verified repair. Wheel X/Y pose fusion worsened one scan-fit replay, but saved-map AMCL A/B failed to reproduce the live jumps and velocity-only worsened final-window drift. Physical steering angle is unmeasured; contributions from steering geometry, traction and scan/map ambiguity are not separately proven.",
+      "attempted_fix_commits": [
+        "6a18b0e43418bad87037678c592a71b9c029b898",
+        "5478fac974ff465c018d3013926d81d1f58436d1",
+        "cadb67db52c48fbbeb3d9780caac01ad493dda34",
+        "986fe605136641be2578b7f4d6609e44ed5a7d79",
+        "658331916426abd292edb2fded20430867c515f4",
+        "4f47a80d0ab338c7121818abe0d03f99c3a046b3",
+        "60d0bda3ada26f5a45e8046b2a27a5a9442a6168",
+        "1771b1dcd733f03732a5d75f77c08295a4808c25"
+      ],
+      "evidence": [
+        "docs/validation/2026-08-24-tight-recovery-localization.md",
+        "docs/MAPPING_SESSION_FORENSICS_2026-10-04.md",
+        "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md",
+        "docs/audits/ATLAS_NAVIGATION_GATE_2026-10-09.md",
+        "docs/audits/ATLAS_LOCALIZATION_CROSS_BAG_2026-10-09.md",
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md",
+        "docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md",
+        "docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md",
+        "docs/deploy/ATLAS_LOCATION_CHECK_NO_AMCL_2026-10-11.md",
+        "ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md",
+        "ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md"
+      ],
+      "test_results": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available. Oct9 live safety reporter initially said SLAM MAP DATA LOST; a new transient-local subscriber received the saved map, and diagnostic-only reporter restart restored LOCALIZATION/map ONLINE. Root cause of stale prior status not proven; navigation remains unvalidated.",
+      "remaining_verification": "The operator confirmed the exact saved Dhruv Room point and heading; stationary scan/map fit identified the earlier out-of-map AMCL pose as wrong, and one saved-pose reseed corrected it. A new operator-confirmed Hall endpoint passes exact saved-map footprint clearance; the taught route still has an older map ID. The recorded manual Hall-to-home return showed >2 m stationary AMCL jumps, 32 traction samples with critical encoder consensus, and disagreement between wheel and IM10A yaw-rate integration. Different endpoint displacements alone do not establish wheel-distance scale error. Diagnose same-time scan/AMCL/odom/TF, wheel agreement and heading before autonomous motion. Audit stale mapping-session marker lifecycle; require an actual Nav2 plan and supervised recorded round trip only after localization is stable.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-24",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Hall goal aborted with lethal start; named home coordinate disagreed with physical location. Oct4 drive preceded active session. Oct8 closure 0.082 m/2.99 deg but continuity gate failed."
+        },
+        {
+          "date": "2026-10-08",
+          "kind": "latest_assessment",
+          "description": "Loop closure off no benefit; velocity-only mixed results rejected; zero TF offset translation worsened rejected; guessed deskew inconclusive. Saved bags available."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "stopped_runtime_observation",
+          "description": "10:07 IST dashboard API reported autonomy FAULT: STOP: SLAM MAP DATA LOST while encoder health alone was READY. Active SLAM map freshness requires diagnosis before motion."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "stopped_diagnostic_recovery",
+          "description": "Saved-map publisher was intermittently visible in ROS graph; a transient-local subscriber received its latched map. At 10:22 IST a diagnostic-only safety-reporter restart made its observed mode LOCALIZATION and map ONLINE, including at map age 27.68 s. Motor owner was unchanged. Why the old reporter marked the map LOST remains unresolved."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "charging_localization_audit",
+          "description": "Operator confirmed rover is in Dhruv Room, not whether it occupies the exact saved home point. Live AMCL pose (-3.17,-0.22) is 3.67 m from named Dhruv Room pose (0.254,-1.539). Saved Oct8 seed (0.877,0.097) has no accepted-map ID. Localization service showed six start-preflight timeout restarts concurrent with repeated LiDAR hardware operation timeouts; missing scans are the likely immediate cause, not a demonstrated seed failure. Once running, Nav2 logs contained robot-out-of-map positions and one scan/TF cache drop. No motion or runtime change. Exact faulty coordinate source remains unproven."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "saved_map_start_clearance",
+          "description": "Exact accepted PGM lookup put later live pose (-3.22,-0.25) in unknown 205 cells, while the saved Dhruv Room point was known free 254. A stopped 15-second diagnostic recorded fresh scans, zero wheel/EKF odometry drift and 0.004 m/1.09 degree AMCL drift. Added a saved-map known-clear start check before named-place and return-home goal dispatch; offline regression passed. Physical localization and room-route reliability remain unvalidated."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "confirmed_stationary_relocalization",
+          "description": "Operator confirmed exact saved Dhruv Room position and heading. Fresh LiDAR scan endpoints fit that map pose far better than the old out-of-map AMCL pose. Backed up the old localization seed and invoked the existing AMCL seed service once while stopped. Post-seed authoritative pose was about 9 cm from home, in known free space; 99% of fresh scan endpoints were within 15 cm of mapped walls, with motor speed zero. This does not qualify moving or reboot repeatability, the Hall endpoint, or the saved taught route."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "hall_waypoint_resaved",
+          "description": "Operator manually arrived in Hall and confirmed live map marker. Fresh stopped scan fit 98.9% within 15 cm at (6.279,-2.199); exact accepted-map 0.18 m clearance and grid connectivity to home passed. Old Hall waypoint was backed up. First save was incorrectly bound to an Oct8 mapping session left active while localization ran and SLAM was inactive; archived the stale marker and re-saved Hall with accepted map ID. Motor speed remained zero during save. Manual arrival was not captured by the dedicated demonstration recorder; taught-route map ID and autonomous repeatability remain unvalidated."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "recorded_manual_return_localization_jump",
+          "description": "Dedicated Hall-to-Dhruv manual return bag captured fresh scan, odom, TF and AMCL. Remote-command interval had no >2 s data gap, but five AMCL steps exceeded 0.5 m after the remote stopped and odometry was stationary; largest was 2.206 m/130 degrees. The 4.236 m wheel-odom endpoint displacement does not prove distance under-reporting because its recorded path length was about 6.77 m. Of 65 unavailable encoder samples, 32 occurred with traction and CRITICAL/autonomy_ready=false health. Wheel-derived yaw-rate integration was about -143 degrees versus about -192 degrees from IM10A/EKF. Browser map refresh was bounded and stale data labelled, but root localization reliability remains unproven. No autonomous motion was commanded."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "same_bag_ekf_ab_and_display_repair",
+          "description": "Offline replay in isolated ROS domain 178 changed only wheel X/Y pose fusion. Across 31 Hall-anchored scans, median saved-map endpoint fit within 15 cm improved from 23.1% to 50.2% with velocity-only wheel input; last-10-second fit improved from 11.1% to 52.2%. The earlier Oct8 replay was mixed and this candidate still underfits, so production EKF/Nav2 remains unchanged. Read-only web map now displays AMCL covariance and recent jumps; replay classifier flagged all five post-stop corrections, and the deployed API/page returned HTTP 200. No motor or autonomous command was issued."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "cross_bag_heading_and_saved_map_amcl_ab",
+          "description": "Eleven relevant wheel/corrected-IMU/scan bags inventoried; only Hall return had enough AMCL data for jump counts. Encoder-selection replay matched recorded updates exactly, including wrong-sign wheel yaw versus gyro/scan ICP with four accepted wheels. Isolated saved-map AMCL replay produced 0 >0.5 m jumps in both variants and therefore did not reproduce five live jumps; velocity-only reduced maximum correction but worsened final ~20 s AMCL position span from 0.845 m to 1.789 m. Production EKF/Nav2 unchanged; localization unresolved."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "wrong_sign_turn_delay_discrimination",
+          "description": "Read-only commanded-steering sensitivity: the Oct9 4.35 s wrong-sign interval remained +7.42/+4.27/+2.43/+1.30 degrees at 0/0.2/0.5/0.75 s delay, versus corrected gyro -18.96 and scan ICP -16.09 degrees. Another turn worsened with 0.5 s delay. Scan transport beyond acquisition and TF consistency did not reveal a seconds-long data gap at the largest post-stop AMCL correction. Physical road-wheel angle remains unmeasured; no parameter changed."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "steering_interface_engineering_review",
+          "description": "Live rover-base-telemetry executes the repository-matching Yahboom driver; steering writes PWM channels 2/1 with no external position readback. Vendor get_uart_servo_angle belongs to a different bus-servo interface; retired ST3215 configuration is not live. Wheel odometry uses commanded servo offsets as road-wheel angles before encoder normalization and for yaw/X/Y. Physical servo model, shaft position, linkage angle and traction remain unmeasured. No safe model or EKF correction identified; autonomous gate remains closed."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "post_stop_jump_sensor_correlation",
+          "description": "Read-only per-event Hall-return audit: all five 0.565-2.206 m AMCL steps occurred 2.856-13.063 s after the last remote command. Nearby wheel XY change and corrected gyro turn were zero, with 6-8 LiDAR scans between each pair and AMCL XY standard deviation already >1 m. These are stationary localization-hypothesis switches, not physical motion at jump times. Operator photos show satisfactory visible steering response but do not measure actual wheel angles; steering config preserved. Upstream heading disagreement versus scan/map ambiguity remains unresolved; no production tuning or motion."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "stationary_particle_hypotheses_and_laser_model_ab",
+          "description": "Continued from 54e6519 using the existing Hall-return bag. Five AMCL steps had fresh pre-event LiDAR scans (receipt age 11-34 ms), particle clouds (age 0-3 ms), zero/near-zero odometry step, and XY uncertainty 1.14-1.39 m. Spatially diffuse particles supported competing poses; event 4 switched back despite worsening same-scan endpoint fit from 100.0% to 86.6% within 15 cm. Approximate map-ray diagnostics are not AMCL likelihood. Beam-model saved-map replay gave 0 jumps but 2.865 m final position span with current EKF, and 1 jump of 0.657 m with velocity-only EKF; current model replayed with 0 jumps in both EKFs but did not reproduce five live jumps. No candidate validated, no production change, autonomy gated."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "hall_return_amcl_replay_fidelity",
+          "description": "Continued from 99bd418. Original recorded map and saved atlas_latest.pgm matched all 51,040 trinary cells. The prior 75.918 s replay clip omitted 8 of 537 source scans and regenerated EKF odometry; original window had 759 /odom, 168 AMCL poses and 5 jumps. New isolated AMCL-only replay included all 537 scans and 759 original /odom/TF in input, but its output recorder saw 524 scans, 743 odom and 120 AMCL poses; an early scan was dropped for missing TF history. Two runs both yielded zero large jumps, max step 0.239 m and final ~19 s span 0.462 m. Original/replay median particle spread was 0.810/0.415 m. A full-bag replay also stopped outputting AMCL poses before the original jump window. A replay-only zero-motion-threshold experiment produced 512 AMCL poses and one 1.827 m correction in each of two runs, not the original five. Internal particle/RNG state, exact runtime AMCL parameters and original scheduling are not restored; no valid five-jump baseline or candidate fix. Production unchanged, autonomy gated."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "hall_return_amcl_nomotion_replay",
+          "description": "Mission-control source and original Jetson journal confirm approximately 1 Hz /request_nomotion_update calls through the five-jump window, omitted by previous replays. After the last remote command, original odom and odom->base TF drifted at most 0.01221 m/0.504 degrees, below replay motion gates. A full-bag isolated localhost-domain replay sent 294 phase-matched calls with no skips; AMCL logged all 294. It matched original 384 total/80 post-stop pose counts and produced two post-stop >0.5 m jumps (max 3.470 m), versus original five (max 2.206 m). The missing service trigger explains absent earlier replay updates and reproduces stationary hypothesis switching, but not the exact live trajectory or upstream cause. No production parameter, service or actuator changed; autonomy remains gated."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "hall_return_amcl_scan_window_particle_comparison",
+          "description": "Read-only same-hypothesis scan-window comparison of five live and two replay post-stop jumps. All original jumps had broad clouds with 1.137-1.384 m after-cloud XY spread; replay jumps had 1.292/1.364 m. Original jumps 1 and 4 selected poses with worse diagnostic endpoint proximity on all seven preceding scans each (57.6->51.0% and 100.0->86.3% mean within 15 cm), whereas both replay jumps improved that score on every selected scan (51.9->81.5% and 82.2->95.6%). Published weights were uniform and do not retain pre-resampling likelihood or cluster selection. These data disprove exact replay equivalence but do not identify the live AMCL scoring cause. No motion or production change."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "stationary_amcl_shadow_internal_trace",
+          "description": "Built pinned Nav2 AMCL 1.1.20 in a separate Jetson workspace with pre-resampling weighted-particle and selected-cluster traces. Bounded shadow instance used absolute live map/scan topics, verified tf_broadcast=false, and did not replace production AMCL or command motors. First lifecycle RPC timed out despite configuration; state verification fixed. A subsequent helper pacing bug issued 1623 shadow-only no-motion requests in 10 s and briefly raised Jetson load; corrected to monotonic 1 Hz. Accepted 10-second stationary capture sent 10 requests and recorded 7 weighted clouds, 7 shadow poses and 25 scans in an 8.10-second bag. One stable cluster was observed; no historic jump reproduced. Root cause and autonomy remain unresolved."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "motion_replay_root_cause_ranking",
+          "description": "Validated AMCL 1.1.20 motion replay (baseline reproduces recorded UNCERTAIN fraction and held-out fit). Distance x1.6 raised moving held-out fit 0.69-0.74 -> 0.80-0.93 (0.84-0.94 with 0.2 s TF shift) on 3/4 drives; alphas 0.05 alone lowered fit (outbound 0.74 -> 0.52): rejected. Forced 1 Hz updates explain CONFIDENT-after-stop; removing them alone rejected. Round trip not repaired by any setting. Offline only; production AMCL/EKF unchanged."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "hall_coldstart_blind_seed",
+          "description": "Live: rebooted parked in Hall; seeder seeded saved Dhruv Room pose (0.254,-1.539) at 16:36:10; AMCL reported (0.497,-1.183,84 deg), cloud 2000 particles at 1 unique pose, covariance round-off (xx -2.2e-14). No-prior LiDAR search: Hall (6.275,-2.115,-95.5) fit 0.976 margin 0.187; AMCL pose fit 0.54. Cold-start replays: saved seed 0/24 correct (10 confident-wrong), nav2 global 12/24, search seed 24/24. Verify-before-seed implemented (default off), Jetson dry-run 3 VERIFIED correct / 4 UNKNOWN / 0 wrong. Not deployed."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "verifier_household_movement_stress",
+          "description": "Synthetic people (walking/standing legs) inserted into real parked scans from 11 windows; 484 full verifier runs; 0 wrong-place verdicts. Deployed policy (0.93/0.06, median): one walker 41/44 verified, two walkers 27/44, stander+walker 32/44, three standing close 11/44, rest UNKNOWN. Wrong place outscored truth in 10/176 people runs (max 0.919), all rejected. p80/p90 aggregation and min_fit 0.90/0.85 rejected; settings unchanged. Live correlation (16:55 quiet 0.993 median vs 0.86-0.95 during movement) is time-based only; people recording pending."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "moving_failure_dhruv_alias",
+          "description": "18:30 fast remote drive from LiDAR-verified start (3.715,-0.695,173.5) to Dhruv Room: AMCL ended (4.131,-0.771,159.7), 4.0 m/84 deg wrong; LiDAR unique Dhruv Room (0.175,-1.395,76) fit 1.00 margin 0.128; AMCL pose fit 0.80. Wrong pose is the recurring Dhruv Room alias (2nd place fit 0.872), seen in 4 recordings (Oct 9 passive 2113, roundtrip end, 122252 t=213, today). Cloud collapsed to 1 unique particle. Continuous parked LiDAR check built offline: 29 parked checks -> 12 known-wrong all LOST, 14 VERIFIED, 3 DEGRADED (in-sample thresholds). Not deployed; repeat recorded drive needed."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "monitor_review_and_alias_gate",
+          "description": "Deployed monitor defects found: no parked/verifying state, stale result applied after move+park during a check, no odom/AMCL/scan freshness, unsynchronised worker writes, interval from completion; search 17-20 s on Jetson -> stop->verified 30-40 s. Fixed offline 7314f11 + 1c1ff7a (search 2.2-2.6 s on Jetson, identical hypotheses; thresholds unchanged). Mission scan-fit gate 0.85 < alias peak fit 0.872: a pose at the alias peak would pass; autonomy-gate integration proposed for separate review. Not deployed."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "real_drive_monitor_2201_2224",
+          "description": "First real drive with the deployed monitor (22:01-22:24): 65 stops, 11 reached a result: stop->result 4.07-4.23 s (5), 6.42-6.52 (2), 8.65-15.28 (4, AMCL kept changing after the stop: 20 outdated-pose discards). Results: 31 LOST, 13 DEGRADED, 4 VERIFIED; ended LOST 3.2 m / 106 deg. Not autonomy-relevant (disabled). After the 22:24 power-off, verify-mode seeder placed ATLAS at Dhruv Room (0.335,-1.435,84; fit 1.00 margin 0.125; first attempt failed: AMCL not yet subscribed to /initialpose) and the monitor confirmed VERIFIED (0.024 m). Monitor did not auto-start at that boot: unit ordering cycle (After=atlas-localization.service which is After=default.target); fixed 2120f45 and started manually 22:30."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "local_map_audit_dhruv_hall",
+          "description": "Read-only local map audit: active map = final /map of manual_mapping_dhruv_to_hall_20261002_162438. 985/1573 wall cells in the Dhruv Room->Hall box confirmed by >=3 of 6 independently anchored drives; 272 contradicted, 172 of them drawn during the mapping run's Hall->Dhruv return leg (SLAM snapshots: corridor walls +60-70% cells, offsets 0.15-0.6 m = parallel copies). Suspected: fast in-place turns (54-60 deg/s, 7 Hz LiDAR) without loop closure, not straight-line speed. Local candidate (258 removed / 17 added, box only, parked-scan walls protected): parked verify 15/15 -> 15/15, margin 0.128 -> 0.139; moving windows 72% -> 85% correct, wrong 4 -> 1; AMCL core replay end-correct 65/5/100/100 -> 100/90/100/100 %, time-lost 29/69/8/22 -> 17/48/1/16 %. Corridor still weak (37/48). Candidate NOT promoted; slow local remap of corridor recommended. See ATLAS_LOCAL_MAP_REPAIR_DHRUV_HALL_2026-10-10.md."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "local_map_candidate_validation",
+          "description": "Read-only validation. Fresh Dhruv Room scans: active and v1 6/6 VERIFIED (v1 margin 0.15 vs 0.11-0.13). Corridor: v1 40/5/3 -> 37/11/0 (OK/UNK/WRONG) because 138/258 v1 removals were real intermittently-seen surfaces; v1 also opens new reachable space (incl. into unknown, planner allow_unknown=true) -> v1 REJECTED. Safe v3 (never-hit removals only, no new reachability; 31 removed/17 added) localizes the same as the active map (AMCL replay within seed noise). Fresh parked scans show active-map errors drives cannot fix: front wall/door recess mapped 0.15-0.34 m short, exit jamb at (0.66,-1.06), inner left-wall copy. Conclusion: local deletion insufficient; supervised slow corridor re-map (<=0.15 m/s, <=15 deg/s) planned. Corridor/Hall fresh scans pending operator placement."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "readonly_reliability_pass",
+          "description": "Live repeat: monitor VERIFIED 13:10-13:23 (fit 0.91-0.96); operator web reset + short web drive 13:23:16-13:24:11; first check 13:24:15 LOST 1.05 m/24 deg (AMCL fit 0.51), still LOST 0.74 m/21 deg at 13:30. Monitor detected 4 s after stop. GAP: no recording; bounded drive recorder proposed. Not reseeded."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "location_check_blocked_without_amcl",
+          "description": "19:06 restart: verify-before-seed refused (best 0.90<0.93) so AMCL had no pose; CHECK MY LOCATION required an AMCL pose before its independent search and returned the merged message SCAN UNAVAILABLE or AMCL reference unavailable while scan/TF/map were fresh. Stage 13 (2e10355) deployed 19:45 latched: precise codes, AMCL optional, LIDAR_ONLY_MATCH never VERIFIED. Live Dhruv Room (0.235,-1.435,72-78 deg) fit 0.994-1.000 margin 0.079-0.107. Replay of Oct 10 bag: AMCL alias MISMATCH 3.95 m reproduced. Gap: boot-time fit 0.90 unexplained (no recording). No reseed."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "evening_recovery",
+          "description": "2026-10-11 19:52 boot: existing verify-before-seed VERIFIED (0.235,-1.535,81 deg) fit 0.989 margin 0.111 and seeded AMCL; live CHECK MY LOCATION VERIFIED 3/3, AMCL vs LiDAR 0.069 m / 3-6 deg (3 deg search grid). 19:06-boot 0.90 refusal cause undetermined: verdict overwritten and journal lost; web driving 19:13-19:32 means its pose is uncertain. Replayable per-boot verdict capture prepared (b81d7ac), not deployed."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage19_native_baseline_fidelity_blocked",
+          "description": "Full 295 s native Humble EKF/AMCL baseline in private network/PID/devices, domain187. Original 384/80 poses and five parked jumps vs native382/80 and eight pre-stop/zero parked steps; NOT original failure reproduction or a fix. First recorded EKF (18.392,-3.654 m,-128.476deg) vs cold native zero; relative wheel anchor/prior full state absent. After initial rigid alignment up to1.343m/18.401deg replay difference. All selected inputs published but max sender lateness0.27849s; native2586 vs recorded2908 EKF samples. Strengthened gate refuses B before launch; no candidates accepted, no production service/settings/actuator change, EStop latched. See ATLAS_STAGE19_NATIVE_EKF_AMCL_REPLAY.md."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage20_partial_native_capture",
+          "description": "Native private-domain synthetic capture validates actual EKF relative reference and full covariance, CDR read-back/order ledger and default-OFF service observation hooks. 28 offline tests pass. Installed Humble rclpy lacks configure_introspection; AMCL public weighted cloud is not PF/RNG checkpoint. Startup consumer order and complete internal events remain gaps; NOT deployment-ready or faithful replay. No live install/restart/seed/movement, map/config hashes unchanged, EStop remains latched. See ATLAS_STAGE20_EKF_AMCL_CHECKPOINT_CAPTURE.md."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage20_minimum_safe_public_alternative",
+          "description": "Implementation aa0bb06 qualifies ONLY a finite public read-only capsule, with unqualified private overlays/hooks excluded rather than safety-downgraded. Raw CDR fixes native diagnostic receive loss:173-175/1500 fast samples before vs all97901 sources in full120s qualification.65 offline checks; actual530-unit graph, header/receipt ledger, fake-root one-use adapter and resource/scratch rollback checks pass. Collector76.66MiB,63.8094 CPU seconds/120.066s,197.72MB logical output. User CPUQuota/device sandbox unavailable; actual RLIMIT_CPU75s/memory192MiB/tasks48 bounds documented. No production install/restart/seed/steering/motor/map/calibration changes; EStop latched. PUBLIC readiness is not private checkpoint/fidelity: full state/reference/consumption/RNG remain unavailable and five jumps unresolved. See ATLAS_STAGE20_MINIMUM_SAFE_DEPLOYMENT.md."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage20_installation_abort_evidence_repair",
+          "description": "Original approved install exited1 before payload/unit/backup creation. Exact trigger UNKNOWN: supervisor captured but discarded child stderr; no original error recovered from available output/scoped journal. Implementation0d216ec adds durable sanitized phase/exit/traceback/hash/write/rollback evidence and reviewed-manifest gate without changing nine runtime files or safety thresholds.83 PC tests pass, one POSIX skip;19 native targeted tests pass including actual permission refusal. Exact candidate fake-root install/rollback and native parser/offline static-unit checks pass; daemon-reload simulated, no live manager mutation. Production payload/grant/unit absent, EStop latched/commands zero, PIDs/restarts/protected hashes unchanged. Renewed installation approval required. No localization fix claimed. See ATLAS_STAGE20_INSTALL_FAILURE_ROOT_CAUSE.md."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage20_controlled_startup_qualification",
+          "description": "Version-pinned opt-in overlays expose real EKF consumer/relative-reference and AMCL initialization/resampling events. Preserve discovery/alias/shutdown failures and wall-time 3.223% covariance mismatch. Controlled synthetic clock plus wheel-first fixture: 2734 consumptions correlate, 609 matched static samples have zero XY/yaw and max covariance difference0.089457%; NOT historical/moving fidelity. 46 current offline checks, native quota/crash/restart pass. Twenty synthetic AMCL starts produce valid poses; Gaussian allocation srand48(++pf_pdf_seed) overrides wall seed, so they are not independent randomized trials. No production install/restart/seed/movement/calibration/map change; EStop latched. Package/reset/systemd/full-rate/statistical gates pending: DEPLOYMENT READY NO. See ATLAS_STAGE20_DEPLOYMENT_READINESS_REPORT.md."
+        },
+        {
+          "date": "2026-10-15",
+          "kind": "ekf_translation_heading_inconsistency",
+          "description": "Offline, 4 Oct9 drives, 933 LiDAR-ICP pairs: recorded /odom travel direction vs its own heading p90 22 deg (40% >10 deg) vs ICP 9 deg (7%); production EKF fuses wheel X/Y pose (fixed 0.05 m^2 covariance) integrated along commanded-steering yaw while yaw comes from the gyro. Native robot_localization replay (Jazzy 3.8) reproduces recorded relative motion per pair to <=0.11 cm lateral / <=0.6 cm forward / <=0.3 deg, so relative A/B is valid (absolute/AMCL reproduction remains blocked per Stage 19). Candidate B (Vx,Vy only) cut chain heading drift per ~1.4 m from 4.8/7.4/23.6 to 0.5/2.3/3.4 deg; lateral/sideslip benefit only after correcting a separate 5.5 deg LiDAR-travel offset; forward under-read ~1 cm/pair worse. B coasts 2.01 m in a synthetic 20 s parked stop with encoder consensus lost; fresh-zero-count twist anchoring (driver, built, not deployed) reduces it to 0.003 m. No AMCL improvement claimed; nothing deployed. Evidence: ATLAS_SINGLE_DEVELOPER_RECOVERY_HANDOFF.md"
+        },
+        {
+          "date": "2026-10-15",
+          "kind": "humble_ab_and_stop_anchor_revision",
+          "description": "Native Humble (robot_localization 3.5.4, same as Jetson) reproduces the Jazzy A/B: chain heading drift A 5.11/7.39/23.58 -> B 0.56/2.26/3.48 deg; fidelity vs recorded EKF <=0.16 cm lateral, <=0.32 deg. First stop anchor (3eff519, one unchanged tick) found too weak: 9 Oct encoder_update snapshots show all four counts unchanged up to 0.79 s while ICP shows motion; replaced by a 1.0 s WheelStillnessDetector (fresh stream, motor outputs zero, newer packet required). Realistic synthetic consensus loss at stop: B 1.61 m -> 0.135 m bounded. Stage 21 package prepared (patch onto live 0872973 driver; undeployed Stage 17 commits excluded). Nothing deployed. Evidence: ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md"
+        },
+        {
+          "date": "2026-10-15",
+          "kind": "stage21_deployed_parked_verified",
+          "description": "Stage 21 driver stop anchor (a2ad1c9/46424ff, patch onto live 0872973 driver) deployed 12:53:45 IST; only rover-base-telemetry restarted (PID 3162->45674). Live hashes yahboom_base c551be00..., atlas_encoder_selection 7d457c9f... 600 s parked: encoders fresh (max age 55 ms), 4/4 accepted, /odom drift 0.0 cm/0.0 deg, no backwards stamps, cmd_vel all zero, policy latched/manual-only, protected PIDs unchanged, 0 driver errors. Fewer-than-3 branch NOT LIVE EXERCISED; moving validation pending. Backup data/backups/2026-10-15-125345-601344477-stage21-driver-stop-anchor."
+        },
+        {
+          "date": "2026-11-12",
+          "kind": "heading_root_cause_and_ekf_change",
+          "description": "Three recorded manual dhruv room<->hall drives (bags maps3d/m3_session_20261112-{133742,141158,151321,153118}_bag) against an independent LiDAR keyframe-ICP heading (map-free, odometry-free; still-drift 0.009 deg/s over 355 s). CONFIRMED: wheel /yahboom/odom heading has the OPPOSITE sign to the LiDAR (turn-rate corr -0.83/-0.87) and the Yahboom board gyro /imu/data is also opposite (-0.89/-0.91); IM10A corrected gyro matches (+0.93/+0.94; e.g. LiDAR -134.8 vs IM10A -133.0 deg). The live EKF fused wheel x/y (built on the inverted wheel heading), so its heading departed from its own IM10A turn rate (e.g. stretch LiDAR -134.8, EKF heading +36.3). NEW DISCRIMINATING EVIDENCE vs the earlier rejected velocity-only trial: offline robot_localization replay of the 14:12 drive, live config median heading error 68 deg (max 170) vs wheel-vx-only + IM10A 1.3 deg (max 20). DEPLOYED 14:55 (owner-approved, E-STOP latched): atlas_ekf.yaml odom0_config vx only; backup atlas_ekf.yaml.before-vx-only-20261112-145502. Live turn test: LiDAR -16.9, IM10A/EKF -19.6, AMCL -14.0 deg. Real drive 15:13: EKF heading -91.0/-98.6 vs LiDAR -91.6/-88.4. FAILED ATTEMPT (recorded, reverted): 14:30 IM10A gyro-Z sign inversion based on an analysis sign bug (keyframe ICP rotation subtracted instead of added); reverted about 14:45 after AMCL and the owner's reported turn contradicted it. STILL UNRESOLVED: AMCL in the Hall on the existing map (scan fit 0.20; AMCL rotated +53.7 deg while parked; monitor LOST 4.47 m/65 deg). Offline slam_toolbox candidate map atlas_candidate_20261112 from two short legs REJECTED: partial (1077 vs 1920 occupied cells), place test ambiguous (0.99 vs 0.99) where the old map verified (1.0, margin 0.131). Position accuracy over full drives NOT verified. Docs: docs/LOCALIZATION_HEADING_DIAGNOSIS_20261112.md."
+        },
+        {
+          "date": "2026-11-12",
+          "kind": "remap_attempt_rejected",
+          "description": "16:00-16:16 manual-teaching remap session dae618d3 (owner drove Dhruv Room -> Hall -> Dhruv Room with the vx-only EKF). Round-trip closure PASSED 0.061 m / 1.98 deg (tape-marked start); bidirectional room<->hall plans present. REJECTED by pre-promotion gates: map->odom translation jump 0.916 m > 0.15 and yaw jump 12.0 deg > 5.0 (max at observation 1794479778, about 16:06:18 IST, shortly after leaving the Hall), and 'map->odom observation did not cover mapping-session start' (observation began at session ready_unix, 79 s after started_unix; SUSPECTED gate/design interaction with the deliberate post-ready observation window, unverified). Accepted map preserved (hash 4beb26d5). Report maps/.atlas_candidate_dae618d3...acceptance.json; side recording maps3d/remap_20261112-160012_bag (113 MB, LiDAR/odom/IM10A/TF). The session had overwritten named_places/home/seed in the rejected SLAM frame: kept in ~/.config/project_atlas/rejected_session_dae618d3; named places restored to the pre-session old-map x/y recorded the same day (dhruv room 0.25,-1.54; hall 6.28,-2.2) with RECONSTRUCTED headings (77.0 deg from LiDAR-verified room pose; -98.7 deg from converged Hall AMCL pose) - exact pre-session headings not recoverable; home_pose and seed moved aside (home must be re-saved). Localization restored on the old map: place check VERIFIED fit 0.976, monitor VERIFIED. Suspected next cause: odometry distance/scale drift (EKF 5.36 m vs wheel 6.23 m on the 15:13 leg; see ATLAS-001), to be checked in the side recording around 16:06:18."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-012",
+      "title": "Planner/controller contradiction and provisional calibration copies",
+      "first_available_occurrence": "2026-08-24",
+      "latest_reviewed_occurrence": "2026-08-24",
+      "subsystem": "Nav2 / config",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Reverse-capable planner inconsistent with allow_reversing=false; duplicate config/calibration copies differed.",
+      "confirmed_findings": "Historical source correction aligned DUBIN and forward-only controller and synchronized calibration.",
+      "suspected_causes_and_limits": "Later room-navigation failures are not proof this exact contradiction returned.",
+      "attempted_fix_commits": [
+        "5c9064cd67358f0dd25c094a27fef96f8449eb70"
+      ],
+      "evidence": [
+        "CHANGELOG.md",
+        "commit 5c9064c"
+      ],
+      "test_results": "Source correction reviewed; no fresh end-to-end certification in this audit.",
+      "remaining_verification": "Preserve known alignment; compare deployed/repo copies and plan geometry before ground campaign. Do not undo to get past another guard.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-24",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Reverse-capable planner inconsistent with allow_reversing=false; duplicate config/calibration copies differed."
+        },
+        {
+          "date": "2026-08-24",
+          "kind": "latest_assessment",
+          "description": "Source correction reviewed; no fresh end-to-end certification in this audit."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-013",
+      "title": "Remote steering regressions and commanded-angle model",
+      "first_available_occurrence": "2026-08-09",
+      "latest_reviewed_occurrence": "2026-10-14",
+      "subsystem": "manual control / steering / odometry",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Repeated recenter/ownership changes; mapping steering clamp later restored; no physical angle feedback.",
+      "confirmed_findings": "Commanded servo position is not measured road-wheel angle. It affects path normalization and odometry even if wheel yaw is excluded from EKF.",
+      "suspected_causes_and_limits": "Current turn discrepancy not uniquely attributable to this model; offline half/zero-angle variants did not justify deployment.",
+      "attempted_fix_commits": [
+        "6e5a2b487f230e5939484a915037d9af324d0bab",
+        "431016284bd2a23cf15a2df98bb6d0609cd0722c",
+        "8d1567fe07a1267eba9601d2ff35dea2b5530e8c",
+        "90a0751e1a4c50f66a523a6d9660e339ef12257c",
+        "eb7cdf1dbae8c64a36a89ee45884d74c024212fb",
+        "6ceb123c2a4c476ca207032b126972a4d02d0234",
+        "63a7d3dd9b73684d65bc1a6f9bd2b3db7b522ffe"
+      ],
+      "evidence": [
+        "docs/SLAM_TURN_CORRECTION_ANALYSIS_2026-10-08.md",
+        "project_atlas/scripts/yahboom_base.py",
+        "ATLAS_STAGE17_STEERING_YAW_VALIDATION.md",
+        "CHANGELOG.md"
+      ],
+      "test_results": "User-approved manual steering preserved; offline geometry alternatives inconclusive.",
+      "remaining_verification": "Keep working steering calibration frozen. Verify model offline with coherent encoder samples before separately authorized bounded measured turns.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-09",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Repeated recenter/ownership changes; mapping steering clamp later restored; no physical angle feedback."
+        },
+        {
+          "date": "2026-10-08",
+          "kind": "latest_assessment",
+          "description": "User-approved manual steering preserved; offline geometry alternatives inconclusive."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage17_measurement_preparation",
+          "description": "Live owner/config hashes match source: front PWM 2, rear PWM 1, centres 90/90, commanded-only feedback. Both axles historically operated, but current physical connectivity and road-wheel angles require approved stationary measurement. Prepared perspective/sync/rolling-observability harness and guarded-owner test plan. Unused direct-serial helper swapped channel mapping and bypassed ownership; source now refuses actuation, with no evidence it caused recorded yaw errors. No live control/calibration changes. See ATLAS_STAGE17_STEERING_YAW_VALIDATION.md."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage17b_single_person_preparation",
+          "description": "Disabled opt-in front-only sequence and paused Vernier observations implemented through existing steering owner; 62 offline Python checks plus mock UI passed. Phone tilt is not road-wheel feedback. No live deployment, actuation, calibration or localization fix; physical measurements and expanded-profile resource validation pending. See ATLAS_STAGE17B_SINGLE_PERSON_STEERING_TEST.md."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage18_isolated_motion_comparison",
+          "description": "Owner places Stage17B on HOLD. Isolated general 4WS lateral/path model and source-timed neutral ICP/gyro consistency evaluator tested. Expanded exact-update coverage: final roundtrip has 4591 snapshots, in addition to Hall return 2919; prior inventory incomplete. Same-command general model does not repair yaw sign; gyro-heading shadow improves median yaw but not translation consistently across both drives. Five original AMCL switches remain unresolved; no steering multiplier, distance scale, calibration, lower-encoder authority or fusion deployment. See ATLAS_STAGE18_ODOMETRY_SENSOR_FUSION_REPORT.md."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-014",
+      "title": "Observability overhead and overstrong success claims",
+      "first_available_occurrence": "2026-08-06",
+      "latest_reviewed_occurrence": "2026-10-14",
+      "subsystem": "engineering process / compute / evidence",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Early completed commissioning report uses old motor mapping; later failures/changes invalidate blanket carry-forward. High load and missed deadlines repeatedly conflated with hardware failure.",
+      "confirmed_findings": "Unit pass, topic freshness, manual route success, and commit/deployment are different evidence levels. Measured observation overhead reduced in scoped optimizations.",
+      "suspected_causes_and_limits": "CPU scheduling is a possible contributor, not proof Jetson is insufficient or a reason to disable essential sensing.",
+      "attempted_fix_commits": [
+        "751567654426e77d4d8bf48e896205cd93677513",
+        "af3812078786004d25a618363466949726458de1",
+        "9f2f7c75ff2d11b79af139ba8f4862d632bfe0d2",
+        "c224156866c10e8f3a1fe7fa7a0cdcf5934ca3aa",
+        "3d66c3812c968796fed70b7f32dae511aadeed45"
+      ],
+      "evidence": [
+        "docs/COMMISSIONING_STATUS_2026-08-06.md",
+        "docs/SENSOR_RECOVERY_IDLE_CPU_2026-10-04.md",
+        "docs/LIFTED_TEST_FAILURE_AUDIT_2026-10-08.md",
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md",
+        "docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md",
+        "docs/audits/ATLAS_MOVING_LOCALIZATION_FAILURE_2026-10-10.md"
+      ],
+      "test_results": "Raw freshness optimization documented 20.0 to 15.3% one-core CPU; no end-to-end performance certification.",
+      "remaining_verification": "Record config/hardware identity with every qualification; load-test real workload with temperature, message ages and control deadlines; retain failures and limit claims.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-08-06",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Early completed commissioning report uses old motor mapping; later failures/changes invalidate blanket carry-forward. High load and missed deadlines repeatedly conflated with hardware failure."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Raw freshness optimization documented 20.0 to 15.3% one-core CPU; no end-to-end performance certification."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "dashboard_link_staleness_misclassified",
+          "description": "atlas_mapping.html aged rover items by browser time, so a Wi-Fi/Tailscale stall showed POSE DELAYED (40/60 samples in a 6 s simulated stall) and a slow link showed AMCL UNVERIFIED while parked. Fixed: link freshness separated from server-side rover ages; deployed display-only 2026-10-10 16:08 IST with backup; 7 Node tests and browser simulation pass. Live dashboard observation during a real roam still pending."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "covariance_collapse_reads_as_confident",
+          "description": "Collapsed AMCL cloud gives +/-1e-14 covariance: map page CONFIDENT or invalid depending on round-off sign; mux and mission control clamp negatives to 0 (perfect confidence). Dashboard change (green requires this boot LiDAR start verification) implemented and browser-tested; not deployed. Clamp left for a reviewed safety change."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "start_verified_not_continuous",
+          "description": "Map page showed green START VERIFIED for a pose 4 m wrong: start verdict was rendered as ongoing proof (design error in the same-day change). Fixed in repo: green requires a fresh parked LiDAR check of the current AMCL pose; start-only shows amber. Not deployed."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "cpuquota_not_enforced",
+          "description": "systemd user manager delegates only memory+pids controllers: CPUQuota/CPUWeight on user services are not enforced (earlier claim of a 60% cap on the monitor was wrong). Monitor ~0.30 core, status web ~0.53 core, load average 13-17 on 6 cores at 21:09."
+        },
+        {
+          "date": "2026-10-14",
+          "kind": "stage17_isolated_recorder_trial",
+          "description": "Temporary parked 60 s steering-validation recorder profile: 7032 messages, SQLite integrity ok, all required topics present, zero application and DDS-reported losses. Recorder CPU sampled ~40.48% one core, RSS 84.98 MiB, files 8.01 MB; whole-system CPU 72.9% before/73.1% after, 79.36% mean and 99.4% sampled max during trial, temperature 61 C. Raw/ corrected gyro plus exact encoder snapshots and particles captured; E-STOP latched throughout. No production install/autostart or physical movement; moving workload impact remains unmeasured."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-015",
+      "title": "LiDAR startup recovery and boot clock chronology",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-11",
+      "subsystem": "LiDAR / startup / logs",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Current boot recorded stale LiDAR and recovery incomplete twice at 09:13–09:14 IST; service subsequently active, health OK.",
+      "confirmed_findings": "Startup recovery occurred; wall timestamps initially resembled previous evening before clock synchronization.",
+      "suspected_causes_and_limits": "Underlying startup delay not localized; active service and device health are not proof of current /scan freshness.",
+      "attempted_fix_commits": [],
+      "evidence": [
+        "journalctl --list-boots",
+        "journalctl --user -b -u atlas-lidar.service",
+        "journalctl --user -b -u atlas-sensor-recovery.service",
+        "docs/audits/ATLAS_HALL_COLDSTART_LOCALIZATION_2026-10-10.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md"
+      ],
+      "test_results": "Later service running with NRestarts=2 and device health OK; scan stream endurance not tested.",
+      "remaining_verification": "Bind logs to boot ID and monotonic time; verify scan freshness/frame geometry and startup dependencies read-only before navigation.",
+      "history_completeness": "Indexed related available commits; not all raw historical occurrences independently reviewed",
+      "events": [
+        {
+          "date": "2026-10-09",
+          "kind": "earliest_reviewed_evidence",
+          "description": "Current boot recorded stale LiDAR and recovery incomplete twice at 09:13–09:14 IST; service subsequently active, health OK."
+        },
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Later service running with NRestarts=2 and device health OK; scan stream endurance not tested."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "lidar_start_failure_delays_localization",
+          "description": "Boot 16:24: 25 RPLIDAR start failures (Can not start scan 80008002 / SL_RESULT_OPERATION_TIMEOUT) until 16:35:45; bounded recovery gave up 16:31:28; localization start failed until 16:36:13. Same signature 23x on Oct 9 09:00-10:59. Power/USB/motor spin-up cause is a hypothesis."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "lidar_startup_restart_storm",
+          "description": "Boot 18:11: atlas-lidar exited 21 times (SL_RESULT_OPERATION_TIMEOUT, then health OK + 'Can not start scan 80008000/80008002') before scanning ~3 min after boot; 6 of last 10 boots had 10-21 failed starts. Restart=on-failure RestartSec=5 makes the 5-in-10s limit unreachable (unbounded loop); atlas_sensor_recovery also restarted the unit (18:24:35 restart killed the instance systemd started at 18:24:34). CH340 discovery (atlas_usb_identity) cannot open the CP2102 LiDAR: hypothesis rejected. Suspected (unconfirmed): LiDAR 5 V/USB hub supply at boot. Offline fix b28819c: recovery defers while systemd is mid-restart; proposed drop-in StartLimitBurst=40/900s. Not deployed."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "readonly_reliability_pass",
+          "description": "8-boot parse: failures only at start (0-21/boot), first scan 20-257 s, never a runtime failure once scanning; signatures T (no reply) and I/S (health OK, start-scan invalid data/timeout); no USB re-enumeration; ModemManager strict filter does not probe the CP2102 (rejected); no other open handle; b28819c deferral observed working on Jetson. LiDAR on VL817 USB-C hub behind Realtek hub with ESP32-S3 and CH340. 5 V supply still SUSPECTED; needs measurement. No change made."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "restart_1906",
+          "description": "19:06 boot: 15 failed RPLIDAR starts, scanning at 216 s; atlas-localization failed 5 times waiting for it. Same start-only pattern."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-016",
+      "title": "Visual Cloud ingest destination is a placeholder and local history is stale",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "observability / Visual Cloud",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "Active agent repeatedly logged DNS errors for atlas-visual-cloud.example. The checked-in cloud_url uses that example hostname; local history.sqlite3 was approximately 26.5 GB and last modified Oct4.",
+      "confirmed_findings": "Service-active status does not mean remote ingest succeeded. The server has an 86,400-row retention cap but SQLite deletion does not automatically shrink allocated pages.",
+      "suspected_causes_and_limits": "Exact deployment intent, current local ingest wiring and historical database growth rate have not been fully established. Database size is not evidence of a full disk; approximately 373 GB was free at the stopped-runtime check.",
+      "attempted_fix_commits": [],
+      "evidence": [
+        "project_atlas/config/atlas_visual_cloud.json",
+        "project_atlas/scripts/atlas_visual_cloud_agent.py",
+        "project_atlas/scripts/atlas_visual_cloud_server.py",
+        "journalctl --user -b -u atlas-visual-cloud-agent.service"
+      ],
+      "test_results": "Read-only configuration, journal, file metadata and disk checks only; no ingest repair or deployment.",
+      "remaining_verification": "Confirm intended authenticated endpoint and data flow; measure payload rate, retention and CPU/disk overhead. Change one existing collector only after preserving local safety and diagnostic continuity.",
+      "history_completeness": "Current runtime/config snapshot; older outages and remote endpoint history not exhaustively reviewed",
+      "events": [
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Agent is active but sends to an example hostname and receives DNS failures; local history is stale and large. No new collector justified."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-017",
+      "title": "Failed BMS reads republish stale scalar values",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-09",
+      "subsystem": "BMS / data freshness / mission preflight",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "On a Daly BLE read failure, JSON reported ok:false but publish_data emitted prior voltage/current/SOC/cells on scalar topics. The agent refreshed its SOC age from scalar percent.",
+      "confirmed_findings": "Scalar topics carry no validity field, so copied readings appeared new. The JSON-based motor lifted-test gate already rejected unhealthy snapshots.",
+      "suspected_causes_and_limits": "This is a freshness-contract defect, not proof of the underlying BLE connection cause. Other dashboard consumers may cache last values and require their own explicit stale indication.",
+      "attempted_fix_commits": [
+        "5bdce11"
+      ],
+      "evidence": [
+        "docs/audits/BMS_FRESHNESS_REPAIR_2026-10-09.md",
+        "project_atlas/scripts/daly_bms_node.py",
+        "project_atlas/scripts/atlas_agent_supervisor.py",
+        "project_atlas/tests/test_daly_freshness.py"
+      ],
+      "test_results": "14 focused offline Daly tests and 12 agent-core tests passed; deployed with operator approval. Short healthy-runtime check passed with unchanged motor PID, but live failure behavior and BLE endurance remain unvalidated.",
+      "remaining_verification": "During a natural failed BLE read, verify invalid JSON, no new scalar message, immediate agent preflight denial and successful recovery on a later complete read; complete stopped endurance observation.",
+      "history_completeness": "Current source and live journal reviewed; historical consumer behavior not exhaustively replayed",
+      "events": [
+        {
+          "date": "2026-10-09",
+          "kind": "latest_assessment",
+          "description": "Confirmed stale scalar republishing and agent SOC-age refresh. Source fix tested and deployed; short healthy-runtime pass only, invalid path still untested live."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-018",
+      "title": "Unclean Jetson reboots with NVMe PCIe error storms; boot reseeds AMCL at home",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-11",
+      "subsystem": "Compute / storage / localization startup",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "last -x: crash-ended sessions before reboots at 13:41:39, 13:46:27, 13:54:08, 14:29:04 IST on 2026-10-10. Kernel: PCIe corrected RxErr on 0004:00:00.0 (NVMe root port) up to ~44,000/min at 13:22-13:24 and 13:40-13:42; smaller storm 2026-10-09 21:19-21:29.",
+      "confirmed_findings": "Each boot runs atlas_localization_seeder, which seeds AMCL at the saved home pose (0.254, -1.539) regardless of physical position. The 13:54-14:29 boot left almost no journal.",
+      "suspected_causes_and_limits": "SSD seating, power or vibration; causal link between AER storms and the crashes is suspected, not proven (the 13:54 and 14:29 crashes had no storm immediately before). Link to the operator report that localization did not recover at home is a hypothesis.",
+      "attempted_fix_commits": [],
+      "evidence": [
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md"
+      ],
+      "test_results": "No AER lines since the 14:29 boot as of 15:50 IST.",
+      "remaining_verification": "Stopped soak with kernel AER monitoring after reseating/checking the SSD; record boot IDs; never treat a post-crash home seed as localization without a scan-fit check.",
+      "history_completeness": "Oct 9-10 journals only",
+      "events": [
+        {
+          "date": "2026-10-10",
+          "kind": "first_review",
+          "description": "Four crash reboots identified; NVMe AER storms precede two."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "follow_up",
+          "description": "No NVMe AER lines since the 14:29 boot (checked 16:55); the 16:24 restart was a clean shutdown. Each crash boot also reseeded Dhruv Room (see ATLAS-011)."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "journal_gap_crash_boot",
+          "description": "last -x: boot 16:24 clean shutdown 17:34:21; boot 17:34 ended 'crash'; neither boot is in journalctl --list-boots; boot -1 journal ends 15:50:52 mid-rf2o with no shutdown messages. Cause of the unexpected power-offs not determinable from logs (evidence gap). rf2o INFO logging is ~91% of user journal lines (~24/s). No storage stress tests run."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "ssd_error_scan_read_only",
+          "description": "Read-only scan of all 11 retained boots (Oct 4-10). Kernel PCIe AER on the NVMe link (SK hynix PC801 512 GB, fw HPS1, 0004:01:00.0, link 8 GT/s x2): boots Oct 9 09:13 (22,180 AER lines / 835 nvme), Oct 9 10:48 (396,236 / 10,233), Oct 10 11:18 (114,884 / 164), Oct 10 13:41 (12,262 / 295). All severity=Corrected, Data Link Layer Timeout/Rollover (replay timer), plus root-port \"can't find device of ID0000\". Zero uncorrectable/fatal, zero I/O errors, zero EXT4 errors in every boot; ext4 superblock errors_count=0. Boots Oct 4-8 and since Oct 10 14:29 have none; live AER counters 0 since 18:11. Cause of the storms and of their stopping is unknown (no cmdline change found). SMART/NVMe error log not read: needs root (sudo NOPASSWD only covers shutdown)."
+        },
+        {
+          "date": "2026-10-10",
+          "kind": "smart_log_and_2224_poweroff",
+          "description": "User-run SMART (22:2x): critical_warning 0, spare 100%, used 1%, media_errors 0, temp 57 C, power_on_hours 12,466, power_cycles 647, unsafe_shutdowns 442 (68% of power cycles), error-log entries all empty (num_err_log_entries 7). 22:24:29 clean systemd poweroff (poweroff.target) with no logged initiator (no logind power-key, sudo or dashboard entry); back up 22:25:38. Journal of earlier boots is NOT lost: boot started with clock at 1970, which hides older boots from journalctl --list-boots; `journalctl -D /var/log/journal/<id> --list-boots` shows them. The earlier \"crash boot left no journal\" finding must be re-checked with -D."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "readonly_reliability_pass",
+          "description": "Boot -1 ended uncleanly 00:55:16 (journal stops mid-stream). Boot 0 began 07:36:51 real time (uptime) with wall clock 01:16:30 until NTP 07:37:24: early journal labels 6h20m early. No AER lines boots -3..0. Power-cut vs crash undetermined."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "evening_recovery",
+          "description": "2026-10-11: both evening restarts (19:03:47, 19:52:44) were the dashboard power action from the owner PC (shutdown_latch events), clean shutdowns. The 19:04-boot ROS user journal is not retrievable after the next boot (clock began at 1970)."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-019",
+      "title": "Multi-AP Wi-Fi roaming, extender DHCP failures and cellular route flips interrupt the dashboard link",
+      "first_available_occurrence": "2026-10-09",
+      "latest_reviewed_occurrence": "2026-10-11",
+      "subsystem": "Networking / operator UI",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "original_failure_and_evidence": "One SSID on three radios (b4:a7:c6:41:fc:99/9a, f0:ed:b8:33:16:49/4a, 8c:a3:99:e7:a3:c1/c2). Oct9: 9 roams, 5 inside drive bags; Tailscale fell back to DERP 16:50-17:06. Oct10: 46 roams 14:00-15:00; extender 8c:a3:99 DHCP ip-config-unavailable 13:40-13:46; default route flipped to usb0 cellular several times. RTL8822CE power save on, txpower 7 dBm.",
+      "confirmed_findings": "Jetson-local ROS topics showed no gaps beyond normal at any roam inside the drive bags: network affects the dashboard/remote link, not localization.",
+      "suspected_causes_and_limits": "Power save and aggressive roaming plausibly add latency; no ping log exists to quantify it.",
+      "attempted_fix_commits": [],
+      "evidence": [
+        "docs/audits/ATLAS_LOCALIZATION_MOTION_INVESTIGATION_2026-10-10.md",
+        "docs/audits/ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md"
+      ],
+      "test_results": "Dashboard link/rover status separation deployed (see ATLAS-014).",
+      "remaining_verification": "10-minute ping logs parked and carried, before/after Wi-Fi power save off; fix or avoid the 8c:a3:99 extender DHCP.",
+      "history_completeness": "Journals from 2026-10-09 11:00 only",
+      "events": [
+        {
+          "date": "2026-10-10",
+          "kind": "first_review",
+          "description": "Roam/DHCP/route-flip timeline correlated with drive bags and ping-timeout reports."
+        },
+        {
+          "date": "2026-10-11",
+          "kind": "readonly_reliability_pass",
+          "description": "Read-only 8-boot review: DHCP after roam 26/26 on main router A (0-2 s) vs B/X 12/16 with 4 failures (+1 open); 73 s cellular period Oct10 14:50 was DHCP failure on B/X; fallback agent Wi-Fi Internet failures 17-109 s incl. Oct11 09:39 with no roam; six 1 s NM cellular default-route flips with no Wi-Fi event (trigger unknown at info level); wifi.powersave=3 + rtw_power_mgnt=2, regdomain 00, txpower 7 dBm, BT coex active with 1164 BMS bonding failures this boot; ICMP over Tailscale p50 54 ms vs gateway 1.6 ms. CORRECTION: Oct10 '46 roams 14:00-15:00' not reproducible from retained journal (6 found). No change made. See ATLAS_CORE_RELIABILITY_READONLY_2026-10-11.md."
+        }
+      ]
+    },
+    {
+      "id": "20261015-stage25-m2-m3-encoder-faults-odometry-blind",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-15",
+      "description": "Slow return not integrated: M3 (front-left) near-dead (44 vs ~25,000 counts outbound) and M2 (rear-right) froze at raw -40584 for 4.5 s at 21:40:24.2 then counted the opposite direction (178/290 opposite vs 12/2715 in 4-9 Oct bags). No 3 wheels agree, so 3-of-4 consensus fails closed (feedback_unavailable 313/3635 intervals, 3.47 of 9.33 m M1/M4 travel). Serial link clean. Cause of the M2/M3 faults (encoder/wiring/decode) is physical and not determined. 2026-10-16 refinement: M2 after 21:40:24 is not a clean sign inversion (slope -0.65, r -0.4; 0% same direction forward, mostly zero in reverse); M3 loses counts going forward (0.0-0.13 of reference) but counts ~0.96 in reverse. History scan of 41 bags: direction-dependent loss moved M4 (reverse, from 2 Oct) -> M3 (forward, from 8 Oct) -> M2 (15 Oct). Shared harness/connector/supply cause plausible, unproven; hand test pending.",
+      "evidence": "ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md sections 4-5; bags capture_20261015T160704Z..T161222Z (hashes in report). ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md sections 6-9.",
+      "safety": "Fail-closed policy worked as designed; not weakened. No threshold, scale or CPR change."
+    },
+    {
+      "id": "20261015-stage25-dashboard-stopped-chip",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED (deployed 2026-10-16 09:03:38 IST; static files, no restart)",
+      "date": "2026-10-15",
+      "description": "Dashboard Motion chip reads /odom velocity only and showed Stopped while wheels counted (668/898 wheel-moving samples caught). Display-only fix web/v2/motion-status.js catches 898/898, 0/252 false flags at rest. Localization monitor MOVING flag shares the /odom blind spot (unchanged).",
+      "evidence": "ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md sections 5, 11-13; tests/test_motion_status.py with recorded frames. Deployment and live verification: ATLAS_STAGE25_ENCODER_FAULT_RECOVERY_AND_DASHBOARD_DEPLOYMENT.md sections 2-5.",
+      "safety": "Display only; no E-STOP, gating, Stage 21 or consensus change. Live deployment needs owner approval."
+    },
+    {
+      "id": "20261015-stage25-end-pose-unverified",
+      "confidence": "SUSPECTED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-15",
+      "description": "Final AMCL pose (4.57,-0.97) scan fit 0.34, ~4.3 m from start and outside the Dhruv Room box; owner reports back in Dhruv Room. Alternate poses fit no worse. AMCL also moved 1.25 m in 15 s after stopping at Hall as covariance collapsed from 1.41 m/75 deg.",
+      "evidence": "ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md section 8.",
+      "safety": "Do not seed or trust final pose without physical confirmation."
+    },
+    {
+      "id": "20261015-stage25-recorder-gaps-expected",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "date": "2026-10-15",
+      "description": "Both bag gaps (65.9 s, 24.1 s) equal stationary time minus the 20 s post-roll plus 10 s pre-roll; 0 drops, 0 missing topics, all closes 'stopped'. Orchestration (arm just before driving, re-arm after stops over ~3 min) needs no recorder change. E-STOP was never latched during the loop (0/3665 policy messages).",
+      "evidence": "ATLAS_STAGE25_ROUNDTRIP_ROOT_CAUSE_AND_FIX.md sections 0, 10.",
+      "safety": "No recorder change."
+    },
+    {
+      "id": "ATLAS-WEB-RESTART-CPU-TRANSIENT-20261021",
+      "confidence": "SUSPECTED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "description": "Every rover-status-web restart produces a whole-machine CPU transient far above the 75% Vision Lab admission limit. The Stage32 instrumented install sampled it 1-3 s after HTTP came up (95.64%) and rolled back; it was not caused by the candidate.",
+      "evidence": "Installer timing (sample right after /api/vision3d/summary answered). Independent A1 restart 15:56 with a different payload: /api/status 93.6% at 15:56:36; 1-min load 8.22->16.58->23.31 (about 51 runnable tasks over 15:56:23-36 vs about 10 parked); 64.7% by 16:01. Web process self-cost small (252.9 CPU-s over 570 s; steady 0.455 core; start-up excess about 0 +/-10 CPU-s). Mechanism consistent with CONFIRMED ATLAS-ASTRA-DDS-DISCOVERY-FANOUT-20261021 (web re-joins domain 0 with 2 nodes/107 subscriptions).",
+      "attempted_fix": "Avoid the restart: Stage32 IR diagnostic repackaged so no file loaded by rover-status-web changes (tools/vision3d/stage32_ir_diag_package.py). No guard, service or DDS change.",
+      "remaining_gap": "No per-process sample of the failed second. If a future change needs a web restart, capture one approved restart with tools/vision3d/stage31_cpurec.py (passive /proc, 1 Hz) and gate post-restart camera work on the unchanged guard only after the transient has settled.",
+      "safety": "No restart, policy, service or camera action taken during analysis.",
+      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 21",
+      "observations": [
+        {
+          "date": "2026-10-21",
+          "kind": "owner_approved_monitored_restart",
+          "description": "U2+P monitored rover-status-web restart 19:17:18 IST: peak 98.9% at +14.4 s, 19 one-second samples >75%, settled (5 consecutive <=75%) at 30.6 s; camera off; reproduces the documented transient. Evidence evidence/stage32_u2p_deploy/."
+        }
+      ]
+    },
+    {
+      "id": "ATLAS-ASTRA-IR-CANDIDATE-MANIFEST-MISMATCH-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "date": "2026-10-21",
+      "description": "The rolled-back IR instrumentation candidate replaced lib/libastra_camera.so without updating the isolated runtime manifest.json entry; the Vision Lab worker's 458-file integrity check would refuse every session (Depth included) with 'isolated runtime integrity failure'.",
+      "evidence": "Live manifest c1a6d1c0 lists libastra_camera.so 6ae87601/2825416; candidate 8609f264/2835096. Regression test test_library_only_install_would_fail_worker_integrity.",
+      "attempted_fix": "New package ships manifest.json with only that entry updated (77726de6); rehearsal on a Jetson byte copy: integrity PASS after apply, byte-identical rollback.",
+      "remaining_gap": "Offline/copy verification only; not installed.",
+      "safety": "Isolated runtime only.",
+      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 21.4",
+      "verification": "2026-10-21 rehearsal on Jetson copy; not a production deployment."
+    },
+    {
+      "id": "ATLAS-ASTRA-IR-OPENNI-NO-FRAME-READY-20261021",
+      "confidence": "CONFIRMED",
+      "resolution": "VERIFIED FIXED",
+      "date": "2026-10-21",
+      "description": "Astra Pro (0x0403, fw 5.8.22, serial 17122120830) IR stream at 320x240@30 GRAY8: OpenNI create/setVideoMode/start all return OK, but waitForAnyStream returns ONI_STATUS_TIME_OUT (102) every 2 s; no IR frame is ever ready. Earliest failed boundary = 1 (device/OpenNI). ROS publisher matched the domain-77 receiver (subscribers=1); web path not at fault.",
+      "evidence": "D1 2026-10-21 17:29 instrumented driver (8609f264) counters: created=1 started=1 publisher=1 wait_ok=0 wait_failed=11 ready=0 read_ok=0 callback=0 publish_attempt=0 subscribers=1; page polls receiver rx=0 x10. Consistent with two earlier uninstrumented IR-only sessions. evidence/stage32_d1/.",
+      "attempted_fix": "None (diagnosis only); diagnostic files rolled back at 17:29:58, integrity PASS.",
+      "remaining_gap": "Permanent fix (runtime IR request 640x480@30) needs separate review/approval and one confirming IR-only session on the production (uninstrumented) library. Why firmware advertises an unserved mode is unknown.",
+      "safety": "No restart, emitter, firmware, policy or movement change.",
+      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 22",
+      "discriminating_test": "2026-10-21 17:38 D2: same instrumented driver, same launch, IR 640x480@30 GRAY8 -> 1656/1656 frames ready/read/published (29.70 fps hardware), 1569 received, rendered on Dashboard. Only the requested IR resolution differed. Cause: on this unit (fw 5.8.22) the advertised 320x240@30 GRAY8 IR mode is not served; 640x480@30 GRAY8 is.",
+      "production_library_check": "2026-10-21 17:46 permanent-fix confirmation on production lib 6ae87601: 640x480@30 mono8 delivered and rendered (895 frames received, 29.7 fps median) for ~31 s, then the 4-s viewer lease watchdog stopped the camera at ~42 s; page/Jetson clock comparison shows the PC test client lost ~3.2 s (likely VM pause). Runtime restored to 320x240 per approval rule. Acceptance incomplete.",
+      "verification": "2026-10-21 17:59 owner-approved 60-s IR-only acceptance on production driver lib 6ae87601 with runtime fc807489 (IR 640x480@30): normal session completion, 1624 frames received, 29.7 fps median, 640x480 mono8 rendered, guard 63.7-70.5%, no restart. Correction retained in production and repository. Single session; not an endurance qualification."
+    },
+    {
+      "id": "ATLAS-VISION3D-TEST-CLIENT-LEASE-GAP-20261021",
+      "confidence": "SUSPECTED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "description": "A Vision Lab session was stopped by the viewer-lease watchdog (no renewal >4 s) while frames, CPU and Jetson were normal.",
+      "evidence": "p640_ir.json: page-clock minus Jetson-elapsed offset +0.6..+1.7 s for 35 s, then -2.6 s at the next poll (Jetson advanced 6.0 s while page advanced 2.8 s). Jetson recorder normal in the same seconds.",
+      "attempted_fix": "None; watchdog is correct fail-safe behaviour.",
+      "remaining_gap": "Run acceptance viewing from a client that cannot be paused (Jetson HMI or owner's browser); add per-request timing to the test client.",
+      "safety": "No guard or lease change.",
+      "reference": "ATLAS_STAGE32_ASTRA_INFRARED_INTEGRATION.md section 24",
+      "follow_up": "2026-10-21 17:59 acceptance used a 60-s heartbeat pre-check (max gap 0.69 s, clock spread 0.98 s) and a client sending no extra requests; session heartbeat max gap 1.40 s; no lease failure. The built-in desktop browser was rejected after its page went hidden for 54 s with no status loop."
+    },
+    {
+      "id": "ATLAS-STAGE32-DISTRIBUTED-CPU-HEADROOM-20261021",
+      "confidence": "CONFIRMED background load; historical spike attribution UNRESOLVED",
+      "resolution": "UNRESOLVED",
+      "date": "2026-10-21",
+      "description": "Astra-OFF all-process trace: mean71.3972%, maximum75.6469%; top10 omit31.1638 percentage points of matched PID CPU. Observer itself about1.0734 points. Cannot reconstruct exact76.61% failed interval from previous top10 trace.",
+      "evidence": "ATLAS_STAGE32_AGGREGATE_CPU_ACCOUNTING.md; capture SHA256 a824d638a4cf5d51417b06b2daec5d6114b059a74217aa770b575e374de459ad",
+      "attempted_fix": "Offline all-PID accounting analyzer;7 tests. No production optimization claimed or deployed.",
+      "remaining_gap": "Profile redundant dashboard operations before proposing a change. Safety deadline measurements absent;80% policy not justified.",
+      "follow_up": "2026-10-21 offline dashboard profile confirms redundant per-request history filtering and discarded per-callback deque allocations. Single-file candidate: Linux synthetic snapshot0.475341->0.081724ms;60 dashboard tests pass. NOT deployed. Does not establish whole-Jetson savings or explain entire44.84% one-core web load. ATLAS_STAGE32_DASHBOARD_SNAPSHOT_OPTIMIZATION.md.",
+      "safety": "No camera Start, restart, service disabling, threshold or motor changes. Protected service identities unchanged; E-STOP latched.",
+      "exact_live_candidate": "After deployment abort afee764, prepared exact-live fa62787f->98f3c269 two-site patch.9 package tests+60 dashboard tests PASS; synthetic snapshot0.487593->0.086112ms. All unrelated live steering/HTTP differences preserved. NOT installed. ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_PACKAGE.md.",
+      "deployment_follow_up": "2026-10-21 approved exact-live98f3c269 installed; web-only restart; protected identities/safety/health passed. Restart peak100%,settled25.085s. Parked CPU69.270->71.215% mean and web44.845->45.383% one core: NO demonstrated aggregate saving. Astra OFF. Prior candidate status superseded; headroom unresolved. ATLAS_STAGE32_EXACT_LIVE_SNAPSHOT_DEPLOYMENT.md."
+    },
+    {
+      "id": "ATLAS-VISION-BACKEND-INSTALL-READINESS-20261030",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Type=simple restart returned before HTTP bind; connection refused. CPU79.1453% sample ended22146.439869 before old process stopped22147.582186 and candidate started22147.586605. Process attribution unavailable.",
+      "candidate": "Offline bounded readiness, independent camera process authority, latched guard/error retention and rollback readiness;13 simulated tests PASS. Not deployed.",
+      "remaining_gap": "CPU rejection not attributed; candidate API startup not verified. No deployment retry approved.",
+      "report": "ATLAS_OBJECT_TARGET_INSTALL_DIAGNOSIS_20261030.md",
+      "shutdown_followup": "Prometheus39/39 scrapes failed; no CPU or process deltas. ROS/Foxglove activity is not causal attribution. Duration UNKNOWN.2 isolated staging/import tests PASS. No CPU fix or restart-free API activation. See ATLAS_WEB_SHUTDOWN_CPU_ASSESSMENT_20261030.md."
+    },
+    {
+      "id": "ATLAS-ORIGINAL-RECOVERY-STARTUP-CPU-20261031",
+      "confidence": "CONFIRMED",
+      "resolution": "UNRESOLVED",
+      "evidence": "Original source startup rejected93.624% before custom node subscriptions/timers; recovery lifetime1.828CPU-s, firstPID sample0.69CPU-s; exact rejected process/cgroup window missing. Historical Prometheus19failed scrapes/noCPU series. Recovery stopped.",
+      "candidate": "Offline failure-first raw CPU retention plus passive all-PID/selected-cgroup collector;11 focused tests PASS; PC12s overhead0.045941CPU-s,14.80MiB. Guarded integration now passes13 focused tests including native parent-SIGKILL cleanup; One approved passive Jetson test PASS:0.68516CPU-s through final12s sample,20.42MiB,aggregate peak63.12%;42units unchanged. Recovery remains stopped. No runtime optimization.",
+      "remaining_gap": "ROS/DDS/import/concurrent-process attribution and restoration unresolved. One approved start attempted: first sample68.729% with PID/cgroup; next scan failed150ms budget before partial sample persistence. Recovery stopped and original policy restored,41unrelated units unchanged. No retry; failing interval CPU unknown. Offline timeout-evidence correction now passes8 focused tests: partial scan preserves aggregate/acquired records, no raised budget or safety limit. Subsequent approved corrected run rejected actual86.934673% CPU with complete42.96ms scan; Recovery stopped, cleanup verified (a2073b4). Offline type-support preload now separates import work from DDS startup; four tests/native no-node check pass, PC16ms only. Jetson benefit unverified; root cause unresolved.",
+      "report": "ATLAS_RECOVERY_STARTUP_ROOT_CAUSE_REVIEW_20261031.md",
+      "owner_stop_20261031": "CPU investigation STOPPED at evidence limit. Root cause UNKNOWN. Recovery incident OPEN, service STOPPED and its recovery safety functionality UNAVAILABLE. CPU optimization/restoration NOT COMPLETE. No further tools, retries or speculative fixes. Handover: ATLAS_RECOVERY_INCIDENT_HANDOVER_20261031.md"
+    },
+    {
+      "id": "ATLAS-AMCL-INITIAL-POSE-MAP-TF-20261031",
+      "confidence": "CONFIRMED warnings; underlying cause UNKNOWN",
+      "resolution": "UNRESOLVED",
+      "evidence": "Existing journal09:03:40-09:03:53 IST: AMCL requires initial pose; repeated no-motion requests; global costmap waits for absent map transform. Warnings precede Recovery startup. Separate localization issue, not established CPU root cause.",
+      "remaining_gap": "Map loading, initial-pose and TF history. No initial pose injected or TF changed; no live test authorized.",
+      "report": "ATLAS_RECOVERY_INCIDENT_HANDOVER_20261031.md",
+      "follow_up": "Saved startup journal confirms map loaded and AMCL received it Oct30 16:47:47. At16:48:37 verify-mode seeder refused ambiguous matches; final fits0.935/0.931 margin0.004, pose null, same boot. Immediate cause: initial pose intentionally withheld; physical ambiguity unresolved. See ATLAS_AMCL_INITIAL_POSE_FINDINGS_20261031.md."
+    },
+    {
+      "id": "ATLAS-RECOVERY-SNAPSHOT-ABORT-20261102",
+      "confidence": "CONFIRMED abort; CPU cause UNKNOWN",
+      "resolution": "UNRESOLVED",
+      "evidence": "CPU77.4461% over1.00091s; no same-window process attribution. One activation attempt, original script/policy restored, RecoverySTOPPED/PID0. No retry.",
+      "remaining_gap": "Separate original-only restoration approval and successful supervised READY acceptance. Snapshot integration remains disabled.",
+      "report": "ATLAS_WEB_BINDING_READY_20261102.md"
+    },
+    {
+      "id": "ATLAS-RESTORATION-WATCHER-FRESHNESS-20261102",
+      "confidence": "CONFIRMED cadence/publication defect; scheduler contribution UNKNOWN",
+      "resolution": "OFFLINE FIX; LIVE PENDING",
+      "evidence": "One-second cadence and freshness deadline; PID diagnostics delayed next publication. First valid sample62.79%CPU; no start or CPU violation.",
+      "remaining_gap": "Separately approved one original-only restoration; fresh safety checks and real timing/READY acceptance.",
+      "report": "ATLAS_WEB_BINDING_READY_20261102.md"
+    },
+    {
+      "id": "ATLAS-RESTORATION-PID-QUERY-20261102",
+      "confidence": "CONFIRMED diagnostic systemctl timeout during daemon-reload",
+      "resolution": "OFFLINE FIX; LIVE PENDING",
+      "evidence": "Cadence0.5005-0.5025s;21accepted samples; noCPUviolation/start. WatcherMainPID query timed out0.3s. Cleanupverified.",
+      "remaining_gap": "Separate original-only restoration approval and real readiness/performance verification.",
+      "report": "ATLAS_WEB_BINDING_READY_20261102.md"
+    }
+  ]
+}

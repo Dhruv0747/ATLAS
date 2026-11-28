@@ -1,0 +1,67 @@
+# CANDIDATE B (proposed, NOT deployed; owner approval required; deploy only AFTER stage 21).
+# Identical to atlas_ekf.yaml except odom0_config X/Y pose -> false: wheel X/Y position is no
+# longer fused, wheel Vx/Vy (driver publishes Vy = 0) and IM10A gyro yaw rate still are.
+# Evidence: ATLAS_CORE_LOCALIZATION_FIX_DEPLOYMENT_PLAN.md. Requires stage 21 (stillness anchor),
+# otherwise a parked encoder-consensus loss lets this EKF coast (2 m / 20 s, synthetic).
+atlas_ekf:
+  ros__parameters:
+    frequency: 10.0
+    sensor_timeout: 0.3
+    # Publish odom -> base_link slightly ahead to cover normal Jetson
+    # scheduling latency. AMCL/Nav2 otherwise request "now" while the newest
+    # transform is commonly 50-200 ms behind during a loaded startup.
+    transform_time_offset: 0.2
+    two_d_mode: true
+    publish_tf: true
+    publish_acceleration: false
+    print_diagnostics: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+
+    # Wheel translation remains useful, but current commissioning found the
+    # wheel-derived yaw and yaw-rate can remain at zero during a real chassis
+    # turn and overpower the validated IM10A gyro. Do not fuse those two fields.
+    # Relative mode removes the controller's arbitrary startup origin.
+    odom0: /yahboom/odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
+                   false, false, false,
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: true
+    odom0_queue_size: 10
+
+    # Hiwonder IM10A corrected gyro Z is the commissioned yaw-rate source.
+    # 2026-09-20 physical 90-degree tests measured +90.22/-86.45 degrees;
+    # corrected gyro-authority shadow EKF measured +87.96 degrees with zero
+    # false translation and 620/620 samples accepted. Orientation, Euler and
+    # magnetic heading remain excluded because the metal chassis distorts them.
+    imu0: /im10a/imu/bias_corrected_candidate
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: false
+
+    process_noise_covariance: [0.05, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0,  0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0,  0.0,  0.06,0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0,  0.0,  0.0, 0.03,0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0,  0.0,  0.0, 0.0, 0.03,0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0,  0.0,  0.0, 0.0, 0.0, 0.03,0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.025,0.0,0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0,0.025,0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0,0.04,0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,0.01,0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,0.01,0.0, 0.0, 0.0, 0.0,
+                               0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,0.01,0.0, 0.0, 0.0,
+                               0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,0.01,0.0, 0.0,
+                               0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,0.01,0.0,
+                               0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,0.015]

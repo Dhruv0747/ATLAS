@@ -1,0 +1,47 @@
+diff --git a/FreeRTOS/inc/FreeRTOSConfig.h b/FreeRTOS/inc/FreeRTOSConfig.h
+index 099cb18..7bfd502 100644
+--- a/FreeRTOS/inc/FreeRTOSConfig.h
++++ b/FreeRTOS/inc/FreeRTOSConfig.h
+@@ -47,7 +47,7 @@
+ #define configTICK_RATE_HZ			( ( TickType_t ) 1000 )
+ #define configMAX_PRIORITIES		( 5 )
+ #define configMINIMAL_STACK_SIZE	( ( unsigned short ) 128 )
+-#define configTOTAL_HEAP_SIZE		( ( size_t ) ( 17 * 1024 ) )
++#define configTOTAL_HEAP_SIZE		( ( size_t ) ( 20 * 1024 ) )  /* ATLAS GCC compat: was 17 KB (+2 KB task stacks) */
+ #define configMAX_TASK_NAME_LEN		( 16 )
+ #define configUSE_TRACE_FACILITY	0
+ #define configUSE_16_BIT_TICKS		0
+diff --git a/Source/APP/app.c b/Source/APP/app.c
+index 479b78c..edafdd8 100644
+--- a/Source/APP/app.c
++++ b/Source/APP/app.c
+@@ -521,13 +521,13 @@ void App_Start_FreeRTOS(void)
+ {
+ 	xTaskCreate(vTask_Speed, "Task Speed", 512, NULL, 10, NULL);
+ 	printf("start vTask_Speed\n");
+-	xTaskCreate(vTask_Control, "Task Control", 128, NULL, 9, NULL);
++	xTaskCreate(vTask_Control, "Task Control", 384, NULL, 9, NULL);  /* ATLAS GCC compat: was 128 */
+ 	printf("start vTask_Control\n");
+-	xTaskCreate(vTask_Key, "Task KEY", 128, NULL, 8, NULL);
++	xTaskCreate(vTask_Key, "Task KEY", 256, NULL, 8, NULL);  /* ATLAS GCC compat: was 128 */
+ 	printf("start vTask_Key\n");
+ 	xTaskCreate(vTask_Auto_Report, "Task Report", 512, NULL, 7, NULL);
+ 	printf("start vTask_Auto_Report\n");
+-	xTaskCreate(vTask_App_Handle, "Task App_Handle", 128, NULL, 4, NULL);
++	xTaskCreate(vTask_App_Handle, "Task App_Handle", 256, NULL, 4, NULL);  /* ATLAS GCC compat: was 128 */
+ 	printf("start vTask_App_Handle\n");
+ 	xTaskCreate(vTask_IMU, "Task MPU", 1024, NULL, 3, NULL);
+ 	printf("start vTask_IMU\n");
+diff --git a/Source/APP/app_oled.c b/Source/APP/app_oled.c
+index 2fc8cc5..a0ae141 100644
+--- a/Source/APP/app_oled.c
++++ b/Source/APP/app_oled.c
+@@ -48,7 +48,7 @@ void OLED_Draw_Line(char *data, uint8_t line, bool clear, bool refresh)
+ // OLED显示小车类型和版本号
+ void OLED_Show_CarType(uint8_t car_type, uint8_t v_major, uint8_t v_minor, uint8_t v_patch)
+ {
+-	char text[20];
++	char text[24];  /* ATLAS GCC compat: "%s  %s" of __DATE__/__TIME__ is 21 chars + NUL */
+     switch (car_type)
+     {
+     case CAR_MECANUM:

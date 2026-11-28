@@ -1,0 +1,15 @@
+[Unit]
+Description=Project ATLAS RF2O LiDAR odometry shadow source
+Wants=atlas-lidar.service atlas-scan-filter.service atlas-frame-bridge.service atlas-laser-tf.service
+After=atlas-lidar.service atlas-scan-filter.service atlas-frame-bridge.service atlas-laser-tf.service
+
+[Service]
+Type=simple
+Environment=FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash; source /home/jetson/project_atlas_ws/install/setup.bash; exec ros2 run rf2o_laser_odometry rf2o_laser_odometry_node --ros-args --params-file /home/jetson/project_atlas/config/atlas_lidar_odom.yaml'
+Restart=always
+RestartSec=3
+TimeoutStopSec=6
+
+[Install]
+WantedBy=default.target

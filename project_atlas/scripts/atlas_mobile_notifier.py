@@ -107,7 +107,7 @@ class AtlasMobileNotifier(Node):
                 self._queue(
                     alert,
                     "ATLAS battery low",
-                    f"Dhruv, the main rover battery is {percent:.0f}%. Please return or charge ATLAS.",
+                    f"Dhruv, battery emergency! I am at {percent:.0f}%. I am a rover, not modern furniture—please charge me before I become a very expensive table.",
                     priority=5,
                     tags="warning,battery",
                 )
@@ -115,7 +115,7 @@ class AtlasMobileNotifier(Node):
                 self._queue(
                     alert,
                     "ATLAS charging complete",
-                    f"Dhruv, the main rover battery is fully charged ({percent:.0f}%).",
+                    f"Dhruv, I am fully charged ({percent:.0f}%), slightly overconfident, and ready to roll!",
                     priority=4,
                     tags="battery,white_check_mark",
                 )

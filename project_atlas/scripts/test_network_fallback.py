@@ -16,15 +16,23 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(p.update(False, True, False), ('WIFI', False))
         self.assertEqual(p.update(True, True, False), ('WIFI', False))
 
-    def test_cellular_after_three_failures(self):
+    def test_cellular_after_sustained_wifi_failure(self):
+        # 2026-11-20: WIFI_FAIL_CYCLES (6, about 40-50 s) consecutive failures, not 3
         p = network.Policy()
-        for _ in range(3):
+        for _ in range(network.Policy.WIFI_FAIL_CYCLES):
             result = p.update(False, True, False)
         self.assertEqual(result, ('CELLULAR', False))
 
+    def test_short_doorway_blip_stays_on_wifi(self):
+        p = network.Policy()
+        for _ in range(network.Policy.WIFI_FAIL_CYCLES - 1):
+            self.assertEqual(p.update(False, True, False), ('WIFI', False))
+        self.assertEqual(p.update(True, True, False), ('WIFI', False))
+        self.assertEqual(p.bad_wifi, 0)
+
     def test_wifi_recovery_requires_three(self):
         p = network.Policy()
-        for _ in range(3):
+        for _ in range(network.Policy.WIFI_FAIL_CYCLES):
             p.update(False, True, False)
         for _ in range(2):
             self.assertEqual(p.update(True, True, False), ('CELLULAR', False))

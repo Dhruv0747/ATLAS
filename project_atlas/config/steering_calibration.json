@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "saved_at": 1789899600.0,
+  "steering": {
+    "front": {
+      "center": 90,
+      "left": 121,
+      "right": 50
+    },
+    "rear": {
+      "center": 90,
+      "left": 134,
+      "right": 59
+    }
+  },
+  "feedback": "operator visual confirmation 2026-09-20"
+}

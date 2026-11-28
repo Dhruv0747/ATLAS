@@ -1,0 +1,40 @@
+/* ATLAS Glass UI V2 — shared tokens, font and base styles for every V2 page.
+   Served by rover-status-web from the Jetson (/v2/base.css). No external assets. */
+@font-face{font-family:"Michroma";src:url("/v2/assets/michroma-latin-400.woff2") format("woff2");font-display:swap;font-weight:400}
+
+:root{
+  --night:#050B14;          /* page base */
+  --deep:#0B1A2B;           /* solid surface (camera, radar, modal) */
+  --glass:rgba(13,30,49,.58);
+  --glass-hi:rgba(22,46,72,.66);
+  --line:rgba(128,190,236,.16);
+  --line-strong:rgba(34,184,240,.5);
+  --ink:#E7F0F8;
+  --mute:#8DA3B8;
+  --sky:#22B8F0;            /* logo cyan: info, navigation, selection */
+  --terrain:#7CC242;        /* logo green: verified / OK only */
+  --amber:#F2B33D;          /* warnings, degraded, checking */
+  --signal:#FF4D5E;         /* E-STOP and faults only */
+  --r-panel:18px;--r-ctl:12px;--r-chip:999px;
+  --display:"Michroma",system-ui,sans-serif;
+  --ui:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",Arial,sans-serif;
+  --dock:72px;              /* sticky E-STOP dock height */
+  /* legacy variable names used by existing inline styles */
+  --bg:var(--night);--panel:var(--deep);--cyan:var(--sky);--green:var(--terrain);--red:var(--signal);--muted:var(--mute)
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{color-scheme:dark;background:var(--night)}
+body{margin:0;min-height:100vh;color:var(--ink);font:14px/1.45 var(--ui);font-variant-numeric:tabular-nums;background:var(--night);padding-bottom:calc(var(--dock) + env(safe-area-inset-bottom))}
+/* Topographic contour backdrop: static, composited once. */
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+   radial-gradient(1200px 700px at 12% -10%,rgba(34,184,240,.20),transparent 60%),
+   radial-gradient(900px 600px at 100% 110%,rgba(124,194,66,.12),transparent 60%),
+   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='640' viewBox='0 0 640 640'%3E%3Cg fill='none' stroke='%2322B8F0' stroke-opacity='.07' stroke-width='1.2'%3E%3Cpath d='M320 96c118 0 214 70 214 176s-82 230-214 230-226-88-226-212S202 96 320 96z'/%3E%3Cpath d='M320 140c92 0 168 54 168 136s-64 180-168 180-176-70-176-166S228 140 320 140z'/%3E%3Cpath d='M322 186c66 0 120 38 120 96s-46 128-120 128-126-50-126-118 60-106 126-106z'/%3E%3Cpath d='M324 232c40 0 72 22 72 56s-28 76-72 76-76-30-76-70 36-62 76-62z'/%3E%3Cpath d='M-40 560c120-60 230-30 330 10s210 50 390-20'/%3E%3Cpath d='M-40 610c130-50 240-20 340 18s200 42 380-14'/%3E%3Cpath d='M-40 40c110 40 200 20 280-20s190-60 440 10'/%3E%3C/g%3E%3C/svg%3E") 0 0/640px 640px,
+   var(--night)}
+a{color:var(--sky)}
+:focus-visible{outline:2px solid var(--sky);outline-offset:2px}
+.icon{width:1.25em;height:1.25em;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.25em}
+.skip{position:absolute;left:-999px}.skip:focus{left:8px;top:8px;z-index:50;background:var(--deep);padding:8px 12px;border-radius:8px}
+
+[hidden]{display:none!important}

@@ -1,0 +1,13 @@
+[Service]
+Type=exec
+ExecStart=/usr/bin/python3 -B /home/jetson/project-atlas-migration/recovery-original-restore-once-20261031/restore_original_recovery_once.py
+ExecStopPost=/usr/bin/python3 -B /home/jetson/project-atlas-migration/recovery-original-restore-once-20261031/restore_original_recovery_once.py --cleanup
+Restart=no
+RuntimeMaxSec=60
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077
+MemoryMax=192M
+TasksMax=32
+LimitFSIZE=16777216
+NoNewPrivileges=yes
